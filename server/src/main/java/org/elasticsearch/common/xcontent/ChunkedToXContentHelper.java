@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.xcontent;
@@ -12,8 +13,6 @@ import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.xcontent.ToXContent;
 
 import java.util.Iterator;
-import java.util.Map;
-import java.util.function.Function;
 
 public enum ChunkedToXContentHelper {
     ;
@@ -30,6 +29,10 @@ public enum ChunkedToXContentHelper {
         return Iterators.single(((builder, params) -> builder.endObject()));
     }
 
+    public static Iterator<ToXContent> startArray() {
+        return Iterators.single(((builder, params) -> builder.startArray()));
+    }
+
     public static Iterator<ToXContent> startArray(String name) {
         return Iterators.single(((builder, params) -> builder.startArray(name)));
     }
@@ -38,27 +41,15 @@ public enum ChunkedToXContentHelper {
         return Iterators.single(((builder, params) -> builder.endArray()));
     }
 
-    public static Iterator<ToXContent> map(String name, Map<String, ?> map) {
-        return map(name, map, entry -> (ToXContent) (builder, params) -> builder.field(entry.getKey(), entry.getValue()));
-    }
-
-    public static Iterator<ToXContent> xContentFragmentValuesMap(String name, Map<String, ? extends ToXContent> map) {
-        return map(
-            name,
-            map,
-            entry -> (ToXContent) (builder, params) -> entry.getValue().toXContent(builder.startObject(entry.getKey()), params).endObject()
-        );
-    }
-
-    public static Iterator<ToXContent> xContentValuesMap(String name, Map<String, ? extends ToXContent> map) {
-        return map(
-            name,
-            map,
-            entry -> (ToXContent) (builder, params) -> entry.getValue().toXContent(builder.field(entry.getKey()), params)
-        );
-    }
-
     public static Iterator<ToXContent> field(String name, boolean value) {
+        return Iterators.single(((builder, params) -> builder.field(name, value)));
+    }
+
+    public static Iterator<ToXContent> field(String name, long value) {
+        return Iterators.single(((builder, params) -> builder.field(name, value)));
+    }
+
+    public static Iterator<ToXContent> field(String name, String value) {
         return Iterators.single(((builder, params) -> builder.field(name, value)));
     }
 
@@ -66,20 +57,14 @@ public enum ChunkedToXContentHelper {
         return Iterators.concat(ChunkedToXContentHelper.startArray(name), contents, ChunkedToXContentHelper.endArray());
     }
 
-    public static <T extends ToXContent> Iterator<ToXContent> wrapWithObject(String name, Iterator<T> iterator) {
-        return Iterators.concat(startObject(name), iterator, endObject());
-    }
-
-    private static <T> Iterator<ToXContent> map(String name, Map<String, T> map, Function<Map.Entry<String, T>, ToXContent> toXContent) {
-        return wrapWithObject(name, map.entrySet().stream().map(toXContent).iterator());
-    }
-
-    public static Iterator<ToXContent> singleChunk(ToXContent... contents) {
-        return Iterators.single((builder, params) -> {
-            for (ToXContent content : contents) {
-                content.toXContent(builder, params);
-            }
-            return builder;
-        });
+    /**
+     * Creates an Iterator of a single ToXContent object that serializes the given object as a single chunk. Just wraps {@link
+     * Iterators#single}, but still useful because it avoids any type ambiguity.
+     *
+     * @param item Item to wrap
+     * @return Singleton iterator for the given item.
+     */
+    public static Iterator<ToXContent> singleChunk(ToXContent item) {
+        return Iterators.single(item);
     }
 }

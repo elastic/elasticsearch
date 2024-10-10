@@ -56,7 +56,7 @@ public class DateHistogramGroupByIT extends ContinuousTestCase {
         }
 
         transformConfigBuilder.setSource(new SourceConfig(CONTINUOUS_EVENTS_SOURCE_INDEX));
-        transformConfigBuilder.setDest(new DestConfig(NAME, INGEST_PIPELINE));
+        transformConfigBuilder.setDest(new DestConfig(NAME, null, INGEST_PIPELINE));
         transformConfigBuilder.setId(NAME);
 
         var groupConfig = TransformRestTestCase.createGroupConfig(

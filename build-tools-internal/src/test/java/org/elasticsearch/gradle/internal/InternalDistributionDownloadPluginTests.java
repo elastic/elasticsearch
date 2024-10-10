@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.gradle.internal;
@@ -41,10 +42,10 @@ public class InternalDistributionDownloadPluginTests extends AbstractDistributio
         for (ElasticsearchDistributionType packageType : types) {
             // note: no non bundled jdk for bwc
             String configName = projectName(packageType.toString(), true);
-            checkBwc("minor", configName, BWC_MINOR_VERSION.elasticsearch(), packageType, null, BWC_MINOR);
-            checkBwc("staged", configName, BWC_STAGED_VERSION.elasticsearch(), packageType, null, BWC_STAGED);
-            checkBwc("bugfix", configName, BWC_BUGFIX_VERSION.elasticsearch(), packageType, null, BWC_BUGFIX);
-            checkBwc("maintenance", configName, BWC_MAINTENANCE_VERSION.elasticsearch(), packageType, null, BWC_MAINTENANCE);
+            checkBwc("minor", configName, BWC_MINOR_VERSION, packageType, null, BWC_MINOR);
+            checkBwc("staged", configName, BWC_STAGED_VERSION, packageType, null, BWC_STAGED);
+            checkBwc("bugfix", configName, BWC_BUGFIX_VERSION, packageType, null, BWC_BUGFIX);
+            checkBwc("maintenance", configName, BWC_MAINTENANCE_VERSION, packageType, null, BWC_MAINTENANCE);
         }
     }
 }

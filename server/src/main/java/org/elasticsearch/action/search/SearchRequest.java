@@ -1,14 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.search;
 
-import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
@@ -27,7 +28,6 @@ import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.sort.FieldSortBuilder;
-import org.elasticsearch.search.sort.ShardDocSortField;
 import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.tasks.TaskId;
@@ -44,14 +44,12 @@ import java.util.Objects;
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 /**
- * A request to execute search against one or more indices (or all). Best created using
- * {@link org.elasticsearch.client.internal.Requests#searchRequest(String...)}.
+ * A request to execute search against one or more indices (or all).
  * <p>
  * Note, the search {@link #source(org.elasticsearch.search.builder.SearchSourceBuilder)}
  * is required. The search source is the different search options, including aggregations and such.
  * </p>
  *
- * @see org.elasticsearch.client.internal.Requests#searchRequest(String...)
  * @see org.elasticsearch.client.internal.Client#search(SearchRequest)
  * @see SearchResponse
  */
@@ -88,6 +86,7 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
     private int batchedReduceSize = DEFAULT_BATCHED_REDUCE_SIZE;
 
     private int maxConcurrentShardRequests = 0;
+    public static final int DEFAULT_MAX_CONCURRENT_SHARD_REQUESTS = 5;
 
     private Integer preFilterShardSize;
 
@@ -148,6 +147,7 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
     /**
      * Constructs a new search request against the provided indices with the given search source.
      */
+    @SuppressWarnings("this-escape")
     public SearchRequest(String[] indices, SearchSourceBuilder source) {
         this();
         if (source == null) {
@@ -239,7 +239,7 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         preference = in.readOptionalString();
         scroll = in.readOptionalWriteable(Scroll::new);
         source = in.readOptionalWriteable(SearchSourceBuilder::new);
-        if (in.getTransportVersion().before(TransportVersion.V_8_0_0)) {
+        if (in.getTransportVersion().before(TransportVersions.V_8_0_0)) {
             // types no longer relevant so ignore
             String[] types = in.readStringArray();
             if (types.length > 0) {
@@ -263,16 +263,14 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
             finalReduce = true;
         }
         ccsMinimizeRoundtrips = in.readBoolean();
-        if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_12_0) && in.readBoolean()) {
+        if (in.readBoolean()) {
             minCompatibleShardNode = Version.readVersion(in);
         } else {
             minCompatibleShardNode = null;
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_16_0)) {
-            waitForCheckpoints = in.readMap(StreamInput::readString, StreamInput::readLongArray);
-            waitForCheckpointsTimeout = in.readTimeValue();
-        }
-        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_4_0)) {
+        waitForCheckpoints = in.readMap(StreamInput::readLongArray);
+        waitForCheckpointsTimeout = in.readTimeValue();
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
             forceSyntheticSource = in.readBoolean();
         } else {
             forceSyntheticSource = false;
@@ -288,7 +286,7 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         out.writeOptionalString(preference);
         out.writeOptionalWriteable(scroll);
         out.writeOptionalWriteable(source);
-        if (out.getTransportVersion().before(TransportVersion.V_8_0_0)) {
+        if (out.getTransportVersion().before(TransportVersions.V_8_0_0)) {
             // types not supported so send an empty array to previous versions
             out.writeStringArray(Strings.EMPTY_ARRAY);
         }
@@ -304,27 +302,13 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
             out.writeBoolean(finalReduce);
         }
         out.writeBoolean(ccsMinimizeRoundtrips);
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_12_0)) {
-            out.writeBoolean(minCompatibleShardNode != null);
-            if (minCompatibleShardNode != null) {
-                Version.writeVersion(minCompatibleShardNode, out);
-            }
+        out.writeBoolean(minCompatibleShardNode != null);
+        if (minCompatibleShardNode != null) {
+            Version.writeVersion(minCompatibleShardNode, out);
         }
-        TransportVersion waitForCheckpointsVersion = TransportVersion.V_7_16_0;
-        if (out.getTransportVersion().onOrAfter(waitForCheckpointsVersion)) {
-            out.writeMap(waitForCheckpoints, StreamOutput::writeString, StreamOutput::writeLongArray);
-            out.writeTimeValue(waitForCheckpointsTimeout);
-        } else if (waitForCheckpoints.isEmpty() == false) {
-            throw new IllegalArgumentException(
-                "Remote transport version ["
-                    + out.getTransportVersion()
-                    + " incompatible with "
-                    + "wait_for_checkpoints. All nodes must use transport version ["
-                    + waitForCheckpointsVersion
-                    + "] or greater."
-            );
-        }
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_4_0)) {
+        out.writeMap(waitForCheckpoints, StreamOutput::writeLongArray);
+        out.writeTimeValue(waitForCheckpointsTimeout);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
             out.writeBoolean(forceSyntheticSource);
         } else {
             if (forceSyntheticSource) {
@@ -337,46 +321,34 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
         boolean scroll = scroll() != null;
+        boolean allowPartialSearchResults = allowPartialSearchResults() != null && allowPartialSearchResults();
+
+        if (source != null) {
+            validationException = source.validate(validationException, scroll, allowPartialSearchResults);
+        }
         if (scroll) {
-            if (source != null) {
-                if (source.trackTotalHitsUpTo() != null && source.trackTotalHitsUpTo() != SearchContext.TRACK_TOTAL_HITS_ACCURATE) {
-                    validationException = addValidationError(
-                        "disabling [track_total_hits] is not allowed in a scroll context",
-                        validationException
-                    );
-                }
-                if (source.from() > 0) {
-                    validationException = addValidationError("using [from] is not allowed in a scroll context", validationException);
-                }
-                if (source.size() == 0) {
-                    validationException = addValidationError("[size] cannot be [0] in a scroll context", validationException);
-                }
-                if (source.rescores() != null && source.rescores().isEmpty() == false) {
-                    validationException = addValidationError("using [rescore] is not allowed in a scroll context", validationException);
-                }
-            }
             if (requestCache != null && requestCache) {
                 validationException = addValidationError("[request_cache] cannot be used in a scroll context", validationException);
-            }
-        }
-        if (source != null) {
-            if (source.aggregations() != null) {
-                validationException = source.aggregations().validate(validationException);
             }
         }
         if (pointInTimeBuilder() != null) {
             if (scroll) {
                 validationException = addValidationError("using [point in time] is not allowed in a scroll context", validationException);
             }
-        } else if (source != null && source.sorts() != null) {
-            for (SortBuilder<?> sortBuilder : source.sorts()) {
-                if (sortBuilder instanceof FieldSortBuilder
-                    && ShardDocSortField.NAME.equals(((FieldSortBuilder) sortBuilder).getFieldName())) {
-                    validationException = addValidationError(
-                        "[" + FieldSortBuilder.SHARD_DOC_FIELD_NAME + "] sort field cannot be used without [point in time]",
-                        validationException
-                    );
-                }
+            if (indices().length > 0) {
+                validationException = addValidationError(
+                    "[indices] cannot be used with point in time. Do not specify any index with point in time.",
+                    validationException
+                );
+            }
+            if (indicesOptions().equals(DEFAULT_INDICES_OPTIONS) == false) {
+                validationException = addValidationError("[indicesOptions] cannot be used with point in time", validationException);
+            }
+            if (routing() != null) {
+                validationException = addValidationError("[routing] cannot be used with point in time", validationException);
+            }
+            if (preference() != null) {
+                validationException = addValidationError("[preference] cannot be used with point in time", validationException);
             }
         }
         if (minCompatibleShardNode() != null) {
@@ -483,13 +455,6 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
      */
     public void setCcsMinimizeRoundtrips(boolean ccsMinimizeRoundtrips) {
         this.ccsMinimizeRoundtrips = ccsMinimizeRoundtrips;
-    }
-
-    /**
-     * Returns the default value of {@link #ccsMinimizeRoundtrips} of a search request
-     */
-    public static boolean defaultCcsMinimizeRoundtrips(SearchRequest request) {
-        return request.minCompatibleShardNode == null;
     }
 
     /**
@@ -605,13 +570,6 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
     }
 
     /**
-     * If set, will enable scrolling of the search request for the specified timeout.
-     */
-    public SearchRequest scroll(String keepAlive) {
-        return scroll(new Scroll(TimeValue.parseTimeValue(keepAlive, null, getClass().getSimpleName() + ".Scroll.keepAlive")));
-    }
-
-    /**
      * Sets if this request should use the request cache or not, assuming that it can (for
      * example, if "now" is used, it will never be cached). By default (not set, or null,
      * will default to the index level setting if request cache is enabled or not).
@@ -663,7 +621,7 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
      * cluster can be throttled with this number to reduce the cluster load. The default is {@code 5}
      */
     public int getMaxConcurrentShardRequests() {
-        return maxConcurrentShardRequests == 0 ? 5 : maxConcurrentShardRequests;
+        return maxConcurrentShardRequests == 0 ? DEFAULT_MAX_CONCURRENT_SHARD_REQUESTS : maxConcurrentShardRequests;
     }
 
     /**

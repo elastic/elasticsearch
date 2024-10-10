@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.action.admin.cluster.allocation;
 
@@ -14,7 +15,6 @@ import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESIntegTestCase;
 
@@ -34,18 +34,18 @@ public class TransportGetDesiredBalanceActionIT extends ESIntegTestCase {
         String index = "test";
         int numberOfShards = 2;
         int numberOfReplicas = 1;
-        createIndex(index, Settings.builder().put("index.number_of_shards", 2).put("index.number_of_replicas", 1).build());
+        createIndex(index, 2, 1);
 
         indexData(index);
 
-        var clusterHealthResponse = client().admin()
-            .cluster()
-            .health(new ClusterHealthRequest().waitForStatus(ClusterHealthStatus.GREEN))
-            .get();
+        var clusterHealthResponse = clusterAdmin().health(
+            new ClusterHealthRequest(TEST_REQUEST_TIMEOUT).waitForStatus(ClusterHealthStatus.GREEN)
+        ).get();
         assertEquals(RestStatus.OK, clusterHealthResponse.status());
 
-        DesiredBalanceResponse desiredBalanceResponse = client().execute(GetDesiredBalanceAction.INSTANCE, new DesiredBalanceRequest())
-            .get();
+        final var desiredBalanceResponse = safeGet(
+            client().execute(TransportGetDesiredBalanceAction.TYPE, new DesiredBalanceRequest(TEST_REQUEST_TIMEOUT))
+        );
 
         assertEquals(1, desiredBalanceResponse.getRoutingTable().size());
         Map<Integer, DesiredBalanceResponse.DesiredShards> shardsMap = desiredBalanceResponse.getRoutingTable().get(index);
@@ -53,9 +53,7 @@ public class TransportGetDesiredBalanceActionIT extends ESIntegTestCase {
         for (var entry : shardsMap.entrySet()) {
             Integer shardId = entry.getKey();
             DesiredBalanceResponse.DesiredShards desiredShards = entry.getValue();
-            IndexShardRoutingTable shardRoutingTable = client().admin()
-                .cluster()
-                .prepareState()
+            IndexShardRoutingTable shardRoutingTable = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT)
                 .get()
                 .getState()
                 .routingTable()
@@ -76,19 +74,16 @@ public class TransportGetDesiredBalanceActionIT extends ESIntegTestCase {
         String index = "test";
         int numberOfShards = 2;
         int numberOfReplicas = 1;
-        createIndex(
-            index,
-            Settings.builder().put("index.number_of_shards", numberOfShards).put("index.number_of_replicas", numberOfReplicas).build()
-        );
+        createIndex(index, numberOfShards, numberOfReplicas);
         indexData(index);
-        var clusterHealthResponse = client().admin()
-            .cluster()
-            .health(new ClusterHealthRequest(index).waitForStatus(ClusterHealthStatus.YELLOW))
-            .get();
+        var clusterHealthResponse = clusterAdmin().health(
+            new ClusterHealthRequest(TEST_REQUEST_TIMEOUT, index).waitForStatus(ClusterHealthStatus.YELLOW)
+        ).get();
         assertEquals(RestStatus.OK, clusterHealthResponse.status());
 
-        DesiredBalanceResponse desiredBalanceResponse = client().execute(GetDesiredBalanceAction.INSTANCE, new DesiredBalanceRequest())
-            .get();
+        final var desiredBalanceResponse = safeGet(
+            client().execute(TransportGetDesiredBalanceAction.TYPE, new DesiredBalanceRequest(TEST_REQUEST_TIMEOUT))
+        );
 
         assertEquals(1, desiredBalanceResponse.getRoutingTable().size());
         Map<Integer, DesiredBalanceResponse.DesiredShards> shardsMap = desiredBalanceResponse.getRoutingTable().get(index);
@@ -96,9 +91,7 @@ public class TransportGetDesiredBalanceActionIT extends ESIntegTestCase {
         for (var entry : shardsMap.entrySet()) {
             Integer shardId = entry.getKey();
             DesiredBalanceResponse.DesiredShards desiredShards = entry.getValue();
-            IndexShardRoutingTable shardRoutingTable = client().admin()
-                .cluster()
-                .prepareState()
+            IndexShardRoutingTable shardRoutingTable = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT)
                 .get()
                 .getState()
                 .routingTable()
@@ -130,7 +123,7 @@ public class TransportGetDesiredBalanceActionIT extends ESIntegTestCase {
             assertFalse(shardView.nodeIsDesired());
         }
         assertEquals(shard.relocatingNodeId(), shardView.relocatingNode());
-        assertFalse(shardView.relocatingNodeIsDesired());
+        assertNull(shardView.relocatingNodeIsDesired());
     }
 
     private static Set<String> getShardNodeIds(IndexShardRoutingTable shardRoutingTable) {

@@ -1,14 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.fetch.subphase;
 
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -133,20 +133,14 @@ public final class FieldAndFormat implements Writeable, ToXContentObject {
     public FieldAndFormat(StreamInput in) throws IOException {
         this.field = in.readString();
         format = in.readOptionalString();
-        if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_11_0)) {
-            this.includeUnmapped = in.readOptionalBoolean();
-        } else {
-            this.includeUnmapped = null;
-        }
+        this.includeUnmapped = in.readOptionalBoolean();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(field);
         out.writeOptionalString(format);
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_11_0)) {
-            out.writeOptionalBoolean(this.includeUnmapped);
-        }
+        out.writeOptionalBoolean(this.includeUnmapped);
     }
 
     @Override

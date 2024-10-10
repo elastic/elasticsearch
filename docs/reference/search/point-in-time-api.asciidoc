@@ -22,6 +22,13 @@ or alias.
 To search a <<point-in-time-api,point in time (PIT)>> for an alias, you
 must have the `read` index privilege for the alias's data streams or indices.
 
+[[point-in-time-api-request-body]]
+==== {api-request-body-title}
+
+`index_filter`::
+(Optional,  <<query-dsl,query object>> Allows to filter indices if the provided
+query rewrites to `match_none` on every shard.
+
 [[point-in-time-api-example]]
 ==== {api-examples-title}
 
@@ -57,10 +64,10 @@ POST /_search  <1>
 // TEST[catch:unavailable]
 
 <1> A search request with the `pit` parameter must not specify `index`, `routing`,
-and {ref}/search-request-body.html#request-body-search-preference[`preference`]
+or <<search-preference,`preference`>>
 as these parameters are copied from the point in time.
 <2> Just like regular searches, you can <<paginate-search-results,use `from` and
-`size` to page through search results>>, up to the first 10,000 hits. If you 
+`size` to page through search results>>, up to the first 10,000 hits. If you
 want to retrieve more hits, use PIT with <<search-after,`search_after`>>.
 <3> The `id` parameter tells Elasticsearch to execute the request using contexts
 from this point in time.
@@ -70,6 +77,44 @@ the time to live of the point in time.
 IMPORTANT: The open point in time request and each subsequent search request can
 return different `id`; thus always use the most recently received `id` for the
 next search request.
+
+In addition to the `keep_alive` parameter, the `allow_partial_search_results` parameter
+can also be defined.
+This parameter determines whether the <<point-in-time-api, point in time (PIT)>>
+should tolerate unavailable shards or <<shard-failures, shard failures>> when
+initially creating the PIT.
+If set to true, the PIT will be created with the available shards, along with a
+reference to any missing ones.
+If set to false, the operation will fail if any shard is unavailable.
+The default value is false.
+
+The PIT response includes a summary of the total number of shards, as well as the number
+of successful shards when creating the PIT.
+
+[source,console]
+--------------------------------------------------
+POST /my-index-000001/_pit?keep_alive=1m&allow_partial_search_results=true
+--------------------------------------------------
+// TEST[setup:my_index]
+
+[source,js]
+--------------------------------------------------
+{
+  "id": "46ToAwMDaWR5BXV1aWQyKwZub2RlXzMAAAAAAAAAACoBYwADaWR4BXV1aWQxAgZub2RlXzEAAAAAAAAAAAEBYQADaWR5BXV1aWQyKgZub2RlXzIAAAAAAAAAAAwBYgACBXV1aWQyAAAFdXVpZDEAAQltYXRjaF9hbGw_gAAAAA=",
+  "_shards": {
+    "total": 10,
+    "successful": 10,
+    "skipped": 0,
+    "failed": 0
+  }
+}
+--------------------------------------------------
+// NOTCONSOLE
+
+When a PIT that contains shard failures is used in a search request, the missing are
+always reported in the search response as a NoShardAvailableActionException exception.
+To get rid of these exceptions, a new PIT needs to be created so that shards missing
+from the previous PIT can be handled, assuming they become available in the meantime.
 
 [[point-in-time-keep-alive]]
 ==== Keeping point in time alive

@@ -21,8 +21,9 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -32,7 +33,6 @@ import static org.elasticsearch.core.Strings.format;
 public abstract class AbstractTransportSetResetModeAction extends AcknowledgedTransportMasterNodeAction<SetResetModeActionRequest> {
 
     private static final Logger logger = LogManager.getLogger(AbstractTransportSetResetModeAction.class);
-    private final ClusterService clusterService;
 
     @Inject
     public AbstractTransportSetResetModeAction(
@@ -51,9 +51,8 @@ public abstract class AbstractTransportSetResetModeAction extends AcknowledgedTr
             actionFilters,
             SetResetModeActionRequest::new,
             indexNameExpressionResolver,
-            ThreadPool.Names.SAME
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
-        this.clusterService = clusterService;
     }
 
     protected abstract boolean isResetMode(ClusterState clusterState);
@@ -90,13 +89,15 @@ public abstract class AbstractTransportSetResetModeAction extends AcknowledgedTr
             listener.onFailure(e);
         });
 
-        ActionListener<AcknowledgedResponse> clusterStateUpdateListener = ActionListener.wrap(acknowledgedResponse -> {
-            if (acknowledgedResponse.isAcknowledged() == false) {
-                wrappedListener.onFailure(new ElasticsearchTimeoutException("Unknown error occurred while updating cluster state"));
-                return;
+        ActionListener<AcknowledgedResponse> clusterStateUpdateListener = wrappedListener.delegateFailureAndWrap(
+            (delegate, acknowledgedResponse) -> {
+                if (acknowledgedResponse.isAcknowledged() == false) {
+                    delegate.onFailure(new ElasticsearchTimeoutException("Unknown error occurred while updating cluster state"));
+                    return;
+                }
+                delegate.onResponse(acknowledgedResponse);
             }
-            wrappedListener.onResponse(acknowledgedResponse);
-        }, wrappedListener::onFailure);
+        );
 
         submitUnbatchedTask(featureName() + "-set-reset-mode", new AckedClusterStateUpdateTask(request, clusterStateUpdateListener) {
 

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.datastreams;
 
@@ -32,7 +33,6 @@ import java.util.Set;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
@@ -63,7 +63,7 @@ public class UpdateTimeSeriesRangeServiceTests extends ESTestCase {
         String dataStreamName = "logs-app1";
         Instant now = Instant.now().truncatedTo(ChronoUnit.MILLIS);
         Instant start = now.minus(2, ChronoUnit.HOURS);
-        Instant end = now.plus(3, ChronoUnit.HOURS);
+        Instant end = now.plus(40, ChronoUnit.MINUTES);
         Metadata metadata = DataStreamTestHelper.getClusterStateWithDataStream(
             dataStreamName,
             List.of(new Tuple<>(start.minus(4, ChronoUnit.HOURS), start), new Tuple<>(start, end))
@@ -88,11 +88,14 @@ public class UpdateTimeSeriesRangeServiceTests extends ESTestCase {
         assertThat(getEndTime(result, dataStreamName, 0), equalTo(previousEndTime1));
         assertThat(getStartTime(result, dataStreamName, 1), equalTo(previousStartTime2));
         assertThat(getEndTime(result, dataStreamName, 1), not(equalTo(previousEndTime2)));
-        assertThat(getEndTime(result, dataStreamName, 1), equalTo(now.plus(2, ChronoUnit.HOURS).plus(5, ChronoUnit.MINUTES)));
+        assertThat(
+            getEndTime(result, dataStreamName, 1),
+            equalTo(now.plus(30, ChronoUnit.MINUTES).plus(5, ChronoUnit.MINUTES).truncatedTo(ChronoUnit.SECONDS))
+        );
     }
 
     public void testUpdateTimeSeriesTemporalRange_customLookAHeadTime() {
-        int lookAHeadTimeMinutes = randomIntBetween(30, 180);
+        int lookAHeadTimeMinutes = randomIntBetween(30, 120);
         TemporalAmount lookAHeadTime = Duration.ofMinutes(lookAHeadTimeMinutes);
         int timeSeriesPollIntervalMinutes = randomIntBetween(1, 10);
         TemporalAmount timeSeriesPollInterval = Duration.ofMinutes(timeSeriesPollIntervalMinutes);
@@ -114,7 +117,6 @@ public class UpdateTimeSeriesRangeServiceTests extends ESTestCase {
         Instant previousStartTime1 = getStartTime(in, dataStreamName, 0);
         Instant previousEndTime1 = getEndTime(in, dataStreamName, 0);
         Instant previousStartTime2 = getStartTime(in, dataStreamName, 1);
-        Instant previousEndTime2 = getEndTime(in, dataStreamName, 1);
 
         now = now.plus(1, ChronoUnit.HOURS);
         var result = instance.updateTimeSeriesTemporalRange(in, now);
@@ -122,33 +124,24 @@ public class UpdateTimeSeriesRangeServiceTests extends ESTestCase {
         assertThat(getStartTime(result, dataStreamName, 0), equalTo(previousStartTime1));
         assertThat(getEndTime(result, dataStreamName, 0), equalTo(previousEndTime1));
         assertThat(getStartTime(result, dataStreamName, 1), equalTo(previousStartTime2));
-        assertThat(getEndTime(result, dataStreamName, 1), equalTo(now.plus(lookAHeadTime).plus(timeSeriesPollInterval)));
+        assertThat(
+            getEndTime(result, dataStreamName, 1),
+            equalTo(now.plus(lookAHeadTime).plus(timeSeriesPollInterval).truncatedTo(ChronoUnit.SECONDS))
+        );
     }
 
     public void testUpdateTimeSeriesTemporalRange_NoUpdateBecauseReplicated() {
         String dataStreamName = "logs-app1";
         Instant now = Instant.now().truncatedTo(ChronoUnit.MILLIS);
         Instant start = now.minus(2, ChronoUnit.HOURS);
-        Instant end = now.plus(3, ChronoUnit.HOURS);
+        Instant end = now.plus(31, ChronoUnit.MINUTES);
         Metadata metadata = DataStreamTestHelper.getClusterStateWithDataStream(
             dataStreamName,
             List.of(new Tuple<>(start.minus(4, ChronoUnit.HOURS), start), new Tuple<>(start, end))
         ).getMetadata();
         DataStream d = metadata.dataStreams().get(dataStreamName);
         metadata = Metadata.builder(metadata)
-            .put(
-                new DataStream(
-                    d.getName(),
-                    d.getIndices(),
-                    d.getGeneration(),
-                    d.getMetadata(),
-                    d.isHidden(),
-                    true,
-                    d.isSystem(),
-                    d.isAllowCustomRouting(),
-                    d.getIndexMode()
-                )
-            )
+            .put(d.copy().setReplicated(true).setBackingIndices(d.getBackingIndices().copy().setRolloverOnWrite(false).build()).build())
             .build();
 
         now = now.plus(1, ChronoUnit.HOURS);
@@ -175,20 +168,26 @@ public class UpdateTimeSeriesRangeServiceTests extends ESTestCase {
         String dataStreamName3 = "logs-app3";
         Instant now = Instant.now().truncatedTo(ChronoUnit.MILLIS);
 
-        Instant start = now.minus(6, ChronoUnit.HOURS);
+        Instant start = now.minus(90, ChronoUnit.MINUTES);
         Metadata.Builder mbBuilder = new Metadata.Builder();
         for (String dataStreamName : List.of(dataStreamName1, dataStreamName2, dataStreamName3)) {
-            Instant end = start.plus(2, ChronoUnit.HOURS);
+            Instant end = start.plus(30, ChronoUnit.MINUTES);
             DataStreamTestHelper.getClusterStateWithDataStream(mbBuilder, dataStreamName, List.of(new Tuple<>(start, end)));
             start = end;
         }
 
-        now = now.minus(3, ChronoUnit.HOURS);
+        now = now.minus(45, ChronoUnit.MINUTES);
         ClusterState before = ClusterState.builder(ClusterState.EMPTY_STATE).metadata(mbBuilder).build();
         ClusterState result = instance.updateTimeSeriesTemporalRange(before, now);
         assertThat(result, not(sameInstance(before)));
-        assertThat(getEndTime(result, dataStreamName1, 0), equalTo(now.plus(2, ChronoUnit.HOURS).plus(5, ChronoUnit.MINUTES)));
-        assertThat(getEndTime(result, dataStreamName2, 0), equalTo(now.plus(2, ChronoUnit.HOURS).plus(5, ChronoUnit.MINUTES)));
+        assertThat(
+            getEndTime(result, dataStreamName1, 0),
+            equalTo(now.plus(30, ChronoUnit.MINUTES).plus(5, ChronoUnit.MINUTES).truncatedTo(ChronoUnit.SECONDS))
+        );
+        assertThat(
+            getEndTime(result, dataStreamName2, 0),
+            equalTo(now.plus(30, ChronoUnit.MINUTES).plus(5, ChronoUnit.MINUTES).truncatedTo(ChronoUnit.SECONDS))
+        );
         assertThat(getEndTime(result, dataStreamName3, 0), equalTo(start));
     }
 

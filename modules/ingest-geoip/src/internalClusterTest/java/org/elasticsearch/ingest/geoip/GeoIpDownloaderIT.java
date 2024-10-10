@@ -1,36 +1,37 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.ingest.geoip;
 
-import com.maxmind.geoip2.DatabaseReader;
+import com.maxmind.db.Reader;
 
 import org.apache.lucene.search.TotalHits;
-import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
 import org.elasticsearch.action.ingest.SimulateDocumentBaseResult;
 import org.elasticsearch.action.ingest.SimulatePipelineRequest;
 import org.elasticsearch.action.ingest.SimulatePipelineResponse;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
-import org.elasticsearch.ingest.geoip.stats.GeoIpDownloaderStatsAction;
+import org.elasticsearch.ingest.geoip.stats.GeoIpStatsAction;
 import org.elasticsearch.persistent.PersistentTaskParams;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.plugins.IngestPlugin;
@@ -52,7 +53,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -66,7 +66,10 @@ import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 import java.util.zip.GZIPInputStream;
 
+import static org.elasticsearch.ingest.ConfigurationUtils.readStringProperty;
+import static org.elasticsearch.ingest.geoip.GeoIpTestUtils.copyDefaultDatabases;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -83,11 +86,9 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class GeoIpDownloaderIT extends AbstractGeoIpIT {
 
-    protected static final String ENDPOINT = System.getProperty("geoip_endpoint");
-
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(
+        return List.of(
             ReindexPlugin.class,
             IngestGeoIpPlugin.class,
             GeoIpProcessorNonIngestNodeIT.IngestGeoIpSettingsPlugin.class,
@@ -98,8 +99,8 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         Settings.Builder settings = Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings));
-        if (ENDPOINT != null) {
-            settings.put(GeoIpDownloader.ENDPOINT_SETTING.getKey(), ENDPOINT);
+        if (getEndpoint() != null) {
+            settings.put(GeoIpDownloader.ENDPOINT_SETTING.getKey(), getEndpoint());
         }
         return settings.build();
     }
@@ -108,18 +109,12 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
     public void cleanUp() throws Exception {
         deleteDatabasesInConfigDirectory();
 
-        ClusterUpdateSettingsResponse settingsResponse = client().admin()
-            .cluster()
-            .prepareUpdateSettings()
-            .setPersistentSettings(
-                Settings.builder()
-                    .putNull(GeoIpDownloaderTaskExecutor.ENABLED_SETTING.getKey())
-                    .putNull(GeoIpDownloaderTaskExecutor.POLL_INTERVAL_SETTING.getKey())
-                    .putNull("ingest.geoip.database_validity")
-            )
-            .get();
-        assertTrue(settingsResponse.isAcknowledged());
-
+        updateClusterSettings(
+            Settings.builder()
+                .putNull(GeoIpDownloaderTaskExecutor.ENABLED_SETTING.getKey())
+                .putNull(GeoIpDownloaderTaskExecutor.POLL_INTERVAL_SETTING.getKey())
+                .putNull("ingest.geoip.database_validity")
+        );
         assertBusy(() -> {
             PersistentTasksCustomMetadata.PersistentTask<PersistentTaskParams> task = getTask();
             if (task != null) {
@@ -128,19 +123,13 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
             }
         });
         assertBusy(() -> {
-            GeoIpDownloaderStatsAction.Response response = client().execute(
-                GeoIpDownloaderStatsAction.INSTANCE,
-                new GeoIpDownloaderStatsAction.Request()
-            ).actionGet();
-            assertThat(response.getStats().getDatabasesCount(), equalTo(0));
+            GeoIpStatsAction.Response response = client().execute(GeoIpStatsAction.INSTANCE, new GeoIpStatsAction.Request()).actionGet();
+            assertThat(response.getDownloaderStats().getDatabasesCount(), equalTo(0));
             assertThat(response.getNodes(), not(empty()));
-            for (GeoIpDownloaderStatsAction.NodeResponse nodeResponse : response.getNodes()) {
+            for (GeoIpStatsAction.NodeResponse nodeResponse : response.getNodes()) {
                 assertThat(nodeResponse.getConfigDatabases(), empty());
                 assertThat(nodeResponse.getDatabases(), empty());
-                assertThat(
-                    nodeResponse.getFilesInTemp().stream().filter(s -> s.endsWith(".txt") == false).collect(Collectors.toList()),
-                    empty()
-                );
+                assertThat(nodeResponse.getFilesInTemp().stream().filter(s -> s.endsWith(".txt") == false).toList(), empty());
             }
         });
         assertBusy(() -> {
@@ -151,6 +140,7 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
                     assertThat(names, not(hasItem("GeoLite2-ASN.mmdb")));
                     assertThat(names, not(hasItem("GeoLite2-City.mmdb")));
                     assertThat(names, not(hasItem("GeoLite2-Country.mmdb")));
+                    assertThat(names, not(hasItem("MyCustomGeoLite2-City.mmdb")));
                 }
             }
         });
@@ -158,36 +148,25 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
 
     @TestLogging(value = "org.elasticsearch.ingest.geoip:TRACE", reason = "https://github.com/elastic/elasticsearch/issues/75221")
     public void testInvalidTimestamp() throws Exception {
-        assumeTrue("only test with fixture to have stable results", ENDPOINT != null);
+        assumeTrue("only test with fixture to have stable results", getEndpoint() != null);
+        setupDatabasesInConfigDirectory();
         putGeoIpPipeline();
-        ClusterUpdateSettingsResponse settingsResponse = client().admin()
-            .cluster()
-            .prepareUpdateSettings()
-            .setPersistentSettings(Settings.builder().put(GeoIpDownloaderTaskExecutor.ENABLED_SETTING.getKey(), true))
-            .get();
-        assertTrue(settingsResponse.isAcknowledged());
+        updateClusterSettings(Settings.builder().put(GeoIpDownloaderTaskExecutor.ENABLED_SETTING.getKey(), true));
         assertBusy(() -> {
             GeoIpTaskState state = getGeoIpTaskState();
-            assertEquals(Set.of("GeoLite2-ASN.mmdb", "GeoLite2-City.mmdb", "GeoLite2-Country.mmdb"), state.getDatabases().keySet());
+            assertThat(
+                state.getDatabases().keySet(),
+                containsInAnyOrder("GeoLite2-ASN.mmdb", "GeoLite2-City.mmdb", "GeoLite2-Country.mmdb", "MyCustomGeoLite2-City.mmdb")
+            );
         }, 2, TimeUnit.MINUTES);
 
         putGeoIpPipeline();
         verifyUpdatedDatabase();
 
-        settingsResponse = client().admin()
-            .cluster()
-            .prepareUpdateSettings()
-            .setPersistentSettings(Settings.builder().put("ingest.geoip.database_validity", TimeValue.timeValueMillis(1)))
-            .get();
-        assertTrue(settingsResponse.isAcknowledged());
-        settingsResponse = client().admin()
-            .cluster()
-            .prepareUpdateSettings()
-            .setPersistentSettings(
-                Settings.builder().put(GeoIpDownloaderTaskExecutor.POLL_INTERVAL_SETTING.getKey(), TimeValue.timeValueDays(2))
-            )
-            .get();
-        assertTrue(settingsResponse.isAcknowledged());
+        updateClusterSettings(Settings.builder().put("ingest.geoip.database_validity", TimeValue.timeValueMillis(1)));
+        updateClusterSettings(
+            Settings.builder().put(GeoIpDownloaderTaskExecutor.POLL_INTERVAL_SETTING.getKey(), TimeValue.timeValueDays(2))
+        );
         List<Path> geoIpTmpDirs = getGeoIpTmpDirs();
         assertBusy(() -> {
             for (Path geoIpTmpDir : geoIpTmpDirs) {
@@ -196,6 +175,7 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
                     assertThat(names, not(hasItem("GeoLite2-ASN.mmdb")));
                     assertThat(names, not(hasItem("GeoLite2-City.mmdb")));
                     assertThat(names, not(hasItem("GeoLite2-Country.mmdb")));
+                    assertThat(names, not(hasItem("MyCustomGeoLite2-City.mmdb")));
                 }
             }
         });
@@ -206,93 +186,102 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
             assertTrue(result.getIngestDocument().hasField("tags"));
             @SuppressWarnings("unchecked")
             List<String> tags = result.getIngestDocument().getFieldValue("tags", List.class);
-            assertThat(tags, contains("_geoip_expired_database"));
+            // We are provided 4 databases from the download service fixture. 3 of those db files are "stock" in that we provide them
+            // via the elastic download service. We also have those 3 db files set in this test as locally configured db files which are
+            // "expired". The 4th is only present when the downloader has executed. When we mark all db's as expired, the downloaded copies
+            // are purged, but the 3 local files remain. Processors using the local db files will tag documents with the expired database
+            // tag. The processor that expects the custom database cannot find one anywhere, so it tags documents with the unavailable
+            // database tag.
+            assertThat(tags, contains("_geoip_expired_database", "_geoip_database_unavailable_MyCustomGeoLite2-City.mmdb"));
             assertFalse(result.getIngestDocument().hasField("ip-city"));
             assertFalse(result.getIngestDocument().hasField("ip-asn"));
             assertFalse(result.getIngestDocument().hasField("ip-country"));
         });
-        settingsResponse = client().admin()
-            .cluster()
-            .prepareUpdateSettings()
-            .setPersistentSettings(Settings.builder().putNull("ingest.geoip.database_validity"))
-            .get();
-        assertTrue(settingsResponse.isAcknowledged());
+        updateClusterSettings(Settings.builder().putNull("ingest.geoip.database_validity"));
         assertBusy(() -> {
             for (Path geoIpTmpDir : geoIpTmpDirs) {
                 try (Stream<Path> files = Files.list(geoIpTmpDir)) {
                     Set<String> names = files.map(f -> f.getFileName().toString()).collect(Collectors.toSet());
-                    assertThat(names, hasItems("GeoLite2-ASN.mmdb", "GeoLite2-City.mmdb", "GeoLite2-Country.mmdb"));
+                    assertThat(
+                        names,
+                        hasItems("GeoLite2-ASN.mmdb", "GeoLite2-City.mmdb", "GeoLite2-Country.mmdb", "MyCustomGeoLite2-City.mmdb")
+                    );
                 }
             }
         });
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/92888")
     public void testUpdatedTimestamp() throws Exception {
-        assumeTrue("only test with fixture to have stable results", ENDPOINT != null);
+        assumeTrue("only test with fixture to have stable results", getEndpoint() != null);
         testGeoIpDatabasesDownload();
         long lastCheck = getGeoIpTaskState().getDatabases().get("GeoLite2-ASN.mmdb").lastCheck();
-        ClusterUpdateSettingsResponse settingsResponse = client().admin()
-            .cluster()
-            .prepareUpdateSettings()
-            .setPersistentSettings(
-                Settings.builder().put(GeoIpDownloaderTaskExecutor.POLL_INTERVAL_SETTING.getKey(), TimeValue.timeValueDays(2))
-            )
-            .get();
-        assertTrue(settingsResponse.isAcknowledged());
+        updateClusterSettings(
+            Settings.builder().put(GeoIpDownloaderTaskExecutor.POLL_INTERVAL_SETTING.getKey(), TimeValue.timeValueDays(2))
+        );
         assertBusy(() -> assertNotEquals(lastCheck, getGeoIpTaskState().getDatabases().get("GeoLite2-ASN.mmdb").lastCheck()));
         testGeoIpDatabasesDownload();
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/92888")
     public void testGeoIpDatabasesDownload() throws Exception {
         putGeoIpPipeline();
-        ClusterUpdateSettingsResponse settingsResponse = client().admin()
-            .cluster()
-            .prepareUpdateSettings()
-            .setPersistentSettings(Settings.builder().put(GeoIpDownloaderTaskExecutor.ENABLED_SETTING.getKey(), true))
-            .get();
-        assertTrue(settingsResponse.isAcknowledged());
+        updateClusterSettings(Settings.builder().put(GeoIpDownloaderTaskExecutor.ENABLED_SETTING.getKey(), true));
         assertBusy(() -> {
             GeoIpTaskState state = getGeoIpTaskState();
-            assertEquals(Set.of("GeoLite2-ASN.mmdb", "GeoLite2-City.mmdb", "GeoLite2-Country.mmdb"), state.getDatabases().keySet());
+            assertThat(
+                state.getDatabases().keySet(),
+                containsInAnyOrder("GeoLite2-ASN.mmdb", "GeoLite2-City.mmdb", "GeoLite2-Country.mmdb", "MyCustomGeoLite2-City.mmdb")
+            );
             putGeoIpPipeline(); // This is to work around the race condition described in #92888
         }, 2, TimeUnit.MINUTES);
 
-        for (String id : List.of("GeoLite2-ASN.mmdb", "GeoLite2-City.mmdb", "GeoLite2-Country.mmdb")) {
+        for (String id : List.of("GeoLite2-ASN.mmdb", "GeoLite2-City.mmdb", "GeoLite2-Country.mmdb", "MyCustomGeoLite2-City.mmdb")) {
             assertBusy(() -> {
                 try {
                     GeoIpTaskState state = (GeoIpTaskState) getTask().getState();
-                    assertEquals(Set.of("GeoLite2-ASN.mmdb", "GeoLite2-City.mmdb", "GeoLite2-Country.mmdb"), state.getDatabases().keySet());
-                    GeoIpTaskState.Metadata metadata = state.get(id);
-                    BoolQueryBuilder queryBuilder = new BoolQueryBuilder().filter(new MatchQueryBuilder("name", id))
-                        .filter(new RangeQueryBuilder("chunk").from(metadata.firstChunk()).to(metadata.lastChunk(), true));
+                    assertThat(
+                        state.getDatabases().keySet(),
+                        containsInAnyOrder("GeoLite2-ASN.mmdb", "GeoLite2-City.mmdb", "GeoLite2-Country.mmdb", "MyCustomGeoLite2-City.mmdb")
+                    );
+                    GeoIpTaskState.Metadata metadata = state.getDatabases().get(id);
                     int size = metadata.lastChunk() - metadata.firstChunk() + 1;
-                    SearchResponse res = client().prepareSearch(GeoIpDownloader.DATABASES_INDEX)
-                        .setSize(size)
-                        .setQuery(queryBuilder)
-                        .addSort("chunk", SortOrder.ASC)
-                        .get();
-                    TotalHits totalHits = res.getHits().getTotalHits();
-                    assertEquals(TotalHits.Relation.EQUAL_TO, totalHits.relation);
-                    assertEquals(size, totalHits.value);
-                    assertEquals(size, res.getHits().getHits().length);
+                    assertResponse(
+                        prepareSearch(GeoIpDownloader.DATABASES_INDEX).setSize(size)
+                            .setQuery(
+                                new BoolQueryBuilder().filter(new MatchQueryBuilder("name", id))
+                                    .filter(new RangeQueryBuilder("chunk").from(metadata.firstChunk()).to(metadata.lastChunk(), true))
+                            )
+                            .addSort("chunk", SortOrder.ASC),
+                        res -> {
+                            try {
+                                TotalHits totalHits = res.getHits().getTotalHits();
+                                assertEquals(TotalHits.Relation.EQUAL_TO, totalHits.relation);
+                                assertEquals(size, totalHits.value);
+                                assertEquals(size, res.getHits().getHits().length);
 
-                    List<byte[]> data = new ArrayList<>();
+                                List<byte[]> data = new ArrayList<>();
 
-                    for (SearchHit hit : res.getHits().getHits()) {
-                        data.add((byte[]) hit.getSourceAsMap().get("data"));
-                    }
+                                for (SearchHit hit : res.getHits().getHits()) {
+                                    data.add((byte[]) hit.getSourceAsMap().get("data"));
+                                }
 
-                    TarInputStream stream = new TarInputStream(new GZIPInputStream(new MultiByteArrayInputStream(data)));
-                    TarInputStream.TarEntry entry;
-                    while ((entry = stream.getNextEntry()) != null) {
-                        if (entry.name().endsWith(".mmdb")) {
-                            break;
+                                TarInputStream stream = new TarInputStream(new GZIPInputStream(new MultiByteArrayInputStream(data)));
+                                TarInputStream.TarEntry entry;
+                                while ((entry = stream.getNextEntry()) != null) {
+                                    if (entry.name().endsWith(".mmdb")) {
+                                        break;
+                                    }
+                                }
+
+                                Path tempFile = createTempFile();
+                                Files.copy(stream, tempFile, StandardCopyOption.REPLACE_EXISTING);
+                                parseDatabase(tempFile);
+                            } catch (Exception e) {
+                                fail(e);
+                            }
                         }
-                    }
-
-                    Path tempFile = createTempFile();
-                    Files.copy(stream, tempFile, StandardCopyOption.REPLACE_EXISTING);
-                    parseDatabase(tempFile);
+                    );
                 } catch (Exception e) {
                     throw new AssertionError(e);
                 }
@@ -301,35 +290,68 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
     }
 
     public void testGeoIpDatabasesDownloadNoGeoipProcessors() throws Exception {
-        assumeTrue("only test with fixture to have stable results", ENDPOINT != null);
+        assumeTrue("only test with fixture to have stable results", getEndpoint() != null);
         String pipelineId = randomAlphaOfLength(10);
         putGeoIpPipeline(pipelineId);
-        ClusterUpdateSettingsResponse settingsResponse = client().admin()
-            .cluster()
-            .prepareUpdateSettings()
-            .setPersistentSettings(Settings.builder().put(GeoIpDownloaderTaskExecutor.ENABLED_SETTING.getKey(), true))
-            .get();
-        assertTrue(settingsResponse.isAcknowledged());
+        updateClusterSettings(Settings.builder().put(GeoIpDownloaderTaskExecutor.ENABLED_SETTING.getKey(), true));
         assertBusy(() -> {
             PersistentTasksCustomMetadata.PersistentTask<PersistentTaskParams> task = getTask();
             assertNotNull(task);
-            assertNull(task.getState());
-            putGeoIpPipeline(); // This is to work around the race condition described in #92888
+            assertNotNull(task.getState());
         });
         putNonGeoipPipeline(pipelineId);
-        assertBusy(() -> { assertNull(getTask().getState()); });
-        putNonGeoipPipeline(pipelineId);
-        assertNull(getTask().getState());
-        putGeoIpPipeline();
+        assertNotNull(getTask().getState()); // removing all geoip processors should not result in the task being stopped
         assertBusy(() -> {
             GeoIpTaskState state = getGeoIpTaskState();
-            assertEquals(Set.of("GeoLite2-ASN.mmdb", "GeoLite2-City.mmdb", "GeoLite2-Country.mmdb"), state.getDatabases().keySet());
+            assertThat(
+                state.getDatabases().keySet(),
+                containsInAnyOrder("GeoLite2-ASN.mmdb", "GeoLite2-City.mmdb", "GeoLite2-Country.mmdb", "MyCustomGeoLite2-City.mmdb")
+            );
+        });
+    }
+
+    public void testDoNotDownloadDatabaseOnPipelineCreation() throws Exception {
+        assumeTrue("only test with fixture to have stable results", getEndpoint() != null);
+        String pipelineId = randomIdentifier();
+
+        // Removing databases from tmp dir. So we can test the downloader.
+        deleteDatabasesInConfigDirectory();
+
+        // Enabling the downloader.
+        putGeoIpPipeline("_id", false);
+        updateClusterSettings(Settings.builder().put(GeoIpDownloaderTaskExecutor.ENABLED_SETTING.getKey(), true));
+        assertBusy(() -> assertNotNull(getTask()));
+
+        // Creating a pipeline containing a geo processor with lazy download enable.
+        // Download should not be triggered and task state should stay null.
+        putGeoIpPipeline(pipelineId, false);
+        assertNull(getTask().getState());
+
+        // Creating an index which does not reference the pipeline should not trigger the database download.
+        String indexIdentifier = randomIdentifier();
+        assertAcked(indicesAdmin().prepareCreate(indexIdentifier).get());
+        assertNull(getTask().getState());
+
+        // Set the pipeline as default_pipeline or final_pipeline for the index.
+        // This should trigger the database download.
+        Setting<String> pipelineSetting = randomFrom(IndexSettings.FINAL_PIPELINE, IndexSettings.DEFAULT_PIPELINE);
+        Settings indexSettings = Settings.builder().put(pipelineSetting.getKey(), pipelineId).build();
+        assertAcked(indicesAdmin().prepareUpdateSettings(indexIdentifier).setSettings(indexSettings).get());
+        assertBusy(() -> {
+            GeoIpTaskState state = getGeoIpTaskState();
+            assertThat(
+                state.getDatabases().keySet(),
+                containsInAnyOrder("GeoLite2-ASN.mmdb", "GeoLite2-City.mmdb", "GeoLite2-Country.mmdb", "MyCustomGeoLite2-City.mmdb")
+            );
         }, 2, TimeUnit.MINUTES);
+
+        // Remove the created index.
+        assertAcked(indicesAdmin().prepareDelete(indexIdentifier).get());
     }
 
     @TestLogging(value = "org.elasticsearch.ingest.geoip:TRACE", reason = "https://github.com/elastic/elasticsearch/issues/69972")
     public void testUseGeoIpProcessorWithDownloadedDBs() throws Exception {
-        assumeTrue("only test with fixture to have stable results", ENDPOINT != null);
+        assumeTrue("only test with fixture to have stable results", getEndpoint() != null);
         setupDatabasesInConfigDirectory();
         // setup:
         putGeoIpPipeline();
@@ -353,27 +375,29 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
         }
 
         // Enable downloader:
-        Settings.Builder settings = Settings.builder().put(GeoIpDownloaderTaskExecutor.ENABLED_SETTING.getKey(), true);
-        assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(settings));
+        updateClusterSettings(Settings.builder().put(GeoIpDownloaderTaskExecutor.ENABLED_SETTING.getKey(), true));
 
         final List<Path> geoipTmpDirs = getGeoIpTmpDirs();
         assertBusy(() -> {
             for (Path geoipTmpDir : geoipTmpDirs) {
                 try (Stream<Path> list = Files.list(geoipTmpDir)) {
-                    List<String> files = list.map(Path::getFileName).map(Path::toString).collect(Collectors.toList());
+                    List<String> files = list.map(Path::getFileName).map(Path::toString).toList();
                     assertThat(
                         files,
                         containsInAnyOrder(
                             "GeoLite2-City.mmdb",
                             "GeoLite2-Country.mmdb",
                             "GeoLite2-ASN.mmdb",
+                            "MyCustomGeoLite2-City.mmdb",
                             "GeoLite2-City.mmdb_COPYRIGHT.txt",
                             "GeoLite2-Country.mmdb_COPYRIGHT.txt",
                             "GeoLite2-ASN.mmdb_COPYRIGHT.txt",
+                            "MyCustomGeoLite2-City.mmdb_COPYRIGHT.txt",
                             "GeoLite2-City.mmdb_LICENSE.txt",
                             "GeoLite2-Country.mmdb_LICENSE.txt",
                             "GeoLite2-ASN.mmdb_LICENSE.txt",
-                            "GeoLite2-ASN.mmdb_README.txt"
+                            "GeoLite2-ASN.mmdb_README.txt",
+                            "MyCustomGeoLite2-City.mmdb_LICENSE.txt"
                         )
                     );
                 }
@@ -383,13 +407,12 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
         verifyUpdatedDatabase();
 
         // Disable downloader:
-        settings = Settings.builder().put(GeoIpDownloaderTaskExecutor.ENABLED_SETTING.getKey(), false);
-        assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(settings));
+        updateClusterSettings(Settings.builder().put(GeoIpDownloaderTaskExecutor.ENABLED_SETTING.getKey(), false));
 
         assertBusy(() -> {
             for (Path geoipTmpDir : geoipTmpDirs) {
                 try (Stream<Path> list = Files.list(geoipTmpDir)) {
-                    List<String> files = list.map(Path::toString).filter(p -> p.endsWith(".mmdb")).collect(Collectors.toList());
+                    List<String> files = list.map(Path::toString).filter(p -> p.endsWith(".mmdb")).toList();
                     assertThat(files, empty());
                 }
             }
@@ -398,7 +421,7 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
 
     @TestLogging(value = "org.elasticsearch.ingest.geoip:TRACE", reason = "https://github.com/elastic/elasticsearch/issues/79074")
     public void testStartWithNoDatabases() throws Exception {
-        assumeTrue("only test with fixture to have stable results", ENDPOINT != null);
+        assumeTrue("only test with fixture to have stable results", getEndpoint() != null);
         putGeoIpPipeline();
 
         // Behaviour without any databases loaded:
@@ -414,15 +437,15 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
                     List.of(
                         "_geoip_database_unavailable_GeoLite2-City.mmdb",
                         "_geoip_database_unavailable_GeoLite2-Country.mmdb",
-                        "_geoip_database_unavailable_GeoLite2-ASN.mmdb"
+                        "_geoip_database_unavailable_GeoLite2-ASN.mmdb",
+                        "_geoip_database_unavailable_MyCustomGeoLite2-City.mmdb"
                     )
                 )
             );
         }
 
         // Enable downloader:
-        Settings.Builder settings = Settings.builder().put(GeoIpDownloaderTaskExecutor.ENABLED_SETTING.getKey(), true);
-        assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(settings));
+        updateClusterSettings(Settings.builder().put(GeoIpDownloaderTaskExecutor.ENABLED_SETTING.getKey(), true));
         verifyUpdatedDatabase();
     }
 
@@ -497,52 +520,95 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
      * @throws IOException
      */
     private void putGeoIpPipeline(String pipelineId) throws IOException {
-        BytesReference bytes;
-        try (XContentBuilder builder = JsonXContent.contentBuilder()) {
-            builder.startObject();
+        putGeoIpPipeline(pipelineId, true);
+    }
+
+    /**
+     * This creates a pipeline named pipelineId with a geoip processor, which ought to cause the geoip downloader to begin (assuming it is
+     * enabled).
+     * @param pipelineId The name of the new pipeline with a geoip processor
+     * @param downloadDatabaseOnPipelineCreation Indicates whether the pipeline creation should trigger database download or not.
+     * @throws IOException
+     */
+    private void putGeoIpPipeline(String pipelineId, boolean downloadDatabaseOnPipelineCreation) throws IOException {
+        putJsonPipeline(pipelineId, ((builder, params) -> {
+            builder.startArray("processors");
             {
-                builder.startArray("processors");
+                /*
+                 * First we add a non-geo pipeline with a random field value. This is purely here so that each call to this method
+                 * creates a pipeline that is unique. Creating the a pipeline twice with the same ID and exact same bytes
+                 * results in a no-op, meaning that the pipeline won't actually be updated and won't actually trigger all of the
+                 * things we expect it to.
+                 */
+                builder.startObject();
                 {
-                    builder.startObject();
+                    builder.startObject(NonGeoProcessorsPlugin.NON_GEO_PROCESSOR_TYPE);
                     {
-                        builder.startObject("geoip");
-                        {
-                            builder.field("field", "ip");
-                            builder.field("target_field", "ip-city");
-                            builder.field("database_file", "GeoLite2-City.mmdb");
-                        }
-                        builder.endObject();
-                    }
-                    builder.endObject();
-                    builder.startObject();
-                    {
-                        builder.startObject("geoip");
-                        {
-                            builder.field("field", "ip");
-                            builder.field("target_field", "ip-country");
-                            builder.field("database_file", "GeoLite2-Country.mmdb");
-                        }
-                        builder.endObject();
-                    }
-                    builder.endObject();
-                    builder.startObject();
-                    {
-                        builder.startObject("geoip");
-                        {
-                            builder.field("field", "ip");
-                            builder.field("target_field", "ip-asn");
-                            builder.field("database_file", "GeoLite2-ASN.mmdb");
-                        }
-                        builder.endObject();
+                        builder.field("randomField", randomAlphaOfLength(20));
                     }
                     builder.endObject();
                 }
-                builder.endArray();
+                builder.endObject();
+
+                builder.startObject();
+                {
+                    builder.startObject("geoip");
+                    {
+                        builder.field("field", "ip");
+                        builder.field("target_field", "ip-city");
+                        builder.field("database_file", "GeoLite2-City.mmdb");
+                        if (downloadDatabaseOnPipelineCreation == false || randomBoolean()) {
+                            builder.field("download_database_on_pipeline_creation", downloadDatabaseOnPipelineCreation);
+                        }
+                    }
+                    builder.endObject();
+                }
+                builder.endObject();
+                builder.startObject();
+                {
+                    builder.startObject("geoip");
+                    {
+                        builder.field("field", "ip");
+                        builder.field("target_field", "ip-country");
+                        builder.field("database_file", "GeoLite2-Country.mmdb");
+                        if (downloadDatabaseOnPipelineCreation == false || randomBoolean()) {
+                            builder.field("download_database_on_pipeline_creation", downloadDatabaseOnPipelineCreation);
+                        }
+                    }
+                    builder.endObject();
+                }
+                builder.endObject();
+                builder.startObject();
+                {
+                    builder.startObject("geoip");
+                    {
+                        builder.field("field", "ip");
+                        builder.field("target_field", "ip-asn");
+                        builder.field("database_file", "GeoLite2-ASN.mmdb");
+                        if (downloadDatabaseOnPipelineCreation == false || randomBoolean()) {
+                            builder.field("download_database_on_pipeline_creation", downloadDatabaseOnPipelineCreation);
+                        }
+                    }
+                    builder.endObject();
+                }
+                builder.endObject();
+                builder.startObject();
+                {
+                    builder.startObject("geoip");
+                    {
+                        builder.field("field", "ip");
+                        builder.field("target_field", "ip-city");
+                        builder.field("database_file", "MyCustomGeoLite2-City.mmdb");
+                        if (downloadDatabaseOnPipelineCreation == false || randomBoolean()) {
+                            builder.field("download_database_on_pipeline_creation", downloadDatabaseOnPipelineCreation);
+                        }
+                    }
+                    builder.endObject();
+                }
+                builder.endObject();
             }
-            builder.endObject();
-            bytes = BytesReference.bytes(builder);
-        }
-        assertAcked(client().admin().cluster().preparePutPipeline(pipelineId, bytes, XContentType.JSON).get());
+            return builder.endArray();
+        }));
     }
 
     /**
@@ -550,37 +616,37 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
      * @throws IOException
      */
     private void putNonGeoipPipeline(String pipelineId) throws IOException {
-        BytesReference bytes;
-        try (XContentBuilder builder = JsonXContent.contentBuilder()) {
-            builder.startObject();
+        /*
+         * Adding the exact same pipeline twice is treated as a no-op. The random values that go into randomField make each pipeline
+         * created by this method is unique to avoid this.
+         */
+        putJsonPipeline(pipelineId, ((builder, params) -> {
+            builder.startArray("processors");
             {
-                builder.startArray("processors");
+                builder.startObject();
                 {
-                    builder.startObject();
-                    {
-                        builder.startObject(NonGeoProcessorsPlugin.NON_GEO_PROCESSOR_TYPE);
-                        builder.endObject();
-                    }
-                    builder.endObject();
-                    builder.startObject();
-                    {
-                        builder.startObject(NonGeoProcessorsPlugin.NON_GEO_PROCESSOR_TYPE);
-                        builder.endObject();
-                    }
-                    builder.endObject();
-                    builder.startObject();
-                    {
-                        builder.startObject(NonGeoProcessorsPlugin.NON_GEO_PROCESSOR_TYPE);
-                        builder.endObject();
-                    }
+                    builder.startObject(NonGeoProcessorsPlugin.NON_GEO_PROCESSOR_TYPE);
+                    builder.field("randomField", randomAlphaOfLength(20));
                     builder.endObject();
                 }
-                builder.endArray();
+                builder.endObject();
+                builder.startObject();
+                {
+                    builder.startObject(NonGeoProcessorsPlugin.NON_GEO_PROCESSOR_TYPE);
+                    builder.field("randomField", randomAlphaOfLength(20));
+                    builder.endObject();
+                }
+                builder.endObject();
+                builder.startObject();
+                {
+                    builder.startObject(NonGeoProcessorsPlugin.NON_GEO_PROCESSOR_TYPE);
+                    builder.field("randomField", randomAlphaOfLength(20));
+                    builder.endObject();
+                }
+                builder.endObject();
             }
-            builder.endObject();
-            bytes = BytesReference.bytes(builder);
-        }
-        assertAcked(client().admin().cluster().preparePutPipeline(pipelineId, bytes, XContentType.JSON).get());
+            return builder.endArray();
+        }));
     }
 
     private List<Path> getGeoIpTmpDirs() throws IOException {
@@ -596,7 +662,7 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
         assertThat(Files.exists(geoipBaseTmpDir), is(true));
         final List<Path> geoipTmpDirs;
         try (Stream<Path> files = Files.list(geoipBaseTmpDir)) {
-            geoipTmpDirs = files.filter(path -> ids.contains(path.getFileName().toString())).collect(Collectors.toList());
+            geoipTmpDirs = files.filter(path -> ids.contains(path.getFileName().toString())).toList();
         }
         assertThat(geoipTmpDirs.size(), equalTo(internalCluster().numDataNodes()));
         return geoipTmpDirs;
@@ -610,33 +676,22 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
             .forEach(path -> {
                 try {
                     Files.createDirectories(path);
-                    Files.copy(GeoIpDownloaderIT.class.getResourceAsStream("/GeoLite2-City.mmdb"), path.resolve("GeoLite2-City.mmdb"));
-                    Files.copy(GeoIpDownloaderIT.class.getResourceAsStream("/GeoLite2-ASN.mmdb"), path.resolve("GeoLite2-ASN.mmdb"));
-                    Files.copy(
-                        GeoIpDownloaderIT.class.getResourceAsStream("/GeoLite2-Country.mmdb"),
-                        path.resolve("GeoLite2-Country.mmdb")
-                    );
+                    copyDefaultDatabases(path);
                 } catch (IOException e) {
                     throw new UncheckedIOException(e);
                 }
             });
 
         assertBusy(() -> {
-            GeoIpDownloaderStatsAction.Response response = client().execute(
-                GeoIpDownloaderStatsAction.INSTANCE,
-                new GeoIpDownloaderStatsAction.Request()
-            ).actionGet();
+            GeoIpStatsAction.Response response = client().execute(GeoIpStatsAction.INSTANCE, new GeoIpStatsAction.Request()).actionGet();
             assertThat(response.getNodes(), not(empty()));
-            for (GeoIpDownloaderStatsAction.NodeResponse nodeResponse : response.getNodes()) {
+            for (GeoIpStatsAction.NodeResponse nodeResponse : response.getNodes()) {
                 assertThat(
                     nodeResponse.getConfigDatabases(),
                     containsInAnyOrder("GeoLite2-Country.mmdb", "GeoLite2-City.mmdb", "GeoLite2-ASN.mmdb")
                 );
                 assertThat(nodeResponse.getDatabases(), empty());
-                assertThat(
-                    nodeResponse.getFilesInTemp().stream().filter(s -> s.endsWith(".txt") == false).collect(Collectors.toList()),
-                    empty()
-                );
+                assertThat(nodeResponse.getFilesInTemp().stream().filter(s -> s.endsWith(".txt") == false).toList(), empty());
             }
         });
     }
@@ -650,17 +705,32 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
                 try {
                     IOUtils.rm(path);
                 } catch (IOException e) {
-                    throw new UncheckedIOException(e);
+                    /*
+                     * If the test is emulating Windows mode then it will throw an IOException if something has an open file handle to this
+                     * directory. ConfigDatabases adds a FileWatcher that lists the contents of this directory every 5 seconds. If the
+                     * timing is unlucky a directory listing can happen just as we are attempting to do this delete. In that case we wait a
+                     * small amount of time and retry once. If it fails a second time then something more serious is going on so we bail
+                     * out.
+                     */
+                    if (path.getFileSystem().provider().getScheme().equals("windows://") && e.getMessage().contains("access denied")) {
+                        logger.debug("Caught an IOException, will sleep and try deleting again", e);
+                        safeSleep(500);
+                        try {
+                            IOUtils.rm(path);
+                        } catch (IOException e2) {
+                            throw new UncheckedIOException(e2);
+                        }
+                    } else {
+                        throw new UncheckedIOException(e);
+                    }
+
                 }
             });
 
         assertBusy(() -> {
-            GeoIpDownloaderStatsAction.Response response = client().execute(
-                GeoIpDownloaderStatsAction.INSTANCE,
-                new GeoIpDownloaderStatsAction.Request()
-            ).actionGet();
+            GeoIpStatsAction.Response response = client().execute(GeoIpStatsAction.INSTANCE, new GeoIpStatsAction.Request()).actionGet();
             assertThat(response.getNodes(), not(empty()));
-            for (GeoIpDownloaderStatsAction.NodeResponse nodeResponse : response.getNodes()) {
+            for (GeoIpStatsAction.NodeResponse nodeResponse : response.getNodes()) {
                 assertThat(nodeResponse.getConfigDatabases(), empty());
             }
         });
@@ -668,8 +738,8 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
 
     @SuppressForbidden(reason = "Maxmind API requires java.io.File")
     private void parseDatabase(Path tempFile) throws IOException {
-        try (DatabaseReader databaseReader = new DatabaseReader.Builder(tempFile.toFile()).build()) {
-            assertNotNull(databaseReader.getMetadata());
+        try (Reader reader = new Reader(tempFile.toFile())) {
+            assertNotNull(reader.getMetadata());
         }
     }
 
@@ -725,25 +795,29 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
      * This class defines a processor of type "test".
      */
     public static final class NonGeoProcessorsPlugin extends Plugin implements IngestPlugin {
+        /*
+         * This processor has a single field, randomField. Its sole purpose is to hold a random value to make the processor unique from
+         * other prorcessors that are otherwise identical. The only reason for this is so that the pipeline the processor belongs to is
+         * unique. And the only reason for that is so that adding the pipeline is not treated as a no-op.
+         */
         public static final String NON_GEO_PROCESSOR_TYPE = "test";
 
         @Override
         public Map<String, Processor.Factory> getProcessors(Processor.Parameters parameters) {
             Map<String, Processor.Factory> procMap = new HashMap<>();
-            procMap.put(NON_GEO_PROCESSOR_TYPE, (factories, tag, description, config) -> new AbstractProcessor(tag, description) {
-                @Override
-                public void execute(IngestDocument ingestDocument, BiConsumer<IngestDocument, Exception> handler) {}
+            procMap.put(NON_GEO_PROCESSOR_TYPE, (factories, tag, description, config) -> {
+                readStringProperty(NON_GEO_PROCESSOR_TYPE, tag, config, "randomField");
+                return new AbstractProcessor(tag, description) {
+                    @Override
+                    public void execute(IngestDocument ingestDocument, BiConsumer<IngestDocument, Exception> handler) {
+                        config.remove("randomField");
+                    }
 
-                @Override
-                public String getType() {
-                    return NON_GEO_PROCESSOR_TYPE;
-                }
-
-                @Override
-                public boolean isAsync() {
-                    return false;
-                }
-
+                    @Override
+                    public String getType() {
+                        return NON_GEO_PROCESSOR_TYPE;
+                    }
+                };
             });
             return procMap;
         }

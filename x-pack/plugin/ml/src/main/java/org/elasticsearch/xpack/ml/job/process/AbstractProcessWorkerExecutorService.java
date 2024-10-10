@@ -22,8 +22,11 @@ import java.util.concurrent.AbstractExecutorService;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
+
+import static org.elasticsearch.core.Strings.format;
 
 /**
  * A worker service that executes runnables sequentially in
@@ -39,8 +42,8 @@ public abstract class AbstractProcessWorkerExecutorService<T extends Runnable> e
     private final CountDownLatch awaitTermination = new CountDownLatch(1);
     protected final BlockingQueue<T> queue;
     private final AtomicReference<Exception> error = new AtomicReference<>();
-
-    private volatile boolean running = true;
+    private final AtomicBoolean running = new AtomicBoolean(true);
+    private final AtomicBoolean shouldShutdownAfterCompletingWork = new AtomicBoolean(false);
 
     /**
      * @param contextHolder the thread context holder
@@ -65,24 +68,30 @@ public abstract class AbstractProcessWorkerExecutorService<T extends Runnable> e
         return queue.size();
     }
 
-    public void shutdownWithError(Exception e) {
+    public void shutdownNowWithError(Exception e) {
         error.set(e);
-        shutdown();
+        shutdownNow();
     }
 
     @Override
     public void shutdown() {
-        running = false;
+        shouldShutdownAfterCompletingWork.set(true);
     }
 
+    /**
+     * Some of the tasks in the returned list of {@link Runnable}s could have run. Some tasks may have run while the queue was being copied.
+     *
+     * @return a list of tasks that may not have been run
+     */
     @Override
     public List<Runnable> shutdownNow() {
-        throw new UnsupportedOperationException("not supported");
+        running.set(false);
+        return new ArrayList<>(queue);
     }
 
     @Override
     public boolean isShutdown() {
-        return running == false;
+        return running.get() == false || shouldShutdownAfterCompletingWork.get();
     }
 
     @Override
@@ -97,7 +106,7 @@ public abstract class AbstractProcessWorkerExecutorService<T extends Runnable> e
 
     public void start() {
         try {
-            while (running) {
+            while (running.get()) {
                 Runnable runnable = queue.poll(500, TimeUnit.MILLISECONDS);
                 if (runnable != null) {
                     try {
@@ -106,32 +115,50 @@ public abstract class AbstractProcessWorkerExecutorService<T extends Runnable> e
                         logger.error(() -> "error handling process [" + processName + "] operation", e);
                     }
                     EsExecutors.rethrowErrors(ThreadContext.unwrap(runnable));
+                } else if (shouldShutdownAfterCompletingWork.get()) {
+                    running.set(false);
                 }
             }
 
-            synchronized (this) {
-                // if shutdown with tasks pending notify the handlers
-                if (queue.isEmpty() == false) {
-                    List<Runnable> notExecuted = new ArrayList<>();
-                    queue.drainTo(notExecuted);
-
-                    String msg = "unable to process as " + processName + " worker service has shutdown";
-                    Exception ex = error.get();
-                    for (Runnable runnable : notExecuted) {
-                        if (runnable instanceof AbstractRunnable ar) {
-                            if (ex != null) {
-                                ar.onFailure(ex);
-                            } else {
-                                ar.onRejection(new EsRejectedExecutionException(msg, true));
-                            }
-                        }
-                    }
-                }
-            }
+            notifyQueueRunnables();
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         } finally {
             awaitTermination.countDown();
+        }
+    }
+
+    /**
+     * Drains the queue of runnables and notifies each as either
+     * a rejected execution or failure.
+     *
+     * Although public this method should be used with caution.
+     * It should only be called _after_ the worker has shutdown.
+     *
+     * The method is synchronised to protect concurrent calls.
+     */
+    public synchronized void notifyQueueRunnables() {
+        assert isShutdown() : "Queue runnables should only be drained and notified after the worker is shutdown";
+
+        if (queue.isEmpty() == false) {
+            logger.warn(
+                format("[%s] notifying [%d] queued requests that have not been processed before shutdown", processName, queue.size())
+            );
+
+            List<Runnable> notExecuted = new ArrayList<>();
+            queue.drainTo(notExecuted);
+
+            String msg = "unable to process as " + processName + " worker service has shutdown";
+            Exception ex = error.get();
+            for (Runnable runnable : notExecuted) {
+                if (runnable instanceof AbstractRunnable ar) {
+                    if (ex != null) {
+                        ar.onFailure(ex);
+                    } else {
+                        ar.onRejection(new EsRejectedExecutionException(msg, true));
+                    }
+                }
+            }
         }
     }
 }

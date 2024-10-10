@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.ingest.geoip;
@@ -24,6 +25,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
@@ -111,14 +113,23 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
         Supplier<Boolean> atLeastOneGeoipProcessorSupplier
     ) {
         super(id, type, action, description, parentTask, headers);
-        this.httpClient = httpClient;
         this.client = client;
+        this.httpClient = httpClient;
         this.clusterService = clusterService;
         this.threadPool = threadPool;
-        endpoint = ENDPOINT_SETTING.get(settings);
+        this.endpoint = ENDPOINT_SETTING.get(settings);
         this.pollIntervalSupplier = pollIntervalSupplier;
         this.eagerDownloadSupplier = eagerDownloadSupplier;
         this.atLeastOneGeoipProcessorSupplier = atLeastOneGeoipProcessorSupplier;
+    }
+
+    void setState(GeoIpTaskState state) {
+        // this is for injecting the state in GeoIpDownloaderTaskExecutor#nodeOperation just after the task instance has been created
+        // by the PersistentTasksNodeService -- since the GeoIpDownloader is newly created, the state will be null, and the passed-in
+        // state cannot be null
+        assert this.state == null;
+        assert state != null;
+        this.state = state;
     }
 
     // visible for testing
@@ -161,23 +172,28 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
     }
 
     // visible for testing
-    void processDatabase(Map<String, Object> databaseInfo) {
+    void processDatabase(final Map<String, Object> databaseInfo) {
         String name = databaseInfo.get("name").toString().replace(".tgz", "") + ".mmdb";
         String md5 = (String) databaseInfo.get("md5_hash");
-        if (state.contains(name) && Objects.equals(md5, state.get(name).md5())) {
-            updateTimestamp(name, state.get(name));
-            return;
-        }
-        logger.debug("downloading geoip database [{}]", name);
         String url = databaseInfo.get("url").toString();
         if (url.startsWith("http") == false) {
-            // relative url, add it after last slash (i.e resolve sibling) or at the end if there's no slash after http[s]://
+            // relative url, add it after last slash (i.e. resolve sibling) or at the end if there's no slash after http[s]://
             int lastSlash = endpoint.substring(8).lastIndexOf('/');
             url = (lastSlash != -1 ? endpoint.substring(0, lastSlash + 8) : endpoint) + "/" + url;
         }
+        processDatabase(name, md5, url);
+    }
+
+    private void processDatabase(final String name, final String md5, final String url) {
+        Metadata metadata = state.getDatabases().getOrDefault(name, Metadata.EMPTY);
+        if (Objects.equals(metadata.md5(), md5)) {
+            updateTimestamp(name, metadata);
+            return;
+        }
+        logger.debug("downloading geoip database [{}]", name);
         long start = System.currentTimeMillis();
         try (InputStream is = httpClient.get(url)) {
-            int firstChunk = state.contains(name) ? state.get(name).lastChunk() + 1 : 0;
+            int firstChunk = metadata.lastChunk() + 1; // if there is no metadata, then Metadata.EMPTY.lastChunk() + 1 = 0
             int lastChunk = indexChunks(name, is, firstChunk, md5, start);
             if (lastChunk > firstChunk) {
                 state = state.put(name, new Metadata(start, firstChunk, lastChunk - 1, md5, start));
@@ -188,7 +204,7 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
             }
         } catch (Exception e) {
             stats = stats.failedDownload();
-            logger.error((org.apache.logging.log4j.util.Supplier<?>) () -> "error downloading geoip database [" + name + "]", e);
+            logger.error(() -> "error downloading geoip database [" + name + "]", e);
         }
     }
 
@@ -215,7 +231,7 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
     }
 
     void updateTaskState() {
-        PlainActionFuture<PersistentTask<?>> future = PlainActionFuture.newFuture();
+        PlainActionFuture<PersistentTask<?>> future = new PlainActionFuture<>();
         updatePersistentTaskState(state, future);
         state = ((GeoIpTaskState) future.actionGet().getState());
     }
@@ -248,7 +264,7 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
     }
 
     // visible for testing
-    byte[] getChunk(InputStream is) throws IOException {
+    static byte[] getChunk(InputStream is) throws IOException {
         byte[] buf = new byte[MAX_CHUNK_SIZE];
         int chunkSize = 0;
         while (chunkSize < MAX_CHUNK_SIZE) {
@@ -264,14 +280,13 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
         return buf;
     }
 
-    void setState(GeoIpTaskState state) {
-        this.state = state;
-    }
-
     /**
      * Downloads the geoip databases now, and schedules them to be downloaded again after pollInterval.
      */
     void runDownloader() {
+        // by the time we reach here, the state will never be null
+        assert state != null;
+
         if (isCancelled() || isCompleted()) {
             return;
         }
@@ -305,22 +320,20 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
     }
 
     private void cleanDatabases() {
-        long expiredDatabases = state.getDatabases()
+        List<Tuple<String, Metadata>> expiredDatabases = state.getDatabases()
             .entrySet()
             .stream()
-            .filter(e -> e.getValue().isValid(clusterService.state().metadata().settings()) == false)
-            .peek(e -> {
-                String name = e.getKey();
-                Metadata meta = e.getValue();
-                deleteOldChunks(name, meta.lastChunk() + 1);
-                state = state.put(
-                    name,
-                    new Metadata(meta.lastUpdate(), meta.firstChunk(), meta.lastChunk(), meta.md5(), meta.lastCheck() - 1)
-                );
-                updateTaskState();
-            })
-            .count();
-        stats = stats.expiredDatabases((int) expiredDatabases);
+            .filter(e -> e.getValue().isNewEnough(clusterService.state().metadata().settings()) == false)
+            .map(entry -> Tuple.tuple(entry.getKey(), entry.getValue()))
+            .toList();
+        expiredDatabases.forEach(e -> {
+            String name = e.v1();
+            Metadata meta = e.v2();
+            deleteOldChunks(name, meta.lastChunk() + 1);
+            state = state.put(name, new Metadata(meta.lastUpdate(), meta.firstChunk(), meta.lastChunk(), meta.md5(), meta.lastCheck() - 1));
+            updateTaskState();
+        });
+        stats = stats.expiredDatabases(expiredDatabases.size());
     }
 
     @Override
@@ -338,7 +351,7 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
 
     private void scheduleNextRun(TimeValue time) {
         if (threadPool.scheduler().isShutdown() == false) {
-            scheduled = threadPool.schedule(this::runDownloader, time, ThreadPool.Names.GENERIC);
+            scheduled = threadPool.schedule(this::runDownloader, time, threadPool.generic());
         }
     }
 

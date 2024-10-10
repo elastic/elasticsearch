@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.xcontent.support;
@@ -53,13 +54,13 @@ public class XContentMapValuesTests extends AbstractFilteringTestCase {
         if (includes == null) {
             sourceIncludes = randomBoolean() ? Strings.EMPTY_ARRAY : null;
         } else {
-            sourceIncludes = includes.toArray(new String[includes.size()]);
+            sourceIncludes = includes.toArray(String[]::new);
         }
         String[] sourceExcludes;
         if (excludes == null) {
             sourceExcludes = randomBoolean() ? Strings.EMPTY_ARRAY : null;
         } else {
-            sourceExcludes = excludes.toArray(new String[excludes.size()]);
+            sourceExcludes = excludes.toArray(String[]::new);
         }
 
         assertMap(
@@ -72,10 +73,7 @@ public class XContentMapValuesTests extends AbstractFilteringTestCase {
     public void testExtractValue() throws Exception {
         XContentBuilder builder = XContentFactory.jsonBuilder().startObject().field("test", "value").endObject();
 
-        Map<String, Object> map;
-        try (XContentParser parser = createParser(JsonXContent.jsonXContent, Strings.toString(builder))) {
-            map = parser.map();
-        }
+        Map<String, Object> map = toSourceMap(Strings.toString(builder));
         assertThat(XContentMapValues.extractValue("test", map).toString(), equalTo("value"));
         assertThat(XContentMapValues.extractValue("test.me", map), nullValue());
         assertThat(XContentMapValues.extractValue("something.else.2", map), nullValue());
@@ -84,9 +82,7 @@ public class XContentMapValuesTests extends AbstractFilteringTestCase {
         builder.startObject("path1").startObject("path2").field("test", "value").endObject().endObject();
         builder.endObject();
 
-        try (XContentParser parser = createParser(JsonXContent.jsonXContent, Strings.toString(builder))) {
-            map = parser.map();
-        }
+        map = toSourceMap(Strings.toString(builder));
         assertThat(XContentMapValues.extractValue("path1.path2.test", map).toString(), equalTo("value"));
         assertThat(XContentMapValues.extractValue("path1.path2.test_me", map), nullValue());
         assertThat(XContentMapValues.extractValue("path1.non_path2.test", map), nullValue());
@@ -105,10 +101,7 @@ public class XContentMapValuesTests extends AbstractFilteringTestCase {
         builder = XContentFactory.jsonBuilder().startObject();
         builder.startObject("path1").array("test", "value1", "value2").endObject();
         builder.endObject();
-
-        try (XContentParser parser = createParser(JsonXContent.jsonXContent, Strings.toString(builder))) {
-            map = parser.map();
-        }
+        map = toSourceMap(Strings.toString(builder));
 
         extValue = XContentMapValues.extractValue("path1.test", map);
         assertThat(extValue, instanceOf(List.class));
@@ -128,10 +121,7 @@ public class XContentMapValuesTests extends AbstractFilteringTestCase {
             builder.endObject();
         }
         builder.endObject();
-
-        try (XContentParser parser = createParser(JsonXContent.jsonXContent, Strings.toString(builder))) {
-            map = parser.map();
-        }
+        map = toSourceMap(Strings.toString(builder));
 
         extValue = XContentMapValues.extractValue("path1.path2.test", map);
         assertThat(extValue, instanceOf(List.class));
@@ -143,19 +133,78 @@ public class XContentMapValuesTests extends AbstractFilteringTestCase {
 
         // fields with . in them
         builder = XContentFactory.jsonBuilder().startObject().field("xxx.yyy", "value").endObject();
-        try (XContentParser parser = createParser(JsonXContent.jsonXContent, Strings.toString(builder))) {
-            map = parser.map();
-        }
+        map = toSourceMap(Strings.toString(builder));
         assertThat(XContentMapValues.extractValue("xxx.yyy", map).toString(), equalTo("value"));
 
         builder = XContentFactory.jsonBuilder().startObject();
         builder.startObject("path1.xxx").startObject("path2.yyy").field("test", "value").endObject().endObject();
         builder.endObject();
 
-        try (XContentParser parser = createParser(JsonXContent.jsonXContent, Strings.toString(builder))) {
-            map = parser.map();
-        }
+        map = toSourceMap(Strings.toString(builder));
         assertThat(XContentMapValues.extractValue("path1.xxx.path2.yyy.test", map).toString(), equalTo("value"));
+
+        String source = """
+            {
+                "object" : [
+                    {
+                        "object2" : [
+                            {
+                                "foo" : [1,2,3],
+                                "bar" : "baz"
+                            },
+                            {
+                                "bar" : ["buzz", "bees"]
+                            }
+                         ],
+                        "geo_point_in_obj" : [
+                            {"lat" : 42.0, "lon" : 27.1},
+                            [2.1, 41.0]
+                        ]
+                    }
+                ]
+            }
+            """;
+
+        assertThat(
+            XContentMapValues.extractValue("object.geo_point_in_obj", toSourceMap(source)).toString(),
+            equalTo("[{lon=27.1, lat=42.0}, [2.1, 41.0]]")
+        );
+        assertThat(XContentMapValues.extractValue("object.object2.foo", toSourceMap(source)).toString(), equalTo("[1, 2, 3]"));
+        assertThat(XContentMapValues.extractValue("object.object2.bar", toSourceMap(source)).toString(), equalTo("[baz, buzz, bees]"));
+
+        // same with the root object not being an array
+        source = """
+            {
+                "object" : {
+                    "object2" : [
+                        {
+                            "foo" : [1,2,3],
+                            "bar" : "baz"
+                        },
+                        {
+                            "bar" : ["buzz", "bees"]
+                        }
+                     ],
+                    "geo_point_in_obj" : [
+                        {"lat" : 42.0, "lon" : 27.1},
+                        [2.1, 41.0]
+                    ]
+                }
+            }
+            """;
+
+        assertThat(
+            XContentMapValues.extractValue("object.geo_point_in_obj", toSourceMap(source)).toString(),
+            equalTo("[{lon=27.1, lat=42.0}, [2.1, 41.0]]")
+        );
+        assertThat(XContentMapValues.extractValue("object.object2.foo", toSourceMap(source)).toString(), equalTo("[1, 2, 3]"));
+        assertThat(XContentMapValues.extractValue("object.object2.bar", toSourceMap(source)).toString(), equalTo("[baz, buzz, bees]"));
+    }
+
+    private Map<String, Object> toSourceMap(String source) throws IOException {
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, source)) {
+            return parser.map();
+        }
     }
 
     public void testExtractValueWithNullValue() throws Exception {

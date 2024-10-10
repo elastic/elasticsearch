@@ -1,15 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.network;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Constants;
+import org.elasticsearch.core.Predicates;
 
 import java.io.IOException;
 import java.net.Inet4Address;
@@ -188,7 +190,7 @@ public abstract class NetworkUtils {
     /** Returns all addresses (any scope) for interfaces that are up.
      *  This is only used to pick a publish address, when the user set network.host to a wildcard */
     public static InetAddress[] getAllAddresses() throws IOException {
-        return filterAllAddresses(address -> true, "no up-and-running addresses found");
+        return filterAllAddresses(Predicates.always(), "no up-and-running addresses found");
     }
 
     static Optional<NetworkInterface> maybeGetInterfaceByName(List<NetworkInterface> networkInterfaces, String name) {

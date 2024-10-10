@@ -22,9 +22,6 @@ PUT _scripts/my-search-template
       },
       "from": "{{from}}",
       "size": "{{size}}"
-    },
-    "params": {
-      "query_string": "My query string"
     }
   }
 }
@@ -63,7 +60,7 @@ GET my-index/_msearch/template
 
 * If the {es} {security-features} are enabled, you must have the `read`
 <<privileges-list-indices,index privilege>> for the target data stream, index,
-or alias. For cross-cluster search, see <<remote-clusters-security>>.
+or alias. For cross-cluster search, see <<remote-clusters>>.
 
 [[multi-search-template-api-path-params]]
 ==== {api-path-parms-title}
@@ -89,7 +86,7 @@ min(<<search-threadpool,search thread pool size>>, 10)))+.
 (Optional, Boolean) If `true`, the response returns `hits.total` as an integer.
 If false, it returns `hits.total` as an object. Defaults to `false`.
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=search_type]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=search_type]
 
 `typed_keys`::
 (Optional, Boolean) If `true`, the response prefixes aggregation and suggester

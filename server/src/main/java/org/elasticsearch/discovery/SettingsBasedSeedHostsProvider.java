@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.discovery;
@@ -17,9 +18,6 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.List;
-import java.util.function.Function;
-
-import static java.util.Collections.emptyList;
 
 /**
  * An implementation of {@link SeedHostsProvider} that reads hosts/ports
@@ -33,10 +31,8 @@ public class SettingsBasedSeedHostsProvider implements SeedHostsProvider {
 
     private static final Logger logger = LogManager.getLogger(SettingsBasedSeedHostsProvider.class);
 
-    public static final Setting<List<String>> DISCOVERY_SEED_HOSTS_SETTING = Setting.listSetting(
+    public static final Setting<List<String>> DISCOVERY_SEED_HOSTS_SETTING = Setting.stringListSetting(
         "discovery.seed_hosts",
-        emptyList(),
-        Function.identity(),
         Property.NodeScope
     );
 

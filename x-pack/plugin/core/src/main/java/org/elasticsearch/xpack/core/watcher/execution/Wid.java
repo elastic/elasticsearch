@@ -37,7 +37,7 @@ public class Wid {
 
     public Wid(String value) {
         this.value = value;
-        int index = value.lastIndexOf("_");
+        int index = value.lastIndexOf('_');
         if (index <= 0) {
             throw illegalArgument("invalid watcher execution id [{}]", value);
         }

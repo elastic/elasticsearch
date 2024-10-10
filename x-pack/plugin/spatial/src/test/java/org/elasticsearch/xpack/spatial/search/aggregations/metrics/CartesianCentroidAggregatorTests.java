@@ -11,10 +11,10 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.document.LatLonDocValuesField;
 import org.apache.lucene.document.XYDocValuesField;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.common.geo.SpatialPoint;
+import org.elasticsearch.geo.ShapeTestUtils;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.plugins.SearchPlugin;
@@ -26,7 +26,6 @@ import org.elasticsearch.xpack.spatial.LocalStateSpatialPlugin;
 import org.elasticsearch.xpack.spatial.common.CartesianPoint;
 import org.elasticsearch.xpack.spatial.index.mapper.PointFieldMapper;
 import org.elasticsearch.xpack.spatial.search.aggregations.support.CartesianPointValuesSourceType;
-import org.elasticsearch.xpack.spatial.util.ShapeTestUtils;
 
 import java.io.IOException;
 import java.util.List;
@@ -44,8 +43,7 @@ public class CartesianCentroidAggregatorTests extends AggregatorTestCase {
 
             MappedFieldType fieldType = new PointFieldMapper.PointFieldType("field");
             try (IndexReader reader = w.getReader()) {
-                IndexSearcher searcher = new IndexSearcher(reader);
-                InternalCartesianCentroid result = searchAndReduce(searcher, new AggTestConfig(aggBuilder, fieldType));
+                InternalCartesianCentroid result = searchAndReduce(reader, new AggTestConfig(aggBuilder, fieldType));
                 assertNull(result.centroid());
                 assertFalse(AggregationInspectionHelper.hasValue(result));
             }
@@ -60,14 +58,13 @@ public class CartesianCentroidAggregatorTests extends AggregatorTestCase {
             document.add(new LatLonDocValuesField("field", 10, 10));
             w.addDocument(document);
             try (IndexReader reader = w.getReader()) {
-                IndexSearcher searcher = new IndexSearcher(reader);
 
                 MappedFieldType fieldType = new PointFieldMapper.PointFieldType("another_field");
-                InternalCartesianCentroid result = searchAndReduce(searcher, new AggTestConfig(aggBuilder, fieldType));
+                InternalCartesianCentroid result = searchAndReduce(reader, new AggTestConfig(aggBuilder, fieldType));
                 assertNull(result.centroid());
 
                 fieldType = new PointFieldMapper.PointFieldType("another_field");
-                result = searchAndReduce(searcher, new AggTestConfig(aggBuilder, fieldType));
+                result = searchAndReduce(reader, new AggTestConfig(aggBuilder, fieldType));
                 assertNull(result.centroid());
                 assertFalse(AggregationInspectionHelper.hasValue(result));
             }
@@ -84,10 +81,8 @@ public class CartesianCentroidAggregatorTests extends AggregatorTestCase {
             document.add(new LatLonDocValuesField("field", 10, 10));
             w.addDocument(document);
             try (IndexReader reader = w.getReader()) {
-                IndexSearcher searcher = new IndexSearcher(reader);
-
                 MappedFieldType fieldType = new PointFieldMapper.PointFieldType("another_field");
-                InternalCartesianCentroid result = searchAndReduce(searcher, new AggTestConfig(aggBuilder, fieldType));
+                InternalCartesianCentroid result = searchAndReduce(reader, new AggTestConfig(aggBuilder, fieldType));
                 assertEquals(expectedCentroid, result.centroid());
                 assertTrue(AggregationInspectionHelper.hasValue(result));
             }
@@ -110,8 +105,8 @@ public class CartesianCentroidAggregatorTests extends AggregatorTestCase {
                 document.add(new XYDocValuesField("field", (float) singleVal.getX(), (float) singleVal.getY()));
                 w.addDocument(document);
                 expectedCentroid = expectedCentroid.reset(
-                    expectedCentroid.getX() + (singleVal.getX() - expectedCentroid.getX()) / (i + 1),
-                    expectedCentroid.getY() + (singleVal.getY() - expectedCentroid.getY()) / (i + 1)
+                    expectedCentroid.getX() + ((float) singleVal.getX() - expectedCentroid.getX()) / (i + 1),
+                    expectedCentroid.getY() + ((float) singleVal.getY() - expectedCentroid.getY()) / (i + 1)
                 );
             }
             assertCentroid(w, expectedCentroid);
@@ -137,8 +132,8 @@ public class CartesianCentroidAggregatorTests extends AggregatorTestCase {
                 document.add(new XYDocValuesField("field", (float) multiVal[0].getX(), (float) multiVal[0].getY()));
                 document.add(new XYDocValuesField("field", (float) multiVal[1].getX(), (float) multiVal[1].getY()));
                 w.addDocument(document);
-                double newMVx = (multiVal[0].getX() + multiVal[1].getX()) / 2d;
-                double newMVy = (multiVal[0].getY() + multiVal[1].getY()) / 2d;
+                double newMVx = ((float) multiVal[0].getX() + (float) multiVal[1].getX()) / 2d;
+                double newMVy = ((float) multiVal[0].getY() + (float) multiVal[1].getY()) / 2d;
                 expectedCentroid = expectedCentroid.reset(
                     expectedCentroid.getX() + (newMVx - expectedCentroid.getX()) / (i + 1),
                     expectedCentroid.getY() + (newMVy - expectedCentroid.getY()) / (i + 1)
@@ -153,8 +148,7 @@ public class CartesianCentroidAggregatorTests extends AggregatorTestCase {
         MappedFieldType fieldType = new PointFieldMapper.PointFieldType("field");
         CartesianCentroidAggregationBuilder aggBuilder = new CartesianCentroidAggregationBuilder("my_agg").field("field");
         try (IndexReader reader = w.getReader()) {
-            IndexSearcher searcher = new IndexSearcher(reader);
-            InternalCartesianCentroid result = searchAndReduce(searcher, new AggTestConfig(aggBuilder, fieldType));
+            InternalCartesianCentroid result = searchAndReduce(reader, new AggTestConfig(aggBuilder, fieldType));
 
             assertEquals("my_agg", result.getName());
             SpatialPoint centroid = result.centroid();

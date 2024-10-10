@@ -3,8 +3,6 @@ setup:
       indices.create:
           index: old_test
           body:
-            settings:
-              number_of_replicas: 0
             mappings:
               properties:
                 date:
@@ -15,24 +13,18 @@ setup:
       indices.create:
           index: test
           body:
-            settings:
-              number_of_replicas: 0
             mappings:
               properties:
                 date:
                   type: date
                   format: epoch_second
 
-  - do:
-      cluster.health:
-        wait_for_status: yellow
-
 # March 8th 2020 was the start of daylight savings time that year
   - do:
       bulk:
         index: test
         refresh: true
-        body: 
+        body:
           - {"index": {}}
           - { "date" : "2020-03-08T06:15:00Z" }
           - {"index": {}}
@@ -44,7 +36,7 @@ setup:
       bulk:
         index: old_test
         refresh: true
-        body: 
+        body:
           - {"index": {}}
           - { "date" : 1000 }
           - {"index": {}}
@@ -56,15 +48,15 @@ setup:
       search:
         body:
           size: 0
-          aggs: 
-            date_range: 
-              date_range: 
+          aggs:
+            date_range:
+              date_range:
                 field: "date"
-                ranges: 
-                  - 
+                ranges:
+                  -
                     from: 1000
                     to: 3000
-                  - 
+                  -
                     from: 3000
                     to: 4000
 
@@ -131,8 +123,8 @@ setup:
 
 ---
 "Date range unmapped with children":
-  - skip:
-      version: " - 7.9.99"
+  - requires:
+      cluster_features: ["gte_v7.10.0"]
       reason: Fixed in 7.10.0
 
   - do:
@@ -141,7 +133,6 @@ setup:
           body:
             settings:
               number_of_shards: 1
-              number_of_replicas: 0
   - do:
       search:
         index: test_a_unmapped

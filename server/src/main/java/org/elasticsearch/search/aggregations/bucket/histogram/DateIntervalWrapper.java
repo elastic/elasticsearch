@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.bucket.histogram;
@@ -26,7 +27,6 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.time.ZoneId;
-import java.util.Locale;
 import java.util.Objects;
 
 import static org.elasticsearch.core.RestApiVersion.equalTo;
@@ -59,10 +59,6 @@ public class DateIntervalWrapper implements ToXContentFragment, Writeable {
         @Deprecated
         LEGACY_DATE_HISTO(null);
 
-        public static IntervalTypeEnum fromString(String name) {
-            return valueOf(name.trim().toUpperCase(Locale.ROOT));
-        }
-
         public static IntervalTypeEnum fromStream(StreamInput in) throws IOException {
             return in.readEnum(IntervalTypeEnum.class);
         }
@@ -70,10 +66,6 @@ public class DateIntervalWrapper implements ToXContentFragment, Writeable {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeEnum(this);
-        }
-
-        public String value() {
-            return name().toLowerCase(Locale.ROOT);
         }
 
         public boolean isValid() {
@@ -88,7 +80,7 @@ public class DateIntervalWrapper implements ToXContentFragment, Writeable {
             return preferredName;
         }
 
-        private String preferredName;
+        private final String preferredName;
 
         IntervalTypeEnum(String preferredName) {
             this.preferredName = preferredName;

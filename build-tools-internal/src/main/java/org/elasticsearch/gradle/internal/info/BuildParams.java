@@ -1,19 +1,22 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.gradle.internal.info;
 
 import org.elasticsearch.gradle.internal.BwcVersions;
 import org.gradle.api.Action;
 import org.gradle.api.JavaVersion;
+import org.gradle.api.Task;
 import org.gradle.api.provider.Provider;
 import org.gradle.jvm.toolchain.JavaToolchainSpec;
 
 import java.io.File;
+import java.io.IOException;
 import java.lang.reflect.Modifier;
 import java.time.ZonedDateTime;
 import java.util.Arrays;
@@ -24,15 +27,15 @@ import java.util.function.Consumer;
 import static java.util.Objects.requireNonNull;
 
 public class BuildParams {
-    private static File runtimeJavaHome;
+    private static Provider<File> runtimeJavaHome;
     private static Boolean isRuntimeJavaHomeSet;
     private static List<JavaHome> javaVersions;
     private static JavaVersion minimumCompilerVersion;
     private static JavaVersion minimumRuntimeVersion;
     private static JavaVersion gradleJavaVersion;
-    private static JavaVersion runtimeJavaVersion;
+    private static Provider<JavaVersion> runtimeJavaVersion;
     private static Provider<? extends Action<JavaToolchainSpec>> javaToolChainSpec;
-    private static String runtimeJavaDetails;
+    private static Provider<String> runtimeJavaDetails;
     private static Boolean inFipsJvm;
     private static String gitRevision;
     private static String gitOrigin;
@@ -56,7 +59,7 @@ public class BuildParams {
     }
 
     public static File getRuntimeJavaHome() {
-        return value(runtimeJavaHome);
+        return value(runtimeJavaHome).get();
     }
 
     public static Boolean getIsRuntimeJavaHomeSet() {
@@ -80,15 +83,19 @@ public class BuildParams {
     }
 
     public static JavaVersion getRuntimeJavaVersion() {
-        return value(runtimeJavaVersion);
+        return value(runtimeJavaVersion.get());
     }
 
     public static String getRuntimeJavaDetails() {
-        return value(runtimeJavaDetails);
+        return value(runtimeJavaDetails.get());
     }
 
     public static Boolean isInFipsJvm() {
         return value(inFipsJvm);
+    }
+
+    public static void withFipsEnabledOnly(Task task) {
+        task.onlyIf("FIPS mode disabled", task1 -> isInFipsJvm() == false);
     }
 
     public static String getGitRevision() {
@@ -120,7 +127,7 @@ public class BuildParams {
     }
 
     public static Boolean isGraalVmRuntime() {
-        return value(runtimeJavaDetails.toLowerCase().contains("graalvm"));
+        return value(runtimeJavaDetails.get().toLowerCase().contains("graalvm"));
     }
 
     public static Integer getDefaultParallel() {
@@ -176,12 +183,18 @@ public class BuildParams {
             });
         }
 
-        public void setRuntimeJavaHome(File runtimeJavaHome) {
-            BuildParams.runtimeJavaHome = requireNonNull(runtimeJavaHome);
+        public void setRuntimeJavaHome(Provider<File> runtimeJavaHome) {
+            BuildParams.runtimeJavaHome = runtimeJavaHome.map(javaHome -> {
+                try {
+                    return javaHome.getCanonicalFile();
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                }
+            });
         }
 
-        public void setIsRuntimeJavaHomeSet(boolean isRutimeJavaHomeSet) {
-            BuildParams.isRuntimeJavaHomeSet = isRutimeJavaHomeSet;
+        public void setIsRuntimeJavaHomeSet(boolean isRuntimeJavaHomeSet) {
+            BuildParams.isRuntimeJavaHomeSet = isRuntimeJavaHomeSet;
         }
 
         public void setJavaVersions(List<JavaHome> javaVersions) {
@@ -200,11 +213,11 @@ public class BuildParams {
             BuildParams.gradleJavaVersion = requireNonNull(gradleJavaVersion);
         }
 
-        public void setRuntimeJavaVersion(JavaVersion runtimeJavaVersion) {
+        public void setRuntimeJavaVersion(Provider<JavaVersion> runtimeJavaVersion) {
             BuildParams.runtimeJavaVersion = requireNonNull(runtimeJavaVersion);
         }
 
-        public void setRuntimeJavaDetails(String runtimeJavaDetails) {
+        public void setRuntimeJavaDetails(Provider<String> runtimeJavaDetails) {
             BuildParams.runtimeJavaDetails = runtimeJavaDetails;
         }
 

@@ -32,7 +32,7 @@ public class GetRecordsAction extends ActionType<GetRecordsAction.Response> {
     public static final String NAME = "cluster:monitor/xpack/ml/job/results/records/get";
 
     private GetRecordsAction() {
-        super(NAME, Response::new);
+        super(NAME);
     }
 
     public static class Request extends ActionRequest implements ToXContentObject {

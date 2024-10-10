@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.ingest.attachment;
@@ -14,10 +15,10 @@ import org.apache.tika.metadata.Metadata;
 import org.apache.tika.metadata.Office;
 import org.apache.tika.metadata.TikaCoreProperties;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
@@ -226,15 +227,6 @@ public final class AttachmentProcessor extends AbstractProcessor {
 
         static final Set<Property> DEFAULT_PROPERTIES = EnumSet.allOf(Property.class);
 
-        static {
-            if (Version.CURRENT.major >= 9) {
-                throw new IllegalStateException(
-                    "[poison pill] update the [remove_binary] default to be 'true' assuming "
-                        + "enough time has passed. Deprecated in September 2022."
-                );
-            }
-        }
-
         @Override
         public AttachmentProcessor create(
             Map<String, Processor.Factory> registry,
@@ -249,6 +241,8 @@ public final class AttachmentProcessor extends AbstractProcessor {
             int indexedChars = readIntProperty(TYPE, processorTag, config, "indexed_chars", NUMBER_OF_CHARS_INDEXED);
             boolean ignoreMissing = readBooleanProperty(TYPE, processorTag, config, "ignore_missing", false);
             String indexedCharsField = readOptionalStringProperty(TYPE, processorTag, config, "indexed_chars_field");
+            @UpdateForV9(owner = UpdateForV9.Owner.DATA_MANAGEMENT)
+            // update the [remove_binary] default to be 'true' assuming enough time has passed. Deprecated in September 2022.
             Boolean removeBinary = readOptionalBooleanProperty(TYPE, processorTag, config, "remove_binary");
             if (removeBinary == null) {
                 DEPRECATION_LOGGER.warn(

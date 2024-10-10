@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.rest.action.admin.indices;
@@ -17,8 +18,10 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestCancellableNodeClient;
-import org.elasticsearch.rest.action.RestChunkedToXContentListener;
+import org.elasticsearch.rest.action.RestRefCountedChunkedToXContentListener;
 
 import java.io.IOException;
 import java.util.List;
@@ -27,10 +30,12 @@ import java.util.Set;
 import static org.elasticsearch.common.util.set.Sets.addToCopy;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.HEAD;
+import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
 
 /**
  * The REST handler for get index and head index APIs.
  */
+@ServerlessScope(Scope.PUBLIC)
 public class RestGetIndicesAction extends BaseRestHandler {
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestGetIndicesAction.class);
     public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Using `include_type_name` in get indices requests"
@@ -62,14 +67,14 @@ public class RestGetIndicesAction extends BaseRestHandler {
         getIndexRequest.indices(indices);
         getIndexRequest.indicesOptions(IndicesOptions.fromRequest(request, getIndexRequest.indicesOptions()));
         getIndexRequest.local(request.paramAsBoolean("local", getIndexRequest.local()));
-        getIndexRequest.masterNodeTimeout(request.paramAsTime("master_timeout", getIndexRequest.masterNodeTimeout()));
+        getIndexRequest.masterNodeTimeout(getMasterNodeTimeout(request));
         getIndexRequest.humanReadable(request.paramAsBoolean("human", false));
         getIndexRequest.includeDefaults(request.paramAsBoolean("include_defaults", false));
         getIndexRequest.features(GetIndexRequest.Feature.fromRequest(request));
         final var httpChannel = request.getHttpChannel();
         return channel -> new RestCancellableNodeClient(client, httpChannel).admin()
             .indices()
-            .getIndex(getIndexRequest, new RestChunkedToXContentListener<>(channel));
+            .getIndex(getIndexRequest, new RestRefCountedChunkedToXContentListener<>(channel));
     }
 
     /**

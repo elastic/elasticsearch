@@ -1,8 +1,11 @@
-[role="xpack"]
-[[data-streams-change-mappings-and-settings]]
-== Change mappings and settings for a data stream
+[[modify-data-streams]]
+== Modify a data stream
 
-Each data stream has a <<create-index-template,matching index
+[discrete]
+[[data-streams-change-mappings-and-settings]]
+=== Change mappings and settings for a data stream
+
+Each <<data-streams,data stream>> has a <<create-index-template,matching index
 template>>. Mappings and index settings from this template are applied to new
 backing indices created for the stream. This includes the stream's first
 backing index, which is auto-generated when the stream is created.
@@ -66,14 +69,16 @@ PUT /_data_stream/my-data-stream
 POST /my-data-stream/_rollover/
 
 PUT /_data_stream/new-data-stream
+
+DELETE /_data_stream/*/_lifecycle
 ----
 // TESTSETUP
 
 [source,console]
 ----
-DELETE /_data_stream/*
+DELETE /_data_stream/my-data-stream*,new-data-stream*
 
-DELETE /_index_template/*
+DELETE /_index_template/my-data-stream-template,new-data-stream-template
 
 DELETE /_ilm/policy/my-data-stream-policy
 ----
@@ -82,7 +87,7 @@ DELETE /_ilm/policy/my-data-stream-policy
 
 [discrete]
 [[add-new-field-mapping-to-a-data-stream]]
-=== Add a new field mapping to a data stream
+==== Add a new field mapping to a data stream
 
 To add a mapping for a new field to a data stream, following these steps:
 
@@ -161,7 +166,7 @@ PUT /my-data-stream/_mapping?write_index_only=true
 
 [discrete]
 [[change-existing-field-mapping-in-a-data-stream]]
-=== Change an existing field mapping in a data stream
+==== Change an existing field mapping in a data stream
 
 The documentation for each <<mapping-params,mapping parameter>> indicates
 whether you can update it for an existing field using the
@@ -269,7 +274,7 @@ data stream and reindex your data into it. See
 
 [discrete]
 [[change-dynamic-index-setting-for-a-data-stream]]
-=== Change a dynamic index setting for a data stream
+==== Change a dynamic index setting for a data stream
 
 To change a <<index-modules-settings,dynamic index setting>> for a data stream,
 follow these steps:
@@ -326,7 +331,7 @@ policy. See <<switch-lifecycle-policies>>.
 
 [discrete]
 [[change-static-index-setting-for-a-data-stream]]
-=== Change a static index setting for a data stream
+==== Change a static index setting for a data stream
 
 <<index-modules-settings,Static index settings>> can only be set when a backing
 index is created. You cannot update static index settings using the
@@ -371,7 +376,7 @@ new data stream and reindex your data into it. See
 
 [discrete]
 [[data-streams-use-reindex-to-change-mappings-settings]]
-=== Use reindex to change mappings or settings
+==== Use reindex to change mappings or settings
 
 You can use a reindex to change the mappings or settings of a data stream. This
 is often required to change the data type of an existing field or update static
@@ -481,15 +486,16 @@ to create this data stream>>. Later, you will reindex older data from an
 existing data stream into this new stream. This could result in one or more
 backing indices that contains a mix of new and old data.
 +
-[[data-stream-mix-new-old-data]]
-.Mixing new and old data in a data stream
 [IMPORTANT]
-====
+======
+[[data-stream-mix-new-old-data]]
+*Mixing new and old data in a data stream*
+
 While mixing new and old data is safe, it could interfere with data retention.
 If you delete older indices, you could accidentally delete a backing index that
 contains both new and old data. To prevent premature data loss, you would need
 to retain such a backing index until you are ready to delete its newest data.
-====
+======
 +
 --
 The following create data stream API request targets `new-data-stream`, which
@@ -567,20 +573,27 @@ stream's oldest backing index.
       "indices": [
         {
           "index_name": ".ds-my-data-stream-2099.03.07-000001", <1>
-          "index_uuid": "Gpdiyq8sRuK9WuthvAdFbw"
+          "index_uuid": "Gpdiyq8sRuK9WuthvAdFbw",
+          "prefer_ilm": true,
+          "managed_by": "Unmanaged"
         },
         {
           "index_name": ".ds-my-data-stream-2099.03.08-000002",
-          "index_uuid": "_eEfRrFHS9OyhqWntkgHAQ"
+          "index_uuid": "_eEfRrFHS9OyhqWntkgHAQ",
+          "prefer_ilm": true,
+          "managed_by": "Unmanaged"
         }
       ],
       "generation": 2,
       "status": "GREEN",
+      "next_generation_managed_by": "Unmanaged",
+      "prefer_ilm": true,
       "template": "my-data-stream-template",
       "hidden": false,
       "system": false,
       "allow_custom_routing": false,
-      "replicated": false
+      "replicated": false,
+      "rollover_on_write": false
     }
   ]
 }
@@ -589,7 +602,7 @@ stream's oldest backing index.
 // TESTRESPONSE[s/"index_uuid": "_eEfRrFHS9OyhqWntkgHAQ"/"index_uuid": $body.data_streams.0.indices.1.index_uuid/]
 // TESTRESPONSE[s/"index_name": ".ds-my-data-stream-2099.03.07-000001"/"index_name": $body.data_streams.0.indices.0.index_name/]
 // TESTRESPONSE[s/"index_name": ".ds-my-data-stream-2099.03.08-000002"/"index_name": $body.data_streams.0.indices.1.index_name/]
-// TESTRESPONSE[s/"status": "GREEN"/"status": "YELLOW"/]
+// TESTRESPONSE[s/"status": "GREEN"/"status": "YELLOW","failure_store":{"enabled": false, "indices": [], "rollover_on_write": true}/]
 
 <1> First item in the `indices` array for `my-data-stream`. This item contains
 information about the stream's oldest backing index,
@@ -683,3 +696,13 @@ backing indices and any data they contain.
 DELETE /_data_stream/my-data-stream
 ----
 --
+
+[discrete]
+[[data-streams-change-alias]]
+=== Update or add an alias to a data stream
+
+Use the <<indices-aliases,aliases API>> to update an existing data stream's
+aliases. Changing an existing data stream's aliases in its index pattern has no
+effect.
+
+include::../alias.asciidoc[tag=alias-multiple-actions-example]

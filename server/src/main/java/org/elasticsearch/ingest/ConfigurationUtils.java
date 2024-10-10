@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.ingest;
@@ -14,19 +15,18 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.script.TemplateScript;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -314,6 +314,27 @@ public final class ConfigurationUtils {
         Object value = configuration.remove(propertyName);
         if (value == null) {
             return null;
+        }
+        return readList(processorType, processorTag, propertyName, value);
+    }
+
+    /**
+     * Returns and removes the specified property of type list from the specified configuration map.
+     *
+     * If the property value isn't of type list or string an {@link ElasticsearchParseException} is thrown.
+     */
+    public static List<String> readOptionalListOrString(
+        String processorType,
+        String processorTag,
+        Map<String, Object> configuration,
+        String propertyName
+    ) {
+        Object value = configuration.remove(propertyName);
+        if (value == null) {
+            return List.of();
+        }
+        if (value instanceof String) {
+            return List.of(readString(processorType, processorTag, propertyName, value));
         }
         return readList(processorType, processorTag, propertyName, value);
     }
@@ -619,9 +640,11 @@ public final class ConfigurationUtils {
         if (scriptSource != null) {
             try (
                 XContentBuilder builder = XContentBuilder.builder(JsonXContent.jsonXContent).map(normalizeScript(scriptSource));
-                InputStream stream = BytesReference.bytes(builder).streamInput();
-                XContentParser parser = XContentType.JSON.xContent()
-                    .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, stream)
+                XContentParser parser = XContentHelper.createParserNotCompressed(
+                    LoggingDeprecationHandler.XCONTENT_PARSER_CONFIG,
+                    BytesReference.bytes(builder),
+                    XContentType.JSON
+                )
             ) {
                 return Script.parse(parser);
             }

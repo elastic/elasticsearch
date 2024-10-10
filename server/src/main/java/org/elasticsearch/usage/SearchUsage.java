@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.usage;
@@ -17,6 +18,7 @@ import java.util.Set;
  */
 public final class SearchUsage {
     private final Set<String> queries = new HashSet<>();
+    private final Set<String> rescorers = new HashSet<>();
     private final Set<String> sections = new HashSet<>();
 
     /**
@@ -34,10 +36,24 @@ public final class SearchUsage {
     }
 
     /**
+     * Track the usage of the provided rescorer
+     */
+    public void trackRescorerUsage(String name) {
+        rescorers.add(name);
+    }
+
+    /**
      * Returns the query types that have been used at least once in the tracked search request
      */
     public Set<String> getQueryUsage() {
         return Collections.unmodifiableSet(queries);
+    }
+
+    /**
+     * Returns the rescorer types that have been used at least once in the tracked search request
+     */
+    public Set<String> getRescorerUsage() {
+        return Collections.unmodifiableSet(rescorers);
     }
 
     /**

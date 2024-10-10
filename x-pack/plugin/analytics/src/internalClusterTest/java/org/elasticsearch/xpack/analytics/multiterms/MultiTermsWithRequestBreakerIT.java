@@ -43,45 +43,32 @@ public class MultiTermsWithRequestBreakerIT extends ESIntegTestCase {
             true,
             IntStream.range(0, randomIntBetween(10, 1000))
                 .mapToObj(
-                    i -> client().prepareIndex("test")
-                        .setId("id_" + i)
+                    i -> prepareIndex("test").setId("id_" + i)
                         .setSource(Map.of("field0", randomAlphaOfLength(5), "field1", randomAlphaOfLength(5)))
                 )
                 .toArray(IndexRequestBuilder[]::new)
         );
 
-        client().admin()
-            .cluster()
-            .prepareUpdateSettings()
-            .setPersistentSettings(
-                Settings.builder().put(HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), requestBreaker)
-            )
-            .get();
+        updateClusterSettings(
+            Settings.builder().put(HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), requestBreaker)
+        );
 
         try {
-            client().prepareSearch("test")
-                .addAggregation(
-                    new MultiTermsAggregationBuilder("xxx").terms(
-                        List.of(
-                            new MultiValuesSourceFieldConfig.Builder().setFieldName("field0.keyword").build(),
-                            new MultiValuesSourceFieldConfig.Builder().setFieldName("field1.keyword").build()
-                        )
+            prepareSearch("test").addAggregation(
+                new MultiTermsAggregationBuilder("xxx").terms(
+                    List.of(
+                        new MultiValuesSourceFieldConfig.Builder().setFieldName("field0.keyword").build(),
+                        new MultiValuesSourceFieldConfig.Builder().setFieldName("field1.keyword").build()
                     )
                 )
-                .get();
+            ).get().decRef();
         } catch (ElasticsearchException e) {
             if (ExceptionsHelper.unwrap(e, CircuitBreakingException.class) == null) {
                 throw e;
             }
         }
 
-        client().admin()
-            .cluster()
-            .prepareUpdateSettings()
-            .setPersistentSettings(
-                Settings.builder().putNull(HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.getKey())
-            )
-            .get();
+        updateClusterSettings(Settings.builder().putNull(HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.getKey()));
 
         // validation done by InternalTestCluster.ensureEstimatedStats()
     }

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.bucket.histogram;
@@ -52,6 +53,7 @@ public final class DateHistogramAggregatorFactory extends ValuesSourceAggregator
                 order,
                 keyed,
                 minDocCount,
+                downsampledResultsOffset,
                 extendedBounds,
                 hardBounds,
                 valuesSourceConfig,
@@ -71,6 +73,7 @@ public final class DateHistogramAggregatorFactory extends ValuesSourceAggregator
                     order,
                     keyed,
                     minDocCount,
+                    downsampledResultsOffset,
                     extendedBounds,
                     hardBounds,
                     valuesSourceConfig,
@@ -88,6 +91,7 @@ public final class DateHistogramAggregatorFactory extends ValuesSourceAggregator
     private final BucketOrder order;
     private final boolean keyed;
     private final long minDocCount;
+    private final boolean downsampledResultsOffset;
     private final LongBounds extendedBounds;
     private final LongBounds hardBounds;
     private final Rounding rounding;
@@ -98,6 +102,7 @@ public final class DateHistogramAggregatorFactory extends ValuesSourceAggregator
         BucketOrder order,
         boolean keyed,
         long minDocCount,
+        boolean downsampledResultsOffset,
         Rounding rounding,
         LongBounds extendedBounds,
         LongBounds hardBounds,
@@ -111,14 +116,11 @@ public final class DateHistogramAggregatorFactory extends ValuesSourceAggregator
         this.aggregatorSupplier = aggregationSupplier;
         this.order = order;
         this.keyed = keyed;
+        this.downsampledResultsOffset = downsampledResultsOffset;
         this.minDocCount = minDocCount;
         this.extendedBounds = extendedBounds;
         this.hardBounds = hardBounds;
         this.rounding = rounding;
-    }
-
-    public long minDocCount() {
-        return minDocCount;
     }
 
     @Override
@@ -143,6 +145,7 @@ public final class DateHistogramAggregatorFactory extends ValuesSourceAggregator
             order,
             keyed,
             minDocCount,
+            downsampledResultsOffset,
             extendedBounds,
             hardBounds,
             config,
@@ -163,6 +166,7 @@ public final class DateHistogramAggregatorFactory extends ValuesSourceAggregator
             order,
             keyed,
             minDocCount,
+            downsampledResultsOffset,
             extendedBounds,
             hardBounds,
             config,

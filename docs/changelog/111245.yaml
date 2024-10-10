@@ -1,0 +1,6 @@
+pr: 111245
+summary: Truncating watcher history if it is too large
+area: Watcher
+type: bug
+issues:
+ - 94745

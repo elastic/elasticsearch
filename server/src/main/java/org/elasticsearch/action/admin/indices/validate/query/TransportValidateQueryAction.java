@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.indices.validate.query;
@@ -11,6 +12,7 @@ package org.elasticsearch.action.admin.indices.validate.query;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ResolvedIndices;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BroadcastShardOperationFailedException;
@@ -25,20 +27,20 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Randomness;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.indices.IndexClosedException;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
@@ -56,6 +58,7 @@ public class TransportValidateQueryAction extends TransportBroadcastAction<
     ShardValidateQueryResponse> {
 
     private final SearchService searchService;
+    private final RemoteClusterService remoteClusterService;
 
     @Inject
     public TransportValidateQueryAction(
@@ -73,15 +76,26 @@ public class TransportValidateQueryAction extends TransportBroadcastAction<
             indexNameExpressionResolver,
             ValidateQueryRequest::new,
             ShardValidateQueryRequest::new,
-            ThreadPool.Names.SEARCH
+            transportService.getThreadPool().executor(ThreadPool.Names.SEARCH)
         );
         this.searchService = searchService;
+        this.remoteClusterService = transportService.getRemoteClusterService();
     }
 
     @Override
     protected void doExecute(Task task, ValidateQueryRequest request, ActionListener<ValidateQueryResponse> listener) {
         request.nowInMillis = System.currentTimeMillis();
         LongSupplier timeProvider = () -> request.nowInMillis;
+
+        // Indices are resolved twice (they are resolved again later by the base class), but that's ok for this action type
+        ResolvedIndices resolvedIndices = ResolvedIndices.resolveWithIndicesRequest(
+            request,
+            clusterService.state(),
+            indexNameExpressionResolver,
+            remoteClusterService,
+            request.nowInMillis
+        );
+
         ActionListener<org.elasticsearch.index.query.QueryBuilder> rewriteListener = ActionListener.wrap(rewrittenQuery -> {
             request.query(rewrittenQuery);
             super.doExecute(task, request, listener);
@@ -108,7 +122,11 @@ public class TransportValidateQueryAction extends TransportBroadcastAction<
         if (request.query() == null) {
             rewriteListener.onResponse(request.query());
         } else {
-            Rewriteable.rewriteAndFetch(request.query(), searchService.getRewriteContext(timeProvider), rewriteListener);
+            Rewriteable.rewriteAndFetch(
+                request.query(),
+                searchService.getRewriteContext(timeProvider, resolvedIndices, null),
+                rewriteListener
+            );
         }
     }
 
@@ -202,8 +220,7 @@ public class TransportValidateQueryAction extends TransportBroadcastAction<
             request.nowInMillis(),
             request.filteringAliases()
         );
-        SearchContext searchContext = searchService.createSearchContext(shardSearchLocalRequest, SearchService.NO_TIMEOUT);
-        try {
+        try (SearchContext searchContext = searchService.createSearchContext(shardSearchLocalRequest, SearchService.NO_TIMEOUT)) {
             ParsedQuery parsedQuery = searchContext.getSearchExecutionContext().toQuery(request.query());
             searchContext.parsedQuery(parsedQuery);
             searchContext.preProcess();
@@ -215,8 +232,6 @@ public class TransportValidateQueryAction extends TransportBroadcastAction<
         } catch (AssertionError e) {
             valid = false;
             error = e.getMessage();
-        } finally {
-            Releasables.close(searchContext);
         }
 
         return new ShardValidateQueryResponse(request.shardId(), valid, explanation, error);

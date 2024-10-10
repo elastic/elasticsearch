@@ -1,14 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.search;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.InnerHitBuilder;
@@ -18,7 +20,6 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.collapse.CollapseBuilder;
-import org.elasticsearch.search.internal.InternalSearchResponse;
 
 import java.util.Iterator;
 import java.util.List;
@@ -31,13 +32,13 @@ import java.util.function.Supplier;
  */
 final class ExpandSearchPhase extends SearchPhase {
     private final SearchPhaseContext context;
-    private final InternalSearchResponse searchResponse;
+    private final SearchHits searchHits;
     private final Supplier<SearchPhase> nextPhase;
 
-    ExpandSearchPhase(SearchPhaseContext context, InternalSearchResponse searchResponse, Supplier<SearchPhase> nextPhase) {
+    ExpandSearchPhase(SearchPhaseContext context, SearchHits searchHits, Supplier<SearchPhase> nextPhase) {
         super("expand");
         this.context = context;
-        this.searchResponse = searchResponse;
+        this.searchHits = searchHits;
         this.nextPhase = nextPhase;
     }
 
@@ -45,65 +46,80 @@ final class ExpandSearchPhase extends SearchPhase {
      * Returns <code>true</code> iff the search request has inner hits and needs field collapsing
      */
     private boolean isCollapseRequest() {
-        final SearchRequest searchRequest = context.getRequest();
-        return searchRequest.source() != null
-            && searchRequest.source().collapse() != null
-            && searchRequest.source().collapse().getInnerHits().isEmpty() == false;
+        final var searchSource = context.getRequest().source();
+        return searchSource != null && searchSource.collapse() != null && searchSource.collapse().getInnerHits().isEmpty() == false;
     }
 
     @Override
     public void run() {
-        if (isCollapseRequest() && searchResponse.hits().getHits().length > 0) {
-            SearchRequest searchRequest = context.getRequest();
-            CollapseBuilder collapseBuilder = searchRequest.source().collapse();
-            final List<InnerHitBuilder> innerHitBuilders = collapseBuilder.getInnerHits();
-            MultiSearchRequest multiRequest = new MultiSearchRequest();
-            if (collapseBuilder.getMaxConcurrentGroupRequests() > 0) {
-                multiRequest.maxConcurrentSearchRequests(collapseBuilder.getMaxConcurrentGroupRequests());
-            }
-            for (SearchHit hit : searchResponse.hits().getHits()) {
-                BoolQueryBuilder groupQuery = new BoolQueryBuilder();
-                Object collapseValue = hit.field(collapseBuilder.getField()).getValue();
-                if (collapseValue != null) {
-                    groupQuery.filter(QueryBuilders.matchQuery(collapseBuilder.getField(), collapseValue));
-                } else {
-                    groupQuery.mustNot(QueryBuilders.existsQuery(collapseBuilder.getField()));
-                }
-                QueryBuilder origQuery = searchRequest.source().query();
-                if (origQuery != null) {
-                    groupQuery.must(origQuery);
-                }
-                for (InnerHitBuilder innerHitBuilder : innerHitBuilders) {
-                    CollapseBuilder innerCollapseBuilder = innerHitBuilder.getInnerCollapseBuilder();
-                    SearchSourceBuilder sourceBuilder = buildExpandSearchSourceBuilder(innerHitBuilder, innerCollapseBuilder).query(
-                        groupQuery
-                    ).postFilter(searchRequest.source().postFilter()).runtimeMappings(searchRequest.source().runtimeMappings());
-                    SearchRequest groupRequest = new SearchRequest(searchRequest);
-                    groupRequest.source(sourceBuilder);
-                    multiRequest.add(groupRequest);
-                }
-            }
-            context.getSearchTransport().sendExecuteMultiSearch(multiRequest, context.getTask(), ActionListener.wrap(response -> {
-                Iterator<MultiSearchResponse.Item> it = response.iterator();
-                for (SearchHit hit : searchResponse.hits.getHits()) {
-                    for (InnerHitBuilder innerHitBuilder : innerHitBuilders) {
-                        MultiSearchResponse.Item item = it.next();
-                        if (item.isFailure()) {
-                            context.onPhaseFailure(this, "failed to expand hits", item.getFailure());
-                            return;
-                        }
-                        SearchHits innerHits = item.getResponse().getHits();
-                        if (hit.getInnerHits() == null) {
-                            hit.setInnerHits(Maps.newMapWithExpectedSize(innerHitBuilders.size()));
-                        }
-                        hit.getInnerHits().put(innerHitBuilder.getName(), innerHits);
-                    }
-                }
-                onPhaseDone();
-            }, context::onFailure));
-        } else {
+        if (isCollapseRequest() == false || searchHits.getHits().length == 0) {
             onPhaseDone();
+        } else {
+            doRun();
         }
+    }
+
+    private void doRun() {
+        SearchRequest searchRequest = context.getRequest();
+        CollapseBuilder collapseBuilder = searchRequest.source().collapse();
+        final List<InnerHitBuilder> innerHitBuilders = collapseBuilder.getInnerHits();
+        MultiSearchRequest multiRequest = new MultiSearchRequest();
+        if (collapseBuilder.getMaxConcurrentGroupRequests() > 0) {
+            multiRequest.maxConcurrentSearchRequests(collapseBuilder.getMaxConcurrentGroupRequests());
+        }
+        for (SearchHit hit : searchHits.getHits()) {
+            BoolQueryBuilder groupQuery = new BoolQueryBuilder();
+            Object collapseValue = hit.field(collapseBuilder.getField()).getValue();
+            if (collapseValue != null) {
+                groupQuery.filter(QueryBuilders.matchQuery(collapseBuilder.getField(), collapseValue));
+            } else {
+                groupQuery.mustNot(QueryBuilders.existsQuery(collapseBuilder.getField()));
+            }
+            QueryBuilder origQuery = searchRequest.source().query();
+            if (origQuery != null) {
+                groupQuery.must(origQuery);
+            }
+            for (InnerHitBuilder innerHitBuilder : innerHitBuilders) {
+                CollapseBuilder innerCollapseBuilder = innerHitBuilder.getInnerCollapseBuilder();
+                SearchSourceBuilder sourceBuilder = buildExpandSearchSourceBuilder(innerHitBuilder, innerCollapseBuilder).query(groupQuery)
+                    .postFilter(searchRequest.source().postFilter())
+                    .runtimeMappings(searchRequest.source().runtimeMappings())
+                    .pointInTimeBuilder(searchRequest.source().pointInTimeBuilder());
+                SearchRequest groupRequest = new SearchRequest(searchRequest);
+                if (searchRequest.pointInTimeBuilder() != null) {
+                    // if the original request has a point in time, we propagate it to the inner search request
+                    // and clear the indices and preference from the inner search request
+                    groupRequest.indices(Strings.EMPTY_ARRAY);
+                    groupRequest.preference(null);
+                }
+                groupRequest.source(sourceBuilder);
+                multiRequest.add(groupRequest);
+            }
+        }
+        context.getSearchTransport().sendExecuteMultiSearch(multiRequest, context.getTask(), ActionListener.wrap(response -> {
+            Iterator<MultiSearchResponse.Item> it = response.iterator();
+            for (SearchHit hit : searchHits.getHits()) {
+                for (InnerHitBuilder innerHitBuilder : innerHitBuilders) {
+                    MultiSearchResponse.Item item = it.next();
+                    if (item.isFailure()) {
+                        context.onPhaseFailure(this, "failed to expand hits", item.getFailure());
+                        return;
+                    }
+                    SearchHits innerHits = item.getResponse().getHits();
+                    if (hit.getInnerHits() == null) {
+                        hit.setInnerHits(Maps.newMapWithExpectedSize(innerHitBuilders.size()));
+                    }
+                    if (hit.isPooled() == false) {
+                        // TODO: make this work pooled by forcing the hit itself to become pooled as needed here
+                        innerHits = innerHits.asUnpooled();
+                    }
+                    hit.getInnerHits().put(innerHitBuilder.getName(), innerHits);
+                    assert innerHits.isPooled() == false || hit.isPooled() : "pooled inner hits can only be added to a pooled hit";
+                    innerHits.mustIncRef();
+                }
+            }
+            onPhaseDone();
+        }, context::onFailure));
     }
 
     private static SearchSourceBuilder buildExpandSearchSourceBuilder(InnerHitBuilder options, CollapseBuilder innerCollapseBuilder) {
@@ -121,7 +137,7 @@ final class ExpandSearchPhase extends SearchPhase {
             }
         }
         if (options.getFetchFields() != null) {
-            options.getFetchFields().forEach(ff -> groupSource.fetchField(ff));
+            options.getFetchFields().forEach(groupSource::fetchField);
         }
         if (options.getDocValueFields() != null) {
             options.getDocValueFields().forEach(ff -> groupSource.docValueField(ff.field, ff.format));

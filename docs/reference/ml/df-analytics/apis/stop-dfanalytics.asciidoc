@@ -42,14 +42,14 @@ stop all {dfanalytics-job} by using _all or by specifying * as the
 
 `<data_frame_analytics_id>`::
 (Required, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=job-id-data-frame-analytics-define]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=job-id-data-frame-analytics-define]
   
 [[ml-stop-dfanalytics-query-params]]
 == {api-query-parms-title}  
   
 `allow_no_match`::
 (Optional, Boolean) 
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=allow-no-match-dfa-jobs]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=allow-no-match-dfa-jobs]
 
 
 `force`::
@@ -57,7 +57,7 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=allow-no-match-dfa-jobs]
   
 `timeout`::
 (Optional, <<time-units,time units>>) 
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=timeout-stop]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=timeout-stop]
 
 
 [[ml-stop-dfanalytics-example]]

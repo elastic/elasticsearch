@@ -1,14 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.routing.allocation.decider;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterInfoService;
@@ -34,6 +34,7 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
+import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.UnassignedInfo.AllocationStatus;
 import org.elasticsearch.cluster.routing.UnassignedInfo.Reason;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
@@ -49,6 +50,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.snapshots.EmptySnapshotsInfoService;
@@ -67,6 +69,8 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.cluster.routing.RoutingNodesHelper.assignedShardsIn;
+import static org.elasticsearch.cluster.routing.RoutingNodesHelper.numberOfShardsWithState;
 import static org.elasticsearch.cluster.routing.RoutingNodesHelper.shardsWithState;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.RELOCATING;
@@ -79,6 +83,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.oneOf;
+import static org.hamcrest.Matchers.sameInstance;
 
 public class DiskThresholdDeciderTests extends ESAllocationTestCase {
 
@@ -122,8 +127,12 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
 
         AllocationService strategy = createAllocationService(clusterInfo, createDiskThresholdDecider(diskSettings.build()));
 
-        var indexMetadata = IndexMetadata.builder("test").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1).build();
-        ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+        var indexMetadata = IndexMetadata.builder("test")
+            .settings(settings(IndexVersion.current()))
+            .numberOfShards(1)
+            .numberOfReplicas(1)
+            .build();
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .metadata(Metadata.builder().put(indexMetadata, false).build())
             .routingTable(RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY).addAsNew(indexMetadata).build())
             .build();
@@ -288,8 +297,12 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
 
         AllocationService strategy = createAllocationService(clusterInfo, createDiskThresholdDecider(diskSettings));
 
-        var indexMetadata = IndexMetadata.builder("test").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(2).build();
-        ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+        var indexMetadata = IndexMetadata.builder("test")
+            .settings(settings(IndexVersion.current()))
+            .numberOfShards(1)
+            .numberOfReplicas(2)
+            .build();
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .metadata(Metadata.builder().put(indexMetadata, false).build())
             .routingTable(RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY).addAsNew(indexMetadata).build())
             .build();
@@ -493,8 +506,12 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
 
         AllocationService strategy = createAllocationService(clusterInfo, createDiskThresholdDecider(diskSettings.build()));
 
-        var indexMetadata = IndexMetadata.builder("test").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(0).build();
-        ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+        var indexMetadata = IndexMetadata.builder("test")
+            .settings(settings(IndexVersion.current()))
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .build();
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .metadata(Metadata.builder().put(indexMetadata, false).build())
             .routingTable(RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY).addAsNew(indexMetadata).build())
             .build();
@@ -540,8 +557,12 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
 
         AllocationService strategy = createAllocationService(clusterInfo, createDiskThresholdDecider(diskSettings));
 
-        var indexMetadata = IndexMetadata.builder("test").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(0).build();
-        ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+        var indexMetadata = IndexMetadata.builder("test")
+            .settings(settings(IndexVersion.current()))
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .build();
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .metadata(Metadata.builder().put(indexMetadata, false).build())
             .routingTable(RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY).addAsNew(indexMetadata).build())
             .build();
@@ -577,8 +598,8 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
         usages.put("node3", new DiskUsage("node3", "n3", "/dev/null", 100, 0));  // 100% used
 
         DiskUsage node1Usage = DiskThresholdDecider.averageUsage(rn, usages);
-        assertThat(node1Usage.getTotalBytes(), equalTo(100L));
-        assertThat(node1Usage.getFreeBytes(), equalTo(25L));
+        assertThat(node1Usage.totalBytes(), equalTo(100L));
+        assertThat(node1Usage.freeBytes(), equalTo(25L));
     }
 
     private void doTestShardRelocationsTakenIntoAccount(boolean testMaxHeadroom) {
@@ -629,16 +650,16 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
         );
 
         var indexMetadata1 = IndexMetadata.builder("test")
-            .settings(settings(Version.CURRENT))
+            .settings(settings(IndexVersion.current()))
             .numberOfShards(1)
             .numberOfReplicas(1)
             .build();
         var indexMetadata2 = IndexMetadata.builder("test2")
-            .settings(settings(Version.CURRENT))
+            .settings(settings(IndexVersion.current()))
             .numberOfShards(1)
             .numberOfReplicas(1)
             .build();
-        ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .metadata(Metadata.builder().put(indexMetadata1, false).put(indexMetadata2, false).build())
             .routingTable(
                 RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
@@ -830,9 +851,17 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
         DiscoveryNode discoveryNode1 = newNode("node1");
         DiscoveryNode discoveryNode2 = newNode("node2");
 
-        var testMetadata = IndexMetadata.builder("test").settings(settings(Version.CURRENT)).numberOfShards(2).numberOfReplicas(0).build();
-        var fooMetadata = IndexMetadata.builder("foo").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(0).build();
-        ClusterState baseClusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+        var testMetadata = IndexMetadata.builder("test")
+            .settings(settings(IndexVersion.current()))
+            .numberOfShards(2)
+            .numberOfReplicas(0)
+            .build();
+        var fooMetadata = IndexMetadata.builder("foo")
+            .settings(settings(IndexVersion.current()))
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .build();
+        ClusterState baseClusterState = ClusterState.builder(ClusterName.DEFAULT)
             .metadata(Metadata.builder().put(testMetadata, false).put(fooMetadata, false).build())
             .routingTable(
                 RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY).addAsNew(testMetadata).addAsNew(fooMetadata).build()
@@ -884,12 +913,34 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
         firstRouting = TestShardRouting.newShardRouting("test", 0, "node1", null, true, ShardRoutingState.STARTED);
         secondRouting = TestShardRouting.newShardRouting("test", 1, "node1", "node2", true, ShardRoutingState.RELOCATING);
         ShardRouting fooRouting = TestShardRouting.newShardRouting("foo", 0, null, true, ShardRoutingState.UNASSIGNED);
+        fooRouting = fooRouting.updateUnassigned(
+            new UnassignedInfo(
+                fooRouting.unassignedInfo().reason(),
+                fooRouting.unassignedInfo().message(),
+                fooRouting.unassignedInfo().failure(),
+                fooRouting.unassignedInfo().failedAllocations(),
+                fooRouting.unassignedInfo().unassignedTimeNanos(),
+                fooRouting.unassignedInfo().unassignedTimeMillis(),
+                false,
+                fooRouting.recoverySource().getType() == RecoverySource.Type.EMPTY_STORE
+                    ? AllocationStatus.DECIDERS_NO
+                    : AllocationStatus.NO_VALID_SHARD_COPY,
+                fooRouting.unassignedInfo().failedNodeIds(),
+                fooRouting.unassignedInfo().lastAllocatedNodeId()
+            ),
+            fooRouting.recoverySource()
+        );
         firstRoutingNode = RoutingNodesHelper.routingNode("node1", discoveryNode1, firstRouting, secondRouting);
         builder = RoutingTable.builder()
             .add(
                 IndexRoutingTable.builder(firstRouting.index())
                     .addIndexShard(new IndexShardRoutingTable.Builder(firstRouting.shardId()).addShard(firstRouting))
                     .addIndexShard(new IndexShardRoutingTable.Builder(secondRouting.shardId()).addShard(secondRouting))
+            )
+            .add(
+                IndexRoutingTable.builder(fooRouting.index())
+                    .addIndexShard(new IndexShardRoutingTable.Builder(fooRouting.shardId()).addShard(fooRouting))
+                    .build()
             );
         clusterState = ClusterState.builder(baseClusterState).routingTable(builder.build()).build();
         routingAllocation = new RoutingAllocation(
@@ -943,11 +994,51 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
         }
 
         // Creating AllocationService instance and the services it depends on...
-        AllocationService strategy = createAllocationService(clusterInfo, diskThresholdDecider);
+        AllocationService strategy = createAllocationService(
+            clusterInfo,
+            diskThresholdDecider,
+            // fake allocation decider to block allocation of the `foo` shard
+            new AllocationDecider() {
+                @Override
+                public Decision canAllocate(IndexMetadata indexMetadata, RoutingNode node, RoutingAllocation allocation) {
+                    return cannotAllocateFooShards(indexMetadata.getIndex());
+                }
+
+                @Override
+                public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+                    return cannotAllocateFooShards(shardRouting.index());
+                }
+
+                @Override
+                public Decision canForceAllocatePrimary(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+                    return cannotAllocateFooShards(shardRouting.index());
+                }
+
+                private Decision cannotAllocateFooShards(Index index) {
+                    return index.getName().equals("foo") ? Decision.NO : Decision.YES;
+                }
+            }
+        );
+
+        // Populate the in-sync allocation IDs so that the overall cluster state is valid enough to run reroute()
+        final var metadataBuilder = Metadata.builder(clusterState.metadata());
+        metadataBuilder.put(
+            clusterState.metadata().index(fooRouting.index()).withInSyncAllocationIds(fooRouting.id(), Set.of(randomUUID())),
+            false
+        );
+        metadataBuilder.put(
+            clusterState.metadata()
+                .index(firstRouting.index())
+                .withInSyncAllocationIds(firstRouting.id(), Set.of(firstRouting.allocationId().getId()))
+                .withInSyncAllocationIds(secondRouting.id(), Set.of(secondRouting.allocationId().getId())),
+            false
+        );
+        final var clusterStateWithInSyncIds = ClusterState.builder(clusterState).metadata(metadataBuilder).build();
+
         // Ensure that the reroute call doesn't alter the routing table, since the first primary is relocating away
         // and therefore we will have sufficient disk space on node1.
-        ClusterState result = strategy.reroute(clusterState, "reroute", ActionListener.noop());
-        assertThat(result, equalTo(clusterState));
+        ClusterState result = strategy.reroute(clusterStateWithInSyncIds, "reroute", ActionListener.noop());
+        assertThat(result, sameInstance(clusterStateWithInSyncIds));
         assertThat(result.routingTable().index("test").shard(0).primaryShard().state(), equalTo(STARTED));
         assertThat(result.routingTable().index("test").shard(0).primaryShard().currentNodeId(), equalTo("node1"));
         assertThat(result.routingTable().index("test").shard(0).primaryShard().relocatingNodeId(), nullValue());
@@ -1001,7 +1092,11 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
             discoveryNodesBuilder.add(newNode("master", "master", Set.of(DiscoveryNodeRole.MASTER_ROLE)));
         }
 
-        var testMetadata = IndexMetadata.builder("test").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(0).build();
+        var testMetadata = IndexMetadata.builder("test")
+            .settings(settings(IndexVersion.current()))
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .build();
         ClusterState clusterState = ClusterState.builder(new ClusterName("test"))
             .nodes(discoveryNodesBuilder.build())
             .metadata(Metadata.builder().put(testMetadata, false).build())
@@ -1123,7 +1218,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
         final ShardId shardId = new ShardId(new Index("test", IndexMetadata.INDEX_UUID_NA_VALUE), 0);
 
         var indexMetadata = IndexMetadata.builder("test")
-            .settings(settings(Version.CURRENT))
+            .settings(settings(IndexVersion.current()))
             .numberOfShards(1)
             .numberOfReplicas(0)
             .putInSyncAllocationIds(0, Set.of(AllocationId.newInitializing().getId()))
@@ -1134,7 +1229,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
                 RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
                     .addAsNewRestore(
                         indexMetadata,
-                        new RecoverySource.SnapshotRecoverySource("_restore_uuid", snapshot, Version.CURRENT, indexId),
+                        new RecoverySource.SnapshotRecoverySource("_restore_uuid", snapshot, IndexVersion.current(), indexId),
                         new HashSet<>()
                     )
                     .build()
@@ -1160,13 +1255,13 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
         assertThat(
             shardsWithState(clusterState.getRoutingNodes(), UNASSIGNED).stream()
                 .map(ShardRouting::unassignedInfo)
-                .allMatch(unassignedInfo -> Reason.NEW_INDEX_RESTORED.equals(unassignedInfo.getReason())),
+                .allMatch(unassignedInfo -> Reason.NEW_INDEX_RESTORED.equals(unassignedInfo.reason())),
             is(true)
         );
         assertThat(
             shardsWithState(clusterState.getRoutingNodes(), UNASSIGNED).stream()
                 .map(ShardRouting::unassignedInfo)
-                .allMatch(unassignedInfo -> AllocationStatus.NO_ATTEMPT.equals(unassignedInfo.getLastAllocationStatus())),
+                .allMatch(unassignedInfo -> AllocationStatus.NO_ATTEMPT.equals(unassignedInfo.lastAllocationStatus())),
             is(true)
         );
         assertThat(shardsWithState(clusterState.getRoutingNodes(), UNASSIGNED).size(), equalTo(1));
@@ -1188,7 +1283,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
         assertThat(
             shardsWithState(clusterState.getRoutingNodes(), UNASSIGNED).stream()
                 .map(ShardRouting::unassignedInfo)
-                .allMatch(unassignedInfo -> AllocationStatus.FETCHING_SHARD_DATA.equals(unassignedInfo.getLastAllocationStatus())),
+                .allMatch(unassignedInfo -> AllocationStatus.FETCHING_SHARD_DATA.equals(unassignedInfo.lastAllocationStatus())),
             is(true)
         );
         assertThat(shardsWithState(clusterState.getRoutingNodes(), UNASSIGNED).size(), equalTo(1));
@@ -1201,7 +1296,8 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
             logger.info("--> simulating snapshot shards size retrieval success");
             snapshotShardSizes.put(snapshotShard, shardSizeInBytes);
             logger.info("--> shard allocation depends on its size");
-            shouldAllocate = shardSizeInBytes < usages.get("node1").getFreeBytes();
+            DiskUsage usage = usages.get("node1");
+            shouldAllocate = shardSizeInBytes < usage.freeBytes();
         } else {
             logger.info("--> simulating snapshot shards size retrieval failure");
             snapshotShardSizes.put(snapshotShard, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
@@ -1234,11 +1330,11 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
         RoutingNodes rn = state.getRoutingNodes();
         logger.info(
             "--> counts: total: {}, unassigned: {}, initializing: {}, relocating: {}, started: {}",
-            rn.shards(shard -> true).size(),
-            shardsWithState(rn, UNASSIGNED).size(),
-            shardsWithState(rn, INITIALIZING).size(),
-            shardsWithState(rn, RELOCATING).size(),
-            shardsWithState(rn, STARTED).size()
+            assignedShardsIn(rn).count(),
+            rn.unassigned().size(),
+            numberOfShardsWithState(rn, INITIALIZING),
+            numberOfShardsWithState(rn, RELOCATING),
+            numberOfShardsWithState(rn, STARTED)
         );
         logger.info(
             "--> unassigned: {}, initializing: {}, relocating: {}, started: {}",

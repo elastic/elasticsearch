@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.discovery.ec2;
@@ -31,9 +32,7 @@ public class Ec2DiscoveryUpdateSettingsTests extends AbstractAwsTestCase {
         // We try to update a setting now
         final String expectedValue = UUIDs.randomBase64UUID(random());
         final String settingName = "cluster.routing.allocation.exclude.any_attribute";
-        final ClusterUpdateSettingsResponse response = client().admin()
-            .cluster()
-            .prepareUpdateSettings()
+        final ClusterUpdateSettingsResponse response = clusterAdmin().prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
             .setPersistentSettings(Settings.builder().put(settingName, expectedValue))
             .get();
 

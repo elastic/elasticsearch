@@ -40,6 +40,10 @@ public class InternalCartesianCentroid extends InternalCentroid implements Carte
         return new CartesianPoint(in.readDouble(), in.readDouble());
     }
 
+    static InternalCartesianCentroid empty(String name, Map<String, Object> metadata) {
+        return new InternalCartesianCentroid(name, null, 0L, metadata);
+    }
+
     @Override
     protected void centroidToStream(StreamOutput out) throws IOException {
         out.writeDouble(centroid.getX());

@@ -20,9 +20,9 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.SuppressForbidden;
-import org.elasticsearch.reservedstate.ReservedClusterStateHandler;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -58,7 +58,7 @@ public class TransportDeleteLifecycleAction extends TransportMasterNodeAction<Re
             Request::new,
             indexNameExpressionResolver,
             AcknowledgedResponse::readFrom,
-            ThreadPool.Names.SAME
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
     }
 
@@ -73,14 +73,6 @@ public class TransportDeleteLifecycleAction extends TransportMasterNodeAction<Re
         public DeleteLifecyclePolicyTask(Request request, ActionListener<AcknowledgedResponse> listener) {
             super(request, listener);
             this.request = request;
-        }
-
-        /**
-         * Used by the {@link ReservedClusterStateHandler} for ILM
-         * {@link ReservedLifecycleAction}
-         */
-        DeleteLifecyclePolicyTask(String policyName) {
-            this(new Request(policyName), null);
         }
 
         @Override

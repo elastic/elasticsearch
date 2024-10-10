@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.metadata;
@@ -11,27 +12,28 @@ package org.elasticsearch.cluster.metadata;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesClusterStateUpdateRequest;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.action.admin.indices.alias.IndicesAliasesResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateAckListener;
-import org.elasticsearch.cluster.ClusterStateTaskConfig;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.SimpleBatchedAckListenerTaskExecutor;
 import org.elasticsearch.cluster.metadata.AliasAction.NewAliasValidator;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.CloseUtils;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import java.io.IOException;
@@ -52,26 +54,22 @@ import static org.elasticsearch.indices.cluster.IndicesClusterStateService.Alloc
  */
 public class MetadataIndexAliasesService {
 
-    private final ClusterService clusterService;
-
     private final IndicesService indicesService;
-
-    private final MetadataDeleteIndexService deleteIndexService;
 
     private final NamedXContentRegistry xContentRegistry;
 
     private final ClusterStateTaskExecutor<ApplyAliasesTask> executor;
+    private final MasterServiceTaskQueue<ApplyAliasesTask> taskQueue;
+    private final ClusterService clusterService;
 
     @Inject
     public MetadataIndexAliasesService(
         ClusterService clusterService,
         IndicesService indicesService,
-        MetadataDeleteIndexService deleteIndexService,
         NamedXContentRegistry xContentRegistry
     ) {
         this.clusterService = clusterService;
         this.indicesService = indicesService;
-        this.deleteIndexService = deleteIndexService;
         this.xContentRegistry = xContentRegistry;
         this.executor = new SimpleBatchedAckListenerTaskExecutor<>() {
 
@@ -80,12 +78,14 @@ public class MetadataIndexAliasesService {
                 return new Tuple<>(applyAliasActions(clusterState, applyAliasesTask.request().actions()), applyAliasesTask);
             }
         };
+        this.taskQueue = clusterService.createTaskQueue("index-aliases", Priority.URGENT, this.executor);
     }
 
-    public void indicesAliases(final IndicesAliasesClusterStateUpdateRequest request, final ActionListener<AcknowledgedResponse> listener) {
-        var task = new ApplyAliasesTask(request, listener);
-        var config = ClusterStateTaskConfig.build(Priority.URGENT);
-        clusterService.submitStateUpdateTask("index-aliases", task, config, executor);
+    public void indicesAliases(
+        final IndicesAliasesClusterStateUpdateRequest request,
+        final ActionListener<IndicesAliasesResponse> listener
+    ) {
+        taskQueue.submitTask("index-aliases", new ApplyAliasesTask(request, listener), null); // TODO use request.masterNodeTimeout() here?
     }
 
     /**
@@ -113,7 +113,7 @@ public class MetadataIndexAliasesService {
             }
             // Remove the indexes if there are any to remove
             if (changed) {
-                currentState = deleteIndexService.deleteIndices(currentState, indicesToDelete);
+                currentState = MetadataDeleteIndexService.deleteIndices(currentState, indicesToDelete, clusterService.getSettings());
             }
             Metadata.Builder metadata = Metadata.builder(currentState.metadata());
             // Run the remaining alias actions
@@ -199,7 +199,13 @@ public class MetadataIndexAliasesService {
             return currentState;
         } finally {
             for (Index index : indicesToClose) {
-                indicesService.removeIndex(index, NO_LONGER_ASSIGNED, "created for alias processing");
+                indicesService.removeIndex(
+                    index,
+                    NO_LONGER_ASSIGNED,
+                    "created for alias processing",
+                    CloseUtils.NO_SHARDS_CREATED_EXECUTOR,
+                    ActionListener.noop()
+                );
             }
         }
     }
@@ -259,7 +265,7 @@ public class MetadataIndexAliasesService {
     /**
      * A cluster state update task that consists of the cluster state request and the listeners that need to be notified upon completion.
      */
-    record ApplyAliasesTask(IndicesAliasesClusterStateUpdateRequest request, ActionListener<AcknowledgedResponse> listener)
+    record ApplyAliasesTask(IndicesAliasesClusterStateUpdateRequest request, ActionListener<IndicesAliasesResponse> listener)
         implements
             ClusterStateTaskListener,
             ClusterStateAckListener {
@@ -276,17 +282,17 @@ public class MetadataIndexAliasesService {
 
         @Override
         public void onAllNodesAcked() {
-            listener.onResponse(AcknowledgedResponse.TRUE);
+            listener.onResponse(IndicesAliasesResponse.build(request.actionResults()));
         }
 
         @Override
         public void onAckFailure(Exception e) {
-            listener.onResponse(AcknowledgedResponse.FALSE);
+            listener.onResponse(IndicesAliasesResponse.NOT_ACKNOWLEDGED);
         }
 
         @Override
         public void onAckTimeout() {
-            listener.onResponse(AcknowledgedResponse.FALSE);
+            listener.onResponse(IndicesAliasesResponse.NOT_ACKNOWLEDGED);
         }
 
         @Override

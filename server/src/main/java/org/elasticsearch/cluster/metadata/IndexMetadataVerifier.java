@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.cluster.metadata;
 
@@ -12,15 +13,18 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.search.similarities.BM25Similarity;
 import org.apache.lucene.search.similarities.Similarity;
+import org.elasticsearch.Build;
 import org.elasticsearch.Version;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.analysis.AnalyzerScope;
-import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
+import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.MapperRegistry;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.similarity.SimilarityService;
@@ -51,24 +55,30 @@ public class IndexMetadataVerifier {
     private static final Logger logger = LogManager.getLogger(IndexMetadataVerifier.class);
 
     private final Settings settings;
+    private final ClusterService clusterService;
     private final XContentParserConfiguration parserConfiguration;
     private final MapperRegistry mapperRegistry;
     private final IndexScopedSettings indexScopedSettings;
     private final ScriptCompiler scriptService;
+    private final MapperMetrics mapperMetrics;
 
     public IndexMetadataVerifier(
         Settings settings,
+        ClusterService clusterService,
         NamedXContentRegistry xContentRegistry,
         MapperRegistry mapperRegistry,
         IndexScopedSettings indexScopedSettings,
-        ScriptCompiler scriptCompiler
+        ScriptCompiler scriptCompiler,
+        MapperMetrics mapperMetrics
     ) {
         this.settings = settings;
+        this.clusterService = clusterService;
         this.parserConfiguration = XContentParserConfiguration.EMPTY.withRegistry(xContentRegistry)
             .withDeprecationHandler(LoggingDeprecationHandler.INSTANCE);
         this.mapperRegistry = mapperRegistry;
         this.indexScopedSettings = indexScopedSettings;
         this.scriptService = scriptCompiler;
+        this.mapperMetrics = mapperMetrics;
     }
 
     /**
@@ -78,7 +88,7 @@ public class IndexMetadataVerifier {
      * If the index does not need upgrade it returns the index metadata unchanged, otherwise it returns a modified index metadata. If index
      * cannot be updated the method throws an exception.
      */
-    public IndexMetadata verifyIndexMetadata(IndexMetadata indexMetadata, Version minimumIndexCompatibilityVersion) {
+    public IndexMetadata verifyIndexMetadata(IndexMetadata indexMetadata, IndexVersion minimumIndexCompatibilityVersion) {
         checkSupportedVersion(indexMetadata, minimumIndexCompatibilityVersion);
 
         // First convert any shared_cache searchable snapshot indices to only use _tier_preference: data_frozen
@@ -98,20 +108,20 @@ public class IndexMetadataVerifier {
      * Check that the index version is compatible. Elasticsearch does not support indices created before the
      * previous major version.
      */
-    private static void checkSupportedVersion(IndexMetadata indexMetadata, Version minimumIndexCompatibilityVersion) {
+    private static void checkSupportedVersion(IndexMetadata indexMetadata, IndexVersion minimumIndexCompatibilityVersion) {
         boolean isSupportedVersion = indexMetadata.getCompatibilityVersion().onOrAfter(minimumIndexCompatibilityVersion);
         if (isSupportedVersion == false) {
             throw new IllegalStateException(
                 "The index "
                     + indexMetadata.getIndex()
                     + " has current compatibility version ["
-                    + indexMetadata.getCompatibilityVersion()
+                    + indexMetadata.getCompatibilityVersion().toReleaseVersion()
                     + "] but the minimum compatible version is ["
-                    + minimumIndexCompatibilityVersion
+                    + minimumIndexCompatibilityVersion.toReleaseVersion()
                     + "]. It should be re-indexed in Elasticsearch "
-                    + minimumIndexCompatibilityVersion.major
+                    + (Version.CURRENT.major - 1)
                     + ".x before upgrading to "
-                    + Version.CURRENT
+                    + Build.current().version()
                     + "."
             );
         }
@@ -140,16 +150,14 @@ public class IndexMetadataVerifier {
 
             IndexSettings indexSettings = new IndexSettings(indexMetadata, this.settings);
 
-            final Map<String, TriFunction<Settings, Version, ScriptService, Similarity>> similarityMap = new AbstractMap<
-                String,
-                TriFunction<Settings, Version, ScriptService, Similarity>>() {
+            final Map<String, TriFunction<Settings, IndexVersion, ScriptService, Similarity>> similarityMap = new AbstractMap<>() {
                 @Override
                 public boolean containsKey(Object key) {
                     return true;
                 }
 
                 @Override
-                public TriFunction<Settings, Version, ScriptService, Similarity> get(Object key) {
+                public TriFunction<Settings, IndexVersion, ScriptService, Similarity> get(Object key) {
                     assert key instanceof String : "key must be a string but was: " + key.getClass();
                     return (settings, version, scriptService) -> new BM25Similarity();
                 }
@@ -157,7 +165,7 @@ public class IndexMetadataVerifier {
                 // this entrySet impl isn't fully correct but necessary as SimilarityService will iterate
                 // over all similarities
                 @Override
-                public Set<Entry<String, TriFunction<Settings, Version, ScriptService, Similarity>>> entrySet() {
+                public Set<Entry<String, TriFunction<Settings, IndexVersion, ScriptService, Similarity>>> entrySet() {
                     return Collections.emptySet();
                 }
             };
@@ -169,33 +177,26 @@ public class IndexMetadataVerifier {
                 }
             });
 
-            final Map<String, NamedAnalyzer> analyzerMap = new AbstractMap<String, NamedAnalyzer>() {
-                @Override
-                public NamedAnalyzer get(Object key) {
-                    assert key instanceof String : "key must be a string but was: " + key.getClass();
-                    return new NamedAnalyzer((String) key, AnalyzerScope.INDEX, fakeDefault.analyzer());
-                }
-
-                // this entrySet impl isn't fully correct but necessary as IndexAnalyzers will iterate
-                // over all analyzers to close them
-                @Override
-                public Set<Entry<String, NamedAnalyzer>> entrySet() {
-                    return Collections.emptySet();
-                }
-            };
-            try (IndexAnalyzers fakeIndexAnalzyers = new IndexAnalyzers(analyzerMap, analyzerMap, analyzerMap)) {
+            try (
                 MapperService mapperService = new MapperService(
+                    clusterService,
                     indexSettings,
-                    fakeIndexAnalzyers,
+                    (type, name) -> new NamedAnalyzer(name, AnalyzerScope.INDEX, fakeDefault.analyzer()),
                     parserConfiguration,
                     similarityService,
                     mapperRegistry,
                     () -> null,
                     indexSettings.getMode().idFieldMapperWithoutFieldData(),
-                    scriptService
-                );
+                    scriptService,
+                    query -> {
+                        throw new UnsupportedOperationException("IndexMetadataVerifier");
+                    },
+                    mapperMetrics
+                )
+            ) {
                 mapperService.merge(indexMetadata, MapperService.MergeReason.MAPPING_RECOVERY);
             }
+
         } catch (Exception ex) {
             // Wrap the inner exception so we have the index name in the exception message
             throw new IllegalStateException("Failed to parse mappings for index [" + indexMetadata.getIndex() + "]", ex);

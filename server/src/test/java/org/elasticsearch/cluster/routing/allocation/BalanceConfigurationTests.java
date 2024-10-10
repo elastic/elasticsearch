@@ -1,17 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.routing.allocation;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
@@ -26,6 +25,7 @@ import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllo
 import org.elasticsearch.cluster.routing.allocation.decider.ClusterRebalanceAllocationDecider;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexVersion;
 import org.hamcrest.Matchers;
 
 import java.util.stream.Collectors;
@@ -38,7 +38,6 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class BalanceConfigurationTests extends ESAllocationTestCase {
 
-    private final Logger logger = LogManager.getLogger(BalanceConfigurationTests.class);
     // TODO maybe we can randomize these numbers somehow
     final int numberOfNodes = 25;
     final int numberOfIndices = 12;
@@ -150,7 +149,7 @@ public class BalanceConfigurationTests extends ESAllocationTestCase {
 
         for (int i = 0; i < numberOfIndices; i++) {
             IndexMetadata.Builder index = IndexMetadata.builder("test" + i)
-                .settings(settings(Version.CURRENT))
+                .settings(settings(IndexVersion.current()))
                 .numberOfShards(numberOfShards)
                 .numberOfReplicas(numberOfReplicas);
             metadataBuilder = metadataBuilder.put(index);
@@ -169,9 +168,11 @@ public class BalanceConfigurationTests extends ESAllocationTestCase {
         for (int i = 0; i < numberOfNodes; i++) {
             nodes.add(newNode("node" + i));
         }
-        ClusterState clusterState = ClusterState.builder(
-            org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)
-        ).nodes(nodes).metadata(metadata).routingTable(initialRoutingTable).build();
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(nodes)
+            .metadata(metadata)
+            .routingTable(initialRoutingTable)
+            .build();
         clusterState = strategy.reroute(clusterState, "reroute", ActionListener.noop());
 
         logger.info("restart all the primary shards, replicas will start initializing");

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.cluster.routing.allocation.decider;
 
@@ -75,9 +76,7 @@ public class MockDiskUsagesIT extends ESIntegTestCase {
             internalCluster().startNode(Settings.builder().put(Environment.PATH_DATA_SETTING.getKey(), createTempDir()));
         }
 
-        final List<String> nodeIds = client().admin()
-            .cluster()
-            .prepareState()
+        final List<String> nodeIds = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT)
             .get()
             .getState()
             .getRoutingNodes()
@@ -106,9 +105,9 @@ public class MockDiskUsagesIT extends ESIntegTestCase {
                 .put(CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_MAX_HEADROOM_SETTING.getKey(), headroom)
                 .put(CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_MAX_HEADROOM_SETTING.getKey(), headroom);
         }
-        assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(settings));
+        updateClusterSettings(settings);
         // Create an index with 10 shards so we can check allocation for it
-        assertAcked(prepareCreate("test").setSettings(Settings.builder().put("number_of_shards", 10).put("number_of_replicas", 0)));
+        assertAcked(prepareCreate("test").setSettings(indexSettings(10, 0)));
         ensureGreen("test");
 
         assertBusy(() -> {
@@ -155,9 +154,7 @@ public class MockDiskUsagesIT extends ESIntegTestCase {
             internalCluster().startNode(Settings.builder().put(Environment.PATH_DATA_SETTING.getKey(), createTempDir()));
         }
 
-        final List<String> nodeIds = client().admin()
-            .cluster()
-            .prepareState()
+        final List<String> nodeIds = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT)
             .get()
             .getState()
             .getRoutingNodes()
@@ -185,10 +182,10 @@ public class MockDiskUsagesIT extends ESIntegTestCase {
                 .put(CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_MAX_HEADROOM_SETTING.getKey(), "10b")
                 .put(CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_MAX_HEADROOM_SETTING.getKey(), "5b");
         }
-        assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(builder));
+        updateClusterSettings(builder);
 
         // Create an index with 6 shards so we can check allocation for it
-        prepareCreate("test").setSettings(Settings.builder().put("number_of_shards", 6).put("number_of_replicas", 0)).get();
+        prepareCreate("test").setSettings(indexSettings(6, 0)).get();
         ensureGreen("test");
 
         {
@@ -198,8 +195,8 @@ public class MockDiskUsagesIT extends ESIntegTestCase {
             assertThat("node2 has 2 shards", shardCountByNodeId.get(nodeIds.get(2)), equalTo(2));
         }
 
-        client().prepareIndex("test").setId("1").setSource("foo", "bar").setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
-        assertSearchHits(client().prepareSearch("test").get(), "1");
+        prepareIndex("test").setId("1").setSource("foo", "bar").setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
+        assertSearchHits(prepareSearch("test"), "1");
 
         // Move all nodes above the low watermark so no shard movement can occur, and at least one node above the flood stage watermark so
         // the index is blocked
@@ -212,20 +209,14 @@ public class MockDiskUsagesIT extends ESIntegTestCase {
         );
 
         assertBusy(
-            () -> assertBlocked(
-                client().prepareIndex().setIndex("test").setId("1").setSource("foo", "bar"),
-                IndexMetadata.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK
-            )
+            () -> assertBlocked(prepareIndex("test").setId("1").setSource("foo", "bar"), IndexMetadata.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK)
         );
 
-        assertFalse(client().admin().cluster().prepareHealth("test").setWaitForEvents(Priority.LANGUID).get().isTimedOut());
+        assertFalse(clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT, "test").setWaitForEvents(Priority.LANGUID).get().isTimedOut());
 
         // Cannot add further documents
-        assertBlocked(
-            client().prepareIndex().setIndex("test").setId("2").setSource("foo", "bar"),
-            IndexMetadata.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK
-        );
-        assertSearchHits(client().prepareSearch("test").get(), "1");
+        assertBlocked(prepareIndex("test").setId("2").setSource("foo", "bar"), IndexMetadata.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK);
+        assertSearchHits(prepareSearch("test"), "1");
 
         logger.info("--> index is confirmed read-only, releasing disk space");
 
@@ -235,16 +226,12 @@ public class MockDiskUsagesIT extends ESIntegTestCase {
         // Attempt to create a new document until DiskUsageMonitor unblocks the index
         assertBusy(() -> {
             try {
-                client().prepareIndex("test")
-                    .setId("3")
-                    .setSource("foo", "bar")
-                    .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-                    .get();
+                prepareIndex("test").setId("3").setSource("foo", "bar").setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
             } catch (ClusterBlockException e) {
                 throw new AssertionError("retrying", e);
             }
         });
-        assertSearchHits(client().prepareSearch("test").get(), "1", "3");
+        assertSearchHits(prepareSearch("test"), "1", "3");
     }
 
     public void testOnlyMovesEnoughShardsToDropBelowHighWatermark() throws Exception {
@@ -267,22 +254,15 @@ public class MockDiskUsagesIT extends ESIntegTestCase {
         // start with all nodes below the watermark
         clusterInfoService.setDiskUsageFunctionAndRefresh((discoveryNode, fsInfoPath) -> setDiskUsage(fsInfoPath, 1000L, 1000L));
 
-        assertAcked(
-            client().admin()
-                .cluster()
-                .prepareUpdateSettings()
-                .setPersistentSettings(
-                    Settings.builder()
-                        .put(CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey(), "90%")
-                        .put(CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(), "90%")
-                        .put(CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING.getKey(), "100%")
-                        .put(CLUSTER_ROUTING_ALLOCATION_REROUTE_INTERVAL_SETTING.getKey(), "0ms")
-                )
+        updateClusterSettings(
+            Settings.builder()
+                .put(CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey(), "90%")
+                .put(CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(), "90%")
+                .put(CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING.getKey(), "100%")
+                .put(CLUSTER_ROUTING_ALLOCATION_REROUTE_INTERVAL_SETTING.getKey(), "0ms")
         );
 
-        final List<String> nodeIds = client().admin()
-            .cluster()
-            .prepareState()
+        final List<String> nodeIds = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT)
             .get()
             .getState()
             .getRoutingNodes()
@@ -290,7 +270,7 @@ public class MockDiskUsagesIT extends ESIntegTestCase {
             .map(RoutingNode::nodeId)
             .toList();
 
-        assertAcked(prepareCreate("test").setSettings(Settings.builder().put("number_of_shards", 6).put("number_of_replicas", 0)));
+        assertAcked(prepareCreate("test").setSettings(indexSettings(6, 0)));
 
         ensureGreen("test");
 
@@ -302,13 +282,8 @@ public class MockDiskUsagesIT extends ESIntegTestCase {
         });
 
         // disable rebalancing, or else we might move too many shards away and then rebalance them back again
-        assertAcked(
-            client().admin()
-                .cluster()
-                .prepareUpdateSettings()
-                .setPersistentSettings(
-                    Settings.builder().put(CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), EnableAllocationDecider.Rebalance.NONE)
-                )
+        updateClusterSettings(
+            Settings.builder().put(CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), EnableAllocationDecider.Rebalance.NONE)
         );
 
         // node2 suddenly has 99 bytes free, less than 10%, but moving one shard is enough to bring it up to 100 bytes free:
@@ -344,9 +319,7 @@ public class MockDiskUsagesIT extends ESIntegTestCase {
 
         final MockInternalClusterInfoService clusterInfoService = getMockInternalClusterInfoService();
 
-        final List<String> nodeIds = client().admin()
-            .cluster()
-            .prepareState()
+        final List<String> nodeIds = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT)
             .get()
             .getState()
             .getRoutingNodes()
@@ -360,16 +333,11 @@ public class MockDiskUsagesIT extends ESIntegTestCase {
             ClusterInfoServiceUtils.refresh(clusterInfoService); // so that subsequent reroutes see disk usage according to current state
         });
 
-        assertAcked(
-            client().admin()
-                .cluster()
-                .prepareUpdateSettings()
-                .setPersistentSettings(
-                    Settings.builder()
-                        .put(CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey(), "85%")
-                        .put(CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(), "100%")
-                        .put(CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING.getKey(), "100%")
-                )
+        updateClusterSettings(
+            Settings.builder()
+                .put(CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey(), "85%")
+                .put(CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(), "100%")
+                .put(CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING.getKey(), "100%")
         );
 
         // shards are 1 byte large
@@ -388,10 +356,10 @@ public class MockDiskUsagesIT extends ESIntegTestCase {
 
         assertAcked(
             prepareCreate("test").setSettings(
-                Settings.builder()
-                    .put("number_of_shards", 6)
-                    .put("number_of_replicas", 0)
-                    .put(IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_SETTING.getConcreteSettingForNamespace("_id").getKey(), nodeIds.get(2))
+                indexSettings(6, 0).put(
+                    IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_SETTING.getConcreteSettingForNamespace("_id").getKey(),
+                    nodeIds.get(2)
+                )
             )
         );
         ensureGreen("test");
@@ -403,14 +371,9 @@ public class MockDiskUsagesIT extends ESIntegTestCase {
             assertThat("node2 has 0 shards", shardCountByNodeId.get(nodeIds.get(2)), equalTo(0));
         });
 
-        assertAcked(
-            client().admin()
-                .indices()
-                .prepareUpdateSettings("test")
-                .setSettings(
-                    Settings.builder()
-                        .putNull(IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_SETTING.getConcreteSettingForNamespace("_id").getKey())
-                )
+        updateIndexSettings(
+            Settings.builder().putNull(IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_SETTING.getConcreteSettingForNamespace("_id").getKey()),
+            "test"
         );
 
         logger.info("--> waiting for shards to relocate onto node [{}]", nodeIds.get(2));
@@ -430,7 +393,7 @@ public class MockDiskUsagesIT extends ESIntegTestCase {
             twoPathSettings.putList(Environment.PATH_DATA_SETTING.getKey(), pathOverWatermark.toString(), createTempDir().toString());
         }
         internalCluster().startNode(twoPathSettings);
-        final String nodeWithTwoPaths = client().admin().cluster().prepareNodesInfo().get().getNodes().get(0).getNode().getId();
+        final String nodeWithTwoPaths = clusterAdmin().prepareNodesInfo().get().getNodes().get(0).getNode().getId();
 
         // other two nodes have one data path each
         internalCluster().startNode(Settings.builder().put(Environment.PATH_DATA_SETTING.getKey(), createTempDir()));
@@ -444,22 +407,15 @@ public class MockDiskUsagesIT extends ESIntegTestCase {
         // start with all paths below the watermark
         clusterInfoService.setDiskUsageFunctionAndRefresh((discoveryNode, fsInfoPath) -> setDiskUsage(fsInfoPath, 100, between(10, 100)));
 
-        assertAcked(
-            client().admin()
-                .cluster()
-                .prepareUpdateSettings()
-                .setTransientSettings(
-                    Settings.builder()
-                        .put(CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey(), "90%")
-                        .put(CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(), "90%")
-                        .put(CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING.getKey(), "100%")
-                        .put(CLUSTER_ROUTING_ALLOCATION_REROUTE_INTERVAL_SETTING.getKey(), "0ms")
-                )
+        updateClusterSettings(
+            Settings.builder()
+                .put(CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey(), "90%")
+                .put(CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(), "90%")
+                .put(CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING.getKey(), "100%")
+                .put(CLUSTER_ROUTING_ALLOCATION_REROUTE_INTERVAL_SETTING.getKey(), "0ms")
         );
 
-        final List<String> nodeIds = client().admin()
-            .cluster()
-            .prepareState()
+        final List<String> nodeIds = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT)
             .get()
             .getState()
             .getRoutingNodes()
@@ -467,7 +423,7 @@ public class MockDiskUsagesIT extends ESIntegTestCase {
             .map(RoutingNode::nodeId)
             .toList();
 
-        assertAcked(prepareCreate("test").setSettings(Settings.builder().put("number_of_shards", 6).put("number_of_replicas", 0)));
+        assertAcked(prepareCreate("test").setSettings(indexSettings(6, 0)));
 
         ensureGreen("test");
 
@@ -478,7 +434,7 @@ public class MockDiskUsagesIT extends ESIntegTestCase {
             assertThat("node2 has 2 shards", shardCountByNodeId.get(nodeIds.get(2)), equalTo(2));
         }
 
-        final long shardsOnGoodPath = Arrays.stream(client().admin().indices().prepareStats("test").get().getShards())
+        final long shardsOnGoodPath = Arrays.stream(indicesAdmin().prepareStats("test").get().getShards())
             .filter(
                 shardStats -> shardStats.getShardRouting().currentNodeId().equals(nodeWithTwoPaths)
                     && shardStats.getDataPath().startsWith(pathOverWatermark.toString()) == false
@@ -487,13 +443,8 @@ public class MockDiskUsagesIT extends ESIntegTestCase {
         logger.info("--> shards on good path: [{}]", shardsOnGoodPath);
 
         // disable rebalancing, or else we might move shards back onto the over-full path since we're not faking that
-        assertAcked(
-            client().admin()
-                .cluster()
-                .prepareUpdateSettings()
-                .setTransientSettings(
-                    Settings.builder().put(CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), EnableAllocationDecider.Rebalance.NONE)
-                )
+        updateClusterSettings(
+            Settings.builder().put(CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), EnableAllocationDecider.Rebalance.NONE)
         );
 
         // one of the paths on node0 suddenly exceeds the high watermark
@@ -508,20 +459,20 @@ public class MockDiskUsagesIT extends ESIntegTestCase {
         logger.info("--> waiting for shards to relocate off path [{}]", pathOverWatermark);
 
         assertBusy(() -> {
-            for (final ShardStats shardStats : client().admin().indices().prepareStats("test").get().getShards()) {
+            for (final ShardStats shardStats : indicesAdmin().prepareStats("test").get().getShards()) {
                 assertThat(shardStats.getDataPath(), not(startsWith(pathOverWatermark.toString())));
             }
         });
 
         ensureGreen("test");
 
-        for (final ShardStats shardStats : client().admin().indices().prepareStats("test").get().getShards()) {
+        for (final ShardStats shardStats : indicesAdmin().prepareStats("test").get().getShards()) {
             assertThat(shardStats.getDataPath(), not(startsWith(pathOverWatermark.toString())));
         }
 
         assertThat(
             "should not have moved any shards off of the path that wasn't too full",
-            Arrays.stream(client().admin().indices().prepareStats("test").get().getShards())
+            Arrays.stream(indicesAdmin().prepareStats("test").get().getShards())
                 .filter(
                     shardStats -> shardStats.getShardRouting().currentNodeId().equals(nodeWithTwoPaths)
                         && shardStats.getDataPath().startsWith(pathOverWatermark.toString()) == false
@@ -533,7 +484,7 @@ public class MockDiskUsagesIT extends ESIntegTestCase {
 
     private Map<String, Integer> getShardCountByNodeId() {
         final Map<String, Integer> shardCountByNodeId = new HashMap<>();
-        final ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
+        final ClusterState clusterState = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
         for (final RoutingNode node : clusterState.getRoutingNodes()) {
             logger.info(
                 "----> node {} has {} shards",

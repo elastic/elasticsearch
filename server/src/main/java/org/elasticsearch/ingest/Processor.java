@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.ingest;
@@ -11,6 +12,7 @@ package org.elasticsearch.ingest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.grok.MatcherWatchdog;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.Scheduler;
@@ -78,6 +80,20 @@ public interface Processor {
     }
 
     /**
+     * Validate a processor after it has been constructed by a factory.
+     *
+     * Override this method to perform additional post-construction validation that should be performed at the rest/transport level.
+     * If there's an issue with the processor, then indicate that by throwing an exception. See
+     * {@link IngestService#validatePipeline(Map, String, Map)}} for the call site where there is invoked in a try/catch.
+     *
+     * An example of where this would be needed is a processor that interacts with external state like the license state -- it may
+     * be okay to create that processor on day 1 with license state A, but later illegal to create a similar processor on day 2 with
+     * state B. We want to reject put requests on day 2 (at the rest/transport level), but still allow for restarting nodes in the
+     * cluster (so we can't throw exceptions from {@link Factory#create(Map, String, String, Map)}).
+     */
+    default void extraValidation() throws Exception {}
+
+    /**
      * A factory that knows how to construct a processor based on a map of maps.
      */
     interface Factory {
@@ -138,6 +154,8 @@ public interface Processor {
          */
         public final Client client;
 
+        public final MatcherWatchdog matcherWatchdog;
+
         public Parameters(
             Environment env,
             ScriptService scriptService,
@@ -147,7 +165,8 @@ public interface Processor {
             BiFunction<Long, Runnable, Scheduler.ScheduledCancellable> scheduler,
             IngestService ingestService,
             Client client,
-            Consumer<Runnable> genericExecutor
+            Consumer<Runnable> genericExecutor,
+            MatcherWatchdog matcherWatchdog
         ) {
             this.env = env;
             this.scriptService = scriptService;
@@ -158,7 +177,7 @@ public interface Processor {
             this.ingestService = ingestService;
             this.client = client;
             this.genericExecutor = genericExecutor;
+            this.matcherWatchdog = matcherWatchdog;
         }
-
     }
 }

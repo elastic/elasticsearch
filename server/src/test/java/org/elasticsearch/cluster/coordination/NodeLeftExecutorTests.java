@@ -1,32 +1,32 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.coordination;
 
 import org.apache.logging.log4j.Level;
-import org.elasticsearch.Version;
-import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateTaskConfig;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterStateTaskExecutorUtils;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -68,9 +68,8 @@ public class NodeLeftExecutorTests extends ESTestCase {
         final AtomicReference<ClusterState> remainingNodesClusterState = new AtomicReference<>();
         final NodeLeftExecutor executor = new NodeLeftExecutor(allocationService) {
             @Override
-            protected ClusterState remainingNodesClusterState(ClusterState currentState, DiscoveryNodes.Builder remainingNodesBuilder) {
-                remainingNodesClusterState.set(super.remainingNodesClusterState(currentState, remainingNodesBuilder));
-                return remainingNodesClusterState.get();
+            void remainingNodesClusterState(ClusterState state) {
+                remainingNodesClusterState.set(state);
             }
         };
 
@@ -105,51 +104,44 @@ public class NodeLeftExecutorTests extends ESTestCase {
         );
         final var executor = new NodeLeftExecutor(allocationService);
 
-        final DiscoveryNode masterNode = new DiscoveryNode("master", buildNewFakeTransportAddress(), Version.CURRENT);
+        final DiscoveryNode masterNode = DiscoveryNodeUtils.create("master");
         final ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .nodes(
                 DiscoveryNodes.builder()
                     .add(masterNode)
                     .localNodeId("master")
                     .masterNodeId("master")
-                    .add(new DiscoveryNode("other", buildNewFakeTransportAddress(), Version.CURRENT))
+                    .add(DiscoveryNodeUtils.create("other"))
             )
             .build();
 
-        final MockLogAppender appender = new MockLogAppender();
         final ThreadPool threadPool = new TestThreadPool("test");
         try (
-            var ignored = appender.capturing(NodeLeftExecutor.class);
+            var mockLog = MockLog.capture(NodeLeftExecutor.class);
             var clusterService = ClusterServiceUtils.createClusterService(clusterState, threadPool)
         ) {
             final var nodeToRemove = clusterState.nodes().get("other");
-            appender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
                     "info message",
                     LOGGER_NAME,
                     Level.INFO,
                     "node-left: [" + nodeToRemove.descriptionWithoutAttributes() + "] with reason [test reason]"
                 )
             );
-            assertNull(
-                PlainActionFuture.<Void, RuntimeException>get(
-                    future -> clusterService.getMasterService()
-                        .submitStateUpdateTask(
-                            "test",
-                            new NodeLeftExecutor.Task(nodeToRemove, "test reason", () -> future.onResponse(null)),
-                            ClusterStateTaskConfig.build(Priority.NORMAL),
-                            executor
-                        )
-                )
-            );
-            appender.assertAllExpectationsMatched();
+            final var latch = new CountDownLatch(1);
+            clusterService.getMasterService()
+                .createTaskQueue("test", Priority.NORMAL, executor)
+                .submitTask("test", new NodeLeftExecutor.Task(nodeToRemove, "test reason", latch::countDown), null);
+            safeAwait(latch);
+            mockLog.assertAllExpectationsMatched();
         } finally {
             TestThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS);
         }
     }
 
     private static DiscoveryNode node(final int id) {
-        return new DiscoveryNode(Integer.toString(id), buildNewFakeTransportAddress(), Version.CURRENT);
+        return DiscoveryNodeUtils.create(Integer.toString(id));
     }
 
     // Hard-coding the class name here because it is also mentioned in the troubleshooting docs, so should not be renamed without care.

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.rest.action.admin.indices;
@@ -19,6 +20,8 @@ import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
@@ -26,10 +29,14 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
+import static org.elasticsearch.rest.RestUtils.getAckTimeout;
+import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
 
+@ServerlessScope(Scope.PUBLIC)
 public class RestCreateIndexAction extends BaseRestHandler {
 
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestCreateIndexAction.class);
@@ -73,8 +80,8 @@ public class RestCreateIndexAction extends BaseRestHandler {
             createIndexRequest.source(sourceAsMap, LoggingDeprecationHandler.INSTANCE);
         }
 
-        createIndexRequest.timeout(request.paramAsTime("timeout", createIndexRequest.timeout()));
-        createIndexRequest.masterNodeTimeout(request.paramAsTime("master_timeout", createIndexRequest.masterNodeTimeout()));
+        createIndexRequest.ackTimeout(getAckTimeout(request));
+        createIndexRequest.masterNodeTimeout(getMasterNodeTimeout(request));
         createIndexRequest.waitForActiveShards(ActiveShardCount.parseString(request.param("wait_for_active_shards")));
         return createIndexRequest;
     }
@@ -112,8 +119,8 @@ public class RestCreateIndexAction extends BaseRestHandler {
             createIndexRequest.source(sourceAsMap, LoggingDeprecationHandler.INSTANCE);
         }
 
-        createIndexRequest.timeout(request.paramAsTime("timeout", createIndexRequest.timeout()));
-        createIndexRequest.masterNodeTimeout(request.paramAsTime("master_timeout", createIndexRequest.masterNodeTimeout()));
+        createIndexRequest.ackTimeout(getAckTimeout(request));
+        createIndexRequest.masterNodeTimeout(getMasterNodeTimeout(request));
         createIndexRequest.waitForActiveShards(ActiveShardCount.parseString(request.param("wait_for_active_shards")));
 
         return createIndexRequest;
@@ -139,5 +146,10 @@ public class RestCreateIndexAction extends BaseRestHandler {
 
         newSource.put("mappings", singletonMap(MapperService.SINGLE_MAPPING_NAME, mappings));
         return newSource;
+    }
+
+    @Override
+    public Set<String> supportedCapabilities() {
+        return CreateIndexCapabilities.CAPABILITIES;
     }
 }

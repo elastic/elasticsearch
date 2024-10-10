@@ -15,6 +15,6 @@ public class EqlStatsAction extends ActionType<EqlStatsResponse> {
     public static final String NAME = "cluster:monitor/xpack/eql/stats/dist";
 
     private EqlStatsAction() {
-        super(NAME, EqlStatsResponse::new);
+        super(NAME);
     }
 }

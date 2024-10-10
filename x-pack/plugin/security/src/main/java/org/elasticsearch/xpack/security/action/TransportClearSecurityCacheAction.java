@@ -12,8 +12,8 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.nodes.TransportNodesAction;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -33,7 +33,8 @@ public class TransportClearSecurityCacheAction extends TransportNodesAction<
     ClearSecurityCacheRequest,
     ClearSecurityCacheResponse,
     ClearSecurityCacheRequest.Node,
-    ClearSecurityCacheResponse.Node> {
+    ClearSecurityCacheResponse.Node,
+    Void> {
 
     private final CacheInvalidatorRegistry cacheInvalidatorRegistry;
 
@@ -47,14 +48,11 @@ public class TransportClearSecurityCacheAction extends TransportNodesAction<
     ) {
         super(
             ClearSecurityCacheAction.NAME,
-            threadPool,
             clusterService,
             transportService,
             actionFilters,
-            ClearSecurityCacheRequest::new,
             ClearSecurityCacheRequest.Node::new,
-            ThreadPool.Names.MANAGEMENT,
-            ClearSecurityCacheResponse.Node.class
+            threadPool.executor(ThreadPool.Names.MANAGEMENT)
         );
         this.cacheInvalidatorRegistry = cacheInvalidatorRegistry;
     }

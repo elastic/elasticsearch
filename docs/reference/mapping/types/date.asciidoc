@@ -13,6 +13,8 @@ JSON doesn't have a date data type, so dates in Elasticsearch can either be:
 Internally, dates are converted to UTC (if the time-zone is specified) and
 stored as a long number representing milliseconds-since-the-epoch.
 
+NOTE: Use the <<date_nanos,date_nanos>> field type if a nanosecond resolution is expected.
+
 Queries on dates are internally converted to range queries on this long
 representation, and the result of aggregations and stored fields is converted
 back to a string depending on the date format that is associated with the field.
@@ -123,8 +125,7 @@ The following parameters are accepted by `date` fields:
 `locale`::
 
     The locale to use when parsing dates since months do not have the same names
-    and/or abbreviations in all languages. The default is the
-    https://docs.oracle.com/javase/8/docs/api/java/util/Locale.html#ROOT[`ROOT` locale],
+    and/or abbreviations in all languages. The default is ENGLISH.
 
 <<ignore-malformed,`ignore_malformed`>>::
 
@@ -234,14 +235,13 @@ Which will reply with a date like:
 IMPORTANT: Synthetic `_source` is Generally Available only for TSDB indices
 (indices that have `index.mode` set to `time_series`). For other indices
 synthetic `_source` is in technical preview. Features in technical preview may
-be changed or removed in a future release. Elastic will apply best effort to fix
+be changed or removed in a future release. Elastic will work to fix
 any issues, but features in technical preview are not subject to the support SLA
 of official GA features.
 
 `date` fields support <<synthetic-source,synthetic `_source`>> in their
 default configuration. Synthetic `_source` cannot be used together with
-<<copy-to,`copy_to`>>, <<ignore-malformed,`ignore_malformed`>> set to true
-or with <<doc-values,`doc_values`>> disabled.
+<<copy-to,`copy_to`>> or with <<doc-values,`doc_values`>> disabled.
 
 Synthetic source always sorts `date` fields. For example:
 [source,console,id=synthetic-source-date-example]

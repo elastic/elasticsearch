@@ -24,7 +24,7 @@ import static org.elasticsearch.core.Strings.format;
 
 abstract class AbstractControlMessagePyTorchAction<T> extends AbstractPyTorchAction<T> {
 
-    private static final Logger logger = LogManager.getLogger(InferencePyTorchAction.class);
+    private static final Logger logger = LogManager.getLogger(AbstractControlMessagePyTorchAction.class);
 
     enum ControlMessageTypes {
         AllocationThreads,
@@ -32,14 +32,14 @@ abstract class AbstractControlMessagePyTorchAction<T> extends AbstractPyTorchAct
     };
 
     AbstractControlMessagePyTorchAction(
-        String modelId,
+        String deploymentId,
         long requestId,
         TimeValue timeout,
         DeploymentManager.ProcessContext processContext,
         ThreadPool threadPool,
         ActionListener<T> listener
     ) {
-        super(modelId, requestId, timeout, processContext, threadPool, listener);
+        super(deploymentId, requestId, timeout, processContext, threadPool, listener);
     }
 
     abstract int controlOrdinal();
@@ -52,7 +52,9 @@ abstract class AbstractControlMessagePyTorchAction<T> extends AbstractPyTorchAct
     protected void doRun() throws Exception {
         if (isNotified()) {
             // Should not execute request as it has already timed out while waiting in the queue
-            logger.debug(() -> format("[%s] skipping control message on request [%s] as it has timed out", getModelId(), getRequestId()));
+            logger.debug(
+                () -> format("[%s] skipping control message on request [%s] as it has timed out", getDeploymentId(), getRequestId())
+            );
             return;
         }
 
@@ -65,7 +67,7 @@ abstract class AbstractControlMessagePyTorchAction<T> extends AbstractPyTorchAct
 
             getProcessContext().getProcess().get().writeInferenceRequest(message);
         } catch (IOException e) {
-            logger.error(() -> "[" + getModelId() + "] error writing control message to the inference process", e);
+            logger.error(() -> "[" + getDeploymentId() + "] error writing control message to the inference process", e);
             onFailure(ExceptionsHelper.serverError("Error writing control message to the inference process", e));
         } catch (Exception e) {
             onFailure(e);

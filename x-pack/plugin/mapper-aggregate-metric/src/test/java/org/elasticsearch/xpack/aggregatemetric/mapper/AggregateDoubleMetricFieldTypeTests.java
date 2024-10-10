@@ -15,8 +15,8 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.lucene.search.function.ScriptScoreQuery;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.mapper.FieldTypeTestCase;
@@ -124,7 +124,7 @@ public class AggregateDoubleMetricFieldTypeTests extends FieldTypeTestCase {
                 SearchLookup lookup = new SearchLookup(
                     searchExecutionContext::getFieldType,
                     (mft, lookupSupplier, fdo) -> mft.fielddataBuilder(
-                        new FieldDataContext("test", lookupSupplier, searchExecutionContext::sourcePath, fdo)
+                        new FieldDataContext("test", null, lookupSupplier, searchExecutionContext::sourcePath, fdo)
                     ).build(null, null),
                     (ctx, doc) -> null
                 );
@@ -133,6 +133,11 @@ public class AggregateDoubleMetricFieldTypeTests extends FieldTypeTestCase {
                 assertThat(searcher.count(new ScriptScoreQuery(new MatchAllDocsQuery(), new Script("test"), new ScoreScript.LeafFactory() {
                     @Override
                     public boolean needs_score() {
+                        return false;
+                    }
+
+                    @Override
+                    public boolean needs_termStats() {
                         return false;
                     }
 
@@ -147,7 +152,7 @@ public class AggregateDoubleMetricFieldTypeTests extends FieldTypeTestCase {
                             }
                         };
                     }
-                }, searchExecutionContext.lookup(), 7f, "test", 0, Version.CURRENT)), equalTo(2));
+                }, searchExecutionContext.lookup(), 7f, "test", 0, IndexVersion.current())), equalTo(2));
             }
         }
     }

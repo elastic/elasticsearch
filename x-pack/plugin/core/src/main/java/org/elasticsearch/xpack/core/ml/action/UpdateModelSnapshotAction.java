@@ -13,8 +13,6 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.StatusToXContentObject;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -34,7 +32,7 @@ public class UpdateModelSnapshotAction extends ActionType<UpdateModelSnapshotAct
     public static final String NAME = "cluster:admin/xpack/ml/job/model_snapshots/update";
 
     private UpdateModelSnapshotAction() {
-        super(NAME, Response::new);
+        super(NAME);
     }
 
     public static class Request extends ActionRequest implements ToXContentObject {
@@ -153,7 +151,7 @@ public class UpdateModelSnapshotAction extends ActionType<UpdateModelSnapshotAct
         }
     }
 
-    public static class Response extends ActionResponse implements StatusToXContentObject {
+    public static class Response extends ActionResponse implements ToXContentObject {
 
         private static final ParseField ACKNOWLEDGED = new ParseField("acknowledged");
         private static final ParseField MODEL = new ParseField("model");
@@ -176,11 +174,6 @@ public class UpdateModelSnapshotAction extends ActionType<UpdateModelSnapshotAct
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             model.writeTo(out);
-        }
-
-        @Override
-        public RestStatus status() {
-            return RestStatus.OK;
         }
 
         @Override

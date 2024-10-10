@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.bootstrap;
@@ -29,10 +30,17 @@ import java.nio.file.Path;
  * @param secrets the provided secure settings implementation
  * @param nodeSettings the node settings read from {@code elasticsearch.yml}, the cli and the process environment
  * @param configDir the directory where {@code elasticsearch.yml} and other config exists
+ * @param logsDir the directory where log files should be written
  */
-public record ServerArgs(boolean daemonize, boolean quiet, Path pidFile, SecureSettings secrets, Settings nodeSettings, Path configDir)
-    implements
-        Writeable {
+public record ServerArgs(
+    boolean daemonize,
+    boolean quiet,
+    Path pidFile,
+    SecureSettings secrets,
+    Settings nodeSettings,
+    Path configDir,
+    Path logsDir
+) implements Writeable {
 
     /**
      * Arguments for running Elasticsearch.
@@ -59,6 +67,7 @@ public record ServerArgs(boolean daemonize, boolean quiet, Path pidFile, SecureS
             readPidFile(in),
             readSecureSettingsFromStream(in),
             Settings.readSettingsFromStream(in),
+            resolvePath(in.readString()),
             resolvePath(in.readString())
         );
     }
@@ -82,6 +91,7 @@ public record ServerArgs(boolean daemonize, boolean quiet, Path pidFile, SecureS
         secrets.writeTo(out);
         nodeSettings.writeTo(out);
         out.writeString(configDir.toString());
+        out.writeString(logsDir.toString());
     }
 
     private static SecureSettings readSecureSettingsFromStream(StreamInput in) throws IOException {

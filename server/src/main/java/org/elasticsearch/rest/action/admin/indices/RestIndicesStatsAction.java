@@ -1,13 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.rest.action.admin.indices;
 
+import org.elasticsearch.action.ClusterStatsLevel;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags.Flag;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
@@ -18,8 +20,10 @@ import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestCancellableNodeClient;
-import org.elasticsearch.rest.action.RestChunkedToXContentListener;
+import org.elasticsearch.rest.action.RestRefCountedChunkedToXContentListener;
 import org.elasticsearch.rest.action.document.RestMultiTermVectorsAction;
 
 import java.io.IOException;
@@ -34,6 +38,7 @@ import java.util.function.Consumer;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
+@ServerlessScope(Scope.INTERNAL)
 public class RestIndicesStatsAction extends BaseRestHandler {
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestMultiTermVectorsAction.class);
     private static final String TYPES_DEPRECATION_MESSAGE = "[types removal] "
@@ -85,6 +90,8 @@ public class RestIndicesStatsAction extends BaseRestHandler {
             : "IndicesStats default indices options changed";
         indicesStatsRequest.indicesOptions(IndicesOptions.fromRequest(request, defaultIndicesOption));
         indicesStatsRequest.indices(Strings.splitStringByCommaToArray(request.param("index")));
+        // level parameter validation
+        ClusterStatsLevel.of(request, ClusterStatsLevel.INDICES);
 
         Set<String> metrics = Strings.tokenizeByCommaToSet(request.param("metric", "_all"));
         // short cut, if no metrics have been specified in URI
@@ -140,7 +147,7 @@ public class RestIndicesStatsAction extends BaseRestHandler {
 
         return channel -> new RestCancellableNodeClient(client, request.getHttpChannel()).admin()
             .indices()
-            .stats(indicesStatsRequest, new RestChunkedToXContentListener<>(channel));
+            .stats(indicesStatsRequest, new RestRefCountedChunkedToXContentListener<>(channel));
     }
 
     @Override

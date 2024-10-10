@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.bucket.range;
@@ -12,7 +13,6 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
-import org.elasticsearch.search.aggregations.ParsedMultiBucketAggregation;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -69,18 +69,8 @@ public class InternalGeoDistanceTests extends InternalRangeTestCase<InternalGeoD
     }
 
     @Override
-    protected Class<ParsedGeoDistance> implementationClass() {
-        return ParsedGeoDistance.class;
-    }
-
-    @Override
     protected Class<? extends InternalMultiBucketAggregation.InternalBucket> internalRangeBucketClass() {
         return InternalGeoDistance.Bucket.class;
-    }
-
-    @Override
-    protected Class<? extends ParsedMultiBucketAggregation.ParsedBucket> parsedRangeBucketClass() {
-        return ParsedGeoDistance.ParsedBucket.class;
     }
 
     @Override

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.pipeline;
@@ -28,9 +29,9 @@ import java.util.stream.StreamSupport;
 import static org.elasticsearch.search.aggregations.pipeline.BucketHelpers.resolveBucketValue;
 
 public class SerialDiffPipelineAggregator extends PipelineAggregator {
-    private DocValueFormat formatter;
-    private GapPolicy gapPolicy;
-    private int lag;
+    private final DocValueFormat formatter;
+    private final GapPolicy gapPolicy;
+    private final int lag;
 
     SerialDiffPipelineAggregator(
         String name,
@@ -85,7 +86,6 @@ public class SerialDiffPipelineAggregator extends PipelineAggregator {
                 double diff = thisBucketValue - lagValue;
 
                 List<InternalAggregation> aggs = StreamSupport.stream(bucket.getAggregations().spliterator(), false)
-                    .map((p) -> (InternalAggregation) p)
                     .collect(Collectors.toCollection(ArrayList::new));
                 aggs.add(new InternalSimpleValue(name(), diff, formatter, metadata()));
                 newBucket = factory.createBucket(factory.getKey(bucket), bucket.getDocCount(), InternalAggregations.from(aggs));

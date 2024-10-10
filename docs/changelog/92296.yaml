@@ -1,6 +1,0 @@
-pr: 92296
-summary: "[HealthAPI] Add support for the FEATURE_STATE affected resource"
-area: Health
-type: feature
-issues:
- - 91353

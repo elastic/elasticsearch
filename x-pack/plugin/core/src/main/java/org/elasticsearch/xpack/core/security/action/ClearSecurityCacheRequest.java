@@ -23,12 +23,6 @@ public class ClearSecurityCacheRequest extends BaseNodesRequest<ClearSecurityCac
         super((String[]) null);
     }
 
-    public ClearSecurityCacheRequest(StreamInput in) throws IOException {
-        super(in);
-        cacheName = in.readString();
-        keys = in.readOptionalStringArray();
-    }
-
     public ClearSecurityCacheRequest cacheName(String cacheName) {
         this.cacheName = cacheName;
         return this;
@@ -45,13 +39,6 @@ public class ClearSecurityCacheRequest extends BaseNodesRequest<ClearSecurityCac
 
     public String[] keys() {
         return keys;
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        out.writeString(cacheName);
-        out.writeOptionalStringArray(keys);
     }
 
     public static class Node extends TransportRequest {

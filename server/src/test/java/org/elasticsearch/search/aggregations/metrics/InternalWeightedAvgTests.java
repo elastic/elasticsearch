@@ -1,16 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.metrics;
 
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.aggregations.ParsedAggregation;
 import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.test.InternalAggregationTestCase;
 
@@ -55,16 +55,6 @@ public class InternalWeightedAvgTests extends InternalAggregationTestCase<Intern
     @Override
     protected void assertSampled(InternalWeightedAvg sampled, InternalWeightedAvg reduced, SamplingContext samplingContext) {
         assertThat(sampled.getValue(), equalTo(reduced.getValue()));
-    }
-
-    @Override
-    protected void assertFromXContent(InternalWeightedAvg avg, ParsedAggregation parsedAggregation) {
-        ParsedWeightedAvg parsed = ((ParsedWeightedAvg) parsedAggregation);
-        assertEquals(avg.getValue(), parsed.getValue(), Double.MIN_VALUE);
-        // we don't print out VALUE_AS_STRING for avg.getCount() == 0, so we cannot get the exact same value back
-        if (avg.getWeight() != 0) {
-            assertEquals(avg.getValueAsString(), parsed.getValueAsString());
-        }
     }
 
     @Override

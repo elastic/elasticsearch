@@ -9,9 +9,9 @@ package org.elasticsearch.xpack.ml.inference.nlp;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.ValidationException;
+import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.ml.inference.results.FillMaskResults;
-import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.TopClassEntry;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.FillMaskConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.NlpConfig;
@@ -66,20 +66,22 @@ public class FillMaskProcessor extends NlpTask.Processor {
     @Override
     public NlpTask.ResultProcessor getResultProcessor(NlpConfig config) {
         if (config instanceof FillMaskConfig fillMaskConfig) {
-            return (tokenization, result) -> processResult(
+            return (tokenization, result, chunkResults) -> processResult(
                 tokenization,
                 result,
                 tokenizer,
                 fillMaskConfig.getNumTopClasses(),
-                fillMaskConfig.getResultsField()
+                fillMaskConfig.getResultsField(),
+                chunkResults
             );
         } else {
-            return (tokenization, result) -> processResult(
+            return (tokenization, result, chunkResults) -> processResult(
                 tokenization,
                 result,
                 tokenizer,
                 FillMaskConfig.DEFAULT_NUM_RESULTS,
-                DEFAULT_RESULTS_FIELD
+                DEFAULT_RESULTS_FIELD,
+                chunkResults
             );
         }
     }
@@ -89,10 +91,14 @@ public class FillMaskProcessor extends NlpTask.Processor {
         PyTorchInferenceResult pyTorchResult,
         NlpTokenizer tokenizer,
         int numResults,
-        String resultsField
+        String resultsField,
+        boolean chunkResults
     ) {
         if (tokenization.isEmpty()) {
             throw new ElasticsearchStatusException("tokenization is empty", RestStatus.INTERNAL_SERVER_ERROR);
+        }
+        if (chunkResults) {
+            throw chunkingNotSupportedException(TaskType.NER);
         }
 
         if (tokenizer.getMaskTokenId().isEmpty()) {

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.action.admin.indices;
 
@@ -12,7 +13,6 @@ import org.apache.lucene.tests.analysis.MockTokenFilter;
 import org.apache.lucene.tests.analysis.MockTokenizer;
 import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeAction;
 import org.elasticsearch.action.admin.indices.analyze.TransportAnalyzeAction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -22,6 +22,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.analysis.AbstractCharFilterFactory;
 import org.elasticsearch.index.analysis.AbstractTokenFilterFactory;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
@@ -66,7 +67,7 @@ public class TransportAnalyzeActionTests extends ESTestCase {
         Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build();
 
         Settings indexSettings = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
             .put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
             .put("index.analysis.analyzer.custom_analyzer.tokenizer", "standard")
             .put("index.analysis.analyzer.custom_analyzer.filter", "mock")
@@ -140,7 +141,7 @@ public class TransportAnalyzeActionTests extends ESTestCase {
             }
         };
         registry = new AnalysisModule(environment, singletonList(plugin), new StablePluginsRegistry()).getAnalysisRegistry();
-        indexAnalyzers = registry.build(this.indexSettings);
+        indexAnalyzers = registry.build(IndexService.IndexCreationContext.RELOAD_ANALYZERS, this.indexSettings);
         maxTokenCount = IndexSettings.MAX_TOKEN_COUNT_SETTING.getDefault(settings);
         idxMaxTokenCount = this.indexSettings.getMaxTokenCount();
     }
@@ -322,10 +323,9 @@ public class TransportAnalyzeActionTests extends ESTestCase {
 
     public void testGetFieldAnalyzerWithoutIndexAnalyzers() {
         AnalyzeAction.Request req = new AnalyzeAction.Request().field("field").text("text");
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> { TransportAnalyzeAction.analyze(req, registry, null, maxTokenCount); }
-        );
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
+            TransportAnalyzeAction.analyze(req, registry, null, maxTokenCount);
+        });
         assertEquals(e.getMessage(), "analysis based on a specific field requires an index");
     }
 

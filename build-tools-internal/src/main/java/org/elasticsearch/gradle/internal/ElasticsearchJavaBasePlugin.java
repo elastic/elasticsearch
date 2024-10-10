@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.gradle.internal;
@@ -12,11 +13,16 @@ import org.elasticsearch.gradle.VersionProperties;
 import org.elasticsearch.gradle.internal.conventions.precommit.PrecommitTaskPlugin;
 import org.elasticsearch.gradle.internal.info.BuildParams;
 import org.elasticsearch.gradle.internal.info.GlobalBuildInfoPlugin;
+import org.elasticsearch.gradle.internal.test.MutedTestPlugin;
+import org.elasticsearch.gradle.internal.test.TestUtil;
+import org.elasticsearch.gradle.test.SystemPropertyCommandLineArgumentProvider;
 import org.elasticsearch.gradle.util.GradleUtils;
 import org.gradle.api.JavaVersion;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
+import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.artifacts.ResolutionStrategy;
+import org.gradle.api.file.FileCollection;
 import org.gradle.api.plugins.JavaBasePlugin;
 import org.gradle.api.plugins.JavaPluginExtension;
 import org.gradle.api.provider.Provider;
@@ -26,14 +32,29 @@ import org.gradle.api.tasks.compile.AbstractCompile;
 import org.gradle.api.tasks.compile.CompileOptions;
 import org.gradle.api.tasks.compile.GroovyCompile;
 import org.gradle.api.tasks.compile.JavaCompile;
+import org.gradle.api.tasks.testing.Test;
+import org.gradle.jvm.toolchain.JavaLanguageVersion;
+import org.gradle.jvm.toolchain.JavaToolchainService;
 
 import java.util.List;
+import java.util.Map;
+import java.util.function.Supplier;
+
+import javax.inject.Inject;
 
 /**
  * A wrapper around Gradle's Java Base plugin that applies our
  * common configuration for production code.
  */
 public class ElasticsearchJavaBasePlugin implements Plugin<Project> {
+
+    private final JavaToolchainService javaToolchains;
+
+    @Inject
+    ElasticsearchJavaBasePlugin(JavaToolchainService javaToolchains) {
+        this.javaToolchains = javaToolchains;
+    }
+
     @Override
     public void apply(Project project) {
         // make sure the global build info plugin is applied to the root project
@@ -43,10 +64,12 @@ public class ElasticsearchJavaBasePlugin implements Plugin<Project> {
         project.getPluginManager().apply(RepositoriesSetupPlugin.class);
         project.getPluginManager().apply(ElasticsearchTestBasePlugin.class);
         project.getPluginManager().apply(PrecommitTaskPlugin.class);
+        project.getPluginManager().apply(MutedTestPlugin.class);
 
         configureConfigurations(project);
         configureCompile(project);
         configureInputNormalization(project);
+        configureNativeLibraryPath(project);
 
         // convenience access to common versions used in dependencies
         project.getExtensions().getExtraProperties().set("versions", VersionProperties.getVersions());
@@ -91,7 +114,6 @@ public class ElasticsearchJavaBasePlugin implements Plugin<Project> {
         List<String> sourceSetConfigurationNames = List.of(
             sourceSet.getApiConfigurationName(),
             sourceSet.getImplementationConfigurationName(),
-            sourceSet.getImplementationConfigurationName(),
             sourceSet.getCompileOnlyConfigurationName(),
             sourceSet.getRuntimeOnlyConfigurationName()
         );
@@ -104,7 +126,7 @@ public class ElasticsearchJavaBasePlugin implements Plugin<Project> {
     /**
      * Adds compiler settings to the project
      */
-    public static void configureCompile(Project project) {
+    public void configureCompile(Project project) {
         project.getExtensions().getExtraProperties().set("compactProfile", "full");
         JavaPluginExtension java = project.getExtensions().getByType(JavaPluginExtension.class);
         if (BuildParams.getJavaToolChainSpec().isPresent()) {
@@ -113,6 +135,10 @@ public class ElasticsearchJavaBasePlugin implements Plugin<Project> {
         java.setSourceCompatibility(BuildParams.getMinimumRuntimeVersion());
         java.setTargetCompatibility(BuildParams.getMinimumRuntimeVersion());
         project.getTasks().withType(JavaCompile.class).configureEach(compileTask -> {
+            compileTask.getJavaCompiler().set(javaToolchains.compilerFor(spec -> {
+                spec.getLanguageVersion().set(JavaLanguageVersion.of(BuildParams.getMinimumRuntimeVersion().getMajorVersion()));
+            }));
+
             CompileOptions compileOptions = compileTask.getOptions();
             /*
              * -path because gradle will send in paths that don't always exist.
@@ -133,6 +159,7 @@ public class ElasticsearchJavaBasePlugin implements Plugin<Project> {
             compileTask.getConventionMapping().map("sourceCompatibility", () -> java.getSourceCompatibility().toString());
             compileTask.getConventionMapping().map("targetCompatibility", () -> java.getTargetCompatibility().toString());
             compileOptions.getRelease().set(releaseVersionProviderFromCompileTask(project, compileTask));
+            compileOptions.setIncremental(BuildParams.isCi() == false);
         });
         // also apply release flag to groovy, which is used in build-tools
         project.getTasks().withType(GroovyCompile.class).configureEach(compileTask -> {
@@ -147,6 +174,24 @@ public class ElasticsearchJavaBasePlugin implements Plugin<Project> {
     public static void configureInputNormalization(Project project) {
         project.getNormalization().getRuntimeClasspath().ignore("META-INF/MANIFEST.MF");
         project.getNormalization().getRuntimeClasspath().ignore("IMPL-JARS/**/META-INF/MANIFEST.MF");
+    }
+
+    private static void configureNativeLibraryPath(Project project) {
+        String nativeProject = ":libs:elasticsearch-native:elasticsearch-native-libraries";
+        Configuration nativeConfig = project.getConfigurations().create("nativeLibs");
+        nativeConfig.defaultDependencies(deps -> {
+            deps.add(project.getDependencies().project(Map.of("path", nativeProject, "configuration", "default")));
+        });
+        // This input to the following lambda needs to be serializable. Configuration is not serializable, but FileCollection is.
+        FileCollection nativeConfigFiles = nativeConfig;
+
+        project.getTasks().withType(Test.class).configureEach(test -> {
+            var systemProperties = test.getExtensions().getByType(SystemPropertyCommandLineArgumentProvider.class);
+            var libraryPath = (Supplier<String>) () -> TestUtil.getTestLibraryPath(nativeConfigFiles.getAsPath());
+
+            test.dependsOn(nativeConfigFiles);
+            systemProperties.systemProperty("es.nativelibs.path", libraryPath);
+        });
     }
 
     private static Provider<Integer> releaseVersionProviderFromCompileTask(Project project, AbstractCompile compileTask) {

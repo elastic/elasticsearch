@@ -13,6 +13,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.transform.transforms.TransformSchedulerStats;
 import org.elasticsearch.xpack.core.transform.transforms.TransformTaskParams;
 import org.elasticsearch.xpack.transform.Transform;
 
@@ -21,6 +22,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.core.Strings.format;
@@ -73,17 +75,21 @@ public final class TransformScheduler {
      * Set to {@code false} after processing (doesn't matter whether successful or not).
      */
     private final AtomicBoolean isProcessingActive;
+
+    private final TimeValue minFrequency;
+
     /**
      * Stored the scheduled execution for future cancellation.
      */
     private Scheduler.Cancellable scheduledFuture;
 
-    public TransformScheduler(Clock clock, ThreadPool threadPool, Settings settings) {
-        this.clock = Objects.requireNonNull(clock);
+    public TransformScheduler(Clock clock, ThreadPool threadPool, Settings settings, TimeValue minFrequency) {
+        this.clock = new MonotonicClock(Objects.requireNonNull(clock));
         this.threadPool = Objects.requireNonNull(threadPool);
         this.schedulerFrequency = Transform.SCHEDULER_FREQUENCY.get(settings);
         this.scheduledTasks = new TransformScheduledTaskQueue();
         this.isProcessingActive = new AtomicBoolean();
+        this.minFrequency = minFrequency;
     }
 
     /**
@@ -92,7 +98,7 @@ public final class TransformScheduler {
      */
     public void start() {
         if (scheduledFuture == null) {
-            scheduledFuture = threadPool.scheduleWithFixedDelay(this::processScheduledTasks, schedulerFrequency, ThreadPool.Names.GENERIC);
+            scheduledFuture = threadPool.scheduleWithFixedDelay(this::processScheduledTasks, schedulerFrequency, threadPool.generic());
         }
     }
 
@@ -165,7 +171,7 @@ public final class TransformScheduler {
             }
             return new TransformScheduledTask(
                 task.getTransformId(),
-                task.getFrequency(),
+                getFrequency(task.getFrequency()),
                 currentTimeMillis,
                 task.getFailureCount(),
                 task.getListener()
@@ -198,7 +204,7 @@ public final class TransformScheduler {
         long currentTimeMillis = clock.millis();
         TransformScheduledTask transformScheduledTask = new TransformScheduledTask(
             transformId,
-            transformTaskParams.getFrequency(),
+            getFrequency(transformTaskParams.getFrequency()),
             null,  // this task has not been triggered yet
             0,  // this task has not failed yet
             currentTimeMillis,  // we schedule this task at current clock time so that it is processed ASAP
@@ -223,7 +229,7 @@ public final class TransformScheduler {
             transformId,
             task -> new TransformScheduledTask(
                 task.getTransformId(),
-                task.getFrequency(),
+                getFrequency(task.getFrequency()),
                 task.getLastTriggeredTimeMillis(),
                 failureCount,
                 task.getListener()
@@ -245,7 +251,7 @@ public final class TransformScheduler {
             transformId,
             task -> new TransformScheduledTask(
                 task.getTransformId(),
-                task.getFrequency(),
+                getFrequency(task.getFrequency()),
                 task.getLastTriggeredTimeMillis(),
                 task.getFailureCount(),
                 currentTimeMillis,  // we schedule this task at current clock time so that it is processed ASAP
@@ -266,11 +272,35 @@ public final class TransformScheduler {
         scheduledTasks.remove(transformId);
     }
 
+    public TransformSchedulerStats getStats() {
+        return new TransformSchedulerStats(
+            scheduledTasks.size(),
+            Optional.ofNullable(scheduledTasks.first()).map(TransformScheduledTask::getTransformId).orElse(null)
+        );
+    }
+
+    // Visible for testing
+    /**
+     * Returns the number of transforms currently in the queue.
+     *
+     * @return number of transforms currently in the queue
+     */
+    int getRegisteredTransformCount() {
+        return scheduledTasks.size();
+    }
+
     // Visible for testing
     /**
      * @return queue current contents
      */
     List<TransformScheduledTask> getTransformScheduledTasks() {
         return scheduledTasks.listScheduledTasks();
+    }
+
+    private TimeValue getFrequency(TimeValue frequency) {
+        if (frequency == null) {
+            frequency = Transform.DEFAULT_TRANSFORM_FREQUENCY;
+        }
+        return frequency.compareTo(minFrequency) >= 0 ? frequency : minFrequency;
     }
 }

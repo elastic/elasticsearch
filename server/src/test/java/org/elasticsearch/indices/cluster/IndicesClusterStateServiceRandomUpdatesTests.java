@@ -1,14 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.indices.cluster;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteRequest;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
@@ -28,6 +30,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -60,6 +63,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
+import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
@@ -220,9 +224,7 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
             ShardRoutingState.STARTED,
             ShardRoutingState.INITIALIZING
         );
-        state = ClusterState.builder(state)
-            .nodes(DiscoveryNodes.builder(state.nodes()).masterNodeId(state.nodes().getLocalNodeId()))
-            .build();
+        state = ClusterState.builder(state).nodes(state.nodes().withMasterNodeId(state.nodes().getLocalNodeId())).build();
 
         // the initial state which is derived from the newly created cluster state but doesn't contain the index
         ClusterState previousState = ClusterState.builder(state)
@@ -440,7 +442,7 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
 
         // randomly reroute
         if (rarely()) {
-            state = cluster.reroute(state, new ClusterRerouteRequest());
+            state = cluster.reroute(state, new ClusterRerouteRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT));
         }
 
         // randomly start and fail allocated shards
@@ -468,7 +470,7 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
             if (randomBoolean()) {
                 // add node
                 if (state.nodes().getSize() < 10) {
-                    state = cluster.addNode(state, createNode());
+                    state = cluster.addNode(state, createNode(), TransportVersion.current());
                     updateNodes(state, clusterStateServiceMap, indicesServiceSupplier);
                 }
             } else {
@@ -481,7 +483,7 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
                     }
                     if (randomBoolean()) {
                         // and add it back
-                        state = cluster.addNode(state, discoveryNode);
+                        state = cluster.addNode(state, discoveryNode, TransportVersion.current());
                         updateNodes(state, clusterStateServiceMap, indicesServiceSupplier);
                     }
                 }
@@ -499,7 +501,7 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
         Set<DiscoveryNodeRole> roles = new HashSet<>(randomSubsetOf(DiscoveryNodeRole.roles()));
         Collections.addAll(roles, mustHaveRoles);
         final String id = format("node_%03d", nodeIdGenerator.incrementAndGet());
-        return new DiscoveryNode(id, id, buildNewFakeTransportAddress(), Collections.emptyMap(), roles, Version.CURRENT);
+        return DiscoveryNodeUtils.builder(id).name(id).roles(roles).build();
     }
 
     private static ClusterState adaptClusterStateToLocalNode(ClusterState state, DiscoveryNode node) {
@@ -519,21 +521,26 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
             mock(Transport.class),
             threadPool,
             TransportService.NOOP_TRANSPORT_INTERCEPTOR,
-            boundAddress -> DiscoveryNode.createLocal(settings, boundAddress.publishAddress(), UUIDs.randomBase64UUID()),
+            boundAddress -> DiscoveryNodeUtils.builder(UUIDs.randomBase64UUID())
+                .applySettings(settings)
+                .address(boundAddress.publishAddress())
+                .build(),
             null,
             Collections.emptySet()
         );
         final ClusterService clusterService = mock(ClusterService.class);
+        final NodeClient client = mock(NodeClient.class);
         final RepositoriesService repositoriesService = new RepositoriesService(
             settings,
             clusterService,
-            transportService,
             Collections.emptyMap(),
             Collections.emptyMap(),
             threadPool,
+            client,
             List.of()
         );
         final PeerRecoveryTargetService recoveryTargetService = new PeerRecoveryTargetService(
+            client,
             threadPool,
             transportService,
             null,
@@ -542,7 +549,6 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
         );
         final ShardStateAction shardStateAction = mock(ShardStateAction.class);
         final PrimaryReplicaSyncer primaryReplicaSyncer = mock(PrimaryReplicaSyncer.class);
-        final NodeClient client = mock(NodeClient.class);
         return new IndicesClusterStateService(
             settings,
             indicesService,
@@ -567,8 +573,14 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
         private Set<Index> deletedIndices = Collections.emptySet();
 
         @Override
-        public synchronized void removeIndex(Index index, IndexRemovalReason reason, String extraInfo) {
-            super.removeIndex(index, reason, extraInfo);
+        public synchronized void removeIndex(
+            Index index,
+            IndexRemovalReason reason,
+            String extraInfo,
+            Executor shardCloseExecutor,
+            ActionListener<Void> shardsClosedListener
+        ) {
+            super.removeIndex(index, reason, extraInfo, shardCloseExecutor, shardsClosedListener);
             if (reason == IndexRemovalReason.DELETED) {
                 Set<Index> newSet = Sets.newHashSet(deletedIndices);
                 newSet.add(index);

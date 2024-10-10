@@ -128,7 +128,7 @@ public class TransformCheckpoint implements Writeable, ToXContentObject {
         this.transformId = in.readString();
         this.timestampMillis = in.readLong();
         this.checkpoint = in.readLong();
-        this.indicesCheckpoints = readCheckpoints(in.readMap());
+        this.indicesCheckpoints = readCheckpoints(in.readGenericMap());
         this.timeUpperBoundMillis = in.readLong();
     }
 
@@ -263,7 +263,7 @@ public class TransformCheckpoint implements Writeable, ToXContentObject {
 
     public static String documentId(String transformId, long checkpoint) {
         if (checkpoint < 0) {
-            throw new IllegalArgumentException("checkpoint must be a positive number");
+            throw new IllegalArgumentException("checkpoint must be a non-negative number");
         }
 
         return NAME + "-" + transformId + "-" + checkpoint;

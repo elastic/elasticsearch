@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.ingest.geoip;
@@ -12,19 +13,17 @@ import com.maxmind.db.InvalidDatabaseException;
 
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.tests.util.LuceneTestCase;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.SearchResponseSections;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
@@ -39,9 +38,12 @@ import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.CheckedRunnable;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.ingest.IngestService;
@@ -57,10 +59,12 @@ import org.elasticsearch.xcontent.XContentType;
 import org.junit.After;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
+import org.mockito.stubbing.Answer;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.OutputStream;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -68,19 +72,20 @@ import java.nio.file.Path;
 import java.security.MessageDigest;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Consumer;
-import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import java.util.zip.GZIPInputStream;
 import java.util.zip.GZIPOutputStream;
 
-import static org.elasticsearch.ingest.geoip.GeoIpProcessorFactoryTests.copyDatabaseFiles;
+import static org.elasticsearch.ingest.geoip.GeoIpTestUtils.copyDefaultDatabases;
 import static org.elasticsearch.persistent.PersistentTasksCustomMetadata.PersistentTask;
 import static org.elasticsearch.persistent.PersistentTasksCustomMetadata.TYPE;
 import static org.hamcrest.Matchers.empty;
@@ -109,13 +114,14 @@ public class DatabaseNodeServiceTests extends ESTestCase {
     private IngestService ingestService;
     private ClusterService clusterService;
 
+    private final Collection<Releasable> toRelease = new CopyOnWriteArrayList<>();
+
     @Before
     public void setup() throws IOException {
         final Path geoIpConfigDir = createTempDir();
-        Files.createDirectories(geoIpConfigDir);
         GeoIpCache cache = new GeoIpCache(1000);
         ConfigDatabases configDatabases = new ConfigDatabases(geoIpConfigDir, cache);
-        copyDatabaseFiles(geoIpConfigDir, configDatabases);
+        copyDefaultDatabases(geoIpConfigDir, configDatabases);
 
         threadPool = new TestThreadPool(ConfigDatabases.class.getSimpleName());
         Settings settings = Settings.builder().put("resource.reload.interval.high", TimeValue.timeValueMillis(100)).build();
@@ -133,6 +139,8 @@ public class DatabaseNodeServiceTests extends ESTestCase {
     public void cleanup() {
         resourceWatcherService.close();
         threadPool.shutdownNow();
+        Releasables.close(toRelease);
+        toRelease.clear();
     }
 
     public void testCheckDatabases() throws Exception {
@@ -145,7 +153,7 @@ public class DatabaseNodeServiceTests extends ESTestCase {
         ClusterState state = createClusterState(tasksCustomMetadata);
 
         int numPipelinesToBeReloaded = randomInt(4);
-        List<String> pipelineIds = IntStream.range(0, numPipelinesToBeReloaded).mapToObj(String::valueOf).collect(Collectors.toList());
+        List<String> pipelineIds = IntStream.range(0, numPipelinesToBeReloaded).mapToObj(String::valueOf).toList();
         when(ingestService.getPipelineWithProcessorType(any(), any())).thenReturn(pipelineIds);
 
         assertThat(databaseNodeService.getDatabase("GeoIP2-City.mmdb"), nullValue());
@@ -191,14 +199,7 @@ public class DatabaseNodeServiceTests extends ESTestCase {
         ClusterState state = ClusterState.builder(createClusterState(tasksCustomMetadata))
             .nodes(
                 new DiscoveryNodes.Builder().add(
-                    new DiscoveryNode(
-                        "_name1",
-                        "_id1",
-                        buildNewFakeTransportAddress(),
-                        Map.of(),
-                        Set.of(DiscoveryNodeRole.MASTER_ROLE),
-                        Version.CURRENT
-                    )
+                    DiscoveryNodeUtils.builder("_id1").name("_name1").roles(Set.of(DiscoveryNodeRole.MASTER_ROLE)).build()
                 ).localNodeId("_id1")
             )
             .build();
@@ -207,7 +208,7 @@ public class DatabaseNodeServiceTests extends ESTestCase {
         assertThat(databaseNodeService.getDatabase("GeoIP2-City.mmdb"), nullValue());
         verify(client, never()).search(any());
         try (Stream<Path> files = Files.list(geoIpTmpDir.resolve("geoip-databases").resolve("nodeId"))) {
-            assertThat(files.collect(Collectors.toList()), empty());
+            assertThat(files.toList(), empty());
         }
     }
 
@@ -220,17 +221,14 @@ public class DatabaseNodeServiceTests extends ESTestCase {
 
         ClusterState state = ClusterState.builder(new ClusterName("name"))
             .metadata(Metadata.builder().putCustom(TYPE, tasksCustomMetadata).build())
-            .nodes(
-                new DiscoveryNodes.Builder().add(new DiscoveryNode("_id1", buildNewFakeTransportAddress(), Version.CURRENT))
-                    .localNodeId("_id1")
-            )
+            .nodes(new DiscoveryNodes.Builder().add(DiscoveryNodeUtils.create("_id1")).localNodeId("_id1"))
             .build();
 
         databaseNodeService.checkDatabases(state);
         assertThat(databaseNodeService.getDatabase("GeoIP2-City.mmdb"), nullValue());
         verify(client, never()).search(any());
         try (Stream<Path> files = Files.list(geoIpTmpDir.resolve("geoip-databases").resolve("nodeId"))) {
-            assertThat(files.collect(Collectors.toList()), empty());
+            assertThat(files.toList(), empty());
         }
     }
 
@@ -245,7 +243,7 @@ public class DatabaseNodeServiceTests extends ESTestCase {
         assertThat(databaseNodeService.getDatabase("GeoIP2-City.mmdb"), nullValue());
         verify(client, never()).search(any());
         try (Stream<Path> files = Files.list(geoIpTmpDir.resolve("geoip-databases").resolve("nodeId"))) {
-            assertThat(files.collect(Collectors.toList()), empty());
+            assertThat(files.toList(), empty());
         }
     }
 
@@ -292,7 +290,7 @@ public class DatabaseNodeServiceTests extends ESTestCase {
 
     public void testUpdateDatabase() throws Exception {
         int numPipelinesToBeReloaded = randomInt(4);
-        List<String> pipelineIds = IntStream.range(0, numPipelinesToBeReloaded).mapToObj(String::valueOf).collect(Collectors.toList());
+        List<String> pipelineIds = IntStream.range(0, numPipelinesToBeReloaded).mapToObj(String::valueOf).toList();
         when(ingestService.getPipelineWithProcessorType(any(), any())).thenReturn(pipelineIds);
 
         databaseNodeService.updateDatabase("_name", "_md5", geoIpTmpDir.resolve("some-file"));
@@ -314,13 +312,25 @@ public class DatabaseNodeServiceTests extends ESTestCase {
 
     private String mockSearches(String databaseName, int firstChunk, int lastChunk) throws IOException {
         String dummyContent = "test: " + databaseName;
-        List<byte[]> data = gzip(databaseName, dummyContent, lastChunk - firstChunk + 1);
-        assertThat(gunzip(data), equalTo(dummyContent));
+        List<byte[]> data;
+        // We want to make sure we handle gzip files or plain mmdb files equally well:
+        if (randomBoolean()) {
+            data = gzip(databaseName, dummyContent, lastChunk - firstChunk + 1);
+            assertThat(gunzip(data), equalTo(dummyContent));
+        } else {
+            data = chunkBytes(dummyContent, lastChunk - firstChunk + 1);
+            assertThat(unchunkBytes(data), equalTo(dummyContent));
+        }
 
         Map<String, ActionFuture<SearchResponse>> requestMap = new HashMap<>();
         for (int i = firstChunk; i <= lastChunk; i++) {
-            byte[] chunk = data.get(i - firstChunk);
-            SearchHit hit = new SearchHit(i);
+            byte[] chunk;
+            if (i - firstChunk < data.size()) {
+                chunk = data.get(i - firstChunk);
+            } else {
+                chunk = new byte[0]; // We had so little data that the chunk(s) at the end will be empty
+            }
+            SearchHit hit = SearchHit.unpooled(i);
             try (XContentBuilder builder = XContentBuilder.builder(XContentType.SMILE.xContent())) {
                 builder.map(Map.of("data", chunk));
                 builder.flush();
@@ -330,20 +340,15 @@ public class DatabaseNodeServiceTests extends ESTestCase {
                 throw new UncheckedIOException(ex);
             }
 
-            SearchHits hits = new SearchHits(new SearchHit[] { hit }, new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1f);
-            SearchResponse searchResponse = new SearchResponse(
-                new SearchResponseSections(hits, null, null, false, null, null, 0),
-                null,
-                1,
-                1,
-                0,
-                1L,
-                null,
-                null
-            );
+            SearchHits hits = SearchHits.unpooled(new SearchHit[] { hit }, new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1f);
+            SearchResponse searchResponse = new SearchResponse(hits, null, null, false, null, null, 0, null, 1, 1, 0, 1L, null, null);
+            toRelease.add(searchResponse::decRef);
             @SuppressWarnings("unchecked")
             ActionFuture<SearchResponse> actionFuture = mock(ActionFuture.class);
-            when(actionFuture.actionGet()).thenReturn(searchResponse);
+            when(actionFuture.actionGet()).thenAnswer((Answer<SearchResponse>) invocation -> {
+                searchResponse.incRef();
+                return searchResponse;
+            });
             requestMap.put(databaseName + "_" + i, actionFuture);
         }
         when(client.search(any())).thenAnswer(invocationOnMock -> {
@@ -369,13 +374,7 @@ public class DatabaseNodeServiceTests extends ESTestCase {
             : GeoIpDownloader.DATABASES_INDEX;
         Index index = new Index(indexName, UUID.randomUUID().toString());
         IndexMetadata.Builder idxMeta = IndexMetadata.builder(index.getName())
-            .settings(
-                Settings.builder()
-                    .put("index.version.created", Version.CURRENT)
-                    .put("index.uuid", index.getUUID())
-                    .put("index.number_of_shards", 1)
-                    .put("index.number_of_replicas", 0)
-            );
+            .settings(indexSettings(IndexVersion.current(), 1, 0).put("index.uuid", index.getUUID()));
         if (aliasGeoipDatabase) {
             idxMeta.putAlias(AliasMetadata.builder(GeoIpDownloader.DATABASES_INDEX));
         }
@@ -393,9 +392,7 @@ public class DatabaseNodeServiceTests extends ESTestCase {
         }
         return ClusterState.builder(new ClusterName("name"))
             .metadata(Metadata.builder().putCustom(TYPE, tasksCustomMetadata).put(idxMeta))
-            .nodes(
-                DiscoveryNodes.builder().add(new DiscoveryNode("_id1", buildNewFakeTransportAddress(), Version.CURRENT)).localNodeId("_id1")
-            )
+            .nodes(DiscoveryNodes.builder().add(DiscoveryNodeUtils.create("_id1")).localNodeId("_id1"))
             .routingTable(
                 RoutingTable.builder()
                     .add(
@@ -404,6 +401,39 @@ public class DatabaseNodeServiceTests extends ESTestCase {
                     )
             )
             .build();
+    }
+
+    private static List<byte[]> chunkBytes(String content, int chunks) throws IOException {
+        ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
+        OutputStream outputStream = byteArrayOutputStream;
+        byte[] contentBytes = content.getBytes(StandardCharsets.UTF_8);
+        outputStream.write(contentBytes);
+        outputStream.close();
+
+        byte[] all = byteArrayOutputStream.toByteArray();
+        int chunkSize = Math.max(1, all.length / chunks);
+        List<byte[]> data = new ArrayList<>();
+
+        for (int from = 0; from < all.length;) {
+            int to = from + chunkSize;
+            if (to > all.length) {
+                to = all.length;
+            }
+            data.add(Arrays.copyOfRange(all, from, to));
+            from = to;
+        }
+
+        while (data.size() > chunks) {
+            byte[] last = data.remove(data.size() - 1);
+            byte[] secondLast = data.remove(data.size() - 1);
+            byte[] merged = new byte[secondLast.length + last.length];
+            System.arraycopy(secondLast, 0, merged, 0, secondLast.length);
+            System.arraycopy(last, 0, merged, secondLast.length, last.length);
+            data.add(merged);
+        }
+
+        assert data.size() == Math.min(chunks, content.length());
+        return data;
     }
 
     private static List<byte[]> gzip(String name, String content, int chunks) throws IOException {
@@ -448,13 +478,23 @@ public class DatabaseNodeServiceTests extends ESTestCase {
         return data;
     }
 
-    private static String gunzip(List<byte[]> chunks) throws IOException {
-        byte[] gzippedContent = new byte[chunks.stream().mapToInt(value -> value.length).sum()];
+    private static byte[] unchunkBytesToByteArray(List<byte[]> chunks) throws IOException {
+        byte[] allBytes = new byte[chunks.stream().mapToInt(value -> value.length).sum()];
         int written = 0;
         for (byte[] chunk : chunks) {
-            System.arraycopy(chunk, 0, gzippedContent, written, chunk.length);
+            System.arraycopy(chunk, 0, allBytes, written, chunk.length);
             written += chunk.length;
         }
+        return allBytes;
+    }
+
+    private static String unchunkBytes(List<byte[]> chunks) throws IOException {
+        byte[] allBytes = unchunkBytesToByteArray(chunks);
+        return new String(allBytes, StandardCharsets.UTF_8);
+    }
+
+    private static String gunzip(List<byte[]> chunks) throws IOException {
+        byte[] gzippedContent = unchunkBytesToByteArray(chunks);
         TarInputStream gzipInputStream = new TarInputStream(new GZIPInputStream(new ByteArrayInputStream(gzippedContent)));
         gzipInputStream.getNextEntry();
         return Streams.readFully(gzipInputStream).utf8ToString();

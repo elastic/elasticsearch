@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.bucket.histogram;
@@ -97,9 +98,8 @@ public class InternalHistogramTests extends InternalMultiBucketAggregationTestCa
         InternalHistogram.Bucket b = buckets.get(buckets.size() - 1);
         newBuckets.add(new InternalHistogram.Bucket(Double.NaN, b.docCount, keyed, b.format, b.aggregations));
 
-        InternalHistogram newHistogram = histogram.create(newBuckets);
         List<InternalAggregation> reduceMe = List.of(histogram, histogram2);
-        newHistogram.reduce(reduceMe, InternalAggregationTestCase.mockReduceContext(mockBuilder(reduceMe)).forPartialReduction());
+        InternalAggregationTestCase.reduce(reduceMe, mockReduceContext(mockBuilder(reduceMe)).forPartialReduction());
     }
 
     public void testLargeReduce() {
@@ -156,11 +156,6 @@ public class InternalHistogramTests extends InternalMultiBucketAggregationTestCa
             actualCounts.compute((Double) bucket.getKey(), (key, oldValue) -> (oldValue == null ? 0 : oldValue) + bucket.getDocCount());
         }
         assertEquals(expectedCounts, actualCounts);
-    }
-
-    @Override
-    protected Class<ParsedHistogram> implementationClass() {
-        return ParsedHistogram.class;
     }
 
     @Override

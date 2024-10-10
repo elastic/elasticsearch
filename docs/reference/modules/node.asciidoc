@@ -1,5 +1,5 @@
 [[modules-node]]
-=== Node
+=== Nodes
 
 Any time that you start an instance of {es}, you are starting a _node_. A
 collection of connected nodes is called a <<modules-cluster,cluster>>. If you
@@ -13,6 +13,10 @@ between nodes; the HTTP layer is used by REST clients.
 All nodes know about all the other nodes in the cluster and can forward client
 requests to the appropriate node.
 // end::modules-node-description-tag[]
+
+TIP: The performance of an {es} node is often limited by the performance of the underlying storage. 
+Review our recommendations for optimizing your storage for <<indexing-use-faster-hardware,indexing>> and 
+<<search-use-faster-hardware,search>>.
 
 [[node-roles]]
 ==== Node roles
@@ -68,8 +72,8 @@ A node that has the `master` role, which makes it eligible to be
 
 <<data-node,Data node>>::
 
-A node that has the `data` role. Data nodes hold data and perform data
-related operations such as CRUD, search, and aggregations. A node with the `data` role can fill any of the specialised data node roles.
+A node that has one of several data roles. Data nodes hold data and perform data
+related operations such as CRUD, search, and aggregations. A node with a generic `data` role can fill any of the specialized data node roles.
 
 <<node-ingest-node,Ingest node>>::
 
@@ -220,7 +224,7 @@ therefore ensure that the storage and networking available to the nodes in your
 cluster are good enough to meet your performance goals.
 
 [[data-node]]
-==== Data node
+==== Data nodes
 
 Data nodes hold the shards that contain the documents you have indexed. Data
 nodes handle data related operations like CRUD, search, and aggregations.
@@ -230,23 +234,32 @@ monitor these resources and to add more data nodes if they are overloaded.
 The main benefit of having dedicated data nodes is the separation of the master
 and data roles.
 
-To create a dedicated data node, set:
+In a multi-tier deployment architecture, you use specialized data roles to
+assign data nodes to specific tiers: `data_content`,`data_hot`, `data_warm`,
+`data_cold`, or `data_frozen`. A node can belong to multiple tiers. 
+
+If you want to include a node in all tiers, or if your cluster does not use multiple tiers, then you can use the generic `data` role.
+
+include::../how-to/shard-limits.asciidoc[]
+
+WARNING: If you assign a node to a specific tier using a specialized data role, then you shouldn't also assign it the generic `data` role. The generic `data` role takes precedence over specialized data roles.
+
+[[generic-data-node]]
+===== Generic data node
+
+Generic data nodes are included in all content tiers. 
+
+To create a dedicated generic data node, set:
 [source,yaml]
 ----
 node.roles: [ data ]
 ----
 
-In a multi-tier deployment architecture, you use specialized data roles to
-assign data nodes to specific tiers: `data_content`,`data_hot`, `data_warm`,
-`data_cold`, or `data_frozen`. A node can belong to multiple tiers, but a node
-that has one of the specialized data roles cannot have the generic `data` role.
-
-[role="xpack"]
 [[data-content-node]]
-==== Content data node
+===== Content data node
 
 Content data nodes are part of the content tier.
-include::{es-repo-dir}/datatiers.asciidoc[tag=content-tier]
+include::{es-ref-dir}/datatiers.asciidoc[tag=content-tier]
 
 To create a dedicated content node, set:
 [source,yaml]
@@ -254,12 +267,11 @@ To create a dedicated content node, set:
 node.roles: [ data_content ]
 ----
 
-[role="xpack"]
 [[data-hot-node]]
-==== Hot data node
+===== Hot data node
 
 Hot data nodes are part of the hot tier.
-include::{es-repo-dir}/datatiers.asciidoc[tag=hot-tier]
+include::{es-ref-dir}/datatiers.asciidoc[tag=hot-tier]
 
 To create a dedicated hot node, set:
 [source,yaml]
@@ -267,12 +279,11 @@ To create a dedicated hot node, set:
 node.roles: [ data_hot ]
 ----
 
-[role="xpack"]
 [[data-warm-node]]
-==== Warm data node
+===== Warm data node
 
 Warm data nodes are part of the warm tier.
-include::{es-repo-dir}/datatiers.asciidoc[tag=warm-tier]
+include::{es-ref-dir}/datatiers.asciidoc[tag=warm-tier]
 
 To create a dedicated warm node, set:
 [source,yaml]
@@ -280,12 +291,11 @@ To create a dedicated warm node, set:
 node.roles: [ data_warm ]
 ----
 
-[role="xpack"]
 [[data-cold-node]]
-==== Cold data node
+===== Cold data node
 
 Cold data nodes are part of the cold tier.
-include::{es-repo-dir}/datatiers.asciidoc[tag=cold-tier]
+include::{es-ref-dir}/datatiers.asciidoc[tag=cold-tier]
 
 To create a dedicated cold node, set:
 [source,yaml]
@@ -293,12 +303,11 @@ To create a dedicated cold node, set:
 node.roles: [ data_cold ]
 ----
 
-[role="xpack"]
 [[data-frozen-node]]
-==== Frozen data node
+===== Frozen data node
 
 Frozen data nodes are part of the frozen tier.
-include::{es-repo-dir}/datatiers.asciidoc[tag=frozen-tier]
+include::{es-ref-dir}/datatiers.asciidoc[tag=frozen-tier]
 
 To create a dedicated frozen node, set:
 [source,yaml]
@@ -411,7 +420,7 @@ Similarly, each master-eligible node maintains the following data on disk:
 
 Each node checks the contents of its data path at startup. If it discovers
 unexpected data then it will refuse to start. This is to avoid importing
-unwanted <<modules-gateway-dangling-indices,dangling indices>> which can lead
+unwanted <<dangling-indices,dangling indices>> which can lead
 to a red cluster health. To be more precise, nodes without the `data` role will
 refuse to start if they find any shard data on disk at startup, and nodes
 without both the `master` and `data` roles will refuse to start if they have any
@@ -424,13 +433,13 @@ must perform some extra steps to prepare a node for repurposing when starting
 the node without the `data` or `master` roles.
 
 * If you want to repurpose a data node by removing the `data` role then you
-  should first use an <<allocation-filtering,allocation filter>> to safely
+  should first use an <<cluster-shard-allocation-filtering,allocation filter>> to safely
   migrate all the shard data onto other nodes in the cluster.
 
 * If you want to repurpose a node to have neither the `data` nor `master` roles
   then it is simplest to start a brand-new node with an empty data path and the
   desired roles. You may find it safest to use an
-  <<allocation-filtering,allocation filter>> to migrate the shard data elsewhere
+  <<cluster-shard-allocation-filtering,allocation filter>> to migrate the shard data elsewhere
   in the cluster first.
 
 If it is not possible to follow these extra steps then you may be able to use
@@ -467,12 +476,6 @@ properly-configured remote block devices (e.g. a SAN) and remote filesystems
 (e.g. NFS) as long as the remote storage behaves no differently from local
 storage. You can run multiple {es} nodes on the same filesystem, but each {es}
 node must have its own data path.
-
-The performance of an {es} cluster is often limited by the performance of the
-underlying storage, so you must ensure that your storage supports acceptable
-performance. Some remote storage performs very poorly, especially under the
-kind of load that {es} imposes, so make sure to benchmark your system carefully
-before committing to a particular storage architecture.
 
 TIP: When using the `.zip` or `.tar.gz` distributions, the `path.data` setting
 should be configured to locate the data directory outside the {es} home

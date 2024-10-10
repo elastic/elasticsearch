@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.ingest.geoip;
@@ -12,7 +13,6 @@ import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.VersionType;
@@ -22,10 +22,8 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.watcher.ResourceWatcherService;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
@@ -34,7 +32,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static org.elasticsearch.ingest.geoip.GeoIpProcessorFactoryTests.copyDatabaseFiles;
+import static org.elasticsearch.ingest.geoip.GeoIpTestUtils.copyDatabase;
+import static org.elasticsearch.ingest.geoip.GeoIpTestUtils.copyDefaultDatabases;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
@@ -68,8 +67,8 @@ public class ReloadingDatabasesWhilePerformingGeoLookupsIT extends ESTestCase {
         when(clusterService.state()).thenReturn(ClusterState.EMPTY_STATE);
         DatabaseNodeService databaseNodeService = createRegistry(geoIpConfigDir, geoIpTmpDir, clusterService);
         GeoIpProcessor.Factory factory = new GeoIpProcessor.Factory(databaseNodeService);
-        Files.copy(ConfigDatabases.class.getResourceAsStream("/GeoLite2-City-Test.mmdb"), geoIpTmpDir.resolve("GeoLite2-City.mmdb"));
-        Files.copy(ConfigDatabases.class.getResourceAsStream("/GeoLite2-City-Test.mmdb"), geoIpTmpDir.resolve("GeoLite2-City-Test.mmdb"));
+        copyDatabase("GeoLite2-City-Test.mmdb", geoIpTmpDir.resolve("GeoLite2-City.mmdb"));
+        copyDatabase("GeoLite2-City-Test.mmdb", geoIpTmpDir.resolve("GeoLite2-City-Test.mmdb"));
         databaseNodeService.updateDatabase("GeoLite2-City.mmdb", "md5", geoIpTmpDir.resolve("GeoLite2-City.mmdb"));
         databaseNodeService.updateDatabase("GeoLite2-City-Test.mmdb", "md5", geoIpTmpDir.resolve("GeoLite2-City-Test.mmdb"));
         lazyLoadReaders(databaseNodeService);
@@ -138,18 +137,14 @@ public class ReloadingDatabasesWhilePerformingGeoLookupsIT extends ESTestCase {
                             assertThat(previous1.current(), equalTo(-1));
                         });
                     } else {
-                        Files.copy(
-                            ConfigDatabases.class.getResourceAsStream("/GeoLite2-City-Test.mmdb"),
-                            geoIpTmpDir.resolve("GeoLite2-City.mmdb"),
-                            StandardCopyOption.REPLACE_EXISTING
-                        );
+                        copyDatabase("GeoLite2-City-Test.mmdb", geoIpTmpDir.resolve("GeoLite2-City.mmdb"));
                         databaseNodeService.updateDatabase("GeoLite2-City.mmdb", "md5", geoIpTmpDir.resolve("GeoLite2-City.mmdb"));
                     }
                     DatabaseReaderLazyLoader previous2 = databaseNodeService.get("GeoLite2-City-Test.mmdb");
-                    InputStream source = ConfigDatabases.class.getResourceAsStream(
-                        i % 2 == 0 ? "/GeoIP2-City-Test.mmdb" : "/GeoLite2-City-Test.mmdb"
+                    copyDatabase(
+                        i % 2 == 0 ? "GeoIP2-City-Test.mmdb" : "GeoLite2-City-Test.mmdb",
+                        geoIpTmpDir.resolve("GeoLite2-City-Test.mmdb")
                     );
-                    Files.copy(source, geoIpTmpDir.resolve("GeoLite2-City-Test.mmdb"), StandardCopyOption.REPLACE_EXISTING);
                     databaseNodeService.updateDatabase("GeoLite2-City-Test.mmdb", "md5", geoIpTmpDir.resolve("GeoLite2-City-Test.mmdb"));
 
                     DatabaseReaderLazyLoader current1 = databaseNodeService.get("GeoLite2-City.mmdb");
@@ -194,7 +189,7 @@ public class ReloadingDatabasesWhilePerformingGeoLookupsIT extends ESTestCase {
         throws IOException {
         GeoIpCache cache = new GeoIpCache(0);
         ConfigDatabases configDatabases = new ConfigDatabases(geoIpConfigDir, cache);
-        copyDatabaseFiles(geoIpConfigDir, configDatabases);
+        copyDefaultDatabases(geoIpConfigDir, configDatabases);
         DatabaseNodeService databaseNodeService = new DatabaseNodeService(
             geoIpTmpDir,
             mock(Client.class),
@@ -210,10 +205,10 @@ public class ReloadingDatabasesWhilePerformingGeoLookupsIT extends ESTestCase {
     private static void lazyLoadReaders(DatabaseNodeService databaseNodeService) throws IOException {
         if (databaseNodeService.get("GeoLite2-City.mmdb") != null) {
             databaseNodeService.get("GeoLite2-City.mmdb").getDatabaseType();
-            databaseNodeService.get("GeoLite2-City.mmdb").getCity(InetAddresses.forString("2.125.160.216"));
+            databaseNodeService.get("GeoLite2-City.mmdb").getResponse("2.125.160.216", GeoIpTestUtils::getCity);
         }
         databaseNodeService.get("GeoLite2-City-Test.mmdb").getDatabaseType();
-        databaseNodeService.get("GeoLite2-City-Test.mmdb").getCity(InetAddresses.forString("2.125.160.216"));
+        databaseNodeService.get("GeoLite2-City-Test.mmdb").getResponse("2.125.160.216", GeoIpTestUtils::getCity);
     }
 
 }

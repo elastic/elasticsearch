@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.upgrades;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.Build;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.io.Streams;
@@ -30,9 +30,27 @@ public abstract class AbstractUpgradeTestCase extends ESRestTestCase {
         new SecureString(SecuritySettingsSourceField.TEST_PASSWORD)
     );
 
-    protected static final Version UPGRADE_FROM_VERSION = Version.fromString(System.getProperty("tests.upgrade_from_version"));
-
+    protected static final String UPGRADE_FROM_VERSION = System.getProperty("tests.upgrade_from_version");
+    protected static final boolean FIRST_MIXED_ROUND = Boolean.parseBoolean(System.getProperty("tests.first_round", "false"));
     protected static final boolean SKIP_ML_TESTS = Booleans.parseBoolean(System.getProperty("tests.ml.skip", "false"));
+
+    protected static boolean isOriginalCluster(String clusterVersion) {
+        return UPGRADE_FROM_VERSION.equals(clusterVersion);
+    }
+
+    /**
+     * Upgrade tests by design are also executed with the same version. We might want to skip some checks if that's the case, see
+     * for example gh#39102.
+     * @return true if the cluster version is the current version.
+     */
+    protected static boolean isOriginalClusterCurrent() {
+        return UPGRADE_FROM_VERSION.equals(Build.current().version());
+    }
+
+    @Override
+    protected boolean resetFeatureStates() {
+        return false;
+    }
 
     @Override
     protected boolean preserveIndicesUponCompletion() {

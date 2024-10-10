@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.index.shard;
 
@@ -16,7 +17,6 @@ import org.elasticsearch.action.resync.ResyncReplicationRequest;
 import org.elasticsearch.action.resync.ResyncReplicationResponse;
 import org.elasticsearch.action.resync.TransportResyncReplicationAction;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -25,6 +25,7 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskManager;
@@ -238,7 +239,6 @@ public class PrimaryReplicaSyncer {
     }
 
     static class SnapshotSender extends AbstractRunnable implements ActionListener<ResyncReplicationResponse> {
-        private final Logger logger;
         private final SyncAction syncAction;
         private final ResyncTask task; // to track progress
         private final String primaryAllocationId;
@@ -270,7 +270,6 @@ public class PrimaryReplicaSyncer {
             Executor executor,
             ActionListener<Void> listener
         ) {
-            this.logger = PrimaryReplicaSyncer.logger;
             this.syncAction = syncAction;
             this.task = task;
             this.shardId = shardId;
@@ -353,7 +352,7 @@ public class PrimaryReplicaSyncer {
                     maxSeenAutoIdTimestamp,
                     operations.toArray(EMPTY_ARRAY)
                 );
-                logger.trace(
+                PrimaryReplicaSyncer.logger.trace(
                     "{} sending batch of [{}][{}] (total sent: [{}], skipped: [{}])",
                     shardId,
                     operations.size(),
@@ -364,7 +363,12 @@ public class PrimaryReplicaSyncer {
                 firstMessage.set(false);
                 syncAction.sync(request, task, primaryAllocationId, primaryTerm, this);
             } else if (closed.compareAndSet(false, true)) {
-                logger.trace("{} resync completed (total sent: [{}], skipped: [{}])", shardId, totalSentOps.get(), totalSkippedOps.get());
+                PrimaryReplicaSyncer.logger.trace(
+                    "{} resync completed (total sent: [{}], skipped: [{}])",
+                    shardId,
+                    totalSentOps.get(),
+                    totalSkippedOps.get()
+                );
                 listener.onResponse(null);
             }
         }

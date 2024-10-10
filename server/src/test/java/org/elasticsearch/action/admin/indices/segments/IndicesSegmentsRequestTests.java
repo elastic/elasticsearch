@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.indices.segments;
@@ -39,7 +40,7 @@ public class IndicesSegmentsRequestTests extends ESSingleNodeTestCase {
         int numDocs = scaledRandomIntBetween(100, 1000);
         for (int j = 0; j < numDocs; ++j) {
             String id = Integer.toString(j);
-            client().prepareIndex("test").setId(id).setSource("text", "sometext").get();
+            prepareIndex("test").setId(id).setSource("text", "sometext").get();
         }
         client().admin().indices().prepareFlush("test").get();
         client().admin().indices().prepareRefresh().get();
@@ -75,6 +76,35 @@ public class IndicesSegmentsRequestTests extends ESSingleNodeTestCase {
     public void testAllowNoIndex() {
         client().admin().indices().prepareDelete("test").get();
         IndicesSegmentResponse rsp = client().admin().indices().prepareSegments().get();
+        assertEquals(0, rsp.getIndices().size());
+    }
+
+    public void testRequestOnClosedIndexWithVectorFormats() {
+        client().admin().indices().prepareClose("test").get();
+        try {
+            client().admin().indices().prepareSegments("test").includeVectorFormatInfo(true).get();
+            fail("Expected IndexClosedException");
+        } catch (IndexClosedException e) {
+            assertThat(e.getMessage(), is("closed"));
+        }
+    }
+
+    public void testAllowNoIndexWithVectorFormats() {
+        client().admin().indices().prepareDelete("test").get();
+        IndicesSegmentResponse rsp = client().admin().indices().prepareSegments().includeVectorFormatInfo(true).get();
+        assertEquals(0, rsp.getIndices().size());
+    }
+
+    public void testRequestOnClosedIndexIgnoreUnavailableWithVectorFormats() {
+        client().admin().indices().prepareClose("test").get();
+        IndicesOptions defaultOptions = new IndicesSegmentsRequest().indicesOptions();
+        IndicesOptions testOptions = IndicesOptions.fromOptions(true, true, true, false, defaultOptions);
+        IndicesSegmentResponse rsp = client().admin()
+            .indices()
+            .prepareSegments("test")
+            .includeVectorFormatInfo(true)
+            .setIndicesOptions(testOptions)
+            .get();
         assertEquals(0, rsp.getIndices().size());
     }
 }

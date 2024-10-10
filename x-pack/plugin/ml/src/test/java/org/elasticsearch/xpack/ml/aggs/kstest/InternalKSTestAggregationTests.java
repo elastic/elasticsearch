@@ -8,13 +8,9 @@
 package org.elasticsearch.xpack.ml.aggs.kstest;
 
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.plugins.SearchPlugin;
-import org.elasticsearch.search.aggregations.Aggregation;
-import org.elasticsearch.search.aggregations.ParsedAggregation;
 import org.elasticsearch.test.InternalAggregationTestCase;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
-import org.elasticsearch.xpack.ml.MachineLearning;
+import org.elasticsearch.xpack.ml.MachineLearningTests;
 
 import java.util.Arrays;
 import java.util.List;
@@ -22,25 +18,11 @@ import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-import static org.hamcrest.Matchers.equalTo;
-
 public class InternalKSTestAggregationTests extends InternalAggregationTestCase<InternalKSTestAggregation> {
 
     @Override
     protected SearchPlugin registerPlugin() {
-        return new MachineLearning(Settings.EMPTY);
-    }
-
-    @Override
-    protected List<NamedXContentRegistry.Entry> getNamedXContents() {
-        return CollectionUtils.appendToCopy(
-            super.getNamedXContents(),
-            new NamedXContentRegistry.Entry(
-                Aggregation.class,
-                BucketCountKSTestAggregationBuilder.NAME,
-                (p, c) -> ParsedKSTest.fromXContent(p, (String) c)
-            )
-        );
+        return MachineLearningTests.createTrialLicensedMachineLearning(Settings.EMPTY);
     }
 
     @Override
@@ -60,13 +42,7 @@ public class InternalKSTestAggregationTests extends InternalAggregationTestCase<
 
     @Override
     public void testReduceRandom() {
-        expectThrows(UnsupportedOperationException.class, () -> createTestInstance("name", null).reduce(null, null));
-    }
-
-    @Override
-    protected void assertFromXContent(InternalKSTestAggregation aggregation, ParsedAggregation parsedAggregation) {
-        ParsedKSTest ks = (ParsedKSTest) parsedAggregation;
-        assertThat(ks.getModes(), equalTo(aggregation.getModeValues()));
+        expectThrows(UnsupportedOperationException.class, () -> createTestInstance("name", null).getReducer(null, 0));
     }
 
     @Override

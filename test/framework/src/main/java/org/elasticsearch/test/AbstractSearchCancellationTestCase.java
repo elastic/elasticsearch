@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.test;
@@ -11,7 +12,6 @@ package org.elasticsearch.test;
 import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionFuture;
-import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksResponse;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
@@ -19,23 +19,27 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexModule;
+import org.elasticsearch.index.shard.SearchOperationListener;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.search.SearchService;
+import org.elasticsearch.search.internal.ReaderContext;
 import org.elasticsearch.search.lookup.LeafStoredFieldsLookup;
 import org.elasticsearch.tasks.TaskInfo;
 import org.junit.BeforeClass;
 
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.Semaphore;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 import java.util.function.Function;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
@@ -54,7 +58,7 @@ public class AbstractSearchCancellationTestCase extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Collections.singleton(ScriptedBlockPlugin.class);
+        return List.of(ScriptedBlockPlugin.class, SearchShardBlockingPlugin.class);
     }
 
     @Override
@@ -71,7 +75,7 @@ public class AbstractSearchCancellationTestCase extends ESIntegTestCase {
             // Make sure we have a few segments
             BulkRequestBuilder bulkRequestBuilder = client().prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
             for (int j = 0; j < 20; j++) {
-                bulkRequestBuilder.add(client().prepareIndex("test").setId(Integer.toString(i * 5 + j)).setSource("field", "value"));
+                bulkRequestBuilder.add(prepareIndex("test").setId(Integer.toString(i * 5 + j)).setSource("field", "value"));
             }
             assertNoFailures(bulkRequestBuilder.get());
         }
@@ -80,7 +84,7 @@ public class AbstractSearchCancellationTestCase extends ESIntegTestCase {
     protected List<ScriptedBlockPlugin> initBlockFactory() {
         List<ScriptedBlockPlugin> plugins = new ArrayList<>();
         for (PluginsService pluginsService : internalCluster().getInstances(PluginsService.class)) {
-            plugins.addAll(pluginsService.filterPlugins(ScriptedBlockPlugin.class));
+            pluginsService.filterPlugins(ScriptedBlockPlugin.class).forEach(plugins::add);
         }
         for (ScriptedBlockPlugin plugin : plugins) {
             plugin.reset();
@@ -113,18 +117,15 @@ public class AbstractSearchCancellationTestCase extends ESIntegTestCase {
         TaskInfo searchTask = listTasksResponse.getTasks().get(0);
 
         logger.info("Cancelling search");
-        CancelTasksResponse cancelTasksResponse = client().admin()
-            .cluster()
-            .prepareCancelTasks()
-            .setTargetTaskId(searchTask.taskId())
-            .get();
+        ListTasksResponse cancelTasksResponse = clusterAdmin().prepareCancelTasks().setTargetTaskId(searchTask.taskId()).get();
         assertThat(cancelTasksResponse.getTasks(), hasSize(1));
         assertThat(cancelTasksResponse.getTasks().get(0).taskId(), equalTo(searchTask.taskId()));
     }
 
     protected SearchResponse ensureSearchWasCancelled(ActionFuture<SearchResponse> searchResponse) {
+        SearchResponse response = null;
         try {
-            SearchResponse response = searchResponse.actionGet();
+            response = searchResponse.actionGet();
             logger.info("Search response {}", response);
             assertNotEquals("At least one shard should have failed", 0, response.getFailedShards());
             for (ShardSearchFailure failure : response.getShardFailures()) {
@@ -137,6 +138,8 @@ public class AbstractSearchCancellationTestCase extends ESIntegTestCase {
             assertThat(ExceptionsHelper.status(ex), equalTo(RestStatus.BAD_REQUEST));
             logger.info("All shards failed with", ex);
             return null;
+        } finally {
+            if (response != null) response.decRef();
         }
     }
 
@@ -153,7 +156,7 @@ public class AbstractSearchCancellationTestCase extends ESIntegTestCase {
 
         private final AtomicInteger hits = new AtomicInteger();
 
-        private final AtomicBoolean shouldBlock = new AtomicBoolean(true);
+        private final Semaphore shouldBlock = new Semaphore(Integer.MAX_VALUE);
 
         private final AtomicReference<Runnable> beforeExecution = new AtomicReference<>();
 
@@ -162,11 +165,16 @@ public class AbstractSearchCancellationTestCase extends ESIntegTestCase {
         }
 
         public void disableBlock() {
-            shouldBlock.set(false);
+            shouldBlock.release(Integer.MAX_VALUE);
         }
 
         public void enableBlock() {
-            shouldBlock.set(true);
+            try {
+                shouldBlock.acquire(Integer.MAX_VALUE);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new AssertionError(e);
+            }
         }
 
         public void setBeforeExecution(Runnable runnable) {
@@ -197,6 +205,23 @@ public class AbstractSearchCancellationTestCase extends ESIntegTestCase {
             );
         }
 
+        public void logIfBlocked(String logMessage) {
+            if (shouldBlock.tryAcquire(1) == false) {
+                LogManager.getLogger(AbstractSearchCancellationTestCase.class).info(logMessage);
+            } else {
+                shouldBlock.release(1);
+            }
+        }
+
+        public void waitForLock(int timeout, TimeUnit timeUnit) {
+            try {
+                assertTrue(shouldBlock.tryAcquire(timeout, timeUnit));
+                shouldBlock.release(1);
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+        }
+
         private Object searchBlockScript(Map<String, Object> params) {
             final Runnable runnable = beforeExecution.get();
             if (runnable != null) {
@@ -205,11 +230,7 @@ public class AbstractSearchCancellationTestCase extends ESIntegTestCase {
             LeafStoredFieldsLookup fieldsLookup = (LeafStoredFieldsLookup) params.get("_fields");
             LogManager.getLogger(AbstractSearchCancellationTestCase.class).info("Blocking on the document {}", fieldsLookup.get("_id"));
             hits.incrementAndGet();
-            try {
-                assertBusy(() -> assertFalse(shouldBlock.get()));
-            } catch (Exception e) {
-                throw new RuntimeException(e);
-            }
+            waitForLock(10, TimeUnit.SECONDS);
             return true;
         }
 
@@ -227,15 +248,9 @@ public class AbstractSearchCancellationTestCase extends ESIntegTestCase {
             if (runnable != null) {
                 runnable.run();
             }
-            if (shouldBlock.get()) {
-                LogManager.getLogger(AbstractSearchCancellationTestCase.class).info("Blocking in reduce");
-            }
+            logIfBlocked("Blocking in reduce");
             hits.incrementAndGet();
-            try {
-                assertBusy(() -> assertFalse(shouldBlock.get()));
-            } catch (Exception e) {
-                throw new RuntimeException(e);
-            }
+            waitForLock(10, TimeUnit.SECONDS);
             return 42;
         }
 
@@ -244,20 +259,43 @@ public class AbstractSearchCancellationTestCase extends ESIntegTestCase {
             if (runnable != null) {
                 runnable.run();
             }
-            if (shouldBlock.get()) {
-                LogManager.getLogger(AbstractSearchCancellationTestCase.class).info("Blocking in map");
-            }
+            logIfBlocked("Blocking in map");
             hits.incrementAndGet();
-            try {
-                assertBusy(() -> assertFalse(shouldBlock.get()));
-            } catch (Exception e) {
-                throw new RuntimeException(e);
-            }
+            waitForLock(10, TimeUnit.SECONDS);
             return 1;
         }
 
         private Object termScript(Map<String, Object> params) {
             return 1;
+        }
+    }
+
+    protected List<SearchShardBlockingPlugin> initSearchShardBlockingPlugin() {
+        List<SearchShardBlockingPlugin> plugins = new ArrayList<>();
+        for (PluginsService pluginsService : internalCluster().getInstances(PluginsService.class)) {
+            pluginsService.filterPlugins(SearchShardBlockingPlugin.class).forEach(plugins::add);
+        }
+        return plugins;
+    }
+
+    public static class SearchShardBlockingPlugin extends Plugin {
+        private final AtomicReference<Consumer<ReaderContext>> runOnNewReaderContext = new AtomicReference<>();
+
+        public void setRunOnNewReaderContext(Consumer<ReaderContext> consumer) {
+            runOnNewReaderContext.set(consumer);
+        }
+
+        @Override
+        public void onIndexModule(IndexModule indexModule) {
+            super.onIndexModule(indexModule);
+            indexModule.addSearchOperationListener(new SearchOperationListener() {
+                @Override
+                public void onNewReaderContext(ReaderContext c) {
+                    if (runOnNewReaderContext.get() != null) {
+                        runOnNewReaderContext.get().accept(c);
+                    }
+                }
+            });
         }
     }
 }

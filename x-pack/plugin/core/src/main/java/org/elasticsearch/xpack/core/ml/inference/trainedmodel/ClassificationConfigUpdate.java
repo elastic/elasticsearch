@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.ObjectParser;
@@ -203,54 +204,13 @@ public class ClassificationConfigUpdate implements InferenceConfigUpdate, NamedX
     }
 
     @Override
-    public InferenceConfig apply(InferenceConfig originalConfig) {
-        if (originalConfig instanceof ClassificationConfig == false) {
-            throw ExceptionsHelper.badRequestException(
-                "Inference config of type [{}] can not be updated with a inference request of type [{}]",
-                originalConfig.getName(),
-                getName()
-            );
-        }
-        ClassificationConfig classificationConfig = (ClassificationConfig) originalConfig;
-
-        if (isNoop(classificationConfig)) {
-            return originalConfig;
-        }
-        ClassificationConfig.Builder builder = new ClassificationConfig.Builder(classificationConfig);
-        if (resultsField != null) {
-            builder.setResultsField(resultsField);
-        }
-        if (numTopFeatureImportanceValues != null) {
-            builder.setNumTopFeatureImportanceValues(numTopFeatureImportanceValues);
-        }
-        if (topClassesResultsField != null) {
-            builder.setTopClassesResultsField(topClassesResultsField);
-        }
-        if (numTopClasses != null) {
-            builder.setNumTopClasses(numTopClasses);
-        }
-        if (predictionFieldType != null) {
-            builder.setPredictionFieldType(predictionFieldType);
-        }
-        return builder.build();
-    }
-
-    @Override
     public boolean isSupported(InferenceConfig inferenceConfig) {
         return inferenceConfig instanceof ClassificationConfig;
     }
 
-    boolean isNoop(ClassificationConfig originalConfig) {
-        return (resultsField == null || resultsField.equals(originalConfig.getResultsField()))
-            && (numTopFeatureImportanceValues == null || originalConfig.getNumTopFeatureImportanceValues() == numTopFeatureImportanceValues)
-            && (topClassesResultsField == null || topClassesResultsField.equals(originalConfig.getTopClassesResultsField()))
-            && (numTopClasses == null || originalConfig.getNumTopClasses() == numTopClasses)
-            && (predictionFieldType == null || predictionFieldType.equals(originalConfig.getPredictionFieldType()));
-    }
-
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.V_7_8_0;
+        return TransportVersions.V_7_8_0;
     }
 
     public static class Builder implements InferenceConfigUpdate.Builder<Builder, ClassificationConfigUpdate> {

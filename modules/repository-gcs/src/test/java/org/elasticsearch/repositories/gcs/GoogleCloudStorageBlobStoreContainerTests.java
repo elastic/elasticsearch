@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.repositories.gcs;
@@ -26,6 +27,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 
+import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomPurpose;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -90,7 +92,10 @@ public class GoogleCloudStorageBlobStoreContainerTests extends ESTestCase {
         ) {
             final BlobContainer container = store.blobContainer(BlobPath.EMPTY);
 
-            IOException e = expectThrows(IOException.class, () -> container.deleteBlobsIgnoringIfNotExists(blobs.iterator()));
+            IOException e = expectThrows(
+                IOException.class,
+                () -> container.deleteBlobsIgnoringIfNotExists(randomPurpose(), blobs.iterator())
+            );
             assertThat(e.getCause(), instanceOf(StorageException.class));
         }
     }

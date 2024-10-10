@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.searchablesnapshots.action;
 
+import org.elasticsearch.action.ClusterStatsLevel;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -29,12 +30,12 @@ import static java.util.stream.Collectors.toList;
 
 public class SearchableSnapshotsStatsResponse extends BroadcastResponse {
 
-    private List<SearchableSnapshotShardStats> stats;
+    private final List<SearchableSnapshotShardStats> stats;
     private volatile List<CacheIndexInputStats> total;
 
     SearchableSnapshotsStatsResponse(StreamInput in) throws IOException {
         super(in);
-        this.stats = in.readList(SearchableSnapshotShardStats::new);
+        this.stats = in.readCollectionAsList(SearchableSnapshotShardStats::new);
     }
 
     SearchableSnapshotsStatsResponse(
@@ -72,18 +73,12 @@ public class SearchableSnapshotsStatsResponse extends BroadcastResponse {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeList(stats);
+        out.writeCollection(stats);
     }
 
     @Override
     protected void addCustomXContentFields(XContentBuilder builder, Params params) throws IOException {
-        final String level = params.param("level", "indices");
-        final boolean isLevelValid = "cluster".equalsIgnoreCase(level)
-            || "indices".equalsIgnoreCase(level)
-            || "shards".equalsIgnoreCase(level);
-        if (isLevelValid == false) {
-            throw new IllegalArgumentException("level parameter must be one of [cluster] or [indices] or [shards] but was [" + level + "]");
-        }
+        final ClusterStatsLevel level = ClusterStatsLevel.of(params, ClusterStatsLevel.INDICES);
 
         builder.startArray("total");
         for (CacheIndexInputStats cis : getTotal()) {
@@ -91,7 +86,7 @@ public class SearchableSnapshotsStatsResponse extends BroadcastResponse {
         }
         builder.endArray();
 
-        if ("indices".equalsIgnoreCase(level) || "shards".equalsIgnoreCase(level)) {
+        if (level == ClusterStatsLevel.INDICES || level == ClusterStatsLevel.SHARDS) {
             builder.startObject("indices");
             final List<Index> indices = getStats().stream()
                 .filter(shardStats -> shardStats.getStats().isEmpty() == false)
@@ -99,7 +94,7 @@ public class SearchableSnapshotsStatsResponse extends BroadcastResponse {
                 .map(ShardRouting::index)
                 .sorted(Index.COMPARE_BY_NAME)
                 .distinct()
-                .collect(toList());
+                .toList();
 
             for (Index index : indices) {
                 builder.startObject(index.getName());
@@ -116,13 +111,13 @@ public class SearchableSnapshotsStatsResponse extends BroadcastResponse {
                     }
                     builder.endArray();
 
-                    if ("shards".equalsIgnoreCase(level)) {
+                    if (level == ClusterStatsLevel.SHARDS) {
                         builder.startObject("shards");
                         {
                             List<SearchableSnapshotShardStats> listOfStats = getStats().stream()
                                 .filter(dirStats -> dirStats.getShardRouting().index().equals(index))
                                 .sorted(Comparator.comparingInt(dir -> dir.getShardRouting().getId()))
-                                .collect(Collectors.toList());
+                                .toList();
 
                             int minShard = listOfStats.stream()
                                 .map(stat -> stat.getShardRouting().getId())

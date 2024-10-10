@@ -1,14 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.indices.mapping.get;
 
-import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.Strings;
@@ -40,7 +41,7 @@ public class GetMappingsResponse extends ActionResponse implements ChunkedToXCon
 
     GetMappingsResponse(StreamInput in) throws IOException {
         super(in);
-        mappings = in.readImmutableMap(StreamInput::readString, in.getTransportVersion().before(TransportVersion.V_8_0_0) ? i -> {
+        mappings = in.readImmutableMap(in.getTransportVersion().before(TransportVersions.V_8_0_0) ? i -> {
             int mappingCount = i.readVInt();
             assert mappingCount == 1 || mappingCount == 0 : "Expected 0 or 1 mappings but got " + mappingCount;
             if (mappingCount == 1) {
@@ -70,7 +71,7 @@ public class GetMappingsResponse extends ActionResponse implements ChunkedToXCon
     public Iterator<ToXContent> toXContentChunked(ToXContent.Params outerParams) {
         return Iterators.concat(
             Iterators.single((b, p) -> b.startObject()),
-            getMappings().entrySet().stream().map(indexEntry -> (ToXContent) (builder, params) -> {
+            Iterators.map(getMappings().entrySet().iterator(), indexEntry -> (builder, params) -> {
                 builder.startObject(indexEntry.getKey());
                 boolean includeTypeName = params.paramAsBoolean(INCLUDE_TYPE_NAME_PARAMETER, DEFAULT_INCLUDE_TYPE_NAME_POLICY);
                 if (builder.getRestApiVersion() == RestApiVersion.V_7 && includeTypeName && indexEntry.getValue() != null) {
@@ -88,7 +89,7 @@ public class GetMappingsResponse extends ActionResponse implements ChunkedToXCon
                 }
                 builder.endObject();
                 return builder;
-            }).iterator(),
+            }),
             Iterators.single((b, p) -> b.endObject())
         );
     }

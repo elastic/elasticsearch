@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.gradle.internal;
@@ -22,6 +23,13 @@ import org.gradle.api.attributes.Attribute;
 
 import java.util.Arrays;
 
+/**
+ * @deprecated We wanna get rid from this and custom jdk downloads via this plugin and
+ * make leverage the gradle toolchain resolver capabilities.
+ *
+ * @See @org.elasticsearch.gradle.internal.toolchain.JavaToolChainResolverPlugin
+ * */
+@Deprecated
 public class JdkDownloadPlugin implements Plugin<Project> {
 
     public static final String VENDOR_ADOPTIUM = "adoptium";
@@ -161,7 +169,6 @@ public class JdkDownloadPlugin implements Plugin<Project> {
     private static String dependencyNotation(Jdk jdk) {
         String platformDep = isJdkOnMacOsPlatform(jdk) ? (jdk.getVendor().equals(VENDOR_ADOPTIUM) ? "mac" : "macos") : jdk.getPlatform();
         String extension = jdk.getPlatform().equals("windows") ? "zip" : "tar.gz";
-
         return groupName(jdk) + ":" + platformDep + ":" + jdk.getBaseVersion() + ":" + jdk.getArchitecture() + "@" + extension;
     }
 

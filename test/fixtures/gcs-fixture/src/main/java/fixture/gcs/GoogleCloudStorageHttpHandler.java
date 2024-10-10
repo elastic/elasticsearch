@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package fixture.gcs;
 
@@ -131,24 +132,34 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
                 BytesReference blob = blobs.get(exchange.getRequestURI().getPath().replace("/download/storage/v1/b/" + bucket + "/o/", ""));
                 if (blob != null) {
                     final String range = exchange.getRequestHeaders().getFirst("Range");
-                    final int offset;
-                    final int end;
+                    final long offset;
+                    final long end;
                     if (range == null) {
-                        offset = 0;
+                        offset = 0L;
                         end = blob.length() - 1;
                     } else {
                         Matcher matcher = RANGE_MATCHER.matcher(range);
                         if (matcher.find() == false) {
                             throw new AssertionError("Range bytes header does not match expected format: " + range);
                         }
-                        offset = Integer.parseInt(matcher.group(1));
-                        end = Integer.parseInt(matcher.group(2));
+                        offset = Long.parseLong(matcher.group(1));
+                        end = Long.parseLong(matcher.group(2));
                     }
+
+                    if (offset >= blob.length()) {
+                        exchange.getResponseHeaders().add("Content-Type", "application/octet-stream");
+                        exchange.sendResponseHeaders(RestStatus.REQUESTED_RANGE_NOT_SATISFIED.getStatus(), -1);
+                        return;
+                    }
+
                     BytesReference response = blob;
                     exchange.getResponseHeaders().add("Content-Type", "application/octet-stream");
                     final int bufferedLength = response.length();
                     if (offset > 0 || bufferedLength > end) {
-                        response = response.slice(offset, Math.min(end + 1 - offset, bufferedLength - offset));
+                        response = response.slice(
+                            Math.toIntExact(offset),
+                            Math.toIntExact(Math.min(end + 1 - offset, bufferedLength - offset))
+                        );
                     }
                     exchange.sendResponseHeaders(RestStatus.OK.getStatus(), response.length());
                     response.writeTo(exchange.getResponseBody());
@@ -275,7 +286,7 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
         return blobs;
     }
 
-    private String httpServerUrl(final HttpExchange exchange) {
+    private static String httpServerUrl(final HttpExchange exchange) {
         return "http://" + exchange.getRequestHeaders().get("HOST").get(0);
     }
 

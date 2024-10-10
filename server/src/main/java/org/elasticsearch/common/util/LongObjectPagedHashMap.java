@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.util;
@@ -17,7 +18,7 @@ import java.util.NoSuchElementException;
  * A hash table from native longs to objects. This implementation resolves collisions
  * using open-addressing and does not support null values. This class is not thread-safe.
  */
-public class LongObjectPagedHashMap<T> extends AbstractPagedHashMap implements Iterable<LongObjectPagedHashMap.Cursor<T>> {
+public final class LongObjectPagedHashMap<T> extends AbstractPagedHashMap implements Iterable<LongObjectPagedHashMap.Cursor<T>> {
 
     private LongArray keys;
     private ObjectArray<T> values;
@@ -76,7 +77,7 @@ public class LongObjectPagedHashMap<T> extends AbstractPagedHashMap implements I
      */
     public T remove(long key) {
         for (long i = slot(hash(key), mask);; i = nextSlot(i, mask)) {
-            final T previous = values.set(i, null);
+            final T previous = values.getAndSet(i, null);
             if (previous == null) {
                 return null;
             } else if (keys.get(i) == key) {
@@ -97,7 +98,7 @@ public class LongObjectPagedHashMap<T> extends AbstractPagedHashMap implements I
             throw new IllegalArgumentException("Null values are not supported");
         }
         for (long i = slot(hash(key), mask);; i = nextSlot(i, mask)) {
-            final T previous = values.set(i, value);
+            final T previous = values.getAndSet(i, value);
             if (previous == null) {
                 // slot was free
                 keys.set(i, key);
@@ -179,7 +180,7 @@ public class LongObjectPagedHashMap<T> extends AbstractPagedHashMap implements I
     @Override
     protected void removeAndAdd(long index) {
         final long key = keys.get(index);
-        final T value = values.set(index, null);
+        final T value = values.getAndSet(index, null);
         --size;
         final T removed = set(key, value);
         assert removed == null;

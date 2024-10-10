@@ -11,6 +11,8 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.ml.action.DeleteForecastAction;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
@@ -20,9 +22,11 @@ import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.DELETE;
+import static org.elasticsearch.rest.RestUtils.getAckTimeout;
 import static org.elasticsearch.xpack.ml.MachineLearning.BASE_PATH;
 import static org.elasticsearch.xpack.ml.MachineLearning.PRE_V7_BASE_PATH;
 
+@ServerlessScope(Scope.INTERNAL)
 public class RestDeleteForecastAction extends BaseRestHandler {
 
     @Override
@@ -51,7 +55,7 @@ public class RestDeleteForecastAction extends BaseRestHandler {
         String jobId = restRequest.param(Job.ID.getPreferredName());
         String forecastId = restRequest.param(Forecast.FORECAST_ID.getPreferredName(), Metadata.ALL);
         final DeleteForecastAction.Request request = new DeleteForecastAction.Request(jobId, forecastId);
-        request.timeout(restRequest.paramAsTime("timeout", request.timeout()));
+        request.ackTimeout(getAckTimeout(restRequest));
         request.setAllowNoForecasts(restRequest.paramAsBoolean("allow_no_forecasts", request.isAllowNoForecasts()));
         return channel -> client.execute(DeleteForecastAction.INSTANCE, request, new RestToXContentListener<>(channel));
     }

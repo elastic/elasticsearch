@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.sql.execution.search.extractor;
 
-import org.elasticsearch.search.aggregations.Aggregations;
+import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregation.Bucket;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -17,9 +17,9 @@ class TestBucket implements Bucket {
 
     private final Map<String, Object> key;
     private final long count;
-    private final Aggregations aggs;
+    private final InternalAggregations aggs;
 
-    TestBucket(Map<String, Object> key, long count, Aggregations aggs) {
+    TestBucket(Map<String, Object> key, long count, InternalAggregations aggs) {
         this.key = key;
         this.count = count;
         this.aggs = aggs;
@@ -46,7 +46,7 @@ class TestBucket implements Bucket {
     }
 
     @Override
-    public Aggregations getAggregations() {
+    public InternalAggregations getAggregations() {
         return aggs;
     }
 }

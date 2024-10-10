@@ -1,0 +1,11 @@
+age_range:integer_range, description:keyword
+{"gte": 0\, "lt":2},     Baby
+{"gte": 2\, "lt":4},     Toddler
+{"gte": 3\, "lt":5},     Preschooler
+{"gte": 5\, "lt":12},    Child
+{"gte": 13\, "lt":20},   Adolescent
+{"gte": 20\, "lt":40},   Young Adult
+{"gte": 40\, "lt":60},   Middle-aged
+{"gte": 60\, "lt":80},   Senior
+{"gte": 80\, "lt":100},  Elderly
+{"gte": 100\, "lt":200}, Incredible

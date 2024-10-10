@@ -1,32 +1,30 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.search.aggregations.metrics;
 
-import org.apache.lucene.search.ScoreMode;
 import org.elasticsearch.common.util.DoubleArray;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.index.fielddata.NumericDoubleValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.aggregations.AggregationExecutionContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
-import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 
 import java.io.IOException;
 import java.util.Map;
 
-public class SumAggregator extends NumericMetricsAggregator.SingleValue {
+public class SumAggregator extends NumericMetricsAggregator.SingleDoubleValue {
 
-    private final ValuesSource.Numeric valuesSource;
     private final DocValueFormat format;
 
     private DoubleArray sums;
@@ -39,47 +37,27 @@ public class SumAggregator extends NumericMetricsAggregator.SingleValue {
         Aggregator parent,
         Map<String, Object> metadata
     ) throws IOException {
-        super(name, context, parent, metadata);
-        // TODO: stop expecting nulls here
-        this.valuesSource = valuesSourceConfig.hasValues() ? (ValuesSource.Numeric) valuesSourceConfig.getValuesSource() : null;
+        super(name, valuesSourceConfig, context, parent, metadata);
+        assert valuesSourceConfig.hasValues();
         this.format = valuesSourceConfig.format();
-        if (valuesSource != null) {
-            sums = bigArrays().newDoubleArray(1, true);
-            compensations = bigArrays().newDoubleArray(1, true);
-        }
+        sums = bigArrays().newDoubleArray(1, true);
+        compensations = bigArrays().newDoubleArray(1, true);
     }
 
     @Override
-    public ScoreMode scoreMode() {
-        return valuesSource != null && valuesSource.needsScores() ? ScoreMode.COMPLETE : ScoreMode.COMPLETE_NO_SCORES;
-    }
-
-    @Override
-    public LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx, final LeafBucketCollector sub) throws IOException {
-        if (valuesSource == null) {
-            return LeafBucketCollector.NO_OP_COLLECTOR;
-        }
-        final SortedNumericDoubleValues values = valuesSource.doubleValues(aggCtx.getLeafReaderContext());
+    protected LeafBucketCollector getLeafCollector(SortedNumericDoubleValues values, final LeafBucketCollector sub) {
         final CompensatedSum kahanSummation = new CompensatedSum(0, 0);
         return new LeafBucketCollectorBase(sub, values) {
             @Override
             public void collect(int doc, long bucket) throws IOException {
-                sums = bigArrays().grow(sums, bucket + 1);
-                compensations = bigArrays().grow(compensations, bucket + 1);
-
                 if (values.advanceExact(doc)) {
-                    final int valuesCount = values.docValueCount();
+                    maybeGrow(bucket);
                     // Compute the sum of double values with Kahan summation algorithm which is more
                     // accurate than naive summation.
-                    double sum = sums.get(bucket);
-                    double compensation = compensations.get(bucket);
-                    kahanSummation.reset(sum, compensation);
-
-                    for (int i = 0; i < valuesCount; i++) {
-                        double value = values.nextValue();
-                        kahanSummation.add(value);
+                    kahanSummation.reset(sums.get(bucket), compensations.get(bucket));
+                    for (int i = 0; i < values.docValueCount(); i++) {
+                        kahanSummation.add(values.nextValue());
                     }
-
                     compensations.set(bucket, kahanSummation.delta());
                     sums.set(bucket, kahanSummation.value());
                 }
@@ -88,8 +66,34 @@ public class SumAggregator extends NumericMetricsAggregator.SingleValue {
     }
 
     @Override
+    protected LeafBucketCollector getLeafCollector(NumericDoubleValues values, final LeafBucketCollector sub) {
+        final CompensatedSum kahanSummation = new CompensatedSum(0, 0);
+        return new LeafBucketCollectorBase(sub, values) {
+            @Override
+            public void collect(int doc, long bucket) throws IOException {
+                if (values.advanceExact(doc)) {
+                    maybeGrow(bucket);
+                    // Compute the sum of double values with Kahan summation algorithm which is more
+                    // accurate than naive summation.
+                    kahanSummation.reset(sums.get(bucket), compensations.get(bucket));
+                    kahanSummation.add(values.doubleValue());
+                    compensations.set(bucket, kahanSummation.delta());
+                    sums.set(bucket, kahanSummation.value());
+                }
+            }
+        };
+    }
+
+    private void maybeGrow(long bucket) {
+        if (bucket >= sums.size()) {
+            sums = bigArrays().grow(sums, bucket + 1);
+            compensations = bigArrays().grow(compensations, bucket + 1);
+        }
+    }
+
+    @Override
     public double metric(long owningBucketOrd) {
-        if (valuesSource == null || owningBucketOrd >= sums.size()) {
+        if (owningBucketOrd >= sums.size()) {
             return 0.0;
         }
         return sums.get(owningBucketOrd);
@@ -97,7 +101,7 @@ public class SumAggregator extends NumericMetricsAggregator.SingleValue {
 
     @Override
     public InternalAggregation buildAggregation(long bucket) {
-        if (valuesSource == null || bucket >= sums.size()) {
+        if (bucket >= sums.size()) {
             return buildEmptyAggregation();
         }
         return new Sum(name, sums.get(bucket), format, metadata());
@@ -105,7 +109,7 @@ public class SumAggregator extends NumericMetricsAggregator.SingleValue {
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new Sum(name, 0.0, format, metadata());
+        return Sum.empty(name, format, metadata());
     }
 
     @Override

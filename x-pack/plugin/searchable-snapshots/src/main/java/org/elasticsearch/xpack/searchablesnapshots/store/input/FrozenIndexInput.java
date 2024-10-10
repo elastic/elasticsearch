@@ -10,7 +10,10 @@ package org.elasticsearch.xpack.searchablesnapshots.store.input;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.IOContext;
+import org.apache.lucene.store.IndexInput;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.blobcache.BlobCacheUtils;
+import org.elasticsearch.blobcache.common.ByteBufferReference;
 import org.elasticsearch.blobcache.common.ByteRange;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.blobcache.shared.SharedBytes;
@@ -21,12 +24,10 @@ import org.elasticsearch.xpack.searchablesnapshots.cache.common.CacheKey;
 import org.elasticsearch.xpack.searchablesnapshots.store.IndexInputStats;
 import org.elasticsearch.xpack.searchablesnapshots.store.SearchableSnapshotDirectory;
 
-import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
-import java.util.concurrent.Semaphore;
 
-public class FrozenIndexInput extends MetadataCachingIndexInput {
+public final class FrozenIndexInput extends MetadataCachingIndexInput {
 
     private static final Logger logger = LogManager.getLogger(FrozenIndexInput.class);
 
@@ -92,134 +93,97 @@ public class FrozenIndexInput extends MetadataCachingIndexInput {
             headerBlobCacheByteRange,
             footerBlobCacheByteRange
         );
-        this.cacheFile = cacheFile;
+        this.cacheFile = cacheFile.copy();
     }
 
-    @Override
-    protected long getDefaultRangeSize() {
-        return directory.isRecoveryFinalized() ? defaultRangeSize : recoveryRangeSize;
+    /**
+     * Clone constructor, will mark this as cloned.
+     */
+    private FrozenIndexInput(FrozenIndexInput input) {
+        super(input);
+        this.cacheFile = input.cacheFile.copy();
     }
 
     @Override
     protected void readWithoutBlobCache(ByteBuffer b) throws Exception {
         final long position = getAbsolutePosition();
         final int length = b.remaining();
-        final int originalByteBufPosition = b.position();
+        if (cacheFile.tryRead(b, position)) {
+            // fast-path succeeded, increment stats and return
+            stats.addCachedBytesRead(length);
+            return;
+        }
+        readWithoutBlobCacheSlow(b, position, length);
+    }
 
+    // slow path for readWithoutBlobCache, extracted to a separate method to make the fast-path inline better
+    private void readWithoutBlobCacheSlow(ByteBuffer b, long position, int length) throws Exception {
         // Semaphore that, when all permits are acquired, ensures that async callbacks (such as those used by readCacheFile) are not
         // accessing the byte buffer anymore that was passed to readWithoutBlobCache
         // In particular, it's important to acquire all permits before adapting the ByteBuffer's offset
-        final Semaphore luceneByteBufPermits = new Semaphore(Integer.MAX_VALUE);
-        boolean bufferWriteLocked = false;
+        final ByteBufferReference byteBufferReference = new ByteBufferReference(b);
         logger.trace("readInternal: read [{}-{}] from [{}]", position, position + length, this);
         try {
-            final ByteRange startRangeToWrite = computeRange(position);
-            final ByteRange endRangeToWrite = computeRange(position + length - 1);
-            assert startRangeToWrite.end() <= endRangeToWrite.end() : startRangeToWrite + " vs " + endRangeToWrite;
-            final ByteRange rangeToWrite = startRangeToWrite.minEnvelope(endRangeToWrite);
-
+            final ByteRange rangeToWrite = BlobCacheUtils.computeRange(
+                directory.isRecoveryFinalized() ? defaultRangeSize : recoveryRangeSize,
+                position,
+                length,
+                fileInfo.length()
+            );
             assert rangeToWrite.start() <= position && position + length <= rangeToWrite.end()
                 : "[" + position + "-" + (position + length) + "] vs " + rangeToWrite;
             final ByteRange rangeToRead = ByteRange.of(position, position + length);
 
-            final int bytesRead = cacheFile.populateAndRead(
-                rangeToWrite,
-                rangeToRead,
-                (channel, pos, relativePos, len) -> readCacheFile(
-                    channel,
+            final int bytesRead = cacheFile.populateAndRead(rangeToWrite, rangeToRead, (channel, pos, relativePos, len) -> {
+                logger.trace(
+                    "{}: reading logical {} channel {} pos {} length {} (details: {})",
+                    fileInfo.physicalName(),
+                    rangeToRead.start(),
                     pos,
                     relativePos,
-                    len,
-                    b,
-                    rangeToRead.start(),
-                    luceneByteBufPermits
-                ),
-                (channel, channelPos, relativePos, len, progressUpdater) -> {
-                    final long startTimeNanos = stats.currentTimeNanos();
-                    try (InputStream input = openInputStreamFromBlobStore(rangeToWrite.start() + relativePos, len)) {
-                        assert ThreadPool.assertCurrentThreadPool(SearchableSnapshots.CACHE_FETCH_ASYNC_THREAD_POOL_NAME);
-                        logger.trace(
-                            "{}: writing channel {} pos {} length {} (details: {})",
-                            fileInfo.physicalName(),
-                            channelPos,
-                            relativePos,
-                            len,
-                            cacheFile
-                        );
-                        SharedBytes.copyToCacheFileAligned(
-                            channel,
-                            input,
-                            channelPos,
-                            relativePos,
-                            len,
-                            progressUpdater,
-                            writeBuffer.get().clear(),
-                            cacheFile
-                        );
-                        final long endTimeNanos = stats.currentTimeNanos();
-                        stats.addCachedBytesWritten(len, endTimeNanos - startTimeNanos);
+                    length,
+                    cacheFile
+                );
+                final int read = SharedBytes.readCacheFile(channel, pos, relativePos, len, byteBufferReference);
+                stats.addCachedBytesRead(read);
+                return read;
+            },
+                (channel, channelPos, streamFactory, relativePos, len, progressUpdater, completionListener) -> ActionListener.completeWith(
+                    completionListener,
+                    () -> {
+                        assert streamFactory == null : streamFactory;
+                        final long startTimeNanos = stats.currentTimeNanos();
+                        try (InputStream input = openInputStreamFromBlobStore(rangeToWrite.start() + relativePos, len)) {
+                            assert ThreadPool.assertCurrentThreadPool(SearchableSnapshots.CACHE_FETCH_ASYNC_THREAD_POOL_NAME);
+                            logger.trace(
+                                "{}: writing channel {} pos {} length {} (details: {})",
+                                fileInfo.physicalName(),
+                                channelPos,
+                                relativePos,
+                                len,
+                                cacheFile
+                            );
+                            SharedBytes.copyToCacheFileAligned(
+                                channel,
+                                input,
+                                channelPos,
+                                relativePos,
+                                len,
+                                progressUpdater,
+                                writeBuffer.get().clear()
+                            );
+                            final long endTimeNanos = stats.currentTimeNanos();
+                            stats.addCachedBytesWritten(len, endTimeNanos - startTimeNanos);
+                            return null;
+                        }
                     }
-                },
-                SearchableSnapshots.CACHE_FETCH_ASYNC_THREAD_POOL_NAME
+                )
             );
             assert bytesRead == length : bytesRead + " vs " + length;
-            assert luceneByteBufPermits.availablePermits() == Integer.MAX_VALUE;
-
-            luceneByteBufPermits.acquire(Integer.MAX_VALUE);
-            bufferWriteLocked = true;
-            b.position(originalByteBufPosition + bytesRead); // mark all bytes as accounted for
+            byteBufferReference.finish(bytesRead);
         } finally {
-            if (bufferWriteLocked == false) {
-                luceneByteBufPermits.acquire(Integer.MAX_VALUE);
-            }
+            byteBufferReference.finish(0);
         }
-    }
-
-    private int readCacheFile(
-        final SharedBytes.IO fc,
-        long channelPos,
-        long relativePos,
-        long length,
-        final ByteBuffer buffer,
-        long logicalPos,
-        Semaphore luceneByteBufPermits
-    ) throws IOException {
-        logger.trace(
-            "{}: reading cached {} logical {} channel {} pos {} length {} (details: {})",
-            fileInfo.physicalName(),
-            false,
-            logicalPos,
-            channelPos,
-            relativePos,
-            length,
-            cacheFile
-        );
-        if (length == 0L) {
-            return 0;
-        }
-        final int bytesRead;
-        if (luceneByteBufPermits.tryAcquire()) {
-            try {
-                // create slice that is positioned to read the given values
-                final ByteBuffer dup = buffer.slice(buffer.position() + Math.toIntExact(relativePos), Math.toIntExact(length));
-                bytesRead = fc.read(dup, channelPos);
-                if (bytesRead == -1) {
-                    BlobCacheUtils.throwEOF(channelPos, dup.remaining(), this.cacheFile);
-                }
-            } finally {
-                luceneByteBufPermits.release();
-            }
-        } else {
-            // return fake response
-            return Math.toIntExact(length);
-        }
-        stats.addCachedBytesRead(bytesRead);
-        return bytesRead;
-    }
-
-    @Override
-    public FrozenIndexInput clone() {
-        return (FrozenIndexInput) super.clone();
     }
 
     @Override
@@ -237,7 +201,7 @@ public class FrozenIndexInput extends MetadataCachingIndexInput {
             fileInfo,
             context,
             stats,
-            this.offset + sliceOffset,
+            sliceOffset,
             sliceCompoundFileOffset,
             sliceLength,
             cacheFileReference,
@@ -249,4 +213,17 @@ public class FrozenIndexInput extends MetadataCachingIndexInput {
         );
     }
 
+    @Override
+    public IndexInput clone() {
+        var clone = tryCloneBuffer();
+        if (clone != null) {
+            return clone;
+        }
+        return new FrozenIndexInput(this);
+    }
+
+    // for tests only
+    SharedBlobCacheService<CacheKey>.CacheFile cacheFile() {
+        return cacheFile;
+    }
 }

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.action.resync;
 
@@ -18,7 +19,6 @@ import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexingPressure;
@@ -30,8 +30,10 @@ import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.ExecutorSelector;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.SystemIndices;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
@@ -69,10 +71,11 @@ public class TransportResyncReplicationAction extends TransportWriteAction<
             actionFilters,
             ResyncReplicationRequest::new,
             ResyncReplicationRequest::new,
-            ExecutorSelector::getWriteExecutorForShard,
-            true, /* we should never reject resync because of thread pool capacity on primary */
+            ExecutorSelector.getWriteExecutorForShard(threadPool),
+            PrimaryActionExecution.Force, /* we should never reject resync because of thread pool capacity on primary */
             indexingPressure,
-            systemIndices
+            systemIndices,
+            ReplicaActionExecution.SubjectToCircuitBreaker
         );
     }
 
@@ -111,7 +114,14 @@ public class TransportResyncReplicationAction extends TransportWriteAction<
     ) {
         ActionListener.completeWith(
             listener,
-            () -> new WritePrimaryResult<>(performOnPrimary(request), new ResyncReplicationResponse(), null, primary, logger)
+            () -> new WritePrimaryResult<>(
+                performOnPrimary(request),
+                new ResyncReplicationResponse(),
+                null,
+                primary,
+                logger,
+                postWriteRefresh
+            )
         );
     }
 
@@ -190,7 +200,11 @@ public class TransportResyncReplicationAction extends TransportWriteAction<
             new ConcreteShardRequest<>(request, primaryAllocationId, primaryTerm),
             parentTask,
             transportOptions,
-            new ActionListenerResponseHandler<>(listener, TransportResyncReplicationAction.this::newResponseInstance) {
+            new ActionListenerResponseHandler<>(
+                listener,
+                TransportResyncReplicationAction.this::newResponseInstance,
+                TransportResponseHandler.TRANSPORT_WORKER
+            ) {
 
                 @Override
                 public void handleResponse(ResyncReplicationResponse response) {

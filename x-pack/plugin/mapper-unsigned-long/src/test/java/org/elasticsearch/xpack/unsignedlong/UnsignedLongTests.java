@@ -12,7 +12,6 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequestBuilder;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -41,10 +40,10 @@ import static org.elasticsearch.search.aggregations.AggregationBuilders.min;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.range;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.sum;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailuresAndResponse;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.equalTo;
 
 @ESIntegTestCase.SuiteScopeTestCase
 public class UnsignedLongTests extends ESIntegTestCase {
@@ -78,8 +77,8 @@ public class UnsignedLongTests extends ESIntegTestCase {
         prepareCreate("idx-sort").setMapping("ul_field", "type=unsigned_long").setSettings(sortSettings).get();
         List<IndexRequestBuilder> builders = new ArrayList<>();
         for (int i = 0; i < numDocs; i++) {
-            builders.add(client().prepareIndex("idx").setSource(jsonBuilder().startObject().field("ul_field", values[i]).endObject()));
-            builders.add(client().prepareIndex("idx-sort").setSource(jsonBuilder().startObject().field("ul_field", values[i]).endObject()));
+            builders.add(prepareIndex("idx").setSource(jsonBuilder().startObject().field("ul_field", values[i]).endObject()));
+            builders.add(prepareIndex("idx-sort").setSource(jsonBuilder().startObject().field("ul_field", values[i]).endObject()));
         }
         indexRandom(true, builders);
 
@@ -98,87 +97,77 @@ public class UnsignedLongTests extends ESIntegTestCase {
     public void testSort() {
         for (String index : new String[] { "idx", "idx-sort" }) {
             // asc sort
-            {
-                SearchResponse response = client().prepareSearch(index)
-                    .setQuery(QueryBuilders.matchAllQuery())
-                    .setSize(numDocs)
-                    .addSort("ul_field", SortOrder.ASC)
-                    .get();
-                assertSearchResponse(response);
-                SearchHit[] hits = response.getHits().getHits();
-                assertEquals(hits.length, numDocs);
-                int i = 0;
-                for (SearchHit hit : hits) {
-                    assertEquals(values[i++], hit.getSortValues()[0]);
+            assertNoFailuresAndResponse(
+                prepareSearch(index).setQuery(QueryBuilders.matchAllQuery()).setSize(numDocs).addSort("ul_field", SortOrder.ASC),
+                response -> {
+                    SearchHit[] hits = response.getHits().getHits();
+                    assertEquals(hits.length, numDocs);
+                    int i = 0;
+                    for (SearchHit hit : hits) {
+                        assertEquals(values[i++], hit.getSortValues()[0]);
+                    }
                 }
-            }
+            );
             // desc sort
-            {
-                SearchResponse response = client().prepareSearch(index)
-                    .setQuery(QueryBuilders.matchAllQuery())
-                    .setSize(numDocs)
-                    .addSort("ul_field", SortOrder.DESC)
-                    .get();
-                assertSearchResponse(response);
-                SearchHit[] hits = response.getHits().getHits();
-                assertEquals(hits.length, numDocs);
-                int i = numDocs - 1;
-                for (SearchHit hit : hits) {
-                    assertEquals(values[i--], hit.getSortValues()[0]);
+            assertNoFailuresAndResponse(
+                prepareSearch(index).setQuery(QueryBuilders.matchAllQuery()).setSize(numDocs).addSort("ul_field", SortOrder.DESC),
+                response -> {
+                    SearchHit[] hits = response.getHits().getHits();
+                    assertEquals(hits.length, numDocs);
+                    int i = numDocs - 1;
+                    for (SearchHit hit : hits) {
+                        assertEquals(values[i--], hit.getSortValues()[0]);
+                    }
                 }
-            }
+            );
             // asc sort with search_after as Long
-            {
-                SearchResponse response = client().prepareSearch(index)
-                    .setQuery(QueryBuilders.matchAllQuery())
+            assertNoFailuresAndResponse(
+                prepareSearch(index).setQuery(QueryBuilders.matchAllQuery())
                     .setSize(numDocs)
                     .addSort("ul_field", SortOrder.ASC)
-                    .searchAfter(new Long[] { 100L })
-                    .get();
-                assertSearchResponse(response);
-                SearchHit[] hits = response.getHits().getHits();
-                assertEquals(hits.length, 7);
-                int i = 3;
-                for (SearchHit hit : hits) {
-                    assertEquals(values[i++], hit.getSortValues()[0]);
+                    .searchAfter(new Long[] { 100L }),
+                response -> {
+                    SearchHit[] hits = response.getHits().getHits();
+                    assertEquals(hits.length, 7);
+                    int i = 3;
+                    for (SearchHit hit : hits) {
+                        assertEquals(values[i++], hit.getSortValues()[0]);
+                    }
                 }
-            }
+            );
             // asc sort with search_after as BigInteger
-            {
-                SearchResponse response = client().prepareSearch(index)
-                    .setQuery(QueryBuilders.matchAllQuery())
+            assertNoFailuresAndResponse(
+                prepareSearch(index).setQuery(QueryBuilders.matchAllQuery())
                     .setSize(numDocs)
                     .addSort("ul_field", SortOrder.ASC)
-                    .searchAfter(new BigInteger[] { new BigInteger("18446744073709551614") })
-                    .get();
-                assertSearchResponse(response);
-                SearchHit[] hits = response.getHits().getHits();
-                assertEquals(hits.length, 2);
-                int i = 8;
-                for (SearchHit hit : hits) {
-                    assertEquals(values[i++], hit.getSortValues()[0]);
+                    .searchAfter(new BigInteger[] { new BigInteger("18446744073709551614") }),
+                response -> {
+                    SearchHit[] hits = response.getHits().getHits();
+                    assertEquals(hits.length, 2);
+                    int i = 8;
+                    for (SearchHit hit : hits) {
+                        assertEquals(values[i++], hit.getSortValues()[0]);
+                    }
                 }
-            }
+            );
             // asc sort with search_after as BigInteger in String format
-            {
-                SearchResponse response = client().prepareSearch(index)
-                    .setQuery(QueryBuilders.matchAllQuery())
+            assertNoFailuresAndResponse(
+                prepareSearch(index).setQuery(QueryBuilders.matchAllQuery())
                     .setSize(numDocs)
                     .addSort("ul_field", SortOrder.ASC)
-                    .searchAfter(new String[] { "18446744073709551614" })
-                    .get();
-                assertSearchResponse(response);
-                SearchHit[] hits = response.getHits().getHits();
-                assertEquals(hits.length, 2);
-                int i = 8;
-                for (SearchHit hit : hits) {
-                    assertEquals(values[i++], hit.getSortValues()[0]);
+                    .searchAfter(new String[] { "18446744073709551614" }),
+                response -> {
+                    SearchHit[] hits = response.getHits().getHits();
+                    assertEquals(hits.length, 2);
+                    int i = 8;
+                    for (SearchHit hit : hits) {
+                        assertEquals(values[i++], hit.getSortValues()[0]);
+                    }
                 }
-            }
+            );
             // asc sort with search_after of negative value should fail
             {
-                SearchRequestBuilder srb = client().prepareSearch(index)
-                    .setQuery(QueryBuilders.matchAllQuery())
+                SearchRequestBuilder srb = prepareSearch(index).setQuery(QueryBuilders.matchAllQuery())
                     .setSize(numDocs)
                     .addSort("ul_field", SortOrder.ASC)
                     .searchAfter(new Long[] { -1L });
@@ -187,8 +176,7 @@ public class UnsignedLongTests extends ESIntegTestCase {
             }
             // asc sort with search_after of value>=2^64 should fail
             {
-                SearchRequestBuilder srb = client().prepareSearch(index)
-                    .setQuery(QueryBuilders.matchAllQuery())
+                SearchRequestBuilder srb = prepareSearch(index).setQuery(QueryBuilders.matchAllQuery())
                     .setSize(numDocs)
                     .addSort("ul_field", SortOrder.ASC)
                     .searchAfter(new BigInteger[] { new BigInteger("18446744073709551616") });
@@ -196,29 +184,26 @@ public class UnsignedLongTests extends ESIntegTestCase {
                 assertThat(exception.getCause().getMessage(), containsString("Failed to parse search_after value"));
             }
             // desc sort with search_after as BigInteger
-            {
-                SearchResponse response = client().prepareSearch(index)
-                    .setQuery(QueryBuilders.matchAllQuery())
+            assertNoFailuresAndResponse(
+                prepareSearch(index).setQuery(QueryBuilders.matchAllQuery())
                     .setSize(numDocs)
                     .addSort("ul_field", SortOrder.DESC)
-                    .searchAfter(new BigInteger[] { new BigInteger("18446744073709551615") })
-                    .get();
-                assertSearchResponse(response);
-                SearchHit[] hits = response.getHits().getHits();
-                assertEquals(hits.length, 8);
-                int i = 7;
-                for (SearchHit hit : hits) {
-                    assertEquals(values[i--], hit.getSortValues()[0]);
+                    .searchAfter(new BigInteger[] { new BigInteger("18446744073709551615") }),
+                response -> {
+                    SearchHit[] hits = response.getHits().getHits();
+                    assertEquals(hits.length, 8);
+                    int i = 7;
+                    for (SearchHit hit : hits) {
+                        assertEquals(values[i--], hit.getSortValues()[0]);
+                    }
                 }
-            }
+            );
         }
     }
 
     public void testAggs() {
         // terms agg
-        {
-            SearchResponse response = client().prepareSearch("idx").setSize(0).addAggregation(terms("ul_terms").field("ul_field")).get();
-            assertSearchResponse(response);
+        assertNoFailuresAndResponse(prepareSearch("idx").setSize(0).addAggregation(terms("ul_terms").field("ul_field")), response -> {
             Terms terms = response.getAggregations().get("ul_terms");
 
             long[] expectedBucketDocCounts = { 2, 2, 2, 1, 1, 1, 1 };
@@ -236,80 +221,68 @@ public class UnsignedLongTests extends ESIntegTestCase {
                 assertEquals(expectedBucketKeys[i], bucket.getKey());
                 i++;
             }
-        }
+        });
 
         // histogram agg
-        {
-            SearchResponse response = client().prepareSearch("idx")
-                .setSize(0)
-                .addAggregation(histogram("ul_histo").field("ul_field").interval(9E18).minDocCount(0))
-                .get();
-            assertSearchResponse(response);
-            Histogram histo = response.getAggregations().get("ul_histo");
+        assertNoFailuresAndResponse(
+            prepareSearch("idx").setSize(0).addAggregation(histogram("ul_histo").field("ul_field").interval(9E18).minDocCount(0)),
+            response -> {
+                Histogram histo = response.getAggregations().get("ul_histo");
 
-            long[] expectedBucketDocCounts = { 3, 3, 4 };
-            double[] expectedBucketKeys = { 0, 9.0E18, 1.8E19 };
-            int i = 0;
-            for (Histogram.Bucket bucket : histo.getBuckets()) {
-                assertEquals(expectedBucketDocCounts[i], bucket.getDocCount());
-                assertEquals(expectedBucketKeys[i], bucket.getKey());
-                i++;
+                long[] expectedBucketDocCounts = { 3, 3, 4 };
+                double[] expectedBucketKeys = { 0, 9.0E18, 1.8E19 };
+                int i = 0;
+                for (Histogram.Bucket bucket : histo.getBuckets()) {
+                    assertEquals(expectedBucketDocCounts[i], bucket.getDocCount());
+                    assertEquals(expectedBucketKeys[i], bucket.getKey());
+                    i++;
+                }
             }
-        }
+        );
 
         // range agg
-        {
-            SearchResponse response = client().prepareSearch("idx")
-                .setSize(0)
+        assertNoFailuresAndResponse(
+            prepareSearch("idx").setSize(0)
                 .addAggregation(
                     range("ul_range").field("ul_field").addUnboundedTo(9.0E18).addRange(9.0E18, 1.8E19).addUnboundedFrom(1.8E19)
-                )
-                .get();
-            assertSearchResponse(response);
-            Range range = response.getAggregations().get("ul_range");
+                ),
+            response -> {
+                Range range = response.getAggregations().get("ul_range");
 
-            long[] expectedBucketDocCounts = { 3, 3, 4 };
-            String[] expectedBucketKeys = { "*-9.0E18", "9.0E18-1.8E19", "1.8E19-*" };
-            int i = 0;
-            for (Range.Bucket bucket : range.getBuckets()) {
-                assertEquals(expectedBucketDocCounts[i], bucket.getDocCount());
-                assertEquals(expectedBucketKeys[i], bucket.getKey());
-                i++;
+                long[] expectedBucketDocCounts = { 3, 3, 4 };
+                String[] expectedBucketKeys = { "*-9.0E18", "9.0E18-1.8E19", "1.8E19-*" };
+                int i = 0;
+                for (Range.Bucket bucket : range.getBuckets()) {
+                    assertEquals(expectedBucketDocCounts[i], bucket.getDocCount());
+                    assertEquals(expectedBucketKeys[i], bucket.getKey());
+                    i++;
+                }
             }
-        }
+        );
 
         // sum agg
-        {
-            SearchResponse response = client().prepareSearch("idx").setSize(0).addAggregation(sum("ul_sum").field("ul_field")).get();
-            assertSearchResponse(response);
+        assertNoFailuresAndResponse(prepareSearch("idx").setSize(0).addAggregation(sum("ul_sum").field("ul_field")), response -> {
             Sum sum = response.getAggregations().get("ul_sum");
             double expectedSum = Arrays.stream(values).mapToDouble(Number::doubleValue).sum();
             assertEquals(expectedSum, sum.value(), 0.001);
-        }
+        });
         // max agg
-        {
-            SearchResponse response = client().prepareSearch("idx").setSize(0).addAggregation(max("ul_max").field("ul_field")).get();
-            assertSearchResponse(response);
+        assertNoFailuresAndResponse(prepareSearch("idx").setSize(0).addAggregation(max("ul_max").field("ul_field")), response -> {
             Max max = response.getAggregations().get("ul_max");
             assertEquals(1.8446744073709551615E19, max.value(), 0.001);
-        }
+        });
+
         // min agg
-        {
-            SearchResponse response = client().prepareSearch("idx").setSize(0).addAggregation(min("ul_min").field("ul_field")).get();
-            assertSearchResponse(response);
+        assertNoFailuresAndResponse(prepareSearch("idx").setSize(0).addAggregation(min("ul_min").field("ul_field")), response -> {
             Min min = response.getAggregations().get("ul_min");
             assertEquals(0, min.value(), 0.001);
-        }
+        });
     }
 
     public void testSortDifferentFormatsShouldFail() {
         Exception exception = expectThrows(
             SearchPhaseExecutionException.class,
-            () -> client().prepareSearch()
-                .setIndices("idx", "idx2")
-                .setQuery(QueryBuilders.matchAllQuery())
-                .addSort("ul_field", SortOrder.ASC)
-                .get()
+            () -> prepareSearch().setIndices("idx", "idx2").setQuery(QueryBuilders.matchAllQuery()).addSort("ul_field", SortOrder.ASC).get()
         );
         assertEquals(
             exception.getCause().getMessage(),
@@ -318,17 +291,11 @@ public class UnsignedLongTests extends ESIntegTestCase {
     }
 
     public void testRangeQuery() {
-        SearchResponse response = client().prepareSearch("idx")
-            .setSize(0)
-            .setQuery(new RangeQueryBuilder("ul_field").to("9.0E18").includeUpper(false))
-            .get();
-        assertThat(response.getHits().getTotalHits().value, equalTo(3L));
-        response = client().prepareSearch("idx")
-            .setSize(0)
-            .setQuery(new RangeQueryBuilder("ul_field").from("9.0E18").to("1.8E19").includeUpper(false))
-            .get();
-        assertThat(response.getHits().getTotalHits().value, equalTo(3L));
-        response = client().prepareSearch("idx").setSize(0).setQuery(new RangeQueryBuilder("ul_field").from("1.8E19")).get();
-        assertThat(response.getHits().getTotalHits().value, equalTo(4L));
+        assertHitCount(prepareSearch("idx").setSize(0).setQuery(new RangeQueryBuilder("ul_field").to("9.0E18").includeUpper(false)), 3);
+        assertHitCount(
+            prepareSearch("idx").setSize(0).setQuery(new RangeQueryBuilder("ul_field").from("9.0E18").to("1.8E19").includeUpper(false)),
+            3
+        );
+        assertHitCount(prepareSearch("idx").setSize(0).setQuery(new RangeQueryBuilder("ul_field").from("1.8E19")), 4);
     }
 }

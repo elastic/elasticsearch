@@ -10,7 +10,7 @@ Forgetting to re-allow all data allocations can lead to unassigned shards.
 
 In order to (re)allow all data to be allocated follow these steps:
 
-include::{es-repo-dir}/tab-widgets/troubleshooting/data/enable-cluster-allocation-widget.asciidoc[]
+include::{es-ref-dir}/tab-widgets/troubleshooting/data/enable-cluster-allocation-widget.asciidoc[]
 
 
 

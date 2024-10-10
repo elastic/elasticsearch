@@ -1,10 +1,11 @@
 import org.elasticsearch.gradle.internal.info.BuildParams
+import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
 
 apply plugin: 'elasticsearch.test-with-dependencies'
 apply plugin: 'elasticsearch.internal-cluster-test'
-apply plugin: 'elasticsearch.legacy-yaml-rest-test'
-apply plugin: 'elasticsearch.legacy-java-rest-test'
-apply plugin: 'elasticsearch.legacy-yaml-rest-compat-test'
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
+apply plugin: 'elasticsearch.internal-java-rest-test'
+apply plugin: 'elasticsearch.yaml-rest-compat-test'
 
 esplugin {
   description 'Elasticsearch Expanded Pack Plugin - Data Streams'
@@ -14,25 +15,17 @@ esplugin {
 restResources {
   restApi {
     include 'bulk', 'count', 'search', '_common', 'indices', 'index', 'cluster', 'rank_eval', 'reindex', 'update_by_query', 'delete_by_query',
-      'eql', 'data_stream', 'ingest', 'cat'
+      'eql', 'data_stream', 'ingest', 'cat', 'capabilities'
   }
 }
 
-testClusters.configureEach {
-  module ':modules:reindex'
-  testDistribution = 'DEFAULT'
-  // disable ILM history, since it disturbs tests using _all
-  setting 'indices.lifecycle.history_index_enabled', 'false'
-  setting 'xpack.security.enabled', 'true'
-  keystore 'bootstrap.password', 'x-pack-test-password'
-  user username: "x_pack_rest_user", password: "x-pack-test-password"
+dependencies {
+  testImplementation project(path: ':test:test-clusters')
+  internalClusterTestImplementation project(":modules:mapper-extras")
 }
 
-testClusters.matching { it.name == "javaRestTest" }.configureEach {
-  testDistribution = 'DEFAULT'
-  setting 'xpack.security.enabled', 'false'
-  // disable ILM history, since it disturbs tests using _all
-  setting 'indices.lifecycle.history_index_enabled', 'false'
+tasks.withType(StandaloneRestIntegTestTask).configureEach {
+  usesDefaultDistribution()
 }
 
 if (BuildParams.inFipsJvm){
@@ -41,3 +34,13 @@ if (BuildParams.inFipsJvm){
   tasks.named("javaRestTest").configure{enabled = false }
   tasks.named("yamlRestTest").configure{enabled = false }
 }
+
+if (BuildParams.isSnapshotBuild() == false) {
+  tasks.withType(Test).configureEach {
+    systemProperty 'es.failure_store_feature_flag_enabled', 'true'
+  }
+}
+
+tasks.named("yamlRestCompatTestTransform").configure({ task ->
+  task.skipTest("data_stream/10_basic/Create hidden data stream", "warning does not exist for compatibility")
+})

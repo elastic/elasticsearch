@@ -1,14 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.test.disruption;
 
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.test.ESTestCase;
+import org.junit.BeforeClass;
 
 import java.lang.management.ThreadInfo;
 import java.util.ArrayList;
@@ -38,6 +40,11 @@ public class LongGCDisruptionTests extends ESTestCase {
                 lock.unlock();
             }
         }
+    }
+
+    @BeforeClass
+    public static void ignoreJdk20Plus() {
+        assumeFalse("jdk20 removed thread suspend/resume", Runtime.version().feature() >= 20);
     }
 
     public void testBlockingTimeout() throws Exception {

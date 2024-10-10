@@ -1,7 +1,7 @@
 ---
 setup:
-  - skip:
-      version: " - 8.0.99"
+  - requires:
+      cluster_features: ["gte_v8.1.0"]
       reason: "doc values search was added in 8.1.0"
 
   - do:
@@ -243,8 +243,8 @@ setup:
 
 ---
 "Test distance_feature query on date field where only doc values are enabled":
-  - skip:
-      version: " - 8.0.99"
+  - requires:
+      cluster_features: ["gte_v8.1.0"]
       reason: "doc values search was added in 8.1.0"
 
   - do:
@@ -399,8 +399,8 @@ setup:
 
 ---
 "Test geo shape query on geo_point field where only doc values are enabled":
-  - skip:
-      version: " - 8.0.99"
+  - requires:
+      cluster_features: ["gte_v8.1.0"]
       reason: "doc values search was added in 8.1.0"
 
   - do:
@@ -417,8 +417,8 @@ setup:
 
 ---
 "Test distance_feature query on geo_point field where only doc values are enabled":
-  - skip:
-      version: " - 8.0.99"
+  - requires:
+      cluster_features: ["gte_v8.1.0"]
       reason: "doc values search was added in 8.1.0"
 
   - do:

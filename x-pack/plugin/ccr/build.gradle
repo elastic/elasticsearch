@@ -8,7 +8,9 @@ esplugin {
   requiresKeystore true
   extendedPlugins = ['x-pack-core']
 }
-archivesBaseName = 'x-pack-ccr'
+base {
+  archivesName = 'x-pack-ccr'
+}
 
 // Integration Test classes that cannot run with the security manager
 String[] noSecurityManagerITClasses = ["**/CloseFollowerIndexIT.class"]

@@ -47,10 +47,27 @@ teardown:
               "unattended": true
             }
           }
+  - match: { acknowledged: true }
+  - do:
+      transform.get_transform_stats:
+        transform_id: "transform-unattended"
+  - match: { count: 1 }
+  - match: { transforms.0.id: "transform-unattended" }
+  - match: { transforms.0.state: "/started|indexing|stopping|stopped/" }
+  - match: { transforms.0.health.status: "green" }
+
   - do:
       transform.start_transform:
         transform_id: "transform-unattended"
-
+  - match: { acknowledged: true }
+  - do:
+      transform.get_transform_stats:
+        transform_id: "transform-unattended"
+  - match: { count: 1 }
+  - match: { transforms.0.id: "transform-unattended" }
+  - match: { transforms.0.state: "/started|indexing|stopping|stopped/" }
+  # Health status should be yellow due to missing source index, but it can be green as well (timing issue).
+  - match: { transforms.0.health.status: "/green|yellow/" }
 
 ---
 "Test unattended put and start wildcard":
@@ -69,6 +86,8 @@ teardown:
               "unattended": true
             }
           }
+  - match: { acknowledged: true }
   - do:
       transform.start_transform:
         transform_id: "transform-unattended"
+  - match: { acknowledged: true }

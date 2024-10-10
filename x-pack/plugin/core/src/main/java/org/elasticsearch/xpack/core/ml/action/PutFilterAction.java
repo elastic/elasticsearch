@@ -29,7 +29,7 @@ public class PutFilterAction extends ActionType<PutFilterAction.Response> {
     public static final String NAME = "cluster:admin/xpack/ml/filters/put";
 
     private PutFilterAction() {
-        super(NAME, Response::new);
+        super(NAME);
     }
 
     public static class Request extends ActionRequest implements ToXContentObject {
@@ -47,7 +47,7 @@ public class PutFilterAction extends ActionType<PutFilterAction.Response> {
             return new Request(filter.build());
         }
 
-        private MlFilter filter;
+        private final MlFilter filter;
 
         public Request(StreamInput in) throws IOException {
             super(in);
@@ -99,9 +99,7 @@ public class PutFilterAction extends ActionType<PutFilterAction.Response> {
 
     public static class Response extends ActionResponse implements ToXContentObject {
 
-        private MlFilter filter;
-
-        Response() {}
+        private final MlFilter filter;
 
         Response(StreamInput in) throws IOException {
             super(in);

@@ -15,6 +15,6 @@ public class DeletePipelineAction extends ActionType<DeletePipelineResponse> {
     public static final DeletePipelineAction INSTANCE = new DeletePipelineAction();
 
     private DeletePipelineAction() {
-        super(NAME, DeletePipelineResponse::new);
+        super(NAME);
     }
 }

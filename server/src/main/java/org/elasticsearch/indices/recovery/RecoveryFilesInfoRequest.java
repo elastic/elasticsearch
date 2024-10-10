@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.indices.recovery;
@@ -18,9 +19,6 @@ import java.util.List;
 
 public class RecoveryFilesInfoRequest extends RecoveryTransportRequest {
 
-    private long recoveryId;
-    private ShardId shardId;
-
     List<String> phase1FileNames;
     List<Long> phase1FileSizes;
     List<String> phase1ExistingFileNames;
@@ -30,8 +28,6 @@ public class RecoveryFilesInfoRequest extends RecoveryTransportRequest {
 
     public RecoveryFilesInfoRequest(StreamInput in) throws IOException {
         super(in);
-        recoveryId = in.readLong();
-        shardId = new ShardId(in);
         int size = in.readVInt();
         phase1FileNames = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
@@ -68,9 +64,7 @@ public class RecoveryFilesInfoRequest extends RecoveryTransportRequest {
         List<Long> phase1ExistingFileSizes,
         int totalTranslogOps
     ) {
-        super(requestSeqNo);
-        this.recoveryId = recoveryId;
-        this.shardId = shardId;
+        super(requestSeqNo, recoveryId, shardId);
         this.phase1FileNames = phase1FileNames;
         this.phase1FileSizes = phase1FileSizes;
         this.phase1ExistingFileNames = phase1ExistingFileNames;
@@ -78,19 +72,9 @@ public class RecoveryFilesInfoRequest extends RecoveryTransportRequest {
         this.totalTranslogOps = totalTranslogOps;
     }
 
-    public long recoveryId() {
-        return this.recoveryId;
-    }
-
-    public ShardId shardId() {
-        return shardId;
-    }
-
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeLong(recoveryId);
-        shardId.writeTo(out);
 
         out.writeStringCollection(phase1FileNames);
         out.writeCollection(phase1FileSizes, StreamOutput::writeVLong);

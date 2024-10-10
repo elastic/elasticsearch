@@ -21,6 +21,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.MlDailyMaintenanceService;
 import org.elasticsearch.xpack.ml.MlInitializationService;
+import org.elasticsearch.xpack.ml.inference.adaptiveallocations.AdaptiveAllocationsScalerService;
 import org.junit.Before;
 
 import java.util.List;
@@ -39,17 +40,22 @@ import static org.mockito.Mockito.when;
 
 public class MlInitializationServiceIT extends MlNativeAutodetectIntegTestCase {
 
-    private ThreadPool threadPool;
     private MlInitializationService mlInitializationService;
 
     @Before
     public void setUpMocks() {
-        threadPool = mock(ThreadPool.class);
-        when(threadPool.executor(ThreadPool.Names.SAME)).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        final var threadPool = mock(ThreadPool.class);
         when(threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME)).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
         MlDailyMaintenanceService mlDailyMaintenanceService = mock(MlDailyMaintenanceService.class);
         ClusterService clusterService = mock(ClusterService.class);
-        mlInitializationService = new MlInitializationService(client(), threadPool, mlDailyMaintenanceService, clusterService);
+        AdaptiveAllocationsScalerService adaptiveAllocationsScalerService = mock(AdaptiveAllocationsScalerService.class);
+        mlInitializationService = new MlInitializationService(
+            client(),
+            threadPool,
+            mlDailyMaintenanceService,
+            adaptiveAllocationsScalerService,
+            clusterService
+        );
     }
 
     public void testThatMlIndicesBecomeHiddenWhenTheNodeBecomesMaster() throws Exception {
@@ -199,9 +205,7 @@ public class MlInitializationServiceIT extends MlNativeAutodetectIntegTestCase {
     }
 
     private static Map<String, Settings> getIndexToSettingsMap(List<String> indexNames) {
-        GetSettingsResponse getSettingsResponse = client().admin()
-            .indices()
-            .prepareGetSettings()
+        GetSettingsResponse getSettingsResponse = indicesAdmin().prepareGetSettings()
             .setIndices(indexNames.toArray(String[]::new))
             .setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN)
             .get();
@@ -210,9 +214,7 @@ public class MlInitializationServiceIT extends MlNativeAutodetectIntegTestCase {
     }
 
     private static Map<String, List<AliasMetadata>> getIndexToAliasesMap(List<String> indexNames) {
-        GetAliasesResponse getAliasesResponse = client().admin()
-            .indices()
-            .prepareGetAliases()
+        GetAliasesResponse getAliasesResponse = indicesAdmin().prepareGetAliases()
             .setIndices(indexNames.toArray(String[]::new))
             .setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN)
             .get();

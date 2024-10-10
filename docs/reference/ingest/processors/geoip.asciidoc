@@ -9,18 +9,23 @@ IPv4 or IPv6 address.
 
 [[geoip-automatic-updates]]
 By default, the processor uses the GeoLite2 City, GeoLite2 Country, and GeoLite2
-ASN GeoIP2 databases from
-http://dev.maxmind.com/geoip/geoip2/geolite2/[MaxMind], shared under the
-CC BY-SA 4.0 license. It automatically downloads these databases if either
-`ingest.geoip.downloader.eager.download` is set to true, or your cluster
-has at least one pipeline with a `geoip` processor. {es}
-automatically downloads updates for
-these databases from the Elastic GeoIP endpoint:
-https://geoip.elastic.co/v1/database. To get download statistics for these
-updates, use the <<geoip-stats-api,GeoIP stats API>>.
+ASN IP geolocation databases from http://dev.maxmind.com/geoip/geoip2/geolite2/[MaxMind], shared under the
+CC BY-SA 4.0 license. It automatically downloads these databases if your nodes can connect to `storage.googleapis.com` domain and either:
+
+* `ingest.geoip.downloader.eager.download` is set to true
+* your cluster has at least one pipeline with a `geoip` processor
+
+{es} automatically downloads updates for these databases from the Elastic GeoIP
+endpoint:
+https://geoip.elastic.co/v1/database?elastic_geoip_service_tos=agree[https://geoip.elastic.co/v1/database].
+To get download statistics for these updates, use the <<geoip-stats-api,GeoIP
+stats API>>.
 
 If your cluster can't connect to the Elastic GeoIP endpoint or you want to
 manage your own updates, see <<manage-geoip-database-updates>>.
+
+If you would like to have {es} download database files directly from Maxmind using your own provided
+license key, see <<put-geoip-database-api>>.
 
 If {es} can't connect to the endpoint for 30 days all updated databases will become
 invalid. {es} will stop enriching documents with geoip data and will add `tags: ["_geoip_expired_database"]`
@@ -33,27 +38,44 @@ field instead.
 .`geoip` options
 [options="header"]
 |======
-| Name                   | Required  | Default                                                                            | Description
-| `field`                | yes       | -                                                                                  | The field to get the ip address from for the geographical lookup.
-| `target_field`         | no        | geoip                                                                              | The field that will hold the geographical information looked up from the MaxMind database.
-| `database_file`        | no        | GeoLite2-City.mmdb                                                                 | The database filename referring to a database the module ships with (GeoLite2-City.mmdb, GeoLite2-Country.mmdb, or GeoLite2-ASN.mmdb) or a custom database in the `ingest-geoip` config directory.
-| `properties`           | no        | [`continent_name`, `country_iso_code`, `country_name`, `region_iso_code`, `region_name`, `city_name`, `location`] *   | Controls what properties are added to the `target_field` based on the geoip lookup.
-| `ignore_missing`       | no        | `false`                                                                            | If `true` and `field` does not exist, the processor quietly exits without modifying the document
-| `first_only`           | no        | `true`                                                                             | If `true` only first found geoip data will be returned, even if `field` contains array
+| Name                                     | Required  | Default                                                                            | Description
+| `field`                                  | yes       | -                                                                                  | The field to get the IP address from for the geographical lookup.
+| `target_field`                           | no        | geoip                                                                              | The field that will hold the geographical information looked up from the MaxMind database.
+| `database_file`                          | no        | GeoLite2-City.mmdb                                                                 | The database filename referring to one of the automatically downloaded GeoLite2 databases (GeoLite2-City.mmdb, GeoLite2-Country.mmdb, or GeoLite2-ASN.mmdb), or the name of a supported database file in the `ingest-geoip` config directory, or the name of a <<get-geoip-database-api, configured database>> (with the `.mmdb` suffix appended).
+| `properties`                             | no        | [`continent_name`, `country_iso_code`, `country_name`, `region_iso_code`, `region_name`, `city_name`, `location`] *   | Controls what properties are added to the `target_field` based on the geoip lookup.
+| `ignore_missing`                         | no        | `false`                                                                            | If `true` and `field` does not exist, the processor quietly exits without modifying the document
+| `first_only`                             | no        | `true`                                                                             | If `true` only first found geoip data will be returned, even if `field` contains array
+| `download_database_on_pipeline_creation` | no        | `true`                                                                             | If `true` (and if `ingest.geoip.downloader.eager.download` is `false`), the missing database is downloaded when the pipeline is created. Else, the download is triggered by when the pipeline is used as the `default_pipeline` or `final_pipeline` in an index.
 |======
 
 *Depends on what is available in `database_file`:
 
-* If the GeoLite2 City database is used, then the following fields may be added under the `target_field`: `ip`,
-`country_iso_code`, `country_name`, `continent_name`, `region_iso_code`, `region_name`, `city_name`, `timezone`, `latitude`, `longitude`
+* If a GeoLite2 City or GeoIP2 City database is used, then the following fields may be added under the `target_field`: `ip`,
+`country_iso_code`, `country_name`, `continent_code`, `continent_name`, `region_iso_code`, `region_name`, `city_name`, `timezone`,
 and `location`. The fields actually added depend on what has been found and which properties were configured in `properties`.
-* If the GeoLite2 Country database is used, then the following fields may be added under the `target_field`: `ip`,
-`country_iso_code`, `country_name` and `continent_name`. The fields actually added depend on what has been found and which properties
-were configured in `properties`.
+* If a GeoLite2 Country or GeoIP2 Country database is used, then the following fields may be added under the `target_field`: `ip`,
+`country_iso_code`, `country_name`, `continent_code`, and `continent_name`. The fields actually added depend on what has been found
+and which properties were configured in `properties`.
 * If the GeoLite2 ASN database is used, then the following fields may be added under the `target_field`: `ip`,
 `asn`, `organization_name` and `network`. The fields actually added depend on what has been found and which properties were configured
 in `properties`.
+* If the GeoIP2 Anonymous IP database is used, then the following fields may be added under the `target_field`: `ip`,
+`hosting_provider`, `tor_exit_node`, `anonymous_vpn`, `anonymous`, `public_proxy`, and `residential_proxy`. The fields actually added
+depend on what has been found and which properties were configured in `properties`.
+* If the GeoIP2 Connection Type database is used, then the following fields may be added under the `target_field`: `ip`, and
+`connection_type`. The fields actually added depend on what has been found and which properties were configured in `properties`.
+* If the GeoIP2 Domain database is used, then the following fields may be added under the `target_field`: `ip`, and `domain`.
+The fields actually added depend on what has been found and which properties were configured in `properties`.
+* If the GeoIP2 ISP database is used, then the following fields may be added under the `target_field`: `ip`, `asn`,
+`organization_name`, `network`, `isp`, `isp_organization_name`, `mobile_country_code`, and `mobile_network_code`. The fields actually added
+depend on what has been found and which properties were configured in `properties`.
+* If the GeoIP2 Enterprise database is used, then the following fields may be added under the `target_field`: `ip`,
+`country_iso_code`, `country_name`, `continent_code`, `continent_name`, `region_iso_code`, `region_name`, `city_name`, `timezone`,
+`location`, `asn`, `organization_name`, `network`, `hosting_provider`, `tor_exit_node`, `anonymous_vpn`, `anonymous`, `public_proxy`,
+`residential_proxy`, `domain`, `isp`, `isp_organization_name`, `mobile_country_code`, `mobile_network_code`, `user_type`, and
+`connection_type`. The fields actually added  depend on what has been found and which properties were configured in `properties`.
 
+preview::["Do not use the GeoIP2 Anonymous IP, GeoIP2 Connection Type, GeoIP2 Domain, GeoIP2 ISP, and GeoIP2 Enterprise databases in production environments. This functionality is in technical preview and may be changed or removed in a future release. Elastic will work to fix any issues, but features in technical preview are not subject to the support SLA of official GA features."]
 
 Here is an example that uses the default city database and adds the geographical information to the `geoip` field based on the `ip` field:
 
@@ -106,7 +128,7 @@ Which returns:
 
 Here is an example that uses the default country database and adds the
 geographical information to the `geo` field based on the `ip` field. Note that
-this database is included in the module. So this:
+this database is downloaded automatically. So this:
 
 [source,console]
 --------------------------------------------------
@@ -313,14 +335,14 @@ GET /my_ip_locations/_search
 ////
 
 [[manage-geoip-database-updates]]
-==== Manage your own GeoIP2 database updates
+==== Manage your own IP geolocation database updates
 
-If you can't <<geoip-automatic-updates,automatically update>> your GeoIP2
-databases from the Elastic endpoint, you have a few other options:
+If you can't <<geoip-automatic-updates,automatically update>> your IP geolocation databases
+from the Elastic endpoint, you have a few other options:
 
 * <<use-proxy-geoip-endpoint,Use a proxy endpoint>>
 * <<use-custom-geoip-endpoint,Use a custom endpoint>>
-* <<manually-update-geoip-databases,Manually update your GeoIP2 databases>>
+* <<manually-update-geoip-databases,Manually update your IP geolocation databases>>
 
 [[use-proxy-geoip-endpoint]]
 **Use a proxy endpoint**
@@ -372,7 +394,7 @@ settings API>> to set
 <<ingest-geoip-downloader-poll-interval,`ingest.geoip.downloader.poll.interval`>>.
 
 [[manually-update-geoip-databases]]
-**Manually update your GeoIP2 databases**
+**Manually update your IP geolocation databases**
 
 . Use the <<cluster-update-settings,cluster update settings API>> to set
 `ingest.geoip.downloader.enabled` to `false`. This disables automatic updates
@@ -383,8 +405,8 @@ databases.
 http://dev.maxmind.com/geoip/geoip2/geolite2[MaxMind site].
 +
 You can also use custom city, country, and ASN `.mmdb` files. These files must
-be uncompressed and use the respective `-City.mmdb`, `-Country.mmdb`, or
-`-ASN.mmdb` extensions.
+be uncompressed. The type (city, country, or ASN) will be pulled from the file
+metadata, so the filename does not matter.
 
 . On {ess} deployments upload database using
 a {cloud}/ec-custom-bundles.html[custom bundle].
@@ -411,13 +433,14 @@ Note that these settings are node settings and apply to all `geoip` processors, 
 [[ingest-geoip-downloader-enabled]]
 `ingest.geoip.downloader.enabled`::
 (<<dynamic-cluster-setting,Dynamic>>, Boolean)
-If `true`, {es} automatically downloads and manages updates for GeoIP2 databases
+If `true`, {es} automatically downloads and manages updates for IP geolocation databases
 from the `ingest.geoip.downloader.endpoint`. If `false`, {es} does not download
 updates and deletes all downloaded databases. Defaults to `true`.
 
 [[ingest-geoip-downloader-eager-download]]
+`ingest.geoip.downloader.eager.download`::
 (<<dynamic-cluster-setting,Dynamic>>, Boolean)
-If `true`, {es} downloads GeoIP2 databases immediately, regardless of whether a
+If `true`, {es} downloads IP geolocation databases immediately, regardless of whether a
 pipeline exists with a geoip processor. If `false`, {es} only begins downloading
 the databases if a pipeline with a geoip processor exists or is added. Defaults
 to `false`.
@@ -425,15 +448,17 @@ to `false`.
 [[ingest-geoip-downloader-endpoint]]
 `ingest.geoip.downloader.endpoint`::
 (<<static-cluster-setting,Static>>, string)
-Endpoint URL used to download updates for GeoIP2 databases. For example, `https://myDomain.com/overview.json`.
+Endpoint URL used to download updates for IP geolocation databases. For example, `https://myDomain.com/overview.json`.
 Defaults to `https://geoip.elastic.co/v1/database`. {es} stores downloaded database files in
 each node's <<es-tmpdir,temporary directory>> at `$ES_TMPDIR/geoip-databases/<node_id>`.
 Note that {es} will make a GET request to `${ingest.geoip.downloader.endpoint}?elastic_geoip_service_tos=agree`,
 expecting the list of metadata about databases typically found in `overview.json`.
 
+The GeoIP downloader uses the JDK's builtin cacerts. If you're using a custom endpoint, add the custom https endpoint cacert(s) to the JDK's truststore.
+
 [[ingest-geoip-downloader-poll-interval]]
 `ingest.geoip.downloader.poll.interval`::
 (<<dynamic-cluster-setting,Dynamic>>, <<time-units,time value>>)
-How often {es} checks for GeoIP2 database updates at the
+How often {es} checks for IP geolocation database updates at the
 `ingest.geoip.downloader.endpoint`. Must be greater than `1d` (one day). Defaults
 to `3d` (three days).

@@ -19,6 +19,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.plugins.FieldPredicate;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.FieldSubsetReader;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsDefinition.FieldGrantExcludeGroup;
 import org.elasticsearch.xpack.core.security.authz.support.SecurityQueryTemplateEvaluator.DlsQueryEvaluationContext;
@@ -67,6 +68,7 @@ public final class FieldPermissions implements Accountable, CacheKey {
     private final CharacterRunAutomaton permittedFieldsAutomaton;
     private final boolean permittedFieldsAutomatonIsTotal;
     private final Automaton originalAutomaton;
+    private final FieldPredicate fieldPredicate;
 
     private final long ramBytesUsed;
 
@@ -106,6 +108,9 @@ public final class FieldPermissions implements Accountable, CacheKey {
         this.permittedFieldsAutomaton = new CharacterRunAutomaton(permittedFieldsAutomaton);
         // we cache the result of isTotal since this might be a costly operation
         this.permittedFieldsAutomatonIsTotal = Operations.isTotal(permittedFieldsAutomaton);
+        this.fieldPredicate = permittedFieldsAutomatonIsTotal
+            ? FieldPredicate.ACCEPT_ALL
+            : new AutomatonFieldPredicate(originalAutomaton, this.permittedFieldsAutomaton);
 
         long ramBytesUsed = BASE_FIELD_PERM_DEF_BYTES;
         ramBytesUsed += this.fieldPermissionsDefinitions.stream()
@@ -113,6 +118,7 @@ public final class FieldPermissions implements Accountable, CacheKey {
             .sum();
         ramBytesUsed += permittedFieldsAutomaton.ramBytesUsed();
         ramBytesUsed += runAutomatonRamBytesUsed(permittedFieldsAutomaton);
+        ramBytesUsed += fieldPredicate.ramBytesUsed();
         this.ramBytesUsed = ramBytesUsed;
     }
 
@@ -218,6 +224,10 @@ public final class FieldPermissions implements Accountable, CacheKey {
      */
     public boolean grantsAccessTo(String fieldName) {
         return permittedFieldsAutomatonIsTotal || permittedFieldsAutomaton.run(fieldName);
+    }
+
+    public FieldPredicate fieldPredicate() {
+        return fieldPredicate;
     }
 
     public List<FieldPermissionsDefinition> getFieldPermissionsDefinitions() {

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.routing.allocation;
@@ -24,6 +25,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.snapshots.RestoreService.RestoreInProgressUpdater;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
@@ -64,17 +66,14 @@ public class RoutingAllocation {
 
     private final long currentNanoTime;
     private final boolean isSimulating;
+    private boolean isReconciling;
 
     private final IndexMetadataUpdater indexMetadataUpdater = new IndexMetadataUpdater();
     private final RoutingNodesChangedObserver nodesChangedObserver = new RoutingNodesChangedObserver();
     private final RestoreInProgressUpdater restoreInProgressUpdater = new RestoreInProgressUpdater();
     private final ResizeSourceIndexSettingsUpdater resizeSourceIndexUpdater = new ResizeSourceIndexSettingsUpdater();
-    private final RoutingChangesObserver routingChangesObserver = new RoutingChangesObserver.DelegatingRoutingChangesObserver(
-        nodesChangedObserver,
-        indexMetadataUpdater,
-        restoreInProgressUpdater,
-        resizeSourceIndexUpdater
-    );
+
+    private final RoutingChangesObserver routingChangesObserver;
 
     private final Map<String, SingleNodeShutdownMetadata> nodeReplacementTargets;
 
@@ -107,7 +106,7 @@ public class RoutingAllocation {
         AllocationDeciders deciders,
         @Nullable RoutingNodes routingNodes,
         ClusterState clusterState,
-        @Nullable ClusterInfo clusterInfo,
+        ClusterInfo clusterInfo,
         SnapshotShardSizeInfo shardSizeInfo,
         long currentNanoTime
     ) {
@@ -141,11 +140,25 @@ public class RoutingAllocation {
         this.nodeReplacementTargets = nodeReplacementTargets(clusterState);
         this.desiredNodes = DesiredNodes.latestFromClusterState(clusterState);
         this.unaccountedSearchableSnapshotSizes = unaccountedSearchableSnapshotSizes(clusterState, clusterInfo);
+        this.routingChangesObserver = new RoutingChangesObserver.DelegatingRoutingChangesObserver(
+            isSimulating
+                ? new RoutingChangesObserver[] {
+                    nodesChangedObserver,
+                    indexMetadataUpdater,
+                    restoreInProgressUpdater,
+                    resizeSourceIndexUpdater }
+                : new RoutingChangesObserver[] {
+                    nodesChangedObserver,
+                    indexMetadataUpdater,
+                    restoreInProgressUpdater,
+                    resizeSourceIndexUpdater,
+                    new ShardChangesObserver() }
+        );
     }
 
     private static Map<String, SingleNodeShutdownMetadata> nodeReplacementTargets(ClusterState clusterState) {
         Map<String, SingleNodeShutdownMetadata> nodeReplacementTargets = new HashMap<>();
-        for (SingleNodeShutdownMetadata shutdown : clusterState.metadata().nodeShutdowns().values()) {
+        for (SingleNodeShutdownMetadata shutdown : clusterState.metadata().nodeShutdowns().getAll().values()) {
             if (shutdown.getType() == SingleNodeShutdownMetadata.Type.REPLACE) {
                 nodeReplacementTargets.put(shutdown.getTargetNodeName(), shutdown);
             }
@@ -158,7 +171,7 @@ public class RoutingAllocation {
         if (clusterInfo != null) {
             for (RoutingNode node : clusterState.getRoutingNodes()) {
                 DiskUsage usage = clusterInfo.getNodeMostAvailableDiskUsages().get(node.nodeId());
-                ClusterInfo.ReservedSpace reservedSpace = clusterInfo.getReservedSpace(node.nodeId(), usage != null ? usage.getPath() : "");
+                ClusterInfo.ReservedSpace reservedSpace = clusterInfo.getReservedSpace(node.nodeId(), usage != null ? usage.path() : "");
                 long totalSize = 0;
                 for (ShardRouting shard : node.started()) {
                     if (shard.getExpectedShardSize() > 0
@@ -248,15 +261,6 @@ public class RoutingAllocation {
         return this.nodeReplacementTargets;
     }
 
-    @SuppressWarnings("unchecked")
-    public <T extends ClusterState.Custom> T custom(String key) {
-        return (T) clusterState.customs().get(key);
-    }
-
-    public Map<String, ClusterState.Custom> getCustoms() {
-        return clusterState.getCustoms();
-    }
-
     public void ignoreDisable(boolean ignoreDisable) {
         this.ignoreDisable = ignoreDisable;
     }
@@ -336,7 +340,7 @@ public class RoutingAllocation {
      * Returns updated {@link Metadata} based on the changes that were made to the routing nodes
      */
     public Metadata updateMetadataWithRoutingChanges(RoutingTable newRoutingTable) {
-        Metadata metadata = indexMetadataUpdater.applyChanges(metadata(), newRoutingTable);
+        Metadata metadata = indexMetadataUpdater.applyChanges(metadata(), newRoutingTable, clusterState.getMinTransportVersion());
         return resizeSourceIndexUpdater.applyChanges(metadata, newRoutingTable);
     }
 
@@ -401,6 +405,23 @@ public class RoutingAllocation {
         return isSimulating;
     }
 
+    /**
+     * @return {@code true} if this allocation computation is trying to reconcile towards a previously-computed allocation and therefore
+     *                      path-dependent allocation blockers should be ignored.
+     */
+    public boolean isReconciling() {
+        return isReconciling;
+    }
+
+    /**
+     * Set the {@link #isReconciling} flag, and return a {@link Releasable} which clears it again.
+     */
+    public Releasable withReconcilingFlag() {
+        assert isReconciling == false : "already reconciling";
+        isReconciling = true;
+        return () -> isReconciling = false;
+    }
+
     public void setSimulatedClusterInfo(ClusterInfo clusterInfo) {
         assert isSimulating : "Should be called only while simulating";
         this.clusterInfo = clusterInfo;
@@ -409,11 +430,7 @@ public class RoutingAllocation {
     public RoutingAllocation immutableClone() {
         return new RoutingAllocation(
             deciders,
-            routingNodesChanged()
-                ? ClusterState.builder(clusterState)
-                    .routingTable(RoutingTable.of(clusterState.routingTable().version(), routingNodes))
-                    .build()
-                : clusterState,
+            routingNodesChanged() ? ClusterState.builder(clusterState).routingTable(RoutingTable.of(routingNodes)).build() : clusterState,
             clusterInfo,
             shardSizeInfo,
             currentNanoTime

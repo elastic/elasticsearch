@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.metadata;
@@ -42,7 +43,7 @@ public record ReservedStateHandlerMetadata(String name, Set<String> keys)
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(name);
-        out.writeCollection(keys, StreamOutput::writeString);
+        out.writeStringCollection(keys);
     }
 
     /**
@@ -53,13 +54,13 @@ public record ReservedStateHandlerMetadata(String name, Set<String> keys)
      * @throws IOException
      */
     public static ReservedStateHandlerMetadata readFrom(StreamInput in) throws IOException {
-        return new ReservedStateHandlerMetadata(in.readString(), in.readSet(StreamInput::readString));
+        return new ReservedStateHandlerMetadata(in.readString(), in.readCollectionAsSet(StreamInput::readString));
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(name());
-        builder.stringListField(KEYS.getPreferredName(), keys().stream().sorted().toList()); // ordered keys for output consistency
+        builder.array(KEYS.getPreferredName(), keys().stream().sorted().toArray(String[]::new)); // ordered keys for output consistency
         builder.endObject();
         return builder;
     }

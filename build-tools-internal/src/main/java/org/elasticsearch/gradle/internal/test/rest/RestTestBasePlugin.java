@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.gradle.internal.test.rest;
@@ -20,6 +21,8 @@ import org.elasticsearch.gradle.distribution.ElasticsearchDistributionTypes;
 import org.elasticsearch.gradle.internal.ElasticsearchJavaPlugin;
 import org.elasticsearch.gradle.internal.InternalDistributionDownloadPlugin;
 import org.elasticsearch.gradle.internal.info.BuildParams;
+import org.elasticsearch.gradle.internal.test.ErrorReportingTestListener;
+import org.elasticsearch.gradle.internal.test.HistoricalFeaturesMetadataPlugin;
 import org.elasticsearch.gradle.plugin.BasePluginBuildPlugin;
 import org.elasticsearch.gradle.plugin.PluginBuildPlugin;
 import org.elasticsearch.gradle.plugin.PluginPropertiesExtension;
@@ -34,8 +37,12 @@ import org.gradle.api.Project;
 import org.gradle.api.Task;
 import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.artifacts.Dependency;
+import org.gradle.api.artifacts.DependencySet;
 import org.gradle.api.artifacts.ProjectDependency;
 import org.gradle.api.artifacts.type.ArtifactTypeDefinition;
+import org.gradle.api.attributes.Attribute;
+import org.gradle.api.file.ConfigurableFileCollection;
+import org.gradle.api.file.FileCollection;
 import org.gradle.api.file.FileTree;
 import org.gradle.api.provider.ProviderFactory;
 import org.gradle.api.tasks.ClasspathNormalizer;
@@ -56,7 +63,7 @@ import javax.inject.Inject;
  */
 public class RestTestBasePlugin implements Plugin<Project> {
 
-    private static final String TESTS_RUNTIME_JAVA_SYSPROP = "tests.runtime.java";
+    private static final String TESTS_MAX_PARALLEL_FORKS_SYSPROP = "tests.max.parallel.forks";
     private static final String DEFAULT_DISTRIBUTION_SYSPROP = "tests.default.distribution";
     private static final String INTEG_TEST_DISTRIBUTION_SYSPROP = "tests.integ-test.distribution";
     private static final String BWC_SNAPSHOT_DISTRIBUTION_SYSPROP_PREFIX = "tests.snapshot.distribution.";
@@ -68,6 +75,11 @@ public class RestTestBasePlugin implements Plugin<Project> {
     private static final String MODULES_CONFIGURATION = "clusterModules";
     private static final String PLUGINS_CONFIGURATION = "clusterPlugins";
     private static final String EXTRACTED_PLUGINS_CONFIGURATION = "extractedPlugins";
+    private static final Attribute<String> CONFIGURATION_ATTRIBUTE = Attribute.of("test-cluster-artifacts", String.class);
+    private static final String FEATURES_METADATA_CONFIGURATION = "featuresMetadataDeps";
+    private static final String DEFAULT_DISTRO_FEATURES_METADATA_CONFIGURATION = "defaultDistrofeaturesMetadataDeps";
+    private static final String TESTS_FEATURES_METADATA_PATH = "tests.features.metadata.path";
+    private static final String MINIMUM_WIRE_COMPATIBLE_VERSION_SYSPROP = "tests.minimum.wire.compatible";
 
     private final ProviderFactory providerFactory;
 
@@ -101,6 +113,36 @@ public class RestTestBasePlugin implements Plugin<Project> {
         extractedPluginsConfiguration.extendsFrom(pluginsConfiguration);
         configureArtifactTransforms(project);
 
+        // Create configuration for aggregating historical feature metadata
+        FileCollection featureMetadataConfig = project.getConfigurations().create(FEATURES_METADATA_CONFIGURATION, c -> {
+            c.setCanBeConsumed(false);
+            c.setCanBeResolved(true);
+            c.attributes(
+                a -> a.attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, HistoricalFeaturesMetadataPlugin.FEATURES_METADATA_TYPE)
+            );
+            c.defaultDependencies(d -> d.add(project.getDependencies().project(Map.of("path", ":server"))));
+            c.withDependencies(dependencies -> {
+                // We can't just use Configuration#extendsFrom() here as we'd inherit the wrong project configuration
+                copyDependencies(project, dependencies, modulesConfiguration);
+                copyDependencies(project, dependencies, pluginsConfiguration);
+            });
+        });
+
+        FileCollection defaultDistroFeatureMetadataConfig = project.getConfigurations()
+            .create(DEFAULT_DISTRO_FEATURES_METADATA_CONFIGURATION, c -> {
+                c.setCanBeConsumed(false);
+                c.setCanBeResolved(true);
+                c.attributes(
+                    a -> a.attribute(
+                        ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE,
+                        HistoricalFeaturesMetadataPlugin.FEATURES_METADATA_TYPE
+                    )
+                );
+                c.defaultDependencies(
+                    d -> d.add(project.getDependencies().project(Map.of("path", ":distribution", "configuration", "featuresMetadata")))
+                );
+            });
+
         // For plugin and module projects, register the current project plugin bundle as a dependency
         project.getPluginManager().withPlugin("elasticsearch.esplugin", plugin -> {
             if (GradleUtils.isModuleProject(project.getPath())) {
@@ -118,28 +160,39 @@ public class RestTestBasePlugin implements Plugin<Project> {
             task.dependsOn(integTestDistro, modulesConfiguration);
             registerDistributionInputs(task, integTestDistro);
 
+            // Pass feature metadata on to tests
+            task.getInputs().files(featureMetadataConfig).withPathSensitivity(PathSensitivity.NONE);
+            nonInputSystemProperties.systemProperty(TESTS_FEATURES_METADATA_PATH, () -> featureMetadataConfig.getAsPath());
+
             // Enable parallel execution for these tests since each test gets its own cluster
             task.setMaxParallelForks(task.getProject().getGradle().getStartParameter().getMaxWorkerCount() / 2);
+            nonInputSystemProperties.systemProperty(TESTS_MAX_PARALLEL_FORKS_SYSPROP, () -> String.valueOf(task.getMaxParallelForks()));
 
             // Disable test failure reporting since this stuff is now captured in build scans
-            task.getExtensions().getExtraProperties().set("dumpOutputOnFailure", false);
+            task.getExtensions().getByType(ErrorReportingTestListener.class).setDumpOutputOnFailure(false);
 
             // Disable the security manager and syscall filter since the test framework needs to fork processes
             task.systemProperty("tests.security.manager", "false");
             task.systemProperty("tests.system_call_filter", "false");
 
+            // Pass minimum wire compatible version which is used by upgrade tests
+            task.systemProperty(MINIMUM_WIRE_COMPATIBLE_VERSION_SYSPROP, BuildParams.getBwcVersions().getMinimumWireCompatibleVersion());
+
             // Register plugins and modules as task inputs and pass paths as system properties to tests
-            nonInputSystemProperties.systemProperty(TESTS_CLUSTER_MODULES_PATH_SYSPROP, modulesConfiguration::getAsPath);
-            registerConfigurationInputs(task, modulesConfiguration);
-            nonInputSystemProperties.systemProperty(TESTS_CLUSTER_PLUGINS_PATH_SYSPROP, pluginsConfiguration::getAsPath);
-            registerConfigurationInputs(task, extractedPluginsConfiguration);
+            var modulePath = project.getObjects().fileCollection().from(modulesConfiguration);
+            nonInputSystemProperties.systemProperty(TESTS_CLUSTER_MODULES_PATH_SYSPROP, modulePath::getAsPath);
+            registerConfigurationInputs(task, modulesConfiguration.getName(), modulePath);
+            var pluginPath = project.getObjects().fileCollection().from(pluginsConfiguration);
+            nonInputSystemProperties.systemProperty(TESTS_CLUSTER_PLUGINS_PATH_SYSPROP, pluginPath::getAsPath);
+            registerConfigurationInputs(
+                task,
+                extractedPluginsConfiguration.getName(),
+                project.getObjects().fileCollection().from(extractedPluginsConfiguration)
+            );
 
             // Wire up integ-test distribution by default for all test tasks
-            nonInputSystemProperties.systemProperty(
-                INTEG_TEST_DISTRIBUTION_SYSPROP,
-                () -> integTestDistro.getExtracted().getSingleFile().getPath()
-            );
-            nonInputSystemProperties.systemProperty(TESTS_RUNTIME_JAVA_SYSPROP, BuildParams.getRuntimeJavaHome());
+            FileCollection extracted = integTestDistro.getExtracted();
+            nonInputSystemProperties.systemProperty(INTEG_TEST_DISTRIBUTION_SYSPROP, () -> extracted.getSingleFile().getPath());
 
             // Add `usesDefaultDistribution()` extension method to test tasks to indicate they require the default distro
             task.getExtensions().getExtraProperties().set("usesDefaultDistribution", new Closure<Void>(task) {
@@ -152,6 +205,11 @@ public class RestTestBasePlugin implements Plugin<Project> {
                         DEFAULT_DISTRIBUTION_SYSPROP,
                         providerFactory.provider(() -> defaultDistro.getExtracted().getSingleFile().getPath())
                     );
+
+                    // If we are using the default distribution we need to register all module feature metadata
+                    task.getInputs().files(defaultDistroFeatureMetadataConfig).withPathSensitivity(PathSensitivity.NONE);
+                    nonInputSystemProperties.systemProperty(TESTS_FEATURES_METADATA_PATH, defaultDistroFeatureMetadataConfig::getAsPath);
+
                     return null;
                 }
             });
@@ -160,7 +218,7 @@ public class RestTestBasePlugin implements Plugin<Project> {
             task.getExtensions().getExtraProperties().set("usesBwcDistribution", new Closure<Void>(task) {
                 @Override
                 public Void call(Object... args) {
-                    if (args.length != 1 && args[0] instanceof Version == false) {
+                    if (args.length != 1 || args[0] instanceof Version == false) {
                         throw new IllegalArgumentException("Expected exactly one argument of type org.elasticsearch.gradle.Version");
                     }
 
@@ -177,7 +235,7 @@ public class RestTestBasePlugin implements Plugin<Project> {
                         providerFactory.provider(() -> bwcDistro.getExtracted().getSingleFile().getPath())
                     );
 
-                    if (version.before(BuildParams.getBwcVersions().getMinimumWireCompatibleVersion())) {
+                    if (version.getMajor() > 0 && version.before(BuildParams.getBwcVersions().getMinimumWireCompatibleVersion())) {
                         // If we are upgrade testing older versions we also need to upgrade to 7.last
                         this.call(BuildParams.getBwcVersions().getMinimumWireCompatibleVersion());
                     }
@@ -185,6 +243,14 @@ public class RestTestBasePlugin implements Plugin<Project> {
                 }
             });
         });
+    }
+
+    private void copyDependencies(Project project, DependencySet dependencies, Configuration configuration) {
+        configuration.getDependencies()
+            .stream()
+            .filter(d -> d instanceof ProjectDependency)
+            .map(d -> project.getDependencies().project(Map.of("path", ((ProjectDependency) d).getDependencyProject().getPath())))
+            .forEach(dependencies::add);
     }
 
     private ElasticsearchDistribution createDistribution(Project project, String name, String version) {
@@ -211,15 +277,15 @@ public class RestTestBasePlugin implements Plugin<Project> {
         return distribution.getExtracted().getAsFileTree().matching(patternFilter);
     }
 
-    private void registerConfigurationInputs(Task task, Configuration configuration) {
+    private void registerConfigurationInputs(Task task, String configurationName, ConfigurableFileCollection configuration) {
         task.getInputs()
             .files(providerFactory.provider(() -> configuration.getAsFileTree().filter(f -> f.getName().endsWith(".jar") == false)))
-            .withPropertyName(configuration.getName() + "-files")
+            .withPropertyName(configurationName + "-files")
             .withPathSensitivity(PathSensitivity.RELATIVE);
 
         task.getInputs()
             .files(providerFactory.provider(() -> configuration.getAsFileTree().filter(f -> f.getName().endsWith(".jar"))))
-            .withPropertyName(configuration.getName() + "-classpath")
+            .withPropertyName(configurationName + "-classpath")
             .withNormalizer(ClasspathNormalizer.class);
     }
 
@@ -248,6 +314,7 @@ public class RestTestBasePlugin implements Plugin<Project> {
 
     private Configuration createPluginConfiguration(Project project, String name, boolean useExploded, boolean isExtended) {
         return project.getConfigurations().create(name, c -> {
+            c.attributes(a -> a.attribute(CONFIGURATION_ATTRIBUTE, name));
             if (useExploded) {
                 c.attributes(a -> a.attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.DIRECTORY_TYPE));
             } else {

@@ -21,10 +21,11 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.HeaderWarning;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
@@ -35,19 +36,20 @@ import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
 import org.elasticsearch.xpack.core.ml.action.PutTrainedModelAliasAction;
+import org.elasticsearch.xpack.core.ml.inference.ModelAliasMetadata;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelType;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AllocationStatus;
 import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignment;
+import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignmentMetadata;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
-import org.elasticsearch.xpack.ml.inference.ModelAliasMetadata;
-import org.elasticsearch.xpack.ml.inference.assignment.TrainedModelAssignmentMetadata;
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
 import org.elasticsearch.xpack.ml.notifications.InferenceAuditor;
 
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -83,7 +85,7 @@ public class TransportPutTrainedModelAliasAction extends AcknowledgedTransportMa
             actionFilters,
             PutTrainedModelAliasAction.Request::new,
             indexNameExpressionResolver,
-            ThreadPool.Names.SAME
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.licenseState = licenseState;
         this.trainedModelProvider = trainedModelProvider;
@@ -183,15 +185,15 @@ public class TransportPutTrainedModelAliasAction extends AcknowledgedTransportMa
 
                 // If we are reassigning Pytorch models, we need to validate assignments are acceptable.
                 if (newModel.getModelType() == TrainedModelType.PYTORCH) {
-                    Optional<TrainedModelAssignment> oldAssignment = TrainedModelAssignmentMetadata.assignmentForModelId(state, oldModelId);
-                    Optional<TrainedModelAssignment> newAssignment = TrainedModelAssignmentMetadata.assignmentForModelId(
+                    List<TrainedModelAssignment> oldAssignments = TrainedModelAssignmentMetadata.assignmentsForModelId(state, oldModelId);
+                    List<TrainedModelAssignment> newAssignments = TrainedModelAssignmentMetadata.assignmentsForModelId(
                         state,
                         newModel.getModelId()
                     );
                     // Old model is currently deployed
-                    if (oldAssignment.isPresent()) {
+                    if (oldAssignments.isEmpty() == false) {
                         // disallow changing the model alias from a deployed model to an undeployed model
-                        if (newAssignment.isEmpty()) {
+                        if (newAssignments.isEmpty()) {
                             listener.onFailure(
                                 ExceptionsHelper.badRequestException(
                                     "cannot reassign model_alias [{}] to model [{}] from model [{}] as it is not yet deployed",
@@ -202,29 +204,29 @@ public class TransportPutTrainedModelAliasAction extends AcknowledgedTransportMa
                             );
                             return;
                         } else {
-                            Optional<AllocationStatus> oldAllocationStatus = oldAssignment.map(
-                                TrainedModelAssignment::calculateAllocationStatus
-                            ).get();
-                            // Old model is deployed and its allocation status is NOT "stopping" or "starting"
-                            if (oldAllocationStatus.isPresent()
-                                && oldAllocationStatus.get()
-                                    .calculateState()
-                                    .isAnyOf(AllocationStatus.State.FULLY_ALLOCATED, AllocationStatus.State.STARTED)) {
-                                Optional<AllocationStatus> newAllocationStatus = newAssignment.map(
-                                    TrainedModelAssignment::calculateAllocationStatus
-                                ).get();
-                                if (newAllocationStatus.isEmpty()
-                                    || newAllocationStatus.get().calculateState().equals(AllocationStatus.State.STARTING)) {
-                                    listener.onFailure(
-                                        ExceptionsHelper.badRequestException(
-                                            "cannot reassign model_alias [{}] to model [{}] "
-                                                + " from model [{}] as it is not yet allocated to any nodes",
-                                            request.getModelAlias(),
-                                            newModel.getModelId(),
-                                            oldModel.getModelId()
-                                        )
-                                    );
-                                    return;
+                            for (var oldAssignment : oldAssignments) {
+                                Optional<AllocationStatus> oldAllocationStatus = oldAssignment.calculateAllocationStatus();
+                                // Old model is deployed and its allocation status is NOT "stopping" or "starting"
+                                if (oldAllocationStatus.isPresent()
+                                    && oldAllocationStatus.get()
+                                        .calculateState()
+                                        .isAnyOf(AllocationStatus.State.FULLY_ALLOCATED, AllocationStatus.State.STARTED)) {
+                                    for (var newAssignment : newAssignments) {
+                                        Optional<AllocationStatus> newAllocationStatus = newAssignment.calculateAllocationStatus();
+                                        if (newAllocationStatus.isEmpty()
+                                            || newAllocationStatus.get().calculateState().equals(AllocationStatus.State.STARTING)) {
+                                            listener.onFailure(
+                                                ExceptionsHelper.badRequestException(
+                                                    "cannot reassign model_alias [{}] to model [{}] "
+                                                        + " from model [{}] as it is not yet allocated to any nodes",
+                                                    request.getModelAlias(),
+                                                    newModel.getModelId(),
+                                                    oldModel.getModelId()
+                                                )
+                                            );
+                                            return;
+                                        }
+                                    }
                                 }
                             }
                         }

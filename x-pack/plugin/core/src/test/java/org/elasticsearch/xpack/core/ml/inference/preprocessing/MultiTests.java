@@ -14,7 +14,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Predicate;
 import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.allOf;
@@ -29,11 +28,6 @@ public class MultiTests extends PreProcessingTests<Multi> {
         return lenient
             ? Multi.fromXContentLenient(parser, PreProcessor.PreProcessorParseContext.DEFAULT)
             : Multi.fromXContentStrict(parser, PreProcessor.PreProcessorParseContext.DEFAULT);
-    }
-
-    @Override
-    protected Predicate<String> getRandomFieldsExcludeFilter() {
-        return field -> field.isEmpty() == false;
     }
 
     @Override

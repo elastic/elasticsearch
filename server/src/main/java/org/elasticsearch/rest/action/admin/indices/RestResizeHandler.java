@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.rest.action.admin.indices;
@@ -24,6 +25,8 @@ import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
+import static org.elasticsearch.rest.RestUtils.getAckTimeout;
+import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
 
 public abstract class RestResizeHandler extends BaseRestHandler {
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestResizeHandler.class);
@@ -49,12 +52,13 @@ public abstract class RestResizeHandler extends BaseRestHandler {
         final ResizeRequest resizeRequest = new ResizeRequest(request.param("target"), request.param("index"));
         resizeRequest.setResizeType(getResizeType());
         request.applyContentParser(resizeRequest::fromXContent);
-        resizeRequest.timeout(request.paramAsTime("timeout", resizeRequest.timeout()));
-        resizeRequest.masterNodeTimeout(request.paramAsTime("master_timeout", resizeRequest.masterNodeTimeout()));
+        resizeRequest.ackTimeout(getAckTimeout(request));
+        resizeRequest.masterNodeTimeout(getMasterNodeTimeout(request));
         resizeRequest.setWaitForActiveShards(ActiveShardCount.parseString(request.param("wait_for_active_shards")));
         return channel -> client.admin().indices().resizeIndex(resizeRequest, new RestToXContentListener<>(channel));
     }
 
+    // no @ServerlessScope on purpose, not available
     public static class RestShrinkIndexAction extends RestResizeHandler {
 
         @Override
@@ -74,6 +78,7 @@ public abstract class RestResizeHandler extends BaseRestHandler {
 
     }
 
+    // no @ServerlessScope on purpose, not available
     public static class RestSplitIndexAction extends RestResizeHandler {
 
         @Override
@@ -93,6 +98,7 @@ public abstract class RestResizeHandler extends BaseRestHandler {
 
     }
 
+    // no @ServerlessScope on purpose, not available
     public static class RestCloneIndexAction extends RestResizeHandler {
 
         @Override

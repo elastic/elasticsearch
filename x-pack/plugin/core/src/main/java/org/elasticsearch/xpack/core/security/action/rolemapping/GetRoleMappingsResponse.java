@@ -7,11 +7,11 @@
 package org.elasticsearch.xpack.core.security.action.rolemapping;
 
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.ExpressionRoleMapping;
 
 import java.io.IOException;
+import java.util.Collection;
 
 /**
  * Response to {@link GetRoleMappingsAction get role-mappings API}.
@@ -20,15 +20,10 @@ import java.io.IOException;
  */
 public class GetRoleMappingsResponse extends ActionResponse {
 
-    private ExpressionRoleMapping[] mappings;
+    private final ExpressionRoleMapping[] mappings;
 
-    public GetRoleMappingsResponse(StreamInput in) throws IOException {
-        super(in);
-        int size = in.readVInt();
-        mappings = new ExpressionRoleMapping[size];
-        for (int i = 0; i < size; i++) {
-            mappings[i] = new ExpressionRoleMapping(in);
-        }
+    public GetRoleMappingsResponse(Collection<ExpressionRoleMapping> mappings) {
+        this(mappings.toArray(new ExpressionRoleMapping[0]));
     }
 
     public GetRoleMappingsResponse(ExpressionRoleMapping... mappings) {

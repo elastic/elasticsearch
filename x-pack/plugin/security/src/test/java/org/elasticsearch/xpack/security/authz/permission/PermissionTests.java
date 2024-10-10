@@ -6,10 +6,13 @@
  */
 package org.elasticsearch.xpack.security.authz.permission;
 
-import org.elasticsearch.action.admin.indices.mapping.put.AutoPutMappingAction;
-import org.elasticsearch.action.admin.indices.mapping.put.PutMappingAction;
-import org.elasticsearch.action.get.GetAction;
+import org.elasticsearch.action.admin.indices.mapping.put.TransportAutoPutMappingAction;
+import org.elasticsearch.action.admin.indices.mapping.put.TransportPutMappingAction;
+import org.elasticsearch.action.get.TransportGetAction;
+import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
+import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.security.authz.RestrictedIndices;
 import org.elasticsearch.xpack.core.security.authz.permission.IndicesPermission.IsResourceAuthorizedPredicate;
@@ -43,11 +46,11 @@ public class PermissionTests extends ESTestCase {
     }
 
     public void testAllowedIndicesMatcherAction() throws Exception {
-        testAllowedIndicesMatcher(permission.indices().allowedIndicesMatcher(GetAction.NAME));
+        testAllowedIndicesMatcher(permission.indices().allowedIndicesMatcher(TransportGetAction.TYPE.name()));
     }
 
     public void testAllowedIndicesMatcherForMappingUpdates() throws Exception {
-        for (String mappingUpdateActionName : List.of(PutMappingAction.NAME, AutoPutMappingAction.NAME)) {
+        for (String mappingUpdateActionName : List.of(TransportPutMappingAction.TYPE.name(), TransportAutoPutMappingAction.TYPE.name())) {
             IndexAbstraction mockIndexAbstraction = mock(IndexAbstraction.class);
             IsResourceAuthorizedPredicate indexPredicate = permission.indices().allowedIndicesMatcher(mappingUpdateActionName);
             // mapping updates are still permitted on indices and aliases
@@ -60,14 +63,16 @@ public class PermissionTests extends ESTestCase {
             when(mockIndexAbstraction.getType()).thenReturn(IndexAbstraction.Type.DATA_STREAM);
             assertThat(indexPredicate.test(mockIndexAbstraction), is(false));
             when(mockIndexAbstraction.getType()).thenReturn(IndexAbstraction.Type.CONCRETE_INDEX);
-            when(mockIndexAbstraction.getParentDataStream()).thenReturn(mock(IndexAbstraction.DataStream.class));
+            when(mockIndexAbstraction.getParentDataStream()).thenReturn(
+                DataStreamTestHelper.newInstance("ds", List.of(new Index("idx", UUIDs.randomBase64UUID(random()))))
+            );
             assertThat(indexPredicate.test(mockIndexAbstraction), is(false));
         }
     }
 
     public void testAllowedIndicesMatcherActionCaching() throws Exception {
-        IsResourceAuthorizedPredicate matcher1 = permission.indices().allowedIndicesMatcher(GetAction.NAME);
-        IsResourceAuthorizedPredicate matcher2 = permission.indices().allowedIndicesMatcher(GetAction.NAME);
+        IsResourceAuthorizedPredicate matcher1 = permission.indices().allowedIndicesMatcher(TransportGetAction.TYPE.name());
+        IsResourceAuthorizedPredicate matcher2 = permission.indices().allowedIndicesMatcher(TransportGetAction.TYPE.name());
         assertThat(matcher1, is(matcher2));
     }
 

@@ -7,13 +7,13 @@
 package org.elasticsearch.test;
 
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.inject.Guice;
-import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.settings.SettingsModule;
+import org.elasticsearch.injection.guice.Guice;
+import org.elasticsearch.injection.guice.Injector;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.authc.ldap.LdapRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.ldap.PoolingSessionFactorySettings;
@@ -21,7 +21,6 @@ import org.elasticsearch.xpack.security.LocalStateSecurity;
 import org.hamcrest.Matcher;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -141,7 +140,7 @@ public class SettingsFilterTests extends ESTestCase {
         List<String> settingsFilterList = new ArrayList<>();
         settingsFilterList.addAll(securityPlugin.getSettingsFilter());
         // custom settings, potentially added by a plugin
-        SettingsModule settingsModule = new SettingsModule(settings, settingList, settingsFilterList, Collections.emptySet());
+        SettingsModule settingsModule = new SettingsModule(settings, settingList, settingsFilterList);
 
         Injector injector = Guice.createInjector(settingsModule);
         SettingsFilter settingsFilter = injector.getInstance(SettingsFilter.class);

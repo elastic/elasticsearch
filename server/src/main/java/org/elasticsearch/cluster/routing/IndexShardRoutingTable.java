@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.routing;
@@ -33,6 +34,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Stream;
 
 /**
  * {@link IndexShardRoutingTable} encapsulates all instances of a single shard.
@@ -50,6 +52,7 @@ public class IndexShardRoutingTable {
     final List<ShardRouting> replicas;
     final List<ShardRouting> activeShards;
     final List<ShardRouting> assignedShards;
+    private final List<ShardRouting> unpromotableShards;
     /**
      * The initializing list, including ones that are initializing on a target node because of relocation.
      * If we can come up with a better variable name, it would be nice...
@@ -68,6 +71,7 @@ public class IndexShardRoutingTable {
         List<ShardRouting> replicas = new ArrayList<>();
         List<ShardRouting> activeShards = new ArrayList<>();
         List<ShardRouting> assignedShards = new ArrayList<>();
+        List<ShardRouting> unpromotableShards = new ArrayList<>();
         List<ShardRouting> allInitializingShards = new ArrayList<>();
         boolean allShardsStarted = true;
         int activeSearchShardCount = 0;
@@ -97,18 +101,27 @@ public class IndexShardRoutingTable {
                 assert shard.assignedToNode() : "relocating from unassigned " + shard;
                 assert shard.getTargetRelocatingShard().assignedToNode() : "relocating to unassigned " + shard.getTargetRelocatingShard();
                 assignedShards.add(shard.getTargetRelocatingShard());
+                if (shard.getTargetRelocatingShard().isPromotableToPrimary() == false) {
+                    unpromotableShards.add(shard.getTargetRelocatingShard());
+                }
             }
             if (shard.assignedToNode()) {
                 assignedShards.add(shard);
+                if (shard.isPromotableToPrimary() == false) {
+                    unpromotableShards.add(shard);
+                }
             }
             if (shard.state() != ShardRoutingState.STARTED) {
                 allShardsStarted = false;
             }
         }
+        assert shards.isEmpty() == false : "cannot have an empty shard routing table";
+        assert primary != null : shards;
         this.primary = primary;
         this.replicas = CollectionUtils.wrapUnmodifiableOrEmptySingleton(replicas);
         this.activeShards = CollectionUtils.wrapUnmodifiableOrEmptySingleton(activeShards);
         this.assignedShards = CollectionUtils.wrapUnmodifiableOrEmptySingleton(assignedShards);
+        this.unpromotableShards = CollectionUtils.wrapUnmodifiableOrEmptySingleton(unpromotableShards);
         this.allInitializingShards = CollectionUtils.wrapUnmodifiableOrEmptySingleton(allInitializingShards);
         this.allShardsStarted = allShardsStarted;
         this.activeSearchShardCount = activeSearchShardCount;
@@ -133,6 +146,10 @@ public class IndexShardRoutingTable {
 
     public ShardRouting shard(int idx) {
         return shards[idx];
+    }
+
+    public Stream<ShardRouting> allShards() {
+        return Stream.of(shards);
     }
 
     /**
@@ -160,6 +177,15 @@ public class IndexShardRoutingTable {
      */
     public List<ShardRouting> assignedShards() {
         return this.assignedShards;
+    }
+
+    /**
+     * Returns a {@link List} of assigned unpromotable shards, including relocation targets
+     *
+     * @return a {@link List} of shards
+     */
+    public List<ShardRouting> unpromotableShards() {
+        return this.unpromotableShards;
     }
 
     public ShardIterator shardsRandomIt() {
@@ -454,7 +480,7 @@ public class IndexShardRoutingTable {
         IndexShardRoutingTable that = (IndexShardRoutingTable) o;
 
         if (shardId.equals(that.shardId) == false) return false;
-        return Arrays.equals(shards, that.shards) != false;
+        return Arrays.equals(shards, that.shards);
     }
 
     @Override

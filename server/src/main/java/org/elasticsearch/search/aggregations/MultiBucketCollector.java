@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations;
@@ -183,17 +184,16 @@ public class MultiBucketCollector extends BucketCollector {
                 );
             }
         }
-        switch (leafCollectors.size()) {
-            case 0:
+        return switch (leafCollectors.size()) {
+            case 0 -> {
                 if (terminateIfNoop) {
                     throw new CollectionTerminatedException();
                 }
-                return LeafBucketCollector.NO_OP_COLLECTOR;
-            case 1:
-                return leafCollectors.get(0);
-            default:
-                return new MultiLeafBucketCollector(leafCollectors, cacheScores);
-        }
+                yield LeafBucketCollector.NO_OP_COLLECTOR;
+            }
+            case 1 -> leafCollectors.get(0);
+            default -> new MultiLeafBucketCollector(leafCollectors, cacheScores);
+        };
     }
 
     private static class MultiLeafBucketCollector extends LeafBucketCollector {

@@ -29,11 +29,6 @@ public class CancelJobModelSnapshotUpgradeActionRequestTests extends AbstractXCo
     }
 
     @Override
-    protected boolean supportsUnknownFields() {
-        return false;
-    }
-
-    @Override
     protected Writeable.Reader<Request> instanceReader() {
         return Request::new;
     }

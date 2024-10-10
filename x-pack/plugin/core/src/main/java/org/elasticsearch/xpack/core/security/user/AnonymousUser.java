@@ -10,29 +10,25 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.xpack.core.security.support.MetadataUtils;
 
-import java.util.Collections;
 import java.util.List;
+import java.util.Optional;
 
 import static org.elasticsearch.xpack.core.security.SecurityField.setting;
 
 /**
  * The user object for the anonymous user.
  */
-public class AnonymousUser extends User {
+public class AnonymousUser extends ReservedUser {
 
     public static final String DEFAULT_ANONYMOUS_USERNAME = "_anonymous";
-    public static final Setting<String> USERNAME_SETTING = new Setting<>(
+    public static final Setting<String> USERNAME_SETTING = Setting.simpleString(
         setting("authc.anonymous.username"),
         DEFAULT_ANONYMOUS_USERNAME,
-        s -> s,
         Property.NodeScope
     );
-    public static final Setting<List<String>> ROLES_SETTING = Setting.listSetting(
+    public static final Setting<List<String>> ROLES_SETTING = Setting.stringListSetting(
         setting("authc.anonymous.roles"),
-        Collections.emptyList(),
-        s -> s,
         Property.NodeScope
     );
 
@@ -40,10 +36,8 @@ public class AnonymousUser extends User {
         super(
             USERNAME_SETTING.get(settings),
             ROLES_SETTING.get(settings).toArray(Strings.EMPTY_ARRAY),
-            null,
-            null,
-            MetadataUtils.DEFAULT_RESERVED_METADATA,
-            isAnonymousEnabled(settings)
+            isAnonymousEnabled(settings),
+            Optional.empty()
         );
     }
 

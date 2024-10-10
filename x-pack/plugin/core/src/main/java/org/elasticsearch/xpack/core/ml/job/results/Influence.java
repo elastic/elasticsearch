@@ -64,7 +64,7 @@ public class Influence implements ToXContentObject, Writeable {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(field);
-        out.writeStringArray(fieldValues.toArray(new String[fieldValues.size()]));
+        out.writeStringCollection(fieldValues);
     }
 
     @Override

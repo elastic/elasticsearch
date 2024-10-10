@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.discovery;
@@ -23,7 +24,7 @@ import java.util.Collection;
 import java.util.List;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.hamcrest.Matchers.equalTo;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class ClusterDisruptionCleanSettingsIT extends ESIntegTestCase {
@@ -57,12 +58,12 @@ public class ClusterDisruptionCleanSettingsIT extends ESIntegTestCase {
         final String node_2 = internalCluster().startDataOnlyNode();
         List<IndexRequestBuilder> indexRequestBuilderList = new ArrayList<>();
         for (int i = 0; i < 100; i++) {
-            indexRequestBuilderList.add(client().prepareIndex().setIndex("test").setSource("{\"int_field\":1}", XContentType.JSON));
+            indexRequestBuilderList.add(prepareIndex("test").setSource("{\"int_field\":1}", XContentType.JSON));
         }
         indexRandom(true, indexRequestBuilderList);
 
         IndicesStoreIntegrationIT.relocateAndBlockCompletion(logger, "test", 0, node_1, node_2);
         // now search for the documents and see if we get a reply
-        assertThat(client().prepareSearch().setSize(0).get().getHits().getTotalHits().value, equalTo(100L));
+        assertHitCount(prepareSearch().setSize(0), 100);
     }
 }

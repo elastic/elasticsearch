@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index;
@@ -26,6 +27,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
+import java.util.function.Consumer;
 
 import static org.elasticsearch.core.Strings.format;
 
@@ -89,6 +91,18 @@ final class CompositeIndexEventListener implements IndexEventListener {
                 listener.beforeIndexShardClosed(shardId, indexShard, indexSettings);
             } catch (Exception e) {
                 logger.warn(() -> "[" + shardId.getId() + "] failed to invoke before shard closed callback", e);
+                throw e;
+            }
+        }
+    }
+
+    @Override
+    public void afterIndexShardClosing(ShardId shardId, @Nullable IndexShard indexShard, Settings indexSettings) {
+        for (IndexEventListener listener : listeners) {
+            try {
+                listener.afterIndexShardClosing(shardId, indexShard, indexSettings);
+            } catch (Exception e) {
+                logger.warn(() -> "[" + shardId.getId() + "] failed to invoke after shard closing callback", e);
                 throw e;
             }
         }
@@ -243,20 +257,19 @@ final class CompositeIndexEventListener implements IndexEventListener {
         }
     }
 
-    private void iterateBeforeIndexShardRecovery(
-        final IndexShard indexShard,
-        final IndexSettings indexSettings,
-        final Iterator<IndexEventListener> iterator,
-        final ActionListener<Void> outerListener
+    private static void callListeners(
+        IndexShard indexShard,
+        Iterator<Consumer<ActionListener<Void>>> iterator,
+        ActionListener<Void> outerListener
     ) {
         while (iterator.hasNext()) {
             final var nextListener = iterator.next();
             final var future = new ListenableFuture<Void>();
             try {
-                nextListener.beforeIndexShardRecovery(indexShard, indexSettings, future);
+                nextListener.accept(future);
                 if (future.isDone()) {
                     // common case, not actually async, so just check for an exception and continue on the same thread
-                    future.get();
+                    future.result();
                     continue;
                 }
             } catch (Exception e) {
@@ -269,9 +282,7 @@ final class CompositeIndexEventListener implements IndexEventListener {
                 outerListener.delegateFailure(
                     (delegate, v) -> indexShard.getThreadPool()
                         .executor(ThreadPool.Names.GENERIC)
-                        .execute(
-                            ActionRunnable.wrap(delegate, l -> iterateBeforeIndexShardRecovery(indexShard, indexSettings, iterator, l))
-                        )
+                        .execute(ActionRunnable.wrap(delegate, l -> callListeners(indexShard, iterator, l)))
                 )
             );
             return;
@@ -280,14 +291,49 @@ final class CompositeIndexEventListener implements IndexEventListener {
         outerListener.onResponse(null);
     }
 
+    private void iterateBeforeIndexShardRecovery(
+        final IndexShard indexShard,
+        final IndexSettings indexSettings,
+        final List<IndexEventListener> listeners,
+        final ActionListener<Void> outerListener
+    ) {
+        callListeners(
+            indexShard,
+            listeners.stream()
+                .map(iel -> (Consumer<ActionListener<Void>>) (l) -> iel.beforeIndexShardRecovery(indexShard, indexSettings, l))
+                .iterator(),
+            outerListener
+        );
+    }
+
+    private void iterateAfterIndexShardRecovery(
+        final IndexShard indexShard,
+        final List<IndexEventListener> listeners,
+        final ActionListener<Void> outerListener
+    ) {
+        callListeners(
+            indexShard,
+            listeners.stream().map(iel -> (Consumer<ActionListener<Void>>) (l) -> iel.afterIndexShardRecovery(indexShard, l)).iterator(),
+            outerListener
+        );
+    }
+
     @Override
     public void beforeIndexShardRecovery(
         final IndexShard indexShard,
         final IndexSettings indexSettings,
         final ActionListener<Void> outerListener
     ) {
-        iterateBeforeIndexShardRecovery(indexShard, indexSettings, listeners.iterator(), outerListener.delegateResponse((l, e) -> {
+        iterateBeforeIndexShardRecovery(indexShard, indexSettings, listeners, outerListener.delegateResponse((l, e) -> {
             logger.warn(() -> format("failed to invoke the listener before the shard recovery starts for %s", indexShard.shardId()), e);
+            l.onFailure(e);
+        }));
+    }
+
+    @Override
+    public void afterIndexShardRecovery(IndexShard indexShard, ActionListener<Void> outerListener) {
+        iterateAfterIndexShardRecovery(indexShard, listeners, outerListener.delegateResponse((l, e) -> {
+            logger.warn(() -> format("failed to invoke the listener after the shard recovery for %s", indexShard.shardId()), e);
             l.onFailure(e);
         }));
     }

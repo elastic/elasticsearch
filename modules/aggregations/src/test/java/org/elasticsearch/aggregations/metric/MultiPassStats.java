@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.aggregations.metric;
 
@@ -22,12 +23,12 @@ class MultiPassStats {
     private final String fieldBKey;
 
     private long count;
-    private Map<String, Double> means = new HashMap<>();
-    private Map<String, Double> variances = new HashMap<>();
-    private Map<String, Double> skewness = new HashMap<>();
-    private Map<String, Double> kurtosis = new HashMap<>();
-    private Map<String, Map<String, Double>> covariances = new HashMap<>();
-    private Map<String, Map<String, Double>> correlations = new HashMap<>();
+    private final Map<String, Double> means = new HashMap<>();
+    private final Map<String, Double> variances = new HashMap<>();
+    private final Map<String, Double> skewness = new HashMap<>();
+    private final Map<String, Double> kurtosis = new HashMap<>();
+    private final Map<String, Map<String, Double>> covariances = new HashMap<>();
+    private final Map<String, Map<String, Double>> correlations = new HashMap<>();
 
     MultiPassStats(String fieldAName, String fieldBName) {
         this.fieldAKey = fieldAName;

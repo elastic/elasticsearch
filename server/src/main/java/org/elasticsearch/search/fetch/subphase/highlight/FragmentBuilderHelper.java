@@ -1,22 +1,19 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.fetch.subphase.highlight;
 
-import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.search.vectorhighlight.FastVectorHighlighter;
 import org.apache.lucene.search.vectorhighlight.FieldFragList.WeightedFragInfo;
 import org.apache.lucene.search.vectorhighlight.FieldFragList.WeightedFragInfo.SubInfo;
 import org.apache.lucene.search.vectorhighlight.FragmentsBuilder;
 import org.apache.lucene.util.CollectionUtil;
-import org.elasticsearch.index.analysis.AnalyzerComponentsProvider;
-import org.elasticsearch.index.analysis.NamedAnalyzer;
-import org.elasticsearch.index.analysis.TokenFilterFactory;
 
 import java.util.List;
 
@@ -45,7 +42,7 @@ public final class FragmentBuilderHelper {
             CollectionUtil.introSort(subInfos, (o1, o2) -> {
                 int startOffset = o1.getTermsOffsets().get(0).getStartOffset();
                 int startOffset2 = o2.getTermsOffsets().get(0).getStartOffset();
-                return compare(startOffset, startOffset2);
+                return Integer.compare(startOffset, startOffset2);
             });
             return new WeightedFragInfo(
                 Math.min(fragInfo.getSubInfos().get(0).getTermsOffsets().get(0).getStartOffset(), fragInfo.getStartOffset()),
@@ -58,23 +55,4 @@ public final class FragmentBuilderHelper {
         }
     }
 
-    private static int compare(int x, int y) {
-        return (x < y) ? -1 : ((x == y) ? 0 : 1);
-    }
-
-    private static boolean containsBrokenAnalysis(Analyzer analyzer) {
-        // TODO maybe we need a getter on Namedanalyzer that tells if this uses broken Analysis
-        if (analyzer instanceof NamedAnalyzer) {
-            analyzer = ((NamedAnalyzer) analyzer).analyzer();
-        }
-        if (analyzer instanceof AnalyzerComponentsProvider) {
-            final TokenFilterFactory[] tokenFilters = ((AnalyzerComponentsProvider) analyzer).getComponents().getTokenFilters();
-            for (TokenFilterFactory tokenFilterFactory : tokenFilters) {
-                if (tokenFilterFactory.breaksFastVectorHighlighter()) {
-                    return true;
-                }
-            }
-        }
-        return false;
-    }
 }

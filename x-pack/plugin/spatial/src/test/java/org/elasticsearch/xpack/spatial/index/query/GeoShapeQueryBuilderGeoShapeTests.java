@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.spatial.index.query;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -88,25 +87,12 @@ public class GeoShapeQueryBuilderGeoShapeTests extends GeoShapeQueryBuilderTestC
         }
         if (ESTestCase.randomBoolean()) {
             SearchExecutionContext context = AbstractBuilderTestCase.createSearchExecutionContext();
-            if (context.indexVersionCreated().onOrAfter(Version.V_7_5_0)) { // CONTAINS is only supported from version 7.5
-                if (shapeType == ShapeType.LINESTRING || shapeType == ShapeType.MULTILINESTRING) {
-                    builder.relation(ESTestCase.randomFrom(ShapeRelation.DISJOINT, ShapeRelation.INTERSECTS, ShapeRelation.CONTAINS));
-                } else {
-                    builder.relation(
-                        ESTestCase.randomFrom(
-                            ShapeRelation.DISJOINT,
-                            ShapeRelation.INTERSECTS,
-                            ShapeRelation.WITHIN,
-                            ShapeRelation.CONTAINS
-                        )
-                    );
-                }
+            if (shapeType == ShapeType.LINESTRING || shapeType == ShapeType.MULTILINESTRING) {
+                builder.relation(ESTestCase.randomFrom(ShapeRelation.DISJOINT, ShapeRelation.INTERSECTS, ShapeRelation.CONTAINS));
             } else {
-                if (shapeType == ShapeType.LINESTRING || shapeType == ShapeType.MULTILINESTRING) {
-                    builder.relation(ESTestCase.randomFrom(ShapeRelation.DISJOINT, ShapeRelation.INTERSECTS));
-                } else {
-                    builder.relation(ESTestCase.randomFrom(ShapeRelation.DISJOINT, ShapeRelation.INTERSECTS, ShapeRelation.WITHIN));
-                }
+                builder.relation(
+                    ESTestCase.randomFrom(ShapeRelation.DISJOINT, ShapeRelation.INTERSECTS, ShapeRelation.WITHIN, ShapeRelation.CONTAINS)
+                );
             }
         }
 

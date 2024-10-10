@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.metrics;
@@ -12,30 +13,30 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
+import org.elasticsearch.search.aggregations.AggregatorReducer;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
 public class InternalMedianAbsoluteDeviation extends InternalNumericMetricsAggregation.SingleValue implements MedianAbsoluteDeviation {
 
-    static double computeMedianAbsoluteDeviation(TDigestState valuesSketch) {
-
+    public static double computeMedianAbsoluteDeviation(TDigestState valuesSketch) {
         if (valuesSketch.size() == 0) {
             return Double.NaN;
         } else {
             final double approximateMedian = valuesSketch.quantile(0.5);
-            final TDigestState approximatedDeviationsSketch = new TDigestState(valuesSketch.compression());
-            valuesSketch.centroids().forEach(centroid -> {
-                final double deviation = Math.abs(approximateMedian - centroid.mean());
-                approximatedDeviationsSketch.add(deviation, centroid.count());
-            });
+            try (TDigestState approximatedDeviationsSketch = TDigestState.createUsingParamsFrom(valuesSketch)) {
+                valuesSketch.centroids().forEach(centroid -> {
+                    final double deviation = Math.abs(approximateMedian - centroid.mean());
+                    approximatedDeviationsSketch.add(deviation, centroid.count());
+                });
 
-            return approximatedDeviationsSketch.quantile(0.5);
+                return approximatedDeviationsSketch.quantile(0.5);
+            }
         }
     }
 
@@ -45,7 +46,6 @@ public class InternalMedianAbsoluteDeviation extends InternalNumericMetricsAggre
     InternalMedianAbsoluteDeviation(String name, Map<String, Object> metadata, DocValueFormat format, TDigestState valuesSketch) {
         super(name, Objects.requireNonNull(format), metadata);
         this.valuesSketch = Objects.requireNonNull(valuesSketch);
-
         this.medianAbsoluteDeviation = computeMedianAbsoluteDeviation(this.valuesSketch);
     }
 
@@ -62,15 +62,36 @@ public class InternalMedianAbsoluteDeviation extends InternalNumericMetricsAggre
         out.writeDouble(medianAbsoluteDeviation);
     }
 
-    @Override
-    public InternalAggregation reduce(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
-        final TDigestState valueMerged = new TDigestState(valuesSketch.compression());
-        for (InternalAggregation aggregation : aggregations) {
-            final InternalMedianAbsoluteDeviation madAggregation = (InternalMedianAbsoluteDeviation) aggregation;
-            valueMerged.add(madAggregation.valuesSketch);
-        }
+    static InternalMedianAbsoluteDeviation empty(
+        String name,
+        Map<String, Object> metadata,
+        DocValueFormat format,
+        double compression,
+        TDigestExecutionHint executionHint
+    ) {
+        return new InternalMedianAbsoluteDeviation(
+            name,
+            metadata,
+            format,
+            TDigestState.createWithoutCircuitBreaking(compression, executionHint)
+        );
+    }
 
-        return new InternalMedianAbsoluteDeviation(name, metadata, format, valueMerged);
+    @Override
+    protected AggregatorReducer getLeaderReducer(AggregationReduceContext reduceContext, int size) {
+        return new AggregatorReducer() {
+            final TDigestState valueMerged = TDigestState.createUsingParamsFrom(valuesSketch);
+
+            @Override
+            public void accept(InternalAggregation aggregation) {
+                valueMerged.add(((InternalMedianAbsoluteDeviation) aggregation).valuesSketch);
+            }
+
+            @Override
+            public InternalAggregation get() {
+                return new InternalMedianAbsoluteDeviation(name, metadata, format, valueMerged);
+            }
+        };
     }
 
     @Override

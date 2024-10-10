@@ -1,0 +1,36 @@
+---
+version: ${xpack.apmdata.template.version}
+index_patterns: ["traces-apm.sampled-*"]
+priority: 210
+data_stream: {}
+allow_auto_create: true
+_meta:
+  description: Index template for traces-apm.sampled-*
+  managed: true
+composed_of:
+- traces@mappings
+- apm@mappings
+- apm@settings
+- traces-apm.sampled-fallback@ilm
+- traces@custom
+- traces-apm.sampled@custom
+- ecs@mappings
+ignore_missing_component_templates:
+- traces@custom
+- traces-apm.sampled@custom
+- traces-apm.sampled-fallback@ilm
+template:
+  lifecycle:
+    data_retention: 1h
+  mappings:
+    properties:
+      data_stream.type:
+        type: constant_keyword
+        value: traces
+      data_stream.dataset:
+        type: constant_keyword
+        value: apm.sampled
+      event.ingested:
+        type: date
+        format: date_time_no_millis
+        script: "emit(System.currentTimeMillis())"

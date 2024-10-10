@@ -1,22 +1,22 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.persistent;
 
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.Metadata.Custom;
-import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -51,11 +51,11 @@ import java.util.Optional;
 import static org.elasticsearch.cluster.metadata.Metadata.CONTEXT_MODE_GATEWAY;
 import static org.elasticsearch.cluster.metadata.Metadata.CONTEXT_MODE_SNAPSHOT;
 import static org.elasticsearch.persistent.PersistentTasksExecutor.NO_NODE_FOUND;
-import static org.elasticsearch.test.VersionUtils.compatibleFutureVersion;
-import static org.elasticsearch.test.VersionUtils.getFirstVersion;
-import static org.elasticsearch.test.VersionUtils.getPreviousVersion;
-import static org.elasticsearch.test.VersionUtils.randomVersionBetween;
-import static org.hamcrest.Matchers.equalTo;
+import static org.elasticsearch.test.TransportVersionUtils.getFirstVersion;
+import static org.elasticsearch.test.TransportVersionUtils.getNextVersion;
+import static org.elasticsearch.test.TransportVersionUtils.getPreviousVersion;
+import static org.elasticsearch.test.TransportVersionUtils.randomVersionBetween;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.sameInstance;
 
@@ -259,14 +259,14 @@ public class PersistentTasksCustomMetadataTests extends ChunkedToXContentDiffabl
     public void testMinVersionSerialization() throws IOException {
         PersistentTasksCustomMetadata.Builder tasks = PersistentTasksCustomMetadata.builder();
 
-        Version minVersion = getFirstVersion();
-        final Version streamVersion = randomVersionBetween(random(), minVersion, getPreviousVersion(Version.CURRENT));
+        TransportVersion minVersion = getFirstVersion();
+        TransportVersion streamVersion = randomVersionBetween(random(), minVersion, getPreviousVersion(TransportVersion.current()));
         tasks.addTask(
             "test_compatible_version",
             TestPersistentTasksExecutor.NAME,
             new TestParams(
                 null,
-                randomVersionBetween(random(), minVersion, streamVersion).transportVersion,
+                randomVersionBetween(random(), minVersion, streamVersion),
                 randomBoolean() ? Optional.empty() : Optional.of("test")
             ),
             randomAssignment()
@@ -276,23 +276,23 @@ public class PersistentTasksCustomMetadataTests extends ChunkedToXContentDiffabl
             TestPersistentTasksExecutor.NAME,
             new TestParams(
                 null,
-                randomVersionBetween(random(), compatibleFutureVersion(streamVersion), Version.CURRENT).transportVersion,
+                randomVersionBetween(random(), getNextVersion(streamVersion), TransportVersion.current()),
                 randomBoolean() ? Optional.empty() : Optional.of("test")
             ),
             randomAssignment()
         );
         final BytesStreamOutput out = new BytesStreamOutput();
 
-        out.setVersion(streamVersion);
+        out.setTransportVersion(streamVersion);
         tasks.build().writeTo(out);
 
         final StreamInput input = out.bytes().streamInput();
-        input.setVersion(streamVersion);
+        input.setTransportVersion(streamVersion);
         PersistentTasksCustomMetadata read = new PersistentTasksCustomMetadata(
             new NamedWriteableAwareStreamInput(input, getNamedWriteableRegistry())
         );
 
-        assertThat(read.taskMap().keySet(), equalTo(Collections.singleton("test_compatible_version")));
+        assertThat(read.taskMap().keySet(), contains("test_compatible_version"));
     }
 
     public void testDisassociateDeadNodes_givenNoPersistentTasks() {
@@ -303,7 +303,7 @@ public class PersistentTasksCustomMetadataTests extends ChunkedToXContentDiffabl
 
     public void testDisassociateDeadNodes_givenAssignedPersistentTask() {
         DiscoveryNodes nodes = DiscoveryNodes.builder()
-            .add(new DiscoveryNode("node1", buildNewFakeTransportAddress(), Version.CURRENT))
+            .add(DiscoveryNodeUtils.create("node1"))
             .localNodeId("node1")
             .masterNodeId("node1")
             .build();
@@ -331,7 +331,7 @@ public class PersistentTasksCustomMetadataTests extends ChunkedToXContentDiffabl
 
     public void testDisassociateDeadNodes() {
         DiscoveryNodes nodes = DiscoveryNodes.builder()
-            .add(new DiscoveryNode("node1", buildNewFakeTransportAddress(), Version.CURRENT))
+            .add(DiscoveryNodeUtils.create("node1"))
             .localNodeId("node1")
             .masterNodeId("node1")
             .build();
@@ -387,7 +387,7 @@ public class PersistentTasksCustomMetadataTests extends ChunkedToXContentDiffabl
 
             @Override
             public TransportVersion getMinimalSupportedVersion() {
-                return TransportVersion.CURRENT;
+                return TransportVersion.current();
             }
         };
     }

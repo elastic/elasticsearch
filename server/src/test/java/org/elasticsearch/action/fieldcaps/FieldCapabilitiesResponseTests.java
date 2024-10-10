@@ -1,23 +1,25 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.fieldcaps;
 
 import org.elasticsearch.ElasticsearchExceptionTests;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
-import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
@@ -26,7 +28,6 @@ import org.hamcrest.Matchers;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Base64;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -37,8 +38,6 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.action.fieldcaps.FieldCapabilitiesIndexResponseTests.randomIndexResponsesWithMappingHash;
 import static org.elasticsearch.action.fieldcaps.FieldCapabilitiesIndexResponseTests.randomIndexResponsesWithoutMappingHash;
 import static org.elasticsearch.action.fieldcaps.FieldCapabilitiesIndexResponseTests.randomMappingHashToIndices;
-import static org.hamcrest.Matchers.contains;
-import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.nullValue;
@@ -52,7 +51,8 @@ public class FieldCapabilitiesResponseTests extends AbstractWireSerializingTestC
         int numResponse = randomIntBetween(0, 10);
         for (int i = 0; i < numResponse; i++) {
             Map<String, IndexFieldCapabilities> fieldCaps = FieldCapabilitiesIndexResponseTests.randomFieldCaps();
-            responses.add(new FieldCapabilitiesIndexResponse("index_" + i, null, fieldCaps, randomBoolean()));
+            var indexMode = randomFrom(IndexMode.values());
+            responses.add(new FieldCapabilitiesIndexResponse("index_" + i, null, fieldCaps, randomBoolean(), indexMode));
         }
         randomResponse = new FieldCapabilitiesResponse(responses, Collections.emptyList());
         return randomResponse;
@@ -119,7 +119,7 @@ public class FieldCapabilitiesResponseTests extends AbstractWireSerializingTestC
         );
         FieldCapabilitiesResponse parsedResponse;
         try (XContentParser parser = createParser(xContentType.xContent(), originalBytes)) {
-            parsedResponse = FieldCapabilitiesResponse.fromXContent(parser);
+            parsedResponse = FieldCapsUtils.parseFieldCapsResponse(parser);
             assertNull(parser.nextToken());
         }
         assertNotSame(parsedResponse, randomResponse);
@@ -166,7 +166,11 @@ public class FieldCapabilitiesResponseTests extends AbstractWireSerializingTestC
         );
         Randomness.shuffle(indexResponses);
         FieldCapabilitiesResponse inResponse = randomCCSResponse(indexResponses);
-        final Version version = VersionUtils.randomVersionBetween(random(), Version.V_8_2_0, Version.CURRENT);
+        final TransportVersion version = TransportVersionUtils.randomVersionBetween(
+            random(),
+            TransportVersions.V_8_2_0,
+            TransportVersion.current()
+        );
         final FieldCapabilitiesResponse outResponse = copyInstance(inResponse, version);
         assertThat(
             outResponse.getFailures().stream().flatMap(f -> Arrays.stream(f.getIndices())).toList(),
@@ -196,15 +200,19 @@ public class FieldCapabilitiesResponseTests extends AbstractWireSerializingTestC
     }
 
     public void testSerializeCCSResponseBetweenOldClusters() throws IOException {
-        final Version minCompactVersion = Version.CURRENT.minimumCompatibilityVersion();
-        assertTrue("Remove this test once minCompactVersion >= 8.2.0", minCompactVersion.before(Version.V_8_2_0));
+        TransportVersion minCompactVersion = TransportVersions.MINIMUM_COMPATIBLE;
+        assertTrue("Remove this test once minCompactVersion >= 8.2.0", minCompactVersion.before(TransportVersions.V_8_2_0));
         List<FieldCapabilitiesIndexResponse> indexResponses = CollectionUtils.concatLists(
             randomIndexResponsesWithMappingHash(randomMappingHashToIndices()),
             randomIndexResponsesWithoutMappingHash()
         );
         Randomness.shuffle(indexResponses);
         FieldCapabilitiesResponse inResponse = randomCCSResponse(indexResponses);
-        Version version = VersionUtils.randomVersionBetween(random(), minCompactVersion, VersionUtils.getPreviousVersion(Version.V_8_2_0));
+        TransportVersion version = TransportVersionUtils.randomVersionBetween(
+            random(),
+            minCompactVersion,
+            TransportVersionUtils.getPreviousVersion(TransportVersions.V_8_2_0)
+        );
         final FieldCapabilitiesResponse outResponse = copyInstance(inResponse, version);
         assertThat(
             outResponse.getFailures().stream().flatMap(f -> Arrays.stream(f.getIndices())).toList(),
@@ -219,59 +227,19 @@ public class FieldCapabilitiesResponseTests extends AbstractWireSerializingTestC
             assertThat(outList.get(i).canMatch(), equalTo(inList.get(i).canMatch()));
             Map<String, IndexFieldCapabilities> outCap = outList.get(i).get();
             Map<String, IndexFieldCapabilities> inCap = inList.get(i).get();
-            if (version.onOrAfter(Version.V_8_0_0)) {
+            if (version.onOrAfter(TransportVersions.V_8_0_0)) {
                 assertThat(outCap, equalTo(inCap));
             } else {
                 // Exclude metric types which was introduced in 8.0
                 assertThat(outCap.keySet(), equalTo(inCap.keySet()));
                 for (String field : outCap.keySet()) {
-                    assertThat(outCap.get(field).getName(), equalTo(inCap.get(field).getName()));
-                    assertThat(outCap.get(field).getType(), equalTo(inCap.get(field).getType()));
+                    assertThat(outCap.get(field).name(), equalTo(inCap.get(field).name()));
+                    assertThat(outCap.get(field).type(), equalTo(inCap.get(field).type()));
                     assertThat(outCap.get(field).isSearchable(), equalTo(inCap.get(field).isSearchable()));
                     assertThat(outCap.get(field).isAggregatable(), equalTo(inCap.get(field).isAggregatable()));
                     assertThat(outCap.get(field).meta(), equalTo(inCap.get(field).meta()));
                 }
             }
         }
-    }
-
-    public void testReadCCSResponseFromPre82() throws Exception {
-        final Version minCompactVersion = Version.CURRENT.minimumCompatibilityVersion();
-        assertTrue("Remove this test once minCompactVersion >= 8.2.0", minCompactVersion.before(Version.V_8_2_0));
-        String base64 = "AAADCGluZGV4XzAxAgpibHVlX2ZpZWxkCmJsdWVfZmllbGQEbG9uZwABAQAAAAlyZWRfZmllbGQJcmVkX2ZpZWxkBHRleHQAAQAAAAABC"
-            + "GluZGV4XzAyAAAIaW5kZXhfMDMCDHllbGxvd19maWVsZAx5ZWxsb3dfZmllbGQHa2V5d29yZAABAQAAAAdfc2VxX25vB19zZXFfbm8EbG9uZwEBAQAAAA"
-            + "EAAAAAAAAAAAA=";
-        StreamInput in = StreamInput.wrap(Base64.getDecoder().decode(base64));
-        in.setVersion(Version.V_8_1_0);
-        FieldCapabilitiesResponse nodeResp = new FieldCapabilitiesResponse(in);
-        assertThat(nodeResp.getFailures(), empty());
-        assertThat(
-            nodeResp.getIndexResponses(),
-            contains(
-                new FieldCapabilitiesIndexResponse(
-                    "index_01",
-                    null,
-                    Map.of(
-                        "red_field",
-                        new IndexFieldCapabilities("red_field", "text", false, true, false, false, null, Map.of()),
-                        "blue_field",
-                        new IndexFieldCapabilities("blue_field", "long", false, true, true, false, null, Map.of())
-                    ),
-                    true
-                ),
-                new FieldCapabilitiesIndexResponse("index_02", null, Map.of(), false),
-                new FieldCapabilitiesIndexResponse(
-                    "index_03",
-                    null,
-                    Map.of(
-                        "yellow_field",
-                        new IndexFieldCapabilities("yellow_field", "keyword", false, true, true, false, null, Map.of()),
-                        "_seq_no",
-                        new IndexFieldCapabilities("_seq_no", "long", true, true, true, false, null, Map.of())
-                    ),
-                    true
-                )
-            )
-        );
     }
 }

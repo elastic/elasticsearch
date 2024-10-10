@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.fetch.subphase.highlight;
@@ -106,16 +107,9 @@ public class HighlightPhase implements FetchSubPhase {
 
             Collection<String> fieldNamesToHighlight = context.getSearchExecutionContext().getMatchingFieldNames(field.field());
 
-            if (highlightContext.forceSource(field)) {
-                if (context.getSearchExecutionContext().isSourceEnabled() == false) {
-                    throw new IllegalArgumentException("source is forced for fields " + fieldNamesToHighlight + " but _source is disabled");
-                }
-            }
-            boolean forceSource = highlightContext.forceSource(field);
-
             boolean fieldNameContainsWildcards = field.field().contains("*");
             Set<String> storedFields = new HashSet<>();
-            boolean sourceRequired = forceSource;
+            boolean sourceRequired = false;
             for (String fieldName : fieldNamesToHighlight) {
                 MappedFieldType fieldType = context.getSearchExecutionContext().getFieldType(fieldName);
 
@@ -156,15 +150,11 @@ public class HighlightPhase implements FetchSubPhase {
                         context,
                         hc,
                         highlightQuery == null ? query : highlightQuery,
-                        forceSource,
                         sharedCache
                     )
                 );
             }
-            // TODO in future we can load the storedFields in advance here and make use of them,
-            // but for now they are loaded separately in HighlightUtils so we only return whether
-            // or not we need source.
-            storedFieldsSpec = storedFieldsSpec.merge(new StoredFieldsSpec(sourceRequired, false, Set.of()));
+            storedFieldsSpec = storedFieldsSpec.merge(new StoredFieldsSpec(sourceRequired, false, storedFields));
         }
         return new FieldContext(storedFieldsSpec, builders);
     }

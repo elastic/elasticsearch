@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.ml.job.task;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.Version;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -30,6 +29,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.license.XPackLicenseState;
@@ -37,6 +37,7 @@ import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.MlConfigIndex;
 import org.elasticsearch.xpack.core.ml.MlMetaIndex;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
@@ -63,6 +64,7 @@ import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManage
 import org.elasticsearch.xpack.ml.process.MlMemoryTracker;
 import org.junit.Before;
 
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -98,12 +100,13 @@ public class OpenJobPersistentTasksExecutorTests extends ESTestCase {
                     OperationRouting.USE_ADAPTIVE_REPLICA_SELECTION_SETTING,
                     ClusterService.USER_DEFINED_METADATA,
                     ClusterApplierService.CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING,
+                    ClusterApplierService.CLUSTER_SERVICE_SLOW_TASK_THREAD_DUMP_TIMEOUT_SETTING,
                     MachineLearning.CONCURRENT_JOB_ALLOCATIONS,
                     MachineLearning.MAX_MACHINE_MEMORY_PERCENT,
                     MachineLearning.MAX_LAZY_ML_NODES,
                     MachineLearning.MAX_ML_NODE_SIZE,
                     MachineLearning.MAX_OPEN_JOBS_PER_NODE,
-                    MachineLearning.USE_AUTO_MACHINE_MEMORY_PERCENT
+                    MachineLearningField.USE_AUTO_MACHINE_MEMORY_PERCENT
                 )
             )
         );
@@ -167,7 +170,7 @@ public class OpenJobPersistentTasksExecutorTests extends ESTestCase {
         assertEquals(
             "Not opening [unavailable_index_with_lazy_node], "
                 + "because not all primary shards are active for the following indices [.ml-state]",
-            executor.getAssignment(params, csBuilder.nodes(), csBuilder.build()).getExplanation()
+            executor.getAssignment(params, csBuilder.nodes().getAllNodes(), csBuilder.build()).getExplanation()
         );
     }
 
@@ -186,7 +189,11 @@ public class OpenJobPersistentTasksExecutorTests extends ESTestCase {
         when(job.allowLazyOpen()).thenReturn(true);
         OpenJobAction.JobParams params = new OpenJobAction.JobParams("lazy_job");
         params.setJob(job);
-        PersistentTasksCustomMetadata.Assignment assignment = executor.getAssignment(params, csBuilder.nodes(), csBuilder.build());
+        PersistentTasksCustomMetadata.Assignment assignment = executor.getAssignment(
+            params,
+            csBuilder.nodes().getAllNodes(),
+            csBuilder.build()
+        );
         assertNotNull(assignment);
         assertNull(assignment.getExecutorNode());
         assertEquals(JobNodeSelector.AWAITING_LAZY_ASSIGNMENT.getExplanation(), assignment.getExplanation());
@@ -203,7 +210,11 @@ public class OpenJobPersistentTasksExecutorTests extends ESTestCase {
         Job job = mock(Job.class);
         OpenJobAction.JobParams params = new OpenJobAction.JobParams("job_during_reset");
         params.setJob(job);
-        PersistentTasksCustomMetadata.Assignment assignment = executor.getAssignment(params, csBuilder.nodes(), csBuilder.build());
+        PersistentTasksCustomMetadata.Assignment assignment = executor.getAssignment(
+            params,
+            csBuilder.nodes().getAllNodes(),
+            csBuilder.build()
+        );
         assertNotNull(assignment);
         assertNull(assignment.getExecutorNode());
         assertEquals(MlTasks.RESET_IN_PROGRESS.getExplanation(), assignment.getExplanation());
@@ -229,7 +240,7 @@ public class OpenJobPersistentTasksExecutorTests extends ESTestCase {
         if (jobState != null) {
             builder.updateTaskState(
                 MlTasks.jobTaskId(jobId),
-                new JobTaskState(jobState, builder.getLastAllocationId() - (isStale ? 1 : 0), null)
+                new JobTaskState(jobState, builder.getLastAllocationId() - (isStale ? 1 : 0), null, Instant.now())
             );
         }
     }
@@ -245,9 +256,10 @@ public class OpenJobPersistentTasksExecutorTests extends ESTestCase {
             IndexMetadata.Builder indexMetadata = IndexMetadata.builder(indexName);
             indexMetadata.settings(
                 Settings.builder()
-                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                    .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
                     .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                     .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                    .put(IndexMetadata.SETTING_INDEX_UUID, "_uuid")
             );
             if (indexName.equals(AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX)) {
                 indexMetadata.putAlias(new AliasMetadata.Builder(AnomalyDetectorsIndex.jobStateIndexWriteAlias()));
@@ -294,7 +306,8 @@ public class OpenJobPersistentTasksExecutorTests extends ESTestCase {
             mlMemoryTracker,
             client,
             TestIndexNameExpressionResolver.newInstance(),
-            licenseState
+            licenseState,
+            true
         );
     }
 }

@@ -11,16 +11,15 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceAlreadyExistsException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.admin.indices.create.CreateIndexAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
+import org.elasticsearch.action.admin.indices.create.TransportCreateIndexAction;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsAction;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsRequest;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
-import org.elasticsearch.action.admin.indices.mapping.put.PutMappingAction;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
+import org.elasticsearch.action.admin.indices.mapping.put.TransportPutMappingAction;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -31,13 +30,16 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.time.DateUtils;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.rest.RestStatus;
@@ -45,6 +47,8 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.XPackPlugin;
@@ -52,17 +56,22 @@ import org.elasticsearch.xpack.core.rollup.RollupField;
 import org.elasticsearch.xpack.core.rollup.action.PutRollupJobAction;
 import org.elasticsearch.xpack.core.rollup.job.RollupJob;
 import org.elasticsearch.xpack.core.rollup.job.RollupJobConfig;
-import org.elasticsearch.xpack.rollup.Rollup;
 
 import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 import static org.elasticsearch.xpack.core.ClientHelper.assertNoAuthorizationHeader;
 
 public class TransportPutRollupJobAction extends AcknowledgedTransportMasterNodeAction<PutRollupJobAction.Request> {
 
     private static final Logger LOGGER = LogManager.getLogger(TransportPutRollupJobAction.class);
+    private static final XContentParserConfiguration PARSER_CONFIGURATION = XContentParserConfiguration.EMPTY.withFiltering(
+        Set.of("_doc._meta._rollup"),
+        null,
+        false
+    );
 
     private final PersistentTasksService persistentTasksService;
     private final Client client;
@@ -86,7 +95,7 @@ public class TransportPutRollupJobAction extends AcknowledgedTransportMasterNode
             actionFilters,
             PutRollupJobAction.Request::new,
             indexNameExpressionResolver,
-            ThreadPool.Names.SAME
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.persistentTasksService = persistentTasksService;
         this.client = client;
@@ -102,6 +111,24 @@ public class TransportPutRollupJobAction extends AcknowledgedTransportMasterNode
     ) {
         XPackPlugin.checkReadyForXPackCustomMetadata(clusterState);
         checkForDeprecatedTZ(request);
+
+        int numberOfCurrentRollupJobs = RollupUsageTransportAction.findNumberOfRollupJobs(clusterState);
+        if (numberOfCurrentRollupJobs == 0) {
+            try {
+                boolean hasRollupIndices = hasRollupIndices(clusterState.getMetadata());
+                if (hasRollupIndices == false) {
+                    listener.onFailure(
+                        new IllegalArgumentException(
+                            "new rollup jobs are not allowed in clusters that don't have any rollup usage, since rollup has been deprecated"
+                        )
+                    );
+                    return;
+                }
+            } catch (IOException e) {
+                listener.onFailure(e);
+                return;
+            }
+        }
 
         FieldCapabilitiesRequest fieldCapsRequest = new FieldCapabilitiesRequest().indices(request.indices())
             .fields(request.getConfig().getAllFields().toArray(new String[0]));
@@ -166,7 +193,7 @@ public class TransportPutRollupJobAction extends AcknowledgedTransportMasterNode
         }
 
         client.execute(
-            CreateIndexAction.INSTANCE,
+            TransportCreateIndexAction.TYPE,
             request,
             ActionListener.wrap(createIndexResponse -> startPersistentTask(job, listener, persistentTasksService), e -> {
                 if (e instanceof ResourceAlreadyExistsException) {
@@ -181,13 +208,13 @@ public class TransportPutRollupJobAction extends AcknowledgedTransportMasterNode
         );
     }
 
-    private static XContentBuilder createMappings(RollupJobConfig config) throws IOException {
+    static XContentBuilder createMappings(RollupJobConfig config) throws IOException {
         return XContentBuilder.builder(XContentType.JSON.xContent())
             .startObject()
             .startObject("mappings")
             .startObject("_doc")
             .startObject("_meta")
-            .field(Rollup.ROLLUP_TEMPLATE_VERSION_FIELD, Version.CURRENT.toString())
+            .field("rollup-version", "") // empty string to remain backwards compatible
             .startObject("_rollup")
             .field(config.getId(), config)
             .endObject()
@@ -254,14 +281,6 @@ public class TransportPutRollupJobAction extends AcknowledgedTransportMasterNode
 
             Map<String, Object> rollupMeta = (Map<String, Object>) ((Map<String, Object>) m).get(RollupField.ROLLUP_META);
 
-            String stringVersion = (String) ((Map<String, Object>) m).get(Rollup.ROLLUP_TEMPLATE_VERSION_FIELD);
-            if (stringVersion == null) {
-                listener.onFailure(
-                    new IllegalStateException("Could not determine version of existing rollup metadata for index [" + indexName + "]")
-                );
-                return;
-            }
-
             if (rollupMeta.get(job.getConfig().getId()) != null) {
                 String msg = "Cannot create rollup job ["
                     + job.getConfig().getId()
@@ -278,7 +297,7 @@ public class TransportPutRollupJobAction extends AcknowledgedTransportMasterNode
             PutMappingRequest request = new PutMappingRequest(indexName);
             request.source(newMapping);
             client.execute(
-                PutMappingAction.INSTANCE,
+                TransportPutMappingAction.TYPE,
                 request,
                 ActionListener.wrap(putMappingResponse -> startPersistentTask(job, listener, persistentTasksService), listener::onFailure)
             );
@@ -302,6 +321,7 @@ public class TransportPutRollupJobAction extends AcknowledgedTransportMasterNode
             job.getConfig().getId(),
             RollupField.TASK_NAME,
             job,
+            null,
             ActionListener.wrap(rollupConfigPersistentTask -> waitForRollupStarted(job, listener, persistentTasksService), e -> {
                 if (e instanceof ResourceAlreadyExistsException) {
                     e = new ElasticsearchStatusException(
@@ -345,6 +365,32 @@ public class TransportPutRollupJobAction extends AcknowledgedTransportMasterNode
                 }
             }
         );
+    }
+
+    static boolean hasRollupIndices(Metadata metadata) throws IOException {
+        // Sniffing logic instead of invoking sourceAsMap(), which would materialize the entire mapping as map of maps.
+        for (var imd : metadata) {
+            if (imd.mapping() == null) {
+                continue;
+            }
+
+            try (var parser = XContentHelper.createParser(PARSER_CONFIGURATION, imd.mapping().source().compressedReference())) {
+                if (parser.nextToken() == XContentParser.Token.START_OBJECT) {
+                    if ("_doc".equals(parser.nextFieldName())) {
+                        if (parser.nextToken() == XContentParser.Token.START_OBJECT) {
+                            if ("_meta".equals(parser.nextFieldName())) {
+                                if (parser.nextToken() == XContentParser.Token.START_OBJECT) {
+                                    if ("_rollup".equals(parser.nextFieldName())) {
+                                        return true;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        return false;
     }
 
     @Override

@@ -4,7 +4,7 @@ setup:
         index: test_1
         body:
           settings:
-            number_of_replicas: 0
+            number_of_shards: 1
           mappings:
             properties:
               str:
@@ -30,8 +30,8 @@ setup:
 
 ---
 "Test numeric terms agg with doc_count":
-  - skip:
-      version: " - 7.10.99"
+  - requires:
+      cluster_features: ["gte_v7.11.0"]
       reason: "doc_count field has been added in 7.11"
   - do:
       search:
@@ -50,8 +50,8 @@ setup:
 
 ---
 "Test keyword terms agg with doc_count":
-  - skip:
-      version: " - 7.10.99"
+  - requires:
+      cluster_features: ["gte_v7.11.0"]
       reason: "doc_count field has been added in 7.11"
   - do:
       search:
@@ -70,8 +70,8 @@ setup:
 ---
 
 "Test unmapped string terms agg with doc_count":
-  - skip:
-      version: " - 7.10.99"
+  - requires:
+      cluster_features: ["gte_v7.11.0"]
       reason: "doc_count field has been added in 7.11"
   - do:
       bulk:
@@ -95,8 +95,8 @@ setup:
 
 ---
 "Test composite str_terms agg with doc_count":
-  - skip:
-      version: " - 7.10.99"
+  - requires:
+      cluster_features: ["gte_v7.11.0"]
       reason: "doc_count field has been added in 7.11"
   - do:
       search:
@@ -122,8 +122,8 @@ setup:
 
 ---
 "Test composite num_terms agg with doc_count":
-  - skip:
-      version: " - 7.10.99"
+  - requires:
+      cluster_features: ["gte_v7.11.0"]
       reason: "doc_count field has been added in 7.11"
   - do:
       search:
@@ -149,10 +149,10 @@ setup:
 
 ---
 "Single bucket filters agg with doc_count":
-  - skip:
-      version: " - 7.99.99"
+  - requires:
+      cluster_features: ["gte_v8.0.0"]
       reason: implementation change in 8.0
-      features: default_shards
+      test_runner_features: default_shards
 
   - do:
       search:
@@ -177,10 +177,10 @@ setup:
 
 ---
 "Filters agg with doc_count":
-  - skip:
-      version: " - 8.2.99"
+  - requires:
+      cluster_features: ["gte_v8.3.0"]
       reason: implementation changed when there is more than one bucket 8.3.0
-      features: default_shards
+      test_runner_features: default_shards
 
   - do:
       search:

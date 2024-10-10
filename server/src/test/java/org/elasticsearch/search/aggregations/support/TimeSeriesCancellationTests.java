@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.search.aggregations.support;
 
@@ -50,7 +51,7 @@ public class TimeSeriesCancellationTests extends ESTestCase {
         iwc.setIndexSort(
             new Sort(
                 new SortField(TimeSeriesIdFieldMapper.NAME, SortField.Type.STRING),
-                new SortField(DataStream.TimestampField.FIXED_TIMESTAMP_FIELD, SortField.Type.LONG)
+                new SortField(DataStream.TIMESTAMP_FIELD_NAME, SortField.Type.LONG)
             )
         );
         RandomIndexWriter iw = new RandomIndexWriter(random(), dir, iwc);
@@ -66,7 +67,7 @@ public class TimeSeriesCancellationTests extends ESTestCase {
             String tsid = "tsid" + randomIntBetween(0, 30);
             long time = randomNonNegativeLong();
             doc.add(new SortedDocValuesField(TimeSeriesIdFieldMapper.NAME, new BytesRef(tsid)));
-            doc.add(new NumericDocValuesField(DataStream.TimestampField.FIXED_TIMESTAMP_FIELD, time));
+            doc.add(new NumericDocValuesField(DataStream.TIMESTAMP_FIELD_NAME, time));
             w.addDocument(doc);
         }
     }
@@ -86,10 +87,9 @@ public class TimeSeriesCancellationTests extends ESTestCase {
             IndexSearcher.getDefaultQueryCachingPolicy(),
             true
         );
-        TimeSeriesIndexSearcher timeSeriesIndexSearcher = new TimeSeriesIndexSearcher(
-            searcher,
-            List.of(() -> { throw new TaskCancelledException("Cancel"); })
-        );
+        TimeSeriesIndexSearcher timeSeriesIndexSearcher = new TimeSeriesIndexSearcher(searcher, List.of(() -> {
+            throw new TaskCancelledException("Cancel");
+        }));
         CountingBucketCollector bc = new CountingBucketCollector();
         expectThrows(TaskCancelledException.class, () -> timeSeriesIndexSearcher.search(new MatchAllDocsQuery(), bc));
         // We count every segment and every record as 1 and break on 2048th iteration counting from 0

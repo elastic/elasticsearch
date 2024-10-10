@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.gradle.internal
@@ -26,9 +27,9 @@ class ElasticsearchJavaModulePathPluginFuncTest extends AbstractJavaGradleFuncTe
     public static final String ES_VERSION = VersionProperties.getElasticsearch()
 
     public static final String COMPILE_JAVA_CONFIG = """
+        def sep = org.elasticsearch.gradle.OS.current() == org.elasticsearch.gradle.OS.WINDOWS ? ':' : ';'
         tasks.named('compileJava').configure {
             doLast {
-                def sep = org.elasticsearch.gradle.OS.current() == org.elasticsearch.gradle.OS.WINDOWS ? ':' : ';'
                 println "COMPILE_JAVA_COMPILER_ARGS " + options.allCompilerArgs.join(sep)
                 println "COMPILE_JAVA_CLASSPATH "  + classpath.asPath
             }

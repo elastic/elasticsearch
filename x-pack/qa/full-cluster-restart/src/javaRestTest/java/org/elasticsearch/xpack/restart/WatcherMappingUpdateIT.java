@@ -10,13 +10,16 @@ package org.elasticsearch.xpack.restart;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 
 import org.apache.http.util.EntityUtils;
-import org.elasticsearch.Version;
+import org.elasticsearch.Build;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.UpdateForV9;
+import org.elasticsearch.test.rest.RestTestLegacyFeatures;
 import org.elasticsearch.upgrades.FullClusterRestartUpgradeStatus;
+import org.junit.Before;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
@@ -25,10 +28,21 @@ import java.util.concurrent.TimeUnit;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.not;
 
+@UpdateForV9(owner = UpdateForV9.Owner.DATA_MANAGEMENT)
+// Remove the whole test suite (superseded by SystemIndexMappingUpdateServiceIT#testSystemIndexManagerUpgradesMappings)
 public class WatcherMappingUpdateIT extends AbstractXpackFullClusterRestartTestCase {
 
     public WatcherMappingUpdateIT(@Name("cluster") FullClusterRestartUpgradeStatus upgradeStatus) {
         super(upgradeStatus);
+    }
+
+    @Before
+    public void setup() {
+        // This test is superseded by SystemIndexMappingUpdateServiceIT#testSystemIndexManagerUpgradesMappings for newer versions
+        assumeFalse(
+            "Starting from 8.11, the mappings upgrade service uses mappings versions instead of node versions",
+            clusterHasFeature(RestTestLegacyFeatures.MAPPINGS_UPGRADE_SERVICE_USES_MAPPINGS_VERSION)
+        );
     }
 
     @Override
@@ -62,18 +76,13 @@ public class WatcherMappingUpdateIT extends AbstractXpackFullClusterRestartTestC
                 """);
             client().performRequest(putWatchRequest);
 
-            if (getOldClusterVersion().onOrAfter(Version.V_7_13_0)) {
-                assertMappingVersion(".watches", getOldClusterVersion());
-            } else {
-                // watches indices from before 7.10 do not have mapping versions in _meta
-                assertNoMappingVersion(".watches");
-            }
+            assertMappingVersion(".watches", getOldClusterVersion());
         } else {
-            assertMappingVersion(".watches", Version.CURRENT);
+            assertMappingVersion(".watches", Build.current().version());
         }
     }
 
-    private void assertMappingVersion(String index, Version clusterVersion) throws Exception {
+    private void assertMappingVersion(String index, String clusterVersion) throws Exception {
         assertBusy(() -> {
             Request mappingRequest = new Request("GET", index + "/_mappings");
             mappingRequest.setOptions(getWarningHandlerOptions(index));
@@ -86,9 +95,8 @@ public class WatcherMappingUpdateIT extends AbstractXpackFullClusterRestartTestC
     private void assertNoMappingVersion(String index) throws Exception {
         assertBusy(() -> {
             Request mappingRequest = new Request("GET", index + "/_mappings");
-            if (isRunningAgainstOldCluster() == false || getOldClusterVersion().onOrAfter(Version.V_7_10_0)) {
-                mappingRequest.setOptions(getWarningHandlerOptions(index));
-            }
+            assert isRunningAgainstOldCluster();
+            mappingRequest.setOptions(getWarningHandlerOptions(index));
             Response response = client().performRequest(mappingRequest);
             String responseBody = EntityUtils.toString(response.getEntity(), StandardCharsets.UTF_8);
             assertThat(responseBody, not(containsString("\"version\":\"")));

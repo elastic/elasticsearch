@@ -9,9 +9,10 @@ package org.elasticsearch.xpack.security.action.apikey;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.SecurityContext;
@@ -20,22 +21,26 @@ import org.elasticsearch.xpack.core.security.action.apikey.GetApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.GetApiKeyResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.security.authc.ApiKeyService;
+import org.elasticsearch.xpack.security.profile.ProfileService;
 
-public final class TransportGetApiKeyAction extends HandledTransportAction<GetApiKeyRequest, GetApiKeyResponse> {
+public final class TransportGetApiKeyAction extends TransportAction<GetApiKeyRequest, GetApiKeyResponse> {
 
     private final ApiKeyService apiKeyService;
     private final SecurityContext securityContext;
+    private final ProfileService profileService;
 
     @Inject
     public TransportGetApiKeyAction(
         TransportService transportService,
         ActionFilters actionFilters,
         ApiKeyService apiKeyService,
-        SecurityContext context
+        SecurityContext context,
+        ProfileService profileService
     ) {
-        super(GetApiKeyAction.NAME, transportService, actionFilters, GetApiKeyRequest::new);
+        super(GetApiKeyAction.NAME, actionFilters, transportService.getTaskManager(), EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.apiKeyService = apiKeyService;
         this.securityContext = context;
+        this.profileService = profileService;
     }
 
     @Override
@@ -57,7 +62,27 @@ public final class TransportGetApiKeyAction extends HandledTransportAction<GetAp
             realms = ApiKeyService.getOwnersRealmNames(authentication);
         }
 
-        apiKeyService.getApiKeys(realms, username, apiKeyName, apiKeyIds, request.withLimitedBy(), listener);
+        apiKeyService.getApiKeys(
+            realms,
+            username,
+            apiKeyName,
+            apiKeyIds,
+            request.withLimitedBy(),
+            request.activeOnly(),
+            ActionListener.wrap(apiKeyInfos -> {
+                if (request.withProfileUid()) {
+                    profileService.resolveProfileUidsForApiKeys(
+                        apiKeyInfos,
+                        ActionListener.wrap(
+                            ownerProfileUids -> listener.onResponse(new GetApiKeyResponse(apiKeyInfos, ownerProfileUids)),
+                            listener::onFailure
+                        )
+                    );
+                } else {
+                    listener.onResponse(new GetApiKeyResponse(apiKeyInfos, null));
+                }
+            }, listener::onFailure)
+        );
     }
 
 }

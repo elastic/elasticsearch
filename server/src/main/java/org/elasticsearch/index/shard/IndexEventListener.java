@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.index.shard;
 
@@ -54,6 +55,13 @@ public interface IndexEventListener {
      * @param indexShard The index shard
      */
     default void beforeIndexShardClosed(ShardId shardId, @Nullable IndexShard indexShard, Settings indexSettings) {}
+
+    /**
+     * Called after the index shard has been marked closed. It could still be waiting for the async close of the engine.
+     * The ordering between this and the subsequent state notifications (closed, deleted, store closed) is
+     * not guaranteed.
+     */
+    default void afterIndexShardClosing(ShardId shardId, @Nullable IndexShard indexShard, Settings indexSettings) {}
 
     /**
      * Called after the index shard has been closed.
@@ -170,6 +178,10 @@ public interface IndexEventListener {
      * @param listener      listener notified when this step completes
      */
     default void beforeIndexShardRecovery(IndexShard indexShard, IndexSettings indexSettings, ActionListener<Void> listener) {
+        listener.onResponse(null);
+    }
+
+    default void afterIndexShardRecovery(IndexShard indexShard, ActionListener<Void> listener) {
         listener.onResponse(null);
     }
 

@@ -240,6 +240,21 @@ setup:
               "deduce_mappings": false
             }
           }
+  - match: { preview.0.airline: foo }
+  - match: { preview.0.by-hour: "2017-02-18T00:00:00.000Z" }
+  - match: { preview.0.avg_response: 1.0 }
+  - match: { preview.0.time.max: "2017-02-18T00:30:00.000Z" }
+  - match: { preview.0.time.min: "2017-02-18T00:00:00.000Z" }
+  - match: { preview.1.airline: bar }
+  - match: { preview.1.by-hour: "2017-02-18T01:00:00.000Z" }
+  - match: { preview.1.avg_response: 42.0 }
+  - match: { preview.1.time.max: "2017-02-18T01:00:00.000Z" }
+  - match: { preview.1.time.min: "2017-02-18T01:00:00.000Z" }
+  - match: { preview.2.airline: foo }
+  - match: { preview.2.by-hour: "2017-02-18T01:00:00.000Z" }
+  - match: { preview.2.avg_response: 42.0 }
+  - match: { preview.2.time.max: "2017-02-18T01:01:00.000Z" }
+  - match: { preview.2.time.min: "2017-02-18T01:01:00.000Z" }
   - match: { generated_dest_index.mappings.properties: {} }
 
 ---

@@ -14,6 +14,6 @@ public final class RefreshTokenAction extends ActionType<CreateTokenResponse> {
     public static final RefreshTokenAction INSTANCE = new RefreshTokenAction();
 
     private RefreshTokenAction() {
-        super(NAME, CreateTokenResponse::new);
+        super(NAME);
     }
 }

@@ -85,5 +85,5 @@ Index Lifecycle Policies**. Click **Create policy**.
 
 You can also use the <<ilm-put-lifecycle,update lifecycle policy API>>.
 
-include::{es-repo-dir}/data-streams/set-up-a-data-stream.asciidoc[tag=ilm-policy-api-ex]
+include::{es-ref-dir}/data-streams/set-up-a-data-stream.asciidoc[tag=ilm-policy-api-ex]
 // end::custom[]

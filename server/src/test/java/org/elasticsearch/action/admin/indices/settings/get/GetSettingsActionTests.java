@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.indices.settings.get;
@@ -36,7 +37,6 @@ import java.util.Collections;
 import java.util.concurrent.TimeUnit;
 
 import static java.util.Collections.emptyList;
-import static java.util.Collections.emptySet;
 import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
 
 public class GetSettingsActionTests extends ESTestCase {
@@ -78,7 +78,7 @@ public class GetSettingsActionTests extends ESTestCase {
     public void setUp() throws Exception {
         super.setUp();
 
-        settingsFilter = new SettingsModule(Settings.EMPTY, emptyList(), emptyList(), emptySet()).getSettingsFilter();
+        settingsFilter = new SettingsModule(Settings.EMPTY, emptyList(), emptyList()).getSettingsFilter();
         threadPool = new TestThreadPool("GetSettingsActionTests");
         clusterService = createClusterService(threadPool);
         CapturingTransport capturingTransport = new CapturingTransport();
@@ -105,21 +105,31 @@ public class GetSettingsActionTests extends ESTestCase {
 
     public void testIncludeDefaults() {
         GetSettingsRequest noDefaultsRequest = new GetSettingsRequest().indices(indexName);
-        ActionTestUtils.execute(getSettingsAction, null, noDefaultsRequest, ActionListener.wrap(noDefaultsResponse -> {
-            assertNull(
-                "index.refresh_interval should be null as it was never set",
-                noDefaultsResponse.getSetting(indexName, "index.refresh_interval")
-            );
-        }, exception -> { throw new AssertionError(exception); }));
+        ActionTestUtils.execute(
+            getSettingsAction,
+            null,
+            noDefaultsRequest,
+            ActionTestUtils.assertNoFailureListener(
+                noDefaultsResponse -> assertNull(
+                    "index.refresh_interval should be null as it was never set",
+                    noDefaultsResponse.getSetting(indexName, "index.refresh_interval")
+                )
+            )
+        );
 
         GetSettingsRequest defaultsRequest = new GetSettingsRequest().indices(indexName).includeDefaults(true);
 
-        ActionTestUtils.execute(getSettingsAction, null, defaultsRequest, ActionListener.wrap(defaultsResponse -> {
-            assertNotNull(
-                "index.refresh_interval should be set as we are including defaults",
-                defaultsResponse.getSetting(indexName, "index.refresh_interval")
-            );
-        }, exception -> { throw new AssertionError(exception); }));
+        ActionTestUtils.execute(
+            getSettingsAction,
+            null,
+            defaultsRequest,
+            ActionTestUtils.assertNoFailureListener(
+                defaultsResponse -> assertNotNull(
+                    "index.refresh_interval should be set as we are including defaults",
+                    defaultsResponse.getSetting(indexName, "index.refresh_interval")
+                )
+            )
+        );
 
     }
 
@@ -127,7 +137,7 @@ public class GetSettingsActionTests extends ESTestCase {
         GetSettingsRequest defaultsRequest = new GetSettingsRequest().indices(indexName)
             .includeDefaults(true)
             .names("index.refresh_interval");
-        ActionTestUtils.execute(getSettingsAction, null, defaultsRequest, ActionListener.wrap(defaultsResponse -> {
+        ActionTestUtils.execute(getSettingsAction, null, defaultsRequest, ActionTestUtils.assertNoFailureListener(defaultsResponse -> {
             assertNotNull(
                 "index.refresh_interval should be set as we are including defaults",
                 defaultsResponse.getSetting(indexName, "index.refresh_interval")
@@ -140,7 +150,7 @@ public class GetSettingsActionTests extends ESTestCase {
                 "index.warmer.enabled should be null as this query is filtered",
                 defaultsResponse.getSetting(indexName, "index.warmer.enabled")
             );
-        }, exception -> { throw new AssertionError(exception); }));
+        }));
     }
 
     static class Resolver extends IndexNameExpressionResolver {

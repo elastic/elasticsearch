@@ -64,9 +64,9 @@
 
 ---
 "Put mappings with explicit _doc type":
-  - skip:
-          version:     " - 7.99.99"
-          reason:      "deprecation message changed in 8.0"
+  - requires:
+      cluster_features: ["gte_v8.0.0"]
+      reason: "deprecation message changed in 8.0"
   - do:
       indices.create:
         index: test_index
@@ -87,16 +87,17 @@
 ---
 "Put mappings with explicit _doc type bwc":
   - skip:
-          version:     "8.0.0 - "
+          cluster_features: [ "gte_v8.0.0"]
           reason:      "old deprecation message for pre 8.0"
-          features:    "node_selector"
+  - requires:
+          test_runner_features: ["node_selector"]
   - do:
       indices.create:
         index: test_index
 
   - do:
       node_selector:
-        version: " - 7.99.99"
+        version: "original"
       catch: bad_request
       indices.put_mapping:
         index: test_index
@@ -112,8 +113,8 @@
 ---
 "Update per-field metadata":
 
-  - skip:
-      version:     " - 7.5.99"
+  - requires:
+      cluster_features:     ["gte_v7.6.0"]
       reason:      "Per-field meta was introduced in 7.6"
 
   - do:
@@ -146,8 +147,8 @@
 
 ---
 "disabling synthetic source fails":
-  - skip:
-      version:     " - 8.3.99"
+  - requires:
+      cluster_features: ["gte_v8.4.0"]
       reason:      "Added in 8.4.0"
 
   - do:
@@ -168,8 +169,8 @@
 
 ---
 "enabling synthetic source from explicit succeeds":
-  - skip:
-      version:     " - 8.3.99"
+  - requires:
+      cluster_features: [ "gte_v8.4.0" ]
       reason:      "Added in 8.4.0"
 
   - do:
@@ -189,8 +190,8 @@
 
 ---
 "enabling synthetic source succeeds":
-  - skip:
-      version:     " - 8.3.99"
+  - requires:
+      cluster_features: [ "gte_v8.4.0" ]
       reason:      "Added in 8.4.0"
 
   - do:
@@ -215,8 +216,8 @@
 
 ---
 "enabling synthetic source when no mapping succeeds":
-  - skip:
-      version:     " - 8.3.99"
+  - requires:
+      cluster_features: [ "gte_v8.4.0" ]
       reason:      "Added in 8.4.0"
 
   - do:

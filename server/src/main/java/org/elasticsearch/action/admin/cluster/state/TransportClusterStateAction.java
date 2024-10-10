@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.cluster.state;
@@ -11,12 +12,14 @@ package org.elasticsearch.action.admin.cluster.state;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.NotMasterException;
 import org.elasticsearch.cluster.block.ClusterBlockException;
+import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -25,9 +28,12 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.Metadata.Custom;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.cluster.version.CompatibilityVersions;
+import org.elasticsearch.core.Predicates;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
@@ -36,6 +42,7 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Predicate;
 
 public class TransportClusterStateAction extends TransportMasterNodeReadAction<ClusterStateRequest, ClusterStateResponse> {
@@ -60,7 +67,7 @@ public class TransportClusterStateAction extends TransportMasterNodeReadAction<C
             ClusterStateRequest::new,
             indexNameExpressionResolver,
             ClusterStateResponse::new,
-            ThreadPool.Names.MANAGEMENT
+            threadPool.executor(ThreadPool.Names.MANAGEMENT)
         );
     }
 
@@ -85,14 +92,17 @@ public class TransportClusterStateAction extends TransportMasterNodeReadAction<C
         final CancellableTask cancellableTask = (CancellableTask) task;
 
         final Predicate<ClusterState> acceptableClusterStatePredicate = request.waitForMetadataVersion() == null
-            ? clusterState -> true
+            ? Predicates.always()
             : clusterState -> clusterState.metadata().version() >= request.waitForMetadataVersion();
 
         final Predicate<ClusterState> acceptableClusterStateOrFailedPredicate = request.local()
             ? acceptableClusterStatePredicate
             : acceptableClusterStatePredicate.or(clusterState -> clusterState.nodes().isLocalNodeElectedMaster() == false);
 
-        if (acceptableClusterStatePredicate.test(state) && cancellableTask.isCancelled() == false) {
+        if (cancellableTask.notifyIfCancelled(listener)) {
+            return;
+        }
+        if (acceptableClusterStatePredicate.test(state)) {
             ActionListener.completeWith(listener, () -> buildResponse(request, state));
         } else {
             assert acceptableClusterStateOrFailedPredicate.test(state) == false;
@@ -106,7 +116,7 @@ public class TransportClusterStateAction extends TransportMasterNodeReadAction<C
                         }
 
                         if (acceptableClusterStatePredicate.test(newState)) {
-                            ActionListener.completeWith(listener, () -> buildResponse(request, newState));
+                            executor.execute(ActionRunnable.supply(listener, () -> buildResponse(request, newState)));
                         } else {
                             listener.onFailure(
                                 new NotMasterException(
@@ -133,7 +143,29 @@ public class TransportClusterStateAction extends TransportMasterNodeReadAction<C
         }
     }
 
+    @SuppressForbidden(reason = "exposing ClusterState#compatibilityVersions requires reading them")
+    private static Map<String, CompatibilityVersions> getCompatibilityVersions(ClusterState clusterState) {
+        return clusterState.compatibilityVersions();
+    }
+
+    @SuppressForbidden(reason = "exposing ClusterState#clusterFeatures requires reading them")
+    private static Map<String, Set<String>> getClusterFeatures(ClusterState clusterState) {
+        return clusterState.clusterFeatures().nodeFeatures();
+    }
+
     private ClusterStateResponse buildResponse(final ClusterStateRequest request, final ClusterState currentState) {
+        ThreadPool.assertCurrentThreadPool(ThreadPool.Names.MANAGEMENT); // too heavy to construct & serialize cluster state without forking
+
+        if (request.blocks() == false) {
+            final var blockException = currentState.blocks().globalBlockedException(ClusterBlockLevel.METADATA_READ);
+            if (blockException != null) {
+                // There's a METADATA_READ block in place, but we aren't returning it to the caller, and yet the caller needs to know that
+                // this block exists (e.g. it's the STATE_NOT_RECOVERED_BLOCK, so the rest of the state is known to be incomplete). Thus we
+                // must fail the request:
+                throw blockException;
+            }
+        }
+
         logger.trace("Serving cluster state request using version {}", currentState.version());
         ClusterState.Builder builder = ClusterState.builder(currentState.getClusterName());
         builder.version(currentState.version());
@@ -141,6 +173,8 @@ public class TransportClusterStateAction extends TransportMasterNodeReadAction<C
 
         if (request.nodes()) {
             builder.nodes(currentState.nodes());
+            builder.nodeIdsToCompatibilityVersions(getCompatibilityVersions(currentState));
+            builder.nodeFeatures(getClusterFeatures(currentState));
         }
         if (request.routingTable()) {
             if (request.indices().length > 0) {
@@ -172,7 +206,7 @@ public class TransportClusterStateAction extends TransportMasterNodeReadAction<C
                     // If the requested index is part of a data stream then that data stream should also be included:
                     IndexAbstraction indexAbstraction = currentState.metadata().getIndicesLookup().get(filteredIndex);
                     if (indexAbstraction.getParentDataStream() != null) {
-                        DataStream dataStream = indexAbstraction.getParentDataStream().getDataStream();
+                        DataStream dataStream = indexAbstraction.getParentDataStream();
                         // Also the IMD of other backing indices need to be included, otherwise the cluster state api
                         // can't create a valid cluster state instance:
                         for (Index backingIndex : dataStream.getIndices()) {

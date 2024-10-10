@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.support;
@@ -25,6 +26,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.reservedstate.action.ReservedClusterSettingsAction;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockUtils;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
@@ -47,21 +49,22 @@ public class ReservedStateAwareHandledTransportActionTests extends ESTestCase {
         ClusterService clusterService = mock(ClusterService.class);
         doReturn(clusterState).when(clusterService).state();
 
-        Action handler = new Action("internal:testAction", clusterService, mock(TransportService.class), mock(ActionFilters.class));
+        TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor();
+        Action handler = new Action("internal:testAction", clusterService, transportService, mock(ActionFilters.class));
 
         // nothing should happen here, since the request doesn't touch any of the immutable state keys
         var future = new PlainActionFuture<FakeResponse>();
         handler.doExecute(mock(Task.class), new DummyRequest(), future);
         assertNotNull(future.actionGet());
 
-        ClusterUpdateSettingsRequest request = new ClusterUpdateSettingsRequest().persistentSettings(
-            Settings.builder().put("a", "a value").build()
-        ).transientSettings(Settings.builder().put("e", "e value").build());
+        ClusterUpdateSettingsRequest request = new ClusterUpdateSettingsRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+            .persistentSettings(Settings.builder().put("a", "a value").build())
+            .transientSettings(Settings.builder().put("e", "e value").build());
 
         FakeReservedStateAwareAction action = new FakeReservedStateAwareAction(
             "internal:testClusterSettings",
             clusterService,
-            mock(TransportService.class),
+            transportService,
             mock(ActionFilters.class),
             null
         );
@@ -78,9 +81,9 @@ public class ReservedStateAwareHandledTransportActionTests extends ESTestCase {
             }
         })).getMessage().contains("with errors: [[a] set as read-only by [namespace_one], " + "[e] set as read-only by [namespace_two]"));
 
-        ClusterUpdateSettingsRequest okRequest = new ClusterUpdateSettingsRequest().persistentSettings(
-            Settings.builder().put("m", "m value").build()
-        ).transientSettings(Settings.builder().put("n", "n value").build());
+        ClusterUpdateSettingsRequest okRequest = new ClusterUpdateSettingsRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+            .persistentSettings(Settings.builder().put("m", "m value").build())
+            .transientSettings(Settings.builder().put("n", "n value").build());
 
         // this should just work, no conflicts
         action.doExecute(mock(Task.class), okRequest, new ActionListener<>() {

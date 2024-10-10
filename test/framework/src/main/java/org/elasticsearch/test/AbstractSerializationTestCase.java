@@ -1,15 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.test;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.Predicates;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -39,6 +41,7 @@ public abstract class AbstractSerializationTestCase<T extends Writeable> extends
             .randomFieldsExcludeFilter(getRandomFieldsExcludeFilter())
             .assertEqualsConsumer(this::assertEqualInstances)
             .assertToXContentEquivalence(assertToXContentEquivalence())
+            .dispose(this::dispose)
             .test();
     }
 
@@ -61,41 +64,45 @@ public abstract class AbstractSerializationTestCase<T extends Writeable> extends
             () -> randomFrom(XContentType.values())
         );
         T testInstance = createXContextTestInstance(xContentType);
-        ToXContent.Params params = new ToXContent.DelegatingMapParams(
-            singletonMap(RestSearchAction.TYPED_KEYS_PARAM, "true"),
-            getToXContentParams()
-        );
-        boolean humanReadable = randomBoolean();
-        BytesRef firstTimeBytes = toXContent(asXContent(testInstance), xContentType, params, humanReadable).toBytesRef();
+        try {
+            ToXContent.Params params = new ToXContent.DelegatingMapParams(
+                singletonMap(RestSearchAction.TYPED_KEYS_PARAM, "true"),
+                getToXContentParams()
+            );
+            boolean humanReadable = randomBoolean();
+            BytesRef firstTimeBytes = toXContent(asXContent(testInstance), xContentType, params, humanReadable).toBytesRef();
 
-        /*
-         * 500 rounds seems to consistently reproduce the issue on Nik's
-         * laptop. Larger numbers are going to be slower but more likely
-         * to reproduce the issue.
-         */
-        int rounds = scaledRandomIntBetween(300, 5000);
-        concurrentTest(() -> {
-            try {
-                for (int r = 0; r < rounds; r++) {
-                    BytesRef thisRoundBytes = toXContent(asXContent(testInstance), xContentType, params, humanReadable).toBytesRef();
-                    if (firstTimeBytes.bytesEquals(thisRoundBytes)) {
-                        continue;
+            /*
+             * 500 rounds seems to consistently reproduce the issue on Nik's
+             * laptop. Larger numbers are going to be slower but more likely
+             * to reproduce the issue.
+             */
+            int rounds = scaledRandomIntBetween(300, 5000);
+            concurrentTest(() -> {
+                try {
+                    for (int r = 0; r < rounds; r++) {
+                        BytesRef thisRoundBytes = toXContent(asXContent(testInstance), xContentType, params, humanReadable).toBytesRef();
+                        if (firstTimeBytes.bytesEquals(thisRoundBytes)) {
+                            continue;
+                        }
+                        StringBuilder error = new StringBuilder("Failed to round trip over ");
+                        if (humanReadable) {
+                            error.append("human readable ");
+                        }
+                        error.append(xContentType);
+                        error.append("\nCanonical is:\n").append(Strings.toString(asXContent(testInstance), true, true));
+                        boolean showBytes = xContentType.xContent() == CborXContent.cborXContent;
+                        error.append("\nWanted : ").append(showBytes ? firstTimeBytes : firstTimeBytes.utf8ToString());
+                        error.append("\nBut got: ").append(showBytes ? thisRoundBytes : thisRoundBytes.utf8ToString());
+                        fail(error.toString());
                     }
-                    StringBuilder error = new StringBuilder("Failed to round trip over ");
-                    if (humanReadable) {
-                        error.append("human readable ");
-                    }
-                    error.append(xContentType);
-                    error.append("\nCanonical is:\n").append(Strings.toString(asXContent(testInstance), true, true));
-                    boolean showBytes = xContentType.xContent() == CborXContent.cborXContent;
-                    error.append("\nWanted : ").append(showBytes ? firstTimeBytes : firstTimeBytes.utf8ToString());
-                    error.append("\nBut got: ").append(showBytes ? thisRoundBytes : thisRoundBytes.utf8ToString());
-                    fail(error.toString());
+                } catch (IOException e) {
+                    throw new AssertionError(e);
                 }
-            } catch (IOException e) {
-                throw new AssertionError(e);
-            }
-        });
+            });
+        } finally {
+            dispose(testInstance);
+        }
     }
 
     protected abstract ToXContent asXContent(T instance);
@@ -121,7 +128,7 @@ public abstract class AbstractSerializationTestCase<T extends Writeable> extends
      * Returns a predicate that given the field name indicates whether the field has to be excluded from random fields insertion or not
      */
     protected Predicate<String> getRandomFieldsExcludeFilter() {
-        return field -> false;
+        return Predicates.never();
     }
 
     /**

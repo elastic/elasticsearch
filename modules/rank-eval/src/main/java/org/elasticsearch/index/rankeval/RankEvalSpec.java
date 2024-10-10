@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.rankeval;
@@ -14,6 +15,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -30,6 +32,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
+import java.util.function.Predicate;
 
 /**
  * Specification of the ranking evaluation request.<br>
@@ -96,9 +99,9 @@ public class RankEvalSpec implements Writeable, ToXContentObject {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeList(ratedRequests);
+        out.writeCollection(ratedRequests);
         out.writeNamedWriteable(metric);
-        out.writeMap(templates, StreamOutput::writeString, (o, v) -> v.writeTo(o));
+        out.writeMap(templates, StreamOutput::writeWriteable);
         out.writeVInt(maxConcurrentSearches);
     }
 
@@ -132,13 +135,13 @@ public class RankEvalSpec implements Writeable, ToXContentObject {
     private static final ParseField REQUESTS_FIELD = new ParseField("requests");
     private static final ParseField MAX_CONCURRENT_SEARCHES_FIELD = new ParseField("max_concurrent_searches");
     @SuppressWarnings("unchecked")
-    private static final ConstructingObjectParser<RankEvalSpec, Void> PARSER = new ConstructingObjectParser<>(
+    private static final ConstructingObjectParser<RankEvalSpec, Predicate<NodeFeature>> PARSER = new ConstructingObjectParser<>(
         "rank_eval",
         a -> new RankEvalSpec((List<RatedRequest>) a[0], (EvaluationMetric) a[1], (Collection<ScriptWithId>) a[2])
     );
 
     static {
-        PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(), (p, c) -> RatedRequest.fromXContent(p), REQUESTS_FIELD);
+        PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(), (p, c) -> RatedRequest.fromXContent(p, c), REQUESTS_FIELD);
         PARSER.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> parseMetric(p), METRIC_FIELD);
         PARSER.declareObjectArray(
             ConstructingObjectParser.optionalConstructorArg(),
@@ -156,8 +159,8 @@ public class RankEvalSpec implements Writeable, ToXContentObject {
         return metric;
     }
 
-    public static RankEvalSpec parse(XContentParser parser) {
-        return PARSER.apply(parser, null);
+    public static RankEvalSpec parse(XContentParser parser, Predicate<NodeFeature> clusterSupportsFeature) {
+        return PARSER.apply(parser, clusterSupportsFeature);
     }
 
     static class ScriptWithId {

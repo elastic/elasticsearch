@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.test.rest.yaml.restspec;
 
@@ -23,6 +24,8 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Stream;
+
+import static org.elasticsearch.client.RestClient.IGNORE_RESPONSE_CODES_PARAM;
 
 /**
  * Holds the specification used to turn {@code do} actions in the YAML suite into REST api calls.
@@ -69,7 +72,7 @@ public class ClientYamlSuiteRestSpec {
      * that they influence the client behaviour and don't get sent to Elasticsearch
      */
     public boolean isClientParameter(String name) {
-        return "ignore".equals(name);
+        return IGNORE_RESPONSE_CODES_PARAM.equals(name);
     }
 
     /**

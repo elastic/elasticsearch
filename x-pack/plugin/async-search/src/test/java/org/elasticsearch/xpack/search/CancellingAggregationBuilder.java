@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.search;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -106,6 +107,6 @@ public class CancellingAggregationBuilder extends AbstractAggregationBuilder<Can
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.V_7_7_0;
+        return TransportVersions.V_7_7_0;
     }
 }

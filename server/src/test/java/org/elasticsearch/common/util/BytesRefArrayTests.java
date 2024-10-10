@@ -1,21 +1,26 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.util;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -46,9 +51,9 @@ public class BytesRefArrayTests extends ESTestCase {
             BytesRefArray copy = copyInstance(
                 array,
                 writableRegistry(),
-                (out, value) -> value.writeTo(out),
+                StreamOutput::writeWriteable,
                 in -> new BytesRefArray(in, mockBigArrays()),
-                Version.CURRENT
+                TransportVersion.current()
             );
 
             assertEquality(array, copy);
@@ -95,9 +100,9 @@ public class BytesRefArrayTests extends ESTestCase {
                 array = copyInstance(
                     inArray,
                     writableRegistry(),
-                    (out, value) -> value.writeTo(out),
+                    StreamOutput::writeWriteable,
                     in -> new BytesRefArray(in, mockBigArrays()),
-                    Version.CURRENT
+                    TransportVersion.current()
                 );
                 assertEquality(inArray, array);
                 inArray.close();
@@ -111,6 +116,64 @@ public class BytesRefArrayTests extends ESTestCase {
             }
         } finally {
             array.close();
+        }
+    }
+
+    public void testReadWritten() {
+        testReadWritten(false);
+    }
+
+    public void testReadWrittenHalfEmpty() {
+        testReadWritten(true);
+    }
+
+    private void testReadWritten(boolean halfEmpty) {
+        List<BytesRef> values = new ArrayList<>();
+        int bytes = PageCacheRecycler.PAGE_SIZE_IN_BYTES * between(2, 20);
+        int used = 0;
+        while (used < bytes) {
+            String str = halfEmpty && randomBoolean() ? "" : randomAlphaOfLengthBetween(0, 200);
+            BytesRef v = new BytesRef(str);
+            used += v.length;
+            values.add(v);
+        }
+        testReadWritten(values, randomBoolean() ? bytes : between(0, bytes));
+    }
+
+    public void testReadWrittenRepeated() {
+        testReadWrittenRepeated(false, between(2, 3000));
+    }
+
+    public void testReadWrittenRepeatedPowerOfTwo() {
+        testReadWrittenRepeated(false, 1024);
+    }
+
+    public void testReadWrittenRepeatedHalfEmpty() {
+        testReadWrittenRepeated(true, between(1, 3000));
+    }
+
+    public void testReadWrittenRepeatedHalfEmptyPowerOfTwo() {
+        testReadWrittenRepeated(true, 1024);
+    }
+
+    public void testReadWrittenRepeated(boolean halfEmpty, int listSize) {
+        List<BytesRef> values = randomList(2, 10, () -> {
+            String str = halfEmpty && randomBoolean() ? "" : randomAlphaOfLengthBetween(0, 10);
+            return new BytesRef(str);
+        });
+        testReadWritten(IntStream.range(0, listSize).mapToObj(i -> values).flatMap(List::stream).toList(), 10);
+    }
+
+    private void testReadWritten(List<BytesRef> values, int initialCapacity) {
+        try (BytesRefArray array = new BytesRefArray(initialCapacity, mockBigArrays())) {
+            for (BytesRef v : values) {
+                array.append(v);
+            }
+            BytesRef scratch = new BytesRef();
+            for (int i = 0; i < values.size(); i++) {
+                array.get(i, scratch);
+                assertThat(scratch, equalTo(values.get(i)));
+            }
         }
     }
 

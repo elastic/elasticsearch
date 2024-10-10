@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.search.aggregations.bucket.range;
 
@@ -11,7 +12,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
-import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
@@ -27,25 +27,12 @@ public class InternalGeoDistance extends InternalRange<InternalGeoDistance.Bucke
             super(key, from, to, docCount, aggregations, keyed, DocValueFormat.RAW);
         }
 
-        @Override
-        protected InternalRange.Factory<Bucket, ?> getFactory() {
-            return FACTORY;
-        }
-
-        boolean keyed() {
-            return keyed;
-        }
     }
 
     public static class Factory extends InternalRange.Factory<InternalGeoDistance.Bucket, InternalGeoDistance> {
         @Override
         public ValuesSourceType getValueSourceType() {
             return CoreValuesSourceType.GEOPOINT;
-        }
-
-        @Override
-        public ValueType getValueType() {
-            return ValueType.GEOPOINT;
         }
 
         @Override

@@ -12,7 +12,7 @@ These actions are intended to protect the cluster against data loss by
 ensuring that every shard is fully replicated as soon as possible.
 
 Even though we throttle concurrent recoveries both at the
-<<recovery,node level>> and at the <<shards-allocation,cluster level>>, this
+<<recovery,node level>> and at the <<cluster-shard-allocation-settings,cluster level>>, this
 ``shard-shuffle'' can still put a lot of extra load on the cluster which
 may not be necessary if the missing node is likely to return soon. Imagine
 this scenario:

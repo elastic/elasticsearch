@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.server.cli;
@@ -27,10 +28,12 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Locale;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * The main CLI for running Elasticsearch.
@@ -43,6 +46,8 @@ class ServerCli extends EnvironmentAwareCommand {
     private final OptionSpecBuilder quietOption;
     private final OptionSpec<String> enrollmentTokenOption;
 
+    // flag for indicating shutdown has begun. we use an AtomicBoolean to double as a synchronization object
+    private final AtomicBoolean shuttingDown = new AtomicBoolean(false);
     private volatile ServerProcess server;
 
     // visible for testing
@@ -97,7 +102,14 @@ class ServerCli extends EnvironmentAwareCommand {
             syncPlugins(terminal, env, processInfo);
 
             ServerArgs args = createArgs(options, env, secrets, processInfo);
-            this.server = startServer(terminal, processInfo, args);
+            synchronized (shuttingDown) {
+                // if we are shutting down there is no reason to start the server
+                if (shuttingDown.get()) {
+                    terminal.println("CLI is shutting down, skipping starting server process");
+                    return;
+                }
+                this.server = startServer(terminal, processInfo, args);
+            }
         }
 
         if (options.has(daemonizeOption)) {
@@ -107,19 +119,27 @@ class ServerCli extends EnvironmentAwareCommand {
 
         // we are running in the foreground, so wait for the server to exit
         int exitCode = server.waitFor();
+        onExit(exitCode);
+    }
+
+    /**
+     * A post-exit hook to perform additional processing before the command terminates
+     * @param exitCode the server process exit code
+     */
+    protected void onExit(int exitCode) throws UserException {
         if (exitCode != ExitCodes.OK) {
             throw new UserException(exitCode, "Elasticsearch exited unexpectedly");
         }
     }
 
-    private void printVersion(Terminal terminal) {
+    private static void printVersion(Terminal terminal) {
         final String versionOutput = String.format(
             Locale.ROOT,
             "Version: %s, Build: %s/%s/%s, JVM: %s",
-            Build.CURRENT.qualifiedVersion(),
-            Build.CURRENT.type().displayName(),
-            Build.CURRENT.hash(),
-            Build.CURRENT.date(),
+            Build.current().qualifiedVersion(),
+            Build.current().type().displayName(),
+            Build.current().hash(),
+            Build.current().date(),
             JvmInfo.jvmInfo().version()
         );
         terminal.println(versionOutput);
@@ -197,7 +217,7 @@ class ServerCli extends EnvironmentAwareCommand {
         syncPlugins.execute(terminal, syncPlugins.parseOptions(new String[0]), env, processInfo);
     }
 
-    private void validatePidFile(Path pidFile) throws UserException {
+    private static void validatePidFile(Path pidFile) throws UserException {
         Path parent = pidFile.getParent();
         if (parent != null && Files.exists(parent) && Files.isDirectory(parent) == false) {
             throw new UserException(ExitCodes.USAGE, "pid file parent [" + parent + "] exists but is not a directory");
@@ -219,14 +239,22 @@ class ServerCli extends EnvironmentAwareCommand {
             }
             validatePidFile(pidFile);
         }
-        return new ServerArgs(daemonize, quiet, pidFile, secrets, env.settings(), env.configFile());
+        return new ServerArgs(daemonize, quiet, pidFile, secrets, env.settings(), env.configFile(), env.logsFile());
     }
 
     @Override
-    public void close() {
-        if (server != null) {
-            server.stop();
+    public void close() throws IOException {
+        synchronized (shuttingDown) {
+            shuttingDown.set(true);
+            if (server != null) {
+                server.stop();
+            }
         }
+    }
+
+    // allow subclasses to access the started process
+    protected ServerProcess getServer() {
+        return server;
     }
 
     // protected to allow tests to override
@@ -235,8 +263,15 @@ class ServerCli extends EnvironmentAwareCommand {
     }
 
     // protected to allow tests to override
-    protected ServerProcess startServer(Terminal terminal, ProcessInfo processInfo, ServerArgs args) throws UserException {
-        return ServerProcess.start(terminal, processInfo, args);
+    protected ServerProcess startServer(Terminal terminal, ProcessInfo processInfo, ServerArgs args) throws Exception {
+        var tempDir = ServerProcessUtils.setupTempDir(processInfo);
+        var jvmOptions = JvmOptionsParser.determineJvmOptions(args, processInfo, tempDir, new MachineDependentHeap());
+        var serverProcessBuilder = new ServerProcessBuilder().withTerminal(terminal)
+            .withProcessInfo(processInfo)
+            .withServerArgs(args)
+            .withTempDir(tempDir)
+            .withJvmOptions(jvmOptions);
+        return serverProcessBuilder.start();
     }
 
     // protected to allow tests to override

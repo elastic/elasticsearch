@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.ingest.common;
@@ -18,7 +19,6 @@ import org.elasticsearch.script.TemplateScript;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.ingest.ConfigurationUtils.newConfigurationException;
 
@@ -41,8 +41,8 @@ public final class RemoveProcessor extends AbstractProcessor {
         boolean ignoreMissing
     ) {
         super(tag, description);
-        this.fieldsToRemove = new ArrayList<>(fieldsToRemove);
-        this.fieldsToKeep = new ArrayList<>(fieldsToKeep);
+        this.fieldsToRemove = List.copyOf(fieldsToRemove);
+        this.fieldsToKeep = List.copyOf(fieldsToKeep);
         this.ignoreMissing = ignoreMissing;
     }
 
@@ -58,10 +58,15 @@ public final class RemoveProcessor extends AbstractProcessor {
     }
 
     private void fieldsToRemoveProcessor(IngestDocument document) {
+        // micro-optimization note: actual for-each loops here rather than a .forEach because it happens to be ~5% faster in benchmarks
         if (ignoreMissing) {
-            fieldsToRemove.forEach(field -> removeWhenPresent(document, document.renderTemplate(field)));
+            for (TemplateScript.Factory field : fieldsToRemove) {
+                removeWhenPresent(document, document.renderTemplate(field));
+            }
         } else {
-            fieldsToRemove.forEach(document::removeField);
+            for (TemplateScript.Factory field : fieldsToRemove) {
+                document.removeField(document.renderTemplate(field));
+            }
         }
     }
 
@@ -124,7 +129,7 @@ public final class RemoveProcessor extends AbstractProcessor {
         private List<TemplateScript.Factory> getTemplates(String processorTag, Map<String, Object> config, String propertyName) {
             return getFields(processorTag, config, propertyName).stream()
                 .map(f -> ConfigurationUtils.compileTemplate(TYPE, processorTag, propertyName, f, scriptService))
-                .collect(Collectors.toList());
+                .toList();
         }
 
         private static List<String> getFields(String processorTag, Map<String, Object> config, String propertyName) {

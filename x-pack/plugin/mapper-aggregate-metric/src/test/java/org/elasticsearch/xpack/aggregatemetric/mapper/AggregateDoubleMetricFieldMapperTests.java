@@ -8,7 +8,10 @@ package org.elasticsearch.xpack.aggregatemetric.mapper;
 
 import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.Query;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
@@ -19,6 +22,7 @@ import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.aggregatemetric.AggregateMetricMapperPlugin;
 import org.elasticsearch.xpack.aggregatemetric.mapper.AggregateDoubleMetricFieldMapper.Metric;
 import org.hamcrest.Matchers;
@@ -33,10 +37,10 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.aggregatemetric.mapper.AggregateDoubleMetricFieldMapper.Names.IGNORE_MALFORMED;
 import static org.elasticsearch.xpack.aggregatemetric.mapper.AggregateDoubleMetricFieldMapper.Names.METRICS;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.matchesPattern;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.core.IsInstanceOf.instanceOf;
 
@@ -58,38 +62,29 @@ public class AggregateDoubleMetricFieldMapperTests extends MapperTestCase {
 
     @Override
     protected void registerParameters(ParameterChecker checker) throws IOException {
-        checker.registerConflictCheck(
-            DEFAULT_METRIC,
-            fieldMapping(this::minimalMapping),
-            fieldMapping(
-                b -> { b.field("type", CONTENT_TYPE).field(METRICS_FIELD, new String[] { "min", "max" }).field(DEFAULT_METRIC, "min"); }
-            )
-        );
+        checker.registerConflictCheck(DEFAULT_METRIC, fieldMapping(this::minimalMapping), fieldMapping(b -> {
+            b.field("type", CONTENT_TYPE).field(METRICS_FIELD, new String[] { "min", "max" }).field(DEFAULT_METRIC, "min");
+        }));
 
-        checker.registerConflictCheck(
-            METRICS_FIELD,
-            fieldMapping(this::minimalMapping),
-            fieldMapping(
-                b -> { b.field("type", CONTENT_TYPE).field(METRICS_FIELD, new String[] { "min", "max" }).field(DEFAULT_METRIC, "max"); }
-            )
-        );
+        checker.registerConflictCheck(METRICS_FIELD, fieldMapping(this::minimalMapping), fieldMapping(b -> {
+            b.field("type", CONTENT_TYPE).field(METRICS_FIELD, new String[] { "min", "max" }).field(DEFAULT_METRIC, "max");
+        }));
 
-        checker.registerConflictCheck(
-            METRICS_FIELD,
-            fieldMapping(this::minimalMapping),
-            fieldMapping(
-                b -> {
-                    b.field("type", CONTENT_TYPE)
-                        .field(METRICS_FIELD, new String[] { "min", "max", "value_count", "sum" })
-                        .field(DEFAULT_METRIC, "min");
-                }
-            )
-        );
+        checker.registerConflictCheck(METRICS_FIELD, fieldMapping(this::minimalMapping), fieldMapping(b -> {
+            b.field("type", CONTENT_TYPE)
+                .field(METRICS_FIELD, new String[] { "min", "max", "value_count", "sum" })
+                .field(DEFAULT_METRIC, "min");
+        }));
     }
 
     @Override
     protected Object getSampleValueForDocument() {
         return Map.of("min", -10.1, "max", 50.0, "value_count", 14);
+    }
+
+    @Override
+    protected Object getSampleObjectForDocument() {
+        return getSampleValueForDocument();
     }
 
     @Override
@@ -141,7 +136,7 @@ public class AggregateDoubleMetricFieldMapperTests extends MapperTestCase {
     public void testParseEmptyValue() throws Exception {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
 
-        Exception e = expectThrows(MapperParsingException.class, () -> mapper.parse(source(b -> b.startObject("field").endObject())));
+        Exception e = expectThrows(DocumentParsingException.class, () -> mapper.parse(source(b -> b.startObject("field").endObject())));
         assertThat(
             e.getCause().getMessage(),
             containsString("Aggregate metric field [field] must contain all metrics [min, max, value_count]")
@@ -155,27 +150,75 @@ public class AggregateDoubleMetricFieldMapperTests extends MapperTestCase {
 
     @Override
     protected List<ExampleMalformedValue> exampleMalformedValues() {
+        var min = randomDoubleBetween(-100, 100, false);
+        var max = randomDoubleBetween(min, 150, false);
+        var valueCount = randomIntBetween(1, Integer.MAX_VALUE);
+
+        var randomString = randomAlphaOfLengthBetween(1, 10);
+        var randomLong = randomLong();
+        var randomDouble = randomDouble();
+        var randomBoolean = randomBoolean();
+
         return List.of(
+            // wrong input structure
+            exampleMalformedValue(b -> b.value(randomString)).errorMatches("Failed to parse object"),
+            exampleMalformedValue(b -> b.value(randomLong)).errorMatches("Failed to parse object"),
+            exampleMalformedValue(b -> b.value(randomDouble)).errorMatches("Failed to parse object"),
+            exampleMalformedValue(b -> b.value(randomBoolean)).errorMatches("Failed to parse object"),
             // no metrics
             exampleMalformedValue(b -> b.startObject().endObject()).errorMatches(
                 "Aggregate metric field [field] must contain all metrics [min, max, value_count]"
             ),
             // unmapped metric
             exampleMalformedValue(
-                b -> b.startObject().field("min", -10.1).field("max", 50.0).field("value_count", 14).field("sum", 55).endObject()
+                b -> b.startObject()
+                    .field("min", min)
+                    .field("max", max)
+                    .field("value_count", valueCount)
+                    .field("sum", randomLong)
+                    .endObject()
             ).errorMatches("Aggregate metric [sum] does not exist in the mapping of field [field]"),
             // missing metric
-            exampleMalformedValue(b -> b.startObject().field("min", -10.1).field("max", 50.0).endObject()).errorMatches(
+            exampleMalformedValue(b -> b.startObject().field("min", min).field("max", max).endObject()).errorMatches(
                 "Aggregate metric field [field] must contain all metrics [min, max, value_count]"
             ),
             // invalid metric value
-            exampleMalformedValue(b -> b.startObject().field("min", "10.0").field("max", 50.0).field("value_count", 14).endObject())
+            exampleMalformedValue(b -> b.startObject().field("min", "10.0").field("max", max).field("value_count", valueCount).endObject())
                 .errorMatches("Failed to parse object: expecting token of type [VALUE_NUMBER] but found [VALUE_STRING]"),
+            // Invalid metric value with additional data.
+            // `min` field triggers the error and all additional data should be preserved in synthetic source.
+            exampleMalformedValue(
+                b -> b.startObject()
+                    .field("max", max)
+                    .field("value_count", valueCount)
+                    .field("min", "10.0")
+                    .field("hello", randomString)
+                    .startObject("object")
+                    .field("hello", randomLong)
+                    .endObject()
+                    .array("list", randomString, randomString)
+                    .endObject()
+            ).errorMatches("Failed to parse object: expecting token of type [VALUE_NUMBER] but found [VALUE_STRING]"),
+            // metric is an object
+            exampleMalformedValue(
+                b -> b.startObject()
+                    .startObject("min")
+                    .field("hello", "world")
+                    .endObject()
+                    .field("max", max)
+                    .field("value_count", valueCount)
+                    .endObject()
+            ).errorMatches("Failed to parse object: expecting token of type [VALUE_NUMBER] but found [START_OBJECT]"),
+            // metric is an array
+            exampleMalformedValue(
+                b -> b.startObject().array("min", "hello", "world").field("max", max).field("value_count", valueCount).endObject()
+            ).errorMatches("Failed to parse object: expecting token of type [VALUE_NUMBER] but found [START_ARRAY]"),
             // negative value count
-            exampleMalformedValue(b -> b.startObject().field("min", 10.0).field("max", 50.0).field("value_count", -14).endObject())
-                .errorMatches("Aggregate metric [value_count] of field [field] cannot be a negative number"),
+            exampleMalformedValue(
+                b -> b.startObject().field("min", min).field("max", max).field("value_count", -1 * valueCount).endObject()
+            ).errorMatches("Aggregate metric [value_count] of field [field] cannot be a negative number"),
             // value count with decimal digits (whole numbers formatted as doubles are permitted, but non-whole numbers are not)
-            exampleMalformedValue(b -> b.startObject().field("min", 10.0).field("max", 50.0).field("value_count", 77.33).endObject())
+            exampleMalformedValue(b -> b.startObject().field("min", min).field("max", max).field("value_count", 77.33).endObject())
                 .errorMatches("failed to parse [value_count] sub field: 77.33 cannot be converted to Integer without data loss")
         );
     }
@@ -212,7 +255,7 @@ public class AggregateDoubleMetricFieldMapperTests extends MapperTestCase {
 
         // min > max
         Exception e = expectThrows(
-            MapperParsingException.class,
+            DocumentParsingException.class,
             () -> mapper.parse(
                 source(b -> b.startObject("field").field("min", 50.0).field("max", 10.0).field("value_count", 14).endObject())
             )
@@ -242,7 +285,7 @@ public class AggregateDoubleMetricFieldMapperTests extends MapperTestCase {
     public void testParseArrayValue() throws Exception {
         int randomNumber = randomIntBetween(0, 3);
         DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> randomMapping(b, randomNumber)));
-        Exception e = expectThrows(MapperParsingException.class, () -> mapper.parse(source(b -> {
+        Exception e = expectThrows(DocumentParsingException.class, () -> mapper.parse(source(b -> {
             b.startArray("field").startObject();
             switch (randomNumber) {
                 case 0 -> b.field("min", 10.0);
@@ -475,8 +518,7 @@ public class AggregateDoubleMetricFieldMapperTests extends MapperTestCase {
 
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed) {
-        assumeFalse("synthetic _source support for aggregate_double_metric doesn't support ignore_malformed", ignoreMalformed);
-        return new AggregateDoubleMetricSyntheticSourceSupport();
+        return new AggregateDoubleMetricSyntheticSourceSupport(ignoreMalformed);
     }
 
     @Override
@@ -484,14 +526,56 @@ public class AggregateDoubleMetricFieldMapperTests extends MapperTestCase {
         throw new AssumptionViolatedException("not supported");
     }
 
-    protected final class AggregateDoubleMetricSyntheticSourceSupport implements SyntheticSourceSupport {
+    public void testArrayValueSyntheticSource() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(
+            syntheticSourceFieldMapping(
+                b -> b.field("type", CONTENT_TYPE)
+                    .array("metrics", "min", "max")
+                    .field("default_metric", "min")
+                    .field("ignore_malformed", "true")
+            )
+        );
 
-        private final EnumSet<Metric> storedMetrics = EnumSet.copyOf(randomNonEmptySubsetOf(Arrays.asList(Metric.values())));
+        var randomString = randomAlphaOfLength(10);
+        CheckedConsumer<XContentBuilder, IOException> arrayValue = b -> {
+            b.startArray("field");
+            {
+                b.startObject().field("max", 100).field("min", 10).endObject();
+                b.startObject().field("max", 200).field("min", 20).endObject();
+                b.value(randomString);
+            }
+            b.endArray();
+        };
+
+        var expected = JsonXContent.contentBuilder().startObject();
+        // First value comes from synthetic field loader and so is formatted in a specific format (e.g. min always come first).
+        // Other values are stored as is as part of ignore_malformed logic for synthetic source.
+        {
+            expected.startArray("field");
+            expected.startObject().field("min", 10.0).field("max", 100.0).endObject();
+            expected.startObject().field("max", 200).field("min", 20).endObject();
+            expected.value(randomString);
+            expected.endArray();
+        }
+        expected.endObject();
+
+        var syntheticSource = syntheticSource(mapper, arrayValue);
+        assertEquals(Strings.toString(expected), syntheticSource);
+    }
+
+    protected final class AggregateDoubleMetricSyntheticSourceSupport implements SyntheticSourceSupport {
+        private final boolean malformedExample;
+        private final EnumSet<Metric> storedMetrics;
+
+        public AggregateDoubleMetricSyntheticSourceSupport(boolean malformedExample) {
+            this.malformedExample = malformedExample;
+            this.storedMetrics = EnumSet.copyOf(randomNonEmptySubsetOf(Arrays.asList(Metric.values())));
+        }
 
         @Override
         public SyntheticSourceExample example(int maxVals) {
             // aggregate_metric_double field does not support arrays
-            Map<String, Object> value = randomAggregateMetric();
+            Object value = randomAggregateMetric();
             return new SyntheticSourceExample(value, value, this::mapping);
         }
 
@@ -514,20 +598,20 @@ public class AggregateDoubleMetricFieldMapperTests extends MapperTestCase {
         private void mapping(XContentBuilder b) throws IOException {
             String[] metrics = storedMetrics.stream().map(Metric::toString).toArray(String[]::new);
             b.field("type", CONTENT_TYPE).array(METRICS_FIELD, metrics).field(DEFAULT_METRIC, metrics[0]);
+            if (malformedExample) {
+                b.field(IGNORE_MALFORMED, true);
+            }
         }
 
         @Override
         public List<SyntheticSourceInvalidExample> invalidExample() throws IOException {
-            return List.of(
-                new SyntheticSourceInvalidExample(
-                    matchesPattern("field \\[field] of type \\[.+] doesn't support synthetic source because it ignores malformed numbers"),
-                    b -> {
-                        mapping(b);
-                        b.field("ignore_malformed", true);
-                    }
-                )
-            );
+            return List.of();
         }
+    }
+
+    @Override
+    public void testSyntheticSourceKeepArrays() {
+        // The mapper expects to parse an array of values by default, it's not compatible with array of arrays.
     }
 
     @Override

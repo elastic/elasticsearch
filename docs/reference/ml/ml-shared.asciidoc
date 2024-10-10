@@ -1,3 +1,27 @@
+tag::adaptive-allocation[]
+Adaptive allocations configuration object.
+If enabled, the number of allocations of the model is set based on the current load the process gets.
+When the load is high, a new model allocation is automatically created (respecting the value of `max_number_of_allocations` if it's set).
+When the load is low, a model allocation is automatically removed (respecting the value of `min_number_of_allocations` if it's set).
+The number of model allocations cannot be scaled down to less than `1` this way.
+If `adaptive_allocations` is enabled, do not set the number of allocations manually.
+end::adaptive-allocation[]
+
+tag::adaptive-allocation-enabled[]
+If `true`, `adaptive_allocations` is enabled.
+Defaults to `false`.
+end::adaptive-allocation-enabled[]
+
+tag::adaptive-allocation-max-number[]
+Specifies the maximum number of allocations to scale to.
+If set, it must be greater than or equal to `min_number_of_allocations`.
+end::adaptive-allocation-max-number[]
+
+tag::adaptive-allocation-min-number[]
+Specifies the minimum number of allocations to scale to.
+If set, it must be greater than or equal to `1`.
+end::adaptive-allocation-min-number[]
+
 tag::aggregations[]
 If set, the {dfeed} performs aggregation searches. Support for aggregations is
 limited and should be used only with low cardinality data. For more information,
@@ -234,15 +258,15 @@ is an object it has the following properties:
 =====
 `char_filter`::::
 (array of strings or objects)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=char-filter]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=char-filter]
 
 `tokenizer`::::
 (string or object)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=tokenizer]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=tokenizer]
 
 `filter`::::
 (array of strings or objects)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=filter]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=filter]
 =====
 end::categorization-analyzer[]
 
@@ -360,6 +384,10 @@ model. Unless you also specify `skip_result`, the results will be created as
 usual. This action is suitable when certain values are expected to be
 consistently anomalous and they affect the model in a way that negatively
 impacts the rest of the results.
+* `force_time_shift`: This action will shift the time inside the anomaly detector by a specified
+amount. This is useful, e.g. to quickly adapt to the daylight saving time events that
+are known beforehand. This action requires a `force_time_shift` parameter
+in the `params` object.
 end::custom-rules-actions[]
 
 tag::custom-rules-scope[]
@@ -404,8 +432,18 @@ tag::custom-rules-conditions-value[]
 The value that is compared against the `applies_to` field using the `operator`.
 end::custom-rules-conditions-value[]
 
+tag::custom-rules-params[]
+A set of parameter objects that customize the actions defined in the custom rules
+actions array. The available parameters (depending on the specified actions) include:
+`force_time_shift`.
+end::custom-rules-params[]
+
+tag::custom-rules-params-force-time-shift[]
+Set `time_shift_amount` to the signed number of seconds by which you want to shift the time.
+end::custom-rules-params-force-time-shift[]
+
 tag::custom-settings[]
-Advanced configuration option. Contains custom meta data about the job. For
+Advanced configuration option. Contains custom metadata about the job. For
 example, it can contain custom URL information as shown in
 {ml-docs}/ml-configuring-url.html[Adding custom URLs to {ml} results].
 end::custom-settings[]
@@ -419,20 +457,28 @@ of the most recent snapshot for this job. Valid values range from `0` to
 jobs created before version 7.8.0, the default value matches
 `model_snapshot_retention_days`. For more information, refer to
 {ml-docs}/ml-ad-run-jobs.html#ml-ad-model-snapshots[Model snapshots].
++
+--
+NOTE: From {es} 8.10.0,  a new version number is used to
+track the configuration and state changes in the {ml} plugin. This new
+version number is decoupled from the product version and will increment
+independently.
+--
 end::daily-model-snapshot-retention-after-days[]
 
 tag::data-description[]
 The data description defines the format of the input data when you send data to
-the job by using the <<ml-post-data,post data>> API. Note that when configure
-a {dfeed}, these properties are automatically set. When data is received via
-the <<ml-post-data,post data>> API, it is not stored in {es}. Only the results
-for {anomaly-detect} are retained.
+the job by using the <<ml-post-data,post data>> API. Note that when using a
+{dfeed}, only the `time_field` needs to be set, the rest of the properties are
+automatically set. When data is received via the <<ml-post-data,post data>> API,
+it is not stored in {es}. Only the results for {anomaly-detect} are retained.
 +
 .Properties of `data_description`
 [%collapsible%open]
 ====
 `format`:::
-  (string) Only `JSON` format is supported at this time.
+  (string) Only `xcontent` format is supported at this time, and this is the
+  default value.
 
 `time_field`:::
   (string) The name of the field that contains the timestamp.
@@ -440,7 +486,7 @@ for {anomaly-detect} are retained.
 
 `time_format`:::
 (string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=time-format]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=time-format]
 ====
 end::data-description[]
 
@@ -497,6 +543,10 @@ the index being used to train. If this field is missing from a document, then
 that document will not be used for training, but a prediction with the trained
 model will be generated for it. It is also known as continuous target variable.
 end::dependent-variable[]
+
+tag::deployment-id[]
+A unique identifier for the deployment of the model.
+end::deployment-id[]
 
 tag::desc-results[]
 If true, the results are sorted in descending order.
@@ -887,7 +937,7 @@ For example:
    "ignore_throttled": true
 }
 ```
-For more information about these options, see <<multi-index>>.
+For more information about these options, see <<api-multi-index>>.
 --
 end::indices-options[]
 
@@ -901,7 +951,7 @@ For example:
   "day_of_week": {
     "type": "keyword",
     "script": {
-      "source": "emit(doc['@timestamp'].value.dayOfWeekEnum.getDisplayName(TextStyle.FULL, Locale.ROOT))"
+      "source": "emit(doc['@timestamp'].value.dayOfWeekEnum.getDisplayName(TextStyle.FULL, Locale.ENGLISH))"
     }
   }
 }
@@ -938,14 +988,23 @@ values are
 +
 --
 * `bert`: Use for BERT-style models
+* `deberta_v2`: Use for DeBERTa v2 and v3-style models
 * `mpnet`: Use for MPNet-style models
 * `roberta`: Use for RoBERTa-style and BART-style models
+* experimental:[] `xlm_roberta`: Use for XLMRoBERTa-style models
+* experimental:[] `bert_ja`: Use for BERT-style models trained for the Japanese
+language.
 --
 end::inference-config-nlp-tokenization[]
 
 tag::inference-config-nlp-tokenization-bert[]
 BERT-style tokenization is to be performed with the enclosed settings.
 end::inference-config-nlp-tokenization-bert[]
+
+tag::inference-config-nlp-tokenization-bert-ja[]
+experimental:[] BERT-style tokenization for Japanese text is to be performed
+with the enclosed settings.
+end::inference-config-nlp-tokenization-bert-ja[]
 
 tag::inference-config-nlp-tokenization-do-lower-case[]
 Specifies if the tokenization lower case the text sequence when building the
@@ -979,6 +1038,19 @@ sequence. Therefore, do not use `second` in this case.
 
 end::inference-config-nlp-tokenization-truncate[]
 
+tag::inference-config-nlp-tokenization-truncate-deberta-v2[]
+Indicates how tokens are truncated when they exceed `max_sequence_length`.
+The default value is `first`.
++
+--
+* `balanced`: One or both of the first and second sequences may be truncated so as to balance the tokens included from both sequences.
+* `none`: No truncation occurs; the inference request receives an error.
+* `first`: Only the first sequence is truncated.
+* `second`: Only the second sequence is truncated. If there is just one sequence, that sequence is truncated.
+--
+
+end::inference-config-nlp-tokenization-truncate-deberta-v2[]
+
 tag::inference-config-nlp-tokenization-bert-with-special-tokens[]
 Tokenize with special tokens. The tokens typically included in BERT-style tokenization are:
 +
@@ -988,9 +1060,26 @@ Tokenize with special tokens. The tokens typically included in BERT-style tokeni
 --
 end::inference-config-nlp-tokenization-bert-with-special-tokens[]
 
+tag::inference-config-nlp-tokenization-bert-ja-with-special-tokens[]
+Tokenize with special tokens if `true`.
+end::inference-config-nlp-tokenization-bert-ja-with-special-tokens[]
+
+tag::inference-config-nlp-tokenization-deberta-v2[]
+DeBERTa-style tokenization is to be performed with the enclosed settings.
+end::inference-config-nlp-tokenization-deberta-v2[]
+
 tag::inference-config-nlp-tokenization-max-sequence-length[]
 Specifies the maximum number of tokens allowed to be output by the tokenizer.
 end::inference-config-nlp-tokenization-max-sequence-length[]
+
+tag::inference-config-nlp-tokenization-deberta-v2-with-special-tokens[]
+Tokenize with special tokens. The tokens typically included in DeBERTa-style tokenization are:
++
+--
+* `[CLS]`: The first token of the sequence being classified.
+* `[SEP]`: Indicates sequence separation and sequence end.
+--
+end::inference-config-nlp-tokenization-deberta-v2-with-special-tokens[]
 
 tag::inference-config-nlp-tokenization-roberta[]
 RoBERTa-style tokenization is to be performed with the enclosed settings.
@@ -1021,6 +1110,10 @@ Tokenize with special tokens. The tokens typically included in MPNet-style token
 * `</s>`: Indicates sequence separation.
 --
 end::inference-config-nlp-tokenization-mpnet-with-special-tokens[]
+
+tag::inference-config-nlp-tokenization-xlm-roberta[]
+experimental:[] XLMRoBERTa-style tokenization is to be performed with the enclosed settings.
+end::inference-config-nlp-tokenization-xlm-roberta[]
 
 tag::inference-config-nlp-vocabulary[]
 The configuration for retrieving the vocabulary of the model. The vocabulary is
@@ -1070,6 +1163,10 @@ context. These embeddings can be used in a <<dense-vector,dense vector>> field
 for powerful insights.
 end::inference-config-text-embedding[]
 
+tag::inference-config-text-embedding-size[]
+The number of dimensions in the embedding vector produced by the model.
+end::inference-config-text-embedding-size[]
+
 tag::inference-config-text-similarity[]
 Text similarity takes an input sequence and compares it with another input sequence. This is commonly referred to
 as cross-encoding. This task is useful for ranking document text when comparing it to another provided text input.
@@ -1100,6 +1197,10 @@ tag::inference-config-results-field[]
 The field that is added to incoming documents to contain the inference
 prediction. Defaults to `predicted_value`.
 end::inference-config-results-field[]
+
+tag::inference-config-mask-token[]
+The string/token which will be removed from incoming documents and replaced with the inference prediction(s). In a response, this field contains the mask token for the specified model/tokenizer. Each model and tokenizer has a predefined mask token which cannot be changed. Thus, it is recommended not to set this value in requests. However, if this field is present in a request, its value must match the predefined value for that model/tokenizer, otherwise the request will fail.
+end::inference-config-mask-token[]
 
 tag::inference-config-results-field-processor[]
 The field that is added to incoming documents to contain the inference
@@ -1249,6 +1350,10 @@ tag::job-id-datafeed[]
 The unique identifier for the job to which the {dfeed} sends data.
 end::job-id-datafeed[]
 
+tag::output-memory-allocator-bytes[]
+The amount of memory, in bytes, used to output {anomaly-job} documents.
+end::output-memory-allocator-bytes[]
+
 tag::lambda[]
 Advanced configuration option. Regularization parameter to prevent overfitting
 on the training data set. Multiplies an L2 regularization term which applies to
@@ -1310,6 +1415,11 @@ tag::max-trees-trained-models[]
 The maximum number of decision trees in the forest. The maximum value is 2000.
 By default, this value is calculated during hyperparameter optimization.
 end::max-trees-trained-models[]
+
+tag::meta[]
+Advanced configuration option. Contains custom metadata about the job. For
+example, it can contain custom URL information.
+end::meta[]
 
 tag::method[]
 The method that {oldetection} uses. Available methods are `lof`, `ldof`,
@@ -1377,6 +1487,13 @@ the cluster, capped at `1024mb`. The default value is relatively small to
 ensure that high resource usage is a conscious decision. If you have jobs that
 are expected to analyze high cardinality fields, you will likely need to use a
 higher value.
++
+--
+NOTE: From {es} 8.10.0,  a new version number is used to
+track the configuration and state changes in the {ml} plugin. This new
+version number is decoupled from the product version and will increment
+independently.
+--
 +
 If you specify a number instead of a string, the units are assumed to be MiB.
 Specifying a string is recommended for clarity. If you specify a byte size unit
@@ -1823,6 +1940,11 @@ tokenizer in old versions of the product (before 6.2). `ml_classic` was
 the default categorization tokenizer in versions 6.2 to 7.13, so if you
 need categorization identical to the default for jobs created in these
 versions, specify `"tokenizer": "ml_classic"` in your `categorization_analyzer`.
+
+NOTE: From {es} 8.10.0,  a new version number is used to
+track the configuration and state changes in the {ml} plugin. This new
+version number is decoupled from the product version and will increment
+independently.
 end::tokenizer[]
 
 tag::total-by-field-count[]

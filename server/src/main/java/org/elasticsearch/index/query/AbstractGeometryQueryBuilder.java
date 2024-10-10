@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.query;
@@ -11,7 +12,7 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.client.internal.Client;
@@ -27,6 +28,8 @@ import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.geometry.Geometry;
+import org.elasticsearch.geometry.GeometryCollection;
+import org.elasticsearch.geometry.ShapeType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -110,10 +113,25 @@ public abstract class AbstractGeometryQueryBuilder<QB extends AbstractGeometryQu
         if (shape == null && indexedShapeId == null) {
             throw new IllegalArgumentException("either shape or indexedShapeId is required");
         }
+        if (shape != null) {
+            checkGeometry(shape);
+        }
         this.fieldName = fieldName;
         this.shape = shape;
         this.indexedShapeId = indexedShapeId;
         this.supplier = null;
+    }
+
+    private static void checkGeometry(Geometry geometry) {
+        // linear ring geometries are not serializable, fail at construction time.
+        if (geometry.type() == ShapeType.LINEARRING) {
+            throw new IllegalArgumentException("[" + ShapeType.LINEARRING + "] geometries are not supported");
+        }
+        if (geometry instanceof GeometryCollection<?> collection) {
+            for (Geometry geometry1 : collection) {
+                checkGeometry(geometry1);
+            }
+        }
     }
 
     protected AbstractGeometryQueryBuilder(String fieldName, Supplier<Geometry> supplier, String indexedShapeId) {
@@ -141,7 +159,7 @@ public abstract class AbstractGeometryQueryBuilder<QB extends AbstractGeometryQu
         } else {
             shape = null;
             indexedShapeId = in.readOptionalString();
-            if (in.getTransportVersion().before(TransportVersion.V_8_0_0)) {
+            if (in.getTransportVersion().before(TransportVersions.V_8_0_0)) {
                 String type = in.readOptionalString();
                 assert MapperService.SINGLE_MAPPING_NAME.equals(type) : "Expected type [_doc], got [" + type + "]";
             }
@@ -166,7 +184,7 @@ public abstract class AbstractGeometryQueryBuilder<QB extends AbstractGeometryQu
             GeometryIO.writeGeometry(out, shape);
         } else {
             out.writeOptionalString(indexedShapeId);
-            if (out.getTransportVersion().before(TransportVersion.V_8_0_0)) {
+            if (out.getTransportVersion().before(TransportVersions.V_8_0_0)) {
                 out.writeOptionalString(MapperService.SINGLE_MAPPING_NAME);
             }
             out.writeOptionalString(indexedShapeIndex);
@@ -195,6 +213,7 @@ public abstract class AbstractGeometryQueryBuilder<QB extends AbstractGeometryQu
         if (geometry == null) {
             throw new IllegalArgumentException("No geometry defined");
         }
+        checkGeometry(geometry);
         this.shape = geometry;
         return (QB) this;
     }
@@ -476,10 +495,10 @@ public abstract class AbstractGeometryQueryBuilder<QB extends AbstractGeometryQu
             queryRewriteContext.registerAsyncAction((client, listener) -> {
                 GetRequest getRequest = new GetRequest(indexedShapeIndex, indexedShapeId);
                 getRequest.routing(indexedShapeRouting);
-                fetch(client, getRequest, indexedShapePath, ActionListener.wrap(builder -> {
+                fetch(client, getRequest, indexedShapePath, listener.delegateFailureAndWrap((l, builder) -> {
                     supplier.set(builder);
                     listener.onResponse(null);
-                }, listener::onFailure));
+                }));
             });
             return newShapeQueryBuilder(this.fieldName, supplier::get, this.indexedShapeId).relation(relation);
         }

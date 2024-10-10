@@ -1,16 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.analysis;
 
 import org.apache.lucene.analysis.TokenFilter;
 import org.apache.lucene.analysis.TokenStream;
-import org.elasticsearch.Version;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.indices.analysis.PreBuiltCacheFactory;
 import org.elasticsearch.indices.analysis.PreBuiltCacheFactory.CachingStrategy;
 
@@ -70,49 +71,43 @@ public final class PreConfiguredTokenFilter extends PreConfiguredAnalysisCompone
             useFilterForMultitermQueries,
             true,
             CachingStrategy.LUCENE,
-            (tokenStream, version) -> create.apply(tokenStream, version.luceneVersion)
+            (tokenStream, version) -> create.apply(tokenStream, version.luceneVersion())
         );
     }
 
     /**
-     * Create a pre-configured token filter that may vary based on the Elasticsearch version.
+     * Create a pre-configured token filter that may vary based on the index version.
      */
-    public static PreConfiguredTokenFilter elasticsearchVersion(
+    public static PreConfiguredTokenFilter indexVersion(
         String name,
         boolean useFilterForMultitermQueries,
-        BiFunction<TokenStream, org.elasticsearch.Version, TokenStream> create
+        BiFunction<TokenStream, IndexVersion, TokenStream> create
     ) {
-        return new PreConfiguredTokenFilter(name, useFilterForMultitermQueries, true, CachingStrategy.ELASTICSEARCH, create);
+        return new PreConfiguredTokenFilter(name, useFilterForMultitermQueries, true, CachingStrategy.INDEX, create);
     }
 
     /**
-     * Create a pre-configured token filter that may vary based on the Elasticsearch version.
+     * Create a pre-configured token filter that may vary based on the index version.
      */
-    public static PreConfiguredTokenFilter elasticsearchVersion(
+    public static PreConfiguredTokenFilter indexVersion(
         String name,
         boolean useFilterForMultitermQueries,
         boolean useFilterForParsingSynonyms,
-        BiFunction<TokenStream, Version, TokenStream> create
+        BiFunction<TokenStream, IndexVersion, TokenStream> create
     ) {
-        return new PreConfiguredTokenFilter(
-            name,
-            useFilterForMultitermQueries,
-            useFilterForParsingSynonyms,
-            CachingStrategy.ELASTICSEARCH,
-            create
-        );
+        return new PreConfiguredTokenFilter(name, useFilterForMultitermQueries, useFilterForParsingSynonyms, CachingStrategy.INDEX, create);
     }
 
     private final boolean useFilterForMultitermQueries;
     private final boolean allowForSynonymParsing;
-    private final BiFunction<TokenStream, Version, TokenStream> create;
+    private final BiFunction<TokenStream, IndexVersion, TokenStream> create;
 
     private PreConfiguredTokenFilter(
         String name,
         boolean useFilterForMultitermQueries,
         boolean allowForSynonymParsing,
         PreBuiltCacheFactory.CachingStrategy cache,
-        BiFunction<TokenStream, Version, TokenStream> create
+        BiFunction<TokenStream, IndexVersion, TokenStream> create
     ) {
         super(name, cache);
         this.useFilterForMultitermQueries = useFilterForMultitermQueries;
@@ -120,15 +115,8 @@ public final class PreConfiguredTokenFilter extends PreConfiguredAnalysisCompone
         this.create = create;
     }
 
-    /**
-     * Can this {@link TokenFilter} be used in multi-term queries?
-     */
-    public boolean shouldUseFilterForMultitermQueries() {
-        return useFilterForMultitermQueries;
-    }
-
     @Override
-    protected TokenFilterFactory create(Version version) {
+    protected TokenFilterFactory create(IndexVersion version) {
         if (useFilterForMultitermQueries) {
             return new NormalizingTokenFilterFactory() {
 

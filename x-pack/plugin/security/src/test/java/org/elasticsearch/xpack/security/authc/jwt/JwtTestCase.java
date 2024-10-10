@@ -623,7 +623,7 @@ public abstract class JwtTestCase extends ESTestCase {
         if (sharedSecret != null) {
             requestThreadContext.putHeader(
                 JwtRealm.HEADER_CLIENT_AUTHENTICATION,
-                JwtRealm.HEADER_SHARED_SECRET_AUTHENTICATION_SCHEME + " " + sharedSecret
+                JwtRealmSettings.HEADER_SHARED_SECRET_AUTHENTICATION_SCHEME + " " + sharedSecret
             );
         }
         return requestThreadContext;

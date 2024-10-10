@@ -49,7 +49,7 @@ public class GetJobModelSnapshotsUpgradeStatsAction extends ActionType<GetJobMod
     public static String TYPE = "model_snapshot_upgrade";
 
     private GetJobModelSnapshotsUpgradeStatsAction() {
-        super(NAME, GetJobModelSnapshotsUpgradeStatsAction.Response::new);
+        super(NAME);
     }
 
     public static class Request extends MasterNodeReadRequest<GetJobModelSnapshotsUpgradeStatsAction.Request> {
@@ -61,6 +61,7 @@ public class GetJobModelSnapshotsUpgradeStatsAction extends ActionType<GetJobMod
         private boolean allowNoMatch = true;
 
         public Request(String jobId, String snapshotId) {
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
             this.jobId = ExceptionsHelper.requireNonNull(jobId, Job.ID.getPreferredName());
             this.snapshotId = ExceptionsHelper.requireNonNull(snapshotId, SNAPSHOT_ID.getPreferredName());
         }

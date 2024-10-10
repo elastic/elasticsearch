@@ -285,7 +285,7 @@ public class WatcherSearchTemplateRequest implements ToXContentObject {
 
     @Override
     public int hashCode() {
-        return Objects.hash(indices, searchType, indicesOptions, searchSource, template, restTotalHitsAsInt);
+        return Objects.hash(Arrays.hashCode(indices), searchType, indicesOptions, searchSource, template, restTotalHitsAsInt);
     }
 
     private static final ParseField INDICES_FIELD = new ParseField("indices");

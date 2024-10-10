@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.aggregations.pipeline;
@@ -12,36 +13,16 @@ import org.elasticsearch.aggregations.AggregationsPlugin;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.aggregations.Aggregation;
-import org.elasticsearch.search.aggregations.ParsedAggregation;
-import org.elasticsearch.search.aggregations.pipeline.ParsedDerivative;
 import org.elasticsearch.test.InternalAggregationTestCase;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
-import org.elasticsearch.xcontent.ParseField;
 
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Stream;
 
 public class DerivativeResultTests extends InternalAggregationTestCase<Derivative> {
     @Override
     protected SearchPlugin registerPlugin() {
         return new AggregationsPlugin();
-    }
-
-    @Override
-    protected List<NamedXContentRegistry.Entry> getNamedXContents() {
-        return Stream.concat(
-            super.getNamedXContents().stream(),
-            Stream.of(
-                new NamedXContentRegistry.Entry(
-                    Aggregation.class,
-                    new ParseField(DerivativePipelineAggregationBuilder.NAME),
-                    (p, c) -> ParsedDerivative.fromXContent(p, (String) c)
-                )
-            )
-        ).toList();
     }
 
     @Override
@@ -56,25 +37,12 @@ public class DerivativeResultTests extends InternalAggregationTestCase<Derivativ
 
     @Override
     public void testReduceRandom() {
-        expectThrows(UnsupportedOperationException.class, () -> createTestInstance("name", null).reduce(null, null));
+        expectThrows(UnsupportedOperationException.class, () -> createTestInstance("name", null).getReducer(null, 0));
     }
 
     @Override
     protected void assertReduced(Derivative reduced, List<Derivative> inputs) {
         // no test since reduce operation is unsupported
-    }
-
-    @Override
-    protected void assertFromXContent(Derivative derivative, ParsedAggregation parsedAggregation) {
-        ParsedDerivative parsed = ((ParsedDerivative) parsedAggregation);
-        if (Double.isInfinite(derivative.getValue()) == false && Double.isNaN(derivative.getValue()) == false) {
-            assertEquals(derivative.getValue(), parsed.value(), Double.MIN_VALUE);
-            assertEquals(derivative.getValueAsString(), parsed.getValueAsString());
-        } else {
-            // we write Double.NEGATIVE_INFINITY, Double.POSITIVE amd Double.NAN to xContent as 'null', so we
-            // cannot differentiate between them. Also we cannot recreate the exact String representation
-            assertEquals(parsed.value(), Double.NaN, Double.MIN_VALUE);
-        }
     }
 
     @Override

@@ -1,0 +1,61 @@
+---
+setup:
+  - do:
+      cluster.health:
+        wait_for_events: languid
+
+---
+"Test logs-apm.error-* error grouping":
+  - do:
+      bulk:
+        index: logs-apm.error-testing
+        refresh: true
+        body:
+          # No error object field
+          - create: {}
+          - '{"@timestamp": "2017-06-22"}'
+
+          # Empty error object
+          - create: {}
+          - '{"@timestamp": "2017-06-22", "error": {}}'
+
+          # Empty error.log object
+          - create: {}
+          - '{"@timestamp": "2017-06-22", "error": {"log": {}}}'
+
+          # Empty error.exception array
+          - create: {}
+          - '{"@timestamp": "2017-06-22", "error": {"exception": []}}'
+
+          # Empty error.exception object
+          - create: {}
+          - '{"@timestamp": "2017-06-22", "error": {"exception": [{}]}}'
+
+          # Non-empty error.log.message used
+          - create: {}
+          - '{"@timestamp": "2017-06-22", "error": {"log": {"message": "log_used"}, "exception": [{"message": "ignored"}]}}'
+
+          # Non-empty error.exception.message used
+          - create: {}
+          - '{"@timestamp": "2017-06-22", "error": {"log": {"message": ""}, "exception": [{"message": "exception_used"}]}}'
+
+          # Non-empty error.exception.message used from array
+          - create: {}
+          - '{"@timestamp": "2017-06-22", "error": {"log": {"message": ""}, "exception": [{"message": "first_exception_used"}, {"message": "2_ignored"}]}}'
+
+  - is_false: errors
+
+  - do:
+      search:
+        index: logs-apm.error-testing
+        body:
+          fields: ["error.grouping_name"]
+  - length: { hits.hits: 8 }
+  - match: { hits.hits.0.fields: null }
+  - match: { hits.hits.1.fields: null }
+  - match: { hits.hits.2.fields: null }
+  - match: { hits.hits.3.fields: null }
+  - match: { hits.hits.4.fields: null }
+  - match: { hits.hits.5.fields: {"error.grouping_name": ["log_used"]} }
+  - match: { hits.hits.6.fields: {"error.grouping_name": ["exception_used"]} }
+  - match: { hits.hits.7.fields: {"error.grouping_name": ["first_exception_used"]} }

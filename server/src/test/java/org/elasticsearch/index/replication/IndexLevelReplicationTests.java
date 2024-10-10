@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.index.replication;
 
@@ -47,6 +48,7 @@ import org.hamcrest.Matcher;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
@@ -63,6 +65,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -105,7 +108,7 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
                 public void run() {
                     try {
                         latch.countDown();
-                        latch.await();
+                        safeAwait(latch);
                         shards.appendDocs(numDocs - 1);
                     } catch (Exception e) {
                         throw new AssertionError(e);
@@ -116,7 +119,7 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
             IndexShard replica = shards.addReplica();
             Future<Void> future = shards.asyncRecoverReplica(
                 replica,
-                (indexShard, node) -> new RecoveryTarget(indexShard, node, null, null, recoveryListener) {
+                (indexShard, node) -> new RecoveryTarget(indexShard, node, 0L, null, null, recoveryListener) {
                     @Override
                     public void cleanFiles(
                         int totalTranslogOps,
@@ -126,11 +129,7 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
                     ) {
                         super.cleanFiles(totalTranslogOps, globalCheckpoint, sourceMetadata, ActionListener.runAfter(listener, () -> {
                             latch.countDown();
-                            try {
-                                latch.await();
-                            } catch (InterruptedException e) {
-                                throw new AssertionError(e);
-                            }
+                            safeAwait(latch);
                         }));
                     }
                 }
@@ -175,11 +174,7 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
                             indexedOnPrimary.countDown();
                             // prevent the indexing on the primary from returning (it was added to Lucene and translog already)
                             // to make sure that this operation is replicated to the replica via recovery, then via replication.
-                            try {
-                                recoveryDone.await();
-                            } catch (InterruptedException e) {
-                                throw new AssertionError(e);
-                            }
+                            safeAwait(recoveryDone);
                         }
                         return result;
                     }
@@ -199,14 +194,10 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
             IndexShard replica = shards.addReplica();
             Future<Void> fut = shards.asyncRecoverReplica(
                 replica,
-                (shard, node) -> new RecoveryTarget(shard, node, null, null, recoveryListener) {
+                (shard, node) -> new RecoveryTarget(shard, node, 0L, null, null, recoveryListener) {
                     @Override
                     public void prepareForTranslogOperations(int totalTranslogOps, ActionListener<Void> listener) {
-                        try {
-                            indexedOnPrimary.await();
-                        } catch (InterruptedException e) {
-                            throw new AssertionError(e);
-                        }
+                        safeAwait(indexedOnPrimary);
                         super.prepareForTranslogOperations(totalTranslogOps, listener);
                     }
                 }
@@ -444,6 +435,14 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
                 } else {
                     throw indexException;
                 }
+            }
+
+            @Override
+            public long addDocuments(Iterable<? extends Iterable<? extends IndexableField>> docs) throws IOException {
+                @SuppressWarnings("unchecked")
+                Collection<Iterable<? extends IndexableField>> col = asInstanceOf(Collection.class, docs);
+                assertThat(col, hasSize(1));
+                return addDocument(col.iterator().next());
             }
         }, null, null, config);
         try (ReplicationGroup shards = new ReplicationGroup(buildIndexMetadata(0)) {

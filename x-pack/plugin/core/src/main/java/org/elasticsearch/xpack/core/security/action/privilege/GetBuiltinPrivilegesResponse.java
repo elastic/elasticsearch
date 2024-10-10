@@ -7,8 +7,8 @@
 package org.elasticsearch.xpack.core.security.action.privilege;
 
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
@@ -17,30 +17,33 @@ import java.util.Collections;
 import java.util.Objects;
 
 /**
- * Response containing one or more application privileges retrieved from the security index
+ * Response containing built-in (cluster/index) privileges
  */
 public final class GetBuiltinPrivilegesResponse extends ActionResponse {
 
-    private String[] clusterPrivileges;
-    private String[] indexPrivileges;
+    private final String[] clusterPrivileges;
+    private final String[] indexPrivileges;
+    private final String[] remoteClusterPrivileges;
 
-    public GetBuiltinPrivilegesResponse(String[] clusterPrivileges, String[] indexPrivileges) {
-        this.clusterPrivileges = Objects.requireNonNull(clusterPrivileges, "Cluster privileges cannot be null");
-        this.indexPrivileges = Objects.requireNonNull(indexPrivileges, "Index privileges cannot be null");
+    // used by serverless
+    public GetBuiltinPrivilegesResponse(Collection<String> clusterPrivileges, Collection<String> indexPrivileges) {
+        this(clusterPrivileges, indexPrivileges, Collections.emptySet());
     }
 
-    public GetBuiltinPrivilegesResponse(Collection<String> clusterPrivileges, Collection<String> indexPrivileges) {
-        this(clusterPrivileges.toArray(Strings.EMPTY_ARRAY), indexPrivileges.toArray(Strings.EMPTY_ARRAY));
+    public GetBuiltinPrivilegesResponse(
+        Collection<String> clusterPrivileges,
+        Collection<String> indexPrivileges,
+        Collection<String> remoteClusterPrivileges
+    ) {
+        this.clusterPrivileges = Objects.requireNonNull(clusterPrivileges, "Cluster privileges cannot be null")
+            .toArray(Strings.EMPTY_ARRAY);
+        this.indexPrivileges = Objects.requireNonNull(indexPrivileges, "Index privileges cannot be null").toArray(Strings.EMPTY_ARRAY);
+        this.remoteClusterPrivileges = Objects.requireNonNull(remoteClusterPrivileges, "Remote cluster privileges cannot be null")
+            .toArray(Strings.EMPTY_ARRAY);
     }
 
     public GetBuiltinPrivilegesResponse() {
-        this(Collections.emptySet(), Collections.emptySet());
-    }
-
-    public GetBuiltinPrivilegesResponse(StreamInput in) throws IOException {
-        super(in);
-        this.clusterPrivileges = in.readStringArray();
-        this.indexPrivileges = in.readStringArray();
+        this(Collections.emptySet(), Collections.emptySet(), Collections.emptySet());
     }
 
     public String[] getClusterPrivileges() {
@@ -51,9 +54,12 @@ public final class GetBuiltinPrivilegesResponse extends ActionResponse {
         return indexPrivileges;
     }
 
+    public String[] getRemoteClusterPrivileges() {
+        return remoteClusterPrivileges;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeStringArray(clusterPrivileges);
-        out.writeStringArray(indexPrivileges);
+        TransportAction.localOnly();
     }
 }

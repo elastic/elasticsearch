@@ -1,0 +1,25 @@
+{
+  "settings": {
+    "index" : {
+      "number_of_replicas" : 0,
+      "number_of_shards": 1
+    }
+  },
+  "mappings": {
+    "_doc": {
+      "dynamic": "false",
+      "date_detection": false,
+      "properties": {
+        "@timestamp": {
+          "type": "date"
+        },
+        "transaction.profiler_stack_trace_ids": {
+          "type": "counted_keyword"
+        },
+        "transaction.name": {
+          "type": "keyword"
+        }
+      }
+    }
+  }
+}

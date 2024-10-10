@@ -20,6 +20,7 @@ index settings, aliases, mappings, and index templates.
 * <<indices-rollover-index>>
 * <<unfreeze-index-api>>
 * <<indices-resolve-index-api>>
+* <<indices-resolve-cluster-api>>
 * <<indices-downsample-data-stream>>
 
 [discrete]
@@ -130,6 +131,7 @@ include::indices/dangling-indices-list.asciidoc[]
 include::indices/open-close.asciidoc[]
 include::indices/refresh.asciidoc[]
 include::indices/resolve.asciidoc[]
+include::indices/resolve-cluster.asciidoc[]
 include::indices/rollover-index.asciidoc[]
 include::indices/shrink-index.asciidoc[]
 include::indices/simulate-index.asciidoc[]

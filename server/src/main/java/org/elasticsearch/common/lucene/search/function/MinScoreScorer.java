@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.lucene.search.function;
@@ -17,17 +18,22 @@ import java.io.IOException;
 
 /** A {@link Scorer} that filters out documents that have a score that is
  *  lower than a configured constant. */
-final class MinScoreScorer extends Scorer {
+public final class MinScoreScorer extends Scorer {
 
     private final Scorer in;
     private final float minScore;
-
     private float curScore;
+    private final float boost;
 
-    MinScoreScorer(Weight weight, Scorer scorer, float minScore) {
+    public MinScoreScorer(Weight weight, Scorer scorer, float minScore) {
+        this(weight, scorer, minScore, 1f);
+    }
+
+    public MinScoreScorer(Weight weight, Scorer scorer, float minScore, float boost) {
         super(weight);
         this.in = scorer;
         this.minScore = minScore;
+        this.boost = boost;
     }
 
     @Override
@@ -37,7 +43,7 @@ final class MinScoreScorer extends Scorer {
 
     @Override
     public float score() {
-        return curScore;
+        return curScore * boost;
     }
 
     @Override

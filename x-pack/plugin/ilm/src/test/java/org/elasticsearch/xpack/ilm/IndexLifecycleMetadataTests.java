@@ -43,7 +43,6 @@ import org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType;
 import org.elasticsearch.xpack.core.ilm.UnfollowAction;
 import org.elasticsearch.xpack.core.ilm.WaitForSnapshotAction;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -51,6 +50,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.SortedMap;
 import java.util.TreeMap;
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.xpack.ilm.LifecyclePolicyTestsUtils.newTestLifecyclePolicy;
 import static org.elasticsearch.xpack.ilm.LifecyclePolicyTestsUtils.randomTimeseriesLifecyclePolicy;
@@ -72,7 +72,7 @@ public class IndexLifecycleMetadataTests extends ChunkedToXContentDiffableSerial
     }
 
     @Override
-    protected IndexLifecycleMetadata doParseInstance(XContentParser parser) throws IOException {
+    protected IndexLifecycleMetadata doParseInstance(XContentParser parser) {
         return IndexLifecycleMetadata.PARSER.apply(parser, null);
     }
 
@@ -95,7 +95,7 @@ public class IndexLifecycleMetadataTests extends ChunkedToXContentDiffableSerial
                 new NamedWriteableRegistry.Entry(LifecycleAction.class, DeleteAction.NAME, DeleteAction::readFrom),
                 new NamedWriteableRegistry.Entry(LifecycleAction.class, ForceMergeAction.NAME, ForceMergeAction::new),
                 new NamedWriteableRegistry.Entry(LifecycleAction.class, ReadOnlyAction.NAME, ReadOnlyAction::new),
-                new NamedWriteableRegistry.Entry(LifecycleAction.class, RolloverAction.NAME, RolloverAction::new),
+                new NamedWriteableRegistry.Entry(LifecycleAction.class, RolloverAction.NAME, RolloverAction::read),
                 new NamedWriteableRegistry.Entry(LifecycleAction.class, ShrinkAction.NAME, ShrinkAction::new),
                 new NamedWriteableRegistry.Entry(LifecycleAction.class, FreezeAction.NAME, in -> FreezeAction.INSTANCE),
                 new NamedWriteableRegistry.Entry(LifecycleAction.class, SetPriorityAction.NAME, SetPriorityAction::new),
@@ -178,7 +178,7 @@ public class IndexLifecycleMetadataTests extends ChunkedToXContentDiffableSerial
 
     public void testMinimumSupportedVersion() {
         TransportVersion min = createTestInstance().getMinimalSupportedVersion();
-        assertTrue(min.onOrBefore(TransportVersionUtils.randomCompatibleVersion(random(), TransportVersion.CURRENT)));
+        assertTrue(min.onOrBefore(TransportVersionUtils.randomCompatibleVersion(random())));
     }
 
     public void testcontext() {
@@ -191,7 +191,7 @@ public class IndexLifecycleMetadataTests extends ChunkedToXContentDiffableSerial
             int numberPhases = randomInt(5);
             Map<String, Phase> phases = Maps.newMapWithExpectedSize(numberPhases);
             for (int j = 0; j < numberPhases; j++) {
-                TimeValue after = TimeValue.parseTimeValue(randomTimeValue(0, 1000000000, "s", "m", "h", "d"), "test_after");
+                TimeValue after = randomTimeValue(0, 1_000_000_000, TimeUnit.SECONDS, TimeUnit.MINUTES, TimeUnit.HOURS, TimeUnit.DAYS);
                 Map<String, LifecycleAction> actions = Collections.emptyMap();
                 if (randomBoolean()) {
                     actions = Collections.singletonMap(DeleteAction.NAME, DeleteAction.WITH_SNAPSHOT_DELETE);

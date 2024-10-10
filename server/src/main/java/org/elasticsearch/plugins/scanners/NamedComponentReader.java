@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.plugins.scanners;
@@ -35,7 +36,7 @@ import static org.elasticsearch.xcontent.XContentType.JSON;
  */
 public class NamedComponentReader {
 
-    private Logger logger = LogManager.getLogger(NamedComponentReader.class);
+    private static final Logger logger = LogManager.getLogger(NamedComponentReader.class);
     private static final String NAMED_COMPONENTS_FILE_NAME = "named_components.json";
     /**
      * a registry of known classes marked or indirectly marked (extending marked class) with @Extensible
@@ -72,7 +73,7 @@ public class NamedComponentReader {
         return emptyMap();
     }
 
-    private Path findNamedComponentCacheFile(Path pluginDir) throws IOException {
+    private static Path findNamedComponentCacheFile(Path pluginDir) throws IOException {
         try (Stream<Path> list = Files.list(pluginDir)) {
             return list.filter(p -> p.getFileName().toString().equals(NAMED_COMPONENTS_FILE_NAME)).findFirst().orElse(null);
         }

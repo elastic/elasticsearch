@@ -81,6 +81,7 @@ public class PriorityProcessWorkerExecutorService extends AbstractProcessWorkerE
         if (isShutdown()) {
             EsRejectedExecutionException rejected = new EsRejectedExecutionException(processName + " worker service has shutdown", true);
             command.onRejection(rejected);
+            notifyQueueRunnables();
             return;
         }
 
@@ -93,6 +94,10 @@ public class PriorityProcessWorkerExecutorService extends AbstractProcessWorkerE
 
         // PriorityBlockingQueue::offer always returns true
         queue.offer(new OrderedRunnable(priority, tieBreaker, contextHolder.preserveContext(command)));
+        if (isShutdown()) {
+            // the worker shutdown during this function
+            notifyQueueRunnables();
+        }
     }
 
     @Override

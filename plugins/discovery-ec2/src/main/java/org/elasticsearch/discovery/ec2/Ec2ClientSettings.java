@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.discovery.ec2;
@@ -48,6 +49,14 @@ final class Ec2ClientSettings {
     /** The port of a proxy to connect to ec2 through. */
     static final Setting<Integer> PROXY_PORT_SETTING = Setting.intSetting("discovery.ec2.proxy.port", 80, 0, 1 << 16, Property.NodeScope);
 
+    /** The scheme to use for the proxy connection to ec2. Defaults to "http". */
+    static final Setting<Protocol> PROXY_SCHEME_SETTING = new Setting<>(
+        "discovery.ec2.proxy.scheme",
+        "http",
+        s -> Protocol.valueOf(s.toUpperCase(Locale.ROOT)),
+        Property.NodeScope
+    );
+
     /** An override for the ec2 endpoint to connect to. */
     static final Setting<String> ENDPOINT_SETTING = new Setting<>(
         "discovery.ec2.endpoint",
@@ -56,7 +65,7 @@ final class Ec2ClientSettings {
         Property.NodeScope
     );
 
-    /** The protocol to use to connect to to ec2. */
+    /** The protocol to use to connect  to ec2. */
     static final Setting<Protocol> PROTOCOL_SETTING = new Setting<>(
         "discovery.ec2.protocol",
         "https",
@@ -99,6 +108,9 @@ final class Ec2ClientSettings {
     /** The port number the proxy host should be connected on. */
     final int proxyPort;
 
+    /** The scheme to use for the proxy connection to ec2 */
+    final Protocol proxyScheme;
+
     // these should be "secure" yet the api for the ec2 client only takes String, so
     // storing them
     // as SecureString here won't really help with anything
@@ -117,6 +129,7 @@ final class Ec2ClientSettings {
         Protocol protocol,
         String proxyHost,
         int proxyPort,
+        Protocol proxyScheme,
         String proxyUsername,
         String proxyPassword,
         int readTimeoutMillis
@@ -126,6 +139,7 @@ final class Ec2ClientSettings {
         this.protocol = protocol;
         this.proxyHost = proxyHost;
         this.proxyPort = proxyPort;
+        this.proxyScheme = proxyScheme;
         this.proxyUsername = proxyUsername;
         this.proxyPassword = proxyPassword;
         this.readTimeoutMillis = readTimeoutMillis;
@@ -196,6 +210,7 @@ final class Ec2ClientSettings {
                 PROTOCOL_SETTING.get(settings),
                 PROXY_HOST_SETTING.get(settings),
                 PROXY_PORT_SETTING.get(settings),
+                PROXY_SCHEME_SETTING.get(settings),
                 proxyUsername.toString(),
                 proxyPassword.toString(),
                 (int) READ_TIMEOUT_SETTING.get(settings).millis()

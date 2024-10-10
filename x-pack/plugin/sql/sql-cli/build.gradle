@@ -12,7 +12,9 @@ apply plugin: 'com.github.johnrengelman.shadow'
 /* We don't use the 'application' plugin because it builds a zip and tgz which
  * we don't want. */
 
-archivesBaseName = 'elasticsearch-sql-cli'
+base {
+  archivesName = 'elasticsearch-sql-cli'
+}
 
 description = 'Command line interface to Elasticsearch that speaks SQL'
 
@@ -28,7 +30,7 @@ dependencies {
 
   api project(':x-pack:plugin:sql:sql-client')
   api project(":libs:elasticsearch-cli")
-  runtimeOnly "net.java.dev.jna:jna:${versions.jna}"
+  implementation "net.java.dev.jna:jna:${versions.jna}"
   testImplementation project(":test:framework")
 }
 

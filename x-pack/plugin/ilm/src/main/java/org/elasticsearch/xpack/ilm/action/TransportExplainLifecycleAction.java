@@ -15,12 +15,13 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -32,15 +33,18 @@ import org.elasticsearch.xpack.core.ilm.ErrorStep;
 import org.elasticsearch.xpack.core.ilm.ExplainLifecycleRequest;
 import org.elasticsearch.xpack.core.ilm.ExplainLifecycleResponse;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleExplainResponse;
+import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.ilm.PhaseExecutionInfo;
+import org.elasticsearch.xpack.core.ilm.RolloverAction;
 import org.elasticsearch.xpack.core.ilm.action.ExplainLifecycleAction;
 import org.elasticsearch.xpack.ilm.IndexLifecycleService;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.Map;
+import java.util.TreeMap;
 
-import static org.elasticsearch.xpack.core.ilm.LifecycleSettings.LIFECYCLE_ORIGINATION_DATE;
+import static org.elasticsearch.index.IndexSettings.LIFECYCLE_ORIGINATION_DATE;
+import static org.elasticsearch.xpack.core.ilm.WaitForRolloverReadyStep.applyDefaultConditions;
 
 public class TransportExplainLifecycleAction extends TransportClusterInfoAction<ExplainLifecycleRequest, ExplainLifecycleResponse> {
 
@@ -79,17 +83,21 @@ public class TransportExplainLifecycleAction extends TransportClusterInfoAction<
         ClusterState state,
         ActionListener<ExplainLifecycleResponse> listener
     ) {
-        Map<String, IndexLifecycleExplainResponse> indexResponses = new HashMap<>();
+        boolean rolloverOnlyIfHasDocuments = LifecycleSettings.LIFECYCLE_ROLLOVER_ONLY_IF_HAS_DOCUMENTS_SETTING.get(
+            state.metadata().settings()
+        );
+        Map<String, IndexLifecycleExplainResponse> indexResponses = new TreeMap<>();
         for (String index : concreteIndices) {
-            IndexMetadata idxMetadata = state.metadata().index(index);
             final IndexLifecycleExplainResponse indexResponse;
             try {
                 indexResponse = getIndexLifecycleExplainResponse(
-                    idxMetadata,
+                    index,
+                    state.metadata(),
                     request.onlyErrors(),
                     request.onlyManaged(),
                     indexLifecycleService,
-                    xContentRegistry
+                    xContentRegistry,
+                    rolloverOnlyIfHasDocuments
                 );
             } catch (IOException e) {
                 listener.onFailure(new ElasticsearchParseException("failed to parse phase definition for index [" + index + "]", e));
@@ -105,22 +113,29 @@ public class TransportExplainLifecycleAction extends TransportClusterInfoAction<
 
     @Nullable
     static IndexLifecycleExplainResponse getIndexLifecycleExplainResponse(
-        IndexMetadata indexMetadata,
+        String indexName,
+        Metadata metadata,
         boolean onlyErrors,
         boolean onlyManaged,
         IndexLifecycleService indexLifecycleService,
-        NamedXContentRegistry xContentRegistry
+        NamedXContentRegistry xContentRegistry,
+        boolean rolloverOnlyIfHasDocuments
     ) throws IOException {
+        IndexMetadata indexMetadata = metadata.index(indexName);
         Settings idxSettings = indexMetadata.getSettings();
         LifecycleExecutionState lifecycleState = indexMetadata.getLifecycleExecutionState();
         String policyName = indexMetadata.getLifecyclePolicyName();
         String currentPhase = lifecycleState.phase();
         String stepInfo = lifecycleState.stepInfo();
+        String previousStepInfo = lifecycleState.previousStepInfo();
         BytesArray stepInfoBytes = null;
         if (stepInfo != null) {
             stepInfoBytes = new BytesArray(stepInfo);
         }
-        String indexName = indexMetadata.getIndex().getName();
+        BytesArray previousStepInfoBytes = null;
+        if (previousStepInfo != null) {
+            previousStepInfoBytes = new BytesArray(previousStepInfo);
+        }
         Long indexCreationDate = indexMetadata.getCreationDate();
 
         // parse existing phase steps from the phase definition in the index settings
@@ -134,11 +149,21 @@ public class TransportExplainLifecycleAction extends TransportClusterInfoAction<
                 )
             ) {
                 phaseExecutionInfo = PhaseExecutionInfo.parse(parser, currentPhase);
+
+                // Try to add default rollover conditions to the response.
+                var phase = phaseExecutionInfo.getPhase();
+                if (phase != null) {
+                    var rolloverAction = (RolloverAction) phase.getActions().get(RolloverAction.NAME);
+                    if (rolloverAction != null) {
+                        var conditions = applyDefaultConditions(rolloverAction.getConditions(), rolloverOnlyIfHasDocuments);
+                        phase.getActions().put(RolloverAction.NAME, new RolloverAction(conditions));
+                    }
+                }
             }
         }
 
         final IndexLifecycleExplainResponse indexResponse;
-        if (Strings.hasLength(policyName)) {
+        if (metadata.isIndexManagedByILM(indexMetadata)) {
             // If this is requesting only errors, only include indices in the error step or which are using a nonexistent policy
             if (onlyErrors == false
                 || (ErrorStep.NAME.equals(lifecycleState.step()) || indexLifecycleService.policyExists(policyName) == false)) {
@@ -150,7 +175,8 @@ public class TransportExplainLifecycleAction extends TransportClusterInfoAction<
                     originationDate != -1L ? originationDate : lifecycleState.lifecycleDate(),
                     lifecycleState.phase(),
                     lifecycleState.action(),
-                    lifecycleState.step(),
+                    // treat a missing policy as if the index is in the error step
+                    indexLifecycleService.policyExists(policyName) == false ? ErrorStep.NAME : lifecycleState.step(),
                     lifecycleState.failedStep(),
                     lifecycleState.isAutoRetryableError(),
                     lifecycleState.failedStepRetryCount(),
@@ -161,6 +187,7 @@ public class TransportExplainLifecycleAction extends TransportClusterInfoAction<
                     lifecycleState.snapshotName(),
                     lifecycleState.shrinkIndexName(),
                     stepInfoBytes,
+                    previousStepInfoBytes,
                     phaseExecutionInfo
                 );
             } else {

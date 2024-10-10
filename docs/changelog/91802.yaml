@@ -1,5 +1,0 @@
-pr: 91802
-summary: Fix potential leak in `RemoteRecoveryHandler`
-area: Recovery
-type: bug
-issues: []

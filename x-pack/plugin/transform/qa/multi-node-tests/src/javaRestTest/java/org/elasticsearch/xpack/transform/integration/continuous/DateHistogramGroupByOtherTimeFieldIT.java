@@ -62,7 +62,7 @@ public class DateHistogramGroupByOtherTimeFieldIT extends ContinuousTestCase {
             transformConfigBuilder.setSettings(addCommonSettings(new SettingsConfig.Builder()).setDatesAsEpochMillis(true).build());
         }
         transformConfigBuilder.setSource(new SourceConfig(CONTINUOUS_EVENTS_SOURCE_INDEX));
-        transformConfigBuilder.setDest(new DestConfig(NAME, INGEST_PIPELINE));
+        transformConfigBuilder.setDest(new DestConfig(NAME, null, INGEST_PIPELINE));
         transformConfigBuilder.setId(NAME);
 
         Map<String, SingleGroupSource> groupSource = new HashMap<>();

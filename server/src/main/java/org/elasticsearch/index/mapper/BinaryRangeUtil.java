@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
@@ -98,6 +99,14 @@ enum BinaryRangeUtil {
         return decodeRanges(encodedRanges, RangeType.FLOAT, BinaryRangeUtil::decodeFloat);
     }
 
+    static List<RangeFieldMapper.Range> decodeDateRanges(BytesRef encodedRanges) throws IOException {
+        return decodeRanges(encodedRanges, RangeType.DATE, BinaryRangeUtil::decodeLong);
+    }
+
+    static List<RangeFieldMapper.Range> decodeIntegerRanges(BytesRef encodedRanges) throws IOException {
+        return decodeRanges(encodedRanges, RangeType.INTEGER, BinaryRangeUtil::decodeInt);
+    }
+
     static List<RangeFieldMapper.Range> decodeRanges(
         BytesRef encodedRanges,
         RangeType rangeType,
@@ -180,6 +189,14 @@ enum BinaryRangeUtil {
         return encode(number, sign);
     }
 
+    static int decodeInt(byte[] bytes, int offset, int length) {
+        // We encode integers same as longs but we know
+        // that during parsing we got actual integers.
+        // So every decoded long should be inside the range of integers.
+        long longValue = decodeLong(bytes, offset, length);
+        return Math.toIntExact(longValue);
+    }
+
     static long decodeLong(byte[] bytes, int offset, int length) {
         boolean isNegative = (bytes[offset] & 128) == 0;
         // Start by masking off the last three bits of the first byte - that's the start of our number
@@ -233,11 +250,11 @@ enum BinaryRangeUtil {
         }
 
         // write the header
-        encoded[0] |= sign << 7;
+        encoded[0] |= (byte) (sign << 7);
         if (sign > 0) {
-            encoded[0] |= numAdditionalBytes << 3;
+            encoded[0] |= (byte) (numAdditionalBytes << 3);
         } else {
-            encoded[0] |= (15 - numAdditionalBytes) << 3;
+            encoded[0] |= (byte) ((15 - numAdditionalBytes) << 3);
         }
         return encoded;
     }

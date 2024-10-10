@@ -1,5 +1,5 @@
 [[analysis-phonetic]]
-=== Phonetic Analysis Plugin
+=== Phonetic analysis plugin
 
 The Phonetic Analysis plugin provides token filters which convert tokens to
 their phonetic representation using Soundex, Metaphone, and a variety of other

@@ -1,14 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.ingest;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.DiffableUtils;
 import org.elasticsearch.cluster.NamedDiff;
@@ -24,7 +26,6 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -52,7 +53,7 @@ public final class IngestMetadata implements Metadata.Custom {
     private final Map<String, PipelineConfiguration> pipelines;
 
     public IngestMetadata(Map<String, PipelineConfiguration> pipelines) {
-        this.pipelines = Collections.unmodifiableMap(pipelines);
+        this.pipelines = Map.copyOf(pipelines);
     }
 
     @Override
@@ -62,7 +63,7 @@ public final class IngestMetadata implements Metadata.Custom {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.CURRENT.minimumCompatibilityVersion();
+        return TransportVersions.MINIMUM_COMPATIBLE;
     }
 
     public Map<String, PipelineConfiguration> getPipelines() {
@@ -76,7 +77,7 @@ public final class IngestMetadata implements Metadata.Custom {
             PipelineConfiguration pipeline = PipelineConfiguration.readFrom(in);
             pipelines.put(pipeline.getId(), pipeline);
         }
-        this.pipelines = Collections.unmodifiableMap(pipelines);
+        this.pipelines = Map.copyOf(pipelines);
     }
 
     @Override
@@ -149,7 +150,7 @@ public final class IngestMetadata implements Metadata.Custom {
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersion.CURRENT.minimumCompatibilityVersion();
+            return TransportVersions.MINIMUM_COMPATIBLE;
         }
     }
 

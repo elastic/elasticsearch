@@ -155,7 +155,7 @@
  *  <dd>Tokenizer and Lexer of the SQL grammar. Translates user query into an
  *  AST tree ({@code LogicalPlan}. Makes sure the user query is <b>syntactically</b>
  *  valid.</dd>
- *  <dt>{@link org.elasticsearch.xpack.sql.analysis.analyzer.PreAnalyzer PreAnalyzer}</dt>
+ *  <dt>{@link org.elasticsearch.xpack.ql.analyzer.PreAnalyzer PreAnalyzer}</dt>
  *  <dd>Performs basic inspection of the {@code LogicalPlan} for gathering critical
  *  information for the main analysis. This stage is separate from {@code Analysis}
  *  since it performs async/remote calls to the cluster. </dd>

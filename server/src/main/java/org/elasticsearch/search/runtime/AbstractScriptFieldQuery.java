@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.runtime;
@@ -41,7 +42,7 @@ public abstract class AbstractScriptFieldQuery<S extends AbstractFieldScript> ex
     private final String fieldName;
     private final Function<LeafReaderContext, S> scriptContextFunction;
 
-    AbstractScriptFieldQuery(Script script, String fieldName, Function<LeafReaderContext, S> scriptContextFunction) {
+    protected AbstractScriptFieldQuery(Script script, String fieldName, Function<LeafReaderContext, S> scriptContextFunction) {
         this.script = Objects.requireNonNull(script);
         this.fieldName = Objects.requireNonNull(fieldName);
         this.scriptContextFunction = scriptContextFunction;
@@ -51,11 +52,11 @@ public abstract class AbstractScriptFieldQuery<S extends AbstractFieldScript> ex
         return scriptContextFunction;
     }
 
-    final Script script() {
+    public final Script script() {
         return script;
     }
 
-    final String fieldName() {
+    public final String fieldName() {
         return fieldName;
     }
 
@@ -71,18 +72,7 @@ public abstract class AbstractScriptFieldQuery<S extends AbstractFieldScript> ex
             public Scorer scorer(LeafReaderContext ctx) {
                 S scriptContext = scriptContextFunction.apply(ctx);
                 DocIdSetIterator approximation = DocIdSetIterator.all(ctx.reader().maxDoc());
-                TwoPhaseIterator twoPhase = new TwoPhaseIterator(approximation) {
-                    @Override
-                    public boolean matches() {
-                        return AbstractScriptFieldQuery.this.matches(scriptContext, approximation.docID());
-                    }
-
-                    @Override
-                    public float matchCost() {
-                        return MATCH_COST;
-                    }
-                };
-                return new ConstantScoreScorer(this, score(), scoreMode, twoPhase);
+                return new ConstantScoreScorer(this, score(), scoreMode, createTwoPhaseIterator(scriptContext, approximation));
             }
 
             @Override
@@ -92,6 +82,24 @@ public abstract class AbstractScriptFieldQuery<S extends AbstractFieldScript> ex
                     return explainMatch(boost, constantExplanation.getDescription());
                 }
                 return constantExplanation;
+            }
+        };
+    }
+
+    /**
+     * Creates the {@link TwoPhaseIterator} for the current leaf reader. Override to inject custom behaviour or provide
+     * additional context to the matches method when needed.
+     */
+    protected TwoPhaseIterator createTwoPhaseIterator(S scriptContext, DocIdSetIterator approximation) {
+        return new TwoPhaseIterator(approximation) {
+            @Override
+            public boolean matches() {
+                return AbstractScriptFieldQuery.this.matches(scriptContext, approximation.docID());
+            }
+
+            @Override
+            public float matchCost() {
+                return MATCH_COST;
             }
         };
     }

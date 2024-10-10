@@ -1,15 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.indices.template.post;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
+import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
 import org.elasticsearch.action.support.master.MasterNodeReadRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -24,9 +26,12 @@ public class SimulateIndexTemplateRequest extends MasterNodeReadRequest<Simulate
     private String indexName;
 
     @Nullable
-    private PutComposableIndexTemplateAction.Request indexTemplateRequest;
+    private TransportPutComposableIndexTemplateAction.Request indexTemplateRequest;
+
+    private boolean includeDefaults = false;
 
     public SimulateIndexTemplateRequest(String indexName) {
+        super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
         if (Strings.isNullOrEmpty(indexName)) {
             throw new IllegalArgumentException("index name cannot be null or empty");
         }
@@ -36,7 +41,10 @@ public class SimulateIndexTemplateRequest extends MasterNodeReadRequest<Simulate
     public SimulateIndexTemplateRequest(StreamInput in) throws IOException {
         super(in);
         indexName = in.readString();
-        indexTemplateRequest = in.readOptionalWriteable(PutComposableIndexTemplateAction.Request::new);
+        indexTemplateRequest = in.readOptionalWriteable(TransportPutComposableIndexTemplateAction.Request::new);
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
+            includeDefaults = in.readBoolean();
+        }
     }
 
     @Override
@@ -44,6 +52,9 @@ public class SimulateIndexTemplateRequest extends MasterNodeReadRequest<Simulate
         super.writeTo(out);
         out.writeString(indexName);
         out.writeOptionalWriteable(indexTemplateRequest);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
+            out.writeBoolean(includeDefaults);
+        }
     }
 
     @Override
@@ -59,8 +70,12 @@ public class SimulateIndexTemplateRequest extends MasterNodeReadRequest<Simulate
         return indexName;
     }
 
+    public boolean includeDefaults() {
+        return includeDefaults;
+    }
+
     @Nullable
-    public PutComposableIndexTemplateAction.Request getIndexTemplateRequest() {
+    public TransportPutComposableIndexTemplateAction.Request getIndexTemplateRequest() {
         return indexTemplateRequest;
     }
 
@@ -69,8 +84,13 @@ public class SimulateIndexTemplateRequest extends MasterNodeReadRequest<Simulate
         return this;
     }
 
-    public SimulateIndexTemplateRequest indexTemplateRequest(PutComposableIndexTemplateAction.Request indexTemplateRequest) {
+    public SimulateIndexTemplateRequest indexTemplateRequest(TransportPutComposableIndexTemplateAction.Request indexTemplateRequest) {
         this.indexTemplateRequest = indexTemplateRequest;
+        return this;
+    }
+
+    public SimulateIndexTemplateRequest includeDefaults(boolean includeDefaults) {
+        this.includeDefaults = includeDefaults;
         return this;
     }
 
@@ -83,11 +103,13 @@ public class SimulateIndexTemplateRequest extends MasterNodeReadRequest<Simulate
             return false;
         }
         SimulateIndexTemplateRequest that = (SimulateIndexTemplateRequest) o;
-        return indexName.equals(that.indexName) && Objects.equals(indexTemplateRequest, that.indexTemplateRequest);
+        return indexName.equals(that.indexName)
+            && Objects.equals(indexTemplateRequest, that.indexTemplateRequest)
+            && includeDefaults == that.includeDefaults;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(indexName, indexTemplateRequest);
+        return Objects.hash(indexName, indexTemplateRequest, includeDefaults);
     }
 }

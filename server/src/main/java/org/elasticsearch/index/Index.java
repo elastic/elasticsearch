@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index;
@@ -103,9 +104,14 @@ public class Index implements Writeable, ToXContentObject {
     @Override
     public XContentBuilder toXContent(final XContentBuilder builder, final Params params) throws IOException {
         builder.startObject();
+        toXContentFragment(builder);
+        return builder.endObject();
+    }
+
+    public XContentBuilder toXContentFragment(final XContentBuilder builder) throws IOException {
         builder.field(INDEX_NAME_KEY, name);
         builder.field(INDEX_UUID_KEY, uuid);
-        return builder.endObject();
+        return builder;
     }
 
     public static Index fromXContent(final XContentParser parser) throws IOException {

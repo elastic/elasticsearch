@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster;
@@ -35,6 +36,8 @@ public class DesiredNodesStatusIT extends ESIntegTestCase {
         final var pendingDesiredNodes = randomList(0, 5, DesiredNodesTestCase::randomDesiredNode);
 
         final var updateDesiredNodesRequest = new UpdateDesiredNodesRequest(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
             randomAlphaOfLength(10),
             1,
             concatLists(actualizedDesiredNodes, pendingDesiredNodes),
@@ -43,11 +46,13 @@ public class DesiredNodesStatusIT extends ESIntegTestCase {
         updateDesiredNodes(updateDesiredNodesRequest);
 
         {
-            final var clusterState = client().admin().cluster().prepareState().get().getState();
+            final var clusterState = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
             assertDesiredNodesStatusIsCorrect(clusterState, actualizedDesiredNodes, pendingDesiredNodes);
         }
 
         final var newVersionUpdateDesiredNodesRequest = new UpdateDesiredNodesRequest(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
             updateDesiredNodesRequest.getHistoryID(),
             updateDesiredNodesRequest.getVersion() + 1,
             updateDesiredNodesRequest.getNodes(),
@@ -56,7 +61,7 @@ public class DesiredNodesStatusIT extends ESIntegTestCase {
         updateDesiredNodes(newVersionUpdateDesiredNodesRequest);
 
         {
-            final var clusterState = client().admin().cluster().prepareState().get().getState();
+            final var clusterState = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
             assertDesiredNodesStatusIsCorrect(clusterState, actualizedDesiredNodes, pendingDesiredNodes);
         }
     }
@@ -70,6 +75,8 @@ public class DesiredNodesStatusIT extends ESIntegTestCase {
         final var pendingDesiredNodes = randomList(0, 5, DesiredNodesTestCase::randomDesiredNode);
 
         final var updateDesiredNodesRequest = new UpdateDesiredNodesRequest(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
             randomAlphaOfLength(10),
             1,
             concatLists(actualizedDesiredNodes, pendingDesiredNodes),
@@ -78,14 +85,14 @@ public class DesiredNodesStatusIT extends ESIntegTestCase {
         updateDesiredNodes(updateDesiredNodesRequest);
 
         {
-            final var clusterState = client().admin().cluster().prepareState().get().getState();
+            final var clusterState = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
             DesiredNodesTestCase.assertDesiredNodesStatusIsCorrect(clusterState, actualizedDesiredNodes, pendingDesiredNodes);
         }
 
         updateDesiredNodes(updateDesiredNodesRequest);
 
         {
-            final var clusterState = client().admin().cluster().prepareState().get().getState();
+            final var clusterState = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
             DesiredNodesTestCase.assertDesiredNodesStatusIsCorrect(clusterState, actualizedDesiredNodes, pendingDesiredNodes);
         }
     }
@@ -99,6 +106,8 @@ public class DesiredNodesStatusIT extends ESIntegTestCase {
         final var pendingDesiredNodes = randomList(0, 5, DesiredNodesTestCase::randomDesiredNode);
 
         final var updateDesiredNodesRequest = new UpdateDesiredNodesRequest(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
             randomAlphaOfLength(10),
             1,
             concatLists(actualizedDesiredNodes, pendingDesiredNodes),
@@ -106,7 +115,7 @@ public class DesiredNodesStatusIT extends ESIntegTestCase {
         );
         updateDesiredNodes(updateDesiredNodesRequest);
 
-        final var clusterState = client().admin().cluster().prepareState().get().getState();
+        final var clusterState = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
         DesiredNodesTestCase.assertDesiredNodesStatusIsCorrect(clusterState, actualizedDesiredNodes, pendingDesiredNodes);
 
         final var leavingNodeNames = randomSubsetOf(nodeNames);
@@ -114,7 +123,7 @@ public class DesiredNodesStatusIT extends ESIntegTestCase {
             internalCluster().stopNode(leavingNodeName);
         }
 
-        final var newClusterState = client().admin().cluster().prepareState().get().getState();
+        final var newClusterState = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
         final var latestDesiredNodes = DesiredNodes.latestFromClusterState(newClusterState);
 
         for (String leavingNodeName : leavingNodeNames) {
@@ -132,6 +141,8 @@ public class DesiredNodesStatusIT extends ESIntegTestCase {
         final var pendingDesiredNodes = randomList(0, 5, DesiredNodesTestCase::randomDesiredNode);
 
         final var updateDesiredNodesRequest = new UpdateDesiredNodesRequest(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
             randomAlphaOfLength(10),
             1,
             concatLists(actualizedDesiredNodes, pendingDesiredNodes),
@@ -139,7 +150,7 @@ public class DesiredNodesStatusIT extends ESIntegTestCase {
         );
         updateDesiredNodes(updateDesiredNodesRequest);
 
-        final var clusterState = client().admin().cluster().prepareState().get().getState();
+        final var clusterState = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
         DesiredNodesTestCase.assertDesiredNodesStatusIsCorrect(clusterState, actualizedDesiredNodes, pendingDesiredNodes);
 
         // Stop some nodes, these shouldn't be actualized within the new desired node's history until they join back
@@ -149,6 +160,8 @@ public class DesiredNodesStatusIT extends ESIntegTestCase {
         }
 
         final var updateDesiredNodesWithNewHistoryRequest = new UpdateDesiredNodesRequest(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
             randomAlphaOfLength(10),
             1,
             updateDesiredNodesRequest.getNodes(),
@@ -157,7 +170,7 @@ public class DesiredNodesStatusIT extends ESIntegTestCase {
         final var response = updateDesiredNodes(updateDesiredNodesWithNewHistoryRequest);
         assertThat(response.hasReplacedExistingHistoryId(), is(equalTo(true)));
 
-        final var updatedClusterState = client().admin().cluster().prepareState().get().getState();
+        final var updatedClusterState = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
         final var latestDesiredNodes = DesiredNodes.latestFromClusterState(updatedClusterState);
 
         for (String clusterNodeName : clusterNodeNames) {

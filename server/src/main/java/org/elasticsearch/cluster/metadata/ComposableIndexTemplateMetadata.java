@@ -1,21 +1,23 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.DiffableUtils;
 import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
+import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
@@ -60,7 +62,7 @@ public class ComposableIndexTemplateMetadata implements Metadata.Custom {
     }
 
     public ComposableIndexTemplateMetadata(StreamInput in) throws IOException {
-        this.indexTemplates = in.readMap(StreamInput::readString, ComposableIndexTemplate::new);
+        this.indexTemplates = in.readMap(ComposableIndexTemplate::new);
     }
 
     public static ComposableIndexTemplateMetadata fromXContent(XContentParser parser) throws IOException {
@@ -92,17 +94,17 @@ public class ComposableIndexTemplateMetadata implements Metadata.Custom {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.V_7_7_0;
+        return TransportVersions.V_7_7_0;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeMap(this.indexTemplates, StreamOutput::writeString, (outstream, val) -> val.writeTo(outstream));
+        out.writeMap(this.indexTemplates, StreamOutput::writeWriteable);
     }
 
     @Override
-    public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params ignored) {
-        return ChunkedToXContentHelper.xContentValuesMap(INDEX_TEMPLATE.getPreferredName(), indexTemplates);
+    public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
+        return ChunkedToXContent.builder(params).xContentObjectFields(INDEX_TEMPLATE.getPreferredName(), indexTemplates);
     }
 
     @Override
@@ -165,7 +167,7 @@ public class ComposableIndexTemplateMetadata implements Metadata.Custom {
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersion.V_7_7_0;
+            return TransportVersions.V_7_7_0;
         }
     }
 }

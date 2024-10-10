@@ -252,16 +252,18 @@ public class ExecuteStepsUpdateTask extends IndexLifecycleClusterStateUpdateTask
             final Step.StepKey nextStep = indexAndStepKey.getValue();
             final IndexMetadata indexMeta = metadata.index(indexName);
             if (indexMeta != null) {
-                final String policyName = LifecycleSettings.LIFECYCLE_NAME_SETTING.get(indexMeta.getSettings());
-                if (Strings.hasText(policyName) && nextStep != null && nextStep != TerminalPolicyStep.KEY) {
-                    logger.trace(
-                        "[{}] index has been spawed from a different index's ({}) "
-                            + "ILM execution, running next step {} if it is an async action",
-                        indexName,
-                        index,
-                        nextStep
-                    );
-                    lifecycleRunner.maybeRunAsyncAction(newState, indexMeta, policyName, nextStep);
+                if (newState.metadata().isIndexManagedByILM(indexMeta)) {
+                    if (nextStep != null && nextStep != TerminalPolicyStep.KEY) {
+                        logger.trace(
+                            "[{}] index has been spawed from a different index's ({}) "
+                                + "ILM execution, running next step {} if it is an async action",
+                            indexName,
+                            index,
+                            nextStep
+                        );
+                        final String policyName = LifecycleSettings.LIFECYCLE_NAME_SETTING.get(indexMeta.getSettings());
+                        lifecycleRunner.maybeRunAsyncAction(newState, indexMeta, policyName, nextStep);
+                    }
                 }
             }
         }

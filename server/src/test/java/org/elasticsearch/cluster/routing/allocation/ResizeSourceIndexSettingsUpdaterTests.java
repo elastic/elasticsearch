@@ -1,14 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.routing.allocation;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -23,6 +23,7 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexVersion;
 
 import java.util.List;
 
@@ -49,7 +50,7 @@ public class ResizeSourceIndexSettingsUpdaterTests extends ESAllocationTestCase 
             .put(
                 IndexMetadata.builder(sourceIndex)
                     .settings(
-                        settings(Version.CURRENT).put(
+                        settings(IndexVersion.current()).put(
                             IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + "_name",
                             resizeNode.getName()
                         ).put("index.blocks.write", true)
@@ -60,7 +61,7 @@ public class ResizeSourceIndexSettingsUpdaterTests extends ESAllocationTestCase 
             )
             .build();
 
-        ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .routingTable(
                 RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY).addAsNew(sourceMetadata.index(sourceIndex))
             )
@@ -105,9 +106,7 @@ public class ResizeSourceIndexSettingsUpdaterTests extends ESAllocationTestCase 
 
         final int targetNumShards = randomFrom(1, 2, 4, 8, 16);
         final int targetNumReplicas = randomInt(2);
-        final Settings.Builder targetSettings = settings(Version.CURRENT);
-        targetSettings.put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, targetNumShards);
-        targetSettings.put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, targetNumReplicas);
+        final Settings.Builder targetSettings = indexSettings(IndexVersion.current(), targetNumShards, targetNumReplicas);
         targetSettings.put(IndexMetadata.INDEX_RESIZE_SOURCE_NAME.getKey(), sourceIndex);
         targetSettings.put(IndexMetadata.INDEX_RESIZE_SOURCE_UUID.getKey(), sourceMetadata.index(sourceIndex).getIndexUUID());
         final boolean isShrink = randomBoolean();

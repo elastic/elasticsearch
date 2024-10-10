@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.cluster.coordination;
 
@@ -17,7 +18,12 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.MasterService;
+import org.elasticsearch.cluster.version.CompatibilityVersions;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
+
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Set;
 
 public class NodeLeftExecutor implements ClusterStateTaskExecutor<NodeLeftExecutor.Task> {
 
@@ -47,14 +53,20 @@ public class NodeLeftExecutor implements ClusterStateTaskExecutor<NodeLeftExecut
 
     @Override
     public ClusterState execute(BatchExecutionContext<Task> batchExecutionContext) throws Exception {
-        final ClusterState initialState = batchExecutionContext.initialState();
-        final DiscoveryNodes.Builder remainingNodesBuilder = DiscoveryNodes.builder(initialState.nodes());
+        ClusterState initialState = batchExecutionContext.initialState();
+
+        ClusterState.Builder builder = ClusterState.builder(initialState);
+        DiscoveryNodes.Builder remainingNodesBuilder = DiscoveryNodes.builder(initialState.nodes());
+        Map<String, CompatibilityVersions> compatibilityVersions = new HashMap<>(builder.compatibilityVersions());
+        Map<String, Set<String>> nodeFeatures = new HashMap<>(builder.nodeFeatures());
         boolean removed = false;
         for (final var taskContext : batchExecutionContext.taskContexts()) {
             final var task = taskContext.getTask();
             final String reason;
             if (initialState.nodes().nodeExists(task.node())) {
                 remainingNodesBuilder.remove(task.node());
+                compatibilityVersions.remove(task.node().getId());
+                nodeFeatures.remove(task.node().getId());
                 removed = true;
                 reason = task.reason();
             } else {
@@ -77,7 +89,11 @@ public class NodeLeftExecutor implements ClusterStateTaskExecutor<NodeLeftExecut
         try (var ignored = batchExecutionContext.dropHeadersContext()) {
             // suppress deprecation warnings e.g. from reroute()
 
-            final var remainingNodesClusterState = remainingNodesClusterState(initialState, remainingNodesBuilder);
+            final var remainingNodesClusterState = builder.nodes(remainingNodesBuilder)
+                .nodeIdsToCompatibilityVersions(compatibilityVersions)
+                .nodeFeatures(nodeFeatures)
+                .build();
+            remainingNodesClusterState(remainingNodesClusterState);
             final var ptasksDisassociatedState = PersistentTasksCustomMetadata.disassociateDeadNodes(remainingNodesClusterState);
             return allocationService.disassociateDeadNodes(
                 ptasksDisassociatedState,
@@ -90,8 +106,5 @@ public class NodeLeftExecutor implements ClusterStateTaskExecutor<NodeLeftExecut
     // visible for testing
     // hook is used in testing to ensure that correct cluster state is used to test whether a
     // rejoin or reroute is needed
-    protected ClusterState remainingNodesClusterState(final ClusterState currentState, DiscoveryNodes.Builder remainingNodesBuilder) {
-        return ClusterState.builder(currentState).nodes(remainingNodesBuilder).build();
-    }
-
+    void remainingNodesClusterState(ClusterState state) {}
 }

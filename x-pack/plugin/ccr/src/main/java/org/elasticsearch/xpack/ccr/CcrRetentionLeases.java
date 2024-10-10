@@ -10,7 +10,8 @@ package org.elasticsearch.xpack.ccr;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.action.support.UnsafePlainActionFuture;
+import org.elasticsearch.client.internal.RemoteClusterClient;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
@@ -18,6 +19,7 @@ import org.elasticsearch.index.seqno.RetentionLeaseActions;
 import org.elasticsearch.index.seqno.RetentionLeaseAlreadyExistsException;
 import org.elasticsearch.index.seqno.RetentionLeaseNotFoundException;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Locale;
 import java.util.Optional;
@@ -75,11 +77,11 @@ public class CcrRetentionLeases {
         final ShardId leaderShardId,
         final String retentionLeaseId,
         final long retainingSequenceNumber,
-        final Client remoteClient,
+        final RemoteClusterClient remoteClient,
         final TimeValue timeout
     ) {
         try {
-            final PlainActionFuture<ActionResponse.Empty> response = new PlainActionFuture<>();
+            final PlainActionFuture<ActionResponse.Empty> response = new UnsafePlainActionFuture<>(ThreadPool.Names.GENERIC);
             asyncAddRetentionLease(leaderShardId, retentionLeaseId, retainingSequenceNumber, remoteClient, response);
             response.actionGet(timeout);
             return Optional.empty();
@@ -103,7 +105,7 @@ public class CcrRetentionLeases {
         final ShardId leaderShardId,
         final String retentionLeaseId,
         final long retainingSequenceNumber,
-        final Client remoteClient,
+        final RemoteClusterClient remoteClient,
         final ActionListener<ActionResponse.Empty> listener
     ) {
         final RetentionLeaseActions.AddRequest request = new RetentionLeaseActions.AddRequest(
@@ -112,7 +114,7 @@ public class CcrRetentionLeases {
             retainingSequenceNumber,
             "ccr"
         );
-        remoteClient.execute(RetentionLeaseActions.Add.INSTANCE, request, listener);
+        remoteClient.execute(RetentionLeaseActions.REMOTE_ADD, request, listener);
     }
 
     /**
@@ -130,7 +132,7 @@ public class CcrRetentionLeases {
         final ShardId leaderShardId,
         final String retentionLeaseId,
         final long retainingSequenceNumber,
-        final Client remoteClient,
+        final RemoteClusterClient remoteClient,
         final TimeValue timeout
     ) {
         try {
@@ -158,7 +160,7 @@ public class CcrRetentionLeases {
         final ShardId leaderShardId,
         final String retentionLeaseId,
         final long retainingSequenceNumber,
-        final Client remoteClient,
+        final RemoteClusterClient remoteClient,
         final ActionListener<ActionResponse.Empty> listener
     ) {
         final RetentionLeaseActions.RenewRequest request = new RetentionLeaseActions.RenewRequest(
@@ -167,7 +169,7 @@ public class CcrRetentionLeases {
             retainingSequenceNumber,
             "ccr"
         );
-        remoteClient.execute(RetentionLeaseActions.Renew.INSTANCE, request, listener);
+        remoteClient.execute(RetentionLeaseActions.REMOTE_RENEW, request, listener);
     }
 
     /**
@@ -183,11 +185,11 @@ public class CcrRetentionLeases {
     public static void asyncRemoveRetentionLease(
         final ShardId leaderShardId,
         final String retentionLeaseId,
-        final Client remoteClient,
+        final RemoteClusterClient remoteClient,
         final ActionListener<ActionResponse.Empty> listener
     ) {
         final RetentionLeaseActions.RemoveRequest request = new RetentionLeaseActions.RemoveRequest(leaderShardId, retentionLeaseId);
-        remoteClient.execute(RetentionLeaseActions.Remove.INSTANCE, request, listener);
+        remoteClient.execute(RetentionLeaseActions.REMOTE_REMOVE, request, listener);
     }
 
 }

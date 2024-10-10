@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.cluster.coordination;
 
@@ -11,7 +12,6 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentFragment;
@@ -99,7 +99,7 @@ public class CoordinationMetadata implements Writeable, ToXContentFragment {
         term = in.readLong();
         lastCommittedConfiguration = new VotingConfiguration(in);
         lastAcceptedConfiguration = new VotingConfiguration(in);
-        votingConfigExclusions = Collections.unmodifiableSet(in.readSet(VotingConfigExclusion::new));
+        votingConfigExclusions = in.readCollectionAsImmutableSet(VotingConfigExclusion::new);
     }
 
     public static Builder builder() {
@@ -337,12 +337,12 @@ public class CoordinationMetadata implements Writeable, ToXContentFragment {
         }
 
         public VotingConfiguration(StreamInput in) throws IOException {
-            nodeIds = Collections.unmodifiableSet(Sets.newHashSet(in.readStringArray()));
+            nodeIds = Set.of(in.readStringArray());
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeStringArray(nodeIds.toArray(new String[0]));
+            out.writeStringCollection(nodeIds);
         }
 
         public boolean hasQuorum(Collection<String> votes) {
@@ -361,7 +361,8 @@ public class CoordinationMetadata implements Writeable, ToXContentFragment {
 
         @Override
         public String toString() {
-            return "VotingConfiguration{" + String.join(",", nodeIds) + "}";
+            // Sorting the node IDs for deterministic logging until https://github.com/elastic/elasticsearch/issues/94946 is fixed
+            return "VotingConfiguration{" + nodeIds.stream().sorted().collect(Collectors.joining(",")) + "}";
         }
 
         @Override

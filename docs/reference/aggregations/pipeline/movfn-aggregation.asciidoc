@@ -68,7 +68,7 @@ POST /_search
 --------------------------------------------------
 // TEST[setup:sales]
 
-<1> A `date_histogram` named "my_date_histo" is constructed on the "timestamp" field, with one-day intervals
+<1> A `date_histogram` named "my_date_histo" is constructed on the "timestamp" field, with one-month intervals
 <2> A `sum` metric is used to calculate the sum of a field. This could be any numeric metric (sum, min, max, etc)
 <3> Finally, we specify a `moving_fn` aggregation which uses "the_sum" metric as its input.
 

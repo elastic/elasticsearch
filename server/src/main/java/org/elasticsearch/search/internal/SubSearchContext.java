@@ -1,14 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.search.internal;
 
 import org.apache.lucene.search.Query;
-import org.elasticsearch.core.TimeValue;
+import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.search.aggregations.SearchContextAggregations;
 import org.elasticsearch.search.collapse.CollapseContext;
@@ -21,14 +22,11 @@ import org.elasticsearch.search.fetch.subphase.ScriptFieldsContext;
 import org.elasticsearch.search.fetch.subphase.highlight.SearchHighlightContext;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.sort.SortAndFormats;
-import org.elasticsearch.search.suggest.SuggestionSearchContext;
-
-import java.util.List;
 
 public class SubSearchContext extends FilteredSearchContext {
 
     // By default return 3 hits per bucket. A higher default would make the response really large by default, since
-    // the to hits are returned per bucket.
+    // the top hits are returned per bucket.
     private static final int DEFAULT_SIZE = 3;
 
     private int from;
@@ -39,8 +37,6 @@ public class SubSearchContext extends FilteredSearchContext {
 
     private final FetchSearchResult fetchSearchResult;
     private final QuerySearchResult querySearchResult;
-
-    private int[] docIdsToLoad;
 
     private StoredFieldsContext storedFields;
     private ScriptFieldsContext scriptFields;
@@ -54,10 +50,32 @@ public class SubSearchContext extends FilteredSearchContext {
     private boolean version;
     private boolean seqNoAndPrimaryTerm;
 
+    @SuppressWarnings("this-escape")
     public SubSearchContext(SearchContext context) {
         super(context);
+        context.addReleasable(this);
         this.fetchSearchResult = new FetchSearchResult();
+        addReleasable(fetchSearchResult::decRef);
         this.querySearchResult = new QuerySearchResult();
+    }
+
+    public SubSearchContext(SubSearchContext subSearchContext) {
+        this((SearchContext) subSearchContext);
+        this.from = subSearchContext.from;
+        this.size = subSearchContext.size;
+        this.sort = subSearchContext.sort;
+        this.parsedQuery = subSearchContext.parsedQuery;
+        this.query = subSearchContext.query;
+        this.storedFields = subSearchContext.storedFields;
+        this.scriptFields = subSearchContext.scriptFields;
+        this.fetchSourceContext = subSearchContext.fetchSourceContext;
+        this.docValuesContext = subSearchContext.docValuesContext;
+        this.fetchFieldsContext = subSearchContext.fetchFieldsContext;
+        this.highlight = subSearchContext.highlight;
+        this.explain = subSearchContext.explain;
+        this.trackScores = subSearchContext.trackScores;
+        this.version = subSearchContext.version;
+        this.seqNoAndPrimaryTerm = subSearchContext.seqNoAndPrimaryTerm;
     }
 
     @Override
@@ -84,11 +102,6 @@ public class SubSearchContext extends FilteredSearchContext {
     }
 
     @Override
-    public void suggest(SuggestionSearchContext suggest) {
-        throw new UnsupportedOperationException("Not supported");
-    }
-
-    @Override
     public boolean hasScriptFields() {
         return scriptFields != null && scriptFields.fields().isEmpty() == false;
     }
@@ -104,11 +117,6 @@ public class SubSearchContext extends FilteredSearchContext {
     @Override
     public boolean sourceRequested() {
         return fetchSourceContext != null && fetchSourceContext.fetchSource();
-    }
-
-    @Override
-    public boolean hasFetchSourceContext() {
-        return fetchSourceContext != null;
     }
 
     @Override
@@ -142,11 +150,6 @@ public class SubSearchContext extends FilteredSearchContext {
     public SubSearchContext fetchFieldsContext(FetchFieldsContext fetchFieldsContext) {
         this.fetchFieldsContext = fetchFieldsContext;
         return this;
-    }
-
-    @Override
-    public void timeout(TimeValue timeout) {
-        throw new UnsupportedOperationException("Not supported");
     }
 
     @Override
@@ -254,11 +257,6 @@ public class SubSearchContext extends FilteredSearchContext {
     }
 
     @Override
-    public void groupStats(List<String> groupStats) {
-        throw new UnsupportedOperationException("Not supported");
-    }
-
-    @Override
     public boolean version() {
         return version;
     }
@@ -279,17 +277,6 @@ public class SubSearchContext extends FilteredSearchContext {
     }
 
     @Override
-    public int[] docIdsToLoad() {
-        return docIdsToLoad;
-    }
-
-    @Override
-    public SearchContext docIdsToLoad(int[] docIdsToLoad) {
-        this.docIdsToLoad = docIdsToLoad;
-        return this;
-    }
-
-    @Override
     public CollapseContext collapse() {
         return null;
     }
@@ -307,5 +294,15 @@ public class SubSearchContext extends FilteredSearchContext {
     @Override
     public long getRelativeTimeInMillis() {
         throw new UnsupportedOperationException("Not supported");
+    }
+
+    @Override
+    public TotalHits getTotalHits() {
+        return querySearchResult.getTotalHits();
+    }
+
+    @Override
+    public float getMaxScore() {
+        return querySearchResult.getMaxScore();
     }
 }

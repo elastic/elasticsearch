@@ -1,24 +1,22 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.ingest;
 
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.StatusToXContentObject;
 import org.elasticsearch.ingest.PipelineConfiguration;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xcontent.XContentParser.Token;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -27,11 +25,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
+public class GetPipelineResponse extends ActionResponse implements ToXContentObject {
 
-public class GetPipelineResponse extends ActionResponse implements StatusToXContentObject {
-
-    private List<PipelineConfiguration> pipelines;
+    private final List<PipelineConfiguration> pipelines;
     private final boolean summary;
 
     public GetPipelineResponse(StreamInput in) throws IOException {
@@ -76,7 +72,6 @@ public class GetPipelineResponse extends ActionResponse implements StatusToXCont
         return summary;
     }
 
-    @Override
     public RestStatus status() {
         return isFound() ? RestStatus.OK : RestStatus.NOT_FOUND;
     }
@@ -89,32 +84,6 @@ public class GetPipelineResponse extends ActionResponse implements StatusToXCont
         }
         builder.endObject();
         return builder;
-    }
-
-    /**
-     *
-     * @param parser the parser for the XContent that contains the serialized GetPipelineResponse.
-     * @return an instance of GetPipelineResponse read from the parser
-     * @throws IOException If the parsing fails
-     */
-    public static GetPipelineResponse fromXContent(XContentParser parser) throws IOException {
-        ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
-        List<PipelineConfiguration> pipelines = new ArrayList<>();
-        while (parser.nextToken().equals(Token.FIELD_NAME)) {
-            String pipelineId = parser.currentName();
-            parser.nextToken();
-            try (XContentBuilder contentBuilder = XContentBuilder.builder(parser.contentType().xContent())) {
-                contentBuilder.generator().copyCurrentStructure(parser);
-                PipelineConfiguration pipeline = new PipelineConfiguration(
-                    pipelineId,
-                    BytesReference.bytes(contentBuilder),
-                    contentBuilder.contentType()
-                );
-                pipelines.add(pipeline);
-            }
-        }
-        ensureExpectedToken(XContentParser.Token.END_OBJECT, parser.currentToken(), parser);
-        return new GetPipelineResponse(pipelines);
     }
 
     @Override
@@ -135,6 +104,10 @@ public class GetPipelineResponse extends ActionResponse implements StatusToXCont
                     if (pipeline.equals(otherPipeline) == false) {
                         return false;
                     }
+                    otherPipelineMap.remove(pipeline.getId());
+                }
+                if (otherPipelineMap.isEmpty() == false) {
+                    return false;
                 }
                 return true;
             }

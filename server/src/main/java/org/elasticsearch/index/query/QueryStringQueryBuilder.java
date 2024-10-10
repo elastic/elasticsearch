@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.query;
@@ -13,6 +14,7 @@ import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -44,7 +46,7 @@ import java.util.TreeMap;
  * (using {@link #field(String)}), will run the parsed query against the provided fields, and combine
  * them using Dismax.
  */
-public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQueryBuilder> {
+public final class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQueryBuilder> {
 
     public static final String NAME = "query_string";
 
@@ -192,7 +194,7 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
     protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeString(this.queryString);
         out.writeOptionalString(this.defaultField);
-        out.writeMap(this.fieldsAndWeights, StreamOutput::writeString, StreamOutput::writeFloat);
+        out.writeMap(this.fieldsAndWeights, StreamOutput::writeFloat);
         this.defaultOperator.writeTo(out);
         out.writeOptionalString(this.analyzer);
         out.writeOptionalString(this.quoteAnalyzer);
@@ -968,6 +970,6 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.ZERO;
+        return TransportVersions.ZERO;
     }
 }

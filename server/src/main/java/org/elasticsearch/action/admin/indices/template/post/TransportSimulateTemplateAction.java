@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.indices.template.post;
@@ -15,16 +16,19 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
+import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.IndexSettingProvider;
 import org.elasticsearch.index.IndexSettingProviders;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.SystemIndices;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -36,6 +40,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
+import static org.elasticsearch.cluster.metadata.DataStreamLifecycle.isDataStreamsLifecycleOnlyMode;
 import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.findConflictingV1Templates;
 import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.findConflictingV2Templates;
 
@@ -52,6 +57,8 @@ public class TransportSimulateTemplateAction extends TransportMasterNodeReadActi
     private final IndicesService indicesService;
     private final SystemIndices systemIndices;
     private final Set<IndexSettingProvider> indexSettingProviders;
+    private final ClusterSettings clusterSettings;
+    private final boolean isDslOnlyMode;
 
     @Inject
     public TransportSimulateTemplateAction(
@@ -75,13 +82,15 @@ public class TransportSimulateTemplateAction extends TransportMasterNodeReadActi
             SimulateTemplateAction.Request::new,
             indexNameExpressionResolver,
             SimulateIndexTemplateResponse::new,
-            ThreadPool.Names.SAME
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.indexTemplateService = indexTemplateService;
         this.xContentRegistry = xContentRegistry;
         this.indicesService = indicesService;
         this.systemIndices = systemIndices;
         this.indexSettingProviders = indexSettingProviders.getIndexSettingProviders();
+        this.clusterSettings = clusterService.getClusterSettings();
+        this.isDslOnlyMode = isDataStreamsLifecycleOnlyMode(clusterService.getSettings());
     }
 
     @Override
@@ -157,12 +166,23 @@ public class TransportSimulateTemplateAction extends TransportMasterNodeReadActi
             matchingTemplate,
             temporaryIndexName,
             stateWithTemplate,
+            isDslOnlyMode,
             xContentRegistry,
             indicesService,
             systemIndices,
             indexSettingProviders
         );
-        listener.onResponse(new SimulateIndexTemplateResponse(template, overlapping));
+        if (request.includeDefaults()) {
+            listener.onResponse(
+                new SimulateIndexTemplateResponse(
+                    template,
+                    overlapping,
+                    clusterSettings.get(DataStreamLifecycle.CLUSTER_LIFECYCLE_DEFAULT_ROLLOVER_SETTING)
+                )
+            );
+        } else {
+            listener.onResponse(new SimulateIndexTemplateResponse(template, overlapping));
+        }
     }
 
     @Override

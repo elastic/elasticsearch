@@ -1,14 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlocks;
@@ -21,12 +24,12 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterService;
+import org.elasticsearch.cluster.version.CompatibilityVersions;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
@@ -40,10 +43,12 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.index.shard.IndexLongFieldRange;
+import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContent;
 
@@ -55,6 +60,7 @@ import java.util.Iterator;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.concurrent.Executor;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -72,8 +78,8 @@ import static org.elasticsearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK
  * across master elections (and therefore is preserved in a rolling restart).
  * <p>
  * Updates are triggered by submitting tasks to the {@link MasterService} on the elected master, typically using a {@link
- * TransportMasterNodeAction} to route a request to the master on which the task is submitted with {@link
- * ClusterService#submitStateUpdateTask}. Submitted tasks have an associated {@link ClusterStateTaskConfig} which defines a priority and a
+ * TransportMasterNodeAction} to route a request to the master on which the task is submitted via a queue obtained with {@link
+ * ClusterService#createTaskQueue}, which has an associated priority. Submitted tasks have an associated
  * timeout. Tasks are processed in priority order, so a flood of higher-priority tasks can starve lower-priority ones from running.
  * Therefore, avoid priorities other than {@link Priority#NORMAL} where possible. Tasks associated with client actions should typically have
  * a timeout, or otherwise be sensitive to client cancellations, to avoid surprises caused by the execution of stale tasks long after they
@@ -105,12 +111,12 @@ import static org.elasticsearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK
  */
 public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
 
-    public static final ClusterState EMPTY_STATE = builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)).build();
+    public static final ClusterState EMPTY_STATE = builder(ClusterName.DEFAULT).build();
 
     public interface Custom extends NamedDiffable<Custom>, ChunkedToXContent {
 
         /**
-         * Returns <code>true</code> iff this {@link Custom} is private to the cluster and should never be send to a client.
+         * Returns <code>true</code> iff this {@link Custom} is private to the cluster and should never be sent to a client.
          * The default is <code>false</code>;
          */
         default boolean isPrivate() {
@@ -127,6 +133,19 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
     }
 
     private static final NamedDiffableValueSerializer<Custom> CUSTOM_VALUE_SERIALIZER = new NamedDiffableValueSerializer<>(Custom.class);
+
+    private static final DiffableUtils.ValueSerializer<String, CompatibilityVersions> COMPATIBILITY_VERSIONS_VALUE_SERIALIZER =
+        new DiffableUtils.NonDiffableValueSerializer<>() {
+            @Override
+            public void write(CompatibilityVersions value, StreamOutput out) throws IOException {
+                value.writeTo(out);
+            }
+
+            @Override
+            public CompatibilityVersions read(StreamInput in, String key) throws IOException {
+                return CompatibilityVersions.readVersion(in);
+            }
+        };
 
     public static final String UNKNOWN_UUID = "_na_";
 
@@ -150,6 +169,11 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
 
     private final DiscoveryNodes nodes;
 
+    private final Map<String, CompatibilityVersions> compatibilityVersions;
+    private final CompatibilityVersions minVersions;
+
+    private final ClusterFeatures clusterFeatures;
+
     private final Metadata metadata;
 
     private final ClusterBlocks blocks;
@@ -171,6 +195,8 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
             state.metadata(),
             state.routingTable(),
             state.nodes(),
+            state.compatibilityVersions,
+            state.clusterFeatures(),
             state.blocks(),
             state.customs(),
             false,
@@ -185,6 +211,8 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
         Metadata metadata,
         RoutingTable routingTable,
         DiscoveryNodes nodes,
+        Map<String, CompatibilityVersions> compatibilityVersions,
+        ClusterFeatures clusterFeatures,
         ClusterBlocks blocks,
         Map<String, Custom> customs,
         boolean wasReadFromDiff,
@@ -196,11 +224,37 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
         this.metadata = metadata;
         this.routingTable = routingTable;
         this.nodes = nodes;
+        this.compatibilityVersions = Map.copyOf(compatibilityVersions);
+        this.clusterFeatures = clusterFeatures;
         this.blocks = blocks;
         this.customs = customs;
         this.wasReadFromDiff = wasReadFromDiff;
         this.routingNodes = routingNodes;
         assert assertConsistentRoutingNodes(routingTable, nodes, routingNodes);
+        this.minVersions = blocks.hasGlobalBlock(STATE_NOT_RECOVERED_BLOCK)
+            ? new CompatibilityVersions(TransportVersions.MINIMUM_COMPATIBLE, Map.of()) // empty map because cluster state is unknown
+            : CompatibilityVersions.minimumVersions(compatibilityVersions.values());
+
+        assert compatibilityVersions.isEmpty()
+            || blocks.hasGlobalBlock(STATE_NOT_RECOVERED_BLOCK)
+            || assertEventIngestedIsUnknownInMixedClusters(metadata, this.minVersions);
+    }
+
+    private boolean assertEventIngestedIsUnknownInMixedClusters(Metadata metadata, CompatibilityVersions compatibilityVersions) {
+        if (compatibilityVersions.transportVersion().before(TransportVersions.EVENT_INGESTED_RANGE_IN_CLUSTER_STATE)
+            && metadata != null
+            && metadata.indices() != null) {
+            for (IndexMetadata indexMetadata : metadata.indices().values()) {
+                assert indexMetadata.getEventIngestedRange() == IndexLongFieldRange.UNKNOWN
+                    : "event.ingested range should be UNKNOWN but is "
+                        + indexMetadata.getEventIngestedRange()
+                        + " for index: "
+                        + indexMetadata.getIndex()
+                        + " minTransportVersion: "
+                        + compatibilityVersions.transportVersion();
+            }
+        }
+        return true;
     }
 
     private static boolean assertConsistentRoutingNodes(
@@ -254,6 +308,32 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
      */
     public DiscoveryNodes nodesIfRecovered() {
         return blocks.hasGlobalBlock(STATE_NOT_RECOVERED_BLOCK) ? DiscoveryNodes.EMPTY_NODES : nodes;
+    }
+
+    public boolean clusterRecovered() {
+        return blocks.hasGlobalBlock(STATE_NOT_RECOVERED_BLOCK) == false;
+    }
+
+    public Map<String, CompatibilityVersions> compatibilityVersions() {
+        return this.compatibilityVersions;
+    }
+
+    public boolean hasMixedSystemIndexVersions() {
+        return compatibilityVersions.values()
+            .stream()
+            .anyMatch(e -> e.systemIndexMappingsVersion().equals(minVersions.systemIndexMappingsVersion()) == false);
+    }
+
+    public TransportVersion getMinTransportVersion() {
+        return this.minVersions.transportVersion();
+    }
+
+    public Map<String, SystemIndexDescriptor.MappingsVersion> getMinSystemIndexMappingVersions() {
+        return this.minVersions.systemIndexMappingsVersion();
+    }
+
+    public ClusterFeatures clusterFeatures() {
+        return clusterFeatures;
     }
 
     public Metadata metadata() {
@@ -442,6 +522,16 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
         }
         sb.append(blocks());
         sb.append(nodes());
+        if (compatibilityVersions.isEmpty() == false) {
+            sb.append("node versions:\n");
+            for (var tv : compatibilityVersions.entrySet()) {
+                sb.append(TAB).append(tv.getKey()).append(": ").append(tv.getValue()).append("\n");
+            }
+        }
+        sb.append("cluster features:\n");
+        for (var nf : getNodeFeatures(clusterFeatures).entrySet()) {
+            sb.append(TAB).append(nf.getKey()).append(": ").append(new TreeSet<>(nf.getValue())).append("\n");
+        }
         sb.append(routingTable());
         sb.append(getRoutingNodes());
         if (customs.isEmpty() == false) {
@@ -592,6 +682,27 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
                 (builder, params) -> builder.endObject()
             ),
 
+            // per-node version information
+            chunkedSection(
+                metrics.contains(Metric.NODES),
+                (builder, params) -> builder.startArray("nodes_versions"),
+                compatibilityVersions.entrySet().iterator(),
+                e -> Iterators.single((builder, params) -> {
+                    builder.startObject().field("node_id", e.getKey());
+                    e.getValue().toXContent(builder, params);
+                    return builder.endObject();
+                }),
+                (builder, params) -> builder.endArray()
+            ),
+
+            // per-node feature information
+            metrics.contains(Metric.NODES)
+                ? Iterators.concat(
+                    Iterators.<ToXContent>single((b, p) -> b.field("nodes_features")),
+                    clusterFeatures.toXContentChunked(outerParams)
+                )
+                : Collections.emptyIterator(),
+
             // metadata
             metrics.contains(Metric.METADATA) ? metadata.toXContentChunked(outerParams) : Collections.emptyIterator(),
 
@@ -600,19 +711,29 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
                 metrics.contains(Metric.ROUTING_TABLE),
                 (builder, params) -> builder.startObject("routing_table").startObject("indices"),
                 routingTable().iterator(),
-                indexRoutingTable -> Iterators.single((builder, params) -> {
-                    builder.startObject(indexRoutingTable.getIndex().getName());
-                    builder.startObject("shards");
-                    for (int shardId = 0; shardId < indexRoutingTable.size(); shardId++) {
-                        IndexShardRoutingTable indexShardRoutingTable = indexRoutingTable.shard(shardId);
-                        builder.startArray(Integer.toString(indexShardRoutingTable.shardId().id()));
-                        for (int copy = 0; copy < indexShardRoutingTable.size(); copy++) {
-                            indexShardRoutingTable.shard(copy).toXContent(builder, params);
-                        }
-                        builder.endArray();
-                    }
-                    return builder.endObject().endObject();
-                }),
+                indexRoutingTable -> {
+                    Iterator<Iterator<ToXContent>> input = Iterators.forRange(0, indexRoutingTable.size(), shardId -> {
+                        final var indexShardRoutingTable = indexRoutingTable.shard(shardId);
+                        return Iterators.concat(
+                            Iterators.single(
+                                (builder, params) -> builder.startArray(Integer.toString(indexShardRoutingTable.shardId().id()))
+                            ),
+                            Iterators.forRange(
+                                0,
+                                indexShardRoutingTable.size(),
+                                copy -> (builder, params) -> indexShardRoutingTable.shard(copy).toXContent(builder, params)
+                            ),
+                            Iterators.single((builder, params) -> builder.endArray())
+                        );
+                    });
+                    return Iterators.concat(
+                        Iterators.single(
+                            (builder, params) -> builder.startObject(indexRoutingTable.getIndex().getName()).startObject("shards")
+                        ),
+                        Iterators.flatMap(input, Function.identity()),
+                        Iterators.single((builder, params) -> builder.endObject().endObject())
+                    );
+                },
                 (builder, params) -> builder.endObject().endObject()
             ),
 
@@ -638,10 +759,8 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
 
             // customs
             metrics.contains(Metric.CUSTOMS)
-                ? Iterators.flatMap(
-                    customs.entrySet().iterator(),
-                    cursor -> ChunkedToXContentHelper.wrapWithObject(cursor.getKey(), cursor.getValue().toXContentChunked(outerParams))
-                )
+                ? ChunkedToXContent.builder(outerParams)
+                    .forEach(customs.entrySet().iterator(), (b, e) -> b.xContentObject(e.getKey(), e.getValue()))
                 : Collections.emptyIterator()
         );
     }
@@ -664,6 +783,11 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
         return copyAndUpdate(builder -> builder.metadata(metadata().copyAndUpdate(updater)));
     }
 
+    @SuppressForbidden(reason = "directly reading ClusterState#clusterFeatures")
+    private static Map<String, Set<String>> getNodeFeatures(ClusterFeatures features) {
+        return features.nodeFeatures();
+    }
+
     public static class Builder {
 
         private ClusterState previous;
@@ -674,6 +798,8 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
         private Metadata metadata = Metadata.EMPTY_METADATA;
         private RoutingTable routingTable = RoutingTable.EMPTY_ROUTING_TABLE;
         private DiscoveryNodes nodes = DiscoveryNodes.EMPTY_NODES;
+        private final Map<String, CompatibilityVersions> compatibilityVersions;
+        private final Map<String, Set<String>> nodeFeatures;
         private ClusterBlocks blocks = ClusterBlocks.EMPTY_CLUSTER_BLOCK;
         private final ImmutableOpenMap.Builder<String, Custom> customs;
         private boolean fromDiff;
@@ -684,6 +810,8 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
             this.version = state.version();
             this.uuid = state.stateUUID();
             this.nodes = state.nodes();
+            this.compatibilityVersions = new HashMap<>(state.compatibilityVersions);
+            this.nodeFeatures = new HashMap<>(getNodeFeatures(state.clusterFeatures()));
             this.routingTable = state.routingTable();
             this.metadata = state.metadata();
             this.blocks = state.blocks();
@@ -692,6 +820,8 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
         }
 
         public Builder(ClusterName clusterName) {
+            this.compatibilityVersions = new HashMap<>();
+            this.nodeFeatures = new HashMap<>();
             customs = ImmutableOpenMap.builder();
             this.clusterName = clusterName;
         }
@@ -707,6 +837,55 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
 
         public DiscoveryNodes nodes() {
             return nodes;
+        }
+
+        public Builder putCompatibilityVersions(
+            String nodeId,
+            TransportVersion transportVersion,
+            Map<String, SystemIndexDescriptor.MappingsVersion> systemIndexMappingsVersions
+        ) {
+            return putCompatibilityVersions(
+                nodeId,
+                new CompatibilityVersions(Objects.requireNonNull(transportVersion, nodeId), systemIndexMappingsVersions)
+            );
+        }
+
+        public Builder putCompatibilityVersions(String nodeId, CompatibilityVersions versions) {
+            compatibilityVersions.put(nodeId, versions);
+            return this;
+        }
+
+        public Builder nodeIdsToCompatibilityVersions(Map<String, CompatibilityVersions> versions) {
+            versions.forEach((key, value) -> Objects.requireNonNull(value, key));
+            // remove all versions not present in the new map
+            this.compatibilityVersions.keySet().retainAll(versions.keySet());
+            this.compatibilityVersions.putAll(versions);
+            return this;
+        }
+
+        public Map<String, CompatibilityVersions> compatibilityVersions() {
+            return Collections.unmodifiableMap(this.compatibilityVersions);
+        }
+
+        public Builder nodeFeatures(ClusterFeatures features) {
+            this.nodeFeatures.clear();
+            this.nodeFeatures.putAll(getNodeFeatures(features));
+            return this;
+        }
+
+        public Builder nodeFeatures(Map<String, Set<String>> nodeFeatures) {
+            this.nodeFeatures.clear();
+            this.nodeFeatures.putAll(nodeFeatures);
+            return this;
+        }
+
+        public Map<String, Set<String>> nodeFeatures() {
+            return Collections.unmodifiableMap(this.nodeFeatures);
+        }
+
+        public Builder putNodeFeatures(String node, Set<String> features) {
+            this.nodeFeatures.put(node, features);
+            return this;
         }
 
         public Builder routingTable(RoutingTable.Builder routingTableBuilder) {
@@ -787,6 +966,15 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
             } else {
                 routingNodes = null;
             }
+
+            // ensure every node in the cluster has a feature set
+            // nodes can be null in some tests
+            if (nodes != null) {
+                for (DiscoveryNode node : nodes) {
+                    nodeFeatures.putIfAbsent(node.getId(), Set.of());
+                }
+            }
+
             return new ClusterState(
                 clusterName,
                 version,
@@ -794,6 +982,10 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
                 metadata,
                 routingTable,
                 nodes,
+                compatibilityVersions,
+                previous != null && getNodeFeatures(previous.clusterFeatures).equals(nodeFeatures)
+                    ? previous.clusterFeatures
+                    : new ClusterFeatures(nodeFeatures),
                 blocks,
                 customs.build(),
                 fromDiff,
@@ -835,16 +1027,50 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
         builder.metadata = Metadata.readFrom(in);
         builder.routingTable = RoutingTable.readFrom(in);
         builder.nodes = DiscoveryNodes.readFrom(in, localNode);
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
+            builder.nodeIdsToCompatibilityVersions(in.readMap(CompatibilityVersions::readVersion));
+        } else {
+            // this clusterstate is from a pre-8.8.0 node
+            // infer the versions from discoverynodes for now
+            // leave mappings versions empty
+            builder.nodes()
+                .getNodes()
+                .values()
+                .forEach(n -> builder.putCompatibilityVersions(n.getId(), inferTransportVersion(n), Map.of()));
+        }
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
+            builder.nodeFeatures(ClusterFeatures.readFrom(in));
+        }
         builder.blocks = ClusterBlocks.readFrom(in);
         int customSize = in.readVInt();
         for (int i = 0; i < customSize; i++) {
             Custom customIndexMetadata = in.readNamedWriteable(Custom.class);
             builder.putCustom(customIndexMetadata.getWriteableName(), customIndexMetadata);
         }
-        if (in.getTransportVersion().before(TransportVersion.V_8_0_0)) {
+        if (in.getTransportVersion().before(TransportVersions.V_8_0_0)) {
             in.readVInt(); // used to be minimumMasterNodesOnPublishingMaster, which was used in 7.x for BWC with 6.x
         }
         return builder.build();
+    }
+
+    /**
+     * If the cluster state does not contain transport version information, this is the version
+     * that is inferred for all nodes on version 8.8.0 or above.
+     */
+    public static final TransportVersion INFERRED_TRANSPORT_VERSION = TransportVersions.V_8_8_0;
+
+    public static final Version VERSION_INTRODUCING_TRANSPORT_VERSIONS = Version.V_8_8_0;
+
+    private static TransportVersion inferTransportVersion(DiscoveryNode node) {
+        TransportVersion tv;
+        if (node.getVersion().before(VERSION_INTRODUCING_TRANSPORT_VERSIONS)) {
+            // 1-to-1 mapping between Version and TransportVersion
+            tv = TransportVersion.fromId(node.getPre811VersionId().getAsInt());
+        } else {
+            // use the lowest value it could be for now
+            tv = INFERRED_TRANSPORT_VERSION;
+        }
+        return tv;
     }
 
     @Override
@@ -855,9 +1081,15 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
         metadata.writeTo(out);
         routingTable.writeTo(out);
         nodes.writeTo(out);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
+            out.writeMap(compatibilityVersions, StreamOutput::writeWriteable);
+        }
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
+            clusterFeatures.writeTo(out);
+        }
         blocks.writeTo(out);
         VersionedNamedWriteable.writeVersionedWritables(out, customs);
-        if (out.getTransportVersion().before(TransportVersion.V_8_0_0)) {
+        if (out.getTransportVersion().before(TransportVersions.V_8_0_0)) {
             out.writeVInt(-1); // used to be minimumMasterNodesOnPublishingMaster, which was used in 7.x for BWC with 6.x
         }
     }
@@ -876,6 +1108,10 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
 
         private final Diff<DiscoveryNodes> nodes;
 
+        @Nullable
+        private final Diff<Map<String, CompatibilityVersions>> versions;
+        private final Diff<ClusterFeatures> features;
+
         private final Diff<Metadata> metadata;
 
         private final Diff<ClusterBlocks> blocks;
@@ -889,6 +1125,13 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
             clusterName = after.clusterName;
             routingTable = after.routingTable.diff(before.routingTable);
             nodes = after.nodes.diff(before.nodes);
+            versions = DiffableUtils.diff(
+                before.compatibilityVersions,
+                after.compatibilityVersions,
+                DiffableUtils.getStringKeySerializer(),
+                COMPATIBILITY_VERSIONS_VALUE_SERIALIZER
+            );
+            features = after.clusterFeatures.diff(before.clusterFeatures);
             metadata = after.metadata.diff(before.metadata);
             blocks = after.blocks.diff(before.blocks);
             customs = DiffableUtils.diff(before.customs, after.customs, DiffableUtils.getStringKeySerializer(), CUSTOM_VALUE_SERIALIZER);
@@ -901,10 +1144,24 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
             toVersion = in.readLong();
             routingTable = RoutingTable.readDiffFrom(in);
             nodes = DiscoveryNodes.readDiffFrom(in, localNode);
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0) && in.readBoolean()) {
+                versions = DiffableUtils.readJdkMapDiff(
+                    in,
+                    DiffableUtils.getStringKeySerializer(),
+                    COMPATIBILITY_VERSIONS_VALUE_SERIALIZER
+                );
+            } else {
+                versions = null;   // infer at application time
+            }
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
+                features = ClusterFeatures.readDiffFrom(in);
+            } else {
+                features = null;    // fill in when nodes re-register with a master that understands features
+            }
             metadata = Metadata.readDiffFrom(in);
             blocks = ClusterBlocks.readDiffFrom(in);
             customs = DiffableUtils.readJdkMapDiff(in, DiffableUtils.getStringKeySerializer(), CUSTOM_VALUE_SERIALIZER);
-            if (in.getTransportVersion().before(TransportVersion.V_8_0_0)) {
+            if (in.getTransportVersion().before(TransportVersions.V_8_0_0)) {
                 in.readVInt(); // used to be minimumMasterNodesOnPublishingMaster, which was used in 7.x for BWC with 6.x
             }
         }
@@ -917,10 +1174,16 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
             out.writeLong(toVersion);
             routingTable.writeTo(out);
             nodes.writeTo(out);
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
+                out.writeOptionalWriteable(versions);
+            }
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
+                features.writeTo(out);
+            }
             metadata.writeTo(out);
             blocks.writeTo(out);
             customs.writeTo(out);
-            if (out.getTransportVersion().before(TransportVersion.V_8_0_0)) {
+            if (out.getTransportVersion().before(TransportVersions.V_8_0_0)) {
                 out.writeVInt(-1); // used to be minimumMasterNodesOnPublishingMaster, which was used in 7.x for BWC with 6.x
             }
         }
@@ -939,6 +1202,19 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
             builder.version(toVersion);
             builder.routingTable(routingTable.apply(state.routingTable));
             builder.nodes(nodes.apply(state.nodes));
+            if (versions != null) {
+                builder.nodeIdsToCompatibilityVersions(this.versions.apply(state.compatibilityVersions));
+            } else {
+                // infer the versions from discoverynodes for now
+                // leave mappings versions empty
+                builder.nodes()
+                    .getNodes()
+                    .values()
+                    .forEach(n -> builder.putCompatibilityVersions(n.getId(), inferTransportVersion(n), Map.of()));
+            }
+            if (features != null) {
+                builder.nodeFeatures(this.features.apply(state.clusterFeatures));
+            }
             builder.metadata(metadata.apply(state.metadata));
             builder.blocks(blocks.apply(state.blocks));
             builder.customs(customs.apply(state.customs));

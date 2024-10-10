@@ -1,0 +1,273 @@
+setup:
+  - requires:
+      cluster_features: "gte_v8.0.0"
+      reason: 'kNN search added in 8.0'
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            properties:
+              vector:
+                type: dense_vector
+                dims: 5
+                index: true
+                similarity: cosine
+                index_options:
+                  type: hnsw
+                  m: 16
+                  ef_construction: 200
+              normalized_vector:
+                type: dense_vector
+                dims: 5
+                index: true
+                similarity: cosine
+                index_options:
+                  type: hnsw
+                  m: 16
+                  ef_construction: 200
+              end_normalized:
+                type: dense_vector
+                dims: 5
+                index: true
+                similarity: cosine
+                index_options:
+                  type: hnsw
+                  m: 16
+                  ef_construction: 200
+              first_normalized:
+                type: dense_vector
+                dims: 5
+                index: true
+                similarity: cosine
+                index_options:
+                  type: hnsw
+                  m: 16
+                  ef_construction: 200
+              middle_normalized:
+                type: dense_vector
+                dims: 5
+                index: true
+                similarity: cosine
+                index_options:
+                  type: hnsw
+                  m: 16
+                  ef_construction: 200
+
+
+  - do:
+      index:
+        index: test
+        id: "1"
+        body:
+          name: cow.jpg
+          vector: [230.0, 300.33, -34.8988, 15.555, -200.0]
+          middle_normalized: [230.0, 300.33, -34.8988, 15.555, -200.0]
+          normalized_vector: [0.5353791, 0.6990887, -0.08123516, 0.03620792, -0.46554706]
+          end_normalized: [230.0, 300.33, -34.8988, 15.555, -200.0]
+          first_normalized: [0.5353791, 0.6990887, -0.08123516, 0.03620792, -0.46554706]
+
+  - do:
+      index:
+        index: test
+        id: "2"
+        body:
+          name: moose.jpg
+          vector: [-0.5, 100.0, -13, 14.8, -156.0]
+          first_normalized: [-0.5, 100.0, -13, 14.8, -156.0]
+          normalized_vector: [-0.0026832016, 0.53664035, -0.06976324, 0.07942277, -0.8371589]
+          middle_normalized: [-0.0026832016, 0.53664035, -0.06976324, 0.07942277, -0.8371589]
+          end_normalized: [-0.0026832016, 0.53664035, -0.06976324, 0.07942277, -0.8371589]
+
+  - do:
+      index:
+        index: test
+        id: "3"
+        body:
+          name: rabbit.jpg
+          vector: [0.5, 111.3, -13.0, 14.8, -156.0]
+          first_normalized: [0.5, 111.3, -13.0, 14.8, -156.0]
+          middle_normalized: [0.5, 111.3, -13.0, 14.8, -156.0]
+          normalized_vector: [0.0025954517, 0.5777475, -0.06748174, 0.076825365, -0.8097809]
+          end_normalized: [0.0025954517, 0.5777475, -0.06748174, 0.076825365, -0.8097809]
+
+  - do:
+      indices.refresh: {}
+
+---
+"kNN search only regular query":
+  - requires:
+      cluster_features: "gte_v8.4.0"
+      reason: 'kNN added to search endpoint in 8.4'
+      test_runner_features: "close_to"
+  - do:
+      search:
+        index: test
+        body:
+          fields: [ "name" ]
+          knn:
+            field: vector
+            query_vector: [-0.5, 90.0, -10, 14.8, -156.0]
+            k: 3
+            num_candidates: 3
+
+  - match: {hits.hits.0._id: "2"}
+  - close_to: {hits.hits.0._score: {value: 0.999405, error: 0.0001}}
+
+  - match: {hits.hits.1._id: "3"}
+  - close_to: {hits.hits.1._score: {value:  0.9976501, error: 0.0001}}
+
+  - do:
+      search:
+        index: test
+        body:
+          fields: [ "name" ]
+          knn:
+            field: normalized_vector
+            query_vector: [-0.5, 90.0, -10, 14.8, -156.0]
+            k: 3
+            num_candidates: 3
+
+  - match: {hits.hits.0._id: "2"}
+  - close_to: {hits.hits.0._score: {value: 0.999405, error: 0.0001}}
+
+  - match: {hits.hits.1._id: "3"}
+  - close_to: {hits.hits.1._score: {value:  0.9976501, error: 0.0001}}
+
+  - do:
+      search:
+        index: test
+        body:
+          fields: [ "name" ]
+          knn:
+            field: first_normalized
+            query_vector: [-0.5, 90.0, -10, 14.8, -156.0]
+            k: 3
+            num_candidates: 3
+
+  - match: {hits.hits.0._id: "2"}
+  - close_to: {hits.hits.0._score: {value: 0.999405, error: 0.0001}}
+
+  - match: {hits.hits.1._id: "3"}
+  - close_to: {hits.hits.1._score: {value:  0.9976501, error: 0.0001}}
+
+  - do:
+      search:
+        index: test
+        body:
+          fields: [ "name" ]
+          knn:
+            field: middle_normalized
+            query_vector: [-0.5, 90.0, -10, 14.8, -156.0]
+            k: 3
+            num_candidates: 3
+
+  - match: {hits.hits.0._id: "2"}
+  - close_to: {hits.hits.0._score: {value: 0.999405, error: 0.0001}}
+
+  - match: {hits.hits.1._id: "3"}
+  - close_to: {hits.hits.1._score: {value:  0.9976501, error: 0.0001}}
+
+  - do:
+      search:
+        index: test
+        body:
+          fields: [ "name" ]
+          knn:
+            field: end_normalized
+            query_vector: [-0.5, 90.0, -10, 14.8, -156.0]
+            k: 3
+            num_candidates: 3
+
+  - match: {hits.hits.0._id: "2"}
+  - close_to: {hits.hits.0._score: {value: 0.999405, error: 0.0001}}
+
+  - match: {hits.hits.1._id: "3"}
+  - close_to: {hits.hits.1._score: {value:  0.9976501, error: 0.0001}}
+
+# With a normalized query vector, all should be the same
+
+  - do:
+      search:
+        index: test
+        body:
+          fields: [ "name" ]
+          knn:
+            field: vector
+            query_vector: [-0.0027626718, 0.4972809, -0.055253435, 0.081775084, -0.86195356]
+            k: 3
+            num_candidates: 3
+
+  - match: {hits.hits.0._id: "2"}
+  - close_to: {hits.hits.0._score: {value: 0.999405, error: 0.0001}}
+
+  - match: {hits.hits.1._id: "3"}
+  - close_to: {hits.hits.1._score: {value:  0.9976501, error: 0.0001}}
+
+  - do:
+      search:
+        index: test
+        body:
+          fields: [ "name" ]
+          knn:
+            field: normalized_vector
+            query_vector: [-0.0027626718, 0.4972809, -0.055253435, 0.081775084, -0.86195356]
+            k: 3
+            num_candidates: 3
+
+  - match: {hits.hits.0._id: "2"}
+  - close_to: {hits.hits.0._score: {value: 0.999405, error: 0.0001}}
+
+  - match: {hits.hits.1._id: "3"}
+  - close_to: {hits.hits.1._score: {value:  0.9976501, error: 0.0001}}
+
+  - do:
+      search:
+        index: test
+        body:
+          fields: [ "name" ]
+          knn:
+            field: first_normalized
+            query_vector: [-0.0027626718, 0.4972809, -0.055253435, 0.081775084, -0.86195356]
+            k: 3
+            num_candidates: 3
+
+  - match: {hits.hits.0._id: "2"}
+  - close_to: {hits.hits.0._score: {value: 0.999405, error: 0.0001}}
+
+  - match: {hits.hits.1._id: "3"}
+  - close_to: {hits.hits.1._score: {value:  0.9976501, error: 0.0001}}
+
+  - do:
+      search:
+        index: test
+        body:
+          fields: [ "name" ]
+          knn:
+            field: middle_normalized
+            query_vector: [-0.0027626718, 0.4972809, -0.055253435, 0.081775084, -0.86195356]
+            k: 3
+            num_candidates: 3
+
+  - match: {hits.hits.0._id: "2"}
+  - close_to: {hits.hits.0._score: {value: 0.999405, error: 0.0001}}
+
+  - match: {hits.hits.1._id: "3"}
+  - close_to: {hits.hits.1._score: {value:  0.9976501, error: 0.0001}}
+
+  - do:
+      search:
+        index: test
+        body:
+          fields: [ "name" ]
+          knn:
+            field: end_normalized
+            query_vector: [-0.0027626718, 0.4972809, -0.055253435, 0.081775084, -0.86195356]
+            k: 3
+            num_candidates: 3
+
+  - match: {hits.hits.0._id: "2"}
+  - close_to: {hits.hits.0._score: {value: 0.999405, error: 0.0001}}
+
+  - match: {hits.hits.1._id: "3"}
+  - close_to: {hits.hits.1._score: {value:  0.9976501, error: 0.0001}}

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper.annotatedtext;
@@ -131,21 +132,23 @@ public class AnnotatedTextHighlighterTests extends ESTestCase {
                 TopDocs topDocs = searcher.search(new MatchAllDocsQuery(), 1, Sort.INDEXORDER);
                 assertThat(topDocs.totalHits.value, equalTo(1L));
                 String rawValue = Strings.collectionToDelimitedString(plainTextForHighlighter, String.valueOf(MULTIVAL_SEP_CHAR));
+                UnifiedHighlighter.Builder builder = UnifiedHighlighter.builder(searcher, hiliteAnalyzer);
+                builder.withBreakIterator(() -> breakIterator);
+                builder.withFieldMatcher(name -> "text".equals(name));
+                builder.withFormatter(passageFormatter);
                 CustomUnifiedHighlighter highlighter = new CustomUnifiedHighlighter(
-                    searcher,
-                    hiliteAnalyzer,
+                    builder,
                     UnifiedHighlighter.OffsetSource.ANALYSIS,
-                    passageFormatter,
                     locale,
-                    breakIterator,
                     "index",
                     "text",
                     query,
                     noMatchSize,
                     expectedPassages.length,
-                    name -> "text".equals(name),
                     maxAnalyzedOffset,
-                    queryMaxAnalyzedOffset
+                    queryMaxAnalyzedOffset,
+                    true,
+                    true
                 );
                 highlighter.setFieldMatcher((name) -> "text".equals(name));
                 final Snippet[] snippets = highlighter.highlightField(getOnlyLeafReader(reader), topDocs.scoreDocs[0].doc, () -> rawValue);
@@ -236,7 +239,7 @@ public class AnnotatedTextHighlighterTests extends ESTestCase {
 
     public void testAnnotatedTextSingleFieldWithPhraseQuery() throws Exception {
         final String[] markedUpInputs = { "[Donald Trump](Donald+Trump) visited Singapore", "Donald Jr was with Melania Trump" };
-        String[] expectedPassages = { "[Donald](_hit_term=donald) [Trump](_hit_term=trump) visited Singapore" };
+        String[] expectedPassages = { "[Donald Trump](_hit_term=donald+trump&Donald+Trump) visited Singapore" };
         Query query = new PhraseQuery("text", "donald", "trump");
         BreakIterator breakIterator = new CustomSeparatorBreakIterator(MULTIVAL_SEP_CHAR);
         assertHighlightOneDoc("text", markedUpInputs, query, Locale.ROOT, breakIterator, 0, expectedPassages);

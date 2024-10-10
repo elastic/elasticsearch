@@ -1,19 +1,23 @@
 = Elasticsearch
 
-Elasticsearch is the distributed, RESTful search and analytics engine at the
-heart of the https://www.elastic.co/products[Elastic Stack]. You can use
-Elasticsearch to store, search, and manage data for:
+Elasticsearch is a distributed search and analytics engine, scalable data store and vector database optimized for speed and relevance on production-scale workloads. Elasticsearch is the foundation of Elastic's open Stack platform. Search in near real-time over massive datasets, perform vector searches, integrate with generative AI applications, and much more.
 
+Use cases enabled by Elasticsearch include:
+
+* https://www.elastic.co/search-labs/blog/articles/retrieval-augmented-generation-rag[Retrieval Augmented Generation (RAG)] 
+* https://www.elastic.co/search-labs/blog/categories/vector-search[Vector search]
+* Full-text search
 * Logs
 * Metrics
-* A search backend
-* Application monitoring
-* Endpoint security
+* Application performance monitoring (APM)
+* Security logs
 
 \... and more!
 
 To learn more about Elasticsearch's features and capabilities, see our
 https://www.elastic.co/products/elasticsearch[product page].
+
+To access information on https://www.elastic.co/search-labs/blog/categories/ml-research[machine learning innovations] and the latest https://www.elastic.co/search-labs/blog/categories/lucene[Lucene contributions from Elastic], more information can be found in https://www.elastic.co/search-labs[Search Labs]. 
 
 [[get-started]]
 == Get started
@@ -29,76 +33,124 @@ https://www.elastic.co/downloads/elasticsearch[elastic.co/downloads/elasticsearc
 === Run Elasticsearch locally
 
 //// 
-IMPORTANT: This content is replicated in the Elasticsearch guide. 
-If you make changes, you must also update setup/set-up-local-dev-deployment.asciidoc.
-////
+IMPORTANT: This content is replicated in the Elasticsearch repo. See `run-elasticsearch-locally.asciidoc`.
+Ensure both files are in sync.
 
-To try out Elasticsearch on your own machine, we recommend using Docker
-and running both Elasticsearch and Kibana.
-Docker images are available from the https://www.docker.elastic.co[Elastic Docker registry].
+https://github.com/elastic/start-local is the source of truth.
+//// 
 
-NOTE: Starting in Elasticsearch 8.0, security is enabled by default. 
-The first time you start Elasticsearch, TLS encryption is configured automatically, 
-a password is generated for the `elastic` user, 
-and a Kibana enrollment token is created so you can connect Kibana to your secured cluster.
+[WARNING]
+==== 
+DO NOT USE THESE INSTRUCTIONS FOR PRODUCTION DEPLOYMENTS.
 
-For other installation options, see the
-https://www.elastic.co/guide/en/elasticsearch/reference/current/install-elasticsearch.html[Elasticsearch installation documentation].
+This setup is intended for local development and testing only.
+====
 
-**Start Elasticsearch**
+Quickly set up Elasticsearch and Kibana in Docker for local development or testing, using the https://github.com/elastic/start-local?tab=readme-ov-file#-try-elasticsearch-and-kibana-locally[`start-local` script].
 
-. Install and start https://www.docker.com/products/docker-desktop[Docker
-Desktop]. Go to **Preferences > Resources > Advanced** and set Memory to at least 4GB.
+ℹ️ For more detailed information about the `start-local` setup, refer to the https://github.com/elastic/start-local[README on GitHub].
 
-. Start an Elasticsearch container:
-+
+==== Prerequisites
+
+- If you don't have Docker installed, https://www.docker.com/products/docker-desktop[download and install Docker Desktop] for your operating system.
+- If you're using Microsoft Windows, then install https://learn.microsoft.com/en-us/windows/wsl/install[Windows Subsystem for Linux (WSL)].
+
+==== Trial license
+
+This setup comes with a one-month trial of the Elastic *Platinum* license.
+After the trial period, the license reverts to *Free and open - Basic*.
+Refer to https://www.elastic.co/subscriptions[Elastic subscriptions] for more information.
+
+==== Run `start-local`
+
+To set up Elasticsearch and Kibana locally, run the `start-local` script:
+
+[source,sh]
 ----
-docker network create elastic
-docker pull docker.elastic.co/elasticsearch/elasticsearch:{version} <1>
-docker run --name elasticsearch --net elastic -p 9200:9200 -p 9300:9300 -e "discovery.type=single-node" -t docker.elastic.co/elasticsearch/elasticsearch:{version}
+curl -fsSL https://elastic.co/start-local | sh
 ----
-<1> Replace {version} with the version of Elasticsearch you want to run.
-+
-When you start Elasticsearch for the first time, the generated `elastic` user password and
-Kibana enrollment token are output to the terminal.
-+
-NOTE: You might need to scroll back a bit in the terminal to view the password 
-and enrollment token.
+// NOTCONSOLE
 
-. Copy the generated password and enrollment token and save them in a secure 
-location. These values are shown only when you start Elasticsearch for the first time.
-You'll use these to enroll Kibana with your Elasticsearch cluster and log in.
+This script creates an `elastic-start-local` folder containing configuration files and starts both Elasticsearch and Kibana using Docker.
 
-**Start Kibana**
+After running the script, you can access Elastic services at the following endpoints:
 
-Kibana enables you to easily send requests to Elasticsearch and analyze, visualize, and manage data interactively.
+* *Elasticsearch*: http://localhost:9200
+* *Kibana*: http://localhost:5601
 
-. In a new terminal session, start Kibana and connect it to your Elasticsearch container:
-+
+The script generates a random password for the `elastic` user, which is displayed at the end of the installation and stored in the `.env` file.
+
+[CAUTION]
+====
+This setup is for local testing only. HTTPS is disabled, and Basic authentication is used for Elasticsearch. For security, Elasticsearch and Kibana are accessible only through `localhost`.
+====
+
+==== API access
+
+An API key for Elasticsearch is generated and stored in the `.env` file as `ES_LOCAL_API_KEY`.
+Use this key to connect to Elasticsearch with a https://www.elastic.co/guide/en/elasticsearch/client/index.html[programming language client] or the https://www.elastic.co/guide/en/elasticsearch/reference/current/rest-apis.html[REST API].
+
+From the `elastic-start-local` folder, check the connection to Elasticsearch using `curl`:
+
+[source,sh]
+----     
+source .env
+curl $ES_LOCAL_URL -H "Authorization: ApiKey ${ES_LOCAL_API_KEY}"
 ----
-docker pull docker.elastic.co/kibana/kibana:{version} <1>
-docker run --name kibana --net elastic -p 5601:5601 docker.elastic.co/kibana/kibana:{version}
-----
-<1> Replace {version} with the version of Kibana you want to run.
-+
-When you start Kibana, a unique URL is output to your terminal.
+// NOTCONSOLE
 
-. To access Kibana, open the generated URL in your browser.
-
-  .. Paste the enrollment token that you copied when starting
-  Elasticsearch and click the button to connect your Kibana instance with Elasticsearch.
-
-  .. Log in to Kibana as the `elastic` user with the password that was generated
-  when you started Elasticsearch.
-
-**Send requests to Elasticsearch**
+=== Send requests to Elasticsearch
 
 You send data and other requests to Elasticsearch through REST APIs. 
 You can interact with Elasticsearch using any client that sends HTTP requests, 
 such as the https://www.elastic.co/guide/en/elasticsearch/client/index.html[Elasticsearch
 language clients] and https://curl.se[curl]. 
+
+==== Using curl 
+
+Here's an example curl command to create a new Elasticsearch index, using basic auth:
+
+[source,sh]
+----
+curl -u elastic:$ELASTIC_PASSWORD \
+  -X PUT \
+  http://localhost:9200/my-new-index \
+  -H 'Content-Type: application/json'
+----
+// NOTCONSOLE
+
+==== Using a language client
+
+To connect to your local dev Elasticsearch cluster with a language client, you can use basic authentication with the `elastic` username and the password you set in the environment variable.
+
+You'll use the following connection details:
+
+* **Elasticsearch endpoint**: `http://localhost:9200`
+* **Username**: `elastic`
+* **Password**: `$ELASTIC_PASSWORD` (Value you set in the environment variable)
+
+For example, to connect with the Python `elasticsearch` client:
+
+[source,python]
+----
+import os
+from elasticsearch import Elasticsearch
+
+username = 'elastic'
+password = os.getenv('ELASTIC_PASSWORD') # Value you set in the environment variable
+
+client = Elasticsearch(
+    "http://localhost:9200",
+    basic_auth=(username, password)
+)
+
+print(client.info())
+----
+
+==== Using the Dev Tools Console
+
 Kibana's developer console provides an easy way to experiment and test requests. 
-To access the console, go to **Management > Dev Tools**.
+To access the console, open Kibana, then go to **Management** > **Dev Tools**.
 
 **Add data**
 
@@ -219,6 +271,12 @@ https://www.elastic.co/guide/en/elasticsearch/reference/current/index.html[elast
 
 For information about our documentation processes, see the
 xref:docs/README.asciidoc[docs README].
+
+[[examples]]
+== Examples and guides
+
+The https://github.com/elastic/elasticsearch-labs[`elasticsearch-labs`] repo contains executable Python notebooks, sample apps, and resources to test out Elasticsearch for vector search, hybrid search and generative AI use cases.
+
 
 [[contribute]]
 == Contribute

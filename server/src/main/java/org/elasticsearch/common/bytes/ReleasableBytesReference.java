@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.bytes;
@@ -26,15 +27,12 @@ import java.io.OutputStream;
  */
 public final class ReleasableBytesReference implements RefCounted, Releasable, BytesReference {
 
-    public static final Releasable NO_OP = () -> {};
-
-    private static final ReleasableBytesReference EMPTY = new ReleasableBytesReference(BytesArray.EMPTY, NO_OP);
+    private static final ReleasableBytesReference EMPTY = new ReleasableBytesReference(BytesArray.EMPTY, RefCounted.ALWAYS_REFERENCED);
 
     private final BytesReference delegate;
     private final RefCounted refCounted;
 
     public static ReleasableBytesReference empty() {
-        EMPTY.incRef();
         return EMPTY;
     }
 
@@ -50,7 +48,7 @@ public final class ReleasableBytesReference implements RefCounted, Releasable, B
 
     public static ReleasableBytesReference wrap(BytesReference reference) {
         assert reference instanceof ReleasableBytesReference == false : "use #retain() instead of #wrap() on a " + reference.getClass();
-        return reference.length() == 0 ? empty() : new ReleasableBytesReference(reference, NO_OP);
+        return reference.length() == 0 ? empty() : new ReleasableBytesReference(reference, ALWAYS_REFERENCED);
     }
 
     @Override
@@ -147,15 +145,32 @@ public final class ReleasableBytesReference implements RefCounted, Releasable, B
     @Override
     public StreamInput streamInput() throws IOException {
         assert hasReferences();
-        return new BytesReferenceStreamInput(this) {
-            @Override
-            public ReleasableBytesReference readReleasableBytesReference() throws IOException {
-                final int len = readArraySize();
+        return new BytesReferenceStreamInput(delegate) {
+            private ReleasableBytesReference retainAndSkip(int len) throws IOException {
+                if (len == 0) {
+                    return ReleasableBytesReference.empty();
+                }
                 // instead of reading the bytes from a stream we just create a slice of the underlying bytes
                 final ReleasableBytesReference result = retainedSlice(offset(), len);
                 // move the stream manually since creating the slice didn't move it
                 skip(len);
                 return result;
+            }
+
+            @Override
+            public ReleasableBytesReference readReleasableBytesReference() throws IOException {
+                final int len = readVInt();
+                return retainAndSkip(len);
+            }
+
+            @Override
+            public ReleasableBytesReference readAllToReleasableBytesReference() throws IOException {
+                return retainAndSkip(length() - offset());
+            }
+
+            @Override
+            public boolean supportReadAllToReleasableBytesReference() {
+                return true;
             }
         };
     }

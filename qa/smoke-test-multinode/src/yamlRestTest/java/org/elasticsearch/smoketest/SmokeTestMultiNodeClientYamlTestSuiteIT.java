@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.smoketest;
@@ -27,6 +28,10 @@ public class SmokeTestMultiNodeClientYamlTestSuiteIT extends ESClientYamlSuiteTe
         .nodes(2)
         .module("mapper-extras")
         .module("ingest-common")
+        .module("reindex")
+        .module("analysis-common")
+        .module("health-shards-availability")
+        .module("data-streams")
         // The first node does not have the ingest role so we're sure ingest requests are forwarded:
         .node(0, n -> n.setting("node.roles", "[master,data,ml,remote_cluster_client,transform]"))
         .feature(FeatureFlag.TIME_SERIES_MODE)

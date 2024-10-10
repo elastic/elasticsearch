@@ -8,7 +8,7 @@ package org.elasticsearch.integration;
 
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesAction;
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
-import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateAction;
+import org.elasticsearch.action.admin.indices.template.put.TransportPutIndexTemplateAction;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
@@ -105,7 +105,7 @@ public class PermissionPrecedenceTests extends SecurityIntegTestCase {
                 .indices()
                 .preparePutTemplate("template1")
                 .setPatterns(Collections.singletonList("test_*"))::get,
-            PutIndexTemplateAction.NAME,
+            TransportPutIndexTemplateAction.TYPE.name(),
             "user"
         );
 

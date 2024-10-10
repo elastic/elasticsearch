@@ -7,13 +7,13 @@
 
 package org.elasticsearch.xpack.ml.dataframe.process;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
+import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.license.License;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.core.ml.MlConfigVersion;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsDest;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsSource;
@@ -25,7 +25,7 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.metadata.FeatureIm
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.metadata.HyperparametersTests;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.metadata.TotalFeatureImportanceTests;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.metadata.TrainedModelMetadata;
-import org.elasticsearch.xpack.core.security.user.XPackUser;
+import org.elasticsearch.xpack.core.security.user.InternalUsers;
 import org.elasticsearch.xpack.ml.dataframe.process.results.ModelMetadata;
 import org.elasticsearch.xpack.ml.dataframe.process.results.TrainedModelDefinitionChunk;
 import org.elasticsearch.xpack.ml.extractor.DocValueField;
@@ -102,7 +102,7 @@ public class ChunkedTrainedModelPersisterTests extends ESTestCase {
         }).when(trainedModelProvider).storeTrainedModelMetadata(any(TrainedModelMetadata.class), any(ActionListener.class));
 
         doAnswer(invocationOnMock -> {
-            ActionListener<RefreshResponse> storeListener = (ActionListener<RefreshResponse>) invocationOnMock.getArguments()[0];
+            ActionListener<BroadcastResponse> storeListener = (ActionListener<BroadcastResponse>) invocationOnMock.getArguments()[0];
             storeListener.onResponse(null);
             return null;
         }).when(trainedModelProvider).refreshInferenceIndex(any(ActionListener.class));
@@ -134,8 +134,8 @@ public class ChunkedTrainedModelPersisterTests extends ESTestCase {
         TrainedModelConfig storedModel = storedModelCaptor.getValue();
         assertThat(storedModel.getLicenseLevel(), equalTo(License.OperationMode.PLATINUM));
         assertThat(storedModel.getModelId(), containsString(JOB_ID));
-        assertThat(storedModel.getVersion(), equalTo(Version.CURRENT));
-        assertThat(storedModel.getCreatedBy(), equalTo(XPackUser.NAME));
+        assertThat(storedModel.getVersion(), equalTo(MlConfigVersion.CURRENT));
+        assertThat(storedModel.getCreatedBy(), equalTo(InternalUsers.XPACK_USER.principal()));
         assertThat(storedModel.getTags(), contains(JOB_ID));
         assertThat(storedModel.getDescription(), equalTo(JOB_DESCRIPTION));
         assertThat(storedModel.getModelDefinition(), is(nullValue()));

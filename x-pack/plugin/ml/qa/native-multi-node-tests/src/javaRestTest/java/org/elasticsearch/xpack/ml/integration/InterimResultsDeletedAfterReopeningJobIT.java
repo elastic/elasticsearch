@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.ml.integration;
 
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
@@ -24,6 +23,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
@@ -108,7 +108,6 @@ public class InterimResultsDeletedAfterReopeningJobIT extends MlNativeAutodetect
 
     private void assertNoInterimResults(String jobId) {
         String indexName = AnomalyDetectorsIndex.jobResultsAliasedName(jobId);
-        SearchResponse search = client().prepareSearch(indexName).setSize(1000).setQuery(QueryBuilders.termQuery("is_interim", true)).get();
-        assertThat(search.getHits().getTotalHits().value, equalTo(0L));
+        assertHitCount(prepareSearch(indexName).setSize(1000).setQuery(QueryBuilders.termQuery("is_interim", true)), 0);
     }
 }

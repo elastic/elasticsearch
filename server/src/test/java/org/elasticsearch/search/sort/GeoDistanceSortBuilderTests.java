@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.sort;
@@ -27,7 +28,6 @@ import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.DocValueFormat;
@@ -367,32 +367,32 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
         // The common case should use LatLonDocValuesField.newDistanceSort
         GeoDistanceSortBuilder builder = new GeoDistanceSortBuilder("", new GeoPoint(3.5, 2.1));
         SortFieldAndFormat sort = builder.build(context);
-        assertEquals(LatLonDocValuesField.newDistanceSort("random_field_name", 3.5, 2.1).getClass(), sort.field.getClass());
+        assertEquals(LatLonDocValuesField.newDistanceSort("random_field_name", 3.5, 2.1).getClass(), sort.field().getClass());
 
         // however this might be disabled by fancy options
         builder = new GeoDistanceSortBuilder("random_field_name", new GeoPoint(3.5, 2.1), new GeoPoint(3.0, 4));
         sort = builder.build(context);
-        assertEquals(SortField.class, sort.field.getClass()); // 2 points -> plain SortField with a custom comparator
+        assertEquals(SortField.class, sort.field().getClass()); // 2 points -> plain SortField with a custom comparator
 
         builder = new GeoDistanceSortBuilder("random_field_name", new GeoPoint(3.5, 2.1));
         builder.unit(DistanceUnit.KILOMETERS);
         sort = builder.build(context);
-        assertEquals(SortField.class, sort.field.getClass()); // km rather than m -> plain SortField with a custom comparator
+        assertEquals(SortField.class, sort.field().getClass()); // km rather than m -> plain SortField with a custom comparator
 
         builder = new GeoDistanceSortBuilder("random_field_name", new GeoPoint(3.5, 2.1));
         builder.order(SortOrder.DESC);
         sort = builder.build(context);
-        assertEquals(SortField.class, sort.field.getClass()); // descending means the max value should be considered rather than min
+        assertEquals(SortField.class, sort.field().getClass()); // descending means the max value should be considered rather than min
 
         builder = new GeoDistanceSortBuilder("random_field_name", new GeoPoint(3.5, 2.1));
         builder.setNestedSort(new NestedSortBuilder("path"));
         sort = builder.build(context);
-        assertEquals(SortField.class, sort.field.getClass()); // can't use LatLon optimized sorting with nested fields
+        assertEquals(SortField.class, sort.field().getClass()); // can't use LatLon optimized sorting with nested fields
 
         builder = new GeoDistanceSortBuilder("random_field_name", new GeoPoint(3.5, 2.1));
         builder.order(SortOrder.DESC);
         sort = builder.build(context);
-        assertEquals(SortField.class, sort.field.getClass()); // can't use LatLon optimized sorting with DESC sorting
+        assertEquals(SortField.class, sort.field().getClass()); // can't use LatLon optimized sorting with DESC sorting
     }
 
     /**
@@ -401,13 +401,13 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
     public void testBuildSortFieldOrder() throws IOException {
         SearchExecutionContext searchExecutionContext = createMockSearchExecutionContext();
         GeoDistanceSortBuilder geoDistanceSortBuilder = new GeoDistanceSortBuilder("fieldName", 1.0, 1.0);
-        assertEquals(false, geoDistanceSortBuilder.build(searchExecutionContext).field.getReverse());
+        assertEquals(false, geoDistanceSortBuilder.build(searchExecutionContext).field().getReverse());
 
         geoDistanceSortBuilder.order(SortOrder.ASC);
-        assertEquals(false, geoDistanceSortBuilder.build(searchExecutionContext).field.getReverse());
+        assertEquals(false, geoDistanceSortBuilder.build(searchExecutionContext).field().getReverse());
 
         geoDistanceSortBuilder.order(SortOrder.DESC);
-        assertEquals(true, geoDistanceSortBuilder.build(searchExecutionContext).field.getReverse());
+        assertEquals(true, geoDistanceSortBuilder.build(searchExecutionContext).field().getReverse());
     }
 
     /**
@@ -417,7 +417,7 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
         SearchExecutionContext searchExecutionContext = createMockSearchExecutionContext();
         GeoDistanceSortBuilder geoDistanceSortBuilder = new GeoDistanceSortBuilder("fieldName", 1.0, 1.0);
         geoDistanceSortBuilder.sortMode(SortMode.MAX);
-        SortField sortField = geoDistanceSortBuilder.build(searchExecutionContext).field;
+        SortField sortField = geoDistanceSortBuilder.build(searchExecutionContext).field();
         assertThat(sortField.getComparatorSource(), instanceOf(XFieldComparatorSource.class));
         XFieldComparatorSource comparatorSource = (XFieldComparatorSource) sortField.getComparatorSource();
         assertEquals(MultiValueMode.MAX, comparatorSource.sortMode());
@@ -425,7 +425,7 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
         // also use MultiValueMode.Max if no Mode set but order is DESC
         geoDistanceSortBuilder = new GeoDistanceSortBuilder("fieldName", 1.0, 1.0);
         geoDistanceSortBuilder.order(SortOrder.DESC);
-        sortField = geoDistanceSortBuilder.build(searchExecutionContext).field;
+        sortField = geoDistanceSortBuilder.build(searchExecutionContext).field();
         assertThat(sortField.getComparatorSource(), instanceOf(XFieldComparatorSource.class));
         comparatorSource = (XFieldComparatorSource) sortField.getComparatorSource();
         assertEquals(MultiValueMode.MAX, comparatorSource.sortMode());
@@ -434,7 +434,7 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
         geoDistanceSortBuilder = new GeoDistanceSortBuilder("fieldName", 1.0, 1.0);
         // need to use distance unit other than Meters to not get back a LatLonPointSortField
         geoDistanceSortBuilder.order(SortOrder.ASC).unit(DistanceUnit.INCH);
-        sortField = geoDistanceSortBuilder.build(searchExecutionContext).field;
+        sortField = geoDistanceSortBuilder.build(searchExecutionContext).field();
         assertThat(sortField.getComparatorSource(), instanceOf(XFieldComparatorSource.class));
         comparatorSource = (XFieldComparatorSource) sortField.getComparatorSource();
         assertEquals(MultiValueMode.MIN, comparatorSource.sortMode());
@@ -442,19 +442,19 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
         geoDistanceSortBuilder = new GeoDistanceSortBuilder("fieldName", 1.0, 1.0);
         // need to use distance unit other than Meters to not get back a LatLonPointSortField
         geoDistanceSortBuilder.sortMode(SortMode.MIN).unit(DistanceUnit.INCH);
-        sortField = geoDistanceSortBuilder.build(searchExecutionContext).field;
+        sortField = geoDistanceSortBuilder.build(searchExecutionContext).field();
         assertThat(sortField.getComparatorSource(), instanceOf(XFieldComparatorSource.class));
         comparatorSource = (XFieldComparatorSource) sortField.getComparatorSource();
         assertEquals(MultiValueMode.MIN, comparatorSource.sortMode());
 
         geoDistanceSortBuilder.sortMode(SortMode.AVG);
-        sortField = geoDistanceSortBuilder.build(searchExecutionContext).field;
+        sortField = geoDistanceSortBuilder.build(searchExecutionContext).field();
         assertThat(sortField.getComparatorSource(), instanceOf(XFieldComparatorSource.class));
         comparatorSource = (XFieldComparatorSource) sortField.getComparatorSource();
         assertEquals(MultiValueMode.AVG, comparatorSource.sortMode());
 
         geoDistanceSortBuilder.sortMode(SortMode.MEDIAN);
-        sortField = geoDistanceSortBuilder.build(searchExecutionContext).field;
+        sortField = geoDistanceSortBuilder.build(searchExecutionContext).field();
         assertThat(sortField.getComparatorSource(), instanceOf(XFieldComparatorSource.class));
         comparatorSource = (XFieldComparatorSource) sortField.getComparatorSource();
         assertEquals(MultiValueMode.MEDIAN, comparatorSource.sortMode());
@@ -469,7 +469,7 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
         GeoDistanceSortBuilder sortBuilder = new GeoDistanceSortBuilder("fieldName", 1.0, 1.0).setNestedSort(
             new NestedSortBuilder("path").setFilter(QueryBuilders.matchAllQuery())
         );
-        SortField sortField = sortBuilder.build(searchExecutionContext).field;
+        SortField sortField = sortBuilder.build(searchExecutionContext).field();
         assertThat(sortField.getComparatorSource(), instanceOf(XFieldComparatorSource.class));
         XFieldComparatorSource comparatorSource = (XFieldComparatorSource) sortField.getComparatorSource();
         Nested nested = comparatorSource.nested();
@@ -477,7 +477,7 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
         assertEquals(new MatchAllDocsQuery(), nested.getInnerQuery());
 
         sortBuilder = new GeoDistanceSortBuilder("fieldName", 1.0, 1.0).setNestedSort(new NestedSortBuilder("path"));
-        sortField = sortBuilder.build(searchExecutionContext).field;
+        sortField = sortBuilder.build(searchExecutionContext).field();
         assertThat(sortField.getComparatorSource(), instanceOf(XFieldComparatorSource.class));
         comparatorSource = (XFieldComparatorSource) sortField.getComparatorSource();
         nested = comparatorSource.nested();
@@ -487,7 +487,7 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
         sortBuilder = new GeoDistanceSortBuilder("fieldName", 1.0, 1.0).setNestedSort(
             new NestedSortBuilder("path").setFilter(QueryBuilders.matchAllQuery())
         );
-        sortField = sortBuilder.build(searchExecutionContext).field;
+        sortField = sortBuilder.build(searchExecutionContext).field();
         assertThat(sortField.getComparatorSource(), instanceOf(XFieldComparatorSource.class));
         comparatorSource = (XFieldComparatorSource) sortField.getComparatorSource();
         nested = comparatorSource.nested();
@@ -504,7 +504,7 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
         sortBuilder.validation(GeoValidationMethod.COERCE);
         assertEquals(-180.0, sortBuilder.points()[0].getLat(), 0.0);
         assertEquals(-360.0, sortBuilder.points()[0].getLon(), 0.0);
-        SortField sortField = sortBuilder.build(searchExecutionContext).field;
+        SortField sortField = sortBuilder.build(searchExecutionContext).field();
         assertEquals(LatLonDocValuesField.newDistanceSort("fieldName", 0.0, 180.0), sortField);
     }
 
@@ -540,7 +540,7 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
         GeoDistanceSortBuilder sortBuilder = new GeoDistanceSortBuilder("fieldName", 0.0, 0.0);
         RangeQueryBuilder rangeQuery = new RangeQueryBuilder("fieldName") {
             @Override
-            public QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
+            public QueryBuilder doSearchRewrite(SearchExecutionContext context) {
                 return new MatchNoneQueryBuilder();
             }
         };
@@ -556,7 +556,7 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
         GeoDistanceSortBuilder sortBuilder = new GeoDistanceSortBuilder("fieldName", 0.0, 0.0);
         RangeQueryBuilder rangeQuery = new RangeQueryBuilder("fieldName") {
             @Override
-            public QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
+            public QueryBuilder doSearchRewrite(SearchExecutionContext context) {
                 return new MatchNoneQueryBuilder();
             }
         };

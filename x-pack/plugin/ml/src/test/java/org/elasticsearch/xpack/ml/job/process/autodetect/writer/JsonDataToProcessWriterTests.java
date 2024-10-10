@@ -373,7 +373,7 @@ public class JsonDataToProcessWriterTests extends ESTestCase {
         xsonGen.writeStringField("value", "1.0");
         xsonGen.writeEndObject();
         xsonGen.close();
-        xsonOs.writeByte(XContentType.SMILE.xContent().streamSeparator());
+        xsonOs.writeByte(XContentType.SMILE.xContent().bulkSeparator());
 
         xsonGen = XContentFactory.xContent(XContentType.SMILE).createGenerator(xsonOs);
         xsonGen.writeStartObject();
@@ -382,7 +382,7 @@ public class JsonDataToProcessWriterTests extends ESTestCase {
         xsonGen.writeStringField("value", "2.0");
         xsonGen.writeEndObject();
         xsonGen.flush();
-        xsonOs.writeByte(XContentType.SMILE.xContent().streamSeparator());
+        xsonOs.writeByte(XContentType.SMILE.xContent().bulkSeparator());
 
         InputStream inputStream = new ByteArrayInputStream(BytesReference.toBytes(xsonOs.bytes()));
         JsonDataToProcessWriter writer = createWriter();

@@ -1,3 +1,16 @@
+pluginManagement {
+  repositories {
+    maven {
+      url 'https://jitpack.io'
+    }
+    mavenCentral()
+    gradlePluginPortal()
+  }
+
+  includeBuild "../build-conventions"
+    includeBuild "../build-tools"
+}
+
 dependencyResolutionManagement {
     versionCatalogs {
         buildLibs {

@@ -13,6 +13,8 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestBuilderListener;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -33,6 +35,7 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
  * This logout request is returned in the REST response as a redirect URI, and the REST client should
  * make it available to the browser.
  */
+@ServerlessScope(Scope.INTERNAL)
 public class RestSamlLogoutAction extends SamlBaseRestHandler {
 
     static final ObjectParser<SamlLogoutRequest, Void> PARSER = new ObjectParser<>("saml_logout", SamlLogoutRequest::new);

@@ -661,7 +661,7 @@ preferred as there is no need to parse it for comparison.
 ----
 long now = params['now'];
 ZonedDateTime inputDateTime = doc['input_datetime'];
-long millisDateTime = zdt.toInstant().toEpochMilli();
+long millisDateTime = inputDateTime.toInstant().toEpochMilli();
 long elapsedTime = now - millisDateTime;
 ----
 +

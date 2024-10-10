@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.termvectors;
@@ -16,7 +17,7 @@ import org.apache.lucene.search.BoostAttribute;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.CharsRefBuilder;
-import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.termvectors.TermVectorsRequest.Flag;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -67,15 +68,13 @@ public class TermVectorsResponse extends ActionResponse implements ToXContentObj
 
     private BytesReference termVectors;
     private BytesReference headerRef;
-    private String index;
-    private String id;
+    private final String index;
+    private final String id;
     private long docVersion;
     private boolean exists = false;
     private boolean artificial = false;
     private long tookInMillis;
     private boolean hasScores = false;
-
-    private boolean sourceCopied = false;
 
     int[] currentPositions = new int[0];
     int[] currentStartOffset = new int[0];
@@ -87,11 +86,9 @@ public class TermVectorsResponse extends ActionResponse implements ToXContentObj
         this.id = id;
     }
 
-    TermVectorsResponse() {}
-
     TermVectorsResponse(StreamInput in) throws IOException {
         index = in.readString();
-        if (in.getTransportVersion().before(TransportVersion.V_8_0_0)) {
+        if (in.getTransportVersion().before(TransportVersions.V_8_0_0)) {
             // types no longer relevant so ignore
             in.readString();
         }
@@ -109,7 +106,7 @@ public class TermVectorsResponse extends ActionResponse implements ToXContentObj
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(index);
-        if (out.getTransportVersion().before(TransportVersion.V_8_0_0)) {
+        if (out.getTransportVersion().before(TransportVersions.V_8_0_0)) {
             // types not supported so send an empty array to previous versions
             out.writeString(MapperService.SINGLE_MAPPING_NAME);
         }
@@ -133,10 +130,8 @@ public class TermVectorsResponse extends ActionResponse implements ToXContentObj
 
     public Fields getFields() throws IOException {
         if (hasTermVectors() && isExists()) {
-            if (sourceCopied == false) { // make the bytes safe
-                headerRef = new BytesArray(headerRef.toBytesRef(), true);
-                termVectors = new BytesArray(termVectors.toBytesRef(), true);
-            }
+            headerRef = new BytesArray(headerRef.toBytesRef(), true);
+            termVectors = new BytesArray(termVectors.toBytesRef(), true);
             TermVectorsFields termVectorsFields = new TermVectorsFields(headerRef, termVectors);
             hasScores = termVectorsFields.hasScores;
             return termVectorsFields;

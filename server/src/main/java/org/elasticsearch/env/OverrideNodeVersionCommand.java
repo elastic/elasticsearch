@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.env;
 
@@ -82,7 +83,7 @@ public class OverrideNodeVersionCommand extends ElasticsearchNodeCommand {
 
         confirm(
             terminal,
-            (nodeMetadata.nodeVersion().before(Version.CURRENT) ? TOO_OLD_MESSAGE : TOO_NEW_MESSAGE).replace(
+            (nodeMetadata.nodeVersion().onOrAfterMinimumCompatible() == false ? TOO_OLD_MESSAGE : TOO_NEW_MESSAGE).replace(
                 "V_OLD",
                 nodeMetadata.nodeVersion().toString()
             ).replace("V_NEW", nodeMetadata.nodeVersion().toString()).replace("V_CUR", Version.CURRENT.toString())

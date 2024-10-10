@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.routing;
@@ -11,12 +12,16 @@ package org.elasticsearch.cluster.routing;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteUtils;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsGroup;
+import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsRequest;
+import org.elasticsearch.action.admin.cluster.shards.TransportClusterSearchShardsAction;
 import org.elasticsearch.action.admin.indices.refresh.TransportUnpromotableShardRefreshAction;
-import org.elasticsearch.action.search.ClosePointInTimeAction;
 import org.elasticsearch.action.search.ClosePointInTimeRequest;
-import org.elasticsearch.action.search.OpenPointInTimeAction;
 import org.elasticsearch.action.search.OpenPointInTimeRequest;
+import org.elasticsearch.action.search.TransportClosePointInTimeAction;
+import org.elasticsearch.action.search.TransportOpenPointInTimeAction;
+import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
@@ -29,6 +34,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
@@ -51,6 +57,7 @@ import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.XContentTestUtils;
 import org.elasticsearch.test.transport.MockTransportService;
+import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
@@ -66,6 +73,7 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
@@ -110,7 +118,7 @@ public class ShardRoutingRoleIT extends ESIntegTestCase {
                 @Override
                 public Decision canForceAllocatePrimary(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
                     // once a primary is cancelled it _stays_ cancelled
-                    if (shardRouting.unassignedInfo().getReason() == UnassignedInfo.Reason.REROUTE_CANCELLED) {
+                    if (shardRouting.unassignedInfo().reason() == UnassignedInfo.Reason.REROUTE_CANCELLED) {
                         return Decision.NO;
                     }
                     return super.canForceAllocatePrimary(shardRouting, node, allocation);
@@ -188,7 +196,6 @@ public class ShardRoutingRoleIT extends ESIntegTestCase {
     private static TestPlugin getMasterNodePlugin() {
         return internalCluster().getCurrentMasterNodeInstance(PluginsService.class)
             .filterPlugins(TestPlugin.class)
-            .stream()
             .findFirst()
             .orElseThrow(() -> new AssertionError("no plugin"));
     }
@@ -233,10 +240,7 @@ public class ShardRoutingRoleIT extends ESIntegTestCase {
 
         Settings getIndexSettings() {
             logger.info("--> numShards={}, numReplicas={}", numShards, numReplicas);
-            return Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numShards)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numReplicas)
-                .build();
+            return indexSettings(numShards, numReplicas).build();
         }
     }
 
@@ -254,7 +258,7 @@ public class ShardRoutingRoleIT extends ESIntegTestCase {
                 }
             }
         } catch (IOException e) {
-            throw new AssertionError("unexpected", e);
+            fail(e);
         }
     }
 
@@ -269,7 +273,7 @@ public class ShardRoutingRoleIT extends ESIntegTestCase {
                 connection.sendRequest(requestId, action, request, options);
             });
             mockTransportService.addRequestHandlingBehavior(
-                TransportUnpromotableShardRefreshAction.NAME,
+                TransportUnpromotableShardRefreshAction.NAME + "[u]",
                 (handler, request, channel, task) -> {
                     // Skip handling the request and send an immediate empty response
                     channel.sendResponse(ActionResponse.Empty.INSTANCE);
@@ -293,7 +297,7 @@ public class ShardRoutingRoleIT extends ESIntegTestCase {
 
             createIndex(INDEX_NAME, routingTableWatcher.getIndexSettings());
 
-            final var clusterState = client().admin().cluster().prepareState().clear().setRoutingTable(true).get().getState();
+            final var clusterState = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).clear().setRoutingTable(true).get().getState();
 
             // verify non-DEFAULT roles reported in cluster state XContent
             assertRolesInRoutingTableXContent(clusterState);
@@ -311,12 +315,7 @@ public class ShardRoutingRoleIT extends ESIntegTestCase {
 
             // new replicas get the SEARCH_ONLY role
             routingTableWatcher.numReplicas += 1;
-            assertAcked(
-                client().admin()
-                    .indices()
-                    .prepareUpdateSettings("test")
-                    .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, routingTableWatcher.numReplicas))
-            );
+            setReplicaCount(routingTableWatcher.numReplicas, "test");
 
             ensureGreen(INDEX_NAME);
             assertEngineTypes();
@@ -325,33 +324,30 @@ public class ShardRoutingRoleIT extends ESIntegTestCase {
             // removing replicas drops SEARCH_ONLY copies first
             while (routingTableWatcher.numReplicas > 0) {
                 routingTableWatcher.numReplicas -= 1;
-                assertAcked(
-                    client().admin()
-                        .indices()
-                        .prepareUpdateSettings("test")
-                        .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, routingTableWatcher.numReplicas))
-                );
+                setReplicaCount(routingTableWatcher.numReplicas, "test");
             }
 
             // restoring the index from a snapshot may change the number of indexing replicas because the routing table is created afresh
             var repoPath = randomRepoPath();
             assertAcked(
-                client().admin()
-                    .cluster()
-                    .preparePutRepository("repo")
+                clusterAdmin().preparePutRepository(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "repo")
                     .setType("fs")
                     .setSettings(Settings.builder().put("location", repoPath))
             );
 
             assertEquals(
                 SnapshotState.SUCCESS,
-                client().admin().cluster().prepareCreateSnapshot("repo", "snap").setWaitForCompletion(true).get().getSnapshotInfo().state()
+                clusterAdmin().prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, "repo", "snap")
+                    .setWaitForCompletion(true)
+                    .get()
+                    .getSnapshotInfo()
+                    .state()
             );
 
             if (randomBoolean()) {
-                assertAcked(client().admin().indices().prepareDelete(INDEX_NAME));
+                assertAcked(indicesAdmin().prepareDelete(INDEX_NAME));
             } else {
-                assertAcked(client().admin().indices().prepareClose(INDEX_NAME));
+                assertAcked(indicesAdmin().prepareClose(INDEX_NAME));
                 ensureGreen(INDEX_NAME);
             }
 
@@ -361,9 +357,7 @@ public class ShardRoutingRoleIT extends ESIntegTestCase {
 
             assertEquals(
                 0,
-                client().admin()
-                    .cluster()
-                    .prepareRestoreSnapshot("repo", "snap")
+                clusterAdmin().prepareRestoreSnapshot(TEST_REQUEST_TIMEOUT, "repo", "snap")
                     .setIndices(INDEX_NAME)
                     .setIndexSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, routingTableWatcher.numReplicas))
                     .setWaitForCompletion(true)
@@ -410,12 +404,7 @@ public class ShardRoutingRoleIT extends ESIntegTestCase {
             createIndex(INDEX_NAME, routingTableWatcher.getIndexSettings());
 
             for (String nodeName : internalCluster().getNodeNames()) {
-                assertAcked(
-                    client().admin()
-                        .indices()
-                        .prepareUpdateSettings("test")
-                        .setSettings(Settings.builder().put(IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_PREFIX + "._name", nodeName))
-                );
+                updateIndexSettings(Settings.builder().put(IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_PREFIX + "._name", nodeName), "test");
                 ensureGreen(INDEX_NAME);
             }
         } finally {
@@ -440,16 +429,10 @@ public class ShardRoutingRoleIT extends ESIntegTestCase {
             ensureGreen(INDEX_NAME);
             assertEngineTypes();
 
-            assertAcked(
-                client().admin()
-                    .indices()
-                    .prepareUpdateSettings("test")
-                    .setSettings(Settings.builder().put(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_PREFIX + "._name", "not-a-node"))
-            );
-
+            updateIndexSettings(Settings.builder().put(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_PREFIX + "._name", "not-a-node"), "test");
             AllocationCommand cancelPrimaryCommand;
             while ((cancelPrimaryCommand = getCancelPrimaryCommand()) != null) {
-                client().admin().cluster().prepareReroute().add(cancelPrimaryCommand).get();
+                ClusterRerouteUtils.reroute(client(), cancelPrimaryCommand);
             }
         } finally {
             masterClusterService.removeListener(routingTableWatcher);
@@ -458,9 +441,7 @@ public class ShardRoutingRoleIT extends ESIntegTestCase {
 
     @Nullable
     public AllocationCommand getCancelPrimaryCommand() {
-        final var indexRoutingTable = client().admin()
-            .cluster()
-            .prepareState()
+        final var indexRoutingTable = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT)
             .clear()
             .setRoutingTable(true)
             .get()
@@ -479,7 +460,7 @@ public class ShardRoutingRoleIT extends ESIntegTestCase {
                         shardRouting.role().isPromotableToPrimary()
                             ? UnassignedInfo.Reason.REROUTE_CANCELLED
                             : UnassignedInfo.Reason.UNPROMOTABLE_REPLICA,
-                        shardRouting.unassignedInfo().getReason()
+                        shardRouting.unassignedInfo().reason()
                     );
                 }
             }
@@ -508,9 +489,7 @@ public class ShardRoutingRoleIT extends ESIntegTestCase {
             assertEngineTypes();
 
             final var searchShardProfileKeys = new HashSet<String>();
-            final var indexRoutingTable = client().admin()
-                .cluster()
-                .prepareState()
+            final var indexRoutingTable = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT)
                 .clear()
                 .setRoutingTable(true)
                 .get()
@@ -529,7 +508,7 @@ public class ShardRoutingRoleIT extends ESIntegTestCase {
             }
             // Regular search
             for (int i = 0; i < 10; i++) {
-                final var search = client().prepareSearch(INDEX_NAME).setProfile(true);
+                final var search = prepareSearch(INDEX_NAME).setProfile(true);
                 switch (randomIntBetween(0, 2)) {
                     case 0 -> search.setRouting(randomAlphaOfLength(10));
                     case 1 -> search.setPreference(randomSearchPreference(routingTableWatcher.numShards, internalCluster().getNodeNames()));
@@ -537,11 +516,13 @@ public class ShardRoutingRoleIT extends ESIntegTestCase {
                         // do nothing
                     }
                 }
-                final var profileResults = search.get().getProfileResults();
-                assertThat(profileResults, not(anEmptyMap()));
-                for (final var searchShardProfileKey : profileResults.keySet()) {
-                    assertThat(searchShardProfileKeys, hasItem(searchShardProfileKey));
-                }
+                assertResponse(search, resp -> {
+                    final var profileResults = resp.getProfileResults();
+                    assertThat(profileResults, not(anEmptyMap()));
+                    for (final var searchShardProfileKey : profileResults.keySet()) {
+                        assertThat(searchShardProfileKeys, hasItem(searchShardProfileKey));
+                    }
+                });
             }
             // Search with PIT
             for (int i = 0; i < 10; i++) {
@@ -555,32 +536,30 @@ public class ShardRoutingRoleIT extends ESIntegTestCase {
                         // do nothing
                     }
                 }
-                String pitId = client().execute(OpenPointInTimeAction.INSTANCE, openRequest).actionGet().getPointInTimeId();
+                BytesReference pitId = client().execute(TransportOpenPointInTimeAction.TYPE, openRequest).actionGet().getPointInTimeId();
                 try {
-                    final var profileResults = client().prepareSearch()
-                        .setPointInTime(new PointInTimeBuilder(pitId))
-                        .setProfile(true)
-                        .get()
-                        .getProfileResults();
-                    assertThat(profileResults, not(anEmptyMap()));
-                    for (final var profileKey : profileResults.keySet()) {
-                        assertThat(profileKey, in(searchShardProfileKeys));
-                    }
+                    assertResponse(prepareSearch().setPointInTime(new PointInTimeBuilder(pitId)).setProfile(true), response -> {
+                        var profileResults = response.getProfileResults();
+                        assertThat(profileResults, not(anEmptyMap()));
+                        for (final var profileKey : profileResults.keySet()) {
+                            assertThat(profileKey, in(searchShardProfileKeys));
+                        }
+                    });
                 } finally {
-                    client().execute(ClosePointInTimeAction.INSTANCE, new ClosePointInTimeRequest(pitId));
+                    client().execute(TransportClosePointInTimeAction.TYPE, new ClosePointInTimeRequest(pitId));
                 }
             }
             // search-shards API
             for (int i = 0; i < 10; i++) {
-                final var search = client().admin().cluster().prepareSearchShards(INDEX_NAME);
+                final var search = new ClusterSearchShardsRequest(TEST_REQUEST_TIMEOUT, INDEX_NAME);
                 switch (randomIntBetween(0, 2)) {
-                    case 0 -> search.setRouting(randomAlphaOfLength(10));
-                    case 1 -> search.setRouting(randomSearchPreference(routingTableWatcher.numShards, internalCluster().getNodeNames()));
+                    case 0 -> search.routing(randomAlphaOfLength(10));
+                    case 1 -> search.routing(randomSearchPreference(routingTableWatcher.numShards, internalCluster().getNodeNames()));
                     default -> {
                         // do nothing
                     }
                 }
-                ClusterSearchShardsGroup[] groups = search.get().getGroups();
+                ClusterSearchShardsGroup[] groups = safeExecute(client(), TransportClusterSearchShardsAction.TYPE, search).getGroups();
                 for (ClusterSearchShardsGroup group : groups) {
                     for (ShardRouting shr : group.getShards()) {
                         String profileKey = "[" + shr.currentNodeId() + "][" + INDEX_NAME + "][" + shr.id() + "]";
@@ -626,7 +605,7 @@ public class ShardRoutingRoleIT extends ESIntegTestCase {
             ensureGreen(INDEX_NAME);
             assertEngineTypes();
 
-            assertAcked(client().admin().indices().prepareClose(INDEX_NAME));
+            assertAcked(indicesAdmin().prepareClose(INDEX_NAME));
             ensureGreen(INDEX_NAME);
             assertEngineTypes();
         } finally {
@@ -685,6 +664,63 @@ public class ShardRoutingRoleIT extends ESIntegTestCase {
                     is(equalTo(0))
                 );
             }
+        } finally {
+            masterClusterService.removeListener(routingTableWatcher);
+        }
+    }
+
+    public void testRefreshFailsIfUnpromotableDisconnects() throws Exception {
+        var routingTableWatcher = new RoutingTableWatcher();
+        var additionalNumberOfNodesWithUnpromotableShards = 1;
+        routingTableWatcher.numReplicas = routingTableWatcher.numIndexingCopies + additionalNumberOfNodesWithUnpromotableShards - 1;
+        internalCluster().ensureAtLeastNumDataNodes(routingTableWatcher.numIndexingCopies + 1);
+        final String nodeWithUnpromotableOnly = internalCluster().startDataOnlyNode(
+            Settings.builder().put("node.attr." + TestPlugin.NODE_ATTR_UNPROMOTABLE_ONLY, "true").build()
+        );
+        installMockTransportVerifications(routingTableWatcher);
+        getMasterNodePlugin().numIndexingCopies = routingTableWatcher.numIndexingCopies;
+
+        final var masterClusterService = internalCluster().getCurrentMasterNodeInstance(ClusterService.class);
+        try {
+            // verify the correct number of shard copies of each role as the routing table evolves
+            masterClusterService.addListener(routingTableWatcher);
+
+            createIndex(
+                INDEX_NAME,
+                Settings.builder()
+                    .put(routingTableWatcher.getIndexSettings())
+                    .put(IndexSettings.INDEX_CHECK_ON_STARTUP.getKey(), false)
+                    .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1)
+                    .build()
+            );
+            ensureGreen(INDEX_NAME);
+            assertEngineTypes();
+
+            indexRandom(false, INDEX_NAME, randomIntBetween(1, 10));
+
+            for (var transportService : internalCluster().getInstances(TransportService.class)) {
+                MockTransportService mockTransportService = (MockTransportService) transportService;
+                mockTransportService.addSendBehavior((connection, requestId, action, request, options) -> {
+                    if (action.equals(TransportUnpromotableShardRefreshAction.NAME + "[u]")
+                        && nodeWithUnpromotableOnly.equals(connection.getNode().getName())) {
+                        logger.info("--> preventing {} request by throwing ConnectTransportException", action);
+                        throw new ConnectTransportException(connection.getNode(), "DISCONNECT: prevented " + action + " request");
+                    }
+                    connection.sendRequest(requestId, action, request, options);
+                });
+            }
+
+            BroadcastResponse response = indicesAdmin().prepareRefresh(INDEX_NAME).get();
+            assertThat(
+                "each unpromotable replica shard should be added to the shard failures",
+                response.getFailedShards(),
+                equalTo((routingTableWatcher.numReplicas - (routingTableWatcher.numIndexingCopies - 1)) * routingTableWatcher.numShards)
+            );
+            assertThat(
+                "the total shards is incremented with the unpromotable shard failures",
+                response.getTotalShards(),
+                equalTo(response.getSuccessfulShards() + response.getFailedShards())
+            );
         } finally {
             masterClusterService.removeListener(routingTableWatcher);
         }

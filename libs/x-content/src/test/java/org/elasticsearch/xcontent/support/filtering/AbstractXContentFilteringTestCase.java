@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.xcontent.support.filtering;
@@ -305,7 +306,6 @@ public abstract class AbstractXContentFilteringTestCase extends AbstractFilterin
         );
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/92632")
     public void testDotsAndDoubleWildcardInExcludedFieldName() throws IOException {
         testFilter(
             builder -> builder.startObject().endObject(),
@@ -408,7 +408,9 @@ public abstract class AbstractXContentFilteringTestCase extends AbstractFilterin
             return filterOnBuilder(sample, includes, excludes);
         }
         FilterPath[] excludesFilter = FilterPath.compile(excludes);
-        if (excludesFilter != null && Arrays.stream(excludesFilter).anyMatch(FilterPath::hasDoubleWildcard)) {
+        if (excludesFilter != null
+            && Arrays.stream(excludesFilter).anyMatch(FilterPath::hasDoubleWildcard)
+            && matchFieldNamesWithDots == false) {
             return filterOnBuilder(sample, includes, excludes);
         }
         return filterOnParser(sample, includes, excludes, matchFieldNamesWithDots);

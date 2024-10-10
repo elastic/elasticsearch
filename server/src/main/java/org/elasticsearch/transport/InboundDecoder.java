@@ -1,23 +1,28 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.transport;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.recycler.Recycler;
+import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 
 import java.io.IOException;
+import java.io.StreamCorruptedException;
 import java.util.function.Consumer;
 
 public class InboundDecoder implements Releasable {
@@ -25,17 +30,27 @@ public class InboundDecoder implements Releasable {
     static final Object PING = new Object();
     static final Object END_CONTENT = new Object();
 
-    private final TransportVersion version;
     private final Recycler<BytesRef> recycler;
     private TransportDecompressor decompressor;
     private int totalNetworkSize = -1;
     private int bytesConsumed = 0;
     private boolean isCompressed = false;
     private boolean isClosed = false;
+    private final ByteSizeValue maxHeaderSize;
+    private final ChannelType channelType;
 
-    public InboundDecoder(TransportVersion version, Recycler<BytesRef> recycler) {
-        this.version = version;
+    public InboundDecoder(Recycler<BytesRef> recycler) {
+        this(recycler, new ByteSizeValue(2, ByteSizeUnit.GB), ChannelType.MIX);
+    }
+
+    public InboundDecoder(Recycler<BytesRef> recycler, ChannelType channelType) {
+        this(recycler, new ByteSizeValue(2, ByteSizeUnit.GB), channelType);
+    }
+
+    public InboundDecoder(Recycler<BytesRef> recycler, ByteSizeValue maxHeaderSize, ChannelType channelType) {
         this.recycler = recycler;
+        this.maxHeaderSize = maxHeaderSize;
+        this.channelType = channelType;
     }
 
     public int decode(ReleasableBytesReference reference, Consumer<Object> fragmentConsumer) throws IOException {
@@ -57,13 +72,13 @@ public class InboundDecoder implements Releasable {
                 fragmentConsumer.accept(PING);
                 return 6;
             } else {
-                int headerBytesToRead = headerBytesToRead(reference);
+                int headerBytesToRead = headerBytesToRead(reference, maxHeaderSize);
                 if (headerBytesToRead == 0) {
                     return 0;
                 } else {
                     totalNetworkSize = messageLength + TcpHeader.BYTES_REQUIRED_FOR_MESSAGE_SIZE;
 
-                    Header header = readHeader(version, messageLength, reference);
+                    Header header = readHeader(messageLength, reference, channelType);
                     bytesConsumed += headerBytesToRead;
                     if (header.isCompressed()) {
                         isCompressed = true;
@@ -149,7 +164,7 @@ public class InboundDecoder implements Releasable {
         return bytesConsumed == totalNetworkSize;
     }
 
-    private static int headerBytesToRead(BytesReference reference) {
+    private static int headerBytesToRead(BytesReference reference, ByteSizeValue maxHeaderSize) throws StreamCorruptedException {
         if (reference.length() < TcpHeader.BYTES_REQUIRED_FOR_VERSION) {
             return 0;
         }
@@ -162,6 +177,14 @@ public class InboundDecoder implements Releasable {
             return fixedHeaderSize;
         } else {
             int variableHeaderSize = reference.getInt(TcpHeader.VARIABLE_HEADER_SIZE_POSITION);
+            if (variableHeaderSize < 0) {
+                throw new StreamCorruptedException("invalid negative variable header size: " + variableHeaderSize);
+            }
+            if (variableHeaderSize > maxHeaderSize.getBytes() - fixedHeaderSize) {
+                throw new StreamCorruptedException(
+                    "header size [" + (fixedHeaderSize + variableHeaderSize) + "] exceeds limit of [" + maxHeaderSize + "]"
+                );
+            }
             int totalHeaderSize = fixedHeaderSize + variableHeaderSize;
             if (totalHeaderSize > reference.length()) {
                 return 0;
@@ -171,23 +194,29 @@ public class InboundDecoder implements Releasable {
         }
     }
 
-    // exposed for use in tests
-    static Header readHeader(TransportVersion version, int networkMessageSize, BytesReference bytesReference) throws IOException {
+    private static Header readHeader(int networkMessageSize, BytesReference bytesReference, ChannelType channelType) throws IOException {
         try (StreamInput streamInput = bytesReference.streamInput()) {
             streamInput.skip(TcpHeader.BYTES_REQUIRED_FOR_MESSAGE_SIZE);
             long requestId = streamInput.readLong();
             byte status = streamInput.readByte();
-            TransportVersion remoteVersion = TransportVersion.fromId(streamInput.readInt());
-            Header header = new Header(networkMessageSize, requestId, status, remoteVersion);
-            final IllegalStateException invalidVersion = ensureVersionCompatibility(remoteVersion, version, header.isHandshake());
-            if (invalidVersion != null) {
-                throw invalidVersion;
+            int remoteVersion = streamInput.readInt();
+
+            Header header = new Header(networkMessageSize, requestId, status, TransportVersion.fromId(remoteVersion));
+            if (channelType == ChannelType.SERVER && header.isResponse()) {
+                throw new IllegalArgumentException("server channels do not accept inbound responses, only requests, closing channel");
+            } else if (channelType == ChannelType.CLIENT && header.isRequest()) {
+                throw new IllegalArgumentException("client channels do not accept inbound requests, only responses, closing channel");
+            }
+            if (header.isHandshake()) {
+                checkHandshakeVersionCompatibility(header.getVersion());
             } else {
-                if (remoteVersion.onOrAfter(TcpHeader.VERSION_WITH_HEADER_SIZE)) {
-                    // Skip since we already have ensured enough data available
-                    streamInput.readInt();
-                    header.finishParsingHeader(streamInput);
-                }
+                checkVersionCompatibility(header.getVersion());
+            }
+
+            if (header.getVersion().onOrAfter(TcpHeader.VERSION_WITH_HEADER_SIZE)) {
+                // Skip since we already have ensured enough data available
+                streamInput.readInt();
+                header.finishParsingHeader(streamInput);
             }
             return header;
         }
@@ -203,23 +232,32 @@ public class InboundDecoder implements Releasable {
         }
     }
 
-    static IllegalStateException ensureVersionCompatibility(
-        TransportVersion remoteVersion,
-        TransportVersion currentVersion,
-        boolean isHandshake
-    ) {
-        // for handshakes we are compatible with N-2 since otherwise we can't figure out our initial version
-        // since we are compatible with N-1 and N+1 so we always send our minCompatVersion as the initial version in the
-        // handshake. This looks odd but it's required to establish the connection correctly we check for real compatibility
-        // once the connection is established
-        final TransportVersion compatibilityVersion = isHandshake ? currentVersion.calculateMinimumCompatVersion() : currentVersion;
-        if (remoteVersion.isCompatible(compatibilityVersion) == false) {
-            final TransportVersion minCompatibilityVersion = isHandshake
-                ? compatibilityVersion
-                : compatibilityVersion.calculateMinimumCompatVersion();
-            String msg = "Received " + (isHandshake ? "handshake " : "") + "message from unsupported version: [";
-            return new IllegalStateException(msg + remoteVersion + "] minimal compatible version is: [" + minCompatibilityVersion + "]");
+    static void checkHandshakeVersionCompatibility(TransportVersion handshakeVersion) {
+        if (TransportHandshaker.ALLOWED_HANDSHAKE_VERSIONS.contains(handshakeVersion) == false) {
+            throw new IllegalStateException(
+                "Received message from unsupported version: ["
+                    + handshakeVersion
+                    + "] allowed versions are: "
+                    + TransportHandshaker.ALLOWED_HANDSHAKE_VERSIONS
+            );
         }
-        return null;
+    }
+
+    static void checkVersionCompatibility(TransportVersion remoteVersion) {
+        if (TransportVersion.isCompatible(remoteVersion) == false) {
+            throw new IllegalStateException(
+                "Received message from unsupported version: ["
+                    + remoteVersion.toReleaseVersion()
+                    + "] minimal compatible version is: ["
+                    + TransportVersions.MINIMUM_COMPATIBLE.toReleaseVersion()
+                    + "]"
+            );
+        }
+    }
+
+    public enum ChannelType {
+        SERVER,
+        CLIENT,
+        MIX
     }
 }

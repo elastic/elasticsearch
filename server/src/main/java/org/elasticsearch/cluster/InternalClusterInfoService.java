@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster;
@@ -14,6 +15,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest;
+import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequestParameters;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
@@ -25,7 +27,6 @@ import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -33,6 +34,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.StoreStats;
@@ -95,17 +97,16 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
     private final Object mutex = new Object();
     private final List<ActionListener<ClusterInfo>> nextRefreshListeners = new ArrayList<>();
 
-    private final ClusterService clusterService;
     private AsyncRefresh currentRefresh;
     private RefreshScheduler refreshScheduler;
 
+    @SuppressWarnings("this-escape")
     public InternalClusterInfoService(Settings settings, ClusterService clusterService, ThreadPool threadPool, Client client) {
         this.leastAvailableSpaceUsages = Map.of();
         this.mostAvailableSpaceUsages = Map.of();
         this.indicesStatsSummary = IndicesStatsSummary.EMPTY;
         this.threadPool = threadPool;
         this.client = client;
-        this.clusterService = clusterService;
         this.updateFrequency = INTERNAL_CLUSTER_INFO_UPDATE_INTERVAL_SETTING.get(settings);
         this.fetchTimeout = INTERNAL_CLUSTER_INFO_TIMEOUT_SETTING.get(settings);
         this.enabled = DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.get(settings);
@@ -209,7 +210,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
                                 if (indicesStatsResponse.getShardFailures().length > 0) {
                                     final Set<String> failedNodeIds = new HashSet<>();
                                     for (final var shardFailure : indicesStatsResponse.getShardFailures()) {
-                                        if (shardFailure.getCause()instanceof final FailedNodeException failedNodeException) {
+                                        if (shardFailure.getCause() instanceof final FailedNodeException failedNodeException) {
                                             if (failedNodeIds.add(failedNodeException.nodeId())) {
                                                 logger.warn(
                                                     () -> format(
@@ -247,7 +248,6 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
                                 final Map<ClusterInfo.NodeAndPath, ClusterInfo.ReservedSpace.Builder> reservedSpaceBuilders =
                                     new HashMap<>();
                                 buildShardLevelInfo(
-                                    clusterService.state().routingTable(),
                                     adjustShardStats(stats),
                                     shardSizeByIdentifierBuilder,
                                     shardDataSetSizeBuilder,
@@ -282,8 +282,9 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
 
         private void fetchNodeStats() {
             final NodesStatsRequest nodesStatsRequest = new NodesStatsRequest("data:true");
+            nodesStatsRequest.setIncludeShardsStats(false);
             nodesStatsRequest.clear();
-            nodesStatsRequest.addMetric(NodesStatsRequest.Metric.FS.metricName());
+            nodesStatsRequest.addMetric(NodesStatsRequestParameters.Metric.FS);
             nodesStatsRequest.timeout(fetchTimeout);
             client.admin().cluster().nodesStats(nodesStatsRequest, ActionListener.releaseAfter(new ActionListener<>() {
                 @Override
@@ -385,9 +386,9 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
     private class RefreshScheduler {
 
         ActionListener<ClusterInfo> getListener() {
-            return ActionListener.wrap(() -> {
+            return ActionListener.running(() -> {
                 if (shouldRefresh()) {
-                    threadPool.scheduleUnlessShuttingDown(updateFrequency, ThreadPool.Names.SAME, () -> {
+                    threadPool.scheduleUnlessShuttingDown(updateFrequency, EsExecutors.DIRECT_EXECUTOR_SERVICE, () -> {
                         if (shouldRefresh()) {
                             refreshAsync(getListener());
                         }
@@ -441,7 +442,6 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
     }
 
     static void buildShardLevelInfo(
-        RoutingTable routingTable,
         ShardStats[] stats,
         Map<String, Long> shardSizes,
         Map<ShardId, Long> shardDataSetSizeBuilder,
@@ -449,7 +449,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
         Map<ClusterInfo.NodeAndPath, ClusterInfo.ReservedSpace.Builder> reservedSpaceByShard
     ) {
         for (ShardStats s : stats) {
-            final ShardRouting shardRouting = routingTable.deduplicate(s.getShardRouting());
+            final ShardRouting shardRouting = s.getShardRouting();
             dataPathByShard.put(ClusterInfo.NodeAndShard.from(shardRouting), s.getDataPath());
 
             final StoreStats storeStats = s.getStats().getStore();
@@ -458,7 +458,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
             }
             final long size = storeStats.sizeInBytes();
             final long dataSetSize = storeStats.totalDataSetSizeInBytes();
-            final long reserved = storeStats.getReservedSize().getBytes();
+            final long reserved = storeStats.reservedSizeInBytes();
 
             final String shardIdentifier = ClusterInfo.shardIdentifierFromRouting(shardRouting);
             logger.trace("shard: {} size: {} reserved: {}", shardIdentifier, size, reserved);

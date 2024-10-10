@@ -11,6 +11,7 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.util.BytesRefHash;
 import org.elasticsearch.common.util.ObjectArray;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
@@ -93,11 +94,11 @@ public class CategorizeTextAggregator extends DeferableBucketAggregator {
                 true
             );
         }
-        this.categorizers = bigArrays().newObjectArray(1);
+        this.categorizers = context.bigArrays().newObjectArray(1);
         this.similarityThreshold = similarityThreshold;
-        this.bucketOrds = LongKeyedBucketOrds.build(bigArrays(), CardinalityUpperBound.MANY);
+        this.bucketOrds = LongKeyedBucketOrds.build(context.bigArrays(), CardinalityUpperBound.MANY);
         this.bucketCountThresholds = bucketCountThresholds;
-        this.bytesRefHash = new CategorizationBytesRefHash(new BytesRefHash(2048, bigArrays()));
+        this.bytesRefHash = new CategorizationBytesRefHash(new BytesRefHash(2048, context.bigArrays()));
         // TODO: make it possible to choose a language instead of or as well as English for the part-of-speech dictionary
         this.partOfSpeechDictionary = CategorizationPartOfSpeechDictionary.getInstance();
     }
@@ -112,7 +113,8 @@ public class CategorizeTextAggregator extends DeferableBucketAggregator {
     public InternalAggregation[] buildAggregations(long[] ordsToCollect) throws IOException {
         Bucket[][] topBucketsPerOrd = new Bucket[ordsToCollect.length][];
         for (int ordIdx = 0; ordIdx < ordsToCollect.length; ordIdx++) {
-            final TokenListCategorizer categorizer = categorizers.get(ordsToCollect[ordIdx]);
+            final long ord = ordsToCollect[ordIdx];
+            final TokenListCategorizer categorizer = (ord < categorizers.size()) ? categorizers.get(ord) : null;
             if (categorizer == null) {
                 topBucketsPerOrd[ordIdx] = new Bucket[0];
                 continue;
@@ -163,12 +165,15 @@ public class CategorizeTextAggregator extends DeferableBucketAggregator {
 
             private void collectFromSource(int doc, long owningBucketOrd, TokenListCategorizer categorizer) throws IOException {
                 Source source = sourceProvider.getSource(aggCtx.getLeafReaderContext(), doc).filter(sourceFilter);
-                Iterator<String> itr = XContentMapValues.extractRawValues(sourceFieldName, source.source()).stream().map(obj -> {
-                    if (obj instanceof BytesRef) {
-                        return fieldType.valueForDisplay(obj).toString();
+                Iterator<String> itr = Iterators.map(
+                    XContentMapValues.extractRawValues(sourceFieldName, source.source()).iterator(),
+                    obj -> {
+                        if (obj instanceof BytesRef) {
+                            return fieldType.valueForDisplay(obj).toString();
+                        }
+                        return (obj == null) ? null : obj.toString();
                     }
-                    return (obj == null) ? null : obj.toString();
-                }).iterator();
+                );
                 while (itr.hasNext()) {
                     String string = itr.next();
                     try (TokenStream ts = analyzer.tokenStream(fieldType.name(), string)) {

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.gradle.internal.test.rest;
 
@@ -146,13 +147,16 @@ public class CopyRestApiTask extends DefaultTask {
         try {
             // check source folder for tests
             if (sourceResourceDir != null && new File(sourceResourceDir, REST_TEST_PREFIX).exists()) {
-                return Files.walk(sourceResourceDir.toPath().resolve(REST_TEST_PREFIX))
-                    .anyMatch(p -> p.getFileName().toString().endsWith("yml"));
+                try (var files = Files.walk(sourceResourceDir.toPath().resolve(REST_TEST_PREFIX))) {
+                    return files.anyMatch(p -> p.getFileName().toString().endsWith("yml"));
+                }
             }
             // check output for cases where tests are copied programmatically
             File yamlTestOutputDir = new File(additionalYamlTestsDir.get().getAsFile(), REST_TEST_PREFIX);
             if (yamlTestOutputDir.exists()) {
-                return Files.walk(yamlTestOutputDir.toPath()).anyMatch(p -> p.getFileName().toString().endsWith("yml"));
+                try (var files = Files.walk(yamlTestOutputDir.toPath())) {
+                    return files.anyMatch(p -> p.getFileName().toString().endsWith("yml"));
+                }
             }
         } catch (IOException e) {
             throw new IllegalStateException(String.format("Error determining if this project [%s] has rest tests.", getProject()), e);

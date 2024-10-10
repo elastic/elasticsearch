@@ -1,20 +1,22 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.repositories.s3;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
+import org.elasticsearch.action.support.RefCountingRunnable;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
@@ -28,13 +30,14 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.repositories.FinalizeSnapshotContext;
 import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.blobstore.MeteredBlobStoreRepository;
-import org.elasticsearch.snapshots.SnapshotDeleteListener;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.threadpool.Scheduler;
@@ -43,9 +46,10 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import java.util.Collection;
 import java.util.Map;
+import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Function;
 
 /**
  * Shared file system implementation of the BlobStoreRepository
@@ -137,6 +141,11 @@ class S3Repository extends MeteredBlobStoreRepository {
     );
 
     /**
+     * Maximum parts number for multipart upload. (see https://docs.aws.amazon.com/AmazonS3/latest/userguide/qfacts.html)
+     */
+    static final Setting<Integer> MAX_MULTIPART_PARTS = Setting.intSetting("max_multipart_parts", 10_000, 1, 10_000);
+
+    /**
      * Sets the S3 storage class type for the backup files. Values may be standard, reduced_redundancy,
      * standard_ia, onezone_ia and intelligent_tiering. Defaults to standard.
      */
@@ -148,17 +157,17 @@ class S3Repository extends MeteredBlobStoreRepository {
      */
     static final Setting<String> CANNED_ACL_SETTING = Setting.simpleString("canned_acl");
 
-    static final Setting<String> CLIENT_NAME = new Setting<>("client", "default", Function.identity());
+    static final Setting<String> CLIENT_NAME = Setting.simpleString("client", "default");
 
     /**
      * Artificial delay to introduce after a snapshot finalization or delete has finished so long as the repository is still using the
      * backwards compatible snapshot format from before
-     * {@link org.elasticsearch.snapshots.SnapshotsService#SHARD_GEN_IN_REPO_DATA_VERSION} ({@link org.elasticsearch.Version#V_7_6_0}).
+     * {@link org.elasticsearch.snapshots.SnapshotsService#SHARD_GEN_IN_REPO_DATA_VERSION} ({@link IndexVersions#V_7_6_0}).
      * This delay is necessary so that the eventually consistent nature of AWS S3 does not randomly result in repository corruption when
      * doing repository operations in rapid succession on a repository in the old metadata format.
      * This setting should not be adjusted in production when working with an AWS S3 backed repository. Doing so risks the repository
      * becoming silently corrupted. To get rid of this waiting period, either create a new S3 repository or remove all snapshots older than
-     * {@link org.elasticsearch.Version#V_7_6_0} from the repository which will trigger an upgrade of the repository metadata to the new
+     * {@link IndexVersions#V_7_6_0} from the repository which will trigger an upgrade of the repository metadata to the new
      * format and disable the cooldown period.
      */
     static final Setting<TimeValue> COOLDOWN_PERIOD = Setting.timeSetting(
@@ -172,6 +181,26 @@ class S3Repository extends MeteredBlobStoreRepository {
      * Specifies the path within bucket to repository data. Defaults to root directory.
      */
     static final Setting<String> BASE_PATH_SETTING = Setting.simpleString("base_path");
+
+    /**
+     * The batch size for DeleteObjects request
+     */
+    static final Setting<Integer> DELETION_BATCH_SIZE_SETTING = Setting.intSetting(
+        "delete_objects_max_size",
+        S3BlobStore.MAX_BULK_DELETES,
+        1,
+        S3BlobStore.MAX_BULK_DELETES
+    );
+
+    /**
+     * Maximum number of uploads to request for cleanup when doing a snapshot delete.
+     */
+    static final Setting<Integer> MAX_MULTIPART_UPLOAD_CLEANUP_SIZE = Setting.intSetting(
+        "max_multipart_upload_cleanup_size",
+        1000,
+        0,
+        Setting.Property.Dynamic
+    );
 
     private final S3Service service;
 
@@ -193,6 +222,10 @@ class S3Repository extends MeteredBlobStoreRepository {
      */
     private final TimeValue coolDown;
 
+    private final Executor snapshotExecutor;
+
+    private final S3RepositoriesMetrics s3RepositoriesMetrics;
+
     /**
      * Constructs an s3 backed repository
      */
@@ -202,7 +235,8 @@ class S3Repository extends MeteredBlobStoreRepository {
         final S3Service service,
         final ClusterService clusterService,
         final BigArrays bigArrays,
-        final RecoverySettings recoverySettings
+        final RecoverySettings recoverySettings,
+        final S3RepositoriesMetrics s3RepositoriesMetrics
     ) {
         super(
             metadata,
@@ -214,15 +248,19 @@ class S3Repository extends MeteredBlobStoreRepository {
             buildLocation(metadata)
         );
         this.service = service;
+        this.s3RepositoriesMetrics = s3RepositoriesMetrics;
+        this.snapshotExecutor = threadPool().executor(ThreadPool.Names.SNAPSHOT);
 
         // Parse and validate the user's S3 Storage Class setting
         this.bucket = BUCKET_SETTING.get(metadata.settings());
-        if (bucket == null) {
-            throw new RepositoryException(metadata.name(), "No bucket defined for s3 repository");
+        if (Strings.hasLength(bucket) == false) {
+            throw new IllegalArgumentException("Invalid S3 bucket name, cannot be null or empty");
         }
 
         this.bufferSize = BUFFER_SIZE_SETTING.get(metadata.settings());
-        this.chunkSize = CHUNK_SIZE_SETTING.get(metadata.settings());
+        var maxChunkSize = CHUNK_SIZE_SETTING.get(metadata.settings());
+        var maxPartsNum = MAX_MULTIPART_PARTS.get(metadata.settings());
+        this.chunkSize = objectSizeLimit(maxChunkSize, bufferSize, maxPartsNum);
 
         // We make sure that chunkSize is bigger or equal than/to bufferSize
         if (this.chunkSize.getBytes() < bufferSize.getBytes()) {
@@ -272,6 +310,20 @@ class S3Repository extends MeteredBlobStoreRepository {
     }
 
     /**
+     * Calculates S3 object size limit based on 2 constraints: maximum object(chunk) size
+     * and maximum number of parts for multipart upload.
+     * https://docs.aws.amazon.com/AmazonS3/latest/userguide/qfacts.html
+     *
+     * @param chunkSize s3 object size
+     * @param bufferSize s3 multipart upload part size
+     * @param maxPartsNum s3 multipart upload max parts number
+     */
+    private static ByteSizeValue objectSizeLimit(ByteSizeValue chunkSize, ByteSizeValue bufferSize, int maxPartsNum) {
+        var bytes = Math.min(chunkSize.getBytes(), bufferSize.getBytes() * maxPartsNum);
+        return ByteSizeValue.ofBytes(bytes);
+    }
+
+    /**
      * Holds a reference to delayed repository operation {@link Scheduler.Cancellable} so it can be cancelled should the repository be
      * closed concurrently.
      */
@@ -288,7 +340,7 @@ class S3Repository extends MeteredBlobStoreRepository {
                 finalizeSnapshotContext.clusterMetadata(),
                 finalizeSnapshotContext.snapshotInfo(),
                 finalizeSnapshotContext.repositoryMetaVersion(),
-                delayedListener(ActionListener.runAfter(finalizeSnapshotContext, () -> metadataDone.onResponse(null))),
+                wrapWithWeakConsistencyProtection(ActionListener.runAfter(finalizeSnapshotContext, () -> metadataDone.onResponse(null))),
                 info -> metadataDone.addListener(new ActionListener<>() {
                     @Override
                     public void onResponse(Void unused) {
@@ -307,68 +359,22 @@ class S3Repository extends MeteredBlobStoreRepository {
         super.finalizeSnapshot(wrappedFinalizeContext);
     }
 
-    @Override
-    public void deleteSnapshots(
-        Collection<SnapshotId> snapshotIds,
-        long repositoryStateId,
-        Version repositoryMetaVersion,
-        SnapshotDeleteListener listener
-    ) {
-        final SnapshotDeleteListener wrappedListener;
-        if (SnapshotsService.useShardGenerations(repositoryMetaVersion)) {
-            wrappedListener = listener;
-        } else {
-            wrappedListener = new SnapshotDeleteListener() {
-                @Override
-                public void onDone() {
-                    listener.onDone();
-                }
-
-                @Override
-                public void onRepositoryDataWritten(RepositoryData repositoryData) {
-                    logCooldownInfo();
-                    final Scheduler.Cancellable existing = finalizationFuture.getAndSet(threadPool.schedule(() -> {
-                        final Scheduler.Cancellable cancellable = finalizationFuture.getAndSet(null);
-                        assert cancellable != null;
-                        listener.onRepositoryDataWritten(repositoryData);
-                    }, coolDown, ThreadPool.Names.SNAPSHOT));
-                    assert existing == null : "Already have an ongoing finalization " + finalizationFuture;
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    logCooldownInfo();
-                    final Scheduler.Cancellable existing = finalizationFuture.getAndSet(threadPool.schedule(() -> {
-                        final Scheduler.Cancellable cancellable = finalizationFuture.getAndSet(null);
-                        assert cancellable != null;
-                        listener.onFailure(e);
-                    }, coolDown, ThreadPool.Names.SNAPSHOT));
-                    assert existing == null : "Already have an ongoing finalization " + finalizationFuture;
-                }
-            };
-        }
-        super.deleteSnapshots(snapshotIds, repositoryStateId, repositoryMetaVersion, wrappedListener);
-    }
-
     /**
      * Wraps given listener such that it is executed with a delay of {@link #coolDown} on the snapshot thread-pool after being invoked.
      * See {@link #COOLDOWN_PERIOD} for details.
      */
-    private <T> ActionListener<T> delayedListener(ActionListener<T> listener) {
-        final ActionListener<T> wrappedListener = ActionListener.runBefore(listener, () -> {
+    @Override
+    protected ActionListener<RepositoryData> wrapWithWeakConsistencyProtection(ActionListener<RepositoryData> listener) {
+        final ActionListener<RepositoryData> wrappedListener = ActionListener.runBefore(listener, () -> {
             final Scheduler.Cancellable cancellable = finalizationFuture.getAndSet(null);
             assert cancellable != null;
         });
         return new ActionListener<>() {
             @Override
-            public void onResponse(T response) {
+            public void onResponse(RepositoryData response) {
                 logCooldownInfo();
                 final Scheduler.Cancellable existing = finalizationFuture.getAndSet(
-                    threadPool.schedule(
-                        ActionRunnable.wrap(wrappedListener, l -> l.onResponse(response)),
-                        coolDown,
-                        ThreadPool.Names.SNAPSHOT
-                    )
+                    threadPool.schedule(ActionRunnable.wrap(wrappedListener, l -> l.onResponse(response)), coolDown, snapshotExecutor)
                 );
                 assert existing == null : "Already have an ongoing finalization " + finalizationFuture;
             }
@@ -377,7 +383,7 @@ class S3Repository extends MeteredBlobStoreRepository {
             public void onFailure(Exception e) {
                 logCooldownInfo();
                 final Scheduler.Cancellable existing = finalizationFuture.getAndSet(
-                    threadPool.schedule(ActionRunnable.wrap(wrappedListener, l -> l.onFailure(e)), coolDown, ThreadPool.Names.SNAPSHOT)
+                    threadPool.schedule(ActionRunnable.wrap(wrappedListener, l -> l.onFailure(e)), coolDown, snapshotExecutor)
                 );
                 assert existing == null : "Already have an ongoing finalization " + finalizationFuture;
             }
@@ -408,7 +414,18 @@ class S3Repository extends MeteredBlobStoreRepository {
 
     @Override
     protected S3BlobStore createBlobStore() {
-        return new S3BlobStore(service, bucket, serverSideEncryption, bufferSize, cannedACL, storageClass, metadata, bigArrays);
+        return new S3BlobStore(
+            service,
+            bucket,
+            serverSideEncryption,
+            bufferSize,
+            cannedACL,
+            storageClass,
+            metadata,
+            bigArrays,
+            threadPool,
+            s3RepositoriesMetrics
+        );
     }
 
     // only use for testing
@@ -430,5 +447,91 @@ class S3Repository extends MeteredBlobStoreRepository {
             cancellable.cancel();
         }
         super.doClose();
+    }
+
+    @Override
+    public String getAnalysisFailureExtraDetail() {
+        return Strings.format(
+            """
+                Elasticsearch observed the storage system underneath this repository behaved incorrectly which indicates it is not \
+                suitable for use with Elasticsearch snapshots. Typically this happens when using storage other than AWS S3 which \
+                incorrectly claims to be S3-compatible. If so, please report this incompatibility to your storage supplier. Do not report \
+                Elasticsearch issues involving storage systems which claim to be S3-compatible unless you can demonstrate that the same \
+                issue exists when using a genuine AWS S3 repository. See [%s] for further information about repository analysis, and [%s] \
+                for further information about support for S3-compatible repository implementations.""",
+            ReferenceDocs.SNAPSHOT_REPOSITORY_ANALYSIS,
+            ReferenceDocs.S3_COMPATIBLE_REPOSITORIES
+        );
+    }
+
+    // only one multipart cleanup process running at once
+    private final AtomicBoolean multipartCleanupInProgress = new AtomicBoolean();
+
+    @Override
+    public void deleteSnapshots(
+        Collection<SnapshotId> snapshotIds,
+        long repositoryDataGeneration,
+        IndexVersion minimumNodeVersion,
+        ActionListener<RepositoryData> repositoryDataUpdateListener,
+        Runnable onCompletion
+    ) {
+        getMultipartUploadCleanupListener(
+            isReadOnly() ? 0 : MAX_MULTIPART_UPLOAD_CLEANUP_SIZE.get(getMetadata().settings()),
+            new ActionListener<>() {
+                @Override
+                public void onResponse(ActionListener<Void> multipartUploadCleanupListener) {
+                    S3Repository.super.deleteSnapshots(snapshotIds, repositoryDataGeneration, minimumNodeVersion, new ActionListener<>() {
+                        @Override
+                        public void onResponse(RepositoryData repositoryData) {
+                            multipartUploadCleanupListener.onResponse(null);
+                            repositoryDataUpdateListener.onResponse(repositoryData);
+                        }
+
+                        @Override
+                        public void onFailure(Exception e) {
+                            multipartUploadCleanupListener.onFailure(e);
+                            repositoryDataUpdateListener.onFailure(e);
+                        }
+                    }, onCompletion);
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    logger.warn("failed to get multipart uploads for cleanup during snapshot delete", e);
+                    assert false : e; // getMultipartUploadCleanupListener doesn't throw and snapshotExecutor doesn't reject anything
+                    repositoryDataUpdateListener.onFailure(e);
+                }
+            }
+        );
+    }
+
+    /**
+     * Capture the current list of multipart uploads, and (asynchronously) return a listener which, if completed successfully, aborts those
+     * uploads. Called at the start of a snapshot delete operation, at which point there should be no ongoing uploads (except in the case of
+     * a master failover). We protect against the master failover case by waiting until the delete operation successfully updates the root
+     * index-N blob before aborting any uploads.
+     */
+    void getMultipartUploadCleanupListener(int maxUploads, ActionListener<ActionListener<Void>> listener) {
+        if (maxUploads == 0) {
+            listener.onResponse(ActionListener.noop());
+            return;
+        }
+
+        if (multipartCleanupInProgress.compareAndSet(false, true) == false) {
+            logger.info("multipart upload cleanup already in progress");
+            listener.onResponse(ActionListener.noop());
+            return;
+        }
+
+        try (var refs = new RefCountingRunnable(() -> multipartCleanupInProgress.set(false))) {
+            snapshotExecutor.execute(
+                ActionRunnable.supply(
+                    ActionListener.releaseAfter(listener, refs.acquire()),
+                    () -> blobContainer() instanceof S3BlobContainer s3BlobContainer
+                        ? s3BlobContainer.getMultipartUploadCleanupListener(maxUploads, refs)
+                        : ActionListener.noop()
+                )
+            );
+        }
     }
 }

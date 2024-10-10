@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.bucket.histogram;
@@ -11,18 +12,20 @@ package org.elasticsearch.search.aggregations.bucket.histogram;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.LogDocMergePolicy;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.analysis.MockAnalyzer;
 import org.apache.lucene.tests.index.RandomIndexWriter;
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.util.NumericUtils;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
@@ -519,7 +522,9 @@ public class VariableWidthHistogramAggregatorTests extends AggregatorTestCase {
                 List.of(),
                 true,
                 aggregation -> aggregation.field(NUMERIC_FIELD).setNumBuckets(2).setShardSize(2),
-                histogram -> { fail(); }
+                histogram -> {
+                    fail();
+                }
             )
         );
         assertThat(e.getMessage(), equalTo("3/4 of shard_size must be at least buckets but was [1<2] for [_name]"));
@@ -547,7 +552,9 @@ public class VariableWidthHistogramAggregatorTests extends AggregatorTestCase {
                 List.of(),
                 true,
                 aggregation -> aggregation.field(NUMERIC_FIELD).setInitialBuffer(1),
-                histogram -> { fail(); }
+                histogram -> {
+                    fail();
+                }
             )
         );
         assertThat(e.getMessage(), equalTo("initial_buffer must be at least buckets but was [1<10] for [_name]"));
@@ -584,7 +591,7 @@ public class VariableWidthHistogramAggregatorTests extends AggregatorTestCase {
         final Settings nodeSettings = Settings.builder().put("search.max_buckets", 25000).build();
         return new IndexSettings(
             IndexMetadata.builder("_index")
-                .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT))
+                .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()))
                 .numberOfShards(1)
                 .numberOfReplicas(0)
                 .creationDate(System.currentTimeMillis())
@@ -601,13 +608,14 @@ public class VariableWidthHistogramAggregatorTests extends AggregatorTestCase {
         final Consumer<InternalVariableWidthHistogram> verify
     ) throws IOException {
         try (Directory directory = newDirectory()) {
-            try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
+            IndexWriterConfig config = LuceneTestCase.newIndexWriterConfig(random(), new MockAnalyzer(random()));
+            // Use LogDocMergePolicy to avoid randomization issues with the doc retrieval order.
+            config.setMergePolicy(new LogDocMergePolicy());
+            try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory, config)) {
                 indexSampleData(dataset, indexWriter, multipleSegments);
             }
 
-            try (IndexReader indexReader = DirectoryReader.open(directory)) {
-                final IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
-
+            try (DirectoryReader indexReader = DirectoryReader.open(directory)) {
                 final VariableWidthHistogramAggregationBuilder aggregationBuilder = new VariableWidthHistogramAggregationBuilder("_name");
                 if (configure != null) {
                     configure.accept(aggregationBuilder);
@@ -625,7 +633,7 @@ public class VariableWidthHistogramAggregatorTests extends AggregatorTestCase {
                 }
 
                 final InternalVariableWidthHistogram histogram = searchAndReduce(
-                    indexSearcher,
+                    indexReader,
                     new AggTestConfig(aggregationBuilder, fieldType).withQuery(query)
                 );
                 verify.accept(histogram);

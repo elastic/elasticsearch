@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.cluster.migration;
@@ -19,8 +20,9 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.indices.SystemIndices;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -63,7 +65,7 @@ public class TransportPostFeatureUpgradeAction extends TransportMasterNodeAction
             PostFeatureUpgradeRequest::new,
             indexNameExpressionResolver,
             PostFeatureUpgradeResponse::new,
-            ThreadPool.Names.SAME
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.systemIndices = systemIndices;
         this.persistentTasksService = persistentTasksService;
@@ -94,14 +96,14 @@ public class TransportPostFeatureUpgradeAction extends TransportMasterNodeAction
                 SYSTEM_INDEX_UPGRADE_TASK_NAME,
                 SYSTEM_INDEX_UPGRADE_TASK_NAME,
                 new SystemIndexMigrationTaskParams(),
-                ActionListener.wrap(
-                    startedTask -> { listener.onResponse(new PostFeatureUpgradeResponse(true, featuresToMigrate, null, null)); },
-                    ex -> {
-                        logger.error("failed to start system index upgrade task", ex);
+                null,
+                ActionListener.wrap(startedTask -> {
+                    listener.onResponse(new PostFeatureUpgradeResponse(true, featuresToMigrate, null, null));
+                }, ex -> {
+                    logger.error("failed to start system index upgrade task", ex);
 
-                        listener.onResponse(new PostFeatureUpgradeResponse(false, null, null, new ElasticsearchException(ex)));
-                    }
-                )
+                    listener.onResponse(new PostFeatureUpgradeResponse(false, null, null, new ElasticsearchException(ex)));
+                })
             );
         } else {
             listener.onResponse(new PostFeatureUpgradeResponse(false, null, "No system indices require migration", null));

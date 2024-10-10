@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.http;
@@ -53,9 +54,7 @@ public class HealthRestCancellationIT extends HttpSmokeTestCase {
     private void runTest(Request request) throws Exception {
         List<Semaphore> blocks = new ArrayList<>();
         for (PluginsService pluginsService : internalCluster().getInstances(PluginsService.class)) {
-            for (BlockingHealthPlugin plugin : pluginsService.filterPlugins(BlockingHealthPlugin.class)) {
-                blocks.add(plugin.operationBlock);
-            }
+            pluginsService.filterPlugins(BlockingHealthPlugin.class).map(p -> p.operationBlock).forEach(blocks::add);
         }
 
         assertThat(blocks, not(empty()));

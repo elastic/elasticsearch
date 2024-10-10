@@ -48,5 +48,5 @@ metric_type::
   The metric type of a numeric field: `"gauge"` or `"counter"`. A gauge is a
   single-value measurement that can go up or down over time, such as a
   temperature. A counter is a single-value cumulative counter that only goes
-  up, such as the number of requests processed by a web server. By default,
-  no metric type is associated with a field. Only valid for numeric fields.
+  up, such as the number of requests processed by a web server, or resets to 0 (zero).
+  By default, no metric type is associated with a field. Only valid for numeric fields.

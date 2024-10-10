@@ -17,6 +17,6 @@ public class DeleteUserAction extends ActionType<DeleteUserResponse> {
     public static final String NAME = "cluster:admin/xpack/security/user/delete";
 
     protected DeleteUserAction() {
-        super(NAME, DeleteUserResponse::new);
+        super(NAME);
     }
 }

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.lucene.queries;
@@ -16,6 +17,7 @@ import org.apache.lucene.search.FieldComparator;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.LeafFieldComparator;
+import org.apache.lucene.search.Pruning;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.ScoreMode;
@@ -52,7 +54,7 @@ public class SearchAfterSortedDocQuery extends Query {
         this.reverseMuls = new int[numFields];
         for (int i = 0; i < numFields; i++) {
             SortField sortField = sort.getSort()[i];
-            FieldComparator<?> fieldComparator = sortField.getComparator(1, false);
+            FieldComparator<?> fieldComparator = sortField.getComparator(1, Pruning.NONE);
             @SuppressWarnings("unchecked")
             FieldComparator<Object> comparator = (FieldComparator<Object>) fieldComparator;
             comparator.setTopValue(after.fields[i]);

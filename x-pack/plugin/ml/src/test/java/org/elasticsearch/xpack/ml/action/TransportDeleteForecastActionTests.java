@@ -10,6 +10,7 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.results.ForecastRequestStats;
@@ -34,7 +35,7 @@ public class TransportDeleteForecastActionTests extends ESTestCase {
 
             // This should not throw.
             TransportDeleteForecastAction.extractForecastIds(
-                forecastRequestStatsHits.toArray(new SearchHit[0]),
+                forecastRequestStatsHits.toArray(SearchHits.EMPTY),
                 randomFrom(JobState.values()),
                 randomAlphaOfLength(10)
             );
@@ -53,7 +54,7 @@ public class TransportDeleteForecastActionTests extends ESTestCase {
                 JobState jobState = randomFrom(JobState.CLOSED, JobState.CLOSING, JobState.FAILED);
                 try {
                     TransportDeleteForecastAction.extractForecastIds(
-                        forecastRequestStatsHits.toArray(new SearchHit[0]),
+                        forecastRequestStatsHits.toArray(SearchHits.EMPTY),
                         jobState,
                         randomAlphaOfLength(10)
                     );
@@ -66,7 +67,7 @@ public class TransportDeleteForecastActionTests extends ESTestCase {
                 expectThrows(
                     ElasticsearchStatusException.class,
                     () -> TransportDeleteForecastAction.extractForecastIds(
-                        forecastRequestStatsHits.toArray(new SearchHit[0]),
+                        forecastRequestStatsHits.toArray(SearchHits.EMPTY),
                         jobState,
                         randomAlphaOfLength(10)
                     )
@@ -85,7 +86,7 @@ public class TransportDeleteForecastActionTests extends ESTestCase {
             ForecastRequestStats.STATUS.getPreferredName(),
             new DocumentField(ForecastRequestStats.STATUS.getPreferredName(), Collections.singletonList(status.toString()))
         );
-        SearchHit hit = new SearchHit(0, "");
+        SearchHit hit = SearchHit.unpooled(0, "");
         hit.addDocumentFields(documentFields, Map.of());
         return hit;
     }

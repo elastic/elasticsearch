@@ -49,7 +49,7 @@ a span equal to the jobs' largest bucket span.
 
 `<job_id>`::
 (Required, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection-wildcard-list]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection-wildcard-list]
 +
 You can summarize the bucket results for all {anomaly-jobs} by using `_all` or
 by specifying `*` as the job identifier.
@@ -59,7 +59,7 @@ by specifying `*` as the job identifier.
 
 `allow_no_match`::
 (Optional, Boolean)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=allow-no-match-jobs]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=allow-no-match-jobs]
 
 `bucket_span`::
 (Optional, string) The span of the overall buckets. Must be greater or equal to
@@ -108,7 +108,7 @@ of the job with the longest one.
 
 `is_interim`::
 (Boolean)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=is-interim]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=is-interim]
 
 `jobs`::
 (array) An array of objects that contain the `max_anomaly_score` per `job_id`.
@@ -121,7 +121,7 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=is-interim]
 
 `timestamp`::
 (date)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=timestamp-results]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=timestamp-results]
 
 [[ml-get-overall-buckets-example]]
 == {api-examples-title}

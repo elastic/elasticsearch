@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.cluster.reroute;
@@ -13,9 +14,10 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
-import org.elasticsearch.action.admin.indices.shards.IndicesShardStoresAction;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.indices.shards.IndicesShardStoresRequest;
 import org.elasticsearch.action.admin.indices.shards.IndicesShardStoresResponse;
+import org.elasticsearch.action.admin.indices.shards.TransportIndicesShardStoresAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
@@ -34,12 +36,14 @@ import org.elasticsearch.cluster.routing.allocation.command.AllocationCommand;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.ArrayList;
@@ -49,6 +53,7 @@ import java.util.Map;
 
 public class TransportClusterRerouteAction extends TransportMasterNodeAction<ClusterRerouteRequest, ClusterRerouteResponse> {
 
+    public static final ActionType<ClusterRerouteResponse> TYPE = new ActionType<>("cluster:admin/reroute");
     private static final Logger logger = LogManager.getLogger(TransportClusterRerouteAction.class);
 
     private final AllocationService allocationService;
@@ -63,7 +68,7 @@ public class TransportClusterRerouteAction extends TransportMasterNodeAction<Clu
         IndexNameExpressionResolver indexNameExpressionResolver
     ) {
         super(
-            ClusterRerouteAction.NAME,
+            TYPE.name(),
             transportService,
             clusterService,
             threadPool,
@@ -71,7 +76,7 @@ public class TransportClusterRerouteAction extends TransportMasterNodeAction<Clu
             ClusterRerouteRequest::new,
             indexNameExpressionResolver,
             ClusterRerouteResponse::new,
-            ThreadPool.Names.SAME
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.allocationService = allocationService;
     }
@@ -108,9 +113,9 @@ public class TransportClusterRerouteAction extends TransportMasterNodeAction<Clu
     ) {
         transportService.sendRequest(
             transportService.getLocalNode(),
-            IndicesShardStoresAction.NAME,
+            TransportIndicesShardStoresAction.TYPE.name(),
             new IndicesShardStoresRequest().indices(stalePrimaryAllocations.keySet().toArray(Strings.EMPTY_ARRAY)),
-            new ActionListenerResponseHandler<>(ActionListener.wrap(response -> {
+            new ActionListenerResponseHandler<>(listener.delegateFailureAndWrap((delegate, response) -> {
                 Map<String, Map<Integer, List<IndicesShardStoresResponse.StoreStatus>>> status = response.getStoreStatuses();
                 Exception e = null;
                 for (Map.Entry<String, List<AbstractAllocateAllocationCommand>> entry : stalePrimaryAllocations.entrySet()) {
@@ -151,11 +156,11 @@ public class TransportClusterRerouteAction extends TransportMasterNodeAction<Clu
                     }
                 }
                 if (e == null) {
-                    submitStateUpdate(request, listener);
+                    submitStateUpdate(request, delegate);
                 } else {
-                    listener.onFailure(e);
+                    delegate.onFailure(e);
                 }
-            }, listener::onFailure), IndicesShardStoresResponse::new)
+            }), IndicesShardStoresResponse::new, TransportResponseHandler.TRANSPORT_WORKER)
         );
     }
 

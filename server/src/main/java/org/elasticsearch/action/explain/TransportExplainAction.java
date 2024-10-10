@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.explain;
@@ -11,13 +12,14 @@ package org.elasticsearch.action.explain;
 import org.apache.lucene.search.Explanation;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.ResolvedIndices;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.single.shard.TransportSingleShardAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.IndexService;
@@ -27,6 +29,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.SearchContext;
@@ -35,10 +38,12 @@ import org.elasticsearch.search.rescore.RescoreContext;
 import org.elasticsearch.search.rescore.Rescorer;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.Set;
+import java.util.concurrent.Executor;
 import java.util.function.LongSupplier;
 
 /**
@@ -47,7 +52,9 @@ import java.util.function.LongSupplier;
 // TODO: AggregatedDfs. Currently the idf can be different then when executing a normal search with explain.
 public class TransportExplainAction extends TransportSingleShardAction<ExplainRequest, ExplainResponse> {
 
+    public static final ActionType<ExplainResponse> TYPE = new ActionType<>("indices:data/read/explain");
     private final SearchService searchService;
+    private final RemoteClusterService remoteClusterService;
 
     @Inject
     public TransportExplainAction(
@@ -59,29 +66,40 @@ public class TransportExplainAction extends TransportSingleShardAction<ExplainRe
         IndexNameExpressionResolver indexNameExpressionResolver
     ) {
         super(
-            ExplainAction.NAME,
+            TYPE.name(),
             threadPool,
             clusterService,
             transportService,
             actionFilters,
             indexNameExpressionResolver,
             ExplainRequest::new,
-            ThreadPool.Names.GET
+            threadPool.executor(ThreadPool.Names.GET)
         );
         this.searchService = searchService;
+        this.remoteClusterService = transportService.getRemoteClusterService();
     }
 
     @Override
     protected void doExecute(Task task, ExplainRequest request, ActionListener<ExplainResponse> listener) {
         request.nowInMillis = System.currentTimeMillis();
-        ActionListener<QueryBuilder> rewriteListener = ActionListener.wrap(rewrittenQuery -> {
+
+        // Indices are resolved twice (they are resolved again later by the base class), but that's ok for this action type
+        ResolvedIndices resolvedIndices = ResolvedIndices.resolveWithIndicesRequest(
+            request,
+            clusterService.state(),
+            indexNameExpressionResolver,
+            remoteClusterService,
+            request.nowInMillis
+        );
+
+        ActionListener<QueryBuilder> rewriteListener = listener.delegateFailureAndWrap((l, rewrittenQuery) -> {
             request.query(rewrittenQuery);
-            super.doExecute(task, request, listener);
-        }, listener::onFailure);
+            super.doExecute(task, request, l);
+        });
 
         assert request.query() != null;
         LongSupplier timeProvider = () -> request.nowInMillis;
-        Rewriteable.rewriteAndFetch(request.query(), searchService.getRewriteContext(timeProvider), rewriteListener);
+        Rewriteable.rewriteAndFetch(request.query(), searchService.getRewriteContext(timeProvider, resolvedIndices, null), rewriteListener);
     }
 
     @Override
@@ -101,7 +119,7 @@ public class TransportExplainAction extends TransportSingleShardAction<ExplainRe
         throws IOException {
         IndexService indexService = searchService.getIndicesService().indexServiceSafe(shardId.getIndex());
         IndexShard indexShard = indexService.getShard(shardId.id());
-        indexShard.awaitShardSearchActive(b -> {
+        indexShard.ensureShardSearchActive(b -> {
             try {
                 super.asyncShardOperation(request, shardId, listener);
             } catch (Exception ex) {
@@ -165,10 +183,10 @@ public class TransportExplainAction extends TransportSingleShardAction<ExplainRe
     }
 
     @Override
-    protected String getExecutor(ExplainRequest request, ShardId shardId) {
+    protected Executor getExecutor(ExplainRequest request, ShardId shardId) {
         IndexService indexService = searchService.getIndicesService().indexServiceSafe(shardId.getIndex());
         return indexService.getIndexSettings().isSearchThrottled()
-            ? ThreadPool.Names.SEARCH_THROTTLED
+            ? threadPool.executor(ThreadPool.Names.SEARCH_THROTTLED)
             : super.getExecutor(request, shardId);
     }
 }

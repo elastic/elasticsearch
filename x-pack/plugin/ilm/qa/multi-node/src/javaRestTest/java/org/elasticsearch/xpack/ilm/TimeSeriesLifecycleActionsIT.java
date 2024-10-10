@@ -22,6 +22,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.rest.action.admin.indices.RestPutIndexTemplateAction;
 import org.elasticsearch.snapshots.SnapshotState;
@@ -31,6 +32,7 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.ilm.AllocateAction;
 import org.elasticsearch.xpack.core.ilm.DeleteAction;
+import org.elasticsearch.xpack.core.ilm.ErrorStep;
 import org.elasticsearch.xpack.core.ilm.ForceMergeAction;
 import org.elasticsearch.xpack.core.ilm.FreezeAction;
 import org.elasticsearch.xpack.core.ilm.LifecycleAction;
@@ -76,6 +78,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
@@ -597,7 +600,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
             Map<String, Object> indexStatus = (Map<String, Object>) ((Map<String, Object>) responseMap.get("indices")).get(index);
             assertNull(indexStatus.get("phase"));
             assertNull(indexStatus.get("action"));
-            assertNull(indexStatus.get("step"));
+            assertEquals(ErrorStep.NAME, indexStatus.get("step"));
             Map<String, String> stepInfo = (Map<String, String>) indexStatus.get("step_info");
             assertNotNull(stepInfo);
             assertEquals("policy [does_not_exist] does not exist", stepInfo.get("reason"));
@@ -887,10 +890,10 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
                 .put(LifecycleSettings.LIFECYCLE_NAME, policy)
-                .put(LifecycleSettings.LIFECYCLE_PARSE_ORIGINATION_DATE, false)
+                .put(IndexSettings.LIFECYCLE_PARSE_ORIGINATION_DATE, false)
         );
 
-        updateIndexSettings(index, Settings.builder().put(LifecycleSettings.LIFECYCLE_PARSE_ORIGINATION_DATE, true));
+        updateIndexSettings(index, Settings.builder().put(IndexSettings.LIFECYCLE_PARSE_ORIGINATION_DATE, true));
 
         assertOK(client().performRequest(startReq));
 
@@ -901,7 +904,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         );
 
         // Turn origination date parsing back off
-        updateIndexSettings(index, Settings.builder().put(LifecycleSettings.LIFECYCLE_PARSE_ORIGINATION_DATE, false));
+        updateIndexSettings(index, Settings.builder().put(IndexSettings.LIFECYCLE_PARSE_ORIGINATION_DATE, false));
 
         assertBusy(() -> {
             Map<String, Object> explainResp = explainIndex(client(), index);
@@ -1063,7 +1066,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
                         Map<String, Object> snapshotInfoMap = (Map<String, Object>) snapshot;
                         if (snapshotInfoMap.get("snapshot").equals(snapshotName[0]) &&
                         // wait for the snapshot to be completed (successfully or not) otherwise the teardown might fail
-                        SnapshotState.valueOf((String) snapshotInfoMap.get("state")).completed()) {
+                            SnapshotState.valueOf((String) snapshotInfoMap.get("state")).completed()) {
                             return true;
                         }
                     }
@@ -1219,10 +1222,19 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         }
 
         // Finally, check that the history index is in a good state
-        Step.StepKey stepKey = getStepKeyForIndex(client(), DataStream.getDefaultBackingIndexName("ilm-history-5", 1));
-        assertEquals("hot", stepKey.phase());
-        assertEquals(RolloverAction.NAME, stepKey.action());
-        assertEquals(WaitForRolloverReadyStep.NAME, stepKey.name());
+        String historyIndexName = DataStream.getDefaultBackingIndexName("ilm-history-7", 1);
+        Response explainHistoryIndex = client().performRequest(new Request("GET", historyIndexName + "/_lifecycle/explain"));
+        Map<String, Object> responseMap;
+        try (InputStream is = explainHistoryIndex.getEntity().getContent()) {
+            responseMap = XContentHelper.convertToMap(XContentType.JSON.xContent(), is, true);
+        }
+
+        @SuppressWarnings("unchecked")
+        Map<String, Map<String, Object>> indexResponse = ((Map<String, Map<String, Object>>) responseMap.get("indices"));
+        Map<String, Object> historyIndexDSLExplain = indexResponse.get(historyIndexName);
+        assertThat(historyIndexDSLExplain, is(notNullValue()));
+        assertThat(historyIndexDSLExplain.get("managed_by_lifecycle"), is(true));
+        assertThat(historyIndexDSLExplain.get("index_creation_date_millis"), is(notNullValue()));
     }
 
     private void createSlmPolicy(String smlPolicy, String repo) throws IOException {

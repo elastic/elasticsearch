@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.search.aggregations.support;
 
@@ -35,7 +36,7 @@ import org.elasticsearch.index.fielddata.SortingNumericDoubleValues;
 import org.elasticsearch.index.mapper.RangeType;
 import org.elasticsearch.script.AggregationScript;
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.aggregations.AggregationExecutionException;
+import org.elasticsearch.search.aggregations.AggregationErrors;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileCellIdSource;
 import org.elasticsearch.search.aggregations.bucket.range.RangeAggregator;
@@ -116,7 +117,7 @@ public abstract class ValuesSource {
 
         @Override
         public final Function<Rounding, Rounding.Prepared> roundingPreparer(AggregationContext context) throws IOException {
-            throw new AggregationExecutionException("can't round a [BYTES]");
+            throw AggregationErrors.unsupportedRounding("BYTES");
         }
 
         /**
@@ -723,7 +724,7 @@ public abstract class ValuesSource {
 
         @Override
         public final Function<Rounding, Rounding.Prepared> roundingPreparer(AggregationContext context) throws IOException {
-            throw new AggregationExecutionException("can't round a [GEO_POINT]");
+            throw AggregationErrors.unsupportedRounding("GEO_POINT");
         }
 
         /**

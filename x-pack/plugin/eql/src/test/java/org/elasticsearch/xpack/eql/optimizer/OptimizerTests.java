@@ -757,11 +757,11 @@ public class OptimizerTests extends ESTestCase {
     }
 
     private static KeyedFilter keyedFilter(LogicalPlan child) {
-        return new KeyedFilter(EMPTY, child, emptyList(), timestamp(), tiebreaker());
+        return new KeyedFilter(EMPTY, child, emptyList(), timestamp(), tiebreaker(), false);
     }
 
     private static KeyedFilter keyedFilter(LogicalPlan child, NamedExpression... keys) {
-        return new KeyedFilter(EMPTY, child, asList(keys), timestamp(), tiebreaker());
+        return new KeyedFilter(EMPTY, child, asList(keys), timestamp(), tiebreaker(), false);
     }
 
     private static Attribute key(String name) {

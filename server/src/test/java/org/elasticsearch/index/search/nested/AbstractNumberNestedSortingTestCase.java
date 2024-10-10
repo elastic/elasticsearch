@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.index.search.nested;
 
@@ -207,7 +208,7 @@ public abstract class AbstractNumberNestedSortingTestCase extends AbstractFieldD
         MultiValueMode sortMode = MultiValueMode.SUM;
         DirectoryReader directoryReader = DirectoryReader.open(writer);
         directoryReader = ElasticsearchDirectoryReader.wrap(directoryReader, new ShardId(indexService.index(), 0));
-        IndexSearcher searcher = new IndexSearcher(directoryReader);
+        IndexSearcher searcher = newSearcher(directoryReader, false);
         Query parentFilter = new TermQuery(new Term("__type", "parent"));
         Query childFilter = Queries.not(parentFilter);
         XFieldComparatorSource nestedComparatorSource = createFieldComparator(

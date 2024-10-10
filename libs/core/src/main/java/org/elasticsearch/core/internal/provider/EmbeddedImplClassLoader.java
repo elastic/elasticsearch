@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.core.internal.provider;
@@ -108,7 +109,7 @@ public final class EmbeddedImplClassLoader extends SecureClassLoader {
             .collect(toUnmodifiableMap(k -> k.getKey().prefix(), Map.Entry::getValue));
         Map<String, JarMeta> map = new HashMap<>();
         for (var jarMeta : prefixToCodeBase.keySet()) {
-            jarMeta.packages().stream().forEach(pkg -> {
+            jarMeta.packages().forEach(pkg -> {
                 var prev = map.put(pkg, jarMeta);
                 assert prev == null;
             });
@@ -185,7 +186,7 @@ public final class EmbeddedImplClassLoader extends SecureClassLoader {
      * url or null if not found. Iterates over all known package specific multi-release versions,
      * then the root, for the given jar prefix.
      */
-    <T> T findResourceInLoaderPkgOrNull(JarMeta jarMeta, String pkg, String name, Function<String, T> finder) {
+    static <T> T findResourceInLoaderPkgOrNull(JarMeta jarMeta, String pkg, String name, Function<String, T> finder) {
         List<Integer> releaseVersions = jarMeta.pkgToVersions().getOrDefault(pkg, List.of());
         for (int releaseVersion : releaseVersions) {
             String fullName = jarMeta.prefix() + "/" + MRJAR_VERSION_PREFIX + releaseVersion + "/" + name;

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.basic;
@@ -14,10 +15,8 @@ import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.tests.util.English;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.DocWriteResponse;
-import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
-import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
-import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -42,6 +41,7 @@ import java.util.Random;
 import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 
 public class SearchWithRandomExceptionsIT extends ESIntegTestCase {
 
@@ -100,8 +100,7 @@ public class SearchWithRandomExceptionsIT extends ESIntegTestCase {
         boolean[] added = new boolean[numDocs];
         for (int i = 0; i < numDocs; i++) {
             try {
-                IndexResponse indexResponse = client().prepareIndex("test")
-                    .setId("" + i)
+                DocWriteResponse indexResponse = prepareIndex("test").setId("" + i)
                     .setTimeout(TimeValue.timeValueSeconds(1))
                     .setSource("test", English.intToEnglish(i))
                     .get();
@@ -113,7 +112,7 @@ public class SearchWithRandomExceptionsIT extends ESIntegTestCase {
         }
         logger.info("Start Refresh");
         // don't assert on failures here
-        RefreshResponse refreshResponse = client().admin().indices().prepareRefresh("test").execute().get();
+        BroadcastResponse refreshResponse = indicesAdmin().prepareRefresh("test").execute().get();
         final boolean refreshFailed = refreshResponse.getShardFailures().length != 0 || refreshResponse.getFailedShards() != 0;
         logger.info(
             "Refresh failed [{}] numShardsFailed: [{}], shardFailuresLength: [{}], successfulShards: [{}], totalShards: [{}] ",
@@ -126,30 +125,36 @@ public class SearchWithRandomExceptionsIT extends ESIntegTestCase {
 
         NumShards test = getNumShards("test");
         final int numSearches = scaledRandomIntBetween(100, 200);
+        final int finalNumCreated = numCreated;
         // we don't check anything here really just making sure we don't leave any open files or a broken index behind.
         for (int i = 0; i < numSearches; i++) {
             try {
                 int docToQuery = between(0, numDocs - 1);
                 int expectedResults = added[docToQuery] ? 1 : 0;
                 logger.info("Searching for [test:{}]", English.intToEnglish(docToQuery));
-                SearchResponse searchResponse = client().prepareSearch()
-                    .setQuery(QueryBuilders.matchQuery("test", English.intToEnglish(docToQuery)))
-                    .setSize(expectedResults)
-                    .get();
-                logger.info("Successful shards: [{}]  numShards: [{}]", searchResponse.getSuccessfulShards(), test.numPrimaries);
-                if (searchResponse.getSuccessfulShards() == test.numPrimaries && refreshFailed == false) {
-                    assertResultsAndLogOnFailure(expectedResults, searchResponse);
-                }
+                assertResponse(
+                    prepareSearch().setQuery(QueryBuilders.matchQuery("test", English.intToEnglish(docToQuery))).setSize(expectedResults),
+                    response -> {
+                        logger.info("Successful shards: [{}]  numShards: [{}]", response.getSuccessfulShards(), test.numPrimaries);
+                        if (response.getSuccessfulShards() == test.numPrimaries && refreshFailed == false) {
+                            assertResultsAndLogOnFailure(expectedResults, response);
+                        }
+                    }
+                );
                 // check match all
-                searchResponse = client().prepareSearch()
-                    .setQuery(QueryBuilders.matchAllQuery())
-                    .setSize(numCreated)
-                    .addSort("_id", SortOrder.ASC)
-                    .get();
-                logger.info("Match all Successful shards: [{}]  numShards: [{}]", searchResponse.getSuccessfulShards(), test.numPrimaries);
-                if (searchResponse.getSuccessfulShards() == test.numPrimaries && refreshFailed == false) {
-                    assertResultsAndLogOnFailure(numCreated, searchResponse);
-                }
+                assertResponse(
+                    prepareSearch().setQuery(QueryBuilders.matchAllQuery()).setSize(numCreated).addSort("_id", SortOrder.ASC),
+                    response -> {
+                        logger.info(
+                            "Match all Successful shards: [{}]  numShards: [{}]",
+                            response.getSuccessfulShards(),
+                            test.numPrimaries
+                        );
+                        if (response.getSuccessfulShards() == test.numPrimaries && refreshFailed == false) {
+                            assertResultsAndLogOnFailure(finalNumCreated, response);
+                        }
+                    }
+                );
 
             } catch (SearchPhaseExecutionException ex) {
                 logger.info("expected SearchPhaseException: [{}]", ex.getMessage());

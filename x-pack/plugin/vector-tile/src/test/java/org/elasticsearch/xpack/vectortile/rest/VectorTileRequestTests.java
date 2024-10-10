@@ -207,20 +207,17 @@ public class VectorTileRequestTests extends ESTestCase {
 
     public void testFieldSort() throws IOException {
         final String sortName = randomAlphaOfLength(10);
-        assertRestRequest(
-            (builder) -> {
-                builder.startArray(SearchSourceBuilder.SORT_FIELD.getPreferredName())
-                    .startObject()
-                    .field(sortName, "desc")
-                    .endObject()
-                    .endArray();
-            },
-            (vectorTileRequest) -> {
-                assertThat(vectorTileRequest.getSortBuilders(), Matchers.iterableWithSize(1));
-                FieldSortBuilder sortBuilder = (FieldSortBuilder) vectorTileRequest.getSortBuilders().get(0);
-                assertThat(sortBuilder.getFieldName(), Matchers.equalTo(sortName));
-            }
-        );
+        assertRestRequest((builder) -> {
+            builder.startArray(SearchSourceBuilder.SORT_FIELD.getPreferredName())
+                .startObject()
+                .field(sortName, "desc")
+                .endObject()
+                .endArray();
+        }, (vectorTileRequest) -> {
+            assertThat(vectorTileRequest.getSortBuilders(), Matchers.iterableWithSize(1));
+            FieldSortBuilder sortBuilder = (FieldSortBuilder) vectorTileRequest.getSortBuilders().get(0);
+            assertThat(sortBuilder.getFieldName(), Matchers.equalTo(sortName));
+        });
     }
 
     public void testWrongTile() {
@@ -234,7 +231,7 @@ public class VectorTileRequestTests extends ESTestCase {
             final FakeRestRequest request = getBasicRequestBuilder(index, field, z, x, y).build();
             final IllegalArgumentException ex = expectThrows(
                 IllegalArgumentException.class,
-                () -> VectorTileRequest.parseRestRequest(request)
+                () -> VectorTileRequest.parseRestRequest(request, s -> {})
             );
             assertThat(ex.getMessage(), Matchers.equalTo("Invalid geotile_grid precision of " + z + ". Must be between 0 and 29."));
         }
@@ -246,7 +243,7 @@ public class VectorTileRequestTests extends ESTestCase {
             final FakeRestRequest request = getBasicRequestBuilder(index, field, z, x, y).build();
             final IllegalArgumentException ex = expectThrows(
                 IllegalArgumentException.class,
-                () -> VectorTileRequest.parseRestRequest(request)
+                () -> VectorTileRequest.parseRestRequest(request, s -> {})
             );
             assertThat(ex.getMessage(), Matchers.equalTo("Invalid geotile_grid precision of " + z + ". Must be between 0 and 29."));
         }
@@ -258,7 +255,7 @@ public class VectorTileRequestTests extends ESTestCase {
             final FakeRestRequest request = getBasicRequestBuilder(index, field, z, x, y).build();
             final IllegalArgumentException ex = expectThrows(
                 IllegalArgumentException.class,
-                () -> VectorTileRequest.parseRestRequest(request)
+                () -> VectorTileRequest.parseRestRequest(request, s -> {})
             );
             assertThat(ex.getMessage(), Matchers.equalTo("Zoom/X/Y combination is not valid: " + z + "/" + x + "/" + y));
         }
@@ -270,7 +267,7 @@ public class VectorTileRequestTests extends ESTestCase {
             final FakeRestRequest request = getBasicRequestBuilder(index, field, z, x, y).build();
             final IllegalArgumentException ex = expectThrows(
                 IllegalArgumentException.class,
-                () -> VectorTileRequest.parseRestRequest(request)
+                () -> VectorTileRequest.parseRestRequest(request, s -> {})
             );
             assertThat(ex.getMessage(), Matchers.equalTo("Zoom/X/Y combination is not valid: " + z + "/" + x + "/" + y));
         }
@@ -282,7 +279,7 @@ public class VectorTileRequestTests extends ESTestCase {
             final FakeRestRequest request = getBasicRequestBuilder(index, field, z, x, y).build();
             final IllegalArgumentException ex = expectThrows(
                 IllegalArgumentException.class,
-                () -> VectorTileRequest.parseRestRequest(request)
+                () -> VectorTileRequest.parseRestRequest(request, s -> {})
             );
             assertThat(ex.getMessage(), Matchers.equalTo("Zoom/X/Y combination is not valid: " + z + "/" + x + "/" + y));
         }
@@ -294,7 +291,7 @@ public class VectorTileRequestTests extends ESTestCase {
             final FakeRestRequest request = getBasicRequestBuilder(index, field, z, x, y).build();
             final IllegalArgumentException ex = expectThrows(
                 IllegalArgumentException.class,
-                () -> VectorTileRequest.parseRestRequest(request)
+                () -> VectorTileRequest.parseRestRequest(request, s -> {})
             );
             assertThat(ex.getMessage(), Matchers.equalTo("Zoom/X/Y combination is not valid: " + z + "/" + x + "/" + y));
         }
@@ -313,7 +310,7 @@ public class VectorTileRequestTests extends ESTestCase {
         consumer.accept(builder);
         builder.endObject();
         final FakeRestRequest request = requestBuilder.withContent(BytesReference.bytes(builder), builder.contentType()).build();
-        final VectorTileRequest vectorTileRequest = VectorTileRequest.parseRestRequest(request);
+        final VectorTileRequest vectorTileRequest = VectorTileRequest.parseRestRequest(request, s -> {});
         assertThat(vectorTileRequest.getIndexes(), Matchers.equalTo(new String[] { index }));
         assertThat(vectorTileRequest.getField(), Matchers.equalTo(field));
         assertThat(vectorTileRequest.getZ(), Matchers.equalTo(z));

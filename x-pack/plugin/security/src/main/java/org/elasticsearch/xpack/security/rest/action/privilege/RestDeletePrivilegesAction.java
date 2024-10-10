@@ -13,6 +13,8 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestBuilderListener;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.security.action.privilege.DeletePrivilegesRequestBuilder;
@@ -30,6 +32,7 @@ import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 /**
  * Rest action to delete one or more privileges from the security index
  */
+@ServerlessScope(Scope.INTERNAL)
 public class RestDeletePrivilegesAction extends SecurityBaseRestHandler {
 
     public RestDeletePrivilegesAction(Settings settings, XPackLicenseState licenseState) {

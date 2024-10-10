@@ -76,6 +76,10 @@ chart.
 * Your {dfeed} can contain multiple aggregations, but only the ones with names
 that match values in the job configuration are fed to the job.
 
+* Using 
+{ref}/search-aggregations-metrics-scripted-metric-aggregation.html[scripted metric]
+aggregations is not supported in {dfeeds}.
+
 
 [discrete]
 [[aggs-recommendations-dfeeds]]

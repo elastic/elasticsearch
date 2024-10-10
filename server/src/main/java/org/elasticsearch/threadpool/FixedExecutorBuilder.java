@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.threadpool;
@@ -12,6 +13,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.SizeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.EsExecutors.TaskTrackingConfig;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.node.Node;
 
@@ -23,12 +25,15 @@ import java.util.concurrent.ThreadFactory;
 
 /**
  * A builder for fixed executors.
+ *
+ * Builds an Executor with a static number of threads, as opposed to {@link ScalingExecutorBuilder} that dynamically scales the number of
+ * threads in the pool up and down based on request load.
  */
 public final class FixedExecutorBuilder extends ExecutorBuilder<FixedExecutorBuilder.FixedExecutorSettings> {
 
     private final Setting<Integer> sizeSetting;
     private final Setting<Integer> queueSizeSetting;
-    private final boolean trackEWMA;
+    private final TaskTrackingConfig taskTrackingConfig;
 
     /**
      * Construct a fixed executor builder; the settings will have the key prefix "thread_pool." followed by the executor name.
@@ -37,10 +42,16 @@ public final class FixedExecutorBuilder extends ExecutorBuilder<FixedExecutorBui
      * @param name      the name of the executor
      * @param size      the fixed number of threads
      * @param queueSize the size of the backing queue, -1 for unbounded
-     * @param trackEWMA whether to track the exponentially weighted moving average of the task execution time
+     * @param taskTrackingConfig whether to track statics about task execution time
      */
-    FixedExecutorBuilder(final Settings settings, final String name, final int size, final int queueSize, final boolean trackEWMA) {
-        this(settings, name, size, queueSize, "thread_pool." + name, trackEWMA);
+    FixedExecutorBuilder(
+        final Settings settings,
+        final String name,
+        final int size,
+        final int queueSize,
+        final TaskTrackingConfig taskTrackingConfig
+    ) {
+        this(settings, name, size, queueSize, "thread_pool." + name, taskTrackingConfig);
     }
 
     /**
@@ -51,7 +62,7 @@ public final class FixedExecutorBuilder extends ExecutorBuilder<FixedExecutorBui
      * @param size      the fixed number of threads
      * @param queueSize the size of the backing queue, -1 for unbounded
      * @param prefix    the prefix for the settings keys
-     * @param trackEWMA whether to track the exponentially weighted moving average of the task execution time
+     * @param taskTrackingConfig whether to track statics about task execution time
      */
     public FixedExecutorBuilder(
         final Settings settings,
@@ -59,7 +70,7 @@ public final class FixedExecutorBuilder extends ExecutorBuilder<FixedExecutorBui
         final int size,
         final int queueSize,
         final String prefix,
-        final boolean trackEWMA
+        final TaskTrackingConfig taskTrackingConfig
     ) {
         super(name);
         final String sizeKey = settingsKey(prefix, "size");
@@ -71,7 +82,7 @@ public final class FixedExecutorBuilder extends ExecutorBuilder<FixedExecutorBui
         );
         final String queueSizeKey = settingsKey(prefix, "queue_size");
         this.queueSizeSetting = Setting.intSetting(queueSizeKey, queueSize, Setting.Property.NodeScope);
-        this.trackEWMA = trackEWMA;
+        this.taskTrackingConfig = taskTrackingConfig;
     }
 
     @Override
@@ -98,7 +109,7 @@ public final class FixedExecutorBuilder extends ExecutorBuilder<FixedExecutorBui
             queueSize,
             threadFactory,
             threadContext,
-            trackEWMA
+            taskTrackingConfig
         );
         final ThreadPool.Info info = new ThreadPool.Info(
             name(),

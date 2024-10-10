@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.internal;
@@ -29,7 +30,7 @@ import org.apache.lucene.index.StoredFields;
 import org.apache.lucene.index.TermVectors;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
-import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.search.KnnCollector;
 import org.apache.lucene.search.suggest.document.CompletionTerms;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
@@ -137,11 +138,7 @@ public class FieldUsageTrackingDirectoryReader extends FilterDirectoryReader {
 
         @Override
         public void document(final int docID, final StoredFieldVisitor visitor) throws IOException {
-            if (visitor instanceof FieldNamesProvidingStoredFieldsVisitor) {
-                super.document(docID, new FieldUsageFieldsVisitor((FieldNamesProvidingStoredFieldsVisitor) visitor));
-            } else {
-                super.document(docID, new FieldUsageStoredFieldVisitor(visitor));
-            }
+            storedFields().document(docID, visitor);
         }
 
         @Override
@@ -238,27 +235,24 @@ public class FieldUsageTrackingDirectoryReader extends FilterDirectoryReader {
         }
 
         @Override
-        public TopDocs searchNearestVectors(String field, byte[] target, int k, Bits acceptDocs, int visitedLimit) throws IOException {
-            TopDocs topDocs = super.searchNearestVectors(field, target, k, acceptDocs, visitedLimit);
-            if (topDocs != null) {
+        public void searchNearestVectors(String field, byte[] target, KnnCollector collector, Bits acceptDocs) throws IOException {
+            super.searchNearestVectors(field, target, collector, acceptDocs);
+            if (collector.visitedCount() > 0) {
                 notifier.onKnnVectorsUsed(field);
             }
-            return topDocs;
         }
 
         @Override
-        public TopDocs searchNearestVectors(String field, float[] target, int k, Bits acceptDocs, int visitedLimit) throws IOException {
-            TopDocs topDocs = super.searchNearestVectors(field, target, k, acceptDocs, visitedLimit);
-            if (topDocs != null) {
+        public void searchNearestVectors(String field, float[] target, KnnCollector collector, Bits acceptDocs) throws IOException {
+            super.searchNearestVectors(field, target, collector, acceptDocs);
+            if (collector.visitedCount() > 0) {
                 notifier.onKnnVectorsUsed(field);
             }
-            return topDocs;
         }
 
         @Override
         public String toString() {
-            final StringBuilder sb = new StringBuilder("FieldUsageTrackingLeafReader(reader=");
-            return sb.append(in).append(')').toString();
+            return "FieldUsageTrackingLeafReader(reader=" + in + ')';
         }
 
         @Override
@@ -331,11 +325,6 @@ public class FieldUsageTrackingDirectoryReader extends FilterDirectoryReader {
                 long totalTermFreq = super.getSumTotalTermFreq();
                 notifier.onTermFrequenciesUsed(field);
                 return totalTermFreq;
-            }
-
-            @Override
-            public long getSumDocFreq() throws IOException {
-                return in.getSumDocFreq();
             }
 
             @Override

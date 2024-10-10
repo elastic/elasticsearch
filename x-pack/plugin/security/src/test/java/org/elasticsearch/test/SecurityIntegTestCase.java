@@ -10,9 +10,11 @@ import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequestBuilder;
+import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
+import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.internal.Client;
@@ -26,7 +28,7 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.license.LicenseService;
+import org.elasticsearch.license.LicenseSettings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
@@ -180,13 +182,14 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
     }
 
     protected void doAssertXPackIsInstalled() {
-        NodesInfoResponse nodeInfos = client().admin().cluster().prepareNodesInfo().clear().setPlugins(true).get();
+        NodesInfoResponse nodeInfos = clusterAdmin().prepareNodesInfo().clear().setPlugins(true).get();
         for (NodeInfo nodeInfo : nodeInfos.getNodes()) {
             // TODO: disable this assertion for now, due to random runs with mock plugins. perhaps run without mock plugins?
             // assertThat(nodeInfo.getPlugins().getInfos(), hasSize(2));
             Collection<String> pluginNames = nodeInfo.getInfo(PluginsAndModules.class)
                 .getPluginInfos()
                 .stream()
+                .filter(p -> p.descriptor().isStable() == false)
                 .map(p -> p.descriptor().getClassname())
                 .collect(Collectors.toList());
             assertThat(
@@ -208,7 +211,7 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
         // builder.put(MachineLearningField.AUTODETECT_PROCESS.getKey(), false);
         Settings customSettings = customSecuritySettingsSource.nodeSettings(nodeOrdinal, otherSettings);
         builder.put(customSettings, false); // handle secure settings separately
-        builder.put(LicenseService.SELF_GENERATED_LICENSE_TYPE.getKey(), "trial");
+        builder.put(LicenseSettings.SELF_GENERATED_LICENSE_TYPE.getKey(), "trial");
         Settings.Builder customBuilder = Settings.builder().put(customSettings);
         if (customBuilder.getSecureSettings() != null) {
             SecuritySettingsSource.addSecureSettings(
@@ -341,7 +344,7 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
 
         if (frequently()) {
             boolean aliasAdded = false;
-            IndicesAliasesRequestBuilder builder = client().admin().indices().prepareAliases();
+            IndicesAliasesRequestBuilder builder = indicesAdmin().prepareAliases();
             for (String index : indices) {
                 if (frequently()) {
                     // one alias per index with prefix "alias-"
@@ -361,7 +364,7 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
         }
 
         for (String index : indices) {
-            client().prepareIndex(index).setSource("field", "value").get();
+            prepareIndex(index).setSource("field", "value").get();
         }
         refresh(indices);
     }
@@ -376,9 +379,15 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
         // user. This is ok for internal n2n stuff but the test framework does other things like wiping indices, repositories, etc
         // that the system user cannot do. so we wrap the node client with a user that can do these things since the client() calls
         // return a node client
-        return client -> (client instanceof NodeClient) ? client.filterWithHeader(headers) : client;
+        return client -> asInstanceOf(NodeClient.class, client).filterWithHeader(headers);
     }
 
+    /**
+     * Waits for security index to become available. Note that you must ensure index creation was triggered before calling this method,
+     * by calling one of the resource creation APIs (e.g., creating a user).
+     * If you use {@link #createSecurityIndexWithWaitForActiveShards()} to create the index it's not necessary to call
+     * {@link #assertSecurityIndexActive} since the create method ensures the index is active.
+     */
     public void assertSecurityIndexActive() throws Exception {
         assertSecurityIndexActive(cluster());
     }
@@ -386,15 +395,13 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
     public void assertSecurityIndexActive(TestCluster testCluster) throws Exception {
         for (Client client : testCluster.getClients()) {
             assertBusy(() -> {
-                ClusterState clusterState = client.admin().cluster().prepareState().setLocal(true).get().getState();
+                ClusterState clusterState = client.admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).setLocal(true).get().getState();
                 assertFalse(clusterState.blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK));
                 Index securityIndex = resolveSecurityIndex(clusterState.metadata());
-                if (securityIndex != null) {
-                    IndexRoutingTable indexRoutingTable = clusterState.routingTable().index(securityIndex);
-                    if (indexRoutingTable != null) {
-                        assertTrue(indexRoutingTable.allPrimaryShardsActive());
-                    }
-                }
+                assertNotNull(securityIndex);
+                IndexRoutingTable indexRoutingTable = clusterState.routingTable().index(securityIndex);
+                assertNotNull(indexRoutingTable);
+                assertTrue(indexRoutingTable.allPrimaryShardsActive());
             }, 30L, TimeUnit.SECONDS);
         }
     }
@@ -420,7 +427,22 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
         }
     }
 
-    private static Index resolveSecurityIndex(Metadata metadata) {
+    protected void createSecurityIndexWithWaitForActiveShards() {
+        final Client client = client().filterWithHeader(
+            Collections.singletonMap(
+                "Authorization",
+                UsernamePasswordToken.basicAuthHeaderValue(
+                    SecuritySettingsSource.ES_TEST_ROOT_USER,
+                    SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING
+                )
+            )
+        );
+        CreateIndexRequest createIndexRequest = new CreateIndexRequest(SECURITY_MAIN_ALIAS).waitForActiveShards(ActiveShardCount.ALL)
+            .masterNodeTimeout(TEST_REQUEST_TIMEOUT);
+        client.admin().indices().create(createIndexRequest).actionGet();
+    }
+
+    protected static Index resolveSecurityIndex(Metadata metadata) {
         final IndexAbstraction indexAbstraction = metadata.getIndicesLookup().get(SECURITY_MAIN_ALIAS);
         if (indexAbstraction != null) {
             return indexAbstraction.getIndices().get(0);

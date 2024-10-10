@@ -43,7 +43,7 @@ public class TextSimilarityProcessorTests extends ESTestCase {
         );
         TextSimilarityProcessor processor = new TextSimilarityProcessor(tokenizer);
         TokenizationResult tokenizationResult = processor.getRequestBuilder(textSimilarityConfig)
-            .buildRequest(List.of(input), "1", Tokenization.Truncate.NONE, 128)
+            .buildRequest(List.of(input), "1", Tokenization.Truncate.NONE, 128, null)
             .tokenization();
         assertThat(tokenizationResult.anyTruncated(), is(false));
         assertThat(tokenizationResult.getTokenization(0).tokenIds().length, equalTo(19));
@@ -54,7 +54,8 @@ public class TextSimilarityProcessorTests extends ESTestCase {
         PyTorchInferenceResult pyTorchResult = new PyTorchInferenceResult(scores);
         TextSimilarityInferenceResults result = (TextSimilarityInferenceResults) resultProcessor.processResult(
             tokenizationResult,
-            pyTorchResult
+            pyTorchResult,
+            false
         );
 
         // Note this is a different answer to testTopScores because of the question length
@@ -77,7 +78,8 @@ public class TextSimilarityProcessorTests extends ESTestCase {
         PyTorchInferenceResult pyTorchResult = new PyTorchInferenceResult(scores);
         TextSimilarityInferenceResults result = (TextSimilarityInferenceResults) resultProcessor.processResult(
             new BertTokenizationResult(List.of(), List.of(), 1),
-            pyTorchResult
+            pyTorchResult,
+            false
         );
         assertThat(result.predictedValue(), equalTo(100.0));
         // Test mean
@@ -92,7 +94,8 @@ public class TextSimilarityProcessorTests extends ESTestCase {
         resultProcessor = processor.getResultProcessor(textSimilarityConfig);
         result = (TextSimilarityInferenceResults) resultProcessor.processResult(
             new BertTokenizationResult(List.of(), List.of(), 1),
-            pyTorchResult
+            pyTorchResult,
+            false
         );
         assertThat(result.predictedValue(), closeTo(51.333333333333, 1e-12));
     }

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.painless;
@@ -160,10 +161,14 @@ public final class CompilerSettings {
     }
 
     /**
-     * What is the limit factor for regexes?
+     * What is the effective limit factor for regexes?
      */
-    public int getRegexLimitFactor() {
-        return regexLimitFactor;
+    public int getAppliedRegexLimitFactor() {
+        return switch (regexesEnabled) {
+            case TRUE -> Augmentation.UNLIMITED_PATTERN_FACTOR;
+            case FALSE -> Augmentation.DISABLED_PATTERN_FACTOR;
+            case LIMITED -> regexLimitFactor;
+        };
     }
 
     /**
@@ -171,14 +176,8 @@ public final class CompilerSettings {
      * annotation.
      */
     public Map<String, Object> asMap() {
-        int regexLimitFactorToApply = this.regexLimitFactor;
-        if (regexesEnabled == RegexEnabled.TRUE) {
-            regexLimitFactorToApply = Augmentation.UNLIMITED_PATTERN_FACTOR;
-        } else if (regexesEnabled == RegexEnabled.FALSE) {
-            regexLimitFactorToApply = Augmentation.DISABLED_PATTERN_FACTOR;
-        }
         Map<String, Object> map = new HashMap<>();
-        map.put("regex_limit_factor", regexLimitFactorToApply);
+        map.put("regex_limit_factor", getAppliedRegexLimitFactor());
 
         // for testing only
         map.put("testInject0", testInject0);

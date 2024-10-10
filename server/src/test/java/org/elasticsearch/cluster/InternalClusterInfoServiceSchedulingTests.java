@@ -1,23 +1,25 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.coordination.NoMasterBlockService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -42,9 +44,9 @@ import static org.hamcrest.Matchers.equalTo;
 public class InternalClusterInfoServiceSchedulingTests extends ESTestCase {
 
     public void testScheduling() {
-        final DiscoveryNode discoveryNode = new DiscoveryNode("test", buildNewFakeTransportAddress(), Version.CURRENT);
+        final DiscoveryNode discoveryNode = DiscoveryNodeUtils.create("test");
         final DiscoveryNodes noMaster = DiscoveryNodes.builder().add(discoveryNode).localNodeId(discoveryNode.getId()).build();
-        final DiscoveryNodes localMaster = DiscoveryNodes.builder(noMaster).masterNodeId(discoveryNode.getId()).build();
+        final DiscoveryNodes localMaster = noMaster.withMasterNodeId(discoveryNode.getId());
 
         final Settings.Builder settingsBuilder = Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), discoveryNode.getName());
         if (randomBoolean()) {
@@ -62,12 +64,9 @@ public class InternalClusterInfoServiceSchedulingTests extends ESTestCase {
             }
         };
 
-        final MasterService masterService = new FakeThreadPoolMasterService(
-            "test",
-            "masterService",
-            threadPool,
-            r -> { fail("master service should not run any tasks"); }
-        );
+        final MasterService masterService = new FakeThreadPoolMasterService("test", threadPool, r -> {
+            fail("master service should not run any tasks");
+        });
 
         final ClusterService clusterService = new ClusterService(settings, clusterSettings, masterService, clusterApplierService);
 
@@ -152,18 +151,7 @@ public class InternalClusterInfoServiceSchedulingTests extends ESTestCase {
     }
 
     private static ActionListener<Void> setFlagOnSuccess(AtomicBoolean flag) {
-        return new ActionListener<>() {
-
-            @Override
-            public void onResponse(Void ignored) {
-                assertTrue(flag.compareAndSet(false, true));
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                throw new AssertionError("unexpected", e);
-            }
-        };
+        return ActionTestUtils.assertNoFailureListener(ignored -> assertTrue(flag.compareAndSet(false, true)));
     }
 
     private static class FakeClusterInfoServiceClient extends NoOpClient {

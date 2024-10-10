@@ -1,14 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.indices.diskusage;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -16,6 +16,7 @@ import org.elasticsearch.action.support.broadcast.BroadcastRequest;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.PlainShardIterator;
@@ -88,7 +89,7 @@ public class TransportAnalyzeIndexDiskUsageActionTests extends ESTestCase {
         Map<ShardId, List<ShardRouting>> groupShardRoutings = new HashMap<>();
         for (int i = 0; i < numberOfShards; i++) {
             ShardId shardId = new ShardId("test_index", "n/a", i);
-            DiscoveryNode node = randomFrom(nodes);
+            DiscoveryNode node = randomFrom(nodes.getAllNodes());
             ShardRouting shardRouting = TestShardRouting.newShardRouting(shardId, node.getId(), randomBoolean(), ShardRoutingState.STARTED);
             groupShardRoutings.put(shardId, List.of(shardRouting));
             nodeToShards.computeIfAbsent(node, k -> new LinkedList<>()).add(shardRouting);
@@ -145,7 +146,7 @@ public class TransportAnalyzeIndexDiskUsageActionTests extends ESTestCase {
         Map<ShardId, List<ShardRouting>> shardToRoutings = new HashMap<>();
         for (int i = 0; i < numberOfShards; i++) {
             ShardId shardId = new ShardId("test_index", "n/a", i);
-            List<ShardRouting> shardRoutings = randomSubsetOf(between(1, nodes.size()), nodes).stream()
+            List<ShardRouting> shardRoutings = randomSubsetOf(between(1, nodes.size()), nodes.getAllNodes()).stream()
                 .map(node -> TestShardRouting.newShardRouting(shardId, node.getId(), randomBoolean(), ShardRoutingState.STARTED))
                 .toList();
             shardToRoutings.put(shardId, shardRoutings);
@@ -229,7 +230,7 @@ public class TransportAnalyzeIndexDiskUsageActionTests extends ESTestCase {
         Map<ShardId, List<ShardRouting>> shardToRoutings = new HashMap<>();
         for (int i = 0; i < numberOfShards; i++) {
             ShardId shardId = new ShardId("test_index", "n/a", i);
-            List<ShardRouting> shardRoutings = randomSubsetOf(between(1, discoNodes.size()), discoNodes).stream()
+            List<ShardRouting> shardRoutings = randomSubsetOf(between(1, discoNodes.size()), discoNodes.getAllNodes()).stream()
                 .map(node -> TestShardRouting.newShardRouting(shardId, node.getId(), randomBoolean(), ShardRoutingState.STARTED))
                 .toList();
             shardToRoutings.put(shardId, shardRoutings);
@@ -271,7 +272,7 @@ public class TransportAnalyzeIndexDiskUsageActionTests extends ESTestCase {
     private static DiscoveryNodes newNodes(int numNodes) {
         DiscoveryNodes.Builder nodes = DiscoveryNodes.builder();
         for (int i = 0; i < numNodes; i++) {
-            nodes.add(new DiscoveryNode("node_" + i, buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT));
+            nodes.add(DiscoveryNodeUtils.builder("node_" + i).roles(emptySet()).build());
         }
         return nodes.localNodeId("node_0").build();
 
@@ -358,7 +359,7 @@ public class TransportAnalyzeIndexDiskUsageActionTests extends ESTestCase {
                 new MockTransport(),
                 threadPool,
                 TransportService.NOOP_TRANSPORT_INTERCEPTOR,
-                addr -> new DiscoveryNode("node_0", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT),
+                addr -> DiscoveryNodeUtils.builder("node_0").roles(emptySet()).build(),
                 null,
                 Collections.emptySet()
             );

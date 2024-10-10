@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.search.fetch.subphase.highlight;
 
@@ -37,7 +38,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.search.fetch.subphase.highlight.AbstractHighlighterBuilder.MAX_ANALYZED_OFFSET_FIELD;
-import static org.elasticsearch.search.fetch.subphase.highlight.UnifiedHighlighter.convertFieldValue;
+import static org.elasticsearch.search.fetch.subphase.highlight.DefaultHighlighter.convertFieldValue;
 
 public class PlainHighlighter implements Highlighter {
     private static final String CACHE_KEY = "highlight-plain";
@@ -112,12 +113,7 @@ public class PlainHighlighter implements Highlighter {
             queryMaxAnalyzedOffset
         );
 
-        textsToHighlight = HighlightUtils.loadFieldValues(
-            fieldType,
-            context.getSearchExecutionContext(),
-            hitContext,
-            fieldContext.forceSource
-        );
+        textsToHighlight = HighlightUtils.loadFieldValues(fieldType, context.getSearchExecutionContext(), hitContext);
 
         int fragNumBase = 0;
         for (Object textToHighlight : textsToHighlight) {
@@ -222,6 +218,9 @@ public class PlainHighlighter implements Highlighter {
             if (tokenStream.hasAttribute(OffsetAttribute.class) == false) {
                 // Can't split on term boundaries without offsets
                 return -1;
+            }
+            if (contents.length() <= noMatchSize) {
+                return contents.length();
             }
             int end = -1;
             tokenStream.reset();

@@ -1,15 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.persistent;
 
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.AbstractNamedDiffable;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.NamedDiff;
@@ -199,7 +201,7 @@ public final class PersistentTasksCustomMetadata extends AbstractNamedDiffable<M
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.CURRENT.minimumCompatibilityVersion();
+        return TransportVersions.MINIMUM_COMPATIBLE;
     }
 
     @Override
@@ -474,11 +476,6 @@ public final class PersistentTasksCustomMetadata extends AbstractNamedDiffable<M
             builder.endObject();
             return builder;
         }
-
-        @Override
-        public boolean isFragment() {
-            return false;
-        }
     }
 
     private static class TaskBuilder<Params extends PersistentTaskParams> {
@@ -537,7 +534,7 @@ public final class PersistentTasksCustomMetadata extends AbstractNamedDiffable<M
 
     public PersistentTasksCustomMetadata(StreamInput in) throws IOException {
         lastAllocationId = in.readLong();
-        tasks = in.readMap(StreamInput::readString, PersistentTask::new);
+        tasks = in.readMap(PersistentTask::new);
     }
 
     @Override
@@ -547,7 +544,7 @@ public final class PersistentTasksCustomMetadata extends AbstractNamedDiffable<M
             .stream()
             .filter(t -> VersionedNamedWriteable.shouldSerialize(out, t.getParams()))
             .collect(Collectors.toMap(PersistentTask::getId, Function.identity()));
-        out.writeMap(filteredTasks, StreamOutput::writeString, (stream, value) -> value.writeTo(stream));
+        out.writeMap(filteredTasks, StreamOutput::writeWriteable);
     }
 
     public static NamedDiff<Metadata.Custom> readDiffFrom(StreamInput in) throws IOException {

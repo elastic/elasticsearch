@@ -1,15 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.indices.template.post;
 
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
+import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplateTests;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -33,9 +34,12 @@ public class SimulateIndexTemplateRequestTests extends AbstractWireSerializingTe
     @Override
     protected SimulateIndexTemplateRequest createTestInstance() {
         SimulateIndexTemplateRequest req = new SimulateIndexTemplateRequest(randomAlphaOfLength(10));
-        PutComposableIndexTemplateAction.Request newTemplateRequest = new PutComposableIndexTemplateAction.Request(randomAlphaOfLength(4));
+        TransportPutComposableIndexTemplateAction.Request newTemplateRequest = new TransportPutComposableIndexTemplateAction.Request(
+            randomAlphaOfLength(4)
+        );
         newTemplateRequest.indexTemplate(ComposableIndexTemplateTests.randomInstance());
         req.indexTemplateRequest(newTemplateRequest);
+        req.includeDefaults(randomBoolean());
         return req;
     }
 
@@ -51,11 +55,9 @@ public class SimulateIndexTemplateRequestTests extends AbstractWireSerializingTe
 
     public void testAddingGlobalTemplateWithHiddenIndexSettingIsIllegal() {
         Template template = new Template(Settings.builder().put(IndexMetadata.SETTING_INDEX_HIDDEN, true).build(), null, null);
-        ComposableIndexTemplate globalTemplate = new ComposableIndexTemplate.Builder().indexPatterns(List.of("*"))
-            .template(template)
-            .build();
+        ComposableIndexTemplate globalTemplate = ComposableIndexTemplate.builder().indexPatterns(List.of("*")).template(template).build();
 
-        PutComposableIndexTemplateAction.Request request = new PutComposableIndexTemplateAction.Request("test");
+        TransportPutComposableIndexTemplateAction.Request request = new TransportPutComposableIndexTemplateAction.Request("test");
         request.indexTemplate(globalTemplate);
 
         SimulateIndexTemplateRequest simulateRequest = new SimulateIndexTemplateRequest("testing");

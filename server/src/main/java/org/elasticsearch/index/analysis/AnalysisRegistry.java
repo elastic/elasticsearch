@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.index.analysis;
 
@@ -12,12 +13,13 @@ import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.core.KeywordTokenizer;
 import org.apache.lucene.analysis.core.WhitespaceTokenizer;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.index.IndexService.IndexCreationContext;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.indices.analysis.AnalysisModule.AnalysisProvider;
@@ -32,6 +34,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.BiFunction;
 import java.util.function.Function;
@@ -40,7 +43,7 @@ import static java.util.Collections.unmodifiableMap;
 
 /**
  * An internal registry for tokenizer, token filter, char filter and analyzer.
- * This class exists per node and allows to create per-index {@link IndexAnalyzers} via {@link #build(IndexSettings)}
+ * This class exists per node and allows to create per-index {@link IndexAnalyzers} via {@link #build}
  */
 public final class AnalysisRegistry implements Closeable {
     public static final String INDEX_ANALYSIS_CHAR_FILTER = "index.analysis.char_filter";
@@ -98,7 +101,7 @@ public final class AnalysisRegistry implements Closeable {
 
     private static final IndexSettings NO_INDEX_SETTINGS = new IndexSettings(
         IndexMetadata.builder(IndexMetadata.INDEX_UUID_NA_VALUE)
-            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT))
+            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()))
             .numberOfReplicas(0)
             .numberOfShards(1)
             .build(),
@@ -200,14 +203,23 @@ public final class AnalysisRegistry implements Closeable {
 
     /**
      * Creates an index-level {@link IndexAnalyzers} from this registry using the given index settings
+     * and {@link IndexCreationContext}.
      */
-    public IndexAnalyzers build(IndexSettings indexSettings) throws IOException {
+    public IndexAnalyzers build(IndexCreationContext context, IndexSettings indexSettings) throws IOException {
         final Map<String, CharFilterFactory> charFilterFactories = buildCharFilterFactories(indexSettings);
         final Map<String, TokenizerFactory> tokenizerFactories = buildTokenizerFactories(indexSettings);
         final Map<String, TokenFilterFactory> tokenFilterFactories = buildTokenFilterFactories(indexSettings);
         final Map<String, AnalyzerProvider<?>> analyzerFactories = buildAnalyzerFactories(indexSettings);
         final Map<String, AnalyzerProvider<?>> normalizerFactories = buildNormalizerFactories(indexSettings);
-        return build(indexSettings, analyzerFactories, normalizerFactories, tokenizerFactories, charFilterFactories, tokenFilterFactories);
+        return build(
+            context,
+            indexSettings,
+            analyzerFactories,
+            normalizerFactories,
+            tokenizerFactories,
+            charFilterFactories,
+            tokenFilterFactories
+        );
     }
 
     /**
@@ -216,6 +228,7 @@ public final class AnalysisRegistry implements Closeable {
      * Callers are responsible for closing the returned Analyzer
      */
     public NamedAnalyzer buildCustomAnalyzer(
+        IndexCreationContext context,
         IndexSettings indexSettings,
         boolean normalizer,
         NameOrDefinition tokenizer,
@@ -258,7 +271,7 @@ public final class AnalysisRegistry implements Closeable {
             if (normalizer && tff instanceof NormalizingTokenFilterFactory == false) {
                 throw new IllegalArgumentException("Custom normalizer may not use filter [" + tff.name() + "]");
             }
-            tff = tff.getChainAwareTokenFilterFactory(tokenizerFactory, charFilterFactories, tokenFilterFactories, name -> {
+            tff = tff.getChainAwareTokenFilterFactory(context, tokenizerFactory, charFilterFactories, tokenFilterFactories, name -> {
                 try {
                     return getComponentFactory(
                         indexSettings,
@@ -280,7 +293,7 @@ public final class AnalysisRegistry implements Closeable {
             charFilterFactories.toArray(new CharFilterFactory[] {}),
             tokenFilterFactories.toArray(new TokenFilterFactory[] {})
         );
-        return produceAnalyzer("__custom__", new AnalyzerProvider<>() {
+        return produceAnalyzer(context, "__custom__", new AnalyzerProvider<>() {
             @Override
             public String name() {
                 return "__custom__";
@@ -586,6 +599,7 @@ public final class AnalysisRegistry implements Closeable {
     }
 
     public static IndexAnalyzers build(
+        IndexCreationContext context,
         IndexSettings indexSettings,
         Map<String, AnalyzerProvider<?>> analyzerProviders,
         Map<String, AnalyzerProvider<?>> normalizerProviders,
@@ -600,13 +614,16 @@ public final class AnalysisRegistry implements Closeable {
             analyzers.merge(
                 entry.getKey(),
                 produceAnalyzer(
+                    context,
                     entry.getKey(),
                     entry.getValue(),
                     tokenFilterFactoryFactories,
                     charFilterFactoryFactories,
                     tokenizerFactoryFactories
                 ),
-                (k, v) -> { throw new IllegalStateException("already registered analyzer with name: " + entry.getKey()); }
+                (k, v) -> {
+                    throw new IllegalStateException("already registered analyzer with name: " + entry.getKey());
+                }
             );
         }
         for (Map.Entry<String, AnalyzerProvider<?>> entry : normalizerProviders.entrySet()) {
@@ -636,6 +653,7 @@ public final class AnalysisRegistry implements Closeable {
             analyzers.put(
                 DEFAULT_ANALYZER_NAME,
                 produceAnalyzer(
+                    context,
                     DEFAULT_ANALYZER_NAME,
                     new StandardAnalyzerProvider(indexSettings, null, DEFAULT_ANALYZER_NAME, Settings.EMPTY),
                     tokenFilterFactoryFactories,
@@ -649,6 +667,10 @@ public final class AnalysisRegistry implements Closeable {
             throw new IllegalArgumentException("no default analyzer configured");
         }
         defaultAnalyzer.checkAllowedInMode(AnalysisMode.ALL);
+        assert Objects.equals(defaultAnalyzer.name(), DEFAULT_ANALYZER_NAME);
+        if (Objects.equals(defaultAnalyzer.name(), DEFAULT_ANALYZER_NAME) == false) {
+            throw new IllegalStateException("default analyzer must have the name [default] but was: [" + defaultAnalyzer.name() + "]");
+        }
 
         if (analyzers.containsKey("default_index")) {
             throw new IllegalArgumentException(
@@ -664,10 +686,11 @@ public final class AnalysisRegistry implements Closeable {
                 throw new IllegalArgumentException("analyzer name must not start with '_'. got \"" + analyzer.getKey() + "\"");
             }
         }
-        return new IndexAnalyzers(analyzers, normalizers, whitespaceNormalizers);
+        return IndexAnalyzers.of(analyzers, normalizers, whitespaceNormalizers);
     }
 
     private static NamedAnalyzer produceAnalyzer(
+        IndexCreationContext context,
         String name,
         AnalyzerProvider<?> analyzerFactory,
         Map<String, TokenFilterFactory> tokenFilters,
@@ -682,7 +705,7 @@ public final class AnalysisRegistry implements Closeable {
          */
         int overridePositionIncrementGap = TextFieldMapper.Defaults.POSITION_INCREMENT_GAP;
         if (analyzerFactory instanceof CustomAnalyzerProvider) {
-            ((CustomAnalyzerProvider) analyzerFactory).build(tokenizers, charFilters, tokenFilters);
+            ((CustomAnalyzerProvider) analyzerFactory).build(context, tokenizers, charFilters, tokenFilters);
             /*
              * Custom analyzers already default to the correct, version
              * dependent positionIncrementGap and the user is be able to

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.bootstrap;
@@ -14,7 +15,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.filesystem.FileSystemNatives;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.network.IfConfig;
 import org.elasticsearch.common.settings.Settings;
@@ -56,6 +56,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.systemPropertyAsBoolean;
+import static org.elasticsearch.bootstrap.ESPolicy.POLICY_RESOURCE;
 import static org.elasticsearch.bootstrap.FilePermissionUtils.addDirectoryPath;
 
 /**
@@ -72,6 +73,7 @@ public class BootstrapForTesting {
     // without making things complex???
 
     static {
+
         // make sure java.io.tmpdir exists always (in case code uses it in a static initializer)
         Path javaTmpDir = PathUtils.get(
             Objects.requireNonNull(System.getProperty("java.io.tmpdir"), "please set ${java.io.tmpdir} in pom.xml")
@@ -88,9 +90,6 @@ public class BootstrapForTesting {
         // some tests need the ability to disable system call filters (so they can fork other processes as part of test execution)
         final boolean systemCallFilter = Booleans.parseBoolean(System.getProperty("tests.system_call_filter", "true"));
         Elasticsearch.initializeNatives(javaTmpDir, memoryLock, systemCallFilter, true);
-
-        // init filesystem natives
-        FileSystemNatives.init();
 
         // initialize probes
         Elasticsearch.initializeProbes();
@@ -170,11 +169,12 @@ public class BootstrapForTesting {
                 addDirectoryPath(fastPathPermissions, "java.io.tmpdir-fastpath", javaTmpDir, "read,readlink,write,delete", true);
 
                 final Policy esPolicy = new ESPolicy(
-                    codebases,
+                    PolicyUtil.readPolicy(ESPolicy.class.getResource(POLICY_RESOURCE), codebases),
                     perms,
                     getPluginPermissions(),
                     true,
-                    Security.toFilePermissions(fastPathPermissions)
+                    Security.toFilePermissions(fastPathPermissions),
+                    Map.of()
                 );
                 Policy.setPolicy(new Policy() {
                     @Override
@@ -219,6 +219,7 @@ public class BootstrapForTesting {
         addClassCodebase(codebases, "elasticsearch-rest-client", "org.elasticsearch.client.RestClient");
         addClassCodebase(codebases, "elasticsearch-core", "org.elasticsearch.core.Booleans");
         addClassCodebase(codebases, "elasticsearch-cli", "org.elasticsearch.cli.Command");
+        addClassCodebase(codebases, "elasticsearch-simdvec", "org.elasticsearch.simdvec.VectorScorerFactory");
         addClassCodebase(codebases, "framework", "org.elasticsearch.test.ESTestCase");
         return codebases;
     }
@@ -247,7 +248,7 @@ public class BootstrapForTesting {
      * like core, test-framework, etc. this way tests fail if accesscontroller blocks are missing.
      */
     @SuppressForbidden(reason = "accesses fully qualified URLs to configure security")
-    static Map<String, Policy> getPluginPermissions() throws Exception {
+    static Map<URL, Policy> getPluginPermissions() throws Exception {
         List<URL> pluginPolicies = Collections.list(
             BootstrapForTesting.class.getClassLoader().getResources(PluginDescriptor.ES_PLUGIN_POLICY)
         );
@@ -299,9 +300,9 @@ public class BootstrapForTesting {
         }
 
         // consult each policy file for those codebases
-        Map<String, Policy> map = new HashMap<>();
+        Map<URL, Policy> map = new HashMap<>();
         for (URL url : codebases) {
-            map.put(url.getFile(), new Policy() {
+            map.put(url, new Policy() {
                 @Override
                 public boolean implies(ProtectionDomain domain, Permission permission) {
                     // implements union

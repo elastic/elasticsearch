@@ -1,7 +1,13 @@
+---
 setup:
+  - requires:
+      cluster_features: "gte_v8.2.0"
+      reason: "tsdb indexing changed in 8.2.0"
   - skip:
-      version: " - 8.1.99"
-      reason: tsdb indexing changed in 8.2.0
+      known_issues:
+        - cluster_feature: "gte_v8.7.0"
+          fixed_by: "gte_v8.10.0"
+      reason: "Synthetic source shows up in the mapping in 8.10 and on, may trigger assert failures in mixed cluster tests"
 
   - do:
       indices.create:
@@ -62,9 +68,9 @@ setup:
 
 ---
 search an alias:
-  - skip:
-      version: " - 8.1.99"
-      reason: tsdb indexing changed in 8.2.0
+  - requires:
+      cluster_features: ["gte_v8.13.0"]
+      reason: _tsid hashing introduced in 8.13
 
   - do:
       indices.put_alias:
@@ -84,16 +90,16 @@ search an alias:
                   _key: asc
 
   - match: {hits.total.value: 8}
-  - match: {aggregations.tsids.buckets.0.key: {k8s.pod.uid: 947e4ced-1786-4e53-9e0c-5c447e959507, metricset: pod}}
+  - match: {aggregations.tsids.buckets.0.key: "KCjEJ9R_BgO8TRX2QOd6dpQ5ihHD--qoyLTiOy0pmP6_RAIE-e0-dKQ"}
   - match: {aggregations.tsids.buckets.0.doc_count: 4}
-  - match: {aggregations.tsids.buckets.1.key: {k8s.pod.uid: df3145b3-0563-4d3b-a0f7-897eb2876ea9, metricset: pod}}
+  - match: {aggregations.tsids.buckets.1.key: "KCjEJ9R_BgO8TRX2QOd6dpR12oDh--qoyNZRQPy43y34Qdy2dpsyG0o"}
   - match: {aggregations.tsids.buckets.1.doc_count: 4}
 
 ---
 index into alias:
-  - skip:
-      version: " - 8.1.99"
-      reason: tsdb indexing changed in 8.2.0
+  - requires:
+      cluster_features: ["gte_v8.13.0"]
+      reason: _tsid hashing introduced in 8.13
 
   - do:
       indices.put_alias:
@@ -128,10 +134,10 @@ index into alias:
                   _key: asc
 
   - match: {hits.total.value: 12}
-  - match: {aggregations.tsids.buckets.0.key: {k8s.pod.uid: 1c4fc7b8-93b7-4ba8-b609-2a48af2f8e39, metricset: pod}}
+  - match: {aggregations.tsids.buckets.0.key: "KCjEJ9R_BgO8TRX2QOd6dpQ5ihHD--qoyLTiOy0pmP6_RAIE-e0-dKQ"}
   - match: {aggregations.tsids.buckets.0.doc_count: 4}
-  - match: {aggregations.tsids.buckets.1.key: {k8s.pod.uid: 947e4ced-1786-4e53-9e0c-5c447e959507, metricset: pod}}
+  - match: {aggregations.tsids.buckets.1.key: "KCjEJ9R_BgO8TRX2QOd6dpR12oDh--qoyNZRQPy43y34Qdy2dpsyG0o"}
   - match: {aggregations.tsids.buckets.1.doc_count: 4}
-  - match: {aggregations.tsids.buckets.2.key: {k8s.pod.uid: df3145b3-0563-4d3b-a0f7-897eb2876ea9, metricset: pod}}
+  - match: {aggregations.tsids.buckets.2.key: "KCjEJ9R_BgO8TRX2QOd6dpS-lKWy--qoyFLYl-AccAdq5LSYmdi4qYg"}
   - match: {aggregations.tsids.buckets.2.doc_count: 4}
 

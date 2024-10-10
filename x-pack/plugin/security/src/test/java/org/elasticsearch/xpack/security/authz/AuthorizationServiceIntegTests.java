@@ -7,16 +7,20 @@
 
 package org.elasticsearch.xpack.security.authz;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.action.support.ActionTestUtils;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.SecurityIntegTestCase;
-import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.action.user.AuthenticateAction;
 import org.elasticsearch.xpack.core.security.action.user.AuthenticateRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
+import org.elasticsearch.xpack.core.security.authc.CrossClusterAccessSubjectInfo;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
+import org.elasticsearch.xpack.core.security.authz.RoleDescriptorTestHelper;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeResolver;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
@@ -42,9 +46,7 @@ public class AuthorizationServiceIntegTests extends SecurityIntegTestCase {
         return false; // need real http
     }
 
-    public void testRetrieveRemoteAccessRoleDescriptorsIntersection() throws IOException, InterruptedException {
-        assumeTrue("untrusted remote cluster feature flag must be enabled", TcpTransport.isUntrustedRemoteClusterEnabled());
-
+    public void testGetRoleDescriptorsIntersectionForRemoteCluster() throws IOException, InterruptedException {
         final String concreteClusterAlias = randomAlphaOfLength(10);
         final String roleName = randomAlphaOfLength(5);
         getSecurityClient().putRole(
@@ -71,7 +73,10 @@ public class AuthorizationServiceIntegTests extends SecurityIntegTestCase {
                             .privileges(shuffledList(List.of("read", "write")))
                             .build(),
                         randomNonEmptySubsetOf(List.of(concreteClusterAlias, "*")).toArray(new String[0])
-                    ) }
+                    ) },
+                null,
+                null,
+                null
             )
         );
         final String nodeName = internalCluster().getRandomNodeName();
@@ -85,7 +90,7 @@ public class AuthorizationServiceIntegTests extends SecurityIntegTestCase {
                 nodeName
             )
         );
-        final RoleDescriptorsIntersection actual = authorizeThenRetrieveRemoteAccessDescriptors(
+        final RoleDescriptorsIntersection actual = authorizeThenGetRoleDescriptorsIntersectionForRemoteCluster(
             threadContext,
             authzService,
             authentication,
@@ -121,7 +126,49 @@ public class AuthorizationServiceIntegTests extends SecurityIntegTestCase {
         );
     }
 
-    private RoleDescriptorsIntersection authorizeThenRetrieveRemoteAccessDescriptors(
+    public void testCrossClusterAccessWithInvalidRoleDescriptors() {
+        final String nodeName = internalCluster().getRandomNodeName();
+        final ThreadContext threadContext = internalCluster().getInstance(SecurityContext.class, nodeName).getThreadContext();
+        final AuthorizationService authzService = internalCluster().getInstance(AuthorizationService.class, nodeName);
+        final CrossClusterAccessSubjectInfo crossClusterAccessSubjectInfo = AuthenticationTestHelper.randomCrossClusterAccessSubjectInfo(
+            new RoleDescriptorsIntersection(
+                randomValueOtherThanMany(
+                    rd -> false == rd.hasUnsupportedPrivilegesInsideAPIKeyConnectedRemoteCluster(),
+                    () -> RoleDescriptorTestHelper.builder()
+                        .allowReservedMetadata(randomBoolean())
+                        .allowRemoteIndices(randomBoolean())
+                        .allowRestriction(randomBoolean())
+                        .allowDescription(randomBoolean())
+                        .allowRemoteClusters(randomBoolean())
+                        .build()
+                )
+            )
+        );
+        final Authentication authentication = AuthenticationTestHelper.builder()
+            .crossClusterAccess(randomAlphaOfLength(42), crossClusterAccessSubjectInfo)
+            .build();
+        try (var ignored = threadContext.stashContext()) {
+            // A request ID is set during authentication and is required for authorization; since we are not authenticating, set it
+            // explicitly
+            AuditUtil.generateRequestId(threadContext);
+            final var future = new PlainActionFuture<Void>();
+            // Authorize to trigger role resolution and (failed) validation
+            authzService.authorize(authentication, AuthenticateAction.INSTANCE.name(), AuthenticateRequest.INSTANCE, future);
+            final IllegalArgumentException actual = expectThrows(IllegalArgumentException.class, future::actionGet);
+            final String expectedPrincipal = crossClusterAccessSubjectInfo.getAuthentication().getEffectiveSubject().getUser().principal();
+            assertThat(
+                actual.getMessage(),
+                equalTo(
+                    "Role descriptor for cross cluster access can only contain index and "
+                        + "cluster privileges but other privileges found for subject ["
+                        + expectedPrincipal
+                        + "]"
+                )
+            );
+        }
+    }
+
+    private RoleDescriptorsIntersection authorizeThenGetRoleDescriptorsIntersectionForRemoteCluster(
         final ThreadContext threadContext,
         final AuthorizationService authzService,
         final Authentication authentication,
@@ -134,24 +181,40 @@ public class AuthorizationServiceIntegTests extends SecurityIntegTestCase {
             // A request ID is set during authentication and is required for authorization; since we are not authenticating, set it
             // explicitly
             AuditUtil.generateRequestId(threadContext);
-            // Authorize to populate thread context with authz info
-            // Note that if the outer listener throws, we will not count down on the latch, however, we also won't get to the await call
-            // since the exception will be thrown before -- so no deadlock
-            authzService.authorize(
-                authentication,
-                AuthenticateAction.INSTANCE.name(),
-                AuthenticateRequest.INSTANCE,
-                ActionTestUtils.assertNoFailureListener(nothing -> {
-                    authzService.retrieveRemoteAccessRoleDescriptorsIntersection(
-                        concreteClusterAlias,
-                        authentication.getEffectiveSubject(),
-                        new LatchedActionListener<>(ActionTestUtils.assertNoFailureListener(newValue -> {
-                            assertThat(threadContext.getTransient(AUTHORIZATION_INFO_KEY), not(nullValue()));
-                            actual.set(newValue);
-                        }), latch)
-                    );
-                })
-            );
+
+            // Get Role Descriptors for remote cluster should work regardless whether threadContext has existing authz info
+            if (randomBoolean()) {
+                // Authorize to populate thread context with authz info
+                // Note that if the outer listener throws, we will not count down on the latch, however, we also won't get to the await call
+                // since the exception will be thrown before -- so no deadlock
+                authzService.authorize(
+                    authentication,
+                    AuthenticateAction.INSTANCE.name(),
+                    AuthenticateRequest.INSTANCE,
+                    ActionTestUtils.assertNoFailureListener(nothing -> {
+                        authzService.getRoleDescriptorsIntersectionForRemoteCluster(
+                            concreteClusterAlias,
+                            TransportVersion.current(),
+                            authentication.getEffectiveSubject(),
+                            new LatchedActionListener<>(ActionTestUtils.assertNoFailureListener(newValue -> {
+                                assertThat(threadContext.getTransient(AUTHORIZATION_INFO_KEY), not(nullValue()));
+                                actual.set(newValue);
+                            }), latch)
+                        );
+                    })
+                );
+            } else {
+                authzService.getRoleDescriptorsIntersectionForRemoteCluster(
+                    concreteClusterAlias,
+                    TransportVersion.current(),
+                    authentication.getEffectiveSubject(),
+                    new LatchedActionListener<>(ActionTestUtils.assertNoFailureListener(newValue -> {
+                        assertThat(threadContext.getTransient(AUTHORIZATION_INFO_KEY), nullValue());
+                        actual.set(newValue);
+                    }), latch)
+                );
+            }
+
             latch.await();
             // Validate original authz info is restored after call complete
             assertThat(threadContext.getTransient(AUTHORIZATION_INFO_KEY), nullValue());

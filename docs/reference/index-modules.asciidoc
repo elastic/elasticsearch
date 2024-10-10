@@ -7,7 +7,7 @@ an index.
 
 [discrete]
 [[index-modules-settings]]
-== Index Settings
+== Index settings
 
 [[index-modules-settings-description]]
 // tag::index-modules-settings-description-tag[]
@@ -16,7 +16,10 @@ Index level settings can be set per-index. Settings may be:
 _static_::
 
 They can only be set at index creation time or on a
-<<indices-open-close,closed index>>.
+<<indices-open-close,closed index>>, or by using the
+<<indices-update-settings,update-index-settings>> API with the
+`reopen` query parameter set to `true` (which automatically
+closes and reopens impacted indices).
 
 _dynamic_::
 
@@ -24,9 +27,7 @@ They can be changed on a live index using the
 <<indices-update-settings,update-index-settings>> API.
 // end::index-modules-settings-description-tag[]
 
-WARNING: Changing static or dynamic index settings on a closed index could
-result in incorrect settings that are impossible to rectify without deleting
-and recreating the index.
+CAUTION: You can change any documented index settings on closed indices. However, changing undocumented index settings on closed indices is unsupported and might result in errors.
 
 [discrete]
 === Static index settings
@@ -75,11 +76,47 @@ breaking change].
 
     The +default+ value compresses stored data with LZ4
     compression, but this can be set to +best_compression+
-    which uses {wikipedia}/DEFLATE[DEFLATE] for a higher
-    compression ratio, at the expense of slower stored fields performance.
+    which uses {wikipedia}/Zstd[ZSTD] for a higher
+    compression ratio, at the expense of slower stored fields read performance.
     If you are updating the compression type, the new one will be applied
     after segments are merged. Segment merging can be forced using
-    <<indices-forcemerge,force merge>>.
+    <<indices-forcemerge,force merge>>. Experiments with indexing log datasets
+    have shown that `best_compression` gives up to ~28% lower storage usage and
+    similar indexing throughput (sometimes a bit slower or faster depending on other used options) compared
+    to `default` while affecting get by id latencies between ~10% and ~33%. The higher get
+    by id latencies is not a concern for many use cases like logging or metrics, since
+    these don't really rely on get by id functionality (Get APIs or searching by _id).
+
+[[index-mode-setting]] `index.mode`::
++
+The `index.mode` setting is used to control settings applied in specific domains like ingestion of time series data or logs.
+Different mutually exclusive modes exist, which are used to apply settings or default values controlling indexing of documents,
+sorting and other parameters whose value affects indexing or query performance.
++
+[source,console]
+----------------
+PUT my-index-000001
+{
+  "settings": {
+    "index":{
+      "mode":"standard" <1>
+    }
+  }
+}
+----------------
++
+<1> This index uses the `standard` index mode
++
+Index mode supports the following values:
+
+`null`::: Default value (same as `standard`).
+
+`standard`::: Standard indexing with default settings.
+
+`time_series`::: Index mode optimized for storage of metrics documented in <<tsds-index-settings,TSDS Settings>>.
+
+`logsdb`::: Index mode optimized for storage of logs. It applies default sort settings on the `hostname` and `timestamp` fields and uses <<synthetic-source,synthetic `_source`>>. <<index-modules-index-sorting,Index sorting>> on different fields is still allowed.
+preview:[]
 
 [[routing-partition-size]] `index.routing_partition_size`::
 
@@ -195,9 +232,9 @@ are ignored for this index.
     refresh. If this setting is not explicitly set, shards that haven't seen
     search traffic for at least `index.search.idle.after` seconds will not receive
     background refreshes until they receive a search request. Searches that hit an
-    idle shard where a refresh is pending will wait for the next background
-    refresh (within `1s`). This behavior aims to automatically optimize bulk
-    indexing in the default case when no searches are performed. In order to opt
+    idle shard where a refresh is pending will trigger a refresh as part of the
+    search operation for that shard only. This behavior aims to automatically optimize
+    bulk indexing in the default case when no searches are performed. In order to opt
     out of this behavior an explicit value of `1s` should set as the refresh
     interval.
 
@@ -272,7 +309,7 @@ are ignored for this index.
 [[index-max-regex-length]]
  `index.max_regex_length`::
 
-    The maximum length of regex that can be used in Regexp Query.
+    The maximum length of value that can be used in `regexp` or `prefix` query.
     Defaults to `1000`.
 
 [[index-query-default-field]]

@@ -132,7 +132,7 @@ public class WatcherExistsHttpResource extends PublishableHttpResource {
      * @throws IOException if any issue occurs while parsing the {@code xContent} {@code response}.
      * @throws RuntimeException if the response format is changed.
      */
-    private boolean canUseWatcher(final Response response, final XContent xContent) throws IOException {
+    private static boolean canUseWatcher(final Response response, final XContent xContent) throws IOException {
         // no named content used; so EMPTY is fine
         final Map<String, Object> xpackInfo = XContentHelper.convertToMap(xContent, response.getEntity().getContent(), false);
 

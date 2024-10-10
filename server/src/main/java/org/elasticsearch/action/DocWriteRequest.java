@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.action;
 
@@ -24,9 +25,11 @@ import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.Locale;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
+import static org.elasticsearch.action.index.IndexRequest.MAX_DOCUMENT_ID_LENGTH_IN_BYTES;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 
@@ -38,6 +41,12 @@ public interface DocWriteRequest<T> extends IndicesRequest, Accountable {
 
     // Flag set for disallowing index auto creation for an individual write request.
     String REQUIRE_ALIAS = "require_alias";
+
+    // Flag set for disallowing index auto creation if no matching data-stream index template is available.
+    String REQUIRE_DATA_STREAM = "require_data_stream";
+
+    // Flag indicating that the list of executed pipelines should be returned in the request
+    String LIST_EXECUTED_PIPELINES = "list_executed_pipelines";
 
     /**
      * Set the index for this request
@@ -145,6 +154,12 @@ public interface DocWriteRequest<T> extends IndicesRequest, Accountable {
     boolean isRequireAlias();
 
     /**
+     * Should this request override specifically require the destination to be a data stream?
+     * @return boolean flag, when true specifically requires a data stream
+     */
+    boolean isRequireDataStream();
+
+    /**
      * Finalize the request before executing or routing it.
      */
     void process(IndexRouting indexRouting);
@@ -171,7 +186,7 @@ public interface DocWriteRequest<T> extends IndicesRequest, Accountable {
      */
     enum OpType {
         /**
-         * Index the source. If there an existing document with the id, it will
+         * Index the source. If there is an existing document with the id, it will
          * be replaced.
          */
         INDEX(0),
@@ -309,6 +324,21 @@ public interface DocWriteRequest<T> extends IndicesRequest, Accountable {
             );
         }
 
+        return validationException;
+    }
+
+    static ActionRequestValidationException validateDocIdLength(String id, ActionRequestValidationException validationException) {
+        if (id != null && id.getBytes(StandardCharsets.UTF_8).length > MAX_DOCUMENT_ID_LENGTH_IN_BYTES) {
+            validationException = addValidationError(
+                "id ["
+                    + id
+                    + "] is too long, must be no longer than "
+                    + MAX_DOCUMENT_ID_LENGTH_IN_BYTES
+                    + " bytes but was: "
+                    + id.getBytes(StandardCharsets.UTF_8).length,
+                validationException
+            );
+        }
         return validationException;
     }
 }

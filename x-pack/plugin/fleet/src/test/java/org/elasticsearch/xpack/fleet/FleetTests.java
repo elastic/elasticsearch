@@ -11,6 +11,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.indices.SystemIndices.Feature;
+import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Collection;
@@ -20,11 +21,19 @@ import java.util.stream.Collectors;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 
 public class FleetTests extends ESTestCase {
+    public Collection<SystemIndexDescriptor> getSystemIndexDescriptors() {
+        SystemIndexPlugin plugin = new Fleet();
+        return plugin.getSystemIndexDescriptors(Settings.EMPTY);
+    }
+
+    public void testSystemIndexDescriptorFormats() {
+        for (SystemIndexDescriptor descriptor : getSystemIndexDescriptors()) {
+            assertTrue(descriptor.isAutomaticallyManaged());
+        }
+    }
 
     public void testFleetIndexNames() {
-        Fleet module = new Fleet();
-
-        final Collection<SystemIndexDescriptor> fleetDescriptors = module.getSystemIndexDescriptors(Settings.EMPTY);
+        final Collection<SystemIndexDescriptor> fleetDescriptors = getSystemIndexDescriptors();
 
         assertThat(
             fleetDescriptors.stream().map(SystemIndexDescriptor::getIndexPattern).collect(Collectors.toList()),
@@ -35,7 +44,8 @@ public class FleetTests extends ESTestCase {
                 ".fleet-actions~(-results*)",
                 ".fleet-policies-leader*",
                 ".fleet-enrollment-api-keys*",
-                ".fleet-artifacts*"
+                ".fleet-artifacts*",
+                ".fleet-secrets*"
             )
         );
 
@@ -48,6 +58,8 @@ public class FleetTests extends ESTestCase {
 
         assertTrue(fleetDescriptors.stream().anyMatch(d -> d.matchesIndexPattern(".fleet-actions")));
         assertFalse(fleetDescriptors.stream().anyMatch(d -> d.matchesIndexPattern(".fleet-actions-results")));
+
+        assertTrue(fleetDescriptors.stream().anyMatch(d -> d.matchesIndexPattern(".fleet-secrets")));
     }
 
     public void testFleetFeature() {

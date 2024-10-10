@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.persistent;
 
@@ -11,18 +12,16 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
-import org.elasticsearch.client.internal.ElasticsearchClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -30,20 +29,15 @@ import org.elasticsearch.transport.TransportService;
 import java.io.IOException;
 import java.util.Objects;
 
-public class RemovePersistentTaskAction extends ActionType<PersistentTaskResponse> {
+public class RemovePersistentTaskAction {
 
-    public static final RemovePersistentTaskAction INSTANCE = new RemovePersistentTaskAction();
-    public static final String NAME = "cluster:admin/persistent/remove";
+    public static final ActionType<PersistentTaskResponse> INSTANCE = new ActionType<>("cluster:admin/persistent/remove");
 
-    private RemovePersistentTaskAction() {
-        super(NAME, PersistentTaskResponse::new);
-    }
+    private RemovePersistentTaskAction() {/* no instances */}
 
     public static class Request extends MasterNodeRequest<Request> {
 
-        private String taskId;
-
-        public Request() {}
+        private final String taskId;
 
         public Request(StreamInput in) throws IOException {
             super(in);
@@ -51,10 +45,7 @@ public class RemovePersistentTaskAction extends ActionType<PersistentTaskRespons
         }
 
         public Request(String taskId) {
-            this.taskId = taskId;
-        }
-
-        public void setTaskId(String taskId) {
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
             this.taskId = taskId;
         }
 
@@ -83,22 +74,6 @@ public class RemovePersistentTaskAction extends ActionType<PersistentTaskRespons
         }
     }
 
-    public static class RequestBuilder extends MasterNodeOperationRequestBuilder<
-        RemovePersistentTaskAction.Request,
-        PersistentTaskResponse,
-        RemovePersistentTaskAction.RequestBuilder> {
-
-        protected RequestBuilder(ElasticsearchClient client, RemovePersistentTaskAction action) {
-            super(client, action, new Request());
-        }
-
-        public final RequestBuilder setTaskId(String taskId) {
-            request.setTaskId(taskId);
-            return this;
-        }
-
-    }
-
     public static class TransportAction extends TransportMasterNodeAction<Request, PersistentTaskResponse> {
 
         private final PersistentTasksClusterService persistentTasksClusterService;
@@ -113,7 +88,7 @@ public class RemovePersistentTaskAction extends ActionType<PersistentTaskRespons
             IndexNameExpressionResolver indexNameExpressionResolver
         ) {
             super(
-                RemovePersistentTaskAction.NAME,
+                INSTANCE.name(),
                 transportService,
                 clusterService,
                 threadPool,
@@ -121,7 +96,7 @@ public class RemovePersistentTaskAction extends ActionType<PersistentTaskRespons
                 Request::new,
                 indexNameExpressionResolver,
                 PersistentTaskResponse::new,
-                ThreadPool.Names.MANAGEMENT
+                threadPool.executor(ThreadPool.Names.MANAGEMENT)
             );
             this.persistentTasksClusterService = persistentTasksClusterService;
         }

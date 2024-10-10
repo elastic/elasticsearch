@@ -154,8 +154,8 @@ class TopMetricsAggregator extends NumericMetricsAggregator.MultiValue {
         }
 
         boolean needsScores() {
-            for (int i = 0; i < values.length; i++) {
-                if (values[i].needsScores()) {
+            for (MetricValues value : values) {
+                if (value.needsScores()) {
                     return true;
                 }
             }
@@ -174,8 +174,8 @@ class TopMetricsAggregator extends NumericMetricsAggregator.MultiValue {
         BucketedSort.ResultBuilder<InternalTopMetrics.TopMetric> resultBuilder(DocValueFormat sortFormat) {
             return (index, sortValue) -> {
                 List<InternalTopMetrics.MetricValue> result = new ArrayList<>(values.length);
-                for (int i = 0; i < values.length; i++) {
-                    result.add(values[i].metricValue(index));
+                for (MetricValues value : values) {
+                    result.add(value.metricValue(index));
                 }
                 return new InternalTopMetrics.TopMetric(sortFormat, sortValue, result);
             };
@@ -187,8 +187,8 @@ class TopMetricsAggregator extends NumericMetricsAggregator.MultiValue {
 
         @Override
         public void swap(long lhs, long rhs) {
-            for (int i = 0; i < values.length; i++) {
-                values[i].swap(lhs, rhs);
+            for (MetricValues value : values) {
+                value.swap(lhs, rhs);
             }
         }
 
@@ -199,8 +199,8 @@ class TopMetricsAggregator extends NumericMetricsAggregator.MultiValue {
                 loaders[i] = values[i].loader(ctx);
             }
             return (index, doc) -> {
-                for (int i = 0; i < loaders.length; i++) {
-                    loaders[i].loadFromDoc(index, doc);
+                for (Loader loader : loaders) {
+                    loader.loadFromDoc(index, doc);
                 }
             };
         }

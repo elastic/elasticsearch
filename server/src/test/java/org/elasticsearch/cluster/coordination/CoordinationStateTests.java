@@ -1,25 +1,24 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.cluster.coordination;
 
-import org.elasticsearch.Assertions;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.coordination.CoordinationMetadata.VotingConfiguration;
 import org.elasticsearch.cluster.coordination.CoordinationState.PersistedState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.core.Assertions;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
 import org.junit.Before;
@@ -28,7 +27,6 @@ import java.util.Collections;
 import java.util.Optional;
 import java.util.stream.IntStream;
 
-import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -79,18 +77,9 @@ public class CoordinationStateTests extends ESTestCase {
     }
 
     public static DiscoveryNode createNode(String id) {
-        final TransportAddress address = buildNewFakeTransportAddress();
-        return new DiscoveryNode(
-            "",
-            id,
-            UUIDs.randomBase64UUID(random()), // generated deterministically for repeatable tests
-            address.address().getHostString(),
-            address.getAddress(),
-            address,
-            Collections.emptyMap(),
-            DiscoveryNodeRole.roles(),
-            Version.CURRENT
-        );
+        return DiscoveryNodeUtils.builder(id)
+            .ephemeralId(UUIDs.randomBase64UUID(random()))  // generated deterministically for repeatable tests
+            .build();
     }
 
     public void testSetInitialState() {
@@ -118,11 +107,11 @@ public class CoordinationStateTests extends ESTestCase {
         assertThat(cs1.getCurrentTerm(), equalTo(0L));
         StartJoinRequest startJoinRequest1 = new StartJoinRequest(randomFrom(node1, node2), randomLongBetween(1, 5));
         Join v1 = cs1.handleStartJoin(startJoinRequest1);
-        assertThat(v1.getTargetNode(), equalTo(startJoinRequest1.getSourceNode()));
-        assertThat(v1.getSourceNode(), equalTo(node1));
-        assertThat(v1.getTerm(), equalTo(startJoinRequest1.getTerm()));
-        assertThat(v1.getLastAcceptedTerm(), equalTo(initialStateNode1.term()));
-        assertThat(v1.getLastAcceptedVersion(), equalTo(initialStateNode1.version()));
+        assertThat(v1.masterCandidateNode(), equalTo(startJoinRequest1.getMasterCandidateNode()));
+        assertThat(v1.votingNode(), equalTo(node1));
+        assertThat(v1.term(), equalTo(startJoinRequest1.getTerm()));
+        assertThat(v1.lastAcceptedTerm(), equalTo(initialStateNode1.term()));
+        assertThat(v1.lastAcceptedVersion(), equalTo(initialStateNode1.version()));
         assertThat(cs1.getCurrentTerm(), equalTo(startJoinRequest1.getTerm()));
 
         StartJoinRequest startJoinRequest2 = new StartJoinRequest(
@@ -141,11 +130,11 @@ public class CoordinationStateTests extends ESTestCase {
 
         StartJoinRequest startJoinRequest1 = new StartJoinRequest(randomFrom(node1, node2), randomLongBetween(1, 5));
         Join v1 = cs1.handleStartJoin(startJoinRequest1);
-        assertThat(v1.getTargetNode(), equalTo(startJoinRequest1.getSourceNode()));
-        assertThat(v1.getSourceNode(), equalTo(node1));
-        assertThat(v1.getTerm(), equalTo(startJoinRequest1.getTerm()));
-        assertThat(v1.getLastAcceptedTerm(), equalTo(state1.term()));
-        assertThat(v1.getLastAcceptedVersion(), equalTo(state1.version()));
+        assertThat(v1.masterCandidateNode(), equalTo(startJoinRequest1.getMasterCandidateNode()));
+        assertThat(v1.votingNode(), equalTo(node1));
+        assertThat(v1.term(), equalTo(startJoinRequest1.getTerm()));
+        assertThat(v1.lastAcceptedTerm(), equalTo(state1.term()));
+        assertThat(v1.lastAcceptedVersion(), equalTo(state1.version()));
         assertThat(cs1.getCurrentTerm(), equalTo(startJoinRequest1.getTerm()));
 
         StartJoinRequest startJoinRequest2 = new StartJoinRequest(
@@ -224,7 +213,7 @@ public class CoordinationStateTests extends ESTestCase {
         Join badJoin = new Join(
             randomFrom(node1, node2),
             node1,
-            v1.getTerm(),
+            v1.term(),
             randomLongBetween(state2.term() + 1, 30),
             randomNonNegativeLong()
         );
@@ -246,7 +235,7 @@ public class CoordinationStateTests extends ESTestCase {
         StartJoinRequest startJoinRequest2 = new StartJoinRequest(node2, randomLongBetween(startJoinRequest1.getTerm() + 1, 10));
         Join v1 = cs1.handleStartJoin(startJoinRequest2);
 
-        Join badJoin = new Join(randomFrom(node1, node2), node1, v1.getTerm(), state2.term(), randomLongBetween(state2.version() + 1, 30));
+        Join badJoin = new Join(randomFrom(node1, node2), node1, v1.term(), state2.term(), randomLongBetween(state2.version() + 1, 30));
         assertThat(
             expectThrows(CoordinationStateRejectedException.class, () -> cs1.handleJoin(badJoin)).getMessage(),
             containsString("higher than current last accepted version")
@@ -265,7 +254,7 @@ public class CoordinationStateTests extends ESTestCase {
         StartJoinRequest startJoinRequest2 = new StartJoinRequest(node2, randomLongBetween(startJoinRequest1.getTerm() + 1, 10));
         Join v1 = cs1.handleStartJoin(startJoinRequest2);
 
-        Join join = new Join(node1, node1, v1.getTerm(), randomLongBetween(0, state2.term() - 1), randomLongBetween(0, 20));
+        Join join = new Join(node1, node1, v1.term(), randomLongBetween(0, state2.term() - 1), randomLongBetween(0, 20));
         assertTrue(cs1.handleJoin(join));
         assertTrue(cs1.electionWon());
         assertTrue(cs1.containsJoinVoteFor(node1));
@@ -287,7 +276,7 @@ public class CoordinationStateTests extends ESTestCase {
         StartJoinRequest startJoinRequest2 = new StartJoinRequest(node2, randomLongBetween(startJoinRequest1.getTerm() + 1, 10));
         Join v1 = cs1.handleStartJoin(startJoinRequest2);
 
-        Join join = new Join(node1, node1, v1.getTerm(), state2.term(), randomLongBetween(0, state2.version()));
+        Join join = new Join(node1, node1, v1.term(), state2.term(), randomLongBetween(0, state2.version()));
         assertTrue(cs1.handleJoin(join));
         assertTrue(cs1.electionWon());
         assertTrue(cs1.containsJoinVoteFor(node1));
@@ -308,7 +297,7 @@ public class CoordinationStateTests extends ESTestCase {
         StartJoinRequest startJoinRequest2 = new StartJoinRequest(node2, randomLongBetween(startJoinRequest1.getTerm() + 1, 10));
         Join v1 = cs1.handleStartJoin(startJoinRequest2);
 
-        Join join = new Join(node2, node1, v1.getTerm(), randomLongBetween(0, state2.term()), randomLongBetween(0, state2.version()));
+        Join join = new Join(node2, node1, v1.term(), randomLongBetween(0, state2.term()), randomLongBetween(0, state2.version()));
         assertTrue(cs1.handleJoin(join));
         assertFalse(cs1.electionWon());
         assertEquals(cs1.getLastPublishedVersion(), 0L);
@@ -818,11 +807,7 @@ public class CoordinationStateTests extends ESTestCase {
         final CoordinationState.VoteCollection voteCollection = new CoordinationState.VoteCollection();
         assertTrue(voteCollection.isEmpty());
 
-        assertFalse(
-            voteCollection.addVote(
-                new DiscoveryNode("master-ineligible", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT)
-            )
-        );
+        assertFalse(voteCollection.addVote(DiscoveryNodeUtils.builder("master-ineligible").roles(emptySet()).build()));
         assertTrue(voteCollection.isEmpty());
 
         voteCollection.addVote(node1);
@@ -854,9 +839,7 @@ public class CoordinationStateTests extends ESTestCase {
 
     public void testSafety() {
         new CoordinationStateTestCluster(
-            IntStream.range(0, randomIntBetween(1, 5))
-                .mapToObj(i -> new DiscoveryNode("node_" + i, buildNewFakeTransportAddress(), Version.CURRENT))
-                .toList(),
+            IntStream.range(0, randomIntBetween(1, 5)).mapToObj(i -> DiscoveryNodeUtils.create("node_" + i)).toList(),
             ElectionStrategy.DEFAULT_INSTANCE
         ).runRandomly();
     }

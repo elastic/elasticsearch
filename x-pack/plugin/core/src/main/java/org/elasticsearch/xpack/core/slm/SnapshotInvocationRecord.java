@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.core.slm;
 
 import org.elasticsearch.cluster.SimpleDiffable;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -31,6 +32,7 @@ public class SnapshotInvocationRecord implements SimpleDiffable<SnapshotInvocati
     static final ParseField START_TIMESTAMP = new ParseField("start_time");
     static final ParseField TIMESTAMP = new ParseField("time");
     static final ParseField DETAILS = new ParseField("details");
+    static final int MAX_DETAILS_LENGTH = 1000;
 
     private final String snapshotName;
     private final Long snapshotStartTimestamp;
@@ -54,11 +56,16 @@ public class SnapshotInvocationRecord implements SimpleDiffable<SnapshotInvocati
         return PARSER.apply(parser, name);
     }
 
-    public SnapshotInvocationRecord(String snapshotName, Long snapshotStartTimestamp, long snapshotFinishTimestamp, String details) {
+    public SnapshotInvocationRecord(
+        String snapshotName,
+        Long snapshotStartTimestamp,
+        long snapshotFinishTimestamp,
+        @Nullable String details
+    ) {
         this.snapshotName = Objects.requireNonNull(snapshotName, "snapshot name must be provided");
         this.snapshotStartTimestamp = snapshotStartTimestamp;
         this.snapshotFinishTimestamp = snapshotFinishTimestamp;
-        this.details = details;
+        this.details = Strings.substring(details, 0, MAX_DETAILS_LENGTH);
     }
 
     public SnapshotInvocationRecord(StreamInput in) throws IOException {

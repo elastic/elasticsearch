@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.bucket.histogram;
@@ -16,6 +17,8 @@ import org.elasticsearch.common.util.DoubleArray;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.index.fielddata.FieldData;
+import org.elasticsearch.index.fielddata.NumericDoubleValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationExecutionContext;
@@ -82,7 +85,7 @@ public class VariableWidthHistogramAggregator extends DeferableBucketAggregator 
 
         private DoubleArray buffer;
         private int bufferSize;
-        private int bufferLimit;
+        private final int bufferLimit;
         private MergeBucketsPhase mergeBucketsPhase;
 
         BufferValuesPhase(int bufferLimit) {
@@ -97,7 +100,7 @@ public class VariableWidthHistogramAggregator extends DeferableBucketAggregator 
             if (bufferSize < bufferLimit) {
                 // Add to the buffer i.e store the doc in a new bucket
                 buffer = bigArrays().grow(buffer, bufferSize + 1);
-                buffer.set((long) bufferSize, val);
+                buffer.set(bufferSize, val);
                 collectBucket(sub, doc, bufferSize);
                 bufferSize += 1;
             }
@@ -179,7 +182,7 @@ public class VariableWidthHistogramAggregator extends DeferableBucketAggregator 
          * Sorts the <b>indices</b> of <code>values</code> by their underlying value
          * This will produce a merge map whose application will sort <code>values</code>
          */
-        private class ClusterSorter extends InPlaceMergeSorter {
+        private static class ClusterSorter extends InPlaceMergeSorter {
 
             final DoubleArray values;
             final long[] indexes;
@@ -432,7 +435,6 @@ public class VariableWidthHistogramAggregator extends DeferableBucketAggregator 
     // Aggregation parameters
     private final int numBuckets;
     private final int shardSize;
-    private final int bufferLimit;
 
     private CollectionPhase collector;
 
@@ -455,9 +457,8 @@ public class VariableWidthHistogramAggregator extends DeferableBucketAggregator 
         this.valuesSource = (ValuesSource.Numeric) valuesSourceConfig.getValuesSource();
         this.formatter = valuesSourceConfig.format();
         this.shardSize = shardSize;
-        this.bufferLimit = initialBuffer;
 
-        collector = new BufferValuesPhase(this.bufferLimit);
+        collector = new BufferValuesPhase(initialBuffer);
 
         String scoringAgg = subAggsNeedScore();
         String nestedAgg = descendsFromNestedAggregator(parent);
@@ -527,22 +528,37 @@ public class VariableWidthHistogramAggregator extends DeferableBucketAggregator 
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }
         final SortedNumericDoubleValues values = valuesSource.doubleValues(aggCtx.getLeafReaderContext());
+        final NumericDoubleValues singleton = FieldData.unwrapSingleton(values);
+        return singleton != null ? getLeafCollector(singleton, sub) : getLeafCollector(values, sub);
+    }
+
+    private LeafBucketCollector getLeafCollector(SortedNumericDoubleValues values, LeafBucketCollector sub) {
         return new LeafBucketCollectorBase(sub, values) {
             @Override
             public void collect(int doc, long bucket) throws IOException {
                 assert bucket == 0;
                 if (values.advanceExact(doc)) {
-                    final int valuesCount = values.docValueCount();
                     double prevVal = Double.NEGATIVE_INFINITY;
-                    for (int i = 0; i < valuesCount; ++i) {
+                    for (int i = 0; i < values.docValueCount(); ++i) {
                         double val = values.nextValue();
                         assert val >= prevVal;
                         if (val == prevVal) {
                             continue;
                         }
-
                         collector = collector.collectValue(sub, doc, val);
                     }
+                }
+            }
+        };
+    }
+
+    private LeafBucketCollector getLeafCollector(NumericDoubleValues values, LeafBucketCollector sub) {
+        return new LeafBucketCollectorBase(sub, values) {
+            @Override
+            public void collect(int doc, long bucket) throws IOException {
+                assert bucket == 0;
+                if (values.advanceExact(doc)) {
+                    collector = collector.collectValue(sub, doc, values.doubleValue());
                 }
             }
         };
@@ -557,11 +573,11 @@ public class VariableWidthHistogramAggregator extends DeferableBucketAggregator 
             bucketOrdsToCollect[i] = i;
         }
 
-        InternalAggregations[] subAggregationResults = buildSubAggsForBuckets(bucketOrdsToCollect);
+        var subAggregationResults = buildSubAggsForBuckets(bucketOrdsToCollect);
 
         List<InternalVariableWidthHistogram.Bucket> buckets = new ArrayList<>(numClusters);
         for (int bucketOrd = 0; bucketOrd < numClusters; bucketOrd++) {
-            buckets.add(collector.buildBucket(bucketOrd, subAggregationResults[bucketOrd]));
+            buckets.add(collector.buildBucket(bucketOrd, subAggregationResults.apply(bucketOrd)));
         }
 
         Function<List<InternalVariableWidthHistogram.Bucket>, InternalAggregation> resultBuilder = bucketsToFormat -> {

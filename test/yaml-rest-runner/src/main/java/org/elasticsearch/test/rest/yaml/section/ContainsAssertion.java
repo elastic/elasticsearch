@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.test.rest.yaml.section;
 
@@ -18,6 +19,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
@@ -64,8 +66,10 @@ public class ContainsAssertion extends Assertion {
                 getField() + " expected to be a list with at least on object that matches " + expectedMap + " but was " + actualValues,
                 actualValues.stream().anyMatch(each -> each.entrySet().containsAll(expectedMap.entrySet()))
             );
+        } else if (expectedValue instanceof String && actualValue instanceof String) {
+            assertThat((String) actualValue, containsString((String) expectedValue));
         } else {
-            fail("'contains' only supports checking an object against a list of objects");
+            fail("'contains' only supports checking an object against a list of objects or a string against a string");
         }
     }
 }

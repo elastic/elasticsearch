@@ -7,16 +7,20 @@
 package org.elasticsearch.xpack.searchablesnapshots.cache.common;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.blobcache.common.ByteRange;
+import org.elasticsearch.blobcache.shared.SharedBytes;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.TriConsumer;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.DeleteResult;
+import org.elasticsearch.common.blobstore.OperationPurpose;
+import org.elasticsearch.common.blobstore.OptionalBytesReference;
 import org.elasticsearch.common.blobstore.support.BlobMetadata;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -112,7 +116,7 @@ public final class TestUtils {
     public static BlobContainer singleBlobContainer(final String blobName, final byte[] blobContent) {
         return new MostlyUnimplementedFakeBlobContainer() {
             @Override
-            public InputStream readBlob(String name, long position, long length) throws IOException {
+            public InputStream readBlob(OperationPurpose purpose, String name, long position, long length) throws IOException {
                 if (blobName.equals(name) == false) {
                     throw new FileNotFoundException("Blob not found: " + name);
                 }
@@ -131,7 +135,7 @@ public final class TestUtils {
             final String prefix = blobName + ".part";
             return new MostlyUnimplementedFakeBlobContainer() {
                 @Override
-                public InputStream readBlob(String name, long position, long length) throws IOException {
+                public InputStream readBlob(OperationPurpose purpose, String name, long position, long length) throws IOException {
                     if (name.startsWith(prefix) == false) {
                         throw new FileNotFoundException("Blob not found: " + name);
                     }
@@ -156,6 +160,14 @@ public final class TestUtils {
         }
     }
 
+    public static ByteSizeValue pageAligned(ByteSizeValue val) {
+        final long remainder = val.getBytes() % SharedBytes.PAGE_SIZE;
+        if (remainder != 0L) {
+            return ByteSizeValue.ofBytes(val.getBytes() + SharedBytes.PAGE_SIZE - remainder);
+        }
+        return val;
+    }
+
     private static class MostlyUnimplementedFakeBlobContainer implements BlobContainer {
 
         @Override
@@ -164,7 +176,7 @@ public final class TestUtils {
         }
 
         @Override
-        public Map<String, BlobMetadata> listBlobs() {
+        public Map<String, BlobMetadata> listBlobs(OperationPurpose purpose) {
             throw unsupportedException();
         }
 
@@ -174,27 +186,34 @@ public final class TestUtils {
         }
 
         @Override
-        public boolean blobExists(String blobName) {
+        public boolean blobExists(OperationPurpose purpose, String blobName) {
             throw unsupportedException();
         }
 
         @Override
-        public InputStream readBlob(String blobName) {
+        public InputStream readBlob(OperationPurpose purpose, String blobName) {
             throw unsupportedException();
         }
 
         @Override
-        public InputStream readBlob(String blobName, long position, long length) throws IOException {
+        public InputStream readBlob(OperationPurpose purpose, String blobName, long position, long length) throws IOException {
             throw unsupportedException();
         }
 
         @Override
-        public void writeBlob(String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists) {
+        public void writeBlob(
+            OperationPurpose purpose,
+            String blobName,
+            InputStream inputStream,
+            long blobSize,
+            boolean failIfAlreadyExists
+        ) {
             throw unsupportedException();
         }
 
         @Override
         public void writeMetadataBlob(
+            OperationPurpose purpose,
             String blobName,
             boolean failIfAlreadyExists,
             boolean atomic,
@@ -204,28 +223,50 @@ public final class TestUtils {
         }
 
         @Override
-        public void writeBlobAtomic(String blobName, BytesReference bytes, boolean failIfAlreadyExists) {
+        public void writeBlobAtomic(
+            OperationPurpose purpose,
+            String blobName,
+            InputStream inputStream,
+            long blobSize,
+            boolean failIfAlreadyExists
+        ) throws IOException {
             throw unsupportedException();
         }
 
         @Override
-        public DeleteResult delete() {
+        public void writeBlobAtomic(OperationPurpose purpose, String blobName, BytesReference bytes, boolean failIfAlreadyExists) {
             throw unsupportedException();
         }
 
         @Override
-        public void deleteBlobsIgnoringIfNotExists(Iterator<String> blobNames) {
+        public DeleteResult delete(OperationPurpose purpose) {
             throw unsupportedException();
         }
 
         @Override
-        public Map<String, BlobContainer> children() {
+        public void deleteBlobsIgnoringIfNotExists(OperationPurpose purpose, Iterator<String> blobNames) {
             throw unsupportedException();
         }
 
         @Override
-        public Map<String, BlobMetadata> listBlobsByPrefix(String blobNamePrefix) {
+        public Map<String, BlobContainer> children(OperationPurpose purpose) {
             throw unsupportedException();
+        }
+
+        @Override
+        public Map<String, BlobMetadata> listBlobsByPrefix(OperationPurpose purpose, String blobNamePrefix) {
+            throw unsupportedException();
+        }
+
+        @Override
+        public void compareAndExchangeRegister(
+            OperationPurpose purpose,
+            String key,
+            BytesReference expected,
+            BytesReference updated,
+            ActionListener<OptionalBytesReference> listener
+        ) {
+            listener.onFailure(unsupportedException());
         }
 
         private UnsupportedOperationException unsupportedException() {
@@ -237,12 +278,7 @@ public final class TestUtils {
     public static class NoopBlobStoreCacheService extends BlobStoreCacheService {
 
         public NoopBlobStoreCacheService() {
-            super(null, mock(Client.class), SNAPSHOT_BLOB_CACHE_INDEX);
-        }
-
-        @Override
-        protected boolean useLegacyCachedBlobSizes() {
-            return false;
+            super(mock(Client.class), SNAPSHOT_BLOB_CACHE_INDEX);
         }
 
         @Override
@@ -251,7 +287,7 @@ public final class TestUtils {
         }
 
         @Override
-        protected void innerPut(IndexRequest request, ActionListener<IndexResponse> listener) {
+        protected void innerPut(IndexRequest request, ActionListener<DocWriteResponse> listener) {
             listener.onFailure(new IndexNotFoundException(request.index()));
         }
 
@@ -266,12 +302,7 @@ public final class TestUtils {
         private final ConcurrentHashMap<String, BytesArray> blobs = new ConcurrentHashMap<>();
 
         public SimpleBlobStoreCacheService() {
-            super(null, mock(Client.class), SNAPSHOT_BLOB_CACHE_INDEX);
-        }
-
-        @Override
-        protected boolean useLegacyCachedBlobSizes() {
-            return false;
+            super(mock(Client.class), SNAPSHOT_BLOB_CACHE_INDEX);
         }
 
         @Override
@@ -295,7 +326,7 @@ public final class TestUtils {
         }
 
         @Override
-        protected void innerPut(IndexRequest request, ActionListener<IndexResponse> listener) {
+        protected void innerPut(IndexRequest request, ActionListener<DocWriteResponse> listener) {
             final BytesArray bytesArray = blobs.put(request.id(), new BytesArray(request.source().toBytesRef(), true));
             listener.onResponse(
                 new IndexResponse(

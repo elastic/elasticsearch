@@ -1,5 +1,0 @@
-pr: 93331
-summary: Add new `query_vector_builder` option to knn search clause
-area: Search
-type: enhancement
-issues: []

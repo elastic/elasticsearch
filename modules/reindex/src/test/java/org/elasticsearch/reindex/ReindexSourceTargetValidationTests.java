@@ -1,14 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.reindex;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
@@ -24,6 +24,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.reindex.RemoteInfo;
 import org.elasticsearch.indices.EmptySystemIndices;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
@@ -179,13 +180,7 @@ public class ReindexSourceTargetValidationTests extends ESTestCase {
     }
 
     private static IndexMetadata index(String name, @Nullable Boolean writeIndex, String... aliases) {
-        IndexMetadata.Builder builder = IndexMetadata.builder(name)
-            .settings(
-                Settings.builder()
-                    .put("index.version.created", Version.CURRENT.id)
-                    .put("index.number_of_shards", 1)
-                    .put("index.number_of_replicas", 1)
-            );
+        IndexMetadata.Builder builder = IndexMetadata.builder(name).settings(indexSettings(IndexVersion.current(), 1, 1));
         for (String alias : aliases) {
             builder.putAlias(AliasMetadata.builder(alias).writeIndex(writeIndex).build());
         }

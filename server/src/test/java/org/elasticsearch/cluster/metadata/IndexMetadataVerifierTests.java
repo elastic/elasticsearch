@@ -1,24 +1,28 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.cluster.metadata;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
+import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.MapperRegistry;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.test.index.IndexVersionUtils;
 
 import java.util.Collections;
 
-import static org.elasticsearch.test.VersionUtils.randomIndexCompatibleVersion;
 import static org.hamcrest.Matchers.equalTo;
 
 public class IndexMetadataVerifierTests extends ESTestCase {
@@ -93,20 +97,20 @@ public class IndexMetadataVerifierTests extends ESTestCase {
                 .put("index.similarity.my_similarity.after_effect", "l")
                 .build()
         );
-        service.verifyIndexMetadata(src, Version.CURRENT.minimumIndexCompatibilityVersion());
+        service.verifyIndexMetadata(src, IndexVersions.MINIMUM_COMPATIBLE);
     }
 
     public void testIncompatibleVersion() {
         IndexMetadataVerifier service = getIndexMetadataVerifier();
-        Version minCompat = Version.CURRENT.minimumIndexCompatibilityVersion();
-        Version indexCreated = Version.fromString((minCompat.major - 1) + "." + randomInt(5) + "." + randomInt(5));
+        IndexVersion minCompat = IndexVersions.MINIMUM_COMPATIBLE;
+        IndexVersion indexCreated = IndexVersion.fromId(randomIntBetween(1000099, minCompat.id() - 1));
         final IndexMetadata metadata = newIndexMeta(
             "foo",
             Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, indexCreated).build()
         );
         String message = expectThrows(
             IllegalStateException.class,
-            () -> service.verifyIndexMetadata(metadata, Version.CURRENT.minimumIndexCompatibilityVersion())
+            () -> service.verifyIndexMetadata(metadata, IndexVersions.MINIMUM_COMPATIBLE)
         ).getMessage();
         assertThat(
             message,
@@ -114,31 +118,32 @@ public class IndexMetadataVerifierTests extends ESTestCase {
                 "The index [foo/"
                     + metadata.getIndexUUID()
                     + "] has current compatibility version ["
-                    + indexCreated
+                    + indexCreated.toReleaseVersion()
                     + "] "
                     + "but the minimum compatible version is ["
-                    + minCompat
-                    + "]."
-                    + " It should be re-indexed in Elasticsearch "
-                    + minCompat.major
+                    + minCompat.toReleaseVersion()
+                    + "]. It should be re-indexed in Elasticsearch "
+                    + (Version.CURRENT.major - 1)
                     + ".x before upgrading to "
-                    + Version.CURRENT.toString()
+                    + Build.current().version()
                     + "."
             )
         );
 
-        indexCreated = VersionUtils.randomVersionBetween(random(), minCompat, Version.CURRENT);
+        indexCreated = IndexVersionUtils.randomVersionBetween(random(), minCompat, IndexVersion.current());
         IndexMetadata goodMeta = newIndexMeta("foo", Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, indexCreated).build());
-        service.verifyIndexMetadata(goodMeta, Version.CURRENT.minimumIndexCompatibilityVersion());
+        service.verifyIndexMetadata(goodMeta, IndexVersions.MINIMUM_COMPATIBLE);
     }
 
     private IndexMetadataVerifier getIndexMetadataVerifier() {
         return new IndexMetadataVerifier(
             Settings.EMPTY,
+            null,
             xContentRegistry(),
             new MapperRegistry(Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(), MapperPlugin.NOOP_FIELD_FILTER),
             IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
-            null
+            null,
+            MapperMetrics.NOOP
         );
     }
 
@@ -151,14 +156,10 @@ public class IndexMetadataVerifierTests extends ESTestCase {
     }
 
     private static IndexMetadata.Builder newIndexMetaBuilder(String name, Settings indexSettings) {
-        final Settings settings = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, randomIndexCompatibleVersion(random()))
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, between(0, 5))
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(1, 5))
-            .put(IndexMetadata.SETTING_CREATION_DATE, randomNonNegativeLong())
-            .put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID(random()))
-            .put(indexSettings)
-            .build();
+        final Settings settings = indexSettings(IndexVersionUtils.randomCompatibleVersion(random()), between(1, 5), between(0, 5)).put(
+            IndexMetadata.SETTING_CREATION_DATE,
+            randomNonNegativeLong()
+        ).put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID(random())).put(indexSettings).build();
         final IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(name).settings(settings);
         if (randomBoolean()) {
             indexMetadataBuilder.state(IndexMetadata.State.CLOSE);

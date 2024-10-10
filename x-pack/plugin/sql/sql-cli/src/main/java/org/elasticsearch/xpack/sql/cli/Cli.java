@@ -151,7 +151,7 @@ public class Cli extends Command {
         }
     }
 
-    private void checkConnection(CliSession cliSession, CliTerminal cliTerminal, ConnectionConfiguration con) throws UserException {
+    private static void checkConnection(CliSession cliSession, CliTerminal cliTerminal, ConnectionConfiguration con) throws UserException {
         try {
             cliSession.checkConnection();
         } catch (ClientException ex) {

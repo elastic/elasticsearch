@@ -21,6 +21,9 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
+import static org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata.Type.RESTART;
+import static org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata.Type.SIGTERM;
+
 public class GetShutdownStatusResponseTests extends AbstractWireSerializingTestCase<GetShutdownStatusAction.Response> {
     @Override
     protected Writeable.Reader<GetShutdownStatusAction.Response> instanceReader() {
@@ -48,9 +51,8 @@ public class GetShutdownStatusResponseTests extends AbstractWireSerializingTestC
     public static SingleNodeShutdownMetadata randomNodeShutdownMetadata() {
         final SingleNodeShutdownMetadata.Type type = randomFrom(EnumSet.allOf(SingleNodeShutdownMetadata.Type.class));
         final String targetNodeName = type == SingleNodeShutdownMetadata.Type.REPLACE ? randomAlphaOfLengthBetween(10, 20) : null;
-        final TimeValue allocationDelay = type == SingleNodeShutdownMetadata.Type.RESTART && randomBoolean()
-            ? TimeValue.parseTimeValue(randomPositiveTimeValue(), GetShutdownStatusResponseTests.class.getSimpleName())
-            : null;
+        final TimeValue allocationDelay = type == RESTART && randomBoolean() ? randomPositiveTimeValue() : null;
+        final TimeValue gracefulShutdown = type == SIGTERM ? randomPositiveTimeValue() : null;
         return SingleNodeShutdownMetadata.builder()
             .setNodeId(randomAlphaOfLength(5))
             .setType(type)
@@ -58,13 +60,14 @@ public class GetShutdownStatusResponseTests extends AbstractWireSerializingTestC
             .setStartedAtMillis(randomNonNegativeLong())
             .setTargetNodeName(targetNodeName)
             .setAllocationDelay(allocationDelay)
+            .setGracePeriod(gracefulShutdown)
             .build();
     }
 
     public static SingleNodeShutdownStatus randomNodeShutdownStatus() {
         return new SingleNodeShutdownStatus(
             randomNodeShutdownMetadata(),
-            new ShutdownShardMigrationStatus(randomStatus(), randomNonNegativeLong()),
+            new ShutdownShardMigrationStatus(randomStatus(), randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong()),
             new ShutdownPersistentTasksStatus(),
             new ShutdownPluginsStatus(randomBoolean())
         );

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.percolator;
 
@@ -125,8 +126,7 @@ final class QueryAnalyzer {
                 partialResults.addAll(terms);
             }
             if (children.isEmpty() == false) {
-                List<Result> childResults = children.stream().map(ResultBuilder::getResult).collect(Collectors.toList());
-                partialResults.addAll(childResults);
+                children.stream().map(ResultBuilder::getResult).forEach(partialResults::add);
             }
             if (partialResults.isEmpty()) {
                 return verified ? Result.MATCH_NONE : Result.UNKNOWN;
@@ -243,7 +243,7 @@ final class QueryAnalyzer {
     }
 
     private static Result handleConjunction(List<Result> conjunctionsWithUnknowns) {
-        List<Result> conjunctions = conjunctionsWithUnknowns.stream().filter(r -> r.isUnknown() == false).collect(Collectors.toList());
+        List<Result> conjunctions = conjunctionsWithUnknowns.stream().filter(r -> r.isUnknown() == false).toList();
         if (conjunctions.isEmpty()) {
             if (conjunctionsWithUnknowns.isEmpty()) {
                 throw new IllegalArgumentException("Must have at least one conjunction sub result");

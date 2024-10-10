@@ -75,6 +75,7 @@ markup. Used for identifying named entities.
 <<completion-suggester,`completion`>>:: Used for auto-complete suggestions.
 <<search-as-you-type,`search_as_you_type`>>:: `text`-like type for
 as-you-type completion.
+<<semantic-text, `semantic_text`>>:: Used for performing <<semantic-search,semantic search>>.
 <<token-count,`token_count`>>:: A count of tokens in a text.
 
 
@@ -83,6 +84,7 @@ as-you-type completion.
 ==== Document ranking types
 
 <<dense-vector,`dense_vector`>>::   Records dense vectors of float values.
+<<sparse-vector,`sparse_vector`>>:: Records sparse vectors of float values.
 <<rank-feature,`rank_feature`>>::   Records a numeric feature to boost hits at
                                     query time.
 <<rank-features,`rank_features`>>:: Records numeric features to boost hits at
@@ -177,7 +179,11 @@ include::types/rank-features.asciidoc[]
 
 include::types/search-as-you-type.asciidoc[]
 
+include::types/semantic-text.asciidoc[]
+
 include::types/shape.asciidoc[]
+
+include::types/sparse-vector.asciidoc[]
 
 include::types/text.asciidoc[]
 

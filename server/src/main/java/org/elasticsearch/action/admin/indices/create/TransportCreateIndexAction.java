@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.indices.create;
@@ -11,6 +12,7 @@ package org.elasticsearch.action.admin.indices.create;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ActiveShardCount;
@@ -22,11 +24,12 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.indices.SystemIndices.SystemIndexAccessLevel;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -42,6 +45,7 @@ import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_INDEX_HID
  * Create index action.
  */
 public class TransportCreateIndexAction extends TransportMasterNodeAction<CreateIndexRequest, CreateIndexResponse> {
+    public static final ActionType<CreateIndexResponse> TYPE = new ActionType<>("indices:admin/create");
     private static final Logger logger = LogManager.getLogger(TransportCreateIndexAction.class);
 
     private final MetadataCreateIndexService createIndexService;
@@ -58,7 +62,7 @@ public class TransportCreateIndexAction extends TransportMasterNodeAction<Create
         SystemIndices systemIndices
     ) {
         super(
-            CreateIndexAction.NAME,
+            TYPE.name(),
             transportService,
             clusterService,
             threadPool,
@@ -66,7 +70,7 @@ public class TransportCreateIndexAction extends TransportMasterNodeAction<Create
             CreateIndexRequest::new,
             indexNameExpressionResolver,
             CreateIndexResponse::new,
-            ThreadPool.Names.SAME
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.createIndexService = createIndexService;
         this.systemIndices = systemIndices;
@@ -132,10 +136,10 @@ public class TransportCreateIndexAction extends TransportMasterNodeAction<Create
         // the index to the latest settings.
         if (isManagedSystemIndex && Strings.isNullOrEmpty(request.origin())) {
             final SystemIndexDescriptor descriptor = mainDescriptor.getDescriptorCompatibleWith(
-                state.nodes().getSmallestNonClientNodeVersion()
+                state.getMinSystemIndexMappingVersions().get(mainDescriptor.getPrimaryIndex())
             );
             if (descriptor == null) {
-                final String message = mainDescriptor.getMinimumNodeVersionMessage("create index");
+                final String message = mainDescriptor.getMinimumMappingsVersionMessage("create index");
                 logger.warn(message);
                 listener.onFailure(new IllegalStateException(message));
                 return;
@@ -146,6 +150,9 @@ public class TransportCreateIndexAction extends TransportMasterNodeAction<Create
         }
 
         createIndexService.createIndex(
+            request.masterNodeTimeout(),
+            request.ackTimeout(),
+            request.ackTimeout(),
             updateRequest,
             listener.map(response -> new CreateIndexResponse(response.isAcknowledged(), response.isShardsAcknowledged(), indexName))
         );
@@ -162,9 +169,7 @@ public class TransportCreateIndexAction extends TransportMasterNodeAction<Create
                 alias.isHidden(true);
             }
         }).collect(Collectors.toSet());
-        return new CreateIndexClusterStateUpdateRequest(cause, indexName, request.index()).ackTimeout(request.timeout())
-            .masterNodeTimeout(request.masterNodeTimeout())
-            .settings(request.settings())
+        return new CreateIndexClusterStateUpdateRequest(cause, indexName, request.index()).settings(request.settings())
             .mappings(request.mappings())
             .aliases(aliases)
             .nameResolvedInstant(nameResolvedAt)
@@ -192,15 +197,7 @@ public class TransportCreateIndexAction extends TransportMasterNodeAction<Create
             );
         }
 
-        final CreateIndexClusterStateUpdateRequest updateRequest = new CreateIndexClusterStateUpdateRequest(
-            cause,
-            descriptor.getPrimaryIndex(),
-            request.index()
-        );
-
-        return updateRequest.ackTimeout(request.timeout())
-            .masterNodeTimeout(request.masterNodeTimeout())
-            .aliases(aliases)
+        return new CreateIndexClusterStateUpdateRequest(cause, descriptor.getPrimaryIndex(), request.index()).aliases(aliases)
             .waitForActiveShards(ActiveShardCount.ALL)
             .mappings(descriptor.getMappings())
             .settings(settings);

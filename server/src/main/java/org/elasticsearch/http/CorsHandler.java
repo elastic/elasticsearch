@@ -19,10 +19,11 @@
  * Modifications copyright Elasticsearch B.V.
  *
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.http;
 
@@ -39,6 +40,7 @@ import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -340,7 +342,7 @@ public class CorsHandler {
             private final boolean anyOrigin;
             private boolean allowCredentials = false;
             long maxAge;
-            private final Set<RestRequest.Method> requestMethods = new HashSet<>();
+            private final Set<RestRequest.Method> requestMethods = EnumSet.noneOf(RestRequest.Method.class);
             private final Set<String> requestHeaders = new HashSet<>();
             private final Set<String> accessControlExposeHeaders = new HashSet<>();
 

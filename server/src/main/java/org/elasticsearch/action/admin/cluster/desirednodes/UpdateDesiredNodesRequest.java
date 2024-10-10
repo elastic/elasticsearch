@@ -1,20 +1,24 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.cluster.desirednodes;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.cluster.metadata.DesiredNode;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
@@ -22,9 +26,10 @@ import org.elasticsearch.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
+import java.util.function.Predicate;
 
 public class UpdateDesiredNodesRequest extends AcknowledgedRequest<UpdateDesiredNodesRequest> {
-    private static final TransportVersion DRY_RUN_VERSION = TransportVersion.V_8_4_0;
+    private static final TransportVersion DRY_RUN_VERSION = TransportVersions.V_8_4_0;
 
     private final String historyID;
     private final long version;
@@ -44,7 +49,15 @@ public class UpdateDesiredNodesRequest extends AcknowledgedRequest<UpdateDesired
         PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(), (p, c) -> DesiredNode.fromXContent(p), NODES_FIELD);
     }
 
-    public UpdateDesiredNodesRequest(String historyID, long version, List<DesiredNode> nodes, boolean dryRun) {
+    public UpdateDesiredNodesRequest(
+        TimeValue masterNodeTimeout,
+        TimeValue ackTimeout,
+        String historyID,
+        long version,
+        List<DesiredNode> nodes,
+        boolean dryRun
+    ) {
+        super(masterNodeTimeout, ackTimeout);
         assert historyID != null;
         assert nodes != null;
         this.historyID = historyID;
@@ -57,7 +70,7 @@ public class UpdateDesiredNodesRequest extends AcknowledgedRequest<UpdateDesired
         super(in);
         this.historyID = in.readString();
         this.version = in.readLong();
-        this.nodes = in.readList(DesiredNode::readFrom);
+        this.nodes = in.readCollectionAsList(DesiredNode::readFrom);
         if (in.getTransportVersion().onOrAfter(DRY_RUN_VERSION)) {
             this.dryRun = in.readBoolean();
         } else {
@@ -70,16 +83,22 @@ public class UpdateDesiredNodesRequest extends AcknowledgedRequest<UpdateDesired
         super.writeTo(out);
         out.writeString(historyID);
         out.writeLong(version);
-        out.writeList(nodes);
+        out.writeCollection(nodes);
         if (out.getTransportVersion().onOrAfter(DRY_RUN_VERSION)) {
             out.writeBoolean(dryRun);
         }
     }
 
-    public static UpdateDesiredNodesRequest fromXContent(String historyID, long version, boolean dryRun, XContentParser parser)
-        throws IOException {
+    public static UpdateDesiredNodesRequest fromXContent(
+        TimeValue masterNodeTimeout,
+        TimeValue ackTimeout,
+        String historyID,
+        long version,
+        boolean dryRun,
+        XContentParser parser
+    ) throws IOException {
         List<DesiredNode> nodes = PARSER.parse(parser, null);
-        return new UpdateDesiredNodesRequest(historyID, version, nodes, dryRun);
+        return new UpdateDesiredNodesRequest(masterNodeTimeout, ackTimeout, historyID, version, nodes, dryRun);
     }
 
     public String getHistoryID() {
@@ -98,12 +117,9 @@ public class UpdateDesiredNodesRequest extends AcknowledgedRequest<UpdateDesired
         return dryRun;
     }
 
-    public boolean isCompatibleWithVersion(TransportVersion version) {
-        if (version.onOrAfter(DesiredNode.RANGE_FLOAT_PROCESSORS_SUPPORT_VERSION)) {
-            return true;
-        }
-
-        return nodes.stream().allMatch(desiredNode -> desiredNode.isCompatibleWithVersion(version));
+    public boolean clusterHasRequiredFeatures(Predicate<NodeFeature> clusterHasFeature) {
+        return clusterHasFeature.test(DesiredNode.RANGE_FLOAT_PROCESSORS_SUPPORTED)
+            || nodes.stream().allMatch(n -> n.clusterHasRequiredFeatures(clusterHasFeature));
     }
 
     @Override

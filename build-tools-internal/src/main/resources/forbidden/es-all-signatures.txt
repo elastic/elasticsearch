@@ -1,8 +1,9 @@
-# Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
-# or more contributor license agreements. Licensed under the Elastic License
-# 2.0 and the Server Side Public License, v 1; you may not use this file except
-# in compliance with, at your election, the Elastic License 2.0 or the Server
-# Side Public License, v 1.
+ # Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ # or more contributor license agreements. Licensed under the "Elastic License
+ # 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ # Public License v 1"; you may not use this file except in compliance with, at
+ # your election, the "Elastic License 2.0", the "GNU Affero General Public
+ # License v3.0 only", or the "Server Side Public License, v 1".
 
 java.nio.file.Paths @ Use org.elasticsearch.core.PathUtils.get() instead.
 java.nio.file.Path#of(java.net.URI) @ Use org.elasticsearch.core.PathUtils.get() instead.
@@ -16,11 +17,6 @@ java.util.Random#<init>()
 java.util.concurrent.ThreadLocalRandom
 
 java.security.MessageDigest#clone() @ use org.elasticsearch.common.hash.MessageDigests
-
-@defaultMessage Don't use MethodHandles in slow ways, don't be lenient in tests.
-java.lang.invoke.MethodHandle#invoke(java.lang.Object[])
-java.lang.invoke.MethodHandle#invokeWithArguments(java.lang.Object[])
-java.lang.invoke.MethodHandle#invokeWithArguments(java.util.List)
 
 @defaultMessage Don't open socket connections
 java.net.URL#openStream()

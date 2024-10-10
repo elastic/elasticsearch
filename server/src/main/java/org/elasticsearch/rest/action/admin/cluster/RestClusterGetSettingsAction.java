@@ -1,52 +1,57 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.rest.action.admin.cluster;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.settings.ClusterGetSettingsAction;
 import org.elasticsearch.action.admin.cluster.settings.RestClusterGetSettingsResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.support.master.MasterNodeReadRequest;
-import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.client.internal.node.NodeClient;
-import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Set;
-import java.util.function.Supplier;
+import java.util.function.Predicate;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
+import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
 
+@ServerlessScope(Scope.INTERNAL)
 public class RestClusterGetSettingsAction extends BaseRestHandler {
+
+    public static final NodeFeature SUPPORTS_GET_SETTINGS_ACTION = new NodeFeature("rest.get_settings_action");
 
     private final Settings settings;
     private final ClusterSettings clusterSettings;
     private final SettingsFilter settingsFilter;
-    private final Supplier<DiscoveryNodes> nodesInCluster;
+    private final Predicate<NodeFeature> clusterSupportsFeature;
 
     public RestClusterGetSettingsAction(
         Settings settings,
         ClusterSettings clusterSettings,
         SettingsFilter settingsFilter,
-        Supplier<DiscoveryNodes> nodesInCluster
+        Predicate<NodeFeature> clusterSupportsFeature
     ) {
         this.settings = settings;
         this.clusterSettings = clusterSettings;
         this.settingsFilter = settingsFilter;
-        this.nodesInCluster = nodesInCluster;
+        this.clusterSupportsFeature = clusterSupportsFeature;
     }
 
     @Override
@@ -59,20 +64,19 @@ public class RestClusterGetSettingsAction extends BaseRestHandler {
         return "cluster_get_settings_action";
     }
 
-    private void setUpRequestParams(MasterNodeReadRequest<?> clusterRequest, RestRequest request) {
+    private static void setUpRequestParams(MasterNodeReadRequest<?> clusterRequest, RestRequest request) {
         clusterRequest.local(request.paramAsBoolean("local", clusterRequest.local()));
-        clusterRequest.masterNodeTimeout(request.paramAsTime("master_timeout", clusterRequest.masterNodeTimeout()));
     }
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         final boolean renderDefaults = request.paramAsBoolean("include_defaults", false);
 
-        if (nodesInCluster.get().getMinNodeVersion().before(Version.V_8_3_0)) {
+        if (clusterSupportsFeature.test(SUPPORTS_GET_SETTINGS_ACTION) == false) {
             return prepareLegacyRequest(request, client, renderDefaults);
         }
 
-        ClusterGetSettingsAction.Request clusterSettingsRequest = new ClusterGetSettingsAction.Request();
+        ClusterGetSettingsAction.Request clusterSettingsRequest = new ClusterGetSettingsAction.Request(getMasterNodeTimeout(request));
 
         setUpRequestParams(clusterSettingsRequest, request);
 
@@ -86,7 +90,7 @@ public class RestClusterGetSettingsAction extends BaseRestHandler {
     }
 
     private RestChannelConsumer prepareLegacyRequest(final RestRequest request, final NodeClient client, final boolean renderDefaults) {
-        ClusterStateRequest clusterStateRequest = Requests.clusterStateRequest().routingTable(false).nodes(false);
+        ClusterStateRequest clusterStateRequest = new ClusterStateRequest(getMasterNodeTimeout(request)).routingTable(false).nodes(false);
         setUpRequestParams(clusterStateRequest, request);
         return channel -> client.admin()
             .cluster()

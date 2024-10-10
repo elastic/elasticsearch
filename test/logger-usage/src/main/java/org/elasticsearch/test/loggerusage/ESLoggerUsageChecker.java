@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.test.loggerusage;
@@ -116,8 +117,8 @@ public class ESLoggerUsageChecker {
          */
         public String getErrorLines() {
             String fullClassName = Type.getObjectType(className).getClassName();
-            String simpleClassName = fullClassName.substring(fullClassName.lastIndexOf(".") + 1, fullClassName.length());
-            int innerClassIndex = simpleClassName.indexOf("$");
+            String simpleClassName = fullClassName.substring(fullClassName.lastIndexOf('.') + 1, fullClassName.length());
+            int innerClassIndex = simpleClassName.indexOf('$');
             if (innerClassIndex > 0) {
                 simpleClassName = simpleClassName.substring(0, innerClassIndex);
             }
@@ -364,9 +365,8 @@ public class ESLoggerUsageChecker {
                 && argumentTypes[markerOffset + 1].equals(OBJECT_CLASS)) {
                     // MULTI-PARAM METHOD: debug(Marker?, String, Object p0, ...)
                     checkFixedArityArgs(methodNode, logMessageFrames[i], lineNumber, methodInsn, markerOffset + 0, lengthWithoutMarker - 1);
-                } else if ((lengthWithoutMarker == 1 || lengthWithoutMarker == 2) && lengthWithoutMarker == 2
-                    ? argumentTypes[markerOffset + 1].equals(THROWABLE_CLASS)
-                    : true) {
+                } else if (lengthWithoutMarker == 1
+                    || (lengthWithoutMarker == 2 && argumentTypes[markerOffset + 1].equals(THROWABLE_CLASS))) {
                         // all the rest: debug(Marker?, (Message|MessageSupplier|CharSequence|Object|String|Supplier), Throwable?)
                         checkFixedArityArgs(methodNode, logMessageFrames[i], lineNumber, methodInsn, markerOffset + 0, 0);
                     } else {
@@ -467,7 +467,7 @@ public class ESLoggerUsageChecker {
         }
 
         // counts how many times argAndField was called on the method chain
-        private int getChainedParams(AbstractInsnNode startNode) {
+        private static int getChainedParams(AbstractInsnNode startNode) {
             int c = 0;
             AbstractInsnNode current = startNode;
             while (current.getNext() != null) {

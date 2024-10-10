@@ -41,7 +41,7 @@ Depending upon the size of the job, it could take several minutes to close and
 the equivalent time to re-open.
 
 After it is closed, the job has a minimal overhead on the cluster except for
-maintaining its meta data. Therefore it is a best practice to close jobs that
+maintaining its metadata. Therefore it is a best practice to close jobs that
 are no longer required to process data.
 
 When a {dfeed} that has a specified end date stops, it automatically closes
@@ -59,7 +59,7 @@ results the job might have recently produced or might produce in the future.
 
 `<job_id>`::
 (Required, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection-wildcard]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection-wildcard]
 +
 You can close all jobs by using `_all` or by specifying `*` as the job
 identifier.
@@ -69,7 +69,7 @@ identifier.
 
 `allow_no_match`::
 (Optional, Boolean)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=allow-no-match-jobs]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=allow-no-match-jobs]
 
 `force`::
   (Optional, Boolean) Use to close a failed job, or to forcefully close a job

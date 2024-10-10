@@ -1,7 +1,7 @@
 setup:
 
-  - skip:
-      version: " - 7.6.99"
+  - requires:
+      cluster_features: ["gte_v7.7.0"]
       reason: "constant_keyword was added in 7.7"
 
   - do:
@@ -199,3 +199,275 @@ setup:
   - match: {hits.hits.0.fields.foo.0: bar }
   - match: {hits.hits.1.fields.foo.0: bar }
   - match: {hits.hits.2.fields.foo.0: baz }
+
+---
+"Simple filter":
+  - requires:
+      cluster_features: ["gte_v7.7.0"]
+      reason: "constant_keyword was added in 7.7"
+
+  - do:
+      indices.create:
+        index:  bicycles
+        body:
+          settings:
+            number_of_shards: 1
+          mappings:
+            properties:
+              cycle_type:
+                type: constant_keyword
+                value: bicycle
+              id:
+                type: integer
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - index:
+              _index: bicycles
+              _id: 1
+          - id: 1
+          - index:
+              _index: bicycles
+              _id: 2
+          - id: 2
+          - index:
+              _index: bicycles
+              _id: 3
+          - id: 3
+
+  - do:
+      search:
+        index: bicycles
+        body:
+          size: 0
+          aggs:
+            f:
+              filter:
+                term:
+                  cycle_type: bicycle
+  - match: { hits.total.value: 3 }
+  - match: { aggregations.f.doc_count: 3 }
+
+  - do:
+      search:
+        index: bicycles
+        body:
+          size: 0
+          aggs:
+            f:
+              filter:
+                term:
+                  cycle_type: nomatch
+  - match: { hits.total.value: 3 }
+  - match: { aggregations.f.doc_count: 0 }
+
+  - do:
+      search:
+        index: bicycles
+        body:
+          size: 0
+          aggs:
+            f:
+              filters:
+                other_bucket_key: other_types
+                filters:
+                  nomatch_type:
+                    match:
+                      cycle_type: nomatch
+  - match: { hits.total.value: 3 }
+  - match: { aggregations.f.buckets.nomatch_type.doc_count: 0 }
+  - match: { aggregations.f.buckets.other_types.doc_count: 3 }
+
+
+---
+"Filter with histogram":
+  - requires:
+      cluster_features: ["gte_v7.7.0"]
+      reason: "constant_keyword was added in 7.7"
+
+  - do:
+      indices.create:
+        index:  bicycles
+        body:
+          settings:
+            number_of_shards: 1
+          mappings:
+            properties:
+              cycle_type:
+                type: constant_keyword
+                value: bicycle
+              id:
+                type: integer
+              status:
+                type: keyword
+              price:
+                type: integer
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - index:
+              _index: bicycles
+              _id: 1
+          - id: 1
+            status: up
+            price: 100
+          - index:
+              _index: bicycles
+              _id: 2
+          - id: 2
+            status: up
+            price: 150
+          - index:
+              _index: bicycles
+              _id: 3
+          - id: 3
+            status: down
+            price: 200
+
+  - do:
+      search:
+        index: bicycles
+        body:
+          size: 0
+          aggs:
+            agg:
+              histogram:
+                field: price
+                interval: 50
+              aggs:
+                0-bucket:
+                  filter:
+                    bool:
+                      filter:
+                        - bool:
+                            filter:
+                              - bool:
+                                  filter:
+                                    - bool:
+                                        should:
+                                          - term:
+                                              id: 1
+                                        minimum_should_match: 1
+                                    - bool:
+                                        should:
+                                          - term:
+                                              cycle_type: bicycle
+                                        minimum_should_match: 1
+                              - bool:
+                                  should:
+                                    - term:
+                                        status: up
+                                  minimum_should_match: 1
+  - match: { hits.total.value: 3 }
+  - length: { aggregations.agg.buckets: 3 }
+  - match: { aggregations.agg.buckets.0.key: 100.0 }
+  - match: { aggregations.agg.buckets.0.0-bucket.doc_count: 1 }
+  - match: { aggregations.agg.buckets.1.key: 150.0 }
+  - match: { aggregations.agg.buckets.1.0-bucket.doc_count: 0 }
+  - match: { aggregations.agg.buckets.2.key: 200.0 }
+  - match: { aggregations.agg.buckets.2.0-bucket.doc_count: 0 }
+
+  - do:
+      search:
+        index: bicycles
+        body:
+          size: 0
+          aggs:
+            agg:
+              histogram:
+                field: price
+                interval: 50
+              aggs:
+                0-bucket:
+                  filter:
+                    bool:
+                      filter:
+                        - bool:
+                            filter:
+                              - bool:
+                                  filter:
+                                    - bool:
+                                        should:
+                                          - term:
+                                              id: 1
+                                        minimum_should_match: 1
+                                    - bool:
+                                        should:
+                                          - term:
+                                              cycle_type: nomatch
+                                        minimum_should_match: 1
+                              - bool:
+                                  should:
+                                    - term:
+                                        status: up
+                                  minimum_should_match: 1
+  - match: { hits.total.value: 3 }
+  - length: { aggregations.agg.buckets: 3 }
+  - match: { aggregations.agg.buckets.0.key: 100.0 }
+  - match: { aggregations.agg.buckets.0.0-bucket.doc_count: 0 }
+  - match: { aggregations.agg.buckets.1.key: 150.0 }
+  - match: { aggregations.agg.buckets.1.0-bucket.doc_count: 0 }
+  - match: { aggregations.agg.buckets.2.key: 200.0 }
+  - match: { aggregations.agg.buckets.2.0-bucket.doc_count: 0 }
+
+
+---
+Cardinality agg:
+  - requires:
+      cluster_features: "gte_v7.7.0"
+      reason: "constant_keyword was added in 7.7"
+  - skip:
+      known_issues:
+        - cluster_feature: "gte_v8.9.0"
+          fixed_by: "gte_v8.11.0"
+      reason: "bug introduced in 8.9 and fixed in 8.11"
+  - do:
+      indices.create:
+        index: test3
+        body:
+          mappings:
+            properties:
+              test:
+                type: constant_keyword
+                value: value1
+
+  - do:
+      bulk:
+        index: test3
+        refresh: true
+        body: |
+          {"index":{}}
+          { "test": "value1" }
+
+  - do:
+      search:
+        index: test3
+        body:
+          size: 0
+          aggs:
+            card:
+              cardinality:
+                field: test
+
+  - match: { aggregations.card.value: 1 }
+---
+"deprecated use of multi-fields":
+  - requires:
+      cluster_features: ["gte_v8.14.0"]
+      reason: "deprecation added in 8.14"
+      test_runner_features: warnings
+
+  - do:
+      warnings:
+        - "Adding multifields to [constant_keyword] mappers has no effect and will be forbidden in future"
+      indices.create:
+        index: constant_keyword-multi-field
+        body:
+          mappings:
+            properties:
+              keyword: { "type": "constant_keyword", "fields": {"keyword": {"type": "keyword"}} }
+

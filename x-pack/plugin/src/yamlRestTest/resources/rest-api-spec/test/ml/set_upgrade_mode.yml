@@ -8,7 +8,6 @@ setup:
         body:
           settings:
             index:
-              number_of_replicas: 0
               number_of_shards: 1
           mappings:
             properties:
@@ -59,7 +58,7 @@ setup:
   - do:
       cluster.health:
         index: airline-data
-        wait_for_status: green
+        wait_for_status: yellow
   - do:
       cluster.put_settings:
         body: >

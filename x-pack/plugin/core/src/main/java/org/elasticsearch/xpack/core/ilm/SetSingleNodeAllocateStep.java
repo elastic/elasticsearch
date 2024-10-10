@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.routing.allocation.decider.FilterAllocationDecider;
+import org.elasticsearch.cluster.routing.allocation.decider.IndexVersionAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.NodeReplacementAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.NodeShutdownAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.NodeVersionAllocationDecider;
@@ -74,6 +75,7 @@ public class SetSingleNodeAllocateStep extends AsyncActionStep {
                     new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
                 ),
                 DataTierAllocationDecider.INSTANCE,
+                new IndexVersionAllocationDecider(),
                 new NodeVersionAllocationDecider(),
                 new NodeShutdownAllocationDecider(),
                 new NodeReplacementAllocationDecider()
@@ -113,7 +115,7 @@ public class SetSingleNodeAllocateStep extends AsyncActionStep {
                     .settings(settings);
                 getClient().admin()
                     .indices()
-                    .updateSettings(updateSettingsRequest, ActionListener.wrap(response -> listener.onResponse(null), listener::onFailure));
+                    .updateSettings(updateSettingsRequest, listener.delegateFailureAndWrap((l, response) -> l.onResponse(null)));
             } else {
                 // No nodes currently match the allocation rules, so report this as an error and we'll retry
                 logger.debug("could not find any nodes to allocate index [{}] onto prior to shrink", indexName);

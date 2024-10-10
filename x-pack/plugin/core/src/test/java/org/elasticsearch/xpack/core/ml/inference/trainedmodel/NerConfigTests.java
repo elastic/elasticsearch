@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.inference.InferenceConfigItemTestCase;
@@ -21,7 +21,7 @@ import java.util.stream.Stream;
 
 public class NerConfigTests extends InferenceConfigItemTestCase<NerConfig> {
 
-    public static NerConfig mutateForVersion(NerConfig instance, Version version) {
+    public static NerConfig mutateForVersion(NerConfig instance, TransportVersion version) {
         return new NerConfig(
             instance.getVocabularyConfig(),
             InferenceConfigTestScaffolding.mutateTokenizationForVersion(instance.getTokenization(), version),
@@ -61,7 +61,7 @@ public class NerConfigTests extends InferenceConfigItemTestCase<NerConfig> {
     }
 
     @Override
-    protected NerConfig mutateInstanceForVersion(NerConfig instance, Version version) {
+    protected NerConfig mutateInstanceForVersion(NerConfig instance, TransportVersion version) {
         return mutateForVersion(instance, version);
     }
 

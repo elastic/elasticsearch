@@ -206,7 +206,7 @@ public abstract class SqlProtocolTestCase extends ESRestTestCase {
     }
 
     @SuppressWarnings({ "unchecked" })
-    private void assertFloatingPointNumbersReturnTypes(Request request, Mode mode) throws IOException {
+    private static void assertFloatingPointNumbersReturnTypes(Request request, Mode mode) throws IOException {
         String requestContent = query(
             "SELECT "
                 + "CAST(1234.34 AS REAL) AS float_positive,"
@@ -249,12 +249,19 @@ public abstract class SqlProtocolTestCase extends ESRestTestCase {
         assertEquals(row.get(3), -1234567890123.34d);
     }
 
-    private void assertQuery(String sql, String columnName, String columnType, Object columnValue, int displaySize) throws IOException {
+    private static void assertQuery(String sql, String columnName, String columnType, Object columnValue, int displaySize)
+        throws IOException {
         assertQuery(sql, columnName, columnType, columnValue, null, displaySize);
     }
 
-    private void assertQuery(String sql, String columnName, String columnType, Object columnValue, Object cliColumnValue, int displaySize)
-        throws IOException {
+    private static void assertQuery(
+        String sql,
+        String columnName,
+        String columnType,
+        Object columnValue,
+        Object cliColumnValue,
+        int displaySize
+    ) throws IOException {
         for (Mode mode : Mode.values()) {
             boolean isCliCheck = mode == CLI && cliColumnValue != null;
             assertQuery(sql, columnName, columnType, isCliCheck ? cliColumnValue : columnValue, displaySize, mode);
@@ -262,7 +269,7 @@ public abstract class SqlProtocolTestCase extends ESRestTestCase {
     }
 
     @SuppressWarnings({ "unchecked" })
-    private void assertQuery(String sql, String columnName, String columnType, Object columnValue, int displaySize, Mode mode)
+    private static void assertQuery(String sql, String columnName, String columnType, Object columnValue, int displaySize, Mode mode)
         throws IOException {
         boolean columnar = randomBoolean();
         Map<String, Object> response = runSql(mode, sql, columnar);
@@ -293,7 +300,7 @@ public abstract class SqlProtocolTestCase extends ESRestTestCase {
         }
     }
 
-    private Map<String, Object> runSql(Mode mode, String sql, boolean columnar) throws IOException {
+    private static Map<String, Object> runSql(Mode mode, String sql, boolean columnar) throws IOException {
         Request request = new Request("POST", SQL_QUERY_REST_ENDPOINT);
         String requestContent = query(sql).mode(mode).toString();
         String format = randomFrom(XContentType.JSON, XContentType.SMILE, XContentType.CBOR, XContentType.YAML).name()

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.repositories.gcs;
@@ -11,6 +12,11 @@ package org.elasticsearch.repositories.gcs;
 import com.google.cloud.http.HttpTransportOptions;
 import com.google.cloud.storage.Storage;
 
+import org.apache.http.HttpRequest;
+import org.apache.http.HttpResponse;
+import org.apache.http.entity.ContentType;
+import org.apache.http.entity.StringEntity;
+import org.apache.http.protocol.HttpContext;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.MockSecureSettings;
@@ -21,6 +27,8 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.hamcrest.Matchers;
 
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
 import java.net.Proxy;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
@@ -179,5 +187,23 @@ public class GoogleCloudStorageServiceTests extends ESTestCase {
         assertEquals(-1, GoogleCloudStorageService.toTimeout(null).intValue());
         assertEquals(-1, GoogleCloudStorageService.toTimeout(TimeValue.ZERO).intValue());
         assertEquals(0, GoogleCloudStorageService.toTimeout(TimeValue.MINUS_ONE).intValue());
+    }
+
+    public void testGetDefaultProjectIdViaProxy() throws Exception {
+        String proxyProjectId = randomAlphaOfLength(16);
+        var proxyServer = new MockHttpProxyServer() {
+            @Override
+            public void handle(HttpRequest request, HttpResponse response, HttpContext context) {
+                assertEquals(
+                    "GET http://metadata.google.internal/computeMetadata/v1/project/project-id HTTP/1.1",
+                    request.getRequestLine().toString()
+                );
+                response.setEntity(new StringEntity(proxyProjectId, ContentType.TEXT_PLAIN));
+            }
+        };
+        try (proxyServer) {
+            var proxy = new Proxy(Proxy.Type.HTTP, new InetSocketAddress(InetAddress.getLoopbackAddress(), proxyServer.getPort()));
+            assertEquals(proxyProjectId, SocketAccess.doPrivilegedIOException(() -> GoogleCloudStorageService.getDefaultProjectId(proxy)));
+        }
     }
 }

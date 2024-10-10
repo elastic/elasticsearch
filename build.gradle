@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 
@@ -19,20 +20,29 @@ import org.elasticsearch.gradle.internal.info.BuildParams
 import org.elasticsearch.gradle.util.GradleUtils
 import org.gradle.plugins.ide.eclipse.model.AccessRule
 import org.gradle.plugins.ide.eclipse.model.ProjectDependency
-import org.gradle.util.DistributionLocator
-import org.gradle.util.GradleVersion
+import org.elasticsearch.gradle.DistributionDownloadPlugin
 
 import java.nio.file.Files
 
 import static java.nio.file.StandardCopyOption.REPLACE_EXISTING
 import static org.elasticsearch.gradle.util.GradleUtils.maybeConfigure
 
+buildscript {
+  repositories {
+    maven {
+      url 'https://jitpack.io'
+    }
+
+    mavenCentral()
+  }
+}
+
 plugins {
   id 'lifecycle-base'
   id 'elasticsearch.docker-support'
   id 'elasticsearch.global-build-info'
-  id 'elasticsearch.build-scan'
   id 'elasticsearch.build-complete'
+  id 'elasticsearch.build-scan'
   id 'elasticsearch.jdk-download'
   id 'elasticsearch.internal-distribution-download'
   id 'elasticsearch.runtime-jdk-provision'
@@ -66,6 +76,22 @@ ext.testArtifact = { p, String name = "test" ->
   };
 }
 
+class StepExpansion {
+  String templatePath
+  List<Version> versions
+  String variable
+}
+
+class ListExpansion {
+  List<Version> versions
+  String variable
+}
+
+// Filters out intermediate patch releases to reduce the load of CI testing
+def filterIntermediatePatches = { List<Version> versions ->
+  versions.groupBy {"${it.major}.${it.minor}"}.values().collect {it.max()}
+}
+
 tasks.register("updateCIBwcVersions") {
   def writeVersions = { File file, List<Version> versions ->
     file.text = ""
@@ -74,9 +100,66 @@ tasks.register("updateCIBwcVersions") {
       file << "  - \"$it\"\n"
     }
   }
+
+  def writeBuildkitePipeline = { String outputFilePath, String pipelineTemplatePath, List<ListExpansion> listExpansions, List<StepExpansion> stepExpansions = [] ->
+    def outputFile = file(outputFilePath)
+    def pipelineTemplate = file(pipelineTemplatePath)
+
+    def pipeline = pipelineTemplate.text
+
+    listExpansions.each { expansion ->
+      def listString = "[" + expansion.versions.collect { "\"${it}\"" }.join(", ") + "]"
+      pipeline = pipeline.replaceAll('\\$' + expansion.variable, listString)
+    }
+
+    stepExpansions.each { expansion ->
+      def steps = ""
+      expansion.versions.each {
+        steps += "\n" + file(expansion.templatePath).text.replaceAll('\\$BWC_VERSION', it.toString())
+      }
+      pipeline = pipeline.replaceAll(' *\\$' + expansion.variable, steps)
+    }
+
+    outputFile.text = "# This file is auto-generated. See ${pipelineTemplatePath}\n" + pipeline
+  }
+
+  // Writes a Buildkite pipelime from a template, and replaces $BWC_LIST with an array of versions
+  // Useful for writing a list of versions in a matrix configuration
+  def expandBwcList = { String outputFilePath, String pipelineTemplatePath, List<Version> versions ->
+    writeBuildkitePipeline(outputFilePath, pipelineTemplatePath, [new ListExpansion(versions: versions, variable: "BWC_LIST")])
+  }
+
+  // Writes a Buildkite pipeline from a template, and replaces $BWC_STEPS with a list of steps, one for each version
+  // Useful when you need to configure more versions than are allowed in a matrix configuration
+  def expandBwcSteps = { String outputFilePath, String pipelineTemplatePath, String stepTemplatePath, List<Version> versions ->
+    writeBuildkitePipeline(outputFilePath, pipelineTemplatePath, [], [new StepExpansion(templatePath: stepTemplatePath, versions: versions, variable: "BWC_STEPS")])
+  }
+
   doLast {
-    writeVersions(file(".ci/bwcVersions"), BuildParams.bwcVersions.allIndexCompatible)
-    writeVersions(file(".ci/snapshotBwcVersions"), BuildParams.bwcVersions.unreleasedIndexCompatible)
+    writeVersions(file(".ci/bwcVersions"), filterIntermediatePatches(BuildParams.bwcVersions.indexCompatible))
+    writeVersions(file(".ci/snapshotBwcVersions"), filterIntermediatePatches(BuildParams.bwcVersions.unreleasedIndexCompatible))
+    expandBwcList(
+      ".buildkite/pipelines/intake.yml",
+      ".buildkite/pipelines/intake.template.yml",
+      filterIntermediatePatches(BuildParams.bwcVersions.unreleasedIndexCompatible)
+    )
+    writeBuildkitePipeline(
+      ".buildkite/pipelines/periodic.yml",
+      ".buildkite/pipelines/periodic.template.yml",
+      [
+        new ListExpansion(versions: filterIntermediatePatches(BuildParams.bwcVersions.unreleasedIndexCompatible), variable: "BWC_LIST"),
+      ],
+      [
+        new StepExpansion(templatePath: ".buildkite/pipelines/periodic.bwc.template.yml", versions: filterIntermediatePatches(BuildParams.bwcVersions.indexCompatible), variable: "BWC_STEPS"),
+      ]
+    )
+
+    expandBwcSteps(
+      ".buildkite/pipelines/periodic-packaging.yml",
+      ".buildkite/pipelines/periodic-packaging.template.yml",
+      ".buildkite/pipelines/periodic-packaging.bwc.template.yml",
+      filterIntermediatePatches(BuildParams.bwcVersions.indexCompatible)
+    )
   }
 }
 
@@ -104,7 +187,7 @@ tasks.register("verifyVersions") {
           .collect { Version.fromString(it) }
       )
     }
-    verifyCiYaml(file(".ci/bwcVersions"), BuildParams.bwcVersions.allIndexCompatible)
+    verifyCiYaml(file(".ci/bwcVersions"), filterIntermediatePatches(BuildParams.bwcVersions.indexCompatible))
     verifyCiYaml(file(".ci/snapshotBwcVersions"), BuildParams.bwcVersions.unreleasedIndexCompatible)
 
     // Make sure backport bot config file is up to date
@@ -124,8 +207,10 @@ tasks.register("verifyVersions") {
     String versionMapping = backportConfig.get("branchLabelMapping").fields().find { it.value.textValue() == 'main' }.key
     String expectedMapping = "^v${versions.elasticsearch.replaceAll('-SNAPSHOT', '')}\$"
     if (versionMapping != expectedMapping) {
-      throw new GradleException("Backport label mapping for branch 'main' is '${versionMapping}' but should be " +
-        "'${expectedMapping}'. Update .backportrc.json.")
+      throw new GradleException(
+        "Backport label mapping for branch 'main' is '${versionMapping}' but should be " +
+          "'${expectedMapping}'. Update .backportrc.json."
+      )
     }
   }
 }
@@ -149,8 +234,8 @@ if (bwc_tests_enabled == false) {
   println "See ${bwc_tests_disabled_issue}"
   println "==========================================================="
 }
-if (project.gradle.startParameter.taskNames.find { it.startsWith("checkPart") } != null) {
-  // Disable BWC tests for checkPart* tasks as it's expected that this will run un it's own check
+if (project.gradle.startParameter.taskNames.any { it.startsWith("checkPart") || it == 'functionalTests' }) {
+  // Disable BWC tests for checkPart* tasks and platform support tests as it's expected that this will run on it's own check
   bwc_tests_enabled = false
 }
 
@@ -174,9 +259,9 @@ allprojects {
   project.ext {
     // for ide hacks...
     isEclipse = providers.systemProperty("eclipse.launcher").isPresent() ||   // Detects gradle launched from Eclipse's IDE
-            providers.systemProperty("eclipse.application").isPresent() ||    // Detects gradle launched from the Eclipse compiler server
-            gradle.startParameter.taskNames.contains('eclipse') ||  // Detects gradle launched from the command line to do eclipse stuff
-            gradle.startParameter.taskNames.contains('cleanEclipse')
+      providers.systemProperty("eclipse.application").isPresent() ||    // Detects gradle launched from the Eclipse compiler server
+      gradle.startParameter.taskNames.contains('eclipse') ||  // Detects gradle launched from the command line to do eclipse stuff
+      gradle.startParameter.taskNames.contains('cleanEclipse')
   }
 
   ext.bwc_tests_enabled = bwc_tests_enabled
@@ -192,31 +277,43 @@ allprojects {
     eclipse.classpath.file.whenMerged { classpath ->
       if (false == forbiddenApisTest.bundledSignatures.contains('jdk-non-portable')) {
         classpath.entries
-                .findAll { it.kind == "con" && it.toString().contains("org.eclipse.jdt.launching.JRE_CONTAINER") }
-                .each {
-                  it.accessRules.add(new AccessRule("accessible", "com/sun/net/httpserver/*"))
-                }
+          .findAll { it.kind == "con" && it.toString().contains("org.eclipse.jdt.launching.JRE_CONTAINER") }
+          .each {
+            it.accessRules.add(new AccessRule("accessible", "com/sun/net/httpserver/*"))
+          }
       }
     }
   }
 
   tasks.register('resolveAllDependencies', ResolveAllDependencies) {
-    configs = project.configurations
+    def ignoredPrefixes = [DistributionDownloadPlugin.ES_DISTRO_CONFIG_PREFIX, "jdbcDriver"]
+    configs = project.configurations.matching { config -> ignoredPrefixes.any { config.name.startsWith(it) } == false }
+    resolveJavaToolChain = true
     if (project.path.contains("fixture")) {
       dependsOn tasks.withType(ComposePull)
     }
+    if (project.path.contains(":distribution:docker")) {
+      enabled = false
+    }
+
   }
 
   plugins.withId('lifecycle-base') {
     if (project.path.startsWith(":x-pack:")) {
       if (project.path.contains("security") || project.path.contains(":ml")) {
+        tasks.register('checkPart4') { dependsOn 'check' }
+      } else if (project.path == ":x-pack:plugin" || project.path.contains("ql") ||  project.path.contains("smoke-test")) {
         tasks.register('checkPart3') { dependsOn 'check' }
+      } else if (project.path.contains("multi-node")) {
+        tasks.register('checkPart5') { dependsOn 'check' }
       } else {
         tasks.register('checkPart2') { dependsOn 'check' }
       }
     } else {
       tasks.register('checkPart1') { dependsOn 'check' }
     }
+
+    tasks.register('functionalTests') { dependsOn 'check' }
   }
 
   /*
@@ -241,22 +338,22 @@ allprojects {
       // :test:framework:test cannot run before and after :server:test
       return
     }
-    tasks.matching { it.name.equals('integTest')}.configureEach {integTestTask ->
+    tasks.matching { it.name.equals('integTest') }.configureEach { integTestTask ->
       integTestTask.mustRunAfter tasks.matching { it.name.equals("test") }
     }
 
-    configurations.matching { it.canBeResolved }.all { Configuration configuration ->
+/*    configurations.matching { it.canBeResolved }.all { Configuration configuration ->
       dependencies.matching { it instanceof ProjectDependency }.all { ProjectDependency dep ->
         Project upstreamProject = dep.dependencyProject
         if (project.path != upstreamProject?.path) {
           for (String taskName : ['test', 'integTest']) {
-            project.tasks.matching { it.name == taskName }.configureEach {task ->
+            project.tasks.matching { it.name == taskName }.configureEach { task ->
               task.shouldRunAfter(upstreamProject.tasks.matching { upStreamTask -> upStreamTask.name == taskName })
             }
           }
         }
       }
-    }
+    }*/
   }
 
   apply plugin: 'elasticsearch.formatting'
@@ -280,13 +377,6 @@ tasks.register("branchConsistency") {
 tasks.named("wrapper").configure {
   distributionType = 'ALL'
   doLast {
-    final DistributionLocator locator = new DistributionLocator()
-    final GradleVersion version = GradleVersion.version(wrapper.gradleVersion)
-    final URI distributionUri = locator.getDistributionFor(version, wrapper.distributionType.name().toLowerCase(Locale.ENGLISH))
-    final URI sha256Uri = new URI(distributionUri.toString() + ".sha256")
-    final String sha256Sum = new String(sha256Uri.toURL().bytes)
-    wrapper.getPropertiesFile() << "distributionSha256Sum=${sha256Sum}\n"
-    println "Added checksum to wrapper properties"
     // copy wrapper properties file to build-tools-internal to allow seamless idea integration
     def file = new File("build-tools-internal/gradle/wrapper/gradle-wrapper.properties")
     Files.copy(wrapper.getPropertiesFile().toPath(), file.toPath(), REPLACE_EXISTING)
@@ -353,6 +443,7 @@ tasks.register("buildReleaseArtifacts").configure {
     it.path.startsWith(':distribution:docker') == false
       && it.path.startsWith(':ml-cpp') == false
       && it.path.startsWith(':distribution:bwc') == false
+      && it.path.startsWith(':test:fixture') == false
   }
     .collect { GradleUtils.findByName(it.tasks, 'assemble') }
     .findAll { it != null }

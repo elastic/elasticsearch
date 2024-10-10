@@ -1,23 +1,31 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.rest.action.admin.cluster;
 
+import org.elasticsearch.action.ClusterStatsLevel;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.action.RestStatusToXContentListener;
+import org.elasticsearch.rest.RestUtils;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
+import org.elasticsearch.rest.action.RestCancellableNodeClient;
+import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -25,9 +33,9 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 
-import static org.elasticsearch.client.internal.Requests.clusterHealthRequest;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
+@ServerlessScope(Scope.INTERNAL)
 public class RestClusterHealthAction extends BaseRestHandler {
 
     @Override
@@ -48,14 +56,21 @@ public class RestClusterHealthAction extends BaseRestHandler {
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         final ClusterHealthRequest clusterHealthRequest = fromRequest(request);
-        return channel -> client.admin().cluster().health(clusterHealthRequest, new RestStatusToXContentListener<>(channel));
+        return channel -> new RestCancellableNodeClient(client, request.getHttpChannel()).admin()
+            .cluster()
+            .health(clusterHealthRequest, new RestToXContentListener<>(channel, ClusterHealthResponse::status));
     }
 
     public static ClusterHealthRequest fromRequest(final RestRequest request) {
-        final ClusterHealthRequest clusterHealthRequest = clusterHealthRequest(Strings.splitStringByCommaToArray(request.param("index")));
+        String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
+
+        final var masterNodeTimeout = request.hasParam(RestUtils.REST_MASTER_TIMEOUT_PARAM)
+            ? RestUtils.getMasterNodeTimeout(request)
+            : request.paramAsTime("timeout", RestUtils.REST_MASTER_TIMEOUT_DEFAULT);
+
+        final ClusterHealthRequest clusterHealthRequest = new ClusterHealthRequest(masterNodeTimeout, indices);
         clusterHealthRequest.indicesOptions(IndicesOptions.fromRequest(request, clusterHealthRequest.indicesOptions()));
         clusterHealthRequest.local(request.paramAsBoolean("local", clusterHealthRequest.local()));
-        clusterHealthRequest.masterNodeTimeout(request.paramAsTime("master_timeout", clusterHealthRequest.masterNodeTimeout()));
         clusterHealthRequest.timeout(request.paramAsTime("timeout", clusterHealthRequest.timeout()));
         String waitForStatus = request.param("wait_for_status");
         if (waitForStatus != null) {
@@ -81,6 +96,8 @@ public class RestClusterHealthAction extends BaseRestHandler {
         if (request.param("wait_for_events") != null) {
             clusterHealthRequest.waitForEvents(Priority.valueOf(request.param("wait_for_events").toUpperCase(Locale.ROOT)));
         }
+        // level parameter validation
+        ClusterStatsLevel.of(request, ClusterStatsLevel.CLUSTER);
         return clusterHealthRequest;
     }
 
@@ -94,6 +111,11 @@ public class RestClusterHealthAction extends BaseRestHandler {
     @Override
     public boolean canTripCircuitBreaker() {
         return false;
+    }
+
+    @Override
+    public Set<String> supportedCapabilities() {
+        return Sets.union(Set.of("unassigned_pri_shard_count"), super.supportedCapabilities());
     }
 
 }

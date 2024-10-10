@@ -1,20 +1,20 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.routing.allocation.allocator;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 
 import java.util.ArrayList;
 import java.util.List;
-
-import static org.elasticsearch.action.support.ContextPreservingActionListener.wrapPreservingContext;
 
 /**
  * This event listener might be needed to delay execution of multiple distinct tasks until followup reroute is complete.
@@ -30,7 +30,7 @@ public class AllocationActionMultiListener<T> {
     }
 
     public ActionListener<T> delay(ActionListener<T> delegate) {
-        final var wrappedDelegate = wrapPreservingContext(delegate, context);
+        final var wrappedDelegate = new ContextPreservingActionListener<>(context.newRestorableContext(false), delegate);
         return new ActionListener<T>() {
             @Override
             public void onResponse(T response) {
@@ -94,5 +94,5 @@ public class AllocationActionMultiListener<T> {
         return listeners;
     }
 
-    private record DelayedListener<T> (ActionListener<T> listener, T response) {}
+    private record DelayedListener<T>(ActionListener<T> listener, T response) {}
 }

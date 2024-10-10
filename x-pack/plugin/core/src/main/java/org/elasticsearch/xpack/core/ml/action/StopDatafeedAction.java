@@ -39,7 +39,7 @@ public class StopDatafeedAction extends ActionType<StopDatafeedAction.Response> 
     public static final TimeValue DEFAULT_TIMEOUT = TimeValue.timeValueMinutes(5);
 
     private StopDatafeedAction() {
-        super(NAME, StopDatafeedAction.Response::new);
+        super(NAME);
     }
 
     public static class Request extends BaseTasksRequest<Request> implements ToXContentObject {
@@ -60,10 +60,6 @@ public class StopDatafeedAction extends ActionType<StopDatafeedAction.Response> 
             PARSER.declareBoolean(Request::setForce, FORCE);
             PARSER.declareBoolean(Request::setAllowNoMatch, ALLOW_NO_MATCH);
             PARSER.declareBoolean(Request::setAllowNoMatch, ALLOW_NO_MATCH_V7);
-        }
-
-        public static Request fromXContent(XContentParser parser) {
-            return parseRequest(null, parser);
         }
 
         public static Request parseRequest(String datafeedId, XContentParser parser) {

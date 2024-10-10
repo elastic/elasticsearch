@@ -1,13 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.threadpool;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -15,6 +16,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.SizeValue;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -47,7 +49,7 @@ public class ThreadPoolSerializationTests extends ESTestCase {
             TimeValue.timeValueMillis(3000),
             SizeValue.parseSizeValue("10k")
         );
-        output.setVersion(Version.CURRENT);
+        output.setTransportVersion(TransportVersion.current());
         info.writeTo(output);
 
         StreamInput input = output.bytes().streamInput();
@@ -58,7 +60,7 @@ public class ThreadPoolSerializationTests extends ESTestCase {
 
     public void testThatNegativeQueueSizesCanBeSerialized() throws Exception {
         ThreadPool.Info info = new ThreadPool.Info("foo", threadPoolType, 1, 10, TimeValue.timeValueMillis(3000), null);
-        output.setVersion(Version.CURRENT);
+        output.setTransportVersion(TransportVersion.current());
         info.writeTo(output);
 
         StreamInput input = output.bytes().streamInput();
@@ -84,7 +86,7 @@ public class ThreadPoolSerializationTests extends ESTestCase {
 
     public void testThatNegativeSettingAllowsToStart() throws InterruptedException {
         Settings settings = Settings.builder().put("node.name", "write").put("thread_pool.write.queue_size", "-1").build();
-        ThreadPool threadPool = new ThreadPool(settings);
+        ThreadPool threadPool = new ThreadPool(settings, MeterRegistry.NOOP, new DefaultBuiltInExecutorBuilders());
         assertThat(threadPool.info("write").getQueueSize(), is(nullValue()));
         terminate(threadPool);
     }
@@ -113,7 +115,7 @@ public class ThreadPoolSerializationTests extends ESTestCase {
 
     public void testThatThreadPoolTypeIsSerializedCorrectly() throws IOException {
         ThreadPool.Info info = new ThreadPool.Info("foo", threadPoolType);
-        output.setVersion(Version.CURRENT);
+        output.setTransportVersion(TransportVersion.current());
         info.writeTo(output);
 
         StreamInput input = output.bytes().streamInput();

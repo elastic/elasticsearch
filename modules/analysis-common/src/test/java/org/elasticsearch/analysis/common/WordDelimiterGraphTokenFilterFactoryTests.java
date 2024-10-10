@@ -1,20 +1,22 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.analysis.common;
 
 import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.core.WhitespaceTokenizer;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
+import org.elasticsearch.index.IndexService.IndexCreationContext;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.analysis.AnalysisTestsHelper;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
@@ -23,11 +25,13 @@ import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.plugins.scanners.StablePluginsRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
-import org.elasticsearch.test.VersionUtils;
 
 import java.io.IOException;
 import java.io.StringReader;
 import java.util.Collections;
+
+import static org.apache.lucene.tests.analysis.BaseTokenStreamTestCase.assertAnalyzesTo;
+import static org.apache.lucene.tests.analysis.BaseTokenStreamTestCase.assertTokenStreamContents;
 
 public class WordDelimiterGraphTokenFilterFactoryTests extends BaseWordDelimiterTokenFilterFactoryTestCase {
     public WordDelimiterGraphTokenFilterFactoryTests() {
@@ -178,57 +182,26 @@ public class WordDelimiterGraphTokenFilterFactoryTests extends BaseWordDelimiter
     }
 
     public void testPreconfiguredFilter() throws IOException {
-        // Before 7.3 we don't adjust offsets
-        {
-            Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build();
-            Settings indexSettings = Settings.builder()
-                .put(
-                    IndexMetadata.SETTING_VERSION_CREATED,
-                    VersionUtils.randomVersionBetween(random(), Version.V_7_0_0, VersionUtils.getPreviousVersion(Version.V_7_3_0))
-                )
-                .put("index.analysis.analyzer.my_analyzer.tokenizer", "standard")
-                .putList("index.analysis.analyzer.my_analyzer.filter", "word_delimiter_graph")
-                .build();
-            IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", indexSettings);
+        Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build();
+        Settings indexSettings = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+            .put("index.analysis.analyzer.my_analyzer.tokenizer", "standard")
+            .putList("index.analysis.analyzer.my_analyzer.filter", "word_delimiter_graph")
+            .build();
+        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", indexSettings);
 
-            try (
-                IndexAnalyzers indexAnalyzers = new AnalysisModule(
-                    TestEnvironment.newEnvironment(settings),
-                    Collections.singletonList(new CommonAnalysisPlugin()),
-                    new StablePluginsRegistry()
-                ).getAnalysisRegistry().build(idxSettings)
-            ) {
+        try (
+            IndexAnalyzers indexAnalyzers = new AnalysisModule(
+                TestEnvironment.newEnvironment(settings),
+                Collections.singletonList(new CommonAnalysisPlugin()),
+                new StablePluginsRegistry()
+            ).getAnalysisRegistry().build(IndexCreationContext.CREATE_INDEX, idxSettings)
+        ) {
 
-                NamedAnalyzer analyzer = indexAnalyzers.get("my_analyzer");
-                assertNotNull(analyzer);
-                assertAnalyzesTo(analyzer, "h100", new String[] { "h", "100" }, new int[] { 0, 0 }, new int[] { 4, 4 });
+            NamedAnalyzer analyzer = indexAnalyzers.get("my_analyzer");
+            assertNotNull(analyzer);
+            assertAnalyzesTo(analyzer, "h100", new String[] { "h", "100" }, new int[] { 0, 1 }, new int[] { 1, 4 });
 
-            }
-        }
-
-        // Afger 7.3 we do adjust offsets
-        {
-            Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build();
-            Settings indexSettings = Settings.builder()
-                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-                .put("index.analysis.analyzer.my_analyzer.tokenizer", "standard")
-                .putList("index.analysis.analyzer.my_analyzer.filter", "word_delimiter_graph")
-                .build();
-            IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", indexSettings);
-
-            try (
-                IndexAnalyzers indexAnalyzers = new AnalysisModule(
-                    TestEnvironment.newEnvironment(settings),
-                    Collections.singletonList(new CommonAnalysisPlugin()),
-                    new StablePluginsRegistry()
-                ).getAnalysisRegistry().build(idxSettings)
-            ) {
-
-                NamedAnalyzer analyzer = indexAnalyzers.get("my_analyzer");
-                assertNotNull(analyzer);
-                assertAnalyzesTo(analyzer, "h100", new String[] { "h", "100" }, new int[] { 0, 1 }, new int[] { 1, 4 });
-
-            }
         }
     }
 }

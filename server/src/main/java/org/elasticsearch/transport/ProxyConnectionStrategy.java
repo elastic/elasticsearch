@@ -1,19 +1,21 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.transport;
 
-import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.VersionInformation;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -22,12 +24,18 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.concurrent.CountDown;
+import org.elasticsearch.core.Predicates;
+import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
@@ -166,23 +174,31 @@ public class ProxyConnectionStrategy extends RemoteConnectionStrategy {
         this.configuredServerName = configuredServerName;
         assert Strings.isEmpty(configuredAddress) == false : "Cannot use proxy connection strategy with no configured addresses";
         this.address = address;
-        this.clusterNameValidator = (newConnection, actualProfile, listener) -> transportService.handshake(
-            newConnection,
-            actualProfile.getHandshakeTimeout(),
-            cn -> true,
-            listener.map(resp -> {
-                ClusterName remote = resp.getClusterName();
-                if (remoteClusterName.compareAndSet(null, remote)) {
-                    return null;
-                } else {
-                    if (remoteClusterName.get().equals(remote) == false) {
-                        DiscoveryNode node = newConnection.getNode();
-                        throw new ConnectTransportException(node, "handshake failed. unexpected remote cluster name " + remote);
+        this.clusterNameValidator = (newConnection, actualProfile, listener) -> {
+            assert actualProfile.getTransportProfile().equals(connectionManager.getConnectionProfile().getTransportProfile())
+                : "transport profile must be consistent between the connection manager and the actual profile";
+            transportService.handshake(
+                RemoteConnectionManager.wrapConnectionWithRemoteClusterInfo(
+                    newConnection,
+                    clusterAlias,
+                    connectionManager.getCredentialsManager()
+                ),
+                actualProfile.getHandshakeTimeout(),
+                Predicates.always(),
+                listener.map(resp -> {
+                    ClusterName remote = resp.getClusterName();
+                    if (remoteClusterName.compareAndSet(null, remote)) {
+                        return null;
+                    } else {
+                        if (remoteClusterName.get().equals(remote) == false) {
+                            DiscoveryNode node = newConnection.getNode();
+                            throw new ConnectTransportException(node, "handshake failed. unexpected remote cluster name " + remote);
+                        }
+                        return null;
                     }
-                    return null;
-                }
-            })
-        );
+                })
+            );
+        };
     }
 
     static Stream<Setting.AffixSetting<?>> enablementSettings() {
@@ -236,6 +252,8 @@ public class ProxyConnectionStrategy extends RemoteConnectionStrategy {
 
                 private final AtomicInteger successfulConnections = new AtomicInteger(0);
                 private final CountDown countDown = new CountDown(remaining);
+                // Collecting exceptions during connection but deduplicate them by type and message to avoid excessive error reporting
+                private final Map<Tuple<Class<?>, String>, Exception> exceptions = new ConcurrentHashMap<>();
 
                 @Override
                 public void onResponse(Void v) {
@@ -244,6 +262,7 @@ public class ProxyConnectionStrategy extends RemoteConnectionStrategy {
                         if (shouldOpenMoreConnections()) {
                             openConnections(finished, attemptNumber + 1);
                         } else {
+                            assert connectionManager.size() > 0 : "must have at least one opened connection";
                             finished.onResponse(v);
                         }
                     }
@@ -251,8 +270,19 @@ public class ProxyConnectionStrategy extends RemoteConnectionStrategy {
 
                 @Override
                 public void onFailure(Exception e) {
+                    exceptions.put(new Tuple<>(e.getClass(), e.getMessage()), e);
                     if (countDown.countDown()) {
-                        openConnections(finished, attemptNumber + 1);
+                        if (attemptNumber >= MAX_CONNECT_ATTEMPTS_PER_RUN && connectionManager.size() == 0) {
+                            logger.warn(() -> "failed to open any proxy connections to cluster [" + clusterAlias + "]", e);
+                            if (exceptions.values().stream().allMatch(RemoteConnectionStrategy::isRetryableException)) {
+                                finished.onFailure(getNoSeedNodeLeftException(exceptions.values()));
+                            } else {
+                                exceptions.values().stream().filter(e1 -> e1 != e).forEach(e::addSuppressed);
+                                finished.onFailure(e);
+                            }
+                        } else {
+                            openConnections(finished, attemptNumber + 1);
+                        }
                     }
                 }
             };
@@ -266,11 +296,16 @@ public class ProxyConnectionStrategy extends RemoteConnectionStrategy {
                     attributes = Collections.singletonMap("server_name", configuredServerName);
                 }
                 DiscoveryNode node = new DiscoveryNode(
+                    null,
                     id,
                     resolved,
                     attributes,
                     DiscoveryNodeRole.roles(),
-                    Version.CURRENT.minimumCompatibilityVersion()
+                    new VersionInformation(
+                        Version.CURRENT.minimumCompatibilityVersion(),
+                        IndexVersions.MINIMUM_COMPATIBLE,
+                        IndexVersion.current()
+                    )
                 );
 
                 connectionManager.connectToRemoteClusterNode(node, clusterNameValidator, compositeListener.delegateResponse((l, e) -> {
@@ -282,19 +317,22 @@ public class ProxyConnectionStrategy extends RemoteConnectionStrategy {
                 }));
             }
         } else {
-            int openConnections = connectionManager.size();
-            if (openConnections == 0) {
-                finished.onFailure(new NoSeedNodeLeftException(strategyType(), clusterAlias));
-            } else {
-                logger.debug(
-                    "unable to open maximum number of connections [remote cluster: {}, opened: {}, maximum: {}]",
-                    clusterAlias,
-                    openConnections,
-                    maxNumConnections
-                );
-                finished.onResponse(null);
-            }
+            logger.debug(
+                "unable to open maximum number of connections [remote cluster: {}, opened: {}, maximum: {}]",
+                clusterAlias,
+                connectionManager.size(),
+                maxNumConnections
+            );
+            finished.onResponse(null);
         }
+    }
+
+    private NoSeedNodeLeftException getNoSeedNodeLeftException(Collection<Exception> suppressedExceptions) {
+        final var e = new NoSeedNodeLeftException(
+            "Unable to open any proxy connections to cluster [" + clusterAlias + "] at address [" + address.get() + "]"
+        );
+        suppressedExceptions.forEach(e::addSuppressed);
+        return e;
     }
 
     private static TransportAddress resolveAddress(String address) {
@@ -317,7 +355,7 @@ public class ProxyConnectionStrategy extends RemoteConnectionStrategy {
 
         private ProxyModeInfo(StreamInput input) throws IOException {
             address = input.readString();
-            if (input.getTransportVersion().onOrAfter(TransportVersion.V_7_7_0)) {
+            if (input.getTransportVersion().onOrAfter(TransportVersions.V_7_7_0)) {
                 serverName = input.readString();
             } else {
                 serverName = null;
@@ -338,7 +376,7 @@ public class ProxyConnectionStrategy extends RemoteConnectionStrategy {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(address);
-            if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_7_0)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_7_0)) {
                 out.writeString(serverName);
             }
             out.writeVInt(maxSocketConnections);
@@ -353,22 +391,6 @@ public class ProxyConnectionStrategy extends RemoteConnectionStrategy {
         @Override
         public String modeName() {
             return "proxy";
-        }
-
-        public String getAddress() {
-            return address;
-        }
-
-        public String getServerName() {
-            return serverName;
-        }
-
-        public int getMaxSocketConnections() {
-            return maxSocketConnections;
-        }
-
-        public int getNumSocketsConnected() {
-            return numSocketsConnected;
         }
 
         @Override

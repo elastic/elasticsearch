@@ -1,16 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.plugins;
 
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
@@ -70,16 +70,11 @@ public class IndexFoldersDeletionListenerIT extends ESIntegTestCase {
         ensureStableCluster(2 + 1, masterNode);
 
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
-        createIndex(
-            indexName,
-            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 2).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build()
-        );
+        createIndex(indexName, 2, 0);
 
         final NumShards numShards = getNumShards(indexName);
         assertFalse(
-            client().admin()
-                .cluster()
-                .prepareHealth()
+            clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT)
                 .setIndices(indexName)
                 .setWaitForGreenStatus()
                 .setWaitForEvents(Priority.LANGUID)
@@ -98,7 +93,7 @@ public class IndexFoldersDeletionListenerIT extends ESIntegTestCase {
             assertNoDeletions(shardsByNode.getKey());
         }
 
-        assertAcked(client().admin().indices().prepareDelete(indexName));
+        assertAcked(indicesAdmin().prepareDelete(indexName));
         assertPendingDeletesProcessed();
 
         assertBusy(() -> {
@@ -142,19 +137,11 @@ public class IndexFoldersDeletionListenerIT extends ESIntegTestCase {
         ensureStableCluster(4 + 1, masterNode);
 
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
-        createIndex(
-            indexName,
-            Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 4)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, between(0, 1))
-                .build()
-        );
+        createIndex(indexName, 4, between(0, 1));
 
         final NumShards numShards = getNumShards(indexName);
         assertFalse(
-            client().admin()
-                .cluster()
-                .prepareHealth()
+            clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT)
                 .setIndices(indexName)
                 .setWaitForGreenStatus()
                 .setWaitForEvents(Priority.LANGUID)
@@ -175,12 +162,7 @@ public class IndexFoldersDeletionListenerIT extends ESIntegTestCase {
 
         final List<String> excludedNodes = randomSubsetOf(2, shardsByNodes.keySet());
         logger.info("--> excluding nodes {}", excludedNodes);
-        assertAcked(
-            client().admin()
-                .indices()
-                .prepareUpdateSettings(indexName)
-                .setSettings(Settings.builder().put("index.routing.allocation.exclude._name", String.join(",", excludedNodes)).build())
-        );
+        updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._name", String.join(",", excludedNodes)), indexName);
         ensureGreen(indexName);
 
         assertBusy(() -> {
@@ -221,19 +203,11 @@ public class IndexFoldersDeletionListenerIT extends ESIntegTestCase {
         ensureStableCluster(4 + 1, masterNode);
 
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
-        createIndex(
-            indexName,
-            Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 4)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, between(0, 1))
-                .build()
-        );
+        createIndex(indexName, 4, between(0, 1));
 
         final NumShards numShards = getNumShards(indexName);
         assertFalse(
-            client().admin()
-                .cluster()
-                .prepareHealth()
+            clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT)
                 .setIndices(indexName)
                 .setWaitForGreenStatus()
                 .setWaitForEvents(Priority.LANGUID)
@@ -257,7 +231,7 @@ public class IndexFoldersDeletionListenerIT extends ESIntegTestCase {
         internalCluster().stopNode(stoppedNode);
         ensureStableCluster(3 + 1, masterNode);
 
-        assertAcked(client().admin().indices().prepareDelete(indexName));
+        assertAcked(indicesAdmin().prepareDelete(indexName));
 
         final String restartedNode = internalCluster().startNode(stoppedNodeDataPathSettings);
         ensureStableCluster(4 + 1, masterNode);
@@ -287,14 +261,7 @@ public class IndexFoldersDeletionListenerIT extends ESIntegTestCase {
         logger.debug("--> creating [{}] leftover indices on data node [{}]", leftovers.length, dataNode);
         for (int i = 0; i < leftovers.length; i++) {
             final String indexName = "index-" + i;
-            createIndex(
-                indexName,
-                Settings.builder()
-                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                    .put("index.routing.allocation.include._name", dataNode)
-                    .build()
-            );
+            createIndex(indexName, indexSettings(1, 0).put("index.routing.allocation.include._name", dataNode).build());
             ensureGreen(indexName);
             leftovers[i] = internalCluster().clusterService(masterNode).state().metadata().index(indexName).getIndex();
         }
@@ -304,22 +271,14 @@ public class IndexFoldersDeletionListenerIT extends ESIntegTestCase {
         ensureStableCluster(1, masterNode);
 
         logger.debug("--> deleting leftover indices");
-        assertAcked(client().admin().indices().prepareDelete("index-*"));
+        assertAcked(indicesAdmin().prepareDelete("index-*"));
 
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
 
         logger.debug("--> creating a new index [{}]", indexName);
         assertAcked(
-            client().admin()
-                .indices()
-                .prepareCreate(indexName)
-                .setSettings(
-                    Settings.builder()
-                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                        .put("index.routing.allocation.enable", EnableAllocationDecider.Allocation.NONE)
-                        .build()
-                )
+            indicesAdmin().prepareCreate(indexName)
+                .setSettings(indexSettings(1, 0).put("index.routing.allocation.enable", EnableAllocationDecider.Allocation.NONE).build())
                 .setWaitForActiveShards(ActiveShardCount.NONE)
         );
 
@@ -349,15 +308,11 @@ public class IndexFoldersDeletionListenerIT extends ESIntegTestCase {
         final IndexFoldersDeletionListenerPlugin plugin = plugin(dataNode);
         assertTrue("Expecting no shards deleted on node " + dataNode, plugin.deletedShards.isEmpty());
 
-        assertAcked(
-            client().admin()
-                .indices()
-                .prepareUpdateSettings(indexName)
-                .setSettings(
-                    Settings.builder()
-                        .put("index.routing.allocation.enable", EnableAllocationDecider.Allocation.ALL)
-                        .put("index.routing.allocation.require._name", dataNode)
-                )
+        updateIndexSettings(
+            Settings.builder()
+                .put("index.routing.allocation.enable", EnableAllocationDecider.Allocation.ALL)
+                .put("index.routing.allocation.require._name", dataNode),
+            indexName
         );
         ensureGreen(indexName);
 
@@ -396,7 +351,7 @@ public class IndexFoldersDeletionListenerIT extends ESIntegTestCase {
 
                 @Override
                 public void beforeShardFoldersDeleted(ShardId shardId, IndexSettings indexSettings, Path[] shardPaths) {
-                    deletedShards.computeIfAbsent(shardId.getIndex(), i -> new ArrayList<>()).add(shardId);
+                    deletedShards.computeIfAbsent(shardId.getIndex(), i -> Collections.synchronizedList(new ArrayList<>())).add(shardId);
                 }
             });
         }
@@ -409,7 +364,8 @@ public class IndexFoldersDeletionListenerIT extends ESIntegTestCase {
 
     private static IndexFoldersDeletionListenerPlugin plugin(String nodeId) {
         final PluginsService pluginsService = internalCluster().getInstance(PluginsService.class, nodeId);
-        final List<IndexFoldersDeletionListenerPlugin> plugins = pluginsService.filterPlugins(IndexFoldersDeletionListenerPlugin.class);
+        final List<IndexFoldersDeletionListenerPlugin> plugins = pluginsService.filterPlugins(IndexFoldersDeletionListenerPlugin.class)
+            .toList();
         assertThat(plugins, hasSize(1));
         return plugins.get(0);
     }

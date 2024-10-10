@@ -11,12 +11,13 @@ import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.IndexableFieldType;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperTestCase;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
@@ -31,6 +32,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -80,11 +82,11 @@ public class VersionStringFieldMapperTests extends MapperTestCase {
             )
         );
 
-        IndexableField[] fields = doc.rootDoc().getFields("field");
-        assertEquals(2, fields.length);
+        List<IndexableField> fields = doc.rootDoc().getFields("field");
+        assertEquals(2, fields.size());
 
-        assertEquals("1.2.3", VersionEncoder.decodeVersion(fields[0].binaryValue()).utf8ToString());
-        IndexableFieldType fieldType = fields[0].fieldType();
+        assertEquals("1.2.3", VersionEncoder.decodeVersion(fields.get(0).binaryValue()).utf8ToString());
+        IndexableFieldType fieldType = fields.get(0).fieldType();
         assertThat(fieldType.omitNorms(), equalTo(true));
         assertFalse(fieldType.tokenized());
         assertFalse(fieldType.stored());
@@ -95,8 +97,8 @@ public class VersionStringFieldMapperTests extends MapperTestCase {
         assertThat(fieldType.storeTermVectorPayloads(), equalTo(false));
         assertEquals(DocValuesType.NONE, fieldType.docValuesType());
 
-        assertEquals("1.2.3", VersionEncoder.decodeVersion(fields[1].binaryValue()).utf8ToString());
-        fieldType = fields[1].fieldType();
+        assertEquals("1.2.3", VersionEncoder.decodeVersion(fields.get(1).binaryValue()).utf8ToString());
+        fieldType = fields.get(1).fieldType();
         assertThat(fieldType.indexOptions(), equalTo(IndexOptions.NONE));
         assertEquals(DocValuesType.SORTED_SET, fieldType.docValuesType());
 
@@ -108,12 +110,12 @@ public class VersionStringFieldMapperTests extends MapperTestCase {
         BytesReference source = BytesReference.bytes(
             XContentFactory.jsonBuilder().startObject().startObject("field").endObject().endObject()
         );
-        MapperParsingException ex = expectThrows(
-            MapperParsingException.class,
+        DocumentParsingException ex = expectThrows(
+            DocumentParsingException.class,
             () -> defaultMapper.parse(new SourceToParse("1", source, XContentType.JSON))
         );
         assertEquals(
-            "failed to parse field [field] of type [version] in document with id '1'. " + "Preview of field's value: '{}'",
+            "[1:11] failed to parse field [field] of type [version] in document with id '1'. " + "Preview of field's value: '{}'",
             ex.getMessage()
         );
     }
@@ -133,12 +135,12 @@ public class VersionStringFieldMapperTests extends MapperTestCase {
                 .endArray()
                 .endObject()
         );
-        MapperParsingException ex = expectThrows(
-            MapperParsingException.class,
+        DocumentParsingException ex = expectThrows(
+            DocumentParsingException.class,
             () -> defaultMapper.parse(new SourceToParse("1", source, XContentType.JSON))
         );
         assertEquals(
-            "failed to parse field [field] of type [version] in document with id '1'. "
+            "[1:67] failed to parse field [field] of type [version] in document with id '1'. "
                 + "Preview of field's value: '{array_name=[inner_field_first, inner_field_second]}'",
             ex.getMessage()
         );
@@ -183,6 +185,11 @@ public class VersionStringFieldMapperTests extends MapperTestCase {
     protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed) {
         assertFalse("version string fields don't support ignore_malformed", ignoreMalformed);
         return new VersionStringSyntheticSourceSupport();
+    }
+
+    @Override
+    protected Function<Object, Object> loadBlockExpected() {
+        return v -> new Version((BytesRef) v).toString();
     }
 
     static class VersionStringSyntheticSourceSupport implements SyntheticSourceSupport {

@@ -38,7 +38,7 @@ to the latest format as if the <<update-transform>> API was used. The
 
 `<transform_id>`::
 (Required, string)
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-id]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=transform-id]
 
 [[reset-transform-query-parms]]
 == {api-query-parms-title}

@@ -1,21 +1,23 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.upgrades;
 
 import org.elasticsearch.ElasticsearchStatusException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.ObjectPath;
@@ -44,7 +46,6 @@ import static org.hamcrest.Matchers.is;
  *     <li>Run against the current version cluster from the second step: {@link TestStep#STEP4_NEW_CLUSTER}</li>
  * </ul>
  */
-@SuppressWarnings("removal")
 public class MultiVersionRepositoryAccessIT extends ESRestTestCase {
 
     private enum TestStep {
@@ -177,13 +178,13 @@ public class MultiVersionRepositoryAccessIT extends ESRestTestCase {
             final int shards = 3;
             final String index = "test-index";
             createIndex(index, shards);
-            final Version minNodeVersion = minimumNodeVersion();
+            final IndexVersion minNodeVersion = minimumIndexVersion();
             // 7.12.0+ will try to load RepositoryData during repo creation if verify is true, which is impossible in case of version
             // incompatibility in the downgrade test step. We verify that it is impossible here and then create the repo using verify=false
             // to check behavior on other operations below.
             final boolean verify = TEST_STEP != TestStep.STEP3_OLD_CLUSTER
                 || SnapshotsService.includesUUIDs(minNodeVersion)
-                || minNodeVersion.before(Version.V_7_12_0);
+                || minNodeVersion.before(IndexVersions.V_7_12_0);
             if (verify == false) {
                 expectThrowsAnyOf(EXPECTED_BWC_EXCEPTIONS, () -> createRepository(repoName, false, true));
             }
@@ -262,7 +263,7 @@ public class MultiVersionRepositoryAccessIT extends ESRestTestCase {
         Request repoReq = new Request("PUT", "/_snapshot/" + repoName);
         repoReq.setJsonEntity(
             Strings.toString(
-                new PutRepositoryRequest().type("fs")
+                new PutRepositoryRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).type("fs")
                     .verify(verify)
                     .settings(Settings.builder().put("location", repoName).put("readonly", readOnly).build())
             )

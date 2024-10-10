@@ -5,7 +5,6 @@ dependencies {
   javaRestTestImplementation(testArtifact(project(xpackModule('core'))))
   //TODO: update javaRestTests to not rely on any code that it is testing
   javaRestTestImplementation project(path: xpackModule('identity-provider'))
-  javaRestTestImplementation project(":client:rest-high-level")
 }
 
 testClusters.configureEach {
@@ -49,6 +48,6 @@ testClusters.configureEach {
 
 // We don't support the IDP in FIPS-140 mode, so no need to run java rest tests
 tasks.named("javaRestTest").configure {
-  onlyIf { BuildParams.inFipsJvm == false }
+  BuildParams.withFipsEnabledOnly(it)
 }
 

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.search.aggregations.bucket.global;
 
@@ -24,14 +25,16 @@ import org.elasticsearch.search.aggregations.support.AggregationContext;
 import java.io.IOException;
 import java.util.Map;
 
-public class GlobalAggregator extends BucketsAggregator implements SingleBucketAggregator {
+public final class GlobalAggregator extends BucketsAggregator implements SingleBucketAggregator {
     private final Weight weight;
 
     public GlobalAggregator(String name, AggregatorFactories subFactories, AggregationContext context, Map<String, Object> metadata)
         throws IOException {
 
         super(name, subFactories, context, null, CardinalityUpperBound.ONE, metadata);
-        weight = context.filterQuery(new MatchAllDocsQuery()).createWeight(context.searcher(), scoreMode(), 1.0f);
+        weight = context.searcher()
+            .rewrite(context.filterQuery(new MatchAllDocsQuery()))
+            .createWeight(context.searcher(), scoreMode(), 1.0f);
     }
 
     @Override
@@ -41,10 +44,11 @@ public class GlobalAggregator extends BucketsAggregator implements SingleBucketA
         if (scorer == null) {
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }
+        grow(1);
         scorer.score(new LeafCollector() {
             @Override
             public void collect(int doc) throws IOException {
-                collectBucket(sub, doc, 0);
+                collectExistingBucket(sub, doc, 0);
             }
 
             @Override

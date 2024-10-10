@@ -31,6 +31,8 @@ import org.elasticsearch.xpack.security.action.filter.SecurityActionFilter;
 import org.junit.After;
 import org.junit.Before;
 
+import java.util.Set;
+
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -114,7 +116,7 @@ public class MlUpgradeModeActionFilterTests extends ESTestCase {
 
     public void testOrder_UpgradeFilterIsExecutedAfterSecurityFilter() {
         MlUpgradeModeActionFilter upgradeModeFilter = new MlUpgradeModeActionFilter(clusterService);
-        SecurityActionFilter securityFilter = new SecurityActionFilter(null, null, null, null, mock(ThreadPool.class), null, null);
+        SecurityActionFilter securityFilter = new SecurityActionFilter(null, null, null, null, mock(ThreadPool.class), null, null, Set::of);
 
         ActionFilter[] actionFiltersInOrderOfExecution = new ActionFilters(Sets.newHashSet(upgradeModeFilter, securityFilter)).filters();
         assertThat(actionFiltersInOrderOfExecution, is(arrayContaining(securityFilter, upgradeModeFilter)));

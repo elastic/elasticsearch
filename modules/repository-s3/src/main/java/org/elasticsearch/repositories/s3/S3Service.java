@@ -1,14 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.repositories.s3;
 
 import com.amazonaws.ClientConfiguration;
+import com.amazonaws.SDKGlobalConfiguration;
 import com.amazonaws.auth.AWSCredentials;
 import com.amazonaws.auth.AWSCredentialsProvider;
 import com.amazonaws.auth.AWSCredentialsProviderChain;
@@ -27,12 +29,20 @@ import com.amazonaws.services.securitytoken.AWSSecurityTokenServiceClientBuilder
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.cluster.coordination.stateless.StoreHeartbeatService;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.watcher.FileChangesListener;
+import org.elasticsearch.watcher.FileWatcher;
+import org.elasticsearch.watcher.ResourceWatcherService;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -51,6 +61,19 @@ import static java.util.Collections.emptyMap;
 class S3Service implements Closeable {
     private static final Logger LOGGER = LogManager.getLogger(S3Service.class);
 
+    static final Setting<TimeValue> REPOSITORY_S3_CAS_TTL_SETTING = Setting.timeSetting(
+        "repository_s3.compare_and_exchange.time_to_live",
+        StoreHeartbeatService.HEARTBEAT_FREQUENCY,
+        Setting.Property.NodeScope
+    );
+
+    static final Setting<TimeValue> REPOSITORY_S3_CAS_ANTI_CONTENTION_DELAY_SETTING = Setting.timeSetting(
+        "repository_s3.compare_and_exchange.anti_contention_delay",
+        TimeValue.timeValueSeconds(1),
+        TimeValue.timeValueMillis(1),
+        TimeValue.timeValueHours(24),
+        Setting.Property.NodeScope
+    );
     private volatile Map<S3ClientSettings, AmazonS3Reference> clientsCache = emptyMap();
 
     /**
@@ -69,13 +92,21 @@ class S3Service implements Closeable {
 
     final CustomWebIdentityTokenCredentialsProvider webIdentityTokenCredentialsProvider;
 
-    S3Service(Environment environment) {
+    final TimeValue compareAndExchangeTimeToLive;
+    final TimeValue compareAndExchangeAntiContentionDelay;
+    final boolean isStateless;
+
+    S3Service(Environment environment, Settings nodeSettings, ResourceWatcherService resourceWatcherService) {
         webIdentityTokenCredentialsProvider = new CustomWebIdentityTokenCredentialsProvider(
             environment,
             System::getenv,
             System::getProperty,
-            Clock.systemUTC()
+            Clock.systemUTC(),
+            resourceWatcherService
         );
+        compareAndExchangeTimeToLive = REPOSITORY_S3_CAS_TTL_SETTING.get(nodeSettings);
+        compareAndExchangeAntiContentionDelay = REPOSITORY_S3_CAS_ANTI_CONTENTION_DELAY_SETTING.get(nodeSettings);
+        isStateless = DiscoveryNode.isStateless(nodeSettings);
     }
 
     /**
@@ -112,7 +143,7 @@ class S3Service implements Closeable {
                 return existing;
             }
             final AmazonS3Reference clientReference = new AmazonS3Reference(buildClient(clientSettings));
-            clientReference.incRef();
+            clientReference.mustIncRef();
             clientsCache = Maps.copyMapWithAddedEntry(clientsCache, clientSettings, clientReference);
             return clientReference;
         }
@@ -155,6 +186,11 @@ class S3Service implements Closeable {
 
     // proxy for testing
     AmazonS3 buildClient(final S3ClientSettings clientSettings) {
+        final AmazonS3ClientBuilder builder = buildClientBuilder(clientSettings);
+        return SocketAccess.doPrivileged(builder::build);
+    }
+
+    protected AmazonS3ClientBuilder buildClientBuilder(S3ClientSettings clientSettings) {
         final AmazonS3ClientBuilder builder = AmazonS3ClientBuilder.standard();
         builder.withCredentials(buildCredentials(LOGGER, clientSettings, webIdentityTokenCredentialsProvider));
         builder.withClientConfiguration(buildConfiguration(clientSettings));
@@ -183,7 +219,7 @@ class S3Service implements Closeable {
         if (clientSettings.disableChunkedEncoding) {
             builder.disableChunkedEncoding();
         }
-        return SocketAccess.doPrivileged(builder::build);
+        return builder;
     }
 
     // pkg private for tests
@@ -198,6 +234,7 @@ class S3Service implements Closeable {
             // TODO: remove this leniency, these settings should exist together and be validated
             clientConfiguration.setProxyHost(clientSettings.proxyHost);
             clientConfiguration.setProxyPort(clientSettings.proxyPort);
+            clientConfiguration.setProxyProtocol(clientSettings.proxyScheme);
             clientConfiguration.setProxyUsername(clientSettings.proxyUsername);
             clientConfiguration.setProxyPassword(clientSettings.proxyPassword);
         }
@@ -206,6 +243,7 @@ class S3Service implements Closeable {
             clientConfiguration.setSignerOverride(clientSettings.signerOverride);
         }
 
+        clientConfiguration.setMaxConnections(clientSettings.maxConnections);
         clientConfiguration.setMaxErrorRetry(clientSettings.maxRetries);
         clientConfiguration.setUseThrottleRetries(clientSettings.throttleRetries);
         clientConfiguration.setSocketTimeout(clientSettings.readTimeoutMillis);
@@ -298,12 +336,14 @@ class S3Service implements Closeable {
 
         private STSAssumeRoleWithWebIdentitySessionCredentialsProvider credentialsProvider;
         private AWSSecurityTokenService stsClient;
+        private String stsRegion;
 
         CustomWebIdentityTokenCredentialsProvider(
             Environment environment,
             SystemEnvironment systemEnvironment,
             JvmEnvironment jvmEnvironment,
-            Clock clock
+            Clock clock,
+            ResourceWatcherService resourceWatcherService
         ) {
             // Check whether the original environment variable exists. If it doesn't,
             // the system doesn't support AWS web identity tokens
@@ -339,10 +379,24 @@ class S3Service implements Closeable {
             );
             AWSSecurityTokenServiceClientBuilder stsClientBuilder = AWSSecurityTokenServiceClient.builder();
 
-            // Custom system property used for specifying a mocked version of the STS for testing
-            String customStsEndpoint = jvmEnvironment.getProperty("com.amazonaws.sdk.stsMetadataServiceEndpointOverride", STS_HOSTNAME);
-            // Set the region explicitly via the endpoint URL, so the AWS SDK doesn't make any guesses internally.
-            stsClientBuilder.withEndpointConfiguration(new AwsClientBuilder.EndpointConfiguration(customStsEndpoint, null));
+            // Check if we need to use regional STS endpoints
+            // https://docs.aws.amazon.com/sdkref/latest/guide/feature-sts-regionalized-endpoints.html
+            if ("regional".equalsIgnoreCase(systemEnvironment.getEnv("AWS_STS_REGIONAL_ENDPOINTS"))) {
+                // AWS_REGION should be injected by the EKS pod identity webhook:
+                // https://github.com/aws/amazon-eks-pod-identity-webhook/pull/41
+                stsRegion = systemEnvironment.getEnv(SDKGlobalConfiguration.AWS_REGION_ENV_VAR);
+                if (stsRegion != null) {
+                    SocketAccess.doPrivilegedVoid(() -> stsClientBuilder.withRegion(stsRegion));
+                } else {
+                    LOGGER.warn("Unable to use regional STS endpoints because the AWS_REGION environment variable is not set");
+                }
+            }
+            if (stsRegion == null) {
+                // Custom system property used for specifying a mocked version of the STS for testing
+                String customStsEndpoint = jvmEnvironment.getProperty("com.amazonaws.sdk.stsMetadataServiceEndpointOverride", STS_HOSTNAME);
+                // Set the region explicitly via the endpoint URL, so the AWS SDK doesn't make any guesses internally.
+                stsClientBuilder.withEndpointConfiguration(new AwsClientBuilder.EndpointConfiguration(customStsEndpoint, null));
+            }
             stsClientBuilder.withCredentials(new AWSStaticCredentialsProvider(new AnonymousAWSCredentials()));
             stsClient = SocketAccess.doPrivileged(stsClientBuilder::build);
             try {
@@ -351,6 +405,31 @@ class S3Service implements Closeable {
                     roleSessionName,
                     webIdentityTokenFileSymlink.toString()
                 ).withStsClient(stsClient).build();
+                var watcher = new FileWatcher(webIdentityTokenFileSymlink);
+                watcher.addListener(new FileChangesListener() {
+
+                    @Override
+                    public void onFileCreated(Path file) {
+                        onFileChanged(file);
+                    }
+
+                    @Override
+                    public void onFileChanged(Path file) {
+                        if (file.equals(webIdentityTokenFileSymlink)) {
+                            LOGGER.debug("WS web identity token file [{}] changed, updating credentials", file);
+                            credentialsProvider.refresh();
+                        }
+                    }
+                });
+                try {
+                    resourceWatcherService.add(watcher, ResourceWatcherService.Frequency.LOW);
+                } catch (IOException e) {
+                    throw new ElasticsearchException(
+                        "failed to start watching AWS web identity token file [{}]",
+                        e,
+                        webIdentityTokenFileSymlink
+                    );
+                }
             } catch (Exception e) {
                 stsClient.shutdown();
                 throw e;
@@ -359,6 +438,10 @@ class S3Service implements Closeable {
 
         boolean isActive() {
             return credentialsProvider != null;
+        }
+
+        String getStsRegion() {
+            return stsRegion;
         }
 
         @Override

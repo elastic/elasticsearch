@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.script.field.vectors;
@@ -50,7 +51,7 @@ public class ByteKnnDenseVector implements DenseVector {
 
     @Override
     public int dotProduct(byte[] queryVector) {
-        return (int) VectorUtil.dotProduct(docVector, queryVector);
+        return VectorUtil.dotProduct(docVector, queryVector);
     }
 
     @Override
@@ -70,7 +71,7 @@ public class ByteKnnDenseVector implements DenseVector {
     }
 
     @SuppressForbidden(reason = "used only for bytes so it cannot overflow")
-    private int abs(int value) {
+    private static int abs(int value) {
         return Math.abs(value);
     }
 
@@ -102,15 +103,22 @@ public class ByteKnnDenseVector implements DenseVector {
     }
 
     @Override
-    public double l2Norm(byte[] queryVector) {
-        int result = 0;
-        int i = 0;
-        while (i < docVector.length) {
-            int diff = docVector[i] - queryVector[i];
-            result += diff * diff;
-            i++;
+    public int hamming(byte[] queryVector) {
+        return VectorUtil.xorBitCount(queryVector, docVector);
+    }
+
+    @Override
+    public int hamming(List<Number> queryVector) {
+        int distance = 0;
+        for (int i = 0; i < queryVector.size(); i++) {
+            distance += Integer.bitCount((queryVector.get(i).intValue() ^ docVector[i]) & 0xFF);
         }
-        return Math.sqrt(result);
+        return distance;
+    }
+
+    @Override
+    public double l2Norm(byte[] queryVector) {
+        return Math.sqrt(VectorUtil.squareDistance(docVector, queryVector));
     }
 
     @Override

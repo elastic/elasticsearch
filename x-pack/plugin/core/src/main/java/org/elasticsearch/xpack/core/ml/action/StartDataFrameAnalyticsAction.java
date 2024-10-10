@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
@@ -23,6 +23,7 @@ import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xpack.core.ml.MlConfigVersion;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
@@ -41,7 +42,7 @@ public class StartDataFrameAnalyticsAction extends ActionType<NodeAcknowledgedRe
     public static final TimeValue DEFAULT_TIMEOUT = new TimeValue(20, TimeUnit.SECONDS);
 
     private StartDataFrameAnalyticsAction() {
-        super(NAME, NodeAcknowledgedResponse::new);
+        super(NAME);
     }
 
     public static class Request extends MasterNodeRequest<Request> implements ToXContentObject {
@@ -71,6 +72,7 @@ public class StartDataFrameAnalyticsAction extends ActionType<NodeAcknowledgedRe
         private TimeValue timeout = DEFAULT_TIMEOUT;
 
         public Request(String id) {
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
             setId(id);
         }
 
@@ -80,7 +82,9 @@ public class StartDataFrameAnalyticsAction extends ActionType<NodeAcknowledgedRe
             timeout = in.readTimeValue();
         }
 
-        public Request() {}
+        public Request() {
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
+        }
 
         public final void setId(String id) {
             this.id = ExceptionsHelper.requireNonNull(id, DataFrameAnalyticsConfig.ID);
@@ -144,8 +148,9 @@ public class StartDataFrameAnalyticsAction extends ActionType<NodeAcknowledgedRe
 
     public static class TaskParams implements PersistentTaskParams, MlTaskParams {
 
-        public static final Version VERSION_INTRODUCED = Version.V_7_3_0;
-        public static final Version VERSION_DESTINATION_INDEX_MAPPINGS_CHANGED = Version.V_7_10_0;
+        public static final MlConfigVersion VERSION_INTRODUCED = MlConfigVersion.V_7_3_0;
+        public static final TransportVersion TRANSPORT_VERSION_INTRODUCED = TransportVersions.V_7_3_0;
+        public static final MlConfigVersion VERSION_DESTINATION_INDEX_MAPPINGS_CHANGED = MlConfigVersion.V_7_10_0;
 
         public static final ConstructingObjectParser<TaskParams, Void> PARSER = new ConstructingObjectParser<>(
             MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME,
@@ -164,22 +169,22 @@ public class StartDataFrameAnalyticsAction extends ActionType<NodeAcknowledgedRe
         }
 
         private final String id;
-        private final Version version;
+        private final MlConfigVersion version;
         private final boolean allowLazyStart;
 
-        public TaskParams(String id, Version version, boolean allowLazyStart) {
+        public TaskParams(String id, MlConfigVersion version, boolean allowLazyStart) {
             this.id = Objects.requireNonNull(id);
             this.version = Objects.requireNonNull(version);
             this.allowLazyStart = allowLazyStart;
         }
 
         private TaskParams(String id, String version, Boolean allowLazyStart) {
-            this(id, Version.fromString(version), allowLazyStart != null && allowLazyStart);
+            this(id, MlConfigVersion.fromString(version), allowLazyStart != null && allowLazyStart);
         }
 
         public TaskParams(StreamInput in) throws IOException {
             this.id = in.readString();
-            this.version = Version.readVersion(in);
+            this.version = MlConfigVersion.readVersion(in);
             this.allowLazyStart = in.readBoolean();
         }
 
@@ -187,7 +192,7 @@ public class StartDataFrameAnalyticsAction extends ActionType<NodeAcknowledgedRe
             return id;
         }
 
-        public Version getVersion() {
+        public MlConfigVersion getVersion() {
             return version;
         }
 
@@ -202,13 +207,13 @@ public class StartDataFrameAnalyticsAction extends ActionType<NodeAcknowledgedRe
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return VERSION_INTRODUCED.transportVersion;
+            return TRANSPORT_VERSION_INTRODUCED;
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(id);
-            Version.writeVersion(version, out);
+            MlConfigVersion.writeVersion(version, out);
             out.writeBoolean(allowLazyStart);
         }
 

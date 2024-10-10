@@ -160,14 +160,14 @@ final class H3Index {
      * Gets the resolution res integer digit (0-7) of h3.
      */
     public static int H3_get_index_digit(long h3, int res) {
-        return ((int) ((((h3) >> ((Constants.MAX_H3_RES - (res)) * H3_PER_DIGIT_OFFSET)) & H3_DIGIT_MASK)));
+        return ((int) ((((h3) >> ((H3.MAX_H3_RES - (res)) * H3_PER_DIGIT_OFFSET)) & H3_DIGIT_MASK)));
     }
 
     /**
      * Sets the resolution res digit of h3 to the integer digit (0-7)
      */
     public static long H3_set_index_digit(long h3, int res, long digit) {
-        int x = (Constants.MAX_H3_RES - res) * H3_PER_DIGIT_OFFSET;
+        int x = (H3.MAX_H3_RES - res) * H3_PER_DIGIT_OFFSET;
         return (((h3) & ~((H3_DIGIT_MASK << (x)))) | (((digit)) << x));
     }
 
@@ -268,7 +268,7 @@ final class H3Index {
         final int res = H3Index.H3_get_resolution(h);
 
         // center base cell hierarchy is entirely on this face
-        final boolean possibleOverage = BaseCells.isBaseCellPentagon(H3_get_base_cell(h)) != false
+        final boolean possibleOverage = BaseCells.isBaseCellPentagon(H3_get_base_cell(h))
             || (res != 0 && (fijk.coord.i != 0 || fijk.coord.j != 0 || fijk.coord.k != 0));
 
         for (int r = 1; r <= res; r++) {
@@ -325,7 +325,9 @@ final class H3Index {
                 foundFirstNonZeroDigit = true;
 
                 // adjust for deleted k-axes sequence
-                if (h3LeadingNonZeroDigit(h) == CoordIJK.Direction.K_AXES_DIGIT.digit()) h = h3Rotate60ccw(h);
+                if (h3LeadingNonZeroDigit(h) == CoordIJK.Direction.K_AXES_DIGIT.digit()) {
+                    h = h3Rotate60ccw(h);
+                }
             }
         }
         return h;

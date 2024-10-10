@@ -35,7 +35,7 @@ public class PutTrainedModelAliasAction extends ActionType<AcknowledgedResponse>
     public static final String NAME = "cluster:admin/xpack/ml/inference/model_aliases/put";
 
     private PutTrainedModelAliasAction() {
-        super(NAME, AcknowledgedResponse::readFrom);
+        super(NAME);
     }
 
     public static class Request extends AcknowledgedRequest<Request> {
@@ -48,6 +48,7 @@ public class PutTrainedModelAliasAction extends ActionType<AcknowledgedResponse>
         private final boolean reassign;
 
         public Request(String modelAlias, String modelId, boolean reassign) {
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, DEFAULT_ACK_TIMEOUT);
             this.modelAlias = ExceptionsHelper.requireNonNull(modelAlias, MODEL_ALIAS);
             this.modelId = ExceptionsHelper.requireNonNull(modelId, TrainedModelConfig.MODEL_ID);
             this.reassign = reassign;

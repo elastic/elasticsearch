@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.search.nested;
@@ -99,7 +100,7 @@ public class NestedSortingTests extends AbstractFieldDataTestCase {
         MultiValueMode sortMode = randomFrom(Arrays.asList(MultiValueMode.MIN, MultiValueMode.MAX));
         DirectoryReader reader = DirectoryReader.open(writer);
         reader = ElasticsearchDirectoryReader.wrap(reader, new ShardId(indexService.index(), 0));
-        IndexSearcher searcher = new IndexSearcher(reader);
+        IndexSearcher searcher = newSearcher(reader, false);
         PagedBytesIndexFieldData indexFieldData1 = getForField("f");
         IndexFieldData<?> indexFieldData2 = NoOrdinalsStringFieldDataTests.hideOrdinals(indexFieldData1);
         final String missingValue = randomBoolean() ? null : TestUtil.randomSimpleString(random(), 2);
@@ -291,7 +292,7 @@ public class NestedSortingTests extends AbstractFieldDataTestCase {
         MultiValueMode sortMode = MultiValueMode.MIN;
         DirectoryReader reader = DirectoryReader.open(writer);
         reader = ElasticsearchDirectoryReader.wrap(reader, new ShardId(indexService.index(), 0));
-        IndexSearcher searcher = new IndexSearcher(reader);
+        IndexSearcher searcher = newSearcher(reader, false);
         PagedBytesIndexFieldData indexFieldData = getForField("field2");
         Query parentFilter = new TermQuery(new Term("_nested_path", "parent"));
         Query childFilter = Queries.not(parentFilter);
@@ -612,7 +613,7 @@ public class NestedSortingTests extends AbstractFieldDataTestCase {
         }
         DirectoryReader reader = DirectoryReader.open(writer);
         reader = ElasticsearchDirectoryReader.wrap(reader, new ShardId(indexService.index(), 0));
-        IndexSearcher searcher = new IndexSearcher(reader);
+        IndexSearcher searcher = newSearcher(reader, false);
         SearchExecutionContext searchExecutionContext = indexService.newSearchExecutionContext(0, 0, searcher, () -> 0L, null, emptyMap());
 
         FieldSortBuilder sortBuilder = new FieldSortBuilder("chapters.paragraphs.word_count");
@@ -819,7 +820,7 @@ public class NestedSortingTests extends AbstractFieldDataTestCase {
         Query query = new BooleanQuery.Builder().add(queryBuilder.toQuery(searchExecutionContext), Occur.MUST)
             .add(Queries.newNonNestedFilter(searchExecutionContext.indexVersionCreated()), Occur.FILTER)
             .build();
-        Sort sort = new Sort(sortBuilder.build(searchExecutionContext).field);
+        Sort sort = new Sort(sortBuilder.build(searchExecutionContext).field());
         return searcher.search(query, 10, sort);
     }
 

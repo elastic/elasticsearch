@@ -28,7 +28,7 @@ available under the current license and some usage statistics.
 [[usage-api-query-parms]]
 === {api-query-parms-title}
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
 
 [discrete]
 [[usage-api-example]]
@@ -38,7 +38,7 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
 ------------------------------------------------------------
 GET /_xpack/usage
 ------------------------------------------------------------
-// TEST[s/usage/usage?filter_path=-watcher.execution.actions.logging*/]
+// TEST[s/usage/usage?filter_path=-watcher.execution.actions.index*\,-watcher.execution.actions.logging*,-watcher.execution.actions.email*/]
 // This response filter removes watcher logging results if they are included
 // to avoid errors in the CI builds.
 
@@ -47,7 +47,8 @@ GET /_xpack/usage
 {
   "security" : {
     "available" : true,
-    "enabled" : false
+    "enabled" : true,
+    ...
   },
   "monitoring" : {
     "available" : true,
@@ -182,6 +183,7 @@ GET /_xpack/usage
           "avg": 0.0,
           "max": 0.0
         },
+        "stats_by_model": [],
         "model_sizes_bytes": {
           "total": 0.0,
           "min": 0.0,
@@ -193,7 +195,23 @@ GET /_xpack/usage
         }
       }
     },
-    "node_count" : 1
+    "node_count" : 1,
+    "memory": {
+      anomaly_detectors_memory_bytes: 0,
+      data_frame_analytics_memory_bytes: 0,
+      pytorch_inference_memory_bytes: 0,
+      total_used_memory_bytes: 0
+    }
+  },
+  "inference": {
+    "available" : true,
+    "enabled" : true,
+    "models" : [{
+        "service": "elasticsearch",
+        "task_type": "SPARSE_EMBEDDING",
+        "count": 1
+      }
+    ]
   },
   "logstash" : {
     "available" : true,
@@ -202,6 +220,42 @@ GET /_xpack/usage
   "eql" : {
     "available" : true,
     "enabled" : true
+  },
+  "esql" : {
+    "available" : true,
+    "enabled" : true,
+    "features" : {
+      "eval" : 0,
+      "stats" : 0,
+      "dissect": 0,
+      "grok" : 0,
+      "limit" : 0,
+      "where" : 0,
+      "sort" : 0,
+      "drop" : 0,
+      "show" : 0,
+      "rename" : 0,
+      "mv_expand" : 0,
+      "keep" : 0,
+      "enrich" : 0,
+      "from" : 0,
+      "row" : 0,
+      "meta" : 0
+    },
+    "queries" : {
+      "rest" : {
+        "total" : 0,
+        "failed" : 0
+      },
+      "kibana" : {
+        "total" : 0,
+        "failed" : 0
+      },
+      "_all" : {
+        "total" : 0,
+        "failed" : 0
+     }
+   }
   },
   "sql" : {
     "available" : true,
@@ -265,7 +319,8 @@ GET /_xpack/usage
   },
   "rollup" : {
     "available" : true,
-    "enabled" : true
+    "enabled" : true,
+    ...
   },
   "ilm" : {
     "policy_count" : 3,
@@ -327,6 +382,26 @@ GET /_xpack/usage
     "enabled" : true,
     "data_streams" : 0,
     "indices_count" : 0
+  },
+  "data_lifecycle" : {
+    "available": true,
+    "enabled": true,
+    "count": 0,
+    "default_rollover_used": true,
+    "data_retention": {
+      "configured_data_streams": 0
+    },
+    "effective_retention": {
+      "retained_data_streams": 0
+    },
+    "global_retention": {
+      "default": {
+        "defined": false
+      },
+      "max": {
+        "defined": false
+      }
+    }
   },
   "data_tiers" : {
     "available" : true,
@@ -407,15 +482,49 @@ GET /_xpack/usage
     "invocations": {
       "total": 0
     }
+  },
+  "remote_clusters": {
+    "size": 0,
+    "mode": {
+      "proxy": 0,
+      "sniff": 0
+    },
+    "security": {
+      "cert": 0,
+      "api_key": 0
+    }
+  },
+  "enterprise_search" : {
+    "available": true,
+    "enabled": true,
+    "search_applications" : {
+      "count": 0
+    },
+    "analytics_collections": {
+      "count": 0
+    },
+    "query_rulesets": {
+      "total_rule_count": 0,
+      "total_count": 0,
+      "min_rule_count": 0,
+      "max_rule_count": 0
+    }
+  },
+  "universal_profiling" : {
+    "available" : true,
+    "enabled" : true
   }
 }
 ------------------------------------------------------------
+// TESTRESPONSE[s/"security" : \{[^\}]*\},/"security" : $body.$_path,/]
+// TESTRESPONSE[s/"rollup" : \{[^\}]*\},/"rollup" : $body.$_path,/]
 // TESTRESPONSE[s/"detectors" : \{[^\}]*\},/"detectors" : $body.$_path,/]
 // TESTRESPONSE[s/"model_size" : \{[^\}]*\},/"model_size" : $body.$_path,/]
 // TESTRESPONSE[s/"eql" : \{[^\}]*\},/"eql" : $body.$_path,/]
 // TESTRESPONSE[s/"policy_stats" : \[[^\]]*\]/"policy_stats" : $body.$_path/]
 // TESTRESPONSE[s/"slm" : \{[^\}]*\},/"slm" : $body.$_path,/]
 // TESTRESPONSE[s/"health_api" : \{[^\}]*\}\s*\}/"health_api" : $body.$_path/]
+// TESTRESPONSE[s/"data_streams" : \{[^\}]*\},/"data_streams" : $body.$_path,/]
 // TESTRESPONSE[s/ : true/ : $body.$_path/]
 // TESTRESPONSE[s/ : false/ : $body.$_path/]
 // TESTRESPONSE[s/ : (\-)?[0-9]+/ : $body.$_path/]
@@ -431,3 +540,4 @@ GET /_xpack/usage
 // 5. All of the numbers and strings on the right hand side of *every* field in
 //    the response are ignored. So we're really only asserting things about the
 //    the shape of this response, not the values in it.
+// 6. Ignore the contents of data streams until the failure store is tech preview.

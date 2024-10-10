@@ -7,10 +7,11 @@
 
 package org.elasticsearch.xpack.core.slm;
 
-import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.scheduler.SchedulerEngine;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
@@ -88,7 +89,7 @@ public class SnapshotLifecyclePolicyMetadata implements SimpleDiffable<SnapshotL
         return PARSER.apply(parser, name);
     }
 
-    SnapshotLifecyclePolicyMetadata(
+    public SnapshotLifecyclePolicyMetadata(
         SnapshotLifecyclePolicy policy,
         Map<String, String> headers,
         long version,
@@ -116,7 +117,7 @@ public class SnapshotLifecyclePolicyMetadata implements SimpleDiffable<SnapshotL
         this.modifiedDate = in.readVLong();
         this.lastSuccess = in.readOptionalWriteable(SnapshotInvocationRecord::new);
         this.lastFailure = in.readOptionalWriteable(SnapshotInvocationRecord::new);
-        this.invocationsSinceLastSuccess = in.getTransportVersion().onOrAfter(TransportVersion.V_8_4_0) ? in.readVLong() : 0L;
+        this.invocationsSinceLastSuccess = in.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0) ? in.readVLong() : 0L;
     }
 
     @Override
@@ -127,7 +128,7 @@ public class SnapshotLifecyclePolicyMetadata implements SimpleDiffable<SnapshotL
         out.writeVLong(this.modifiedDate);
         out.writeOptionalWriteable(this.lastSuccess);
         out.writeOptionalWriteable(this.lastFailure);
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_4_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
             out.writeVLong(this.invocationsSinceLastSuccess);
         }
     }
@@ -157,8 +158,8 @@ public class SnapshotLifecyclePolicyMetadata implements SimpleDiffable<SnapshotL
         return policy;
     }
 
-    public String getName() {
-        return policy.getName();
+    public String getId() {
+        return policy.getId();
     }
 
     public long getVersion() {
@@ -179,6 +180,10 @@ public class SnapshotLifecyclePolicyMetadata implements SimpleDiffable<SnapshotL
 
     public long getInvocationsSinceLastSuccess() {
         return invocationsSinceLastSuccess;
+    }
+
+    public SchedulerEngine.Job buildSchedulerJob(String jobId) {
+        return policy.buildSchedulerJob(jobId, modifiedDate);
     }
 
     @Override
@@ -274,6 +279,11 @@ public class SnapshotLifecyclePolicyMetadata implements SimpleDiffable<SnapshotL
 
         public Builder setInvocationsSinceLastSuccess(long invocationsSinceLastSuccess) {
             this.invocationsSinceLastSuccess = invocationsSinceLastSuccess;
+            return this;
+        }
+
+        public Builder incrementInvocationsSinceLastSuccess() {
+            this.invocationsSinceLastSuccess++;
             return this;
         }
 

@@ -1,0 +1,112 @@
+setup:
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/issues/109476"
+      known_issues:
+        - cluster_feature: "gte_v8.13.0"
+          fixed_by: "gte_v8.14.0"
+  - requires:
+      cluster_features: "gte_v8.15.0"
+      reason: Collapse with rescore added in 8.15.0
+  - do:
+      indices.create:
+        index: products
+        body:
+          mappings:
+              properties:
+                product_id: { type: keyword }
+                description: { type: text }
+                popularity: { type: integer }
+
+  - do:
+      bulk:
+        index: products
+        refresh: true
+        body:
+          - '{"index": {"_id": "1", "routing": "0"}}'
+          - '{"product_id": "0", "description": "flat tv 4K HDR", "score": 2, "popularity": 30}'
+          - '{"index": {"_id": "2", "routing": "10"}}'
+          - '{"product_id": "10", "description": "LED Smart TV 32", "score": 5, "popularity": 100}'
+          - '{"index": {"_id": "3", "routing": "10"}}'
+          - '{"product_id": "10", "description": "LED Smart TV 65", "score": 10, "popularity": 50}'
+          - '{"index": {"_id": "4", "routing": "0"}}'
+          - '{"product_id": "0", "description": "flat tv", "score": 1, "popularity": 10}'
+          - '{"index": {"_id": "5", "routing": "129"}}'
+          - '{"product_id": "129", "description": "just a tv", "score": 100, "popularity": 3}'
+
+---
+"field collapsing and rescore":
+  - do:
+      search:
+        index: products
+        body:
+          query:
+            bool:
+              filter:
+                match:
+                  description: "tv"
+              should:
+                script_score:
+                  query: { match_all: { } }
+                  script:
+                    source: "doc['score'].value"
+          collapse:
+            field: product_id
+          rescore:
+            query:
+              rescore_query:
+                script_score:
+                  query: { match_all: { } }
+                  script:
+                    source: "doc['popularity'].value"
+              query_weight: 0
+              rescore_query_weight: 1
+
+
+  - match:  {hits.total.value: 5 }
+  - length: {hits.hits: 3 }
+  - match:  {hits.hits.0._id:  "3"}
+  - match:  {hits.hits.0._score:  50}
+  - match:  {hits.hits.0.fields.product_id:  ["10"]}
+  - match: { hits.hits.1._id: "1" }
+  - match: { hits.hits.1._score: 30 }
+  - match: { hits.hits.1.fields.product_id: ["0"] }
+  - match: { hits.hits.2._id: "5" }
+  - match: { hits.hits.2._score: 3 }
+  - match: { hits.hits.2.fields.product_id: ["129"] }
+
+---
+"field collapsing and rescore with window_size":
+  - do:
+      search:
+        index: products
+        body:
+          query:
+            bool:
+              filter:
+                match:
+                  description: "tv"
+              should:
+                script_score:
+                  query: { match_all: { } }
+                  script:
+                    source: "doc['score'].value"
+          collapse:
+            field: product_id
+          rescore:
+            window_size: 2
+            query:
+              rescore_query:
+                script_score:
+                  query: { match_all: { } }
+                  script:
+                    source: "doc['popularity'].value"
+              query_weight: 0
+              rescore_query_weight: 1
+          size: 1
+
+
+  - match:  {hits.total.value: 5 }
+  - length: {hits.hits: 1 }
+  - match:  {hits.hits.0._id:  "3"}
+  - match:  {hits.hits.0._score:  50}
+  - match:  {hits.hits.0.fields.product_id:  ["10"]}

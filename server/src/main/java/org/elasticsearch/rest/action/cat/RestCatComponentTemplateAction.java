@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.rest.action.cat;
@@ -20,6 +21,8 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestResponseListener;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
@@ -32,10 +35,12 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
+import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
 
 /**
  * cat API class for handling get componentTemplate.
  */
+@ServerlessScope(Scope.PUBLIC)
 public class RestCatComponentTemplateAction extends AbstractCatAction {
     @Override
     public String getName() {
@@ -70,10 +75,9 @@ public class RestCatComponentTemplateAction extends AbstractCatAction {
     @Override
     protected BaseRestHandler.RestChannelConsumer doCatRequest(RestRequest request, NodeClient client) {
         final String matchPattern = request.hasParam("name") ? request.param("name") : null;
-        final ClusterStateRequest clusterStateRequest = new ClusterStateRequest();
+        final ClusterStateRequest clusterStateRequest = new ClusterStateRequest(getMasterNodeTimeout(request));
         clusterStateRequest.clear().metadata(true);
         clusterStateRequest.local(request.paramAsBoolean("local", clusterStateRequest.local()));
-        clusterStateRequest.masterNodeTimeout(request.paramAsTime("master_timeout", clusterStateRequest.masterNodeTimeout()));
         return channel -> client.admin().cluster().state(clusterStateRequest, new RestResponseListener<>(channel) {
             @Override
             public RestResponse buildResponse(ClusterStateResponse clusterStateResponse) throws Exception {
@@ -124,24 +128,27 @@ public class RestCatComponentTemplateAction extends AbstractCatAction {
         }
         int count = 0;
         XContentType xContentType = XContentType.JSON;
-        XContentParser parser = xContentType.xContent()
-            .createParser(XContentParserConfiguration.EMPTY, template.mappings().uncompressed().array());
-        XContentParser.Token token = parser.nextToken();
-        String currentFieldName = null;
-        while (token != XContentParser.Token.END_OBJECT) {
-            if (token == XContentParser.Token.FIELD_NAME) {
-                currentFieldName = parser.currentName();
-            } else if (token == XContentParser.Token.START_OBJECT) {
-                if ("_doc".equals(currentFieldName)) {
-                    List<Object> list = parser.mapOrdered().values().stream().toList();
-                    for (Object mapping : list) {
-                        count = count + countSubAttributes(mapping);
+        try (
+            XContentParser parser = xContentType.xContent()
+                .createParser(XContentParserConfiguration.EMPTY, template.mappings().uncompressed().array())
+        ) {
+            XContentParser.Token token = parser.nextToken();
+            String currentFieldName = null;
+            while (token != XContentParser.Token.END_OBJECT) {
+                if (token == XContentParser.Token.FIELD_NAME) {
+                    currentFieldName = parser.currentName();
+                } else if (token == XContentParser.Token.START_OBJECT) {
+                    if ("_doc".equals(currentFieldName)) {
+                        List<Object> list = parser.mapOrdered().values().stream().toList();
+                        for (Object mapping : list) {
+                            count = count + countSubAttributes(mapping);
+                        }
                     }
+                } else {
+                    parser.skipChildren();
                 }
-            } else {
-                parser.skipChildren();
+                token = parser.nextToken();
             }
-            token = parser.nextToken();
         }
         return count;
     }

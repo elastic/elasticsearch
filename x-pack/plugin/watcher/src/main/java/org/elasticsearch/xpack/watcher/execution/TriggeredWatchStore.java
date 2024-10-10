@@ -11,7 +11,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.bulk.BulkItemResponse;
-import org.elasticsearch.action.bulk.BulkProcessor;
+import org.elasticsearch.action.bulk.BulkProcessor2;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
@@ -61,9 +61,9 @@ public class TriggeredWatchStore {
 
     private final TimeValue defaultBulkTimeout;
     private final TimeValue defaultSearchTimeout;
-    private final BulkProcessor bulkProcessor;
+    private final BulkProcessor2 bulkProcessor;
 
-    public TriggeredWatchStore(Settings settings, Client client, TriggeredWatch.Parser triggeredWatchParser, BulkProcessor bulkProcessor) {
+    public TriggeredWatchStore(Settings settings, Client client, TriggeredWatch.Parser triggeredWatchParser, BulkProcessor2 bulkProcessor) {
         this.scrollSize = settings.getAsInt("xpack.watcher.execution.scroll.size", 1000);
         this.client = ClientHelper.clientWithOrigin(client, WATCHER_ORIGIN);
         this.scrollTimeout = settings.getAsTime("xpack.watcher.execution.scroll.timeout", TimeValue.timeValueMinutes(5));
@@ -83,7 +83,7 @@ public class TriggeredWatchStore {
     }
 
     public BulkResponse putAll(final List<TriggeredWatch> triggeredWatches) throws IOException {
-        PlainActionFuture<BulkResponse> future = PlainActionFuture.newFuture();
+        PlainActionFuture<BulkResponse> future = new PlainActionFuture<>();
         putAll(triggeredWatches, future);
         return future.actionGet(defaultBulkTimeout);
     }
@@ -94,7 +94,7 @@ public class TriggeredWatchStore {
      * @return                  The bulk request for the triggered watches
      * @throws IOException      If a triggered watch could not be parsed to JSON, this exception is thrown
      */
-    private BulkRequest createBulkRequest(final List<TriggeredWatch> triggeredWatches) throws IOException {
+    private static BulkRequest createBulkRequest(final List<TriggeredWatch> triggeredWatches) throws IOException {
         BulkRequest request = new BulkRequest();
         for (TriggeredWatch triggeredWatch : triggeredWatches) {
             IndexRequest indexRequest = new IndexRequest(TriggeredWatchStoreField.INDEX_NAME).id(triggeredWatch.id().value());
@@ -167,12 +167,15 @@ public class TriggeredWatchStore {
                 }
                 SearchScrollRequest request = new SearchScrollRequest(response.getScrollId());
                 request.scroll(scrollTimeout);
+                response.decRef();
                 response = client.searchScroll(request).actionGet(defaultSearchTimeout);
             }
         } finally {
             if (response != null) {
+                final String scrollId = response.getScrollId();
+                response.decRef();
                 ClearScrollRequest clearScrollRequest = new ClearScrollRequest();
-                clearScrollRequest.addScrollId(response.getScrollId());
+                clearScrollRequest.addScrollId(scrollId);
                 client.clearScroll(clearScrollRequest).actionGet(scrollTimeout);
             }
         }

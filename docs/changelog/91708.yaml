@@ -1,6 +1,0 @@
-pr: 91708
-summary: Expose Health Api telemetry via xpack
-area: Health
-type: enhancement
-issues:
- - 90877

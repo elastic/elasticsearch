@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.index.shard;
 
@@ -12,6 +13,7 @@ import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.PostingsEnum;
 import org.apache.lucene.index.StoredFieldVisitor;
+import org.apache.lucene.index.StoredFields;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.ConstantScoreScorer;
@@ -29,10 +31,11 @@ import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.BitSetIterator;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.core.Predicates;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
@@ -139,7 +142,12 @@ final class ShardSplittingQuery extends Query {
                              * of the document that contains them.
                              */
                             FixedBitSet hasRoutingValue = new FixedBitSet(leafReader.maxDoc());
-                            findSplitDocs(RoutingFieldMapper.NAME, ref -> false, leafReader, maybeWrapConsumer.apply(hasRoutingValue::set));
+                            findSplitDocs(
+                                RoutingFieldMapper.NAME,
+                                Predicates.never(),
+                                leafReader,
+                                maybeWrapConsumer.apply(hasRoutingValue::set)
+                            );
                             IntConsumer bitSetConsumer = maybeWrapConsumer.apply(bitSet::set);
                             findSplitDocs(IdFieldMapper.NAME, includeInShard, leafReader, docId -> {
                                 if (hasRoutingValue.get(docId) == false) {
@@ -227,13 +235,14 @@ final class ShardSplittingQuery extends Query {
        of a routing partitioned index sine otherwise we would need to un-invert the _id and _routing field which is memory heavy */
     private final class Visitor extends StoredFieldVisitor {
         final LeafReader leafReader;
+        final StoredFields storedFields;
         private int leftToVisit = 2;
-        private final BytesRef spare = new BytesRef();
         private String routing;
         private String id;
 
-        Visitor(LeafReader leafReader) {
+        Visitor(LeafReader leafReader) throws IOException {
             this.leafReader = leafReader;
+            this.storedFields = leafReader.storedFields();
         }
 
         @Override
@@ -268,7 +277,7 @@ final class ShardSplittingQuery extends Query {
         boolean matches(int doc) throws IOException {
             routing = id = null;
             leftToVisit = 2;
-            leafReader.document(doc, this);
+            storedFields.document(doc, this);
             assert id != null : "docID must not be null - we might have hit a nested document";
             int targetShardId = indexRouting.getShard(id, routing);
             return targetShardId != shardId;
@@ -338,7 +347,7 @@ final class ShardSplittingQuery extends Query {
      * than once. There is no point in using BitsetFilterCache#BitSetProducerWarmer since we use this only as a delete by query which is
      * executed on a recovery-private index writer. There is no point in caching it and it won't have a cache hit either.
      */
-    private static BitSetProducer newParentDocBitSetProducer(Version indexCreationVersion) {
+    private static BitSetProducer newParentDocBitSetProducer(IndexVersion indexCreationVersion) {
         return context -> BitsetFilterCache.bitsetFromQuery(Queries.newNonNestedFilter(indexCreationVersion), context);
     }
 }

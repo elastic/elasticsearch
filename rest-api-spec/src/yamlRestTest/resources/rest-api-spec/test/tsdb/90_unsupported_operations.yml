@@ -1,7 +1,13 @@
+---
 setup:
+  - requires:
+      cluster_features: "gte_v8.2.0"
+      reason: "tsdb indexing changed in 8.2.0"
   - skip:
-      version: " - 8.1.99"
-      reason: tsdb indexing changed in 8.2.0
+      known_issues:
+        - cluster_feature: "gte_v8.7.0"
+          fixed_by: "gte_v8.10.0"
+      reason: "Synthetic source shows up in the mapping in 8.10 and on, may trigger assert failures in mixed cluster tests"
 
   - do:
       indices.create:
@@ -64,8 +70,8 @@ setup:
 
 ---
 index with routing:
-  - skip:
-      version: " - 8.1.99"
+  - requires:
+      cluster_features: ["gte_v8.2.0"]
       reason: tsdb indexing changed in 8.2.0
 
   - do:
@@ -87,8 +93,8 @@ index with routing:
 
 ---
 index with routing over _bulk:
-  - skip:
-      version: " - 8.1.99"
+  - requires:
+      cluster_features: ["gte_v8.2.0"]
       reason: tsdb indexing changed in 8.2.0
 
   - do:
@@ -102,8 +108,8 @@ index with routing over _bulk:
 
 ---
 noop update:
-  - skip:
-      version: " - 8.1.99"
+  - requires:
+      cluster_features: ["gte_v8.2.0"]
       reason: tsdb indexing changed in 8.2.0
 
   - do:
@@ -124,8 +130,8 @@ noop update:
 
 ---
 update:
-  - skip:
-      version: " - 8.1.99"
+  - requires:
+      cluster_features: ["gte_v8.2.0"]
       reason: tsdb indexing changed in 8.2.0
 
   # We fail even though the document isn't found.
@@ -149,8 +155,8 @@ update:
 
 ---
 update over _bulk:
-  - skip:
-      version: " - 8.1.99"
+  - requires:
+      cluster_features: ["gte_v8.2.0"]
       reason: tsdb indexing changed in 8.2.0
 
   - do:
@@ -163,8 +169,8 @@ update over _bulk:
 
 ---
 search with routing:
-  - skip:
-      version: " - 8.1.99"
+  - requires:
+      cluster_features: ["gte_v8.2.0"]
       reason: tsdb indexing changed in 8.2.0
 
   # We fail even though the document isn't found.
@@ -176,8 +182,8 @@ search with routing:
 
 ---
 alias with routing:
-  - skip:
-      version: " - 8.1.99"
+  - requires:
+      cluster_features: ["gte_v8.2.0"]
       reason: tsdb indexing changed in 8.2.0
 
   - do:
@@ -190,8 +196,8 @@ alias with routing:
 
 ---
 alias with search_routing:
-  - skip:
-      version: " - 8.1.99"
+  - requires:
+      cluster_features: ["gte_v8.2.0"]
       reason: tsdb indexing changed in 8.2.0
 
   - do:
@@ -204,8 +210,8 @@ alias with search_routing:
 
 ---
 sort by _id:
-  - skip:
-      version: " - 8.1.99"
+  - requires:
+      cluster_features: ["gte_v8.2.0"]
       reason: tsdb indexing changed in 8.2.0
 
   - do:
@@ -218,8 +224,8 @@ sort by _id:
 
 ---
 aggregate on _id:
-  - skip:
-      version: " - 8.1.99"
+  - requires:
+      cluster_features: ["gte_v8.2.0"]
       reason: tsdb indexing changed in 8.2.0
 
   - do:

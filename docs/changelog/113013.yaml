@@ -1,0 +1,5 @@
+pr: 113013
+summary: Account for `DelayedBucket` before reduction
+area: Aggregations
+type: enhancement
+issues: []

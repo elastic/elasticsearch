@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.transport;
 
@@ -21,6 +22,7 @@ import java.util.ArrayDeque;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Deque;
+import java.util.concurrent.Executor;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -190,7 +192,11 @@ public class TransportKeepAliveTests extends ESTestCase {
         }
 
         @Override
-        public ScheduledCancellable schedule(Runnable task, TimeValue delay, String executor) {
+        public ScheduledCancellable schedule(Runnable task, TimeValue delay, Executor executor) {
+            return doSchedule(task, delay);
+        }
+
+        private ScheduledCancellable doSchedule(Runnable task, TimeValue delay) {
             scheduledTasks.add(new Tuple<>(delay, task));
             return null;
         }

@@ -7,17 +7,12 @@
 
 package org.elasticsearch.mixed;
 
-import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.rest.ESRestTestCase;
 
 public class DataTierMixedIT extends ESRestTestCase {
 
     public void testMixedTierCompatibility() throws Exception {
-        createIndex(
-            "test-index",
-            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build()
-        );
+        createIndex("test-index", indexSettings(1, 0).build());
         ensureGreen("test-index");
     }
 }

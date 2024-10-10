@@ -1,14 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.refresh;
 
-import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -39,7 +40,7 @@ public class RefreshStats implements Writeable, ToXContentFragment {
     public RefreshStats(StreamInput in) throws IOException {
         total = in.readVLong();
         totalTimeInMillis = in.readVLong();
-        if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_2_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_2_0)) {
             externalTotal = in.readVLong();
             externalTotalTimeInMillis = in.readVLong();
         }
@@ -50,7 +51,7 @@ public class RefreshStats implements Writeable, ToXContentFragment {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVLong(total);
         out.writeVLong(totalTimeInMillis);
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_2_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_2_0)) {
             out.writeVLong(externalTotal);
             out.writeVLong(externalTotalTimeInMillis);
         }

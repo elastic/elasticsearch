@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.test.rest.yaml;
 
@@ -335,5 +336,44 @@ public class ObjectPathTests extends ESTestCase {
         assertThat(object, notNullValue());
         assertThat(object, instanceOf(String.class));
         assertThat(object, equalTo("test2"));
+    }
+
+    public void testEvaluateArraySize() throws Exception {
+        XContentBuilder xContentBuilder = randomXContentBuilder();
+        xContentBuilder.startObject();
+        xContentBuilder.startArray("test-array");
+        xContentBuilder.startObject();
+        xContentBuilder.field("foo", "bar");
+        xContentBuilder.endObject();
+        xContentBuilder.value(1);
+        xContentBuilder.value("test-string");
+        xContentBuilder.endArray();
+        xContentBuilder.endObject();
+
+        ObjectPath objectPath = ObjectPath.createFromXContent(
+            XContentFactory.xContent(xContentBuilder.contentType()),
+            BytesReference.bytes(xContentBuilder)
+        );
+
+        assertEquals(3, objectPath.evaluateArraySize("test-array"));
+    }
+
+    public void testEvaluateMapKeys() throws Exception {
+        XContentBuilder xContentBuilder = randomXContentBuilder();
+        xContentBuilder.startObject();
+        xContentBuilder.startObject("test-object");
+        xContentBuilder.field("key1", "bar");
+        xContentBuilder.field("key2", 42);
+        xContentBuilder.startObject("key3");
+        xContentBuilder.endObject();
+        xContentBuilder.endObject();
+        xContentBuilder.endObject();
+
+        ObjectPath objectPath = ObjectPath.createFromXContent(
+            XContentFactory.xContent(xContentBuilder.contentType()),
+            BytesReference.bytes(xContentBuilder)
+        );
+
+        assertEquals(Set.of("key1", "key2", "key3"), objectPath.evaluateMapKeys("test-object"));
     }
 }

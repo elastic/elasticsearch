@@ -22,8 +22,9 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
@@ -46,6 +47,7 @@ import org.elasticsearch.xpack.core.ml.job.config.JobTaskState;
 import org.elasticsearch.xpack.core.ml.job.config.JobUpdate;
 import org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.job.JobNodeSelector;
 import org.elasticsearch.xpack.ml.job.persistence.JobConfigProvider;
 import org.elasticsearch.xpack.ml.process.MlMemoryTracker;
@@ -53,7 +55,6 @@ import org.elasticsearch.xpack.ml.process.MlMemoryTracker;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Predicate;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
@@ -102,7 +103,7 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
             OpenJobAction.Request::new,
             indexNameExpressionResolver,
             NodeAcknowledgedResponse::new,
-            ThreadPool.Names.SAME
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.licenseState = licenseState;
         this.persistentTasksService = persistentTasksService;
@@ -166,6 +167,7 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
                     MlTasks.jobTaskId(jobParams.getJobId()),
                     MlTasks.JOB_TASK_NAME,
                     jobParams,
+                    request.masterNodeTimeout(),
                     waitForJobToStart
                 ),
                 listener::onFailure
@@ -187,7 +189,7 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
                     referencedRuleFiltersPresentListener.onResponse(true);
                 } else {
                     GetFiltersAction.Request getFiltersRequest = new GetFiltersAction.Request();
-                    getFiltersRequest.setResourceId(referencedRuleFilters.stream().collect(Collectors.joining(",")));
+                    getFiltersRequest.setResourceId(String.join(",", referencedRuleFilters));
                     getFiltersRequest.setAllowNoResources(false);
                     client.execute(
                         GetFiltersAction.INSTANCE,
@@ -314,7 +316,8 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
             client,
             clusterState,
             masterNodeTimeout,
-            mappingsUpdatedListener
+            mappingsUpdatedListener,
+            MlConfigIndex.CONFIG_INDEX_MAPPINGS_VERSION
         );
     }
 
@@ -323,27 +326,31 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
         Exception exception,
         ActionListener<NodeAcknowledgedResponse> listener
     ) {
-        persistentTasksService.sendRemoveRequest(persistentTask.getId(), new ActionListener<>() {
-            @Override
-            public void onResponse(PersistentTasksCustomMetadata.PersistentTask<?> task) {
-                // We succeeded in cancelling the persistent task, but the
-                // problem that caused us to cancel it is the overall result
-                listener.onFailure(exception);
-            }
+        persistentTasksService.sendRemoveRequest(
+            persistentTask.getId(),
+            MachineLearning.HARD_CODED_MACHINE_LEARNING_MASTER_NODE_TIMEOUT,
+            new ActionListener<>() {
+                @Override
+                public void onResponse(PersistentTasksCustomMetadata.PersistentTask<?> task) {
+                    // We succeeded in cancelling the persistent task, but the
+                    // problem that caused us to cancel it is the overall result
+                    listener.onFailure(exception);
+                }
 
-            @Override
-            public void onFailure(Exception e) {
-                logger.error(
-                    () -> format(
-                        "[%s] Failed to cancel persistent task that could not be assigned due to [%s]",
-                        persistentTask.getParams().getJobId(),
-                        exception.getMessage()
-                    ),
-                    e
-                );
-                listener.onFailure(exception);
+                @Override
+                public void onFailure(Exception e) {
+                    logger.error(
+                        () -> format(
+                            "[%s] Failed to cancel persistent task that could not be assigned due to [%s]",
+                            persistentTask.getParams().getJobId(),
+                            exception.getMessage()
+                        ),
+                        e
+                    );
+                    listener.onFailure(exception);
+                }
             }
-        });
+        );
     }
 
     /**

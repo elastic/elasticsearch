@@ -8,26 +8,33 @@ package org.elasticsearch.xpack.spatial.index.mapper;
 
 import org.apache.lucene.document.ShapeField;
 import org.apache.lucene.index.IndexableField;
-import org.elasticsearch.Version;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.Orientation;
+import org.elasticsearch.geometry.Geometry;
+import org.elasticsearch.geometry.utils.GeometryValidator;
+import org.elasticsearch.geometry.utils.WellKnownBinary;
+import org.elasticsearch.geometry.utils.WellKnownText;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.AbstractGeometryFieldMapper;
 import org.elasticsearch.index.mapper.AbstractShapeGeometryFieldMapper;
 import org.elasticsearch.index.mapper.AbstractShapeGeometryFieldMapper.AbstractShapeGeometryFieldType;
 import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
-import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
-import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.ToXContent;
 import org.junit.AssumptionViolatedException;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
+import java.util.function.Function;
 
 import static org.elasticsearch.geometry.utils.Geohash.stringEncode;
 import static org.hamcrest.Matchers.containsString;
@@ -52,7 +59,7 @@ public class ShapeFieldMapperTests extends CartesianFieldMapperTests {
 
     /** The GeoJSON parser used by 'geo_shape' has a more complex exception handling approach than for 'geo_point' or 'point' */
     @Override
-    protected void assertGeoJSONParseException(MapperParsingException e, String missingField) {
+    protected void assertGeoJSONParseException(DocumentParsingException e, String missingField) {
         assertThat(e.getMessage(), containsString("failed to parse"));
         assertThat(e.getCause().getMessage(), containsString("Failed to build"));
         assertThat(e.getCause().getCause().getMessage(), containsString(missingField + " not included"));
@@ -107,7 +114,7 @@ public class ShapeFieldMapperTests extends CartesianFieldMapperTests {
 
     public void testDefaultDocValueConfigurationOnPre8_4() throws IOException {
         // TODO verify which version this test is actually valid for (when PR is actually merged)
-        Version oldVersion = VersionUtils.randomVersionBetween(random(), Version.V_7_0_0, Version.V_8_3_0);
+        IndexVersion oldVersion = IndexVersionUtils.randomVersionBetween(random(), IndexVersions.MINIMUM_COMPATIBLE, IndexVersions.V_8_3_0);
         DocumentMapper defaultMapper = createDocumentMapper(oldVersion, fieldMapping(this::minimalMapping));
         Mapper fieldMapper = defaultMapper.mappers().getMapper(FIELD_NAME);
         assertThat(fieldMapper, instanceOf(fieldMapperClass()));
@@ -317,8 +324,8 @@ public class ShapeFieldMapperTests extends CartesianFieldMapperTests {
 
         ParsedDocument document = mapper.parse(sourceToParse);
         assertThat(document.docs(), hasSize(1));
-        IndexableField[] fields = document.docs().get(0).getFields("shape.type");
-        assertThat(fields.length, equalTo(2));
+        List<IndexableField> fields = document.docs().get(0).getFields("shape.type");
+        assertThat(fields.size(), equalTo(2));
     }
 
     public void testMultiFieldsDeprecationWarning() throws Exception {
@@ -333,8 +340,8 @@ public class ShapeFieldMapperTests extends CartesianFieldMapperTests {
 
     public void testSelfIntersectPolygon() throws IOException {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
-        MapperParsingException ex = expectThrows(
-            MapperParsingException.class,
+        DocumentParsingException ex = expectThrows(
+            DocumentParsingException.class,
             () -> mapper.parse(source(b -> b.field(FIELD_NAME, "POLYGON((0 0, 1 1, 0 1, 1 0, 0 0))")))
         );
         assertThat(ex.getCause().getMessage(), containsString("Polygon self-intersection at lat=0.5 lon=0.5"));
@@ -361,7 +368,24 @@ public class ShapeFieldMapperTests extends CartesianFieldMapperTests {
 
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed) {
-        throw new AssumptionViolatedException("not supported");
+        return new GeometricShapeSyntheticSourceSupport(GeometricShapeSyntheticSourceSupport.FieldType.SHAPE, ignoreMalformed);
+    }
+
+    @Override
+    protected Function<Object, Object> loadBlockExpected(BlockReaderSupport blockReaderSupport, boolean columnReader) {
+        return v -> asWKT((BytesRef) v);
+    }
+
+    protected static Object asWKT(BytesRef value) {
+        // Internally we use WKB in BytesRef, but for test assertions we want to use WKT for readability
+        Geometry geometry = WellKnownBinary.fromWKB(GeometryValidator.NOOP, false, value.bytes);
+        return WellKnownText.toWKT(geometry);
+    }
+
+    @Override
+    protected BlockReaderSupport getSupportedReaders(MapperService mapper, String loaderFieldName) {
+        // Synthetic source is currently not supported.
+        return new BlockReaderSupport(false, false, mapper, loaderFieldName);
     }
 
     @Override

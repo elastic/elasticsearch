@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.gradle
@@ -70,25 +71,14 @@ class DistributionDownloadPluginFuncTest extends AbstractGradleFuncTest {
         def version = VersionProperties.getElasticsearch()
         def platform = ElasticsearchDistribution.Platform.LINUX
 
-        3.times {
-            settingsFile << """
-                include ':sub-$it'
-            """
-        }
         buildFile.text = """
-            import org.elasticsearch.gradle.Architecture
-
             plugins {
                 id 'elasticsearch.distribution-download'
             }
-
-            subprojects {
-                apply plugin: 'elasticsearch.distribution-download'
-
-                ${setupTestDistro(version, platform)}
-                ${setupDistroTask()}
-            }
         """
+        3.times {
+            subProject(':sub-' + it) << applyPluginAndSetupDistro(version, platform)
+        }
 
         when:
         def runner = gradleRunner('setupDistro', '-i', '-g', gradleUserHome)
@@ -118,14 +108,6 @@ class DistributionDownloadPluginFuncTest extends AbstractGradleFuncTest {
                 id 'elasticsearch.distribution-download'
             }
 
-            ${setupTestDistro(version, platform)}
-            ${setupDistroTask()}
-
-        """
-    }
-
-    private static String setupTestDistro(String version, ElasticsearchDistribution.Platform platform) {
-        return """
             elasticsearch_distributions {
                 test_distro {
                     version = "$version"
@@ -134,11 +116,7 @@ class DistributionDownloadPluginFuncTest extends AbstractGradleFuncTest {
                     architecture = Architecture.current();
                 }
             }
-            """
-    }
 
-    private static String setupDistroTask() {
-        return """
             tasks.register("setupDistro", Sync) {
                 from(elasticsearch_distributions.test_distro)
                 into("build/distro")

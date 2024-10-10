@@ -31,7 +31,7 @@ When the {es} keystore is password protected and not simply obfuscated, you must
 provide the password for the keystore when you reload the secure settings.
 Reloading the settings for the whole cluster assumes that all nodes' keystores
 are protected with the same password; this method is allowed only when
-<<tls-transport,inter-node communications are encrypted>>. Alternatively, you can
+<<encrypt-internode-communication,inter-node communications are encrypted>>. Alternatively, you can
 reload the secure settings on each node by locally accessing the API and passing
 the node-specific {es} keystore password.
 

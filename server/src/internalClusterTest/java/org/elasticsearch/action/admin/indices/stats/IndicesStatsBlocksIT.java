@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.indices.stats;
@@ -36,7 +37,7 @@ public class IndicesStatsBlocksIT extends ESIntegTestCase {
         )) {
             try {
                 enableIndexBlock("ro", blockSetting);
-                IndicesStatsResponse indicesStatsResponse = client().admin().indices().prepareStats("ro").execute().actionGet();
+                IndicesStatsResponse indicesStatsResponse = indicesAdmin().prepareStats("ro").get();
                 assertNotNull(indicesStatsResponse.getIndex("ro"));
             } finally {
                 disableIndexBlock("ro", blockSetting);
@@ -46,7 +47,7 @@ public class IndicesStatsBlocksIT extends ESIntegTestCase {
         // Request is blocked
         try {
             enableIndexBlock("ro", IndexMetadata.SETTING_BLOCKS_METADATA);
-            client().admin().indices().prepareStats("ro").execute().actionGet();
+            indicesAdmin().prepareStats("ro").get();
             fail("Exists should fail when " + IndexMetadata.SETTING_BLOCKS_METADATA + " is true");
         } catch (ClusterBlockException e) {
             // Ok, a ClusterBlockException is expected

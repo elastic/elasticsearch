@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.metrics;
@@ -29,12 +30,15 @@ public class InternalTDigestPercentilesRanksTests extends InternalPercentilesRan
         boolean keyed,
         DocValueFormat format,
         double[] percents,
-        double[] values
+        double[] values,
+        boolean empty
     ) {
-        final TDigestState state = new TDigestState(100);
+        if (empty) {
+            return new InternalTDigestPercentileRanks(name, percents, null, keyed, format, metadata);
+        }
+        final TDigestState state = TDigestState.createWithoutCircuitBreaking(100);
         Arrays.stream(values).forEach(state::add);
 
-        assertEquals(state.centroidCount(), values.length);
         return new InternalTDigestPercentileRanks(name, percents, state, keyed, format, metadata);
     }
 
@@ -80,11 +84,6 @@ public class InternalTDigestPercentilesRanksTests extends InternalPercentilesRan
     }
 
     @Override
-    protected Class<? extends ParsedPercentiles> implementationClass() {
-        return ParsedTDigestPercentileRanks.class;
-    }
-
-    @Override
     protected InternalTDigestPercentileRanks mutateInstance(InternalTDigestPercentileRanks instance) {
         String name = instance.getName();
         double[] percents = instance.keys;
@@ -100,7 +99,7 @@ public class InternalTDigestPercentilesRanksTests extends InternalPercentilesRan
                 Arrays.sort(percents);
             }
             case 2 -> {
-                TDigestState newState = new TDigestState(state.compression());
+                TDigestState newState = TDigestState.createUsingParamsFrom(state);
                 newState.add(state);
                 for (int i = 0; i < between(10, 100); i++) {
                     newState.add(randomDouble());

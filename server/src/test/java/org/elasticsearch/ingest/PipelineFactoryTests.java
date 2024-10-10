@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.ingest;
@@ -29,6 +30,7 @@ public class PipelineFactoryTests extends ESTestCase {
     private final String versionString = version != null ? Integer.toString(version) : null;
     private final ScriptService scriptService = mock(ScriptService.class);
     private final Map<String, Object> metadata = randomMapOfMaps();
+    private final Boolean deprecated = randomOptionalBoolean();
 
     public void testCreate() throws Exception {
         Map<String, Object> processorConfig0 = new HashMap<>();
@@ -40,12 +42,14 @@ public class PipelineFactoryTests extends ESTestCase {
         if (metadata != null) {
             pipelineConfig.put(Pipeline.META_KEY, metadata);
         }
+        pipelineConfig.put(Pipeline.DEPRECATED_KEY, deprecated);
         pipelineConfig.put(Pipeline.PROCESSORS_KEY, List.of(Map.of("test", processorConfig0), Map.of("test", processorConfig1)));
         Map<String, Processor.Factory> processorRegistry = Map.of("test", new TestProcessor.Factory());
         Pipeline pipeline = Pipeline.create("_id", pipelineConfig, processorRegistry, scriptService);
         assertThat(pipeline.getId(), equalTo("_id"));
         assertThat(pipeline.getDescription(), equalTo("_description"));
         assertThat(pipeline.getVersion(), equalTo(version));
+        assertThat(pipeline.getDeprecated(), equalTo(deprecated));
         assertThat(pipeline.getProcessors().size(), equalTo(2));
         assertThat(pipeline.getProcessors().get(0).getType(), equalTo("test-processor"));
         assertThat(pipeline.getProcessors().get(0).getTag(), equalTo("first-processor"));

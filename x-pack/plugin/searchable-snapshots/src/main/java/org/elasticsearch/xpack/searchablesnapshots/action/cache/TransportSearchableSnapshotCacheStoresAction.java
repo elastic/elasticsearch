@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.searchablesnapshots.action.cache;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.support.nodes.BaseNodeResponse;
 import org.elasticsearch.action.support.nodes.BaseNodesRequest;
 import org.elasticsearch.action.support.nodes.BaseNodesResponse;
@@ -16,10 +17,10 @@ import org.elasticsearch.action.support.nodes.TransportNodesAction;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -38,11 +39,12 @@ public class TransportSearchableSnapshotCacheStoresAction extends TransportNodes
     TransportSearchableSnapshotCacheStoresAction.Request,
     TransportSearchableSnapshotCacheStoresAction.NodesCacheFilesMetadata,
     TransportSearchableSnapshotCacheStoresAction.NodeRequest,
-    TransportSearchableSnapshotCacheStoresAction.NodeCacheFilesMetadata> {
+    TransportSearchableSnapshotCacheStoresAction.NodeCacheFilesMetadata,
+    Void> {
 
     public static final String ACTION_NAME = "internal:admin/xpack/searchable_snapshots/cache/store";
 
-    public static final ActionType<NodesCacheFilesMetadata> TYPE = new ActionType<>(ACTION_NAME, NodesCacheFilesMetadata::new);
+    public static final ActionType<NodesCacheFilesMetadata> TYPE = new ActionType<>(ACTION_NAME);
 
     private final CacheService cacheService;
 
@@ -56,15 +58,11 @@ public class TransportSearchableSnapshotCacheStoresAction extends TransportNodes
     ) {
         super(
             ACTION_NAME,
-            threadPool,
             clusterService,
             transportService,
             actionFilters,
-            Request::new,
             NodeRequest::new,
-            ThreadPool.Names.MANAGEMENT,
-            ThreadPool.Names.SAME,
-            NodeCacheFilesMetadata.class
+            threadPool.executor(ThreadPool.Names.MANAGEMENT)
         );
         this.cacheService = cacheService.get();
     }
@@ -106,19 +104,6 @@ public class TransportSearchableSnapshotCacheStoresAction extends TransportNodes
             super(nodes);
             this.snapshotId = snapshotId;
             this.shardId = shardId;
-        }
-
-        public Request(StreamInput in) throws IOException {
-            super(in);
-            snapshotId = new SnapshotId(in);
-            shardId = new ShardId(in);
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-            snapshotId.writeTo(out);
-            shardId.writeTo(out);
         }
     }
 
@@ -172,23 +157,18 @@ public class TransportSearchableSnapshotCacheStoresAction extends TransportNodes
     }
 
     public static class NodesCacheFilesMetadata extends BaseNodesResponse<NodeCacheFilesMetadata> {
-
-        public NodesCacheFilesMetadata(StreamInput in) throws IOException {
-            super(in);
-        }
-
         public NodesCacheFilesMetadata(ClusterName clusterName, List<NodeCacheFilesMetadata> nodes, List<FailedNodeException> failures) {
             super(clusterName, nodes, failures);
         }
 
         @Override
-        protected List<NodeCacheFilesMetadata> readNodesFrom(StreamInput in) throws IOException {
-            return in.readList(NodeCacheFilesMetadata::new);
+        protected List<NodeCacheFilesMetadata> readNodesFrom(StreamInput in) {
+            return TransportAction.localOnly();
         }
 
         @Override
-        protected void writeNodesTo(StreamOutput out, List<NodeCacheFilesMetadata> nodes) throws IOException {
-            out.writeList(nodes);
+        protected void writeNodesTo(StreamOutput out, List<NodeCacheFilesMetadata> nodes) {
+            TransportAction.localOnly();
         }
     }
 }

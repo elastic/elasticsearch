@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.query;
@@ -70,7 +71,6 @@ import static org.elasticsearch.index.query.QueryBuilders.queryStringQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertBooleanSubQuery;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.CoreMatchers.equalTo;
-import static org.hamcrest.CoreMatchers.hasItems;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -532,7 +532,7 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
             BooleanClause.Occur defaultOp = op.toBooleanClauseOccur();
             QueryStringQueryParser queryParser = new QueryStringQueryParser(createSearchExecutionContext(), TEXT_FIELD_NAME);
             queryParser.setAnalyzeWildcard(true);
-            queryParser.setMultiTermRewriteMethod(MultiTermQuery.CONSTANT_SCORE_REWRITE);
+            queryParser.setMultiTermRewriteMethod(MultiTermQuery.CONSTANT_SCORE_BLENDED_REWRITE);
             queryParser.setDefaultOperator(op.toQueryParserOperator());
             Query query = queryParser.parse("first foo-bar-foobar* last");
             Query expectedQuery = new BooleanQuery.Builder().add(
@@ -572,7 +572,7 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
             BooleanClause.Occur defaultOp = op.toBooleanClauseOccur();
             QueryStringQueryParser queryParser = new QueryStringQueryParser(createSearchExecutionContext(), TEXT_FIELD_NAME);
             queryParser.setAnalyzeWildcard(true);
-            queryParser.setMultiTermRewriteMethod(MultiTermQuery.CONSTANT_SCORE_REWRITE);
+            queryParser.setMultiTermRewriteMethod(MultiTermQuery.CONSTANT_SCORE_BLENDED_REWRITE);
             queryParser.setDefaultOperator(op.toQueryParserOperator());
             queryParser.setForceAnalyzer(new MockRepeatAnalyzer());
             Query query = queryParser.parse("first foo-bar-foobar* last");
@@ -631,10 +631,10 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
             BooleanClause.Occur defaultOp = op.toBooleanClauseOccur();
             QueryStringQueryParser queryParser = new QueryStringQueryParser(createSearchExecutionContext(), TEXT_FIELD_NAME);
             queryParser.setAnalyzeWildcard(true);
-            queryParser.setMultiTermRewriteMethod(MultiTermQuery.CONSTANT_SCORE_REWRITE);
+            queryParser.setMultiTermRewriteMethod(MultiTermQuery.CONSTANT_SCORE_BLENDED_REWRITE);
             queryParser.setDefaultOperator(op.toQueryParserOperator());
             queryParser.setAnalyzeWildcard(true);
-            queryParser.setMultiTermRewriteMethod(MultiTermQuery.CONSTANT_SCORE_REWRITE);
+            queryParser.setMultiTermRewriteMethod(MultiTermQuery.CONSTANT_SCORE_BLENDED_REWRITE);
             queryParser.setDefaultOperator(op.toQueryParserOperator());
             queryParser.setForceAnalyzer(new MockSynonymAnalyzer());
             queryParser.setAutoGenerateMultiTermSynonymsPhraseQuery(false);
@@ -1425,22 +1425,6 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
     private static IndexMetadata newIndexMeta(String name, Settings oldIndexSettings, Settings indexSettings) {
         Settings build = Settings.builder().put(oldIndexSettings).put(indexSettings).build();
         return IndexMetadata.builder(name).settings(build).build();
-    }
-
-    private void assertQueryWithAllFieldsWildcard(Query query) {
-        assertEquals(DisjunctionMaxQuery.class, query.getClass());
-        DisjunctionMaxQuery disjunctionMaxQuery = (DisjunctionMaxQuery) query;
-        int noMatchNoDocsQueries = 0;
-        for (Query q : disjunctionMaxQuery.getDisjuncts()) {
-            if (q.getClass() == MatchNoDocsQuery.class) {
-                noMatchNoDocsQueries++;
-            }
-        }
-        assertEquals(9, noMatchNoDocsQueries);
-        assertThat(
-            disjunctionMaxQuery.getDisjuncts(),
-            hasItems(new TermQuery(new Term(TEXT_FIELD_NAME, "hello")), new TermQuery(new Term(KEYWORD_FIELD_NAME, "hello")))
-        );
     }
 
     public void testWhitespaceKeywordQueries() throws IOException {

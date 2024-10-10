@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.suggest;
@@ -13,7 +14,6 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequestBuilder;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
@@ -47,14 +47,14 @@ import java.util.Map.Entry;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 
-import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.elasticsearch.search.suggest.SuggestBuilders.phraseSuggestion;
 import static org.elasticsearch.search.suggest.SuggestBuilders.termSuggestion;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertRequestBuilderThrows;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailuresAndResponse;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSuggestion;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSuggestionPhraseCollateMatchExists;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSuggestionSize;
@@ -181,10 +181,7 @@ public class SuggestSearchIT extends ESIntegTestCase {
     // see #3037
     public void testSuggestModes() throws IOException {
         CreateIndexRequestBuilder builder = prepareCreate("test").setSettings(
-            Settings.builder()
-                .put(SETTING_NUMBER_OF_SHARDS, 1)
-                .put(SETTING_NUMBER_OF_REPLICAS, 0)
-                .put("index.analysis.analyzer.biword.tokenizer", "standard")
+            indexSettings(1, 0).put("index.analysis.analyzer.biword.tokenizer", "standard")
                 .putList("index.analysis.analyzer.biword.filter", "shingler", "lowercase")
                 .put("index.analysis.filter.shingler.type", "shingle")
                 .put("index.analysis.filter.shingler.min_shingle_size", 2)
@@ -241,7 +238,7 @@ public class SuggestSearchIT extends ESIntegTestCase {
 
     // see #2729
     public void testSizeOneShard() throws Exception {
-        prepareCreate("test").setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0)).get();
+        prepareCreate("test").setSettings(indexSettings(1, 0)).get();
         ensureGreen();
 
         for (int i = 0; i < 15; i++) {
@@ -249,8 +246,10 @@ public class SuggestSearchIT extends ESIntegTestCase {
         }
         refresh();
 
-        SearchResponse search = client().prepareSearch().setQuery(matchQuery("text", "spellchecker")).get();
-        assertThat("didn't ask for suggestions but got some", search.getSuggest(), nullValue());
+        assertResponse(
+            prepareSearch().setQuery(matchQuery("text", "spellchecker")),
+            response -> assertThat("didn't ask for suggestions but got some", response.getSuggest(), nullValue())
+        );
 
         TermSuggestionBuilder termSuggestion = termSuggestion("text").suggestMode(SuggestMode.ALWAYS) // Always, otherwise the results can
                                                                                                       // vary between requests.
@@ -296,9 +295,9 @@ public class SuggestSearchIT extends ESIntegTestCase {
 
         indexRandom(
             true,
-            client().prepareIndex("test").setSource("name", "I like iced tea"),
-            client().prepareIndex("test").setSource("name", "I like tea."),
-            client().prepareIndex("test").setSource("name", "I like ice cream.")
+            prepareIndex("test").setSource("name", "I like iced tea"),
+            prepareIndex("test").setSource("name", "I like tea."),
+            prepareIndex("test").setSource("name", "I like ice cream.")
         );
         refresh();
 
@@ -312,14 +311,14 @@ public class SuggestSearchIT extends ESIntegTestCase {
             candidateGenerator("name").prefixLength(0).minWordLength(0).suggestMode("always").maxEdits(2)
         ).gramSize(3);
         {
-            SearchRequestBuilder searchBuilder = client().prepareSearch().setSize(0);
+            SearchRequestBuilder searchBuilder = prepareSearch().setSize(0);
             searchBuilder.suggest(new SuggestBuilder().setGlobalText("tetsting sugestion").addSuggestion("did_you_mean", phraseSuggestion));
-            assertRequestBuilderThrows(searchBuilder, SearchPhaseExecutionException.class);
+            expectThrows(SearchPhaseExecutionException.class, searchBuilder);
         }
         {
-            SearchRequestBuilder searchBuilder = client().prepareSearch().setSize(0);
+            SearchRequestBuilder searchBuilder = prepareSearch().setSize(0);
             searchBuilder.suggest(new SuggestBuilder().setGlobalText("tetsting sugestion").addSuggestion("did_you_mean", phraseSuggestion));
-            assertRequestBuilderThrows(searchBuilder, SearchPhaseExecutionException.class);
+            expectThrows(SearchPhaseExecutionException.class, searchBuilder);
         }
     }
 
@@ -333,8 +332,10 @@ public class SuggestSearchIT extends ESIntegTestCase {
         indexDoc("test", "4", "text", "abcc");
         refresh();
 
-        SearchResponse search = client().prepareSearch().setQuery(matchQuery("text", "spellcecker")).get();
-        assertThat("didn't ask for suggestions but got some", search.getSuggest(), nullValue());
+        assertResponse(
+            prepareSearch().setQuery(matchQuery("text", "spellcecker")),
+            response -> assertThat("didn't ask for suggestions but got some", response.getSuggest(), nullValue())
+        );
 
         TermSuggestionBuilder termSuggest = termSuggestion("text").suggestMode(SuggestMode.ALWAYS) // Always, otherwise the results can vary
                                                                                                    // between requests.
@@ -780,9 +781,9 @@ public class SuggestSearchIT extends ESIntegTestCase {
         ensureGreen();
         indexRandom(
             true,
-            client().prepareIndex("test").setId("1").setSource("field1", "foobar1").setRouting("1"),
-            client().prepareIndex("test").setId("2").setSource("field1", "foobar2").setRouting("2"),
-            client().prepareIndex("test").setId("3").setSource("field1", "foobar3").setRouting("3")
+            prepareIndex("test").setId("1").setSource("field1", "foobar1").setRouting("1"),
+            prepareIndex("test").setId("2").setSource("field1", "foobar2").setRouting("2"),
+            prepareIndex("test").setId("3").setSource("field1", "foobar3").setRouting("3")
         );
 
         Suggest suggest = searchSuggest(
@@ -832,24 +833,22 @@ public class SuggestSearchIT extends ESIntegTestCase {
         refresh();
 
         // When searching on a shard with a non existing mapping, we should fail
-        SearchRequestBuilder request = client().prepareSearch()
-            .setSize(0)
+        SearchRequestBuilder request = prepareSearch().setSize(0)
             .suggest(
                 new SuggestBuilder().setGlobalText("tetsting sugestion")
                     .addSuggestion("did_you_mean", phraseSuggestion("fielddoesnotexist").maxErrors(5.0f))
             );
-        assertRequestBuilderThrows(request, SearchPhaseExecutionException.class);
+        expectThrows(SearchPhaseExecutionException.class, request);
 
         // When searching on a shard which does not hold yet any document of an existing type, we should not fail
-        SearchResponse searchResponse = client().prepareSearch()
-            .setSize(0)
-            .suggest(
-                new SuggestBuilder().setGlobalText("tetsting sugestion")
-                    .addSuggestion("did_you_mean", phraseSuggestion("name").maxErrors(5.0f))
-            )
-            .get();
-        ElasticsearchAssertions.assertNoFailures(searchResponse);
-        ElasticsearchAssertions.assertSuggestion(searchResponse.getSuggest(), 0, 0, "did_you_mean", "testing suggestions");
+        assertNoFailuresAndResponse(
+            prepareSearch().setSize(0)
+                .suggest(
+                    new SuggestBuilder().setGlobalText("tetsting sugestion")
+                        .addSuggestion("did_you_mean", phraseSuggestion("name").maxErrors(5.0f))
+                ),
+            response -> assertSuggestion(response.getSuggest(), 0, 0, "did_you_mean", "testing suggestions")
+        );
     }
 
     // see #3469
@@ -882,18 +881,19 @@ public class SuggestSearchIT extends ESIntegTestCase {
         ensureGreen();
 
         // test phrase suggestion on completely empty index
-        SearchResponse searchResponse = client().prepareSearch()
-            .setSize(0)
-            .suggest(
-                new SuggestBuilder().setGlobalText("tetsting sugestion")
-                    .addSuggestion("did_you_mean", phraseSuggestion("name").maxErrors(5.0f))
-            )
-            .get();
-
-        assertNoFailures(searchResponse);
-        Suggest suggest = searchResponse.getSuggest();
-        assertSuggestionSize(suggest, 0, 0, "did_you_mean");
-        assertThat(suggest.getSuggestion("did_you_mean").getEntries().get(0).getText().string(), equalTo("tetsting sugestion"));
+        assertNoFailuresAndResponse(
+            prepareSearch().setSize(0)
+                .suggest(
+                    new SuggestBuilder().setGlobalText("tetsting sugestion")
+                        .addSuggestion("did_you_mean", phraseSuggestion("name").maxErrors(5.0f))
+                ),
+            response -> {
+                assertNoFailures(response);
+                Suggest suggest = response.getSuggest();
+                assertSuggestionSize(suggest, 0, 0, "did_you_mean");
+                assertThat(suggest.getSuggestion("did_you_mean").getEntries().get(0).getText().string(), equalTo("tetsting sugestion"));
+            }
+        );
 
         indexDoc("test", "11", "foo", "bar");
         indexDoc("test", "12", "foo", "bar");
@@ -901,35 +901,34 @@ public class SuggestSearchIT extends ESIntegTestCase {
         refresh();
 
         // test phrase suggestion but nothing matches
-        searchResponse = client().prepareSearch()
-            .setSize(0)
-            .suggest(
-                new SuggestBuilder().setGlobalText("tetsting sugestion")
-                    .addSuggestion("did_you_mean", phraseSuggestion("name").maxErrors(5.0f))
-            )
-            .get();
-
-        assertNoFailures(searchResponse);
-        suggest = searchResponse.getSuggest();
-        assertSuggestionSize(suggest, 0, 0, "did_you_mean");
-        assertThat(suggest.getSuggestion("did_you_mean").getEntries().get(0).getText().string(), equalTo("tetsting sugestion"));
-
+        assertNoFailuresAndResponse(
+            prepareSearch().setSize(0)
+                .suggest(
+                    new SuggestBuilder().setGlobalText("tetsting sugestion")
+                        .addSuggestion("did_you_mean", phraseSuggestion("name").maxErrors(5.0f))
+                ),
+            response -> {
+                Suggest suggest = response.getSuggest();
+                assertSuggestionSize(suggest, 0, 0, "did_you_mean");
+                assertThat(suggest.getSuggestion("did_you_mean").getEntries().get(0).getText().string(), equalTo("tetsting sugestion"));
+            }
+        );
         // finally indexing a document that will produce some meaningful suggestion
         indexDoc("test", "1", "name", "Just testing the suggestions api");
         refresh();
 
-        searchResponse = client().prepareSearch()
-            .setSize(0)
-            .suggest(
-                new SuggestBuilder().setGlobalText("tetsting sugestion")
-                    .addSuggestion("did_you_mean", phraseSuggestion("name").maxErrors(5.0f))
-            )
-            .get();
-
-        assertNoFailures(searchResponse);
-        suggest = searchResponse.getSuggest();
-        assertSuggestionSize(suggest, 0, 3, "did_you_mean");
-        assertSuggestion(suggest, 0, 0, "did_you_mean", "testing suggestions");
+        assertNoFailuresAndResponse(
+            prepareSearch().setSize(0)
+                .suggest(
+                    new SuggestBuilder().setGlobalText("tetsting sugestion")
+                        .addSuggestion("did_you_mean", phraseSuggestion("name").maxErrors(5.0f))
+                ),
+            response -> {
+                Suggest suggest = response.getSuggest();
+                assertSuggestionSize(suggest, 0, 3, "did_you_mean");
+                assertSuggestion(suggest, 0, 0, "did_you_mean", "testing suggestions");
+            }
+        );
     }
 
     /**
@@ -1119,7 +1118,7 @@ public class SuggestSearchIT extends ESIntegTestCase {
 
         List<IndexRequestBuilder> builders = new ArrayList<>();
         for (String title : titles) {
-            builders.add(client().prepareIndex("test").setSource("title", title));
+            builders.add(prepareIndex("test").setSource("title", title));
         }
 
         indexRandom(true, builders);
@@ -1157,9 +1156,9 @@ public class SuggestSearchIT extends ESIntegTestCase {
         assertAcked(prepareCreate("test").setMapping(mapping));
 
         List<IndexRequestBuilder> builders = new ArrayList<>();
-        builders.add(client().prepareIndex("test").setSource("text", "apple"));
-        builders.add(client().prepareIndex("test").setSource("text", "mango"));
-        builders.add(client().prepareIndex("test").setSource("text", "papaya"));
+        builders.add(prepareIndex("test").setSource("text", "apple"));
+        builders.add(prepareIndex("test").setSource("text", "mango"));
+        builders.add(prepareIndex("test").setSource("text", "papaya"));
         indexRandom(true, false, builders);
 
         TermSuggestionBuilder termSuggest = termSuggestion("alias").text("appple");
@@ -1182,10 +1181,10 @@ public class SuggestSearchIT extends ESIntegTestCase {
         assertAcked(prepareCreate("test").setSettings(Settings.builder().put("index.number_of_shards", 1).build()).setMapping(mapping));
 
         List<IndexRequestBuilder> builders = new ArrayList<>();
-        builders.add(client().prepareIndex("test").setSource("text", "apple"));
-        builders.add(client().prepareIndex("test").setSource("text", "apple"));
-        builders.add(client().prepareIndex("test").setSource("text", "apple"));
-        builders.add(client().prepareIndex("test").setSource("text", "appfle"));
+        builders.add(prepareIndex("test").setSource("text", "apple"));
+        builders.add(prepareIndex("test").setSource("text", "apple"));
+        builders.add(prepareIndex("test").setSource("text", "apple"));
+        builders.add(prepareIndex("test").setSource("text", "appfle"));
         indexRandom(true, false, builders);
 
         PhraseSuggestionBuilder phraseSuggest = phraseSuggestion("text").text("appple")
@@ -1295,7 +1294,7 @@ public class SuggestSearchIT extends ESIntegTestCase {
 
         List<IndexRequestBuilder> builders = new ArrayList<>();
         for (String title : titles) {
-            builders.add(client().prepareIndex("test").setSource("title", title));
+            builders.add(prepareIndex("test").setSource("title", title));
         }
         indexRandom(true, builders);
 
@@ -1420,7 +1419,7 @@ public class SuggestSearchIT extends ESIntegTestCase {
     }
 
     protected Suggest searchSuggest(String suggestText, int expectShardsFailed, Map<String, SuggestionBuilder<?>> suggestions) {
-        SearchRequestBuilder builder = client().prepareSearch().setSize(0);
+        SearchRequestBuilder builder = prepareSearch().setSize(0);
         SuggestBuilder suggestBuilder = new SuggestBuilder();
         if (suggestText != null) {
             suggestBuilder.setGlobalText(suggestText);
@@ -1429,8 +1428,11 @@ public class SuggestSearchIT extends ESIntegTestCase {
             suggestBuilder.addSuggestion(suggestion.getKey(), suggestion.getValue());
         }
         builder.suggest(suggestBuilder);
-        SearchResponse actionGet = builder.get();
-        assertThat(Arrays.toString(actionGet.getShardFailures()), actionGet.getFailedShards(), equalTo(expectShardsFailed));
-        return actionGet.getSuggest();
+        Suggest[] suggest = new Suggest[1];
+        assertResponse(builder, response -> {
+            assertThat(Arrays.toString(response.getShardFailures()), response.getFailedShards(), equalTo(expectShardsFailed));
+            suggest[0] = response.getSuggest();
+        });
+        return suggest[0];
     }
 }

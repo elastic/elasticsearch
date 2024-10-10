@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.painless;
@@ -71,6 +72,16 @@ public class RegexLimitTests extends ScriptTestCase {
         setRegexLimitFactor(1);
         CircuitBreakingException cbe = expectScriptThrows(CircuitBreakingException.class, () -> exec(script));
         assertTrue(cbe.getMessage().contains(regexCircuitMessage));
+    }
+
+    public void testInjectBinary() {
+        String script = "Pattern p = /.*a.*b.*c.*/; return 'abcxyz123abc' =~ p;";
+        Settings settings = Settings.builder()
+            .put(CompilerSettings.REGEX_LIMIT_FACTOR.getKey(), 1)
+            .put(CompilerSettings.REGEX_ENABLED.getKey(), "true")
+            .build();
+        scriptEngine = new PainlessScriptEngine(settings, scriptContexts());
+        assertEquals(Boolean.TRUE, exec(script));
     }
 
     public void testRegexInject_DefMethodRef_Matcher() {

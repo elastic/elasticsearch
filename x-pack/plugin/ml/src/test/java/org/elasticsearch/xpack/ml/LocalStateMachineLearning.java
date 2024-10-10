@@ -12,11 +12,12 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.analysis.CharFilterFactory;
 import org.elasticsearch.index.analysis.TokenizerFactory;
 import org.elasticsearch.indices.analysis.AnalysisModule;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.ActionPlugin;
@@ -42,6 +43,10 @@ public class LocalStateMachineLearning extends LocalStateCompositeXPackPlugin {
     private final MachineLearning mlPlugin;
 
     public LocalStateMachineLearning(final Settings settings, final Path configPath) {
+        this(settings, configPath, null);
+    }
+
+    protected LocalStateMachineLearning(final Settings settings, final Path configPath, final ExtensionLoader extensionLoader) {
         super(settings, configPath);
         LocalStateMachineLearning thisVar = this;
         mlPlugin = new MachineLearning(settings) {
@@ -50,6 +55,7 @@ public class LocalStateMachineLearning extends LocalStateCompositeXPackPlugin {
                 return thisVar.getLicenseState();
             }
         };
+        mlPlugin.loadExtensions(extensionLoader);
         mlPlugin.setCircuitBreaker(new NoopCircuitBreaker(TRAINED_MODEL_CIRCUIT_BREAKER_NAME));
         plugins.add(mlPlugin);
         plugins.add(new Monitoring(settings) {
@@ -116,7 +122,12 @@ public class LocalStateMachineLearning extends LocalStateCompositeXPackPlugin {
 
             @Inject
             public MockedRollupIndexCapsTransport(TransportService transportService) {
-                super(GetRollupIndexCapsAction.NAME, new ActionFilters(new HashSet<>()), transportService.getTaskManager());
+                super(
+                    GetRollupIndexCapsAction.NAME,
+                    new ActionFilters(new HashSet<>()),
+                    transportService.getTaskManager(),
+                    EsExecutors.DIRECT_EXECUTOR_SERVICE
+                );
             }
 
             @Override

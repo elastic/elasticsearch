@@ -1,25 +1,31 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.suggest.completion;
 
+import org.apache.lucene.analysis.core.SimpleAnalyzer;
+import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.analysis.AnalyzerScope;
+import org.elasticsearch.index.analysis.IndexAnalyzers;
+import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.search.suggest.completion.context.ContextBuilder;
 import org.elasticsearch.search.suggest.completion.context.ContextMapping;
 import org.elasticsearch.search.suggest.completion.context.GeoContextMapping;
-import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
@@ -28,6 +34,7 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.geometry.utils.Geohash.addNeighborsAtLevel;
 import static org.elasticsearch.search.suggest.completion.CategoryContextMappingTests.assertContextSuggestFields;
@@ -36,7 +43,19 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.is;
 
-public class GeoContextMappingTests extends ESSingleNodeTestCase {
+public class GeoContextMappingTests extends MapperServiceTestCase {
+
+    @Override
+    protected IndexAnalyzers createIndexAnalyzers(IndexSettings indexSettings) {
+        return IndexAnalyzers.of(
+            Map.of(
+                "default",
+                new NamedAnalyzer("default", AnalyzerScope.INDEX, new StandardAnalyzer()),
+                "simple",
+                new NamedAnalyzer("simple", AnalyzerScope.INDEX, new SimpleAnalyzer())
+            )
+        );
+    }
 
     public void testIndexingWithNoContexts() throws Exception {
         XContentBuilder mapping = jsonBuilder().startObject()
@@ -55,7 +74,7 @@ public class GeoContextMappingTests extends ESSingleNodeTestCase {
             .endObject()
             .endObject();
 
-        MapperService mapperService = createIndex("test", Settings.EMPTY, mapping).mapperService();
+        MapperService mapperService = createMapperService(mapping);
         MappedFieldType completionFieldType = mapperService.fieldType("completion");
         ParsedDocument parsedDocument = mapperService.documentMapper()
             .parse(
@@ -82,7 +101,7 @@ public class GeoContextMappingTests extends ESSingleNodeTestCase {
                     XContentType.JSON
                 )
             );
-        IndexableField[] fields = parsedDocument.rootDoc().getFields(completionFieldType.name());
+        List<IndexableField> fields = parsedDocument.rootDoc().getFields(completionFieldType.name());
         assertContextSuggestFields(fields, 7);
     }
 
@@ -103,7 +122,7 @@ public class GeoContextMappingTests extends ESSingleNodeTestCase {
             .endObject()
             .endObject();
 
-        MapperService mapperService = createIndex("test", Settings.EMPTY, mapping).mapperService();
+        MapperService mapperService = createMapperService(mapping);
         MappedFieldType completionFieldType = mapperService.fieldType("completion");
         ParsedDocument parsedDocument = mapperService.documentMapper()
             .parse(
@@ -128,7 +147,7 @@ public class GeoContextMappingTests extends ESSingleNodeTestCase {
                     XContentType.JSON
                 )
             );
-        IndexableField[] fields = parsedDocument.rootDoc().getFields(completionFieldType.name());
+        List<IndexableField> fields = parsedDocument.rootDoc().getFields(completionFieldType.name());
         assertContextSuggestFields(fields, 3);
     }
 
@@ -149,7 +168,7 @@ public class GeoContextMappingTests extends ESSingleNodeTestCase {
             .endObject()
             .endObject();
 
-        MapperService mapperService = createIndex("test", Settings.EMPTY, mapping).mapperService();
+        MapperService mapperService = createMapperService(mapping);
         MappedFieldType completionFieldType = mapperService.fieldType("completion");
         ParsedDocument parsedDocument = mapperService.documentMapper()
             .parse(
@@ -178,7 +197,7 @@ public class GeoContextMappingTests extends ESSingleNodeTestCase {
                     XContentType.JSON
                 )
             );
-        IndexableField[] fields = parsedDocument.rootDoc().getFields(completionFieldType.name());
+        List<IndexableField> fields = parsedDocument.rootDoc().getFields(completionFieldType.name());
         assertContextSuggestFields(fields, 3);
     }
 
@@ -203,7 +222,7 @@ public class GeoContextMappingTests extends ESSingleNodeTestCase {
             .endObject()
             .endObject();
 
-        MapperService mapperService = createIndex("test", Settings.EMPTY, mapping).mapperService();
+        MapperService mapperService = createMapperService(mapping);
         MappedFieldType completionFieldType = mapperService.fieldType("completion");
         XContentBuilder builder = jsonBuilder().startObject()
             .startArray("completion")
@@ -219,7 +238,7 @@ public class GeoContextMappingTests extends ESSingleNodeTestCase {
             .endObject();
         ParsedDocument parsedDocument = mapperService.documentMapper()
             .parse(new SourceToParse("1", BytesReference.bytes(builder), XContentType.JSON));
-        IndexableField[] fields = parsedDocument.rootDoc().getFields(completionFieldType.name());
+        List<IndexableField> fields = parsedDocument.rootDoc().getFields(completionFieldType.name());
         assertContextSuggestFields(fields, 3);
     }
 
@@ -251,10 +270,7 @@ public class GeoContextMappingTests extends ESSingleNodeTestCase {
         mapping.endObject();
         mapping.endObject();
 
-        ElasticsearchParseException ex = expectThrows(
-            ElasticsearchParseException.class,
-            () -> createIndex("test", Settings.EMPTY, mapping)
-        );
+        ElasticsearchParseException ex = expectThrows(ElasticsearchParseException.class, () -> createMapperService(mapping));
 
         assertThat(ex.getMessage(), equalTo("field [pin] referenced in context [st] must be mapped to geo_point, found [" + type + "]"));
     }
@@ -283,10 +299,7 @@ public class GeoContextMappingTests extends ESSingleNodeTestCase {
         mapping.endObject();
         mapping.endObject();
 
-        ElasticsearchParseException ex = expectThrows(
-            ElasticsearchParseException.class,
-            () -> createIndex("test", Settings.EMPTY, mapping)
-        );
+        ElasticsearchParseException ex = expectThrows(ElasticsearchParseException.class, () -> createMapperService(mapping));
 
         assertThat(ex.getMessage(), equalTo("field [pin] referenced in context [st] is not defined in the mapping"));
     }
@@ -301,9 +314,9 @@ public class GeoContextMappingTests extends ESSingleNodeTestCase {
         locations.add("ezs42e");
         addNeighborsAtLevel("ezs42e", GeoContextMapping.DEFAULT_PRECISION, locations);
         for (ContextMapping.InternalQueryContext internalQueryContext : internalQueryContexts) {
-            assertThat(internalQueryContext.context, is(in(locations)));
-            assertThat(internalQueryContext.boost, equalTo(1));
-            assertThat(internalQueryContext.isPrefix, equalTo(false));
+            assertThat(internalQueryContext.context(), is(in(locations)));
+            assertThat(internalQueryContext.boost(), equalTo(1));
+            assertThat(internalQueryContext.isPrefix(), equalTo(false));
         }
     }
 
@@ -317,9 +330,9 @@ public class GeoContextMappingTests extends ESSingleNodeTestCase {
         locations.add("wh0n94");
         addNeighborsAtLevel("wh0n94", GeoContextMapping.DEFAULT_PRECISION, locations);
         for (ContextMapping.InternalQueryContext internalQueryContext : internalQueryContexts) {
-            assertThat(internalQueryContext.context, is(in(locations)));
-            assertThat(internalQueryContext.boost, equalTo(1));
-            assertThat(internalQueryContext.isPrefix, equalTo(false));
+            assertThat(internalQueryContext.context(), is(in(locations)));
+            assertThat(internalQueryContext.boost(), equalTo(1));
+            assertThat(internalQueryContext.isPrefix(), equalTo(false));
         }
     }
 
@@ -345,9 +358,12 @@ public class GeoContextMappingTests extends ESSingleNodeTestCase {
         locations.add("wh0");
         addNeighborsAtLevel("wh0", 3, locations);
         for (ContextMapping.InternalQueryContext internalQueryContext : internalQueryContexts) {
-            assertThat(internalQueryContext.context, is(in(locations)));
-            assertThat(internalQueryContext.boost, equalTo(10));
-            assertThat(internalQueryContext.isPrefix, equalTo(internalQueryContext.context.length() < GeoContextMapping.DEFAULT_PRECISION));
+            assertThat(internalQueryContext.context(), is(in(locations)));
+            assertThat(internalQueryContext.boost(), equalTo(10));
+            assertThat(
+                internalQueryContext.isPrefix(),
+                equalTo(internalQueryContext.context().length() < GeoContextMapping.DEFAULT_PRECISION)
+            );
         }
     }
 
@@ -387,14 +403,17 @@ public class GeoContextMappingTests extends ESSingleNodeTestCase {
         secondLocations.add("w5cx0");
         addNeighborsAtLevel("w5cx0", 5, secondLocations);
         for (ContextMapping.InternalQueryContext internalQueryContext : internalQueryContexts) {
-            if (firstLocations.contains(internalQueryContext.context)) {
-                assertThat(internalQueryContext.boost, equalTo(10));
-            } else if (secondLocations.contains(internalQueryContext.context)) {
-                assertThat(internalQueryContext.boost, equalTo(2));
+            if (firstLocations.contains(internalQueryContext.context())) {
+                assertThat(internalQueryContext.boost(), equalTo(10));
+            } else if (secondLocations.contains(internalQueryContext.context())) {
+                assertThat(internalQueryContext.boost(), equalTo(2));
             } else {
-                fail(internalQueryContext.context + " was not expected");
+                fail(internalQueryContext.context() + " was not expected");
             }
-            assertThat(internalQueryContext.isPrefix, equalTo(internalQueryContext.context.length() < GeoContextMapping.DEFAULT_PRECISION));
+            assertThat(
+                internalQueryContext.isPrefix(),
+                equalTo(internalQueryContext.context().length() < GeoContextMapping.DEFAULT_PRECISION)
+            );
         }
     }
 
@@ -427,14 +446,17 @@ public class GeoContextMappingTests extends ESSingleNodeTestCase {
         secondLocations.add("w5cx04");
         addNeighborsAtLevel("w5cx04", 6, secondLocations);
         for (ContextMapping.InternalQueryContext internalQueryContext : internalQueryContexts) {
-            if (firstLocations.contains(internalQueryContext.context)) {
-                assertThat(internalQueryContext.boost, equalTo(10));
-            } else if (secondLocations.contains(internalQueryContext.context)) {
-                assertThat(internalQueryContext.boost, equalTo(1));
+            if (firstLocations.contains(internalQueryContext.context())) {
+                assertThat(internalQueryContext.boost(), equalTo(10));
+            } else if (secondLocations.contains(internalQueryContext.context())) {
+                assertThat(internalQueryContext.boost(), equalTo(1));
             } else {
-                fail(internalQueryContext.context + " was not expected");
+                fail(internalQueryContext.context() + " was not expected");
             }
-            assertThat(internalQueryContext.isPrefix, equalTo(internalQueryContext.context.length() < GeoContextMapping.DEFAULT_PRECISION));
+            assertThat(
+                internalQueryContext.isPrefix(),
+                equalTo(internalQueryContext.context().length() < GeoContextMapping.DEFAULT_PRECISION)
+            );
         }
     }
 }

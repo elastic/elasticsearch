@@ -49,9 +49,11 @@ import org.elasticsearch.xpack.core.security.authc.support.UserRoleMapper;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.ssl.CertParsingUtils;
 import org.elasticsearch.xpack.core.ssl.SSLService;
+import org.elasticsearch.xpack.security.PrivilegedFileWatcher;
 import org.elasticsearch.xpack.security.authc.Realms;
 import org.elasticsearch.xpack.security.authc.TokenService;
 import org.elasticsearch.xpack.security.authc.support.DelegatedAuthorizationSupport;
+import org.elasticsearch.xpack.security.authc.support.mapper.ExcludingRoleMapper;
 import org.opensaml.core.criterion.EntityIdCriterion;
 import org.opensaml.saml.common.xml.SAMLConstants;
 import org.opensaml.saml.criterion.EntityRoleCriterion;
@@ -96,6 +98,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -109,6 +112,7 @@ import javax.net.ssl.X509KeyManager;
 
 import static org.elasticsearch.common.Strings.collectionToCommaDelimitedString;
 import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.transport.Transports.assertNotTransportThread;
 import static org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings.CLOCK_SKEW;
 import static org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings.DN_ATTRIBUTE;
 import static org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings.ENCRYPTION_KEY_ALIAS;
@@ -116,6 +120,8 @@ import static org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings
 import static org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings.FORCE_AUTHN;
 import static org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings.GROUPS_ATTRIBUTE;
 import static org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings.IDP_ENTITY_ID;
+import static org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings.IDP_METADATA_HTTP_FAIL_ON_ERROR;
+import static org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings.IDP_METADATA_HTTP_MIN_REFRESH;
 import static org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings.IDP_METADATA_HTTP_REFRESH;
 import static org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings.IDP_METADATA_PATH;
 import static org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings.IDP_SINGLE_LOGOUT;
@@ -154,6 +160,11 @@ public final class SamlRealm extends Realm implements Releasable {
     public static final String TOKEN_METADATA_REALM = "saml_realm";
     // Although we only use this for IDP metadata loading, the SSLServer only loads configurations where "ssl." is a top-level element
     // in the realm group configuration, so it has to have this name.
+
+    // Strictly, this shouldn't be static because it means that only 1 SAML realm per node can be refreshing metadata, but there's no reason
+    // to assume that there's any relationship between SAML realms. However, because all the metadata loading code is in static methods, we
+    // live with this limitation for now.
+    private static final AtomicBoolean REFRESHING_METADATA = new AtomicBoolean(false);
 
     private final List<Releasable> releasables;
 
@@ -252,7 +263,11 @@ public final class SamlRealm extends Realm implements Releasable {
     ) throws Exception {
         super(config);
 
-        this.roleMapper = roleMapper;
+        if (config.hasSetting(SamlRealmSettings.EXCLUDE_ROLES)) {
+            this.roleMapper = new ExcludingRoleMapper(roleMapper, config.getSetting(SamlRealmSettings.EXCLUDE_ROLES));
+        } else {
+            this.roleMapper = roleMapper;
+        }
         this.authenticator = authenticator;
         this.logoutHandler = logoutHandler;
         this.logoutResponseHandler = logoutResponseHandler;
@@ -270,7 +285,7 @@ public final class SamlRealm extends Realm implements Releasable {
         this.populateUserMetadata = config.getSetting(POPULATE_USER_METADATA);
         this.principalAttribute = AttributeParser.forSetting(logger, PRINCIPAL_ATTRIBUTE, config, true);
 
-        this.groupsAttribute = AttributeParser.forSetting(logger, GROUPS_ATTRIBUTE, config, false);
+        this.groupsAttribute = AttributeParser.forSetting(logger, GROUPS_ATTRIBUTE, config);
         this.dnAttribute = AttributeParser.forSetting(logger, DN_ATTRIBUTE, config, false);
         this.nameAttribute = AttributeParser.forSetting(logger, NAME_ATTRIBUTE, config, false);
         this.mailAttribute = AttributeParser.forSetting(logger, MAIL_ATTRIBUTE, config, false);
@@ -530,6 +545,16 @@ public final class SamlRealm extends Realm implements Releasable {
     @Override
     public void authenticate(AuthenticationToken authenticationToken, ActionListener<AuthenticationResult<User>> listener) {
         if (authenticationToken instanceof SamlToken && isTokenForRealm((SamlToken) authenticationToken)) {
+            if (this.idpDescriptor.get() instanceof UnresolvedEntity) {
+                // This isn't an ideal check, but we don't have a better option right now
+                listener.onResponse(
+                    AuthenticationResult.unsuccessful(
+                        "SAML realm [" + this + "] cannot authenticate because the metadata could not be resolved",
+                        null
+                    )
+                );
+                return;
+            }
             try {
                 final SamlToken token = (SamlToken) authenticationToken;
                 final SamlAttributes attributes = authenticator.authenticate(token);
@@ -561,15 +586,15 @@ public final class SamlRealm extends Realm implements Releasable {
         }
 
         final Map<String, Object> tokenMetadata = createTokenMetadata(attributes.name(), attributes.session());
-        ActionListener<AuthenticationResult<User>> wrappedListener = ActionListener.wrap(auth -> {
+        ActionListener<AuthenticationResult<User>> wrappedListener = baseListener.delegateFailureAndWrap((l, auth) -> {
             if (auth.isAuthenticated()) {
                 // Add the SAML token details as metadata on the authentication
                 Map<String, Object> metadata = new HashMap<>(auth.getMetadata());
                 metadata.put(CONTEXT_TOKEN_DATA, tokenMetadata);
                 auth = AuthenticationResult.success(auth.getValue(), metadata);
             }
-            baseListener.onResponse(auth);
-        }, baseListener::onFailure);
+            l.onResponse(auth);
+        });
 
         if (delegatedRealms.hasDelegation()) {
             delegatedRealms.resolve(principal, wrappedListener);
@@ -599,11 +624,11 @@ public final class SamlRealm extends Realm implements Releasable {
         final String mail = resolveSingleValueAttribute(attributes, mailAttribute, MAIL_ATTRIBUTE.name(config));
         UserRoleMapper.UserData userData = new UserRoleMapper.UserData(principal, dn, groups, userMeta, config);
         logger.debug("SAML attribute mapping = [{}]", userData);
-        roleMapper.resolveRoles(userData, ActionListener.wrap(roles -> {
+        roleMapper.resolveRoles(userData, wrappedListener.delegateFailureAndWrap((l, roles) -> {
             final User user = new User(principal, roles.toArray(new String[roles.size()]), name, mail, userMeta, true);
             logger.debug("SAML user = [{}]", user);
-            wrappedListener.onResponse(AuthenticationResult.success(user));
-        }, wrappedListener::onFailure));
+            l.onResponse(AuthenticationResult.success(user));
+        }));
     }
 
     public Map<String, Object> createTokenMetadata(SamlNameId nameId, String session) {
@@ -626,7 +651,7 @@ public final class SamlRealm extends Realm implements Releasable {
         return tokenMeta;
     }
 
-    private String resolveSingleValueAttribute(SamlAttributes attributes, AttributeParser parser, String name) {
+    private static String resolveSingleValueAttribute(SamlAttributes attributes, AttributeParser parser, String name) {
         final List<String> list = parser.getAttribute(attributes);
         switch (list.size()) {
             case 0:
@@ -676,10 +701,29 @@ public final class SamlRealm extends Realm implements Releasable {
         SSLConnectionSocketFactory factory = new SSLConnectionSocketFactory(sslService.sslSocketFactory(sslConfiguration), verifier);
         builder.setSSLSocketFactory(factory);
 
+        TimeValue maxRefresh = config.getSetting(IDP_METADATA_HTTP_REFRESH);
+        TimeValue minRefresh = config.getSetting(IDP_METADATA_HTTP_MIN_REFRESH);
+        if (minRefresh.compareTo(maxRefresh) > 0) {
+            if (config.hasSetting(IDP_METADATA_HTTP_MIN_REFRESH)) {
+                throw new SettingsException(
+                    "the value ({}) for [{}] cannot be greater than the value ({}) for [{}]",
+                    minRefresh.getStringRep(),
+                    RealmSettings.getFullSettingKey(config, IDP_METADATA_HTTP_MIN_REFRESH),
+                    maxRefresh.getStringRep(),
+                    RealmSettings.getFullSettingKey(config, IDP_METADATA_HTTP_REFRESH)
+                );
+            } else {
+                minRefresh = maxRefresh;
+            }
+        }
+
         HTTPMetadataResolver resolver = new PrivilegedHTTPMetadataResolver(builder.build(), metadataUrl);
-        TimeValue refresh = config.getSetting(IDP_METADATA_HTTP_REFRESH);
-        resolver.setMinRefreshDelay(Duration.ofMillis(refresh.millis()));
-        resolver.setMaxRefreshDelay(Duration.ofMillis(refresh.millis()));
+        resolver.setMinRefreshDelay(Duration.ofMillis(minRefresh.millis()));
+        resolver.setMaxRefreshDelay(Duration.ofMillis(maxRefresh.millis()));
+
+        final boolean failOnError = config.getSetting(IDP_METADATA_HTTP_FAIL_ON_ERROR);
+        resolver.setFailFastInitialization(failOnError);
+
         initialiseResolver(resolver, config);
 
         return new Tuple<>(resolver, () -> {
@@ -688,7 +732,12 @@ public final class SamlRealm extends Realm implements Releasable {
             SpecialPermission.check();
             try {
                 return AccessController.doPrivileged(
-                    (PrivilegedExceptionAction<EntityDescriptor>) () -> resolveEntityDescriptor(resolver, entityId, metadataUrl)
+                    (PrivilegedExceptionAction<EntityDescriptor>) () -> resolveEntityDescriptor(
+                        resolver,
+                        entityId,
+                        metadataUrl,
+                        failOnError
+                    )
                 );
             } catch (PrivilegedActionException e) {
                 throw ExceptionsHelper.convertToRuntime((Exception) ExceptionsHelper.unwrapCause(e));
@@ -704,6 +753,7 @@ public final class SamlRealm extends Realm implements Releasable {
 
         @Override
         protected byte[] fetchMetadata() throws ResolverException {
+            assert assertNotTransportThread("fetching SAML metadata from a URL");
             try {
                 return AccessController.doPrivileged(
                     (PrivilegedExceptionAction<byte[]>) () -> PrivilegedHTTPMetadataResolver.super.fetchMetadata()
@@ -713,6 +763,24 @@ public final class SamlRealm extends Realm implements Releasable {
             }
         }
 
+    }
+
+    @SuppressForbidden(reason = "uses java.io.File")
+    private static final class SamlFilesystemMetadataResolver extends FilesystemMetadataResolver {
+
+        SamlFilesystemMetadataResolver(final java.io.File metadata) throws ResolverException {
+            super(metadata);
+        }
+
+        @Override
+        protected byte[] fetchMetadata() throws ResolverException {
+            assert assertNotTransportThread("fetching SAML metadata from a file");
+            try {
+                return AccessController.doPrivileged((PrivilegedExceptionAction<byte[]>) () -> super.fetchMetadata());
+            } catch (PrivilegedActionException e) {
+                throw (ResolverException) e.getException();
+            }
+        }
     }
 
     @SuppressForbidden(reason = "uses toFile")
@@ -725,13 +793,15 @@ public final class SamlRealm extends Realm implements Releasable {
 
         final String entityId = require(config, IDP_ENTITY_ID);
         final Path path = config.env().configFile().resolve(metadataPath);
-        final FilesystemMetadataResolver resolver = new FilesystemMetadataResolver(path.toFile());
+        final FilesystemMetadataResolver resolver = new SamlFilesystemMetadataResolver(path.toFile());
 
-        if (config.hasSetting(IDP_METADATA_HTTP_REFRESH)) {
-            logger.info(
-                "Ignoring setting [{}] because the IdP metadata is being loaded from a file",
-                RealmSettings.getFullSettingKey(config, IDP_METADATA_HTTP_REFRESH)
-            );
+        for (var httpSetting : List.of(IDP_METADATA_HTTP_REFRESH, IDP_METADATA_HTTP_MIN_REFRESH, IDP_METADATA_HTTP_FAIL_ON_ERROR)) {
+            if (config.hasSetting(httpSetting)) {
+                logger.info(
+                    "Ignoring setting [{}] because the IdP metadata is being loaded from a file",
+                    RealmSettings.getFullSettingKey(config, httpSetting)
+                );
+            }
         }
 
         // We don't want to rely on the internal OpenSAML refresh timer, but we can't turn it off, so just set it to run once a day.
@@ -741,26 +811,73 @@ public final class SamlRealm extends Realm implements Releasable {
         resolver.setMaxRefreshDelay(oneDayMs);
         initialiseResolver(resolver, config);
 
-        FileWatcher watcher = new FileWatcher(path);
+        FileWatcher watcher = new PrivilegedFileWatcher(path);
         watcher.addListener(new FileListener(logger, resolver::refresh));
         watcherService.add(watcher, ResourceWatcherService.Frequency.MEDIUM);
-        return new Tuple<>(resolver, () -> resolveEntityDescriptor(resolver, entityId, path.toString()));
+        return new Tuple<>(resolver, () -> resolveEntityDescriptor(resolver, entityId, path.toString(), true));
     }
 
     private static EntityDescriptor resolveEntityDescriptor(
         AbstractReloadingMetadataResolver resolver,
         String entityId,
-        String sourceLocation
+        String sourceLocation,
+        boolean failOnError
     ) {
         try {
-            final EntityDescriptor descriptor = resolver.resolveSingle(new CriteriaSet(new EntityIdCriterion(entityId)));
+            final EntityDescriptor descriptor = resolveEntityDescriptorWithPossibleRefresh(resolver, entityId);
             if (descriptor == null) {
-                throw SamlUtils.samlException("Cannot find metadata for entity [{}] in [{}]", entityId, sourceLocation);
+                if (failOnError) {
+                    throw SamlUtils.samlException("Cannot find metadata for entity [{}] in [{}]", entityId, sourceLocation);
+                } else {
+                    logger.warn(
+                        "cannot load SAML metadata for [{}] from [{}]; SAML authentication for this realm will fail",
+                        entityId,
+                        sourceLocation
+                    );
+                    return new UnresolvedEntity(entityId, sourceLocation);
+                }
             }
             return descriptor;
         } catch (ResolverException e) {
             throw SamlUtils.samlException("Cannot resolve entity metadata", e);
         }
+    }
+
+    private static EntityDescriptor resolveEntityDescriptorWithPossibleRefresh(AbstractReloadingMetadataResolver resolver, String entityId)
+        throws ResolverException {
+        var criteria = new CriteriaSet(new EntityIdCriterion(entityId));
+        EntityDescriptor descriptor = resolver.resolveSingle(criteria);
+        if (descriptor == null) {
+            /*
+             * If the descriptor is null, we haven't found a metadata file with that entity id in it. This could be caused by 2 things:
+             * 1. We didn't find any metadata file (e.g. the metadata is loaded over http, and the request returned an error
+             * 2. The file does exist, but doesn't contain the entity.
+             * In either case it's worth refreshing the metadata again to see if it's now correct because it's possible that the problem
+             *    has been resolved (although if metadata is loaded from a local file we monitor it for changes anyway, so this refresh
+             *    is unlikely to have any benefit).
+             * The resolver's refresh method is synchronized, and could be a choke point if there are a lot of concurrent login attempts,
+             *    so we wrap it in a check to only call it on 1 thread. The other threads will fail due to bad metadata, but that's OK
+             *    because the metadata is (was) bad, and if the refresh works, then their next login attempt will also work.
+             * Since the dynamic refresh is a saving mechanism (we have a separate regular poll for refreshes) we prefer it to be safe
+             *    (from a thread contention point of view) rather than perfect (from a user experience point of view).
+             */
+            if (REFRESHING_METADATA.compareAndSet(false, true)) {
+                try {
+                    resolver.refresh();
+                } catch (ResolverException e) {
+                    // Refresh failed. Since there could be a lot of these and it's only a saving mechanism we log as debug
+                    // The resolver itself will log a WARN with the HTTP status etc.
+                    logger.debug(() -> "Failed to refresh SAML metadata for [" + entityId + "]", e);
+                } finally {
+                    REFRESHING_METADATA.compareAndSet(true, false);
+                }
+            }
+            descriptor = resolver.resolveSingle(criteria);
+            if (descriptor != null) {
+                logger.debug(() -> "SAML metadata for [" + entityId + "] has been successfully refreshed");
+            }
+        }
+        return descriptor;
     }
 
     @Override
@@ -777,7 +894,12 @@ public final class SamlRealm extends Realm implements Releasable {
         resolver.setId(config.name());
         SpecialPermission.check();
         AccessController.doPrivileged((PrivilegedExceptionAction<Object>) () -> {
-            resolver.initialize();
+            try {
+                resolver.initialize();
+            } catch (ComponentInitializationException e) {
+                resolver.destroy();
+                throw SamlUtils.samlException("cannot load SAML metadata from [{}]", e, config.getSetting(IDP_METADATA_PATH));
+            }
             return null;
         });
     }
@@ -906,6 +1028,66 @@ public final class SamlRealm extends Realm implements Releasable {
         @Override
         public String toString() {
             return name;
+        }
+
+        static AttributeParser forSetting(Logger logger, SamlRealmSettings.AttributeSettingWithDelimiter setting, RealmConfig realmConfig) {
+            SamlRealmSettings.AttributeSetting attributeSetting = setting.getAttributeSetting();
+            if (realmConfig.hasSetting(setting.getDelimiter())) {
+                if (realmConfig.hasSetting(attributeSetting.getAttribute()) == false) {
+                    throw new SettingsException(
+                        "Setting ["
+                            + RealmSettings.getFullSettingKey(realmConfig, setting.getDelimiter())
+                            + "] cannot be set unless ["
+                            + RealmSettings.getFullSettingKey(realmConfig, attributeSetting.getAttribute())
+                            + "] is also set"
+                    );
+                }
+                if (realmConfig.hasSetting(attributeSetting.getPattern())) {
+                    throw new SettingsException(
+                        "Setting ["
+                            + RealmSettings.getFullSettingKey(realmConfig, attributeSetting.getPattern())
+                            + "] can not be set when ["
+                            + RealmSettings.getFullSettingKey(realmConfig, setting.getDelimiter())
+                            + "] is set"
+                    );
+                }
+
+                String attributeName = realmConfig.getSetting(attributeSetting.getAttribute());
+                String delimiter = realmConfig.getSetting(setting.getDelimiter());
+                return new AttributeParser(
+                    "SAML Attribute ["
+                        + attributeName
+                        + "] with delimiter ["
+                        + delimiter
+                        + "] for ["
+                        + attributeSetting.name(realmConfig)
+                        + "]",
+                    attributes -> {
+                        List<String> attributeValues = attributes.getAttributeValues(attributeName);
+                        if (attributeValues.size() > 1) {
+                            throw SamlUtils.samlException(
+                                "Expected single string value for attribute: ["
+                                    + attributeName
+                                    + "], but got list with "
+                                    + attributeValues.size()
+                                    + " values"
+                            );
+                        }
+                        return attributeValues.stream()
+                            .map(s -> s.split(Pattern.quote(delimiter)))
+                            .flatMap(Arrays::stream)
+                            .filter(attribute -> {
+                                if (Strings.isNullOrEmpty(attribute)) {
+                                    logger.debug("Attribute [{}] has empty components when using delimiter [{}]", attributeName, delimiter);
+                                    return false;
+                                }
+                                return true;
+                            })
+                            .collect(Collectors.toList());
+                    }
+                );
+            }
+            return AttributeParser.forSetting(logger, attributeSetting, realmConfig, false);
         }
 
         static AttributeParser forSetting(

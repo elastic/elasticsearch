@@ -43,6 +43,7 @@ data between repositories.
 +
 --
 // tag::multi-cluster-repo[]
+Clusters should only register a particular snapshot repository bucket once. 
 If you register the same snapshot repository with multiple clusters, only one
 cluster should have write access to the repository. On other clusters, register
 the repository as read-only.
@@ -100,9 +101,8 @@ cluster. You can also use the `found-snapshots` repository for your own
 
 The `found-snapshots` repository is specific to each deployment. However, you
 can restore snapshots from another deployment's `found-snapshots` repository if
-the deployments are under the same account and in the same region. See
-{cloud}/ec_share_a_repository_across_clusters.html[Share a repository across
-clusters].
+the deployments are under the same account and in the same region. See the Cloud
+{cloud}/ec-snapshot-restore.html[Snapshot and restore] documentation to learn more.
 
 {ess} deployments also support the following repository types:
 
@@ -258,7 +258,13 @@ of the underlying filesystem and then take a backup of this filesystem
 snapshot. It is very important that the filesystem snapshot is taken
 atomically.
 
-WARNING: You cannot use filesystem snapshots of individual nodes as a backup
+WARNING: Do not rely on repository backups that were taken by methods other
+than the one described in this section. If you use another method to make a
+copy of your repository contents then the resulting copy may capture an
+inconsistent view of your data. Restoring a repository from such a copy may
+fail, reporting errors, or may succeed having silently lost some of your data.
+
+WARNING: Do not use filesystem snapshots of individual nodes as a backup
 mechanism. You must use the {es} snapshot and restore feature to copy the
 cluster contents to a separate repository. Then, if desired, you can take a
 filesystem snapshot of this repository.
@@ -266,7 +272,9 @@ filesystem snapshot of this repository.
 When restoring a repository from a backup, you must not register the repository
 with {es} until the repository contents are fully restored. If you alter the
 contents of a repository while it is registered with {es} then the repository
-may become unreadable or may silently lose some of its contents.
+may become unreadable or may silently lose some of its contents. After
+restoring a repository from a backup, use the <<verify-repo-integrity-api>> API
+to verify its integrity before you start to use the repository.
 
 include::repository-azure.asciidoc[]
 include::repository-gcs.asciidoc[]

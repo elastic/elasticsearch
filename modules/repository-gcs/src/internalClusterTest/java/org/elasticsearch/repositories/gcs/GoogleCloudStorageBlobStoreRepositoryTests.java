@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.repositories.gcs;
@@ -22,8 +23,6 @@ import com.sun.net.httpserver.HttpHandler;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
-import org.elasticsearch.action.ActionRunnable;
-import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.blobstore.BlobContainer;
@@ -42,6 +41,7 @@ import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.repositories.RepositoriesMetrics;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
@@ -58,6 +58,7 @@ import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomPurpose;
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSettings.CREDENTIALS_FILE_SETTING;
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSettings.ENDPOINT_SETTING;
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSettings.TOKEN_URI_SETTING;
@@ -119,22 +120,13 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
         return settings.build();
     }
 
-    public void testDeleteSingleItem() {
+    public void testDeleteSingleItem() throws IOException {
         final String repoName = createRepository(randomRepositoryName());
         final RepositoriesService repositoriesService = internalCluster().getAnyMasterNodeInstance(RepositoriesService.class);
         final BlobStoreRepository repository = (BlobStoreRepository) repositoriesService.repository(repoName);
-        PlainActionFuture.get(
-            f -> repository.threadPool()
-                .generic()
-                .execute(
-                    ActionRunnable.run(
-                        f,
-                        () -> repository.blobStore()
-                            .blobContainer(repository.basePath())
-                            .deleteBlobsIgnoringIfNotExists(Iterators.single("foo"))
-                    )
-                )
-        );
+        repository.blobStore()
+            .blobContainer(repository.basePath())
+            .deleteBlobsIgnoringIfNotExists(randomPurpose(), Iterators.single("foo"));
     }
 
     public void testChunkSize() {
@@ -197,7 +189,7 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
                 random().nextBytes(data);
                 writeBlob(container, "foobar", new BytesArray(data), false);
             }
-            try (InputStream stream = container.readBlob("foobar")) {
+            try (InputStream stream = container.readBlob(randomPurpose(), "foobar")) {
                 BytesRefBuilder target = new BytesRefBuilder();
                 while (target.length() < data.length) {
                     byte[] buffer = new byte[scaledRandomIntBetween(1, data.length - target.length())];
@@ -208,7 +200,7 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
                 assertEquals(data.length, target.length());
                 assertArrayEquals(data, Arrays.copyOfRange(target.bytes(), 0, target.length()));
             }
-            container.delete();
+            container.delete(randomPurpose());
         }
     }
 
@@ -255,7 +247,8 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
             NamedXContentRegistry registry,
             ClusterService clusterService,
             BigArrays bigArrays,
-            RecoverySettings recoverySettings
+            RecoverySettings recoverySettings,
+            RepositoriesMetrics repositoriesMetrics
         ) {
             return Collections.singletonMap(
                 GoogleCloudStorageRepository.TYPE,

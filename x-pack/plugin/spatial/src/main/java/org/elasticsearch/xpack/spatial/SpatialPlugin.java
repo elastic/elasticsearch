@@ -12,6 +12,7 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.geo.GeoFormatterFactory;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.index.mapper.RuntimeField;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicenseUtils;
@@ -44,6 +45,10 @@ import org.elasticsearch.xpack.core.spatial.action.SpatialStatsAction;
 import org.elasticsearch.xpack.spatial.action.SpatialInfoTransportAction;
 import org.elasticsearch.xpack.spatial.action.SpatialStatsTransportAction;
 import org.elasticsearch.xpack.spatial.action.SpatialUsageTransportAction;
+import org.elasticsearch.xpack.spatial.common.CartesianBoundingBox;
+import org.elasticsearch.xpack.spatial.index.fielddata.CartesianShapeValues;
+import org.elasticsearch.xpack.spatial.index.fielddata.GeoShapeValues;
+import org.elasticsearch.xpack.spatial.index.mapper.GeoShapeScriptFieldType;
 import org.elasticsearch.xpack.spatial.index.mapper.GeoShapeWithDocValuesFieldMapper;
 import org.elasticsearch.xpack.spatial.index.mapper.PointFieldMapper;
 import org.elasticsearch.xpack.spatial.index.mapper.ShapeFieldMapper;
@@ -78,7 +83,6 @@ import org.elasticsearch.xpack.spatial.search.aggregations.support.GeoShapeValue
 import org.elasticsearch.xpack.spatial.search.aggregations.support.GeoShapeValuesSourceType;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
@@ -123,7 +127,7 @@ public class SpatialPlugin extends Plugin implements ActionPlugin, MapperPlugin,
 
     @Override
     public List<ActionPlugin.ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
-        return Arrays.asList(
+        return List.of(
             new ActionPlugin.ActionHandler<>(XPackUsageFeatureAction.SPATIAL, SpatialUsageTransportAction.class),
             new ActionPlugin.ActionHandler<>(XPackInfoFeatureAction.SPATIAL, SpatialInfoTransportAction.class),
             new ActionPlugin.ActionHandler<>(SpatialStatsAction.INSTANCE, SpatialStatsTransportAction.class)
@@ -140,6 +144,11 @@ public class SpatialPlugin extends Plugin implements ActionPlugin, MapperPlugin,
             GeoShapeWithDocValuesFieldMapper.CONTENT_TYPE,
             new GeoShapeWithDocValuesFieldMapper.TypeParser(geoFormatterFactory.get())
         );
+    }
+
+    @Override
+    public Map<String, RuntimeField.Parser> getRuntimeFields() {
+        return Map.of(GeoShapeWithDocValuesFieldMapper.CONTENT_TYPE, GeoShapeScriptFieldType.typeParser(geoFormatterFactory.get()));
     }
 
     @Override
@@ -190,6 +199,15 @@ public class SpatialPlugin extends Plugin implements ActionPlugin, MapperPlugin,
     @Override
     public Map<String, Processor.Factory> getProcessors(Processor.Parameters parameters) {
         return Map.of(CircleProcessor.TYPE, new CircleProcessor.Factory(), GeoGridProcessor.TYPE, new GeoGridProcessor.Factory());
+    }
+
+    @Override
+    public List<GenericNamedWriteableSpec> getGenericNamedWriteables() {
+        return List.of(
+            new GenericNamedWriteableSpec("CartesianBoundingBox", CartesianBoundingBox::new),
+            new GenericNamedWriteableSpec("GeoShapeValue", GeoShapeValues.GeoShapeValue::new),
+            new GenericNamedWriteableSpec("CartesianShapeValue", CartesianShapeValues.CartesianShapeValue::new)
+        );
     }
 
     private static void registerGeoShapeBoundsAggregator(ValuesSourceRegistry.Builder builder) {

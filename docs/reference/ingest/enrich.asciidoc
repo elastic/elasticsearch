@@ -67,14 +67,16 @@ Directly matching incoming documents to documents in source indices could be
 slow and resource intensive. To speed things up, the enrich processor uses an
 enrich index.
 
+// tag::enrich-index[]
 Enrich indices contain enrich data from source indices but have a few special
 properties to help streamline them:
 
 * They are system indices, meaning they're managed internally by {es} and only
-  intended for use with enrich processors.
+  intended for use with enrich processors and the {esql} `ENRICH` command.
 * They always begin with `.enrich-*`.
 * They are read-only, meaning you can't directly change them.
 * They are <<indices-forcemerge,force merged>> for fast retrieval.
+// end::enrich-index[]
 --
 
 [[enrich-setup]]
@@ -110,13 +112,14 @@ that doesn't change frequently.
 [[enrich-prereqs]]
 ==== Prerequisites
 
-include::{es-repo-dir}/ingest/apis/enrich/put-enrich-policy.asciidoc[tag=enrich-policy-api-prereqs]
+include::{es-ref-dir}/ingest/apis/enrich/put-enrich-policy.asciidoc[tag=enrich-policy-api-prereqs]
 
 [[create-enrich-source-index]]
 ==== Add enrich data
 
+// tag::create-enrich-source-index[]
 To begin, add documents to one or more source indices. These documents should
-contain the enrich data you eventually want to add to incoming documents.
+contain the enrich data you eventually want to add to incoming data.
 
 You can manage source indices just like regular {es} indices using the
 <<docs,document>> and <<indices,index>> APIs.
@@ -125,29 +128,38 @@ You also can set up {beats-ref}/getting-started.html[{beats}], such as a
 {filebeat-ref}/filebeat-installation-configuration.html[{filebeat}], to
 automatically send and index documents to your source indices. See
 {beats-ref}/getting-started.html[Getting started with {beats}].
+//end::create-enrich-source-index[]
 
 [[create-enrich-policy]]
 ==== Create an enrich policy
 
+// tag::create-enrich-policy[]
 After adding enrich data to your source indices, use the
-<<put-enrich-policy-api,create enrich policy API>> to create an enrich policy.
+<<put-enrich-policy-api,create enrich policy API>> or
+<<manage-enrich-policies,Index Management in {kib}>> to create an enrich policy.
 
 [WARNING]
 ====
 Once created, you can't update or change an enrich policy.
 See <<update-enrich-policies>>.
 ====
+// end::create-enrich-policy[]
 
 [[execute-enrich-policy]]
 ==== Execute the enrich policy
 
-Once the enrich policy is created, you can execute it using the
-<<execute-enrich-policy-api,execute enrich policy API>> to create an
+// tag::execute-enrich-policy1[]
+Once the enrich policy is created, you need to execute it using the
+<<execute-enrich-policy-api,execute enrich policy API>> or
+<<manage-enrich-policies,Index Management in {kib}>> to create an
 <<enrich-index,enrich index>>.
+// end::execute-enrich-policy1[]
 
 image::images/ingest/enrich/enrich-policy-index.svg[align="center"]
 
+// tag::execute-enrich-policy2[]
 include::apis/enrich/execute-enrich-policy.asciidoc[tag=execute-enrich-policy-def]
+// end::execute-enrich-policy2[]
 
 [[add-enrich-processor]]
 ==== Add an enrich processor to an ingest pipeline
@@ -191,7 +203,7 @@ documents first and verifying enrich data was added correctly using the
 [[update-enrich-data]]
 ==== Update an enrich index
 
-include::{es-repo-dir}/ingest/apis/enrich/execute-enrich-policy.asciidoc[tag=update-enrich-index]
+include::{es-ref-dir}/ingest/apis/enrich/execute-enrich-policy.asciidoc[tag=update-enrich-index]
 
 If wanted, you can <<docs-reindex,reindex>>
 or <<docs-update-by-query,update>> any already ingested documents
@@ -208,21 +220,22 @@ Instead, you can:
 
 . Replace the previous enrich policy
     with the new enrich policy
-    in any in-use enrich processors.
+    in any in-use enrich processors or {esql} queries.
 
-. Use the <<delete-enrich-policy-api, delete enrich policy>> API
+. Use the <<delete-enrich-policy-api, delete enrich policy>> API or
+<<manage-enrich-policies,Index Management in {kib}>>
     to delete the previous enrich policy.
 // end::update-enrich-policy[]
 
 [[ingest-enrich-components]]
 ==== Enrich components
 
-The enrich coordinator is a component that manages and performs the searches 
+The enrich coordinator is a component that manages and performs the searches
 required to enrich documents on each ingest node. It combines searches from all enrich
 processors in all pipelines into bulk <<search-multi-search,multi-searches>>.
 
-The enrich policy executor is a component that manages the executions of all 
-enrich policies. When an enrich policy is executed, this component creates 
+The enrich policy executor is a component that manages the executions of all
+enrich policies. When an enrich policy is executed, this component creates
 a new enrich index and removes the previous enrich index. The enrich policy
 executions are managed from the elected master node. The execution of these
 policies occurs on a different node.
@@ -236,9 +249,15 @@ enrich policy executor.
 The enrich coordinator supports the following node settings:
 
 `enrich.cache_size`::
-Maximum number of searches to cache for enriching documents. Defaults to `1000`.
-There is a single cache for all enrich processors in the cluster. This setting
-determines the size of that cache.
+Maximum size of the cache that caches searches for enriching documents.
+The size can be specified in three units: the raw number of
+cached searches (e.g. `1000`), an absolute size in bytes (e.g. `100Mb`),
+or a percentage of the max heap space of the node (e.g. `1%`).
+Both for the absolute byte size and the percentage of heap space,
+{es} does not guarantee that the enrich cache size will adhere exactly to that maximum,
+as {es} uses the byte size of the serialized search response
+which is is a good representation of the used space on the heap, but not an exact match.
+Defaults to `1%`. There is a single cache for all enrich processors in the cluster.
 
 `enrich.coordinator_proxy.max_concurrent_requests`::
 Maximum number of concurrent <<search-multi-search,multi-search requests>> to

@@ -1,0 +1,54 @@
+setup:
+
+  - requires:
+      cluster_features: ["gte_v8.13.0"]
+      reason: "index option on counted_keyword was added in 8.13"
+
+  - do:
+      indices.create:
+        index: test-events-no-index
+        body:
+          mappings:
+            properties:
+              events:
+                type: counted_keyword
+                index: false
+
+  - do:
+      index:
+        index: test-events-no-index
+        id: "1"
+        body: { "events": [ "a", "a", "b" ] }
+
+
+  - do:
+      indices.refresh: { }
+
+---
+"Counted keyword with index false is not searchable":
+  - do:
+      field_caps:
+        index: test-events-no-index
+        fields: [ events ]
+
+  - match: { fields.events.counted_keyword.searchable: false }
+  - match: { fields.events.counted_keyword.aggregatable: true }
+
+---
+"Counted Terms agg only relies on doc values":
+# although the field is not indexed, the counted_terms agg should still work
+  - do:
+      search:
+        index: test-events-no-index
+        body:
+          size: 0
+          aggs:
+            event_terms:
+              counted_terms:
+                field: events
+
+  - match: { aggregations.event_terms.buckets.0.key: "a" }
+  - match: { aggregations.event_terms.buckets.0.doc_count: 2 }
+  - match: { aggregations.event_terms.buckets.1.key: "b" }
+  - match: { aggregations.event_terms.buckets.1.doc_count: 1 }
+  - length: { aggregations.event_terms.buckets: 2 }

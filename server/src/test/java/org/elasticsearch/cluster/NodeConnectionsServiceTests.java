@@ -1,21 +1,25 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster;
 
 import org.apache.logging.log4j.Level;
 import org.elasticsearch.Build;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.ListenableActionFuture;
+import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.component.Lifecycle;
@@ -29,7 +33,7 @@ import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -48,7 +52,6 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -76,9 +79,7 @@ public class NodeConnectionsServiceTests extends ESTestCase {
         List<DiscoveryNode> nodes = new ArrayList<>();
         for (int i = randomIntBetween(20, 50); i > 0; i--) {
             Set<DiscoveryNodeRole> roles = new HashSet<>(randomSubsetOf(DiscoveryNodeRole.roles()));
-            nodes.add(
-                new DiscoveryNode("node_" + i, "" + i, buildNewFakeTransportAddress(), Collections.emptyMap(), roles, Version.CURRENT)
-            );
+            nodes.add(DiscoveryNodeUtils.builder("" + i).name("node_" + i).roles(roles).build());
         }
         return nodes;
     }
@@ -144,7 +145,7 @@ public class NodeConnectionsServiceTests extends ESTestCase {
         }, "reconnection thread");
         reconnectionThread.start();
 
-        final var node = new DiscoveryNode("node", buildNewFakeTransportAddress(), Map.of(), Set.of(), Version.CURRENT);
+        final var node = DiscoveryNodeUtils.create("node", buildNewFakeTransportAddress(), Map.of(), Set.of());
         final var nodes = discoveryNodesFromList(List.of(node));
 
         final Thread disruptionThread = new Thread(() -> {
@@ -259,7 +260,7 @@ public class NodeConnectionsServiceTests extends ESTestCase {
         });
 
         // connect to one node
-        final DiscoveryNode node0 = new DiscoveryNode("node0", buildNewFakeTransportAddress(), Version.CURRENT);
+        final DiscoveryNode node0 = DiscoveryNodeUtils.create("node0");
         final DiscoveryNodes nodes0 = DiscoveryNodes.builder().add(node0).build();
         connectToNodes(service, nodes0);
         assertConnectedExactlyToNodes(nodes0);
@@ -271,7 +272,7 @@ public class NodeConnectionsServiceTests extends ESTestCase {
             transportService.disconnectFromNode(node0);
 
             // can still connect to another node without blocking
-            final DiscoveryNode node1 = new DiscoveryNode("node1", buildNewFakeTransportAddress(), Version.CURRENT);
+            final DiscoveryNode node1 = DiscoveryNodeUtils.create("node1");
             final DiscoveryNodes nodes1 = DiscoveryNodes.builder().add(node1).build();
             final DiscoveryNodes nodes01 = DiscoveryNodes.builder(nodes0).add(node1).build();
             connectToNodes(service, nodes01);
@@ -299,10 +300,10 @@ public class NodeConnectionsServiceTests extends ESTestCase {
 
             // a blocked reconnection attempt doesn't also block the node from being deregistered
             service.disconnectFromNodesExcept(nodes1);
-            assertThat(PlainActionFuture.get(disconnectFuture1 -> {
-                assertTrue(disconnectListenerRef.compareAndSet(null, disconnectFuture1));
+            assertThat(safeAwait(disconnectListener -> {
+                assertTrue(disconnectListenerRef.compareAndSet(null, disconnectListener));
                 connectionBarrier.await(10, TimeUnit.SECONDS);
-            }, 10, TimeUnit.SECONDS), equalTo(node0)); // node0 connects briefly, must wait here
+            }), equalTo(node0)); // node0 connects briefly, must wait here
             assertConnectedExactlyToNodes(nodes1);
 
             // a blocked connection attempt to a new node also doesn't prevent an immediate deregistration
@@ -313,10 +314,10 @@ public class NodeConnectionsServiceTests extends ESTestCase {
             service.disconnectFromNodesExcept(nodes1);
             assertConnectedExactlyToNodes(nodes1);
 
-            assertThat(PlainActionFuture.get(disconnectFuture2 -> {
-                assertTrue(disconnectListenerRef.compareAndSet(null, disconnectFuture2));
+            assertThat(safeAwait(disconnectListener -> {
+                assertTrue(disconnectListenerRef.compareAndSet(null, disconnectListener));
                 connectionBarrier.await(10, TimeUnit.SECONDS);
-            }, 10, TimeUnit.SECONDS), equalTo(node0)); // node0 connects briefly, must wait here
+            }), equalTo(node0)); // node0 connects briefly, must wait here
             assertConnectedExactlyToNodes(nodes1);
             assertTrue(future5.isDone());
         } finally {
@@ -354,20 +355,19 @@ public class NodeConnectionsServiceTests extends ESTestCase {
         for (DiscoveryNode disconnectedNode : disconnectedNodes) {
             transportService.disconnectFromNode(disconnectedNode);
         }
-        MockLogAppender appender = new MockLogAppender();
-        try (var ignored = appender.capturing(NodeConnectionsService.class)) {
+        try (var mockLog = MockLog.capture(NodeConnectionsService.class)) {
             for (DiscoveryNode targetNode : targetNodes) {
                 if (disconnectedNodes.contains(targetNode)) {
-                    appender.addExpectation(
-                        new MockLogAppender.SeenEventExpectation(
+                    mockLog.addExpectation(
+                        new MockLog.SeenEventExpectation(
                             "connecting to " + targetNode,
                             "org.elasticsearch.cluster.NodeConnectionsService",
                             Level.DEBUG,
                             "connecting to " + targetNode
                         )
                     );
-                    appender.addExpectation(
-                        new MockLogAppender.SeenEventExpectation(
+                    mockLog.addExpectation(
+                        new MockLog.SeenEventExpectation(
                             "connected to " + targetNode,
                             "org.elasticsearch.cluster.NodeConnectionsService",
                             Level.DEBUG,
@@ -375,16 +375,16 @@ public class NodeConnectionsServiceTests extends ESTestCase {
                         )
                     );
                 } else {
-                    appender.addExpectation(
-                        new MockLogAppender.UnseenEventExpectation(
+                    mockLog.addExpectation(
+                        new MockLog.UnseenEventExpectation(
                             "connecting to " + targetNode,
                             "org.elasticsearch.cluster.NodeConnectionsService",
                             Level.DEBUG,
                             "connecting to " + targetNode
                         )
                     );
-                    appender.addExpectation(
-                        new MockLogAppender.UnseenEventExpectation(
+                    mockLog.addExpectation(
+                        new MockLog.UnseenEventExpectation(
                             "connected to " + targetNode,
                             "org.elasticsearch.cluster.NodeConnectionsService",
                             Level.DEBUG,
@@ -395,7 +395,7 @@ public class NodeConnectionsServiceTests extends ESTestCase {
             }
 
             runTasksUntil(deterministicTaskQueue, CLUSTER_NODE_RECONNECT_INTERVAL_SETTING.get(Settings.EMPTY).millis());
-            appender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
         }
 
         for (DiscoveryNode disconnectedNode : disconnectedNodes) {
@@ -407,20 +407,20 @@ public class NodeConnectionsServiceTests extends ESTestCase {
         for (DiscoveryNode disconnectedNode : disconnectedNodes) {
             transportService.disconnectFromNode(disconnectedNode);
         }
-        appender = new MockLogAppender();
-        try (var ignored = appender.capturing(NodeConnectionsService.class)) {
+
+        try (var mockLog = MockLog.capture(NodeConnectionsService.class)) {
             for (DiscoveryNode targetNode : targetNodes) {
                 if (disconnectedNodes.contains(targetNode) && newTargetNodes.get(targetNode.getId()) != null) {
-                    appender.addExpectation(
-                        new MockLogAppender.SeenEventExpectation(
+                    mockLog.addExpectation(
+                        new MockLog.SeenEventExpectation(
                             "connecting to " + targetNode,
                             "org.elasticsearch.cluster.NodeConnectionsService",
                             Level.DEBUG,
                             "connecting to " + targetNode
                         )
                     );
-                    appender.addExpectation(
-                        new MockLogAppender.SeenEventExpectation(
+                    mockLog.addExpectation(
+                        new MockLog.SeenEventExpectation(
                             "connected to " + targetNode,
                             "org.elasticsearch.cluster.NodeConnectionsService",
                             Level.DEBUG,
@@ -428,16 +428,16 @@ public class NodeConnectionsServiceTests extends ESTestCase {
                         )
                     );
                 } else {
-                    appender.addExpectation(
-                        new MockLogAppender.UnseenEventExpectation(
+                    mockLog.addExpectation(
+                        new MockLog.UnseenEventExpectation(
                             "connecting to " + targetNode,
                             "org.elasticsearch.cluster.NodeConnectionsService",
                             Level.DEBUG,
                             "connecting to " + targetNode
                         )
                     );
-                    appender.addExpectation(
-                        new MockLogAppender.UnseenEventExpectation(
+                    mockLog.addExpectation(
+                        new MockLog.UnseenEventExpectation(
                             "connected to " + targetNode,
                             "org.elasticsearch.cluster.NodeConnectionsService",
                             Level.DEBUG,
@@ -446,8 +446,8 @@ public class NodeConnectionsServiceTests extends ESTestCase {
                     );
                 }
                 if (newTargetNodes.get(targetNode.getId()) == null) {
-                    appender.addExpectation(
-                        new MockLogAppender.SeenEventExpectation(
+                    mockLog.addExpectation(
+                        new MockLog.SeenEventExpectation(
                             "disconnected from " + targetNode,
                             "org.elasticsearch.cluster.NodeConnectionsService",
                             Level.DEBUG,
@@ -457,8 +457,8 @@ public class NodeConnectionsServiceTests extends ESTestCase {
                 }
             }
             for (DiscoveryNode targetNode : newTargetNodes) {
-                appender.addExpectation(
-                    new MockLogAppender.UnseenEventExpectation(
+                mockLog.addExpectation(
+                    new MockLog.UnseenEventExpectation(
                         "disconnected from " + targetNode,
                         "org.elasticsearch.cluster.NodeConnectionsService",
                         Level.DEBUG,
@@ -466,16 +466,16 @@ public class NodeConnectionsServiceTests extends ESTestCase {
                     )
                 );
                 if (targetNodes.get(targetNode.getId()) == null) {
-                    appender.addExpectation(
-                        new MockLogAppender.SeenEventExpectation(
+                    mockLog.addExpectation(
+                        new MockLog.SeenEventExpectation(
                             "connecting to " + targetNode,
                             "org.elasticsearch.cluster.NodeConnectionsService",
                             Level.DEBUG,
                             "connecting to " + targetNode
                         )
                     );
-                    appender.addExpectation(
-                        new MockLogAppender.SeenEventExpectation(
+                    mockLog.addExpectation(
+                        new MockLog.SeenEventExpectation(
                             "connected to " + targetNode,
                             "org.elasticsearch.cluster.NodeConnectionsService",
                             Level.DEBUG,
@@ -488,7 +488,7 @@ public class NodeConnectionsServiceTests extends ESTestCase {
             service.disconnectFromNodesExcept(newTargetNodes);
             service.connectToNodes(newTargetNodes, () -> {});
             deterministicTaskQueue.runAllRunnableTasks();
-            appender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
         }
     }
 
@@ -547,7 +547,7 @@ public class NodeConnectionsServiceTests extends ESTestCase {
                 transport,
                 threadPool,
                 TransportService.NOOP_TRANSPORT_INTERCEPTOR,
-                boundAddress -> DiscoveryNode.createLocal(Settings.EMPTY, buildNewFakeTransportAddress(), UUIDs.randomBase64UUID()),
+                boundAddress -> DiscoveryNodeUtils.create(UUIDs.randomBase64UUID()),
                 null,
                 emptySet()
             );
@@ -560,7 +560,7 @@ public class NodeConnectionsServiceTests extends ESTestCase {
             Predicate<ClusterName> clusterNamePredicate,
             ActionListener<HandshakeResponse> listener
         ) {
-            listener.onResponse(new HandshakeResponse(Version.CURRENT, Build.CURRENT.hash(), connection.getNode(), new ClusterName("")));
+            listener.onResponse(new HandshakeResponse(Version.CURRENT, Build.current().hash(), connection.getNode(), new ClusterName("")));
         }
 
     }
@@ -598,37 +598,38 @@ public class NodeConnectionsServiceTests extends ESTestCase {
             return new TransportAddress[0];
         }
 
-        private void runConnectionBlock(CheckedRunnable<Exception> connectionBlock) {
+        private void runConnectionBlock(CheckedRunnable<Exception> connectionBlock) throws Exception {
             if (connectionBlock == null) {
                 return;
             }
-            try {
-                connectionBlock.run();
-            } catch (Exception e) {
-                throw new AssertionError(e);
-            }
+            connectionBlock.run();
         }
 
         @Override
         public void openConnection(DiscoveryNode node, ConnectionProfile profile, ActionListener<Connection> listener) {
             final CheckedRunnable<Exception> connectionBlock = nodeConnectionBlocks.get(node);
             if (profile == null && randomConnectionExceptions && randomBoolean()) {
-                threadPool.generic().execute(() -> {
+                threadPool.generic().execute(ActionRunnable.run(listener, () -> {
                     runConnectionBlock(connectionBlock);
-                    listener.onFailure(new ConnectTransportException(node, "simulated"));
-                });
+                    throw new ConnectTransportException(node, "simulated");
+                }));
             } else {
-                threadPool.generic().execute(() -> {
+                threadPool.generic().execute(ActionRunnable.supply(listener, () -> {
                     runConnectionBlock(connectionBlock);
-                    listener.onResponse(new Connection() {
-                        private final ListenableActionFuture<Void> closeListener = new ListenableActionFuture<>();
-                        private final ListenableActionFuture<Void> removedListener = new ListenableActionFuture<>();
+                    return new Connection() {
+                        private final SubscribableListener<Void> closeListener = new SubscribableListener<>();
+                        private final SubscribableListener<Void> removedListener = new SubscribableListener<>();
 
                         private final RefCounted refCounted = AbstractRefCounted.of(() -> closeListener.onResponse(null));
 
                         @Override
                         public DiscoveryNode getNode() {
                             return node;
+                        }
+
+                        @Override
+                        public TransportVersion getTransportVersion() {
+                            return TransportVersion.current();
                         }
 
                         @Override
@@ -679,8 +680,8 @@ public class NodeConnectionsServiceTests extends ESTestCase {
                         public boolean hasReferences() {
                             return refCounted.hasReferences();
                         }
-                    });
-                });
+                    };
+                }));
             }
         }
 
@@ -723,18 +724,18 @@ public class NodeConnectionsServiceTests extends ESTestCase {
     }
 
     private static void connectToNodes(NodeConnectionsService service, DiscoveryNodes discoveryNodes) {
-        PlainActionFuture.get(future -> service.connectToNodes(discoveryNodes, () -> future.onResponse(null)), 10, TimeUnit.SECONDS);
+        safeAwait(connectListener -> service.connectToNodes(discoveryNodes, () -> connectListener.onResponse(null)));
     }
 
     private static void ensureConnections(NodeConnectionsService service) {
-        PlainActionFuture.get(future -> service.ensureConnections(() -> future.onResponse(null)), 10, TimeUnit.SECONDS);
+        safeAwait(ensureListener -> service.ensureConnections(() -> ensureListener.onResponse(null)));
     }
 
     private static void closeConnection(TransportService transportService, DiscoveryNode discoveryNode) {
         try {
             final var connection = transportService.getConnection(discoveryNode);
             connection.close();
-            PlainActionFuture.get(connection::addRemovedListener, 10, TimeUnit.SECONDS);
+            safeAwait(connection::addRemovedListener);
         } catch (NodeNotConnectedException e) {
             // ok
         }

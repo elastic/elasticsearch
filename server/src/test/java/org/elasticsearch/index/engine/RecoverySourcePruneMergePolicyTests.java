@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.engine;
@@ -32,6 +33,7 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.util.NullInfoStream;
 import org.apache.lucene.util.InfoStream;
+import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -43,9 +45,11 @@ public class RecoverySourcePruneMergePolicyTests extends ESTestCase {
 
     public void testPruneAll() throws IOException {
         try (Directory dir = newDirectory()) {
+            boolean pruneIdField = randomBoolean();
             IndexWriterConfig iwc = newIndexWriterConfig();
             RecoverySourcePruneMergePolicy mp = new RecoverySourcePruneMergePolicy(
                 "extra_source",
+                pruneIdField,
                 MatchNoDocsQuery::new,
                 newLogMergePolicy()
             );
@@ -56,6 +60,7 @@ public class RecoverySourcePruneMergePolicyTests extends ESTestCase {
                         writer.flush();
                     }
                     Document doc = new Document();
+                    doc.add(new StoredField(IdFieldMapper.NAME, "_id"));
                     doc.add(new StoredField("source", "hello world"));
                     doc.add(new StoredField("extra_source", "hello world"));
                     doc.add(new NumericDocValuesField("extra_source", 1));
@@ -66,8 +71,14 @@ public class RecoverySourcePruneMergePolicyTests extends ESTestCase {
                 try (DirectoryReader reader = DirectoryReader.open(writer)) {
                     for (int i = 0; i < reader.maxDoc(); i++) {
                         Document document = reader.document(i);
-                        assertEquals(1, document.getFields().size());
-                        assertEquals("source", document.getFields().get(0).name());
+                        if (pruneIdField) {
+                            assertEquals(1, document.getFields().size());
+                            assertEquals("source", document.getFields().get(0).name());
+                        } else {
+                            assertEquals(2, document.getFields().size());
+                            assertEquals(IdFieldMapper.NAME, document.getFields().get(0).name());
+                            assertEquals("source", document.getFields().get(1).name());
+                        }
                     }
                     assertEquals(1, reader.leaves().size());
                     LeafReader leafReader = reader.leaves().get(0).reader();
@@ -111,9 +122,15 @@ public class RecoverySourcePruneMergePolicyTests extends ESTestCase {
 
     public void testPruneSome() throws IOException {
         try (Directory dir = newDirectory()) {
+            boolean pruneIdField = randomBoolean();
             IndexWriterConfig iwc = newIndexWriterConfig();
             iwc.setMergePolicy(
-                new RecoverySourcePruneMergePolicy("extra_source", () -> new TermQuery(new Term("even", "true")), iwc.getMergePolicy())
+                new RecoverySourcePruneMergePolicy(
+                    "extra_source",
+                    pruneIdField,
+                    () -> new TermQuery(new Term("even", "true")),
+                    iwc.getMergePolicy()
+                )
             );
             try (IndexWriter writer = new IndexWriter(dir, iwc)) {
                 for (int i = 0; i < 20; i++) {
@@ -121,6 +138,7 @@ public class RecoverySourcePruneMergePolicyTests extends ESTestCase {
                         writer.flush();
                     }
                     Document doc = new Document();
+                    doc.add(new StoredField(IdFieldMapper.NAME, "_id"));
                     doc.add(new StringField("even", Boolean.toString(i % 2 == 0), Field.Store.YES));
                     doc.add(new StoredField("source", "hello world"));
                     doc.add(new StoredField("extra_source", "hello world"));
@@ -138,12 +156,13 @@ public class RecoverySourcePruneMergePolicyTests extends ESTestCase {
                         Set<String> collect = document.getFields().stream().map(IndexableField::name).collect(Collectors.toSet());
                         assertTrue(collect.contains("source"));
                         assertTrue(collect.contains("even"));
-                        if (collect.size() == 3) {
+                        if (collect.size() == 4) {
                             assertTrue(collect.contains("extra_source"));
+                            assertTrue(collect.contains(IdFieldMapper.NAME));
                             assertEquals("true", document.getField("even").stringValue());
                             assertEquals(i, extra_source.nextDoc());
                         } else {
-                            assertEquals(2, document.getFields().size());
+                            assertEquals(pruneIdField ? 2 : 3, document.getFields().size());
                         }
                     }
                     assertEquals(DocIdSetIterator.NO_MORE_DOCS, extra_source.nextDoc());
@@ -155,7 +174,7 @@ public class RecoverySourcePruneMergePolicyTests extends ESTestCase {
     public void testPruneNone() throws IOException {
         try (Directory dir = newDirectory()) {
             IndexWriterConfig iwc = newIndexWriterConfig();
-            iwc.setMergePolicy(new RecoverySourcePruneMergePolicy("extra_source", () -> new MatchAllDocsQuery(), iwc.getMergePolicy()));
+            iwc.setMergePolicy(new RecoverySourcePruneMergePolicy("extra_source", false, MatchAllDocsQuery::new, iwc.getMergePolicy()));
             try (IndexWriter writer = new IndexWriter(dir, iwc)) {
                 for (int i = 0; i < 20; i++) {
                     if (i > 0 && randomBoolean()) {

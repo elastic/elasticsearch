@@ -11,6 +11,7 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.search.sort.SortValue;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.InternalAggregationTestCase;
 
 import java.util.Arrays;
 import java.util.List;
@@ -33,8 +34,9 @@ public class InternalTopMetricsReduceTests extends ESTestCase {
 
     public void testFirstEmpty() {
         InternalTopMetrics first = buildEmpty();
-        InternalTopMetrics reduced = reduce(first, buildFilled(1, top(SortValue.from(1), 1.0)));
-        assertThat(reduced, sameInstance(first));
+        InternalTopMetrics second = buildFilled(1, top(SortValue.from(1), 1.0));
+        InternalTopMetrics reduced = reduce(first, second);
+        assertThat(reduced, sameInstance(second));
     }
 
     public void testManyToReduce() {
@@ -100,6 +102,6 @@ public class InternalTopMetricsReduceTests extends ESTestCase {
     }
 
     private InternalTopMetrics reduce(InternalTopMetrics... results) {
-        return results[0].reduce(Arrays.asList(results), null);
+        return (InternalTopMetrics) InternalAggregationTestCase.reduce(Arrays.asList(results), null);
     }
 }

@@ -1,18 +1,19 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.cluster.coordination;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressorFactory;
-import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -28,7 +29,7 @@ public class ValidateJoinRequest extends TransportRequest {
 
     public ValidateJoinRequest(StreamInput in) throws IOException {
         super(in);
-        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_3_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_3_0)) {
             // recent versions send a BytesTransportRequest containing a compressed representation of the state
             final var bytes = in.readReleasableBytesReference();
             final var version = in.getTransportVersion();
@@ -51,7 +52,7 @@ public class ValidateJoinRequest extends TransportRequest {
         try (
             var bytesStreamInput = bytes.streamInput();
             var in = new NamedWriteableAwareStreamInput(
-                new InputStreamStreamInput(CompressorFactory.COMPRESSOR.threadLocalInputStream(bytesStreamInput)),
+                CompressorFactory.COMPRESSOR.threadLocalStreamInput(bytesStreamInput),
                 namedWriteableRegistry
             )
         ) {
@@ -67,7 +68,7 @@ public class ValidateJoinRequest extends TransportRequest {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        assert out.getTransportVersion().before(TransportVersion.V_8_3_0);
+        assert out.getTransportVersion().before(TransportVersions.V_8_3_0);
         super.writeTo(out);
         stateSupplier.get().writeTo(out);
     }

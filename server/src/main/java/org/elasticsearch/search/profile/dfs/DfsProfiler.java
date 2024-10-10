@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.profile.dfs;
@@ -11,7 +12,7 @@ package org.elasticsearch.search.profile.dfs;
 import org.elasticsearch.search.profile.AbstractProfileBreakdown;
 import org.elasticsearch.search.profile.ProfileResult;
 import org.elasticsearch.search.profile.SearchProfileDfsPhaseResult;
-import org.elasticsearch.search.profile.query.InternalProfileCollector;
+import org.elasticsearch.search.profile.Timer;
 import org.elasticsearch.search.profile.query.QueryProfileShardResult;
 import org.elasticsearch.search.profile.query.QueryProfiler;
 
@@ -30,7 +31,6 @@ public class DfsProfiler extends AbstractProfileBreakdown<DfsTimingType> {
     private long totalTime;
 
     private final List<QueryProfiler> knnQueryProfilers = new ArrayList<>();
-    private boolean collectorSet = false;
 
     public DfsProfiler() {
         super(DfsTimingType.class);
@@ -44,19 +44,15 @@ public class DfsProfiler extends AbstractProfileBreakdown<DfsTimingType> {
         totalTime = System.nanoTime() - startTime;
     }
 
-    public void startTimer(DfsTimingType dfsTimingType) {
-        getTimer(dfsTimingType).start();
+    public Timer startTimer(DfsTimingType dfsTimingType) {
+        Timer newTimer = getNewTimer(dfsTimingType);
+        newTimer.start();
+        return newTimer;
     }
 
-    public void stopTimer(DfsTimingType dfsTimingType) {
-        getTimer(dfsTimingType).stop();
-    }
-
-    public QueryProfiler addQueryProfiler(InternalProfileCollector collector) {
+    public QueryProfiler addQueryProfiler() {
         QueryProfiler queryProfiler = new QueryProfiler();
-        queryProfiler.setCollector(collector);
         knnQueryProfilers.add(queryProfiler);
-        collectorSet = true;
         return queryProfiler;
     }
 
@@ -69,17 +65,20 @@ public class DfsProfiler extends AbstractProfileBreakdown<DfsTimingType> {
             totalTime,
             List.of()
         );
-        final List<QueryProfileShardResult> queryProfileShardResult;
-        if (collectorSet) {
-            queryProfileShardResult = new ArrayList<>(knnQueryProfilers.size());
+        if (knnQueryProfilers.size() > 0) {
+            final List<QueryProfileShardResult> queryProfileShardResult = new ArrayList<>(knnQueryProfilers.size());
             for (QueryProfiler queryProfiler : knnQueryProfilers) {
                 queryProfileShardResult.add(
-                    new QueryProfileShardResult(queryProfiler.getTree(), queryProfiler.getRewriteTime(), queryProfiler.getCollector())
+                    new QueryProfileShardResult(
+                        queryProfiler.getTree(),
+                        queryProfiler.getRewriteTime(),
+                        queryProfiler.getCollectorResult(),
+                        queryProfiler.getVectorOpsCount()
+                    )
                 );
             }
-        } else {
-            queryProfileShardResult = null;
+            return new SearchProfileDfsPhaseResult(dfsProfileResult, queryProfileShardResult);
         }
-        return new SearchProfileDfsPhaseResult(dfsProfileResult, queryProfileShardResult);
+        return new SearchProfileDfsPhaseResult(dfsProfileResult, null);
     }
 }

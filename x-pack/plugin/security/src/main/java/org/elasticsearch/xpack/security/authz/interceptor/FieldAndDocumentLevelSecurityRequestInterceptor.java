@@ -50,7 +50,7 @@ abstract class FieldAndDocumentLevelSecurityRequestInterceptor implements Reques
     ) {
         final boolean isDlsLicensed = DOCUMENT_LEVEL_SECURITY_FEATURE.checkWithoutTracking(licenseState);
         final boolean isFlsLicensed = FIELD_LEVEL_SECURITY_FEATURE.checkWithoutTracking(licenseState);
-        if (requestInfo.getRequest()instanceof IndicesRequest indicesRequest
+        if (requestInfo.getRequest() instanceof IndicesRequest indicesRequest
             && false == TransportActionProxy.isProxyAction(requestInfo.getAction())
             && supports(indicesRequest)
             && (isDlsLicensed || isFlsLicensed)) {

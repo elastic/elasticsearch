@@ -78,7 +78,7 @@ import javax.net.ssl.X509ExtendedKeyManager;
 import javax.net.ssl.X509ExtendedTrustManager;
 import javax.security.auth.x500.X500Principal;
 
-import static org.elasticsearch.transport.RemoteClusterPortSettings.REMOTE_CLUSTER_PORT_ENABLED;
+import static org.elasticsearch.transport.RemoteClusterPortSettings.REMOTE_CLUSTER_SERVER_ENABLED;
 import static org.elasticsearch.xpack.core.XPackSettings.DEFAULT_SUPPORTED_PROTOCOLS;
 import static org.elasticsearch.xpack.core.XPackSettings.REMOTE_CLUSTER_SERVER_SSL_ENABLED;
 import static org.elasticsearch.xpack.core.XPackSettings.REMOTE_CLUSTER_SERVER_SSL_PREFIX;
@@ -151,6 +151,7 @@ public class SSLService {
      * Create a new SSLService using the provided {@link SslConfiguration} instances. The ssl
      * contexts created from these configurations will be cached.
      */
+    @SuppressWarnings("this-escape")
     public SSLService(Environment environment, Map<String, SslConfiguration> sslConfigurations) {
         this.env = environment;
         this.settings = env.settings();
@@ -159,6 +160,7 @@ public class SSLService {
         this.sslContexts = loadSslConfigurations(this.sslConfigurations);
     }
 
+    @SuppressWarnings("this-escape")
     @Deprecated
     public SSLService(Settings settings, Environment environment) {
         this.env = environment;
@@ -407,9 +409,10 @@ public class SSLService {
     }
 
     public Set<String> getTransportProfileContextNames() {
-        return Collections.unmodifiableSet(
-            this.sslConfigurations.keySet().stream().filter(k -> k.startsWith("transport.profiles.")).collect(Collectors.toSet())
-        );
+        return this.sslConfigurations.keySet()
+            .stream()
+            .filter(k -> k.startsWith("transport.profiles."))
+            .collect(Collectors.toUnmodifiableSet());
     }
 
     /**
@@ -594,7 +597,7 @@ public class SSLService {
         sslSettingsMap.put(XPackSettings.TRANSPORT_SSL_PREFIX, settings.getByPrefix(XPackSettings.TRANSPORT_SSL_PREFIX));
         sslSettingsMap.putAll(getTransportProfileSSLSettings(settings));
         // Only build remote cluster server SSL if the port is enabled
-        if (REMOTE_CLUSTER_PORT_ENABLED.get(settings)) {
+        if (REMOTE_CLUSTER_SERVER_ENABLED.get(settings)) {
             sslSettingsMap.put(XPackSettings.REMOTE_CLUSTER_SERVER_SSL_PREFIX, getRemoteClusterServerSslSettings(settings));
         }
         // We always build the ssl settings for the remote cluster client
@@ -655,7 +658,7 @@ public class SSLService {
     }
 
     private void maybeValidateRemoteClusterServerConfiguration() {
-        if (REMOTE_CLUSTER_PORT_ENABLED.get(settings) == false) {
+        if (REMOTE_CLUSTER_SERVER_ENABLED.get(settings) == false) {
             return;
         }
         final SslConfiguration sslConfiguration = getSSLConfiguration(REMOTE_CLUSTER_SERVER_SSL_PREFIX);
@@ -663,8 +666,7 @@ public class SSLService {
             if (isConfigurationValidForServerUsage(sslConfiguration) == false) {
                 final SSLConfigurationSettings configurationSettings = SSLConfigurationSettings.withPrefix(
                     REMOTE_CLUSTER_SERVER_SSL_PREFIX,
-                    false,
-                    SSLConfigurationSettings.IntendedUse.SERVER
+                    false
                 );
                 throwExceptionForMissingKeyMaterial(REMOTE_CLUSTER_SERVER_SSL_PREFIX, configurationSettings);
             }

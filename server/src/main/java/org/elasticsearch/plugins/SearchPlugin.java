@@ -1,15 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.plugins;
 
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.CheckedBiConsumer;
+import org.elasticsearch.common.io.stream.GenericNamedWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -36,6 +38,8 @@ import org.elasticsearch.search.fetch.subphase.highlight.Highlighter;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.rescore.Rescorer;
 import org.elasticsearch.search.rescore.RescorerBuilder;
+import org.elasticsearch.search.retriever.RetrieverBuilder;
+import org.elasticsearch.search.retriever.RetrieverParser;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.search.suggest.Suggester;
 import org.elasticsearch.search.suggest.SuggestionBuilder;
@@ -111,6 +115,13 @@ public interface SearchPlugin {
     }
 
     /**
+     * The new {@link RetrieverBuilder}s defined by this plugin.
+     */
+    default List<RetrieverSpec<?>> getRetrievers() {
+        return emptyList();
+    }
+
+    /**
      * The new {@link Query}s defined by this plugin.
      */
     default List<QuerySpec<?>> getQueries() {
@@ -144,6 +155,13 @@ public interface SearchPlugin {
      * The new {@link Rescorer}s added by this plugin.
      */
     default List<RescorerSpec<?>> getRescorers() {
+        return emptyList();
+    }
+
+    /**
+     * Additional GenericNamedWriteable classes added by this plugin.
+     */
+    default List<GenericNamedWriteableSpec> getGenericNamedWriteables() {
         return emptyList();
     }
 
@@ -245,6 +263,47 @@ public interface SearchPlugin {
         @SuppressWarnings("rawtypes")
         public Writeable.Reader<? extends Suggest.Suggestion> getSuggestionReader() {
             return this.suggestionReader;
+        }
+    }
+
+    /**
+     * Specification of custom {@link RetrieverBuilder}.
+     */
+    class RetrieverSpec<RB extends RetrieverBuilder> {
+
+        private final ParseField name;
+        private final RetrieverParser<RB> parser;
+
+        /**
+         * Specification of custom {@link RetrieverBuilder}.
+         *
+         * @param name holds the names by which this retriever might be parsed. The {@link ParseField#getPreferredName()} is special as it
+         *        is the name by under which the reader is registered. So it is the name that the retriever should use as its
+         *        {@link NamedWriteable#getWriteableName()} too.
+         * @param parser the parser the reads the retriever builder from xcontent
+         */
+        public RetrieverSpec(ParseField name, RetrieverParser<RB> parser) {
+            this.name = name;
+            this.parser = parser;
+        }
+
+        /**
+         * Specification of custom {@link RetrieverBuilder}.
+         *
+         * @param name the name by which this retriever might be parsed or deserialized. Make sure that the retriever builder returns
+         *             this name for {@link NamedWriteable#getWriteableName()}.
+         * @param parser the parser the reads the retriever builder from xcontent
+         */
+        public RetrieverSpec(String name, RetrieverParser<RB> parser) {
+            this(new ParseField(name), parser);
+        }
+
+        public ParseField getName() {
+            return name;
+        }
+
+        public RetrieverParser<RB> getParser() {
+            return parser;
         }
     }
 
@@ -634,4 +693,9 @@ public interface SearchPlugin {
             super(name, reader, parser);
         }
     }
+
+    /**
+     * Specification of GenericNamedWriteable classes that can be serialized/deserialized as generic objects in search results.
+     */
+    record GenericNamedWriteableSpec(String name, Writeable.Reader<? extends GenericNamedWriteable> reader) {}
 }

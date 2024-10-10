@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.bucket.sampler.random;
@@ -58,7 +59,7 @@ public class RandomSamplerAggregatorTests extends AggregatorTestCase {
                 counts[integer.get()] = result.getDocCount();
                 if (result.getDocCount() > 0) {
                     Avg agg = result.getAggregations().get("avg");
-                    assertThat(Strings.toString(result), agg.getValue(), allOf(not(notANumber()), IsFinite.isFinite()));
+                    assertThat(Strings.toString(result), agg.getValue(), allOf(not(notANumber()), isFinite()));
                     avgs[integer.get()] = agg.getValue();
                 }
             },
@@ -163,11 +164,11 @@ public class RandomSamplerAggregatorTests extends AggregatorTestCase {
         }
     }
 
-    private static class IsFinite extends TypeSafeMatcher<Double> {
-        public static Matcher<Double> isFinite() {
-            return new IsFinite();
-        }
+    public static Matcher<Double> isFinite() {
+        return new IsFinite();
+    }
 
+    private static class IsFinite extends TypeSafeMatcher<Double> {
         @Override
         protected boolean matchesSafely(Double item) {
             return Double.isFinite(item);

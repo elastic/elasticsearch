@@ -31,6 +31,10 @@ This tool has a number of modes:
   from the cluster state in case where it contains incompatible settings that
   prevent the cluster from forming.
 
+* `elasticsearch-node remove-index-settings` can be used to remove index settings
+  from the cluster state in case where it contains incompatible index settings that
+  prevent the cluster from forming.
+
 * `elasticsearch-node remove-customs` can be used to remove custom metadata
   from the cluster state in case where it contains broken metadata that
   prevents the cluster state from being loaded.
@@ -105,6 +109,26 @@ The intended use is:
 * Stop the node
 * Run `elasticsearch-node remove-settings name-of-setting-to-remove` on the node
 * Repeat for all other master-eligible nodes
+* Start the nodes
+
+[discrete]
+==== Removing index settings
+
+There may be situations where an index contains index settings
+that prevent the cluster from forming. Since the cluster cannot form,
+it is not possible to remove these settings using the
+<<indices-update-settings>> API.
+
+The `elasticsearch-node remove-index-settings` tool allows you to forcefully remove
+those index settings from the on-disk cluster state. The tool takes a
+list of index settings as parameters that should be removed, and also supports
+wildcard patterns.
+
+The intended use is:
+
+* Stop the node
+* Run `elasticsearch-node remove-index-settings name-of-index-setting-to-remove` on the node
+* Repeat for all nodes
 * Start the nodes
 
 [discrete]
@@ -284,12 +308,11 @@ unsafely-bootstrapped cluster.
 Unsafe cluster bootstrapping is only possible if there is at least one
 surviving master-eligible node. If there are no remaining master-eligible nodes
 then the cluster metadata is completely lost. However, the individual data
-nodes also contain a copy of the index metadata corresponding with their
-shards. It is therefore sometimes possible to manually import these shards as
-<<dangling-indices,dangling indices>>. For example you can sometimes recover some
-indices after the loss of all master-eligible nodes in a cluster by creating a new
-cluster and then using the `elasticsearch-node detach-cluster` command to move any
-surviving nodes into this new cluster. Once the new cluster is fully formed,
+nodes also contain a copy of the index metadata corresponding with their shards. This sometimes allows a new cluster to import these shards as
+<<dangling-indices,dangling indices>>. You can sometimes
+recover some indices after the loss of all main-eligible nodes in a cluster
+by creating a new cluster and then using the `elasticsearch-node
+detach-cluster` command to move any surviving nodes into this new cluster. Once the new cluster is fully formed,
 use the <<dangling-indices-api,Dangling indices API>> to list, import or delete
 any dangling indices.
 
@@ -317,7 +340,7 @@ cluster formed as described above.
 below. Verify that the tool reported `Node was successfully detached from the
 cluster`.
 5. If necessary, configure each data node to
-<<modules-discovery-hosts-providers,discover the new cluster>>.
+<<discovery-hosts-providers,discover the new cluster>>.
 6. Start each data node and verify that it has joined the new cluster.
 7. Wait for all recoveries to have completed, and investigate the data in the
 cluster to discover if any was lost during this process. Use the
@@ -435,6 +458,37 @@ You can also use wildcards to remove multiple settings, for example using
 [source,txt]
 ----
 node$ ./bin/elasticsearch-node remove-settings xpack.monitoring.*
+----
+
+[discrete]
+==== Removing index settings
+
+If your indices contain index settings that prevent the cluster
+from forming, you can run the following command to remove one
+or more index settings.
+
+[source,txt]
+----
+node$ ./bin/elasticsearch-node remove-index-settings index.my_plugin.foo
+
+    WARNING: Elasticsearch MUST be stopped before running this tool.
+
+You should only run this tool if you have incompatible index settings in the
+cluster state that prevent the cluster from forming.
+This tool can cause data loss and its use should be your last resort.
+
+Do you want to proceed?
+
+Confirm [y/N] y
+
+Index settings were successfully removed from the cluster state
+----
+
+You can also use wildcards to remove multiple index settings, for example using
+
+[source,txt]
+----
+node$ ./bin/elasticsearch-node remove-index-settings index.my_plugin.*
 ----
 
 [discrete]

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.metrics;
@@ -12,6 +13,7 @@ import org.elasticsearch.common.geo.SpatialPoint;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
+import org.elasticsearch.search.aggregations.AggregatorReducer;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.xcontent.ParseField;
@@ -56,6 +58,7 @@ public abstract class InternalCentroid extends InternalAggregation implements Ce
     /**
      * Read from a stream.
      */
+    @SuppressWarnings("this-escape")
     protected InternalCentroid(StreamInput in, FieldExtractor firstField, FieldExtractor secondField) throws IOException {
         super(in);
         count = in.readVLong();
@@ -94,25 +97,33 @@ public abstract class InternalCentroid extends InternalAggregation implements Ce
     /** Create a new centroid with by reducing from the sums and total count */
     protected abstract InternalCentroid copyWith(double firstSum, double secondSum, long totalCount);
 
-    @Override
-    public InternalCentroid reduce(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
-        double firstSum = Double.NaN;
-        double secondSum = Double.NaN;
-        long totalCount = 0;
-        for (InternalAggregation aggregation : aggregations) {
-            InternalCentroid centroidAgg = (InternalCentroid) aggregation;
-            if (centroidAgg.count > 0) {
-                totalCount += centroidAgg.count;
-                if (Double.isNaN(firstSum)) {
-                    firstSum = centroidAgg.count * firstField.extractor.apply(centroidAgg.centroid);
-                    secondSum = centroidAgg.count * secondField.extractor.apply(centroidAgg.centroid);
-                } else {
-                    firstSum += centroidAgg.count * firstField.extractor.apply(centroidAgg.centroid);
-                    secondSum += centroidAgg.count * secondField.extractor.apply(centroidAgg.centroid);
+    protected AggregatorReducer getLeaderReducer(AggregationReduceContext reduceContext, int size) {
+        return new AggregatorReducer() {
+
+            double firstSum = Double.NaN;
+            double secondSum = Double.NaN;
+            long totalCount = 0;
+
+            @Override
+            public void accept(InternalAggregation aggregation) {
+                InternalCentroid centroidAgg = (InternalCentroid) aggregation;
+                if (centroidAgg.count > 0) {
+                    totalCount += centroidAgg.count;
+                    if (Double.isNaN(firstSum)) {
+                        firstSum = centroidAgg.count * firstField.extractor.apply(centroidAgg.centroid);
+                        secondSum = centroidAgg.count * secondField.extractor.apply(centroidAgg.centroid);
+                    } else {
+                        firstSum += centroidAgg.count * firstField.extractor.apply(centroidAgg.centroid);
+                        secondSum += centroidAgg.count * secondField.extractor.apply(centroidAgg.centroid);
+                    }
                 }
             }
-        }
-        return copyWith(firstSum, secondSum, totalCount);
+
+            @Override
+            public InternalAggregation get() {
+                return copyWith(firstSum, secondSum, totalCount);
+            }
+        };
     }
 
     @Override

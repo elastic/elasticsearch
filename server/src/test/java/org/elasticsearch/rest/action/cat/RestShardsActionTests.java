@@ -1,14 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.rest.action.cat;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.stats.CommonStats;
 import org.elasticsearch.action.admin.indices.stats.IndexStats;
@@ -16,6 +16,7 @@ import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -41,7 +42,7 @@ public class RestShardsActionTests extends ESTestCase {
 
     public void testBuildTable() {
         final int numShards = randomIntBetween(1, 5);
-        DiscoveryNode localNode = new DiscoveryNode("local", buildNewFakeTransportAddress(), Version.CURRENT);
+        DiscoveryNode localNode = DiscoveryNodeUtils.create("local");
 
         List<ShardRouting> shardRoutings = new ArrayList<>(numShards);
         Map<ShardRouting, ShardStats> shardStatsMap = new HashMap<>();
@@ -58,7 +59,9 @@ public class RestShardsActionTests extends ESTestCase {
                 null,
                 null,
                 null,
-                null
+                null,
+                false,
+                0
             );
             shardStatsMap.put(shardRouting, shardStats);
             shardRoutings.add(shardRouting);
@@ -76,7 +79,7 @@ public class RestShardsActionTests extends ESTestCase {
 
         ClusterStateResponse state = mock(ClusterStateResponse.class);
         RoutingTable routingTable = mock(RoutingTable.class);
-        when(routingTable.allShards()).thenReturn(shardRoutings);
+        when(routingTable.allShardsIterator()).thenReturn(shardRoutings);
         ClusterState clusterState = mock(ClusterState.class);
         when(clusterState.routingTable()).thenReturn(routingTable);
         when(clusterState.nodes()).thenReturn(discoveryNodes);
@@ -93,9 +96,10 @@ public class RestShardsActionTests extends ESTestCase {
         assertThat(headers.get(3).value, equalTo("state"));
         assertThat(headers.get(4).value, equalTo("docs"));
         assertThat(headers.get(5).value, equalTo("store"));
-        assertThat(headers.get(6).value, equalTo("ip"));
-        assertThat(headers.get(7).value, equalTo("id"));
-        assertThat(headers.get(8).value, equalTo("node"));
+        assertThat(headers.get(6).value, equalTo("dataset"));
+        assertThat(headers.get(7).value, equalTo("ip"));
+        assertThat(headers.get(8).value, equalTo("id"));
+        assertThat(headers.get(9).value, equalTo("node"));
 
         final List<List<Table.Cell>> rows = table.getRows();
         assertThat(rows.size(), equalTo(numShards));
@@ -108,10 +112,10 @@ public class RestShardsActionTests extends ESTestCase {
             assertThat(row.get(1).value, equalTo(shardRouting.getId()));
             assertThat(row.get(2).value, equalTo(shardRouting.primary() ? "p" : "r"));
             assertThat(row.get(3).value, equalTo(shardRouting.state()));
-            assertThat(row.get(6).value, equalTo(localNode.getHostAddress()));
-            assertThat(row.get(7).value, equalTo(localNode.getId()));
-            assertThat(row.get(69).value, equalTo(shardStats.getDataPath()));
-            assertThat(row.get(70).value, equalTo(shardStats.getStatePath()));
+            assertThat(row.get(7).value, equalTo(localNode.getHostAddress()));
+            assertThat(row.get(8).value, equalTo(localNode.getId()));
+            assertThat(row.get(70).value, equalTo(shardStats.getDataPath()));
+            assertThat(row.get(71).value, equalTo(shardStats.getStatePath()));
         }
     }
 }

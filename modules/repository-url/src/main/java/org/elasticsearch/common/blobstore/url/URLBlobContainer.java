@@ -1,16 +1,20 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.blobstore.url;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.DeleteResult;
+import org.elasticsearch.common.blobstore.OperationPurpose;
+import org.elasticsearch.common.blobstore.OptionalBytesReference;
 import org.elasticsearch.common.blobstore.support.AbstractBlobContainer;
 import org.elasticsearch.common.blobstore.support.BlobMetadata;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -65,7 +69,7 @@ public class URLBlobContainer extends AbstractBlobContainer {
      * This operation is not supported by URLBlobContainer
      */
     @Override
-    public boolean blobExists(String blobName) {
+    public boolean blobExists(OperationPurpose purpose, String blobName) {
         assert false : "should never be called for a read-only url repo";
         throw new UnsupportedOperationException("URL repository doesn't support this operation");
     }
@@ -74,20 +78,12 @@ public class URLBlobContainer extends AbstractBlobContainer {
      * This operation is not supported by URLBlobContainer
      */
     @Override
-    public Map<String, BlobMetadata> listBlobs() throws IOException {
+    public Map<String, BlobMetadata> listBlobs(OperationPurpose purpose) throws IOException {
         throw new UnsupportedOperationException("URL repository doesn't support this operation");
     }
 
     @Override
-    public Map<String, BlobContainer> children() throws IOException {
-        throw new UnsupportedOperationException("URL repository doesn't support this operation");
-    }
-
-    /**
-     * This operation is not supported by URLBlobContainer
-     */
-    @Override
-    public Map<String, BlobMetadata> listBlobsByPrefix(String blobNamePrefix) throws IOException {
+    public Map<String, BlobContainer> children(OperationPurpose purpose) throws IOException {
         throw new UnsupportedOperationException("URL repository doesn't support this operation");
     }
 
@@ -95,17 +91,25 @@ public class URLBlobContainer extends AbstractBlobContainer {
      * This operation is not supported by URLBlobContainer
      */
     @Override
-    public void deleteBlobsIgnoringIfNotExists(Iterator<String> blobNames) {
+    public Map<String, BlobMetadata> listBlobsByPrefix(OperationPurpose purpose, String blobNamePrefix) throws IOException {
+        throw new UnsupportedOperationException("URL repository doesn't support this operation");
+    }
+
+    /**
+     * This operation is not supported by URLBlobContainer
+     */
+    @Override
+    public void deleteBlobsIgnoringIfNotExists(OperationPurpose purpose, Iterator<String> blobNames) {
         throw new UnsupportedOperationException("URL repository is read only");
     }
 
     @Override
-    public DeleteResult delete() {
+    public DeleteResult delete(OperationPurpose purpose) {
         throw new UnsupportedOperationException("URL repository is read only");
     }
 
     @Override
-    public InputStream readBlob(String name) throws IOException {
+    public InputStream readBlob(OperationPurpose purpose, String name) throws IOException {
         try {
             return new BufferedInputStream(getInputStream(new URL(path, name)), blobStore.bufferSizeInBytes());
         } catch (FileNotFoundException fnfe) {
@@ -114,17 +118,19 @@ public class URLBlobContainer extends AbstractBlobContainer {
     }
 
     @Override
-    public InputStream readBlob(String blobName, long position, long length) throws IOException {
+    public InputStream readBlob(OperationPurpose purpose, String blobName, long position, long length) throws IOException {
         throw new UnsupportedOperationException("URL repository doesn't support this operation");
     }
 
     @Override
-    public void writeBlob(String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists) throws IOException {
+    public void writeBlob(OperationPurpose purpose, String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists)
+        throws IOException {
         throw new UnsupportedOperationException("URL repository doesn't support this operation");
     }
 
     @Override
     public void writeMetadataBlob(
+        OperationPurpose purpose,
         String blobName,
         boolean failIfAlreadyExists,
         boolean atomic,
@@ -134,7 +140,19 @@ public class URLBlobContainer extends AbstractBlobContainer {
     }
 
     @Override
-    public void writeBlobAtomic(String blobName, BytesReference bytes, boolean failIfAlreadyExists) throws IOException {
+    public void writeBlobAtomic(
+        OperationPurpose purpose,
+        String blobName,
+        InputStream inputStream,
+        long blobSize,
+        boolean failIfAlreadyExists
+    ) throws IOException {
+        throw new UnsupportedOperationException("URL repository doesn't support this operation");
+    }
+
+    @Override
+    public void writeBlobAtomic(OperationPurpose purpose, String blobName, BytesReference bytes, boolean failIfAlreadyExists)
+        throws IOException {
         throw new UnsupportedOperationException("URL repository doesn't support this operation");
     }
 
@@ -145,6 +163,17 @@ public class URLBlobContainer extends AbstractBlobContainer {
         } catch (PrivilegedActionException e) {
             throw (IOException) e.getCause();
         }
+    }
+
+    @Override
+    public void compareAndExchangeRegister(
+        OperationPurpose purpose,
+        String key,
+        BytesReference expected,
+        BytesReference updated,
+        ActionListener<OptionalBytesReference> listener
+    ) {
+        listener.onFailure(new UnsupportedOperationException("URL repositories do not support this operation"));
     }
 
 }

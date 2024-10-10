@@ -1,15 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.monitor.jvm;
 
 import org.apache.lucene.util.Constants;
-import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -268,7 +269,7 @@ public class JvmInfo implements ReportingService.Info {
         vmName = in.readString();
         vmVersion = in.readString();
         vmVendor = in.readString();
-        if (in.getTransportVersion().before(TransportVersion.V_8_3_0)) {
+        if (in.getTransportVersion().before(TransportVersions.V_8_3_0)) {
             // Before 8.0 the no-jdk distributions could have bundledJdk false, this is always true now.
             in.readBoolean();
         }
@@ -280,7 +281,7 @@ public class JvmInfo implements ReportingService.Info {
         }
         bootClassPath = in.readString();
         classPath = in.readString();
-        systemProperties = in.readMap(StreamInput::readString, StreamInput::readString);
+        systemProperties = in.readMap(StreamInput::readString);
         mem = new Mem(in);
         gcCollectors = in.readStringArray();
         memoryPools = in.readStringArray();
@@ -302,7 +303,7 @@ public class JvmInfo implements ReportingService.Info {
         out.writeString(vmName);
         out.writeString(vmVersion);
         out.writeString(vmVendor);
-        if (out.getTransportVersion().before(TransportVersion.V_8_3_0)) {
+        if (out.getTransportVersion().before(TransportVersions.V_8_3_0)) {
             out.writeBoolean(true);
         }
         out.writeOptionalBoolean(usingBundledJdk);
@@ -313,7 +314,7 @@ public class JvmInfo implements ReportingService.Info {
         }
         out.writeString(bootClassPath);
         out.writeString(classPath);
-        out.writeMap(this.systemProperties, StreamOutput::writeString, StreamOutput::writeString);
+        out.writeMap(this.systemProperties, StreamOutput::writeString);
         mem.writeTo(out);
         out.writeStringArray(gcCollectors);
         out.writeStringArray(memoryPools);

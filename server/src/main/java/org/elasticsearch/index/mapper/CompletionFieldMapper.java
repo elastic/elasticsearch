@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.index.mapper;
 
@@ -17,12 +18,11 @@ import org.apache.lucene.search.suggest.document.FuzzyCompletionQuery;
 import org.apache.lucene.search.suggest.document.PrefixCompletionQuery;
 import org.apache.lucene.search.suggest.document.RegexCompletionQuery;
 import org.apache.lucene.search.suggest.document.SuggestField;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -81,18 +81,19 @@ public class CompletionFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(simpleName(), builder.defaultAnalyzer, builder.indexVersionCreated).init(this);
+        return new Builder(leafName(), builder.defaultAnalyzer, builder.indexVersionCreated).init(this);
     }
 
     public static class Defaults {
-        public static final FieldType FIELD_TYPE = new FieldType();
+        public static final FieldType FIELD_TYPE;
         static {
-            FIELD_TYPE.setTokenized(true);
-            FIELD_TYPE.setStored(false);
-            FIELD_TYPE.setStoreTermVectors(false);
-            FIELD_TYPE.setIndexOptions(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS);
-            FIELD_TYPE.setOmitNorms(true);
-            FIELD_TYPE.freeze();
+            final FieldType ft = new FieldType();
+            ft.setTokenized(true);
+            ft.setStored(false);
+            ft.setStoreTermVectors(false);
+            ft.setIndexOptions(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS);
+            ft.setOmitNorms(true);
+            FIELD_TYPE = freezeAndDeduplicateFieldType(ft);
         }
         public static final boolean DEFAULT_PRESERVE_SEPARATORS = true;
         public static final boolean DEFAULT_POSITION_INCREMENTS = true;
@@ -154,14 +155,14 @@ public class CompletionFieldMapper extends FieldMapper {
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
         private final NamedAnalyzer defaultAnalyzer;
-        private final Version indexVersionCreated;
+        private final IndexVersion indexVersionCreated;
 
         private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(Builder.class);
 
         /**
          * @param name of the completion field to build
          */
-        public Builder(String name, NamedAnalyzer defaultAnalyzer, Version indexVersionCreated) {
+        public Builder(String name, NamedAnalyzer defaultAnalyzer, IndexVersion indexVersionCreated) {
             super(name);
             this.defaultAnalyzer = defaultAnalyzer;
             this.indexVersionCreated = indexVersionCreated;
@@ -203,36 +204,18 @@ public class CompletionFieldMapper extends FieldMapper {
                 new CompletionAnalyzer(this.searchAnalyzer.getValue(), preserveSeparators.getValue(), preservePosInc.getValue())
             );
 
-            CompletionFieldType ft = new CompletionFieldType(context.buildFullName(name), completionAnalyzer, meta.getValue());
+            CompletionFieldType ft = new CompletionFieldType(context.buildFullName(leafName()), completionAnalyzer, meta.getValue());
             ft.setContextMappings(contexts.getValue());
-            return new CompletionFieldMapper(name, ft, multiFieldsBuilder.build(this, context), copyTo.build(), this);
+            return new CompletionFieldMapper(leafName(), ft, builderParams(this, context), this);
         }
 
         private void checkCompletionContextsLimit() {
             if (this.contexts.getValue() != null && this.contexts.getValue().size() > COMPLETION_CONTEXTS_LIMIT) {
-                if (indexVersionCreated.onOrAfter(Version.V_8_0_0)) {
-                    throw new IllegalArgumentException(
-                        "Limit of completion field contexts [" + COMPLETION_CONTEXTS_LIMIT + "] has been exceeded"
-                    );
-                } else {
-                    deprecationLogger.warn(
-                        DeprecationCategory.MAPPINGS,
-                        "excessive_completion_contexts",
-                        "You have defined more than ["
-                            + COMPLETION_CONTEXTS_LIMIT
-                            + "] completion contexts"
-                            + " in the mapping for field ["
-                            + name()
-                            + "]. "
-                            + "The maximum allowed number of completion contexts in a mapping will be limited to "
-                            + "["
-                            + COMPLETION_CONTEXTS_LIMIT
-                            + "] starting in version [8.0]."
-                    );
-                }
+                throw new IllegalArgumentException(
+                    "Limit of completion field contexts [" + COMPLETION_CONTEXTS_LIMIT + "] has been exceeded"
+                );
             }
         }
-
     }
 
     public static final Set<String> ALLOWED_CONTENT_FIELD_NAMES = Set.of(
@@ -344,14 +327,8 @@ public class CompletionFieldMapper extends FieldMapper {
 
     private final NamedAnalyzer indexAnalyzer;
 
-    public CompletionFieldMapper(
-        String simpleName,
-        MappedFieldType mappedFieldType,
-        MultiFields multiFields,
-        CopyTo copyTo,
-        Builder builder
-    ) {
-        super(simpleName, mappedFieldType, multiFields, copyTo);
+    public CompletionFieldMapper(String simpleName, MappedFieldType mappedFieldType, BuilderParams builderParams, Builder builder) {
+        super(simpleName, mappedFieldType, builderParams);
         this.builder = builder;
         this.maxInputLength = builder.maxInputLength.getValue();
         this.indexAnalyzer = builder.buildAnalyzer();
@@ -368,11 +345,16 @@ public class CompletionFieldMapper extends FieldMapper {
     }
 
     static PostingsFormat postingsFormat() {
-        return PostingsFormat.forName("Completion90");
+        return PostingsFormat.forName("Completion912");
     }
 
     @Override
     public boolean parsesArrayValue() {
+        return true;
+    }
+
+    @Override
+    protected boolean supportsParsingObject() {
         return true;
     }
 
@@ -436,7 +418,7 @@ public class CompletionFieldMapper extends FieldMapper {
 
         context.addToFieldNames(fieldType().name());
         for (CompletionInputMetadata metadata : inputMap.values()) {
-            multiFields.parse(
+            multiFields().parse(
                 this,
                 context,
                 () -> context.switchParser(new MultiFieldParser(metadata, fieldType().name(), context.parser().getTokenLocation()))

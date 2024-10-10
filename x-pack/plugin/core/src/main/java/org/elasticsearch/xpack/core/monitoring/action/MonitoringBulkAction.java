@@ -14,6 +14,6 @@ public class MonitoringBulkAction extends ActionType<MonitoringBulkResponse> {
     public static final String NAME = "cluster:admin/xpack/monitoring/bulk";
 
     private MonitoringBulkAction() {
-        super(NAME, MonitoringBulkResponse::new);
+        super(NAME);
     }
 }

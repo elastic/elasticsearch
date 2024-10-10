@@ -7,6 +7,7 @@
           mappings:
             properties:
               v:
+                index: false
                 type: dense_vector
                 dims: 3
 
@@ -63,8 +64,8 @@
 
 ---
 "Access to values of indexed dense_vector in script":
-  - skip:
-      version: " - 7.12.99"
+  - requires:
+      cluster_features: ["gte_v7.13.0"]
       reason: "Access to values of dense_vector in script was added in 7.13"
   - do:
       indices.create:

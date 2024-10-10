@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.seqno;
@@ -27,8 +28,13 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.Collections;
+import java.util.function.Consumer;
 
 import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -100,6 +106,11 @@ public class GlobalCheckpointSyncActionTests extends ESTestCase {
 
         when(indexShard.getLastKnownGlobalCheckpoint()).thenReturn(globalCheckpoint);
         when(indexShard.getLastSyncedGlobalCheckpoint()).thenReturn(lastSyncedGlobalCheckpoint);
+        doAnswer(invocation -> {
+            Consumer<Exception> argument = invocation.getArgument(1);
+            argument.accept(null);
+            return null;
+        }).when(indexShard).syncGlobalCheckpoint(anyLong(), any());
 
         final GlobalCheckpointSyncAction action = new GlobalCheckpointSyncAction(
             Settings.EMPTY,
@@ -123,9 +134,10 @@ public class GlobalCheckpointSyncActionTests extends ESTestCase {
 
         if (durability == Translog.Durability.ASYNC || lastSyncedGlobalCheckpoint == globalCheckpoint) {
             verify(indexShard, never()).sync();
+            verify(indexShard, never()).syncGlobalCheckpoint(anyLong(), any());
         } else {
-            verify(indexShard).sync();
+            verify(indexShard, never()).sync();
+            verify(indexShard).syncGlobalCheckpoint(eq(globalCheckpoint), any());
         }
     }
-
 }

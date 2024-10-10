@@ -1,6 +1,0 @@
-pr: 92387
-summary: Add `jdk.internal.reflect` permission to es codebase
-area: Infra/Core
-type: bug
-issues:
- - 92356

@@ -1,25 +1,30 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.cluster.snapshots.create;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -54,7 +59,7 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
         IndicesRequest.Replaceable,
         ToXContentObject {
 
-    public static final TransportVersion SETTINGS_IN_REQUEST_VERSION = TransportVersion.V_8_0_0;
+    public static final TransportVersion SETTINGS_IN_REQUEST_VERSION = TransportVersions.V_8_0_0;
 
     public static int MAXIMUM_METADATA_BYTES = 1024; // chosen arbitrarily
 
@@ -64,7 +69,9 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
 
     private String[] indices = EMPTY_ARRAY;
 
-    private IndicesOptions indicesOptions = IndicesOptions.strictExpandHidden();
+    private IndicesOptions indicesOptions = DataStream.isFailureStoreFeatureFlagEnabled()
+        ? IndicesOptions.strictExpandHiddenIncludeFailureStore()
+        : IndicesOptions.strictExpandHidden();
 
     private String[] featureStates = EMPTY_ARRAY;
 
@@ -77,7 +84,12 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
     @Nullable
     private Map<String, Object> userMetadata;
 
-    public CreateSnapshotRequest() {}
+    @Nullable
+    private String uuid = null;
+
+    public CreateSnapshotRequest(TimeValue masterNodeTimeout) {
+        super(masterNodeTimeout);
+    }
 
     /**
      * Constructs a new put repository request with the provided snapshot and repository names
@@ -85,9 +97,11 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
      * @param repository repository name
      * @param snapshot   snapshot name
      */
-    public CreateSnapshotRequest(String repository, String snapshot) {
+    public CreateSnapshotRequest(TimeValue masterNodeTimeout, String repository, String snapshot) {
+        this(masterNodeTimeout);
         this.snapshot = snapshot;
         this.repository = repository;
+        this.uuid = UUIDs.randomBase64UUID();
     }
 
     public CreateSnapshotRequest(StreamInput in) throws IOException {
@@ -103,7 +117,8 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
         includeGlobalState = in.readBoolean();
         waitForCompletion = in.readBoolean();
         partial = in.readBoolean();
-        userMetadata = in.readMap();
+        userMetadata = in.readGenericMap();
+        uuid = in.getTransportVersion().onOrAfter(TransportVersions.REGISTER_SLM_STATS) ? in.readOptionalString() : null;
     }
 
     @Override
@@ -121,6 +136,9 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
         out.writeBoolean(waitForCompletion);
         out.writeBoolean(partial);
         out.writeGenericMap(userMetadata);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.REGISTER_SLM_STATS)) {
+            out.writeOptionalString(uuid);
+        }
     }
 
     @Override
@@ -357,6 +375,35 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
     }
 
     /**
+     * Set a uuid to identify snapshot.
+     * If no uuid is specified, one will be created within SnapshotService
+     */
+    public CreateSnapshotRequest uuid(String uuid) {
+        this.uuid = uuid;
+        return this;
+    }
+
+    /**
+     * Get the uuid, generating it if one does not yet exist.
+     * Because the uuid can be set, this method is NOT thread-safe.
+     * <p>
+     * The uuid was previously generated in SnapshotService.createSnapshot
+     * but was moved to the CreateSnapshotRequest constructor so that the caller could
+     * uniquely identify the snapshot. Unfortunately, in a mixed-version cluster,
+     * the CreateSnapshotRequest could be created on a node which does not yet
+     * generate the uuid in the constructor. In this case, the uuid
+     * must be generated when it is first accessed with this getter.
+     *
+     * @return the uuid that will be used for the snapshot
+     */
+    public String uuid() {
+        if (this.uuid == null) {
+            this.uuid = UUIDs.randomBase64UUID();
+        }
+        return this.uuid;
+    }
+
+    /**
      * @return Which plugin states should be included in the snapshot
      */
     public String[] featureStates() {
@@ -428,17 +475,9 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
         builder.startObject();
         builder.field("repository", repository);
         builder.field("snapshot", snapshot);
-        builder.startArray("indices");
-        for (String index : indices) {
-            builder.value(index);
-        }
-        builder.endArray();
+        builder.array("indices", indices);
         if (featureStates != null) {
-            builder.startArray("feature_states");
-            for (String plugin : featureStates) {
-                builder.value(plugin);
-            }
-            builder.endArray();
+            builder.array("feature_states", featureStates);
         }
         builder.field("partial", partial);
         builder.field("include_global_state", includeGlobalState);
@@ -468,13 +507,14 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
             && Arrays.equals(indices, that.indices)
             && Objects.equals(indicesOptions, that.indicesOptions)
             && Arrays.equals(featureStates, that.featureStates)
-            && Objects.equals(masterNodeTimeout, that.masterNodeTimeout)
-            && Objects.equals(userMetadata, that.userMetadata);
+            && Objects.equals(masterNodeTimeout(), that.masterNodeTimeout())
+            && Objects.equals(userMetadata, that.userMetadata)
+            && Objects.equals(uuid, that.uuid);
     }
 
     @Override
     public int hashCode() {
-        int result = Objects.hash(snapshot, repository, indicesOptions, partial, includeGlobalState, waitForCompletion, userMetadata);
+        int result = Objects.hash(snapshot, repository, indicesOptions, partial, includeGlobalState, waitForCompletion, userMetadata, uuid);
         result = 31 * result + Arrays.hashCode(indices);
         result = 31 * result + Arrays.hashCode(featureStates);
         return result;
@@ -502,9 +542,11 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
             + ", waitForCompletion="
             + waitForCompletion
             + ", masterNodeTimeout="
-            + masterNodeTimeout
+            + masterNodeTimeout()
             + ", metadata="
             + userMetadata
+            + ", uuid="
+            + uuid
             + '}';
     }
 }

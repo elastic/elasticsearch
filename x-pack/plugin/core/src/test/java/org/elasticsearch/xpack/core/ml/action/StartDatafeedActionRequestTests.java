@@ -32,11 +32,6 @@ public class StartDatafeedActionRequestTests extends AbstractXContentSerializing
     }
 
     @Override
-    protected boolean supportsUnknownFields() {
-        return false;
-    }
-
-    @Override
     protected Request doParseInstance(XContentParser parser) {
         return Request.parseRequest(null, parser);
     }

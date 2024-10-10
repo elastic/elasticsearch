@@ -1,22 +1,21 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.ingest;
 
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest;
+import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequestParameters.Metric;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.ingest.PutPipelineRequest;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.MockScriptPlugin;
@@ -43,11 +42,6 @@ public class IngestStatsNamesAndTypesIT extends ESIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return List.of(CustomIngestTestPlugin.class, CustomScriptPlugin.class);
-    }
-
-    @Override
-    protected boolean ignoreExternalCluster() {
-        return true;
     }
 
     @SuppressWarnings("unchecked")
@@ -96,8 +90,7 @@ public class IngestStatsNamesAndTypesIT extends ESIntegTestCase {
               ]
             }
             """, MockScriptEngine.NAME, MockScriptEngine.NAME);
-        BytesReference pipeline1Reference = new BytesArray(pipeline1);
-        client().admin().cluster().putPipeline(new PutPipelineRequest("pipeline1", pipeline1Reference, XContentType.JSON)).actionGet();
+        putJsonPipeline("pipeline1", pipeline1);
 
         // index a single document through the pipeline
         BulkRequest bulkRequest = new BulkRequest();
@@ -105,53 +98,53 @@ public class IngestStatsNamesAndTypesIT extends ESIntegTestCase {
         client().bulk(bulkRequest).actionGet();
 
         {
-            NodesStatsResponse nodesStatsResponse = client().admin()
-                .cluster()
-                .nodesStats(new NodesStatsRequest().addMetric("ingest"))
-                .actionGet();
+            NodesStatsResponse nodesStatsResponse = clusterAdmin().nodesStats(new NodesStatsRequest().addMetric(Metric.INGEST)).actionGet();
             assertThat(nodesStatsResponse.getNodes().size(), equalTo(1));
 
             NodeStats stats = nodesStatsResponse.getNodes().get(0);
-            assertThat(stats.getIngestStats().getTotalStats().getIngestCount(), equalTo(1L));
-            assertThat(stats.getIngestStats().getPipelineStats().size(), equalTo(1));
+            assertThat(stats.getIngestStats().totalStats().ingestCount(), equalTo(1L));
+            assertThat(stats.getIngestStats().pipelineStats().size(), equalTo(1));
 
-            IngestStats.PipelineStat pipelineStat = stats.getIngestStats().getPipelineStats().get(0);
-            assertThat(pipelineStat.getPipelineId(), equalTo("pipeline1"));
-            assertThat(pipelineStat.getStats().getIngestCount(), equalTo(1L));
+            IngestStats.PipelineStat pipelineStat = stats.getIngestStats().pipelineStats().get(0);
+            assertThat(pipelineStat.pipelineId(), equalTo("pipeline1"));
+            assertThat(pipelineStat.stats().ingestCount(), equalTo(1L));
 
-            List<IngestStats.ProcessorStat> processorStats = stats.getIngestStats().getProcessorStats().get("pipeline1");
+            List<IngestStats.ProcessorStat> processorStats = stats.getIngestStats().processorStats().get("pipeline1");
             assertThat(processorStats.size(), equalTo(4));
 
             IngestStats.ProcessorStat setA = processorStats.get(0);
-            assertThat(setA.getName(), equalTo("set:set-a"));
-            assertThat(setA.getType(), equalTo("set"));
-            assertThat(setA.getStats().getIngestCount(), equalTo(1L));
+            assertThat(setA.name(), equalTo("set:set-a"));
+            assertThat(setA.type(), equalTo("set"));
+            assertThat(setA.stats().ingestCount(), equalTo(1L));
 
             IngestStats.ProcessorStat setB = processorStats.get(1);
-            assertThat(setB.getName(), equalTo("set:set-b"));
-            assertThat(setB.getType(), equalTo("set"));
-            assertThat(setB.getStats().getIngestCount(), equalTo(0L)); // see false_script above
+            assertThat(setB.name(), equalTo("set:set-b"));
+            assertThat(setB.type(), equalTo("set"));
+            assertThat(setB.stats().ingestCount(), equalTo(0L)); // see false_script above
 
             IngestStats.ProcessorStat setC = processorStats.get(2);
-            assertThat(setC.getName(), equalTo("set:set-c"));
-            assertThat(setC.getType(), equalTo("set"));
-            assertThat(setC.getStats().getIngestCount(), equalTo(1L));
+            assertThat(setC.name(), equalTo("set:set-c"));
+            assertThat(setC.type(), equalTo("set"));
+            assertThat(setC.stats().ingestCount(), equalTo(1L));
 
             IngestStats.ProcessorStat setD = processorStats.get(3);
-            assertThat(setD.getName(), equalTo("set:set-d"));
-            assertThat(setD.getType(), equalTo("set"));
-            assertThat(setD.getStats().getIngestCount(), equalTo(1L));
+            assertThat(setD.name(), equalTo("set:set-d"));
+            assertThat(setD.type(), equalTo("set"));
+            assertThat(setD.stats().ingestCount(), equalTo(1L));
         }
 
         {
             // the bits that we want to read from the cluster stats response aren't visible in java code (no getters,
             // non-public classes and methods), roundtrip through json so that we can read what we want
-            ClusterStatsResponse response = client().admin().cluster().prepareClusterStats().get();
+            ClusterStatsResponse response = clusterAdmin().prepareClusterStats().get();
             XContentBuilder builder = XContentFactory.jsonBuilder().prettyPrint();
             builder.startObject();
             response.toXContent(builder, new ToXContent.MapParams(Map.of()));
             builder.endObject();
-            Map<String, Object> stats = createParser(JsonXContent.jsonXContent, Strings.toString(builder)).map();
+            Map<String, Object> stats;
+            try (var parser = createParser(JsonXContent.jsonXContent, Strings.toString(builder))) {
+                stats = parser.map();
+            }
 
             int setProcessorCount = path(stats, "nodes.ingest.processor_stats.set.count");
             assertThat(setProcessorCount, equalTo(3));

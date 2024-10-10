@@ -26,8 +26,8 @@ import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregator;
  */
 public class GraphExploreRequestBuilder extends ActionRequestBuilder<GraphExploreRequest, GraphExploreResponse> {
 
-    public GraphExploreRequestBuilder(ElasticsearchClient client, GraphExploreAction action) {
-        super(client, action, new GraphExploreRequest());
+    public GraphExploreRequestBuilder(ElasticsearchClient client) {
+        super(client, GraphExploreAction.INSTANCE, new GraphExploreRequest());
     }
 
     public GraphExploreRequestBuilder setIndices(String... indices) {
@@ -92,15 +92,6 @@ public class GraphExploreRequestBuilder extends ActionRequestBuilder<GraphExplor
      * to take.
      */
     public GraphExploreRequestBuilder setTimeout(TimeValue timeout) {
-        request.timeout(timeout);
-        return this;
-    }
-
-    /**
-     * An optional timeout to control how long the graph exploration is allowed
-     * to take.
-     */
-    public GraphExploreRequestBuilder setTimeout(String timeout) {
         request.timeout(timeout);
         return this;
     }

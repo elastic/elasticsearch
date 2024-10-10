@@ -1,5 +1,0 @@
-pr: 92303
-summary: Add `forecasted_write_load` and `forecasted_shard_size_in_bytes` to the endpoint
-area: Allocation
-type: enhancement
-issues: []

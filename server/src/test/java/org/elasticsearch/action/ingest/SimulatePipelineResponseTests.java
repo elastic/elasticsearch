@@ -1,16 +1,20 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.ingest;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.test.AbstractXContentTestCase;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -21,12 +25,64 @@ import java.util.StringJoiner;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.elasticsearch.ingest.IngestDocumentMatcher.assertIngestDocument;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.nullValue;
 
 public class SimulatePipelineResponseTests extends AbstractXContentTestCase<SimulatePipelineResponse> {
+
+    @SuppressWarnings("unchecked")
+    private static final ConstructingObjectParser<SimulatePipelineResponse, Void> PARSER = new ConstructingObjectParser<>(
+        "simulate_pipeline_response",
+        true,
+        a -> {
+            List<SimulateDocumentResult> results = (List<SimulateDocumentResult>) a[0];
+            boolean verbose = false;
+            if (results.size() > 0) {
+                if (results.get(0) instanceof SimulateDocumentVerboseResult) {
+                    verbose = true;
+                }
+            }
+            return new SimulatePipelineResponse(null, verbose, results);
+        }
+    );
+    static {
+        PARSER.declareObjectArray(constructorArg(), (parser, context) -> {
+            XContentParser.Token token = parser.currentToken();
+            ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser);
+            SimulateDocumentResult result = null;
+            while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser);
+                String fieldName = parser.currentName();
+                token = parser.nextToken();
+                if (token == XContentParser.Token.START_ARRAY) {
+                    if (fieldName.equals(SimulateDocumentVerboseResult.PROCESSOR_RESULT_FIELD)) {
+                        List<SimulateProcessorResult> results = new ArrayList<>();
+                        while ((token = parser.nextToken()) == XContentParser.Token.START_OBJECT) {
+                            results.add(SimulateProcessorResult.fromXContent(parser));
+                        }
+                        ensureExpectedToken(XContentParser.Token.END_ARRAY, token, parser);
+                        result = new SimulateDocumentVerboseResult(results);
+                    } else {
+                        parser.skipChildren();
+                    }
+                } else if (token.equals(XContentParser.Token.START_OBJECT)) {
+                    switch (fieldName) {
+                        case WriteableIngestDocument.DOC_FIELD -> result = new SimulateDocumentBaseResult(
+                            WriteableIngestDocument.INGEST_DOC_PARSER.apply(parser, null).getIngestDocument()
+                        );
+                        case "error" -> result = new SimulateDocumentBaseResult(ElasticsearchException.fromXContent(parser));
+                        default -> parser.skipChildren();
+                    }
+                } // else it is a value skip it
+            }
+            assert result != null;
+            return result;
+        }, new ParseField(SimulatePipelineResponse.Fields.DOCUMENTS));
+    }
 
     public void testSerialization() throws IOException {
         boolean isVerbose = randomBoolean();
@@ -118,7 +174,7 @@ public class SimulatePipelineResponseTests extends AbstractXContentTestCase<Simu
 
     @Override
     protected SimulatePipelineResponse doParseInstance(XContentParser parser) {
-        return SimulatePipelineResponse.fromXContent(parser);
+        return PARSER.apply(parser, null);
     }
 
     @Override

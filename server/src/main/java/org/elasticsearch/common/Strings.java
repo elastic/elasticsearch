@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common;
@@ -12,6 +13,7 @@ import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.BytesStream;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.core.Nullable;
@@ -19,11 +21,13 @@ import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
-import java.io.BufferedReader;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.io.StringReader;
+import java.io.OutputStream;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Base64;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
@@ -34,24 +38,14 @@ import java.util.Set;
 import java.util.StringTokenizer;
 import java.util.TreeSet;
 import java.util.function.Supplier;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 public class Strings {
 
+    public static final Base64.Encoder BASE_64_NO_PADDING_URL_ENCODER = Base64.getUrlEncoder().withoutPadding();
+
     public static final String[] EMPTY_ARRAY = new String[0];
-
-    public static void spaceify(int spaces, String from, StringBuilder to) throws IOException {
-        char[] spaceChars = new char[spaces];
-        Arrays.fill(spaceChars, ' ');
-
-        try (BufferedReader reader = new BufferedReader(new StringReader(from))) {
-            String line;
-            while ((line = reader.readLine()) != null) {
-                to.append(spaceChars).append(line).append('\n');
-            }
-        }
-    }
 
     // ---------------------------------------------------------------------
     // General convenience methods for working with Strings
@@ -287,9 +281,16 @@ public class Strings {
         return newChar + str.substring(1);
     }
 
-    public static final String INVALID_FILENAME_CHARS = Stream.of('\\', '/', '*', '?', '"', '<', '>', '|', ' ', ',')
+    // Visible for testing
+    static final Set<Character> INVALID_CHARS = Set.of('\\', '/', '*', '?', '"', '<', '>', '|', ' ', ',');
+
+    public static final String INVALID_FILENAME_CHARS = INVALID_CHARS.stream()
         .map(c -> "'" + c + "'")
         .collect(Collectors.joining(",", "[", "]"));
+
+    public static final Pattern INVALID_FILENAME_CHARS_REGEX = Pattern.compile(
+        "[" + INVALID_CHARS.stream().map(Objects::toString).map(Pattern::quote).collect(Collectors.joining()) + "]+"
+    );
 
     public static boolean validFileName(String fileName) {
         for (int i = 0; i < fileName.length(); i++) {
@@ -774,7 +775,13 @@ public class Strings {
      * @param xContentBuilder builder containing an object to converted to a string
      */
     public static String toString(XContentBuilder xContentBuilder) {
-        return BytesReference.bytes(xContentBuilder).utf8ToString();
+        xContentBuilder.close();
+        OutputStream stream = xContentBuilder.getOutputStream();
+        if (stream instanceof ByteArrayOutputStream baos) {
+            return baos.toString(StandardCharsets.UTF_8);
+        } else {
+            return ((BytesStream) stream).bytes().utf8ToString();
+        }
     }
 
     /**
@@ -923,5 +930,9 @@ public class Strings {
      */
     public static String format(String format, Object... args) {
         return org.elasticsearch.core.Strings.format(format, args);
+    }
+
+    public static String stripDisallowedChars(String string) {
+        return INVALID_FILENAME_CHARS_REGEX.matcher(string).replaceAll("");
     }
 }

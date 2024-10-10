@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.indices.alias.get;
@@ -11,9 +12,9 @@ package org.elasticsearch.action.admin.indices.alias.get;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.AliasMetadata.Builder;
 import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.EqualsHashCodeTestUtils;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -22,23 +23,16 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Predicate;
 
-public class GetAliasesResponseTests extends AbstractWireSerializingTestCase<GetAliasesResponse> {
+public class GetAliasesResponseTests extends ESTestCase {
 
-    @Override
-    protected GetAliasesResponse createTestInstance() {
-        return createTestItem();
-    }
-
-    @Override
-    protected Writeable.Reader<GetAliasesResponse> instanceReader() {
-        return GetAliasesResponse::new;
-    }
-
-    @Override
-    protected GetAliasesResponse mutateInstance(GetAliasesResponse response) {
-        return new GetAliasesResponse(
-            mutateAliases(response.getAliases()),
-            randomMap(5, 5, () -> new Tuple<>(randomAlphaOfLength(4), randomList(5, DataStreamTestHelper::randomAliasInstance)))
+    public void testEqualsAndHashCode() {
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(
+            createTestItem(),
+            response -> new GetAliasesResponse(response.getAliases(), response.getDataStreamAliases()),
+            response -> new GetAliasesResponse(
+                mutateAliases(response.getAliases()),
+                randomMap(5, 5, () -> new Tuple<>(randomAlphaOfLength(4), randomList(5, DataStreamTestHelper::randomAliasInstance)))
+            )
         );
     }
 

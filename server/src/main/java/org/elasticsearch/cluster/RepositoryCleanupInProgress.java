@@ -1,13 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.cluster;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -20,6 +22,9 @@ import java.io.IOException;
 import java.util.Iterator;
 import java.util.List;
 
+/**
+ * A repository cleanup request entry. Part of the cluster state.
+ */
 public final class RepositoryCleanupInProgress extends AbstractNamedDiffable<ClusterState.Custom> implements ClusterState.Custom {
 
     public static final RepositoryCleanupInProgress EMPTY = new RepositoryCleanupInProgress(List.of());
@@ -28,12 +33,16 @@ public final class RepositoryCleanupInProgress extends AbstractNamedDiffable<Clu
 
     private final List<Entry> entries;
 
+    public static RepositoryCleanupInProgress get(ClusterState state) {
+        return state.custom(TYPE, EMPTY);
+    }
+
     public RepositoryCleanupInProgress(List<Entry> entries) {
         this.entries = entries;
     }
 
     RepositoryCleanupInProgress(StreamInput in) throws IOException {
-        this.entries = in.readList(Entry::new);
+        this.entries = in.readCollectionAsList(Entry::readFrom);
     }
 
     public static NamedDiff<ClusterState.Custom> readDiffFrom(StreamInput in) throws IOException {
@@ -60,19 +69,19 @@ public final class RepositoryCleanupInProgress extends AbstractNamedDiffable<Clu
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeList(entries);
+        out.writeCollection(entries);
     }
 
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params ignored) {
         return Iterators.concat(
             Iterators.single((builder, params) -> builder.startArray(TYPE)),
-            entries.stream().<ToXContent>map(entry -> (builder, params) -> {
+            Iterators.map(entries.iterator(), entry -> (builder, params) -> {
                 builder.startObject();
                 builder.field("repository", entry.repository);
                 builder.endObject();
                 return builder;
-            }).iterator(),
+            }),
             Iterators.single((builder, params) -> builder.endArray())
         );
     }
@@ -84,23 +93,13 @@ public final class RepositoryCleanupInProgress extends AbstractNamedDiffable<Clu
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.V_7_4_0;
+        return TransportVersions.V_7_4_0;
     }
 
-    public static final class Entry implements Writeable, RepositoryOperation {
+    public record Entry(String repository, long repositoryStateId) implements Writeable, RepositoryOperation {
 
-        private final String repository;
-
-        private final long repositoryStateId;
-
-        private Entry(StreamInput in) throws IOException {
-            repository = in.readString();
-            repositoryStateId = in.readLong();
-        }
-
-        public Entry(String repository, long repositoryStateId) {
-            this.repository = repository;
-            this.repositoryStateId = repositoryStateId;
+        public static Entry readFrom(StreamInput in) throws IOException {
+            return new Entry(in.readString(), in.readLong());
         }
 
         @Override
@@ -117,11 +116,6 @@ public final class RepositoryCleanupInProgress extends AbstractNamedDiffable<Clu
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(repository);
             out.writeLong(repositoryStateId);
-        }
-
-        @Override
-        public String toString() {
-            return "{" + repository + '}' + '{' + repositoryStateId + '}';
         }
     }
 }

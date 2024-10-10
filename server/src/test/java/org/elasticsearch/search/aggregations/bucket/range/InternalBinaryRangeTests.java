@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.search.aggregations.bucket.range;
 
@@ -13,7 +14,6 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
-import org.elasticsearch.search.aggregations.ParsedMultiBucketAggregation;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -78,11 +78,6 @@ public class InternalBinaryRangeTests extends InternalRangeTestCase<InternalBina
     }
 
     @Override
-    protected Class<ParsedBinaryRange> implementationClass() {
-        return ParsedBinaryRange.class;
-    }
-
-    @Override
     protected void assertReduced(InternalBinaryRange reduced, List<InternalBinaryRange> inputs) {
         int pos = 0;
         for (InternalBinaryRange input : inputs) {
@@ -91,7 +86,7 @@ public class InternalBinaryRangeTests extends InternalRangeTestCase<InternalBina
         for (Range.Bucket bucket : reduced.getBuckets()) {
             int expectedCount = 0;
             for (InternalBinaryRange input : inputs) {
-                expectedCount += input.getBuckets().get(pos).getDocCount();
+                expectedCount += (int) input.getBuckets().get(pos).getDocCount();
             }
             assertEquals(expectedCount, bucket.getDocCount());
             pos++;
@@ -101,11 +96,6 @@ public class InternalBinaryRangeTests extends InternalRangeTestCase<InternalBina
     @Override
     protected Class<? extends InternalMultiBucketAggregation.InternalBucket> internalRangeBucketClass() {
         return InternalBinaryRange.Bucket.class;
-    }
-
-    @Override
-    protected Class<? extends ParsedMultiBucketAggregation.ParsedBucket> parsedRangeBucketClass() {
-        return ParsedBinaryRange.ParsedBucket.class;
     }
 
     @Override

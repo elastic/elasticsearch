@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.fielddata;
@@ -20,10 +21,10 @@ import org.apache.lucene.index.LogByteSizeMergePolicy;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.ByteBuffersDirectory;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.mapper.BinaryFieldMapper;
@@ -85,14 +86,16 @@ public abstract class AbstractFieldDataTestCase extends ESSingleNodeTestCase {
 
     public <IFD extends IndexFieldData<?>> IFD getForField(String type, String fieldName, boolean docValues) {
         final MappedFieldType fieldType;
-        final MapperBuilderContext context = MapperBuilderContext.root(false);
+        final MapperBuilderContext context = MapperBuilderContext.root(false, false);
         if (type.equals("string")) {
             if (docValues) {
-                fieldType = new KeywordFieldMapper.Builder(fieldName, Version.CURRENT).build(context).fieldType();
+                fieldType = new KeywordFieldMapper.Builder(fieldName, IndexVersion.current()).build(context).fieldType();
             } else {
-                fieldType = new TextFieldMapper.Builder(fieldName, createDefaultIndexAnalyzers()).fielddata(true)
-                    .build(context)
-                    .fieldType();
+                fieldType = new TextFieldMapper.Builder(
+                    fieldName,
+                    createDefaultIndexAnalyzers(),
+                    indexService.getIndexSettings().getMode().isSyntheticSourceEnabled()
+                ).fielddata(true).build(context).fieldType();
             }
         } else if (type.equals("float")) {
             fieldType = new NumberFieldMapper.Builder(
@@ -101,7 +104,7 @@ public abstract class AbstractFieldDataTestCase extends ESSingleNodeTestCase {
                 ScriptCompiler.NONE,
                 false,
                 true,
-                Version.CURRENT,
+                IndexVersion.current(),
                 null
             ).docValues(docValues).build(context).fieldType();
         } else if (type.equals("double")) {
@@ -111,7 +114,7 @@ public abstract class AbstractFieldDataTestCase extends ESSingleNodeTestCase {
                 ScriptCompiler.NONE,
                 false,
                 true,
-                Version.CURRENT,
+                IndexVersion.current(),
                 null
             ).docValues(docValues).build(context).fieldType();
         } else if (type.equals("long")) {
@@ -121,7 +124,7 @@ public abstract class AbstractFieldDataTestCase extends ESSingleNodeTestCase {
                 ScriptCompiler.NONE,
                 false,
                 true,
-                Version.CURRENT,
+                IndexVersion.current(),
                 null
             ).docValues(docValues).build(context).fieldType();
         } else if (type.equals("int")) {
@@ -131,7 +134,7 @@ public abstract class AbstractFieldDataTestCase extends ESSingleNodeTestCase {
                 ScriptCompiler.NONE,
                 false,
                 true,
-                Version.CURRENT,
+                IndexVersion.current(),
                 null
             ).docValues(docValues).build(context).fieldType();
         } else if (type.equals("short")) {
@@ -141,7 +144,7 @@ public abstract class AbstractFieldDataTestCase extends ESSingleNodeTestCase {
                 ScriptCompiler.NONE,
                 false,
                 true,
-                Version.CURRENT,
+                IndexVersion.current(),
                 null
             ).docValues(docValues).build(context).fieldType();
         } else if (type.equals("byte")) {
@@ -151,15 +154,18 @@ public abstract class AbstractFieldDataTestCase extends ESSingleNodeTestCase {
                 ScriptCompiler.NONE,
                 false,
                 true,
-                Version.CURRENT,
+                IndexVersion.current(),
                 null
             ).docValues(docValues).build(context).fieldType();
         } else if (type.equals("geo_point")) {
-            fieldType = new GeoPointFieldMapper.Builder(fieldName, ScriptCompiler.NONE, false, Version.CURRENT).docValues(docValues)
+            fieldType = new GeoPointFieldMapper.Builder(fieldName, ScriptCompiler.NONE, false, IndexVersion.current(), null).docValues(
+                docValues
+            ).build(context).fieldType();
+        } else if (type.equals("binary")) {
+            fieldType = new BinaryFieldMapper.Builder(fieldName, indexService.getIndexSettings().getMode().isSyntheticSourceEnabled())
+                .docValues(docValues)
                 .build(context)
                 .fieldType();
-        } else if (type.equals("binary")) {
-            fieldType = new BinaryFieldMapper.Builder(fieldName, docValues).build(context).fieldType();
         } else {
             throw new UnsupportedOperationException(type);
         }

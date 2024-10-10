@@ -1,13 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.search.aggregations;
 
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.io.stream.DelayableWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.DeprecationLogger;
@@ -28,15 +30,15 @@ import java.util.Comparator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Objects;
+import java.util.function.BiFunction;
 import java.util.function.ToLongFunction;
-
-import static java.util.stream.Collectors.toList;
 
 /**
  * Implementations for {@link Bucket} ordering strategies.
  */
 public abstract class InternalOrder extends BucketOrder {
     // TODO merge the contents of this file into BucketOrder. The way it is now is relic.
+
     /**
      * {@link Bucket} ordering strategy to sort by a sub-aggregation.
      */
@@ -67,29 +69,32 @@ public abstract class InternalOrder extends BucketOrder {
                 BucketComparator bucketComparator = path.bucketComparator(aggregator, order);
                 return (lhs, rhs) -> bucketComparator.compare(ordinalReader.applyAsLong(lhs), ordinalReader.applyAsLong(rhs));
             } catch (IllegalArgumentException e) {
-                throw new AggregationExecutionException("Invalid aggregation order path [" + path + "]. " + e.getMessage(), e);
+                throw new AggregationExecutionException.InvalidPath("Invalid aggregation order path [" + path + "]. " + e.getMessage(), e);
             }
         }
 
         @Override
         public Comparator<Bucket> comparator() {
             return (lhs, rhs) -> {
-                final SortValue l = path.resolveValue(((InternalAggregations) lhs.getAggregations()));
-                final SortValue r = path.resolveValue(((InternalAggregations) rhs.getAggregations()));
+                final SortValue l = path.resolveValue(lhs.getAggregations());
+                final SortValue r = path.resolveValue(rhs.getAggregations());
                 int compareResult = l.compareTo(r);
                 return order == SortOrder.ASC ? compareResult : -compareResult;
             };
         }
 
         @Override
-        Comparator<DelayedBucket<? extends Bucket>> delayedBucketComparator() {
+        <B extends InternalMultiBucketAggregation.InternalBucket> Comparator<DelayedBucket<B>> delayedBucketComparator(
+            BiFunction<List<B>, AggregationReduceContext, B> reduce,
+            AggregationReduceContext reduceContext
+        ) {
             Comparator<Bucket> comparator = comparator();
             /*
              * Reduce the buckets if we haven't already so we can get at the
              * sub-aggregations. With enough code we could avoid this but
              * we haven't written that code....
              */
-            return (lhs, rhs) -> comparator.compare(lhs.reduced(), rhs.reduced());
+            return (lhs, rhs) -> comparator.compare(lhs.reduced(reduce, reduceContext), rhs.reduced(reduce, reduceContext));
         }
 
         @Override
@@ -187,7 +192,7 @@ public abstract class InternalOrder extends BucketOrder {
         public <T extends Bucket> Comparator<T> partiallyBuiltBucketComparator(ToLongFunction<T> ordinalReader, Aggregator aggregator) {
             List<Comparator<T>> comparators = orderElements.stream()
                 .map(oe -> oe.partiallyBuiltBucketComparator(ordinalReader, aggregator))
-                .collect(toList());
+                .toList();
             return (lhs, rhs) -> {
                 for (Comparator<T> c : comparators) {
                     int result = c.compare(lhs, rhs);
@@ -201,7 +206,7 @@ public abstract class InternalOrder extends BucketOrder {
 
         @Override
         public Comparator<Bucket> comparator() {
-            List<Comparator<Bucket>> comparators = orderElements.stream().map(BucketOrder::comparator).collect(toList());
+            List<Comparator<Bucket>> comparators = orderElements.stream().map(BucketOrder::comparator).toList();
             return (lhs, rhs) -> {
                 for (Comparator<Bucket> c : comparators) {
                     int result = c.compare(lhs, rhs);
@@ -214,12 +219,15 @@ public abstract class InternalOrder extends BucketOrder {
         }
 
         @Override
-        Comparator<DelayedBucket<? extends Bucket>> delayedBucketComparator() {
-            List<Comparator<DelayedBucket<? extends Bucket>>> comparators = orderElements.stream()
-                .map(BucketOrder::delayedBucketComparator)
-                .collect(toList());
+        <B extends InternalMultiBucketAggregation.InternalBucket> Comparator<DelayedBucket<B>> delayedBucketComparator(
+            BiFunction<List<B>, AggregationReduceContext, B> reduce,
+            AggregationReduceContext reduceContext
+        ) {
+            List<Comparator<DelayedBucket<B>>> comparators = orderElements.stream()
+                .map(b -> b.delayedBucketComparator(reduce, reduceContext))
+                .toList();
             return (lhs, rhs) -> {
-                for (Comparator<DelayedBucket<? extends Bucket>> c : comparators) {
+                for (Comparator<DelayedBucket<B>> c : comparators) {
                     int result = c.compare(lhs, rhs);
                     if (result != 0) {
                         return result;
@@ -279,8 +287,11 @@ public abstract class InternalOrder extends BucketOrder {
         }
 
         @Override
-        Comparator<DelayedBucket<? extends Bucket>> delayedBucketComparator() {
-            return delayedBucketCompator;
+        <B extends InternalMultiBucketAggregation.InternalBucket> Comparator<DelayedBucket<B>> delayedBucketComparator(
+            BiFunction<List<B>, AggregationReduceContext, B> reduce,
+            AggregationReduceContext reduceContext
+        ) {
+            return delayedBucketCompator::compare;
         }
 
         @Override
@@ -291,7 +302,7 @@ public abstract class InternalOrder extends BucketOrder {
         @Override
         public <T extends Bucket> Comparator<T> partiallyBuiltBucketComparator(ToLongFunction<T> ordinalReader, Aggregator aggregator) {
             Comparator<Bucket> comparator = comparator();
-            return (lhs, rhs) -> comparator.compare(lhs, rhs);
+            return comparator::compare;
         }
 
         @Override
@@ -390,7 +401,6 @@ public abstract class InternalOrder extends BucketOrder {
     /**
      * @return compare by {@link Bucket#getKey()} that will be in the bucket once it is reduced
      */
-    @SuppressWarnings("unchecked")
     private static Comparator<DelayedBucket<? extends Bucket>> comparingDelayedKeys() {
         return DelayedBucket::compareKey;
     }
@@ -469,6 +479,10 @@ public abstract class InternalOrder extends BucketOrder {
          * @throws IOException on error reading from the stream.
          */
         public static BucketOrder readOrder(StreamInput in) throws IOException {
+            return readOrder(in, true);
+        }
+
+        private static BucketOrder readOrder(StreamInput in, boolean dedupe) throws IOException {
             byte id = in.readByte();
             switch (id) {
                 case COUNT_DESC_ID:
@@ -482,12 +496,18 @@ public abstract class InternalOrder extends BucketOrder {
                 case Aggregation.ID:
                     boolean asc = in.readBoolean();
                     String key = in.readString();
+                    if (dedupe && in instanceof DelayableWriteable.Deduplicator bo) {
+                        return bo.deduplicate(new Aggregation(key, asc));
+                    }
                     return new Aggregation(key, asc);
                 case CompoundOrder.ID:
                     int size = in.readVInt();
                     List<BucketOrder> compoundOrder = new ArrayList<>(size);
                     for (int i = 0; i < size; i++) {
-                        compoundOrder.add(Streams.readOrder(in));
+                        compoundOrder.add(Streams.readOrder(in, false));
+                    }
+                    if (dedupe && in instanceof DelayableWriteable.Deduplicator bo) {
+                        return bo.deduplicate(new CompoundOrder(compoundOrder, false));
                     }
                     return new CompoundOrder(compoundOrder, false);
                 default:

@@ -1,19 +1,16 @@
 [[elasticsearch-reference]]
 = Elasticsearch Guide
 
-:include-xpack:         true
-:es-test-dir:           {elasticsearch-root}/docs/src/test
-:plugins-examples-dir:  {elasticsearch-root}/plugins/examples
-:dependencies-dir:      {elasticsearch-root}/build-tools-internal
-:xes-repo-dir:          {elasticsearch-root}/x-pack/docs/{lang}
-:es-repo-dir:           {elasticsearch-root}/docs/reference
-
 include::../Versions.asciidoc[]
 include::links.asciidoc[]
 
-include::intro.asciidoc[]
+include::landing-page.asciidoc[]
 
 include::release-notes/highlights.asciidoc[]
+
+include::intro.asciidoc[]
+
+include::quickstart/index.asciidoc[]
 
 include::setup.asciidoc[]
 
@@ -35,11 +32,19 @@ include::alias.asciidoc[]
 
 include::search/search-your-data/search-your-data.asciidoc[]
 
+include::reranking/index.asciidoc[]
+
 include::query-dsl.asciidoc[]
 
 include::aggregations.asciidoc[]
 
+include::geospatial-analysis.asciidoc[]
+
+include::connector/docs/index.asciidoc[]
+
 include::eql/eql.asciidoc[]
+
+include::esql/index.asciidoc[]
 
 include::sql/index.asciidoc[]
 
@@ -57,9 +62,9 @@ include::high-availability.asciidoc[]
 
 include::snapshot-restore/index.asciidoc[]
 
-include::{xes-repo-dir}/security/index.asciidoc[]
+include::security/index.asciidoc[]
 
-include::{xes-repo-dir}/watcher/index.asciidoc[]
+include::watcher/index.asciidoc[]
 
 include::commands/index.asciidoc[]
 

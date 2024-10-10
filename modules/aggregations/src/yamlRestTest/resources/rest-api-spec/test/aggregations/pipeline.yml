@@ -1,14 +1,12 @@
 setup:
-  - skip:
-      version: " - 7.1.99"
+  - requires:
+      cluster_features: ["gte_v7.2.0"]
       reason:  These new error messages were added in 7.2
 
   - do:
       indices.create:
           index: test_1
           body:
-            settings:
-              number_of_replicas: 0
             mappings:
               properties:
                 int_field:
@@ -102,10 +100,10 @@ setup:
 
 ---
 "Max pipeline on percentiles tdigest agg with single percent metric value":
-  - skip:
-      version: " - 8.3.99"
+  - requires:
+      cluster_features: ["gte_v8.4.0"]
       reason: behaviour changed in 8.4.0
-      features: close_to
+      test_runner_features: close_to
 
   - do:
       search:
@@ -238,10 +236,10 @@ setup:
 
 ---
 "Max pipeline on percentiles hdr agg with single percent metric value":
-  - skip:
-      version: " - 8.3.99"
+  - requires:
+      cluster_features: ["gte_v8.4.0"]
       reason: behaviour changed in 8.4.0
-      features: close_to
+      test_runner_features: close_to
 
   - do:
       search:
@@ -355,10 +353,10 @@ setup:
 
 ---
 "Max pipeline on percentiles with incorrect name":
-  - skip:
-      version: " - 8.3.99"
+  - requires:
+      cluster_features: ["gte_v8.4.0"]
       reason: behaviour changed in 8.4.0
-      features: close_to
+      test_runner_features: close_to
 
   - do:
       catch: /No aggregation \[unknown_aggregation\] found for path \[the_terms\>unknown_aggregation\]\;/
@@ -389,7 +387,6 @@ setup:
         index: test
         body:
           settings:
-            number_of_replicas: 0
             number_of_shards: 3
   - do:
       bulk:

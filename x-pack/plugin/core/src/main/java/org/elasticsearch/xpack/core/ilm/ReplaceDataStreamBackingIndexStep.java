@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.core.ilm;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
@@ -72,7 +73,7 @@ public class ReplaceDataStreamBackingIndexStep extends ClusterStateActionStep {
         String policyName = originalIndexMetadata.getLifecyclePolicyName();
         IndexAbstraction indexAbstraction = clusterState.metadata().getIndicesLookup().get(index.getName());
         assert indexAbstraction != null : "invalid cluster metadata. index [" + index.getName() + "] was not found";
-        IndexAbstraction.DataStream dataStream = indexAbstraction.getParentDataStream();
+        DataStream dataStream = indexAbstraction.getParentDataStream();
         if (dataStream == null) {
             String errorMessage = String.format(
                 Locale.ROOT,
@@ -85,14 +86,15 @@ public class ReplaceDataStreamBackingIndexStep extends ClusterStateActionStep {
             throw new IllegalStateException(errorMessage);
         }
 
-        assert dataStream.getWriteIndex() != null : dataStream.getName() + " has no write index";
-        if (dataStream.getWriteIndex().equals(index)) {
+        boolean isFailureStoreWriteIndex = index.equals(dataStream.getFailureStoreWriteIndex());
+        if (isFailureStoreWriteIndex || dataStream.getWriteIndex().equals(index)) {
             String errorMessage = String.format(
                 Locale.ROOT,
-                "index [%s] is the write index for data stream [%s], pausing "
+                "index [%s] is the%s write index for data stream [%s], pausing "
                     + "ILM execution of lifecycle [%s] until this index is no longer the write index for the data stream via manual or "
                     + "automated rollover",
                 originalIndex,
+                isFailureStoreWriteIndex ? " failure store" : "",
                 dataStream.getName(),
                 policyName
             );
@@ -113,8 +115,10 @@ public class ReplaceDataStreamBackingIndexStep extends ClusterStateActionStep {
             throw new IllegalStateException(errorMessage);
         }
 
-        Metadata.Builder newMetaData = Metadata.builder(clusterState.getMetadata())
-            .put(dataStream.getDataStream().replaceBackingIndex(index, targetIndexMetadata.getIndex()));
+        DataStream updatedDataStream = dataStream.isFailureStoreIndex(originalIndex)
+            ? dataStream.replaceFailureStoreIndex(index, targetIndexMetadata.getIndex())
+            : dataStream.replaceBackingIndex(index, targetIndexMetadata.getIndex());
+        Metadata.Builder newMetaData = Metadata.builder(clusterState.getMetadata()).put(updatedDataStream);
         return ClusterState.builder(clusterState).metadata(newMetaData).build();
     }
 

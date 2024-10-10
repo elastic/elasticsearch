@@ -42,7 +42,7 @@ You can specify the following attributes for each document:
 (Required, string) The unique <<mapping-id-field, document ID>>.
 
 `_index`::
-(Required, string) The index that contains the document.
+(Optional, string) The index that contains the document.
 --
 `organic`::
 Any choice of query used to rank documents which will be ranked below the "pinned" documents.
@@ -59,16 +59,11 @@ GET /_search
     "pinned": {
       "docs": [
         {
-          "_index": "my-index-000001",
+          "_index": "my-index-000001", <1>
           "_id": "1"
         },
         {
-          "_index": "my-index-000001",
-          "_id": "4"
-        },
-        {
-          "_index": "my-index-000002",
-          "_id": "100"
+          "_id": "4" <2>
         }
       ],
       "organic": {
@@ -80,3 +75,6 @@ GET /_search
   }
 }
 --------------------------------------------------
+
+<1> The document with id `1` from `my-index-000001` will be the first result.
+<2> When `_index` is missing, all documents with id `4` from the queried indices will be pinned with the same score.

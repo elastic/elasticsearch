@@ -4,8 +4,7 @@
 <titleabbrev>Span first</titleabbrev>
 ++++
 
-Matches spans near the beginning of a field. The span first query maps
-to Lucene `SpanFirstQuery`. Here is an example:
+Matches spans near the beginning of a field. Here is an example:
 
 [source,console]
 --------------------------------------------------
@@ -19,7 +18,7 @@ GET /_search
       "end": 3
     }
   }
-}   
+}
 --------------------------------------------------
 
 The `match` clause can be any other span type query. The `end` controls

@@ -15,22 +15,25 @@ import org.elasticsearch.action.admin.cluster.stats.AnalysisStats;
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsNodeResponse;
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsResponse;
 import org.elasticsearch.action.admin.cluster.stats.MappingStats;
+import org.elasticsearch.action.admin.cluster.stats.RepositoryUsageStats;
 import org.elasticsearch.action.admin.cluster.stats.SearchUsageStats;
 import org.elasticsearch.action.admin.cluster.stats.VersionStats;
 import org.elasticsearch.action.admin.indices.stats.CommonStats;
-import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.ClusterSnapshotStats;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
@@ -41,6 +44,9 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.discovery.DiscoveryModule;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
+import org.elasticsearch.index.fielddata.FieldDataStats;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.license.License;
 import org.elasticsearch.monitor.fs.FsInfo;
@@ -51,7 +57,7 @@ import org.elasticsearch.monitor.os.OsStats;
 import org.elasticsearch.monitor.process.ProcessStats;
 import org.elasticsearch.plugins.PluginDescriptor;
 import org.elasticsearch.plugins.PluginRuntimeInfo;
-import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.test.BuildUtils;
 import org.elasticsearch.transport.TransportInfo;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.XPackFeatureSet;
@@ -72,6 +78,7 @@ import static java.util.Collections.emptyMap;
 import static java.util.Collections.singleton;
 import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
+import static org.elasticsearch.action.search.TransportSearchAction.CCS_TELEMETRY_FEATURE_FLAG;
 import static org.elasticsearch.common.xcontent.XContentHelper.stripWhitespace;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -97,7 +104,7 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
     public void setUp() throws Exception {
         super.setUp();
         clusterName = randomAlphaOfLength(5);
-        version = VersionUtils.randomVersion(random()).toString();
+        version = randomAlphaOfLengthBetween(6, 32);
         clusterStatus = randomFrom(ClusterHealthStatus.values());
         usages = emptyList();
         clusterStats = mock(ClusterStatsResponse.class);
@@ -232,7 +239,6 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
 
     public void testNodesHash() {
         final int nodeCount = randomIntBetween(0, 5);
-        final Map<String, String> emptyMap = emptyMap();
         final DiscoveryNode masterNode = masterNode();
         final DiscoveryNodes.Builder builder = DiscoveryNodes.builder()
             .add(masterNode)
@@ -241,17 +247,17 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
 
         for (int i = 0; i < nodeCount; ++i) {
             builder.add(
-                new DiscoveryNode(
-                    randomAlphaOfLength(5),
-                    randomAlphaOfLength(2 + i),
-                    randomAlphaOfLength(5),
-                    randomAlphaOfLength(5),
-                    randomAlphaOfLength(5),
-                    new TransportAddress(TransportAddress.META_ADDRESS, 9301 + i),
-                    randomBoolean() ? singletonMap("attr", randomAlphaOfLength(3)) : emptyMap,
-                    singleton(randomValueOtherThan(DiscoveryNodeRole.VOTING_ONLY_NODE_ROLE, () -> randomFrom(DiscoveryNodeRole.roles()))),
-                    Version.CURRENT
-                )
+                DiscoveryNodeUtils.builder(randomAlphaOfLength(2 + i))
+                    .name(randomAlphaOfLength(5))
+                    .ephemeralId(randomAlphaOfLength(5))
+                    .address(randomAlphaOfLength(5), randomAlphaOfLength(5), new TransportAddress(TransportAddress.META_ADDRESS, 9301 + i))
+                    .attributes(randomBoolean() ? singletonMap("attr", randomAlphaOfLength(3)) : emptyMap())
+                    .roles(
+                        singleton(
+                            randomValueOtherThan(DiscoveryNodeRole.VOTING_ONLY_NODE_ROLE, () -> randomFrom(DiscoveryNodeRole.roles()))
+                        )
+                    )
+                    .build()
             );
         }
 
@@ -279,7 +285,7 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
             transportAddress,
             singletonMap("attr", "value"),
             singleton(DiscoveryNodeRole.MASTER_ROLE),
-            Version.CURRENT,
+            null,
             "_external_id"
         );
 
@@ -310,7 +316,7 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
         final List<XPackFeatureSet.Usage> usageList = singletonList(new MonitoringFeatureSetUsage(false, null));
 
         final NodeInfo mockNodeInfo = mock(NodeInfo.class);
-        Version mockNodeVersion = Version.CURRENT.minimumIndexCompatibilityVersion();
+        var mockNodeVersion = randomAlphaOfLengthBetween(6, 32);
         when(mockNodeInfo.getVersion()).thenReturn(mockNodeVersion);
         when(mockNodeInfo.getNode()).thenReturn(discoveryNode);
 
@@ -329,11 +335,12 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
 
         final PluginsAndModules mockPluginsAndModules = mock(PluginsAndModules.class);
         when(mockNodeInfo.getInfo(PluginsAndModules.class)).thenReturn(mockPluginsAndModules);
+        String pluginEsBuildVersion = randomAlphaOfLength(10);
         final PluginDescriptor pluginDescriptor = new PluginDescriptor(
             "_plugin",
             "_plugin_desc",
             "_plugin_version",
-            Version.CURRENT,
+            pluginEsBuildVersion,
             "1.8",
             "_plugin_class",
             null,
@@ -362,15 +369,14 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
         when(mockJvmInfo.getVmVendor()).thenReturn("_jvm_vm_vendor");
         when(mockJvmInfo.getUsingBundledJdk()).thenReturn(true);
 
-        final Build mockBuild = new Build(Build.Type.DOCKER, "", "", false, "");
-        when(mockNodeInfo.getBuild()).thenReturn(mockBuild);
+        when(mockNodeInfo.getBuild()).thenReturn(BuildUtils.newBuild(Build.current(), Map.of("type", Build.Type.DOCKER)));
 
         final NodeStats mockNodeStats = mock(NodeStats.class);
         when(mockNodeStats.getTimestamp()).thenReturn(0L);
 
         final FsInfo mockFsInfo = mock(FsInfo.class);
         when(mockNodeStats.getFs()).thenReturn(mockFsInfo);
-        when(mockFsInfo.getTotal()).thenReturn(new FsInfo.Path("_fs_path", "_fs_mount", 100L, 49L, 51L));
+        when(mockFsInfo.iterator()).thenReturn(Iterators.single(new FsInfo.Path("_fs_path", "_fs_mount", 100L, 49L, 51L)));
 
         final OsStats mockOsStats = mock(OsStats.class);
         when(mockNodeStats.getOs()).thenReturn(mockOsStats);
@@ -406,7 +412,9 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
 
         final ShardStats mockShardStats = mock(ShardStats.class);
         when(mockShardStats.getShardRouting()).thenReturn(shardRouting);
-        when(mockShardStats.getStats()).thenReturn(new CommonStats(CommonStatsFlags.ALL));
+        CommonStats commonStats = mock(CommonStats.class);
+        when(commonStats.getFieldData()).thenReturn(new FieldDataStats(1, 0, null, new FieldDataStats.GlobalOrdinalsStats(1, null)));
+        when(mockShardStats.getStats()).thenReturn(commonStats);
 
         final ClusterStatsNodeResponse mockNodeResponse = mock(ClusterStatsNodeResponse.class);
         when(mockNodeResponse.clusterStatus()).thenReturn(ClusterHealthStatus.RED);
@@ -414,6 +422,7 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
         when(mockNodeResponse.nodeStats()).thenReturn(mockNodeStats);
         when(mockNodeResponse.shardsStats()).thenReturn(new ShardStats[] { mockShardStats });
         when(mockNodeResponse.searchUsageStats()).thenReturn(new SearchUsageStats());
+        when(mockNodeResponse.repositoryUsageStats()).thenReturn(RepositoryUsageStats.EMPTY);
 
         final Metadata metadata = testClusterState.metadata();
         final ClusterStatsResponse clusterStatsResponse = new ClusterStatsResponse(
@@ -424,7 +433,9 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
             emptyList(),
             MappingStats.of(metadata, () -> {}),
             AnalysisStats.of(metadata, () -> {}),
-            VersionStats.of(metadata, singletonList(mockNodeResponse))
+            VersionStats.of(metadata, singletonList(mockNodeResponse)),
+            ClusterSnapshotStats.EMPTY,
+            null
         );
 
         final MonitoringDoc.Node node = new MonitoringDoc.Node("_uuid", "_host", "_addr", "_ip", "_name", 1504169190855L);
@@ -449,10 +460,12 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
         Object[] args = new Object[] {
             needToEnableTLS ? ",\"cluster_needs_tls\": true" : "",
             mockNodeVersion,
+            pluginEsBuildVersion,
             Version.CURRENT,
-            Version.CURRENT,
+            IndexVersions.MINIMUM_COMPATIBLE,
+            IndexVersion.current(),
             apmIndicesExist };
-        final String expectedJson = Strings.format("""
+        final String expectedJson = """
             {
               "cluster_uuid": "_cluster",
               "timestamp": "2017-08-07T12:03:22.133Z",
@@ -513,7 +526,8 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                   },
                   "docs": {
                     "count": 0,
-                    "deleted": 0
+                    "deleted": 0,
+                    "total_size_in_bytes": 0
                   },
                   "store": {
                     "size_in_bytes": 0,
@@ -521,8 +535,11 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                     "reserved_in_bytes": 0
                   },
                   "fielddata": {
-                    "memory_size_in_bytes": 0,
-                    "evictions": 0
+                    "memory_size_in_bytes": 1,
+                    "evictions": 0,
+                    "global_ordinals": {
+                      "build_time_in_millis": 1
+                    }
                   },
                   "query_cache": {
                     "memory_size_in_bytes": 0,
@@ -552,9 +569,9 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                     "file_sizes": {}
                   },
                   "mappings": {
-                    "total_field_count" : 0,
-                    "total_deduplicated_field_count" : 0,
-                    "total_deduplicated_mapping_size_in_bytes" : 0,
+                    "total_field_count": 0,
+                    "total_deduplicated_field_count": 0,
+                    "total_deduplicated_mapping_size_in_bytes": 0,
                     "field_types": [],
                     "runtime_field_types": []
                   },
@@ -566,13 +583,21 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                     "built_in_char_filters": [],
                     "built_in_tokenizers": [],
                     "built_in_filters": [],
-                    "built_in_analyzers": []
+                    "built_in_analyzers": [],
+                    "synonyms": {}
                   },
                   "versions": [],
-                  "search" : {
-                    "total" : 0,
-                    "queries" : {},
-                    "sections" : {}
+                  "search": {
+                    "total": 0,
+                    "queries": {},
+                    "rescorers": {},
+                    "sections": {}
+                  },
+                  "dense_vector": {
+                    "value_count": 0
+                  },
+                  "sparse_vector": {
+                    "value_count": 0
                   }
                 },
                 "nodes": {
@@ -714,12 +739,61 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                         "all_in_bytes": 0,
                         "coordinating_rejections": 0,
                         "primary_rejections": 0,
-                        "replica_rejections": 0
+                        "replica_rejections": 0,
+                        "primary_document_rejections": 0
                       },
                       "limit_in_bytes": 0
                     }
                   }
-                }
+                },
+                "snapshots": {
+                  "current_counts": {
+                    "snapshots": 0,
+                    "shard_snapshots": 0,
+                    "snapshot_deletions": 0,
+                    "concurrent_operations": 0,
+                    "cleanups": 0
+                  },
+                  "repositories": {}
+                },
+                "repositories": {}""";
+
+        final String ccsOutput = """
+                ,
+                "ccs": {
+                    "_search": {
+                        "total": 0,
+                        "success": 0,
+                        "skipped": 0,
+                        "took": {
+                            "max": 0,
+                            "avg": 0,
+                            "p90": 0
+                        },
+                        "took_mrt_true": {
+                            "max": 0,
+                            "avg": 0,
+                            "p90": 0
+                        },
+                        "took_mrt_false": {
+                            "max": 0,
+                            "avg": 0,
+                            "p90": 0
+                        },
+                        "remotes_per_search_max": 0,
+                        "remotes_per_search_avg": 0.0,
+                        "failure_reasons": {
+                        },
+                        "features": {
+                        },
+                        "clients": {
+                        },
+                        "clusters": {}
+                    }
+                  }
+            """;
+
+        final String suffixJson = """
               },
               "cluster_state": {
                 "nodes_hash": 1314980060,
@@ -740,9 +814,18 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                     "roles": [
                       "master"
                     ],
-                    "version": "%s"
+                    "version": "%s",
+                    "min_index_version":%s,
+                    "max_index_version":%s
                   }
-                }
+                },
+                "nodes_versions": [],
+                "nodes_features": [
+                  {
+                    "node_id": "_node_id",
+                    "features": []
+                  }
+                ]
               },
               "cluster_settings": {
                 "cluster": {
@@ -763,22 +846,21 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                   }
                 }
               }
-            }""", args);
-        assertEquals(stripWhitespace(expectedJson), xContent.utf8ToString());
+            }""";
+        assertEquals(
+            stripWhitespace(Strings.format(expectedJson + (CCS_TELEMETRY_FEATURE_FLAG.isEnabled() ? ccsOutput : "") + suffixJson, args)),
+            xContent.utf8ToString()
+        );
     }
 
     private DiscoveryNode masterNode() {
-        return new DiscoveryNode(
-            "_node_name",
-            "_node_id",
-            "_ephemeral_id",
-            "_host_name",
-            "_host_address",
-            new TransportAddress(TransportAddress.META_ADDRESS, 9300),
-            singletonMap("attr", "value"),
-            singleton(DiscoveryNodeRole.MASTER_ROLE),
-            Version.CURRENT
-        );
+        return DiscoveryNodeUtils.builder("_node_id")
+            .name("_node_name")
+            .ephemeralId("_ephemeral_id")
+            .address("_host_name", "_host_address", new TransportAddress(TransportAddress.META_ADDRESS, 9300))
+            .attributes(singletonMap("attr", "value"))
+            .roles(singleton(DiscoveryNodeRole.MASTER_ROLE))
+            .build();
     }
 
 }

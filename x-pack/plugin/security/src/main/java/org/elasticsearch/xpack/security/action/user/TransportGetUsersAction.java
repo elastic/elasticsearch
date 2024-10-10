@@ -11,9 +11,10 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
@@ -24,7 +25,6 @@ import org.elasticsearch.xpack.core.security.action.user.GetUsersResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Subject;
 import org.elasticsearch.xpack.core.security.authc.esnative.ClientReservedRealm;
-import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authc.Realms;
@@ -58,16 +58,11 @@ public class TransportGetUsersAction extends HandledTransportAction<GetUsersRequ
         Realms realms,
         ProfileService profileService
     ) {
-        super(GetUsersAction.NAME, transportService, actionFilters, GetUsersRequest::new);
+        super(GetUsersAction.NAME, transportService, actionFilters, GetUsersRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.settings = settings;
         this.usersStore = usersStore;
         this.reservedRealm = reservedRealm;
-        this.nativeRealmRef = realms.getRealmRefs()
-            .values()
-            .stream()
-            .filter(realmRef -> NativeRealmSettings.TYPE.equals(realmRef.getType()))
-            .findFirst()
-            .orElseThrow(() -> new IllegalStateException("native realm realm ref not found"));
+        this.nativeRealmRef = realms.getNativeRealmRef();
         this.profileService = profileService;
     }
 
@@ -144,7 +139,10 @@ public class TransportGetUsersAction extends HandledTransportAction<GetUsersRequ
         }).toList();
 
         profileService.searchProfilesForSubjects(subjects, ActionListener.wrap(resultsAndErrors -> {
-            if (resultsAndErrors.errors().isEmpty()) {
+            if (resultsAndErrors == null) {
+                // profile index does not exist
+                listener.onResponse(null);
+            } else if (resultsAndErrors.errors().isEmpty()) {
                 assert users.size() == resultsAndErrors.results().size();
                 final Map<String, String> profileUidLookup = resultsAndErrors.results()
                     .stream()

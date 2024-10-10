@@ -1,9 +1,24 @@
 [[red-yellow-cluster-status]]
-=== Red or yellow cluster status
+=== Red or yellow cluster health status
 
-A red or yellow cluster status indicates one or more shards are missing or
-unallocated. These unassigned shards increase your risk of data loss and can
-degrade cluster performance.
+A red or yellow cluster health status indicates one or more shards are not assigned to
+a node.
+
+* **Red health status**: The cluster has some unassigned primary shards, which
+means that some operations such as searches and indexing may fail.
+* **Yellow health status**: The cluster has no unassigned primary shards but some
+unassigned replica shards. This increases your risk of data loss and can degrade
+cluster performance.
+
+When your cluster has a red or yellow health status, it will continue to process
+searches and indexing where possible, but may delay certain management and
+cleanup activities until the cluster returns to green health status. For instance,
+some <<index-lifecycle-management,{ilm-init}>> actions require the index on which they
+operate to have a green health status.
+
+In many cases, your cluster will recover to green health status automatically.
+If the cluster doesn't automatically recover, then you must <<fix-red-yellow-cluster-status,manually address>>
+the remaining problems so management and cleanup activities can proceed.
 
 [discrete]
 [[diagnose-cluster-status]]
@@ -44,13 +59,10 @@ GET _cluster/allocation/explain?filter_path=index,node_allocation_decisions.node
 {
   "index": "my-index",
   "shard": 0,
-  "primary": false,
-  "current_node": "my-node"
+  "primary": false
 }
 ----
 // TEST[s/^/PUT my-index\n/]
-// TEST[s/"primary": false,/"primary": false/]
-// TEST[s/"current_node": "my-node"//]
 
 [discrete]
 [[fix-red-yellow-cluster-status]]
@@ -59,7 +71,9 @@ GET _cluster/allocation/explain?filter_path=index,node_allocation_decisions.node
 A shard can become unassigned for several reasons. The following tips outline the
 most common causes and their solutions.
 
-**Re-enable shard allocation**
+[discrete]
+[[fix-cluster-status-reenable-allocation]]
+===== Re-enable shard allocation
 
 You typically disable allocation during a <<restart-cluster,restart>> or other
 cluster maintenance. If you forgot to re-enable allocation afterward, {es} will
@@ -76,7 +90,9 @@ PUT _cluster/settings
 }
 ----
 
-**Recover lost nodes**
+[discrete]
+[[fix-cluster-status-recover-nodes]]
+===== Recover lost nodes
 
 Shards often become unassigned when a data node leaves the cluster. This can
 occur for several reasons, ranging from connectivity issues to hardware failure.
@@ -91,10 +107,12 @@ asynchronously in the background.
 
 [source,console]
 ----
-POST _cluster/reroute?metric=none
+POST _cluster/reroute
 ----
 
-**Fix allocation settings**
+[discrete]
+[[fix-cluster-status-allocation-settings]]
+===== Fix allocation settings
 
 Misconfigured allocation settings can result in an unassigned primary shard.
 These settings include:
@@ -117,7 +135,9 @@ GET _cluster/settings?flat_settings=true&include_defaults=true
 You can change the settings using the <<indices-update-settings,update index
 settings>> and <<cluster-update-settings,cluster update settings>> APIs.
 
-**Allocate or reduce replicas**
+[discrete]
+[[fix-cluster-status-allocation-replicas]]
+===== Allocate or reduce replicas
 
 To protect against hardware failure, {es} will not assign a replica to the same
 node as its primary shard. If no other data nodes are available to host the
@@ -138,7 +158,10 @@ PUT _settings
 ----
 // TEST[s/^/PUT my-index\n/]
 
-**Free up or increase disk space**
+
+[discrete]
+[[fix-cluster-status-disk-space]]
+===== Free up or increase disk space
 
 {es} uses a <<disk-based-shard-allocation,low disk watermark>> to ensure data
 nodes have enough disk space for incoming shards. By default, {es} does not
@@ -194,31 +217,36 @@ PUT _cluster/settings
 ----
 // TEST[s/"30gb"/null/]
 
-**Reduce JVM memory pressure**
+[discrete]
+[[fix-cluster-status-jvm]]
+===== Reduce JVM memory pressure
 
 Shard allocation requires JVM heap memory. High JVM memory pressure can trigger
 <<circuit-breaker,circuit breakers>> that stop allocation and leave shards
 unassigned. See <<high-jvm-memory-pressure>>.
 
-**Recover data for a lost primary shard**
+[discrete]
+[[fix-cluster-status-restore]]
+===== Recover data for a lost primary shard
 
 If a node containing a primary shard is lost, {es} can typically replace it
 using a replica on another node. If you can't recover the node and replicas
-don't exist or are irrecoverable, you'll need to re-add the missing data from a
-<<snapshot-restore,snapshot>> or the original data source.
+don't exist or are irrecoverable, <<cluster-allocation-explain,Allocation
+Explain>> will report `no_valid_shard_copy` and you'll need to do one of the following:
 
+* restore the missing data from <<snapshot-restore,snapshot>>
+* index the missing data from its original data source
+* accept data loss on the index-level by running <<indices-delete-index,Delete Index>>
+* accept data loss on the shard-level by executing <<cluster-reroute,Cluster Reroute>> allocate_stale_primary or allocate_empty_primary command with `accept_data_loss: true`
++
 WARNING: Only use this option if node recovery is no longer possible. This
 process allocates an empty primary shard. If the node later rejoins the cluster,
 {es} will overwrite its primary shard with data from this newer empty shard,
 resulting in data loss.
-
-Use the <<cluster-reroute,cluster reroute API>> to manually allocate the
-unassigned primary shard to another data node in the same tier. Set
-`accept_data_loss` to `true`.
-
++
 [source,console]
 ----
-POST _cluster/reroute?metric=none
+POST _cluster/reroute
 {
   "commands": [
     {
@@ -234,7 +262,3 @@ POST _cluster/reroute?metric=none
 ----
 // TEST[s/^/PUT my-index\n/]
 // TEST[catch:bad_request]
-
-If you backed up the missing index data to a snapshot, use the
-<<restore-snapshot-api,restore snapshot API>> to restore the individual index.
-Alternatively, you can index the missing data from the original data source.

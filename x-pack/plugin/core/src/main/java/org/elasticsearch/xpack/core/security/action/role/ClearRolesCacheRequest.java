@@ -24,11 +24,6 @@ public class ClearRolesCacheRequest extends BaseNodesRequest<ClearRolesCacheRequ
         super((String[]) null);
     }
 
-    public ClearRolesCacheRequest(StreamInput in) throws IOException {
-        super(in);
-        names = in.readOptionalStringArray();
-    }
-
     /**
      * Sets the roles for which caches will be evicted. When not set all the roles will be evicted from the cache.
      *
@@ -44,12 +39,6 @@ public class ClearRolesCacheRequest extends BaseNodesRequest<ClearRolesCacheRequ
      */
     public String[] names() {
         return names;
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        out.writeOptionalStringArray(names);
     }
 
     public static class Node extends TransportRequest {

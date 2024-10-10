@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.engine;
@@ -22,14 +23,14 @@ import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TopDocs;
-import org.apache.lucene.search.TopFieldCollector;
+import org.apache.lucene.search.TopFieldCollectorManager;
 import org.apache.lucene.util.ArrayUtil;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.index.SequentialStoredFieldsLeafReader;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.fieldvisitor.FieldsVisitor;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
@@ -63,7 +64,7 @@ final class LuceneChangesSnapshot implements Translog.Snapshot {
     private final ParallelArray parallelArray;
     private final Closeable onClose;
 
-    private final Version indexVersionCreated;
+    private final IndexVersion indexVersionCreated;
 
     private int storedFieldsReaderOrd = -1;
     private StoredFieldsReader storedFieldsReader = null;
@@ -90,7 +91,7 @@ final class LuceneChangesSnapshot implements Translog.Snapshot {
         boolean requiredFullRange,
         boolean singleConsumer,
         boolean accessStats,
-        Version indexVersionCreated
+        IndexVersion indexVersionCreated
     ) throws IOException {
         if (fromSeqNo < 0 || toSeqNo < 0 || fromSeqNo > toSeqNo) {
             throw new IllegalArgumentException("Invalid range; from_seqno [" + fromSeqNo + "], to_seqno [" + toSeqNo + "]");
@@ -278,13 +279,13 @@ final class LuceneChangesSnapshot implements Translog.Snapshot {
         return new IndexSearcher(Lucene.wrapAllDocsLive(engineSearcher.getDirectoryReader()));
     }
 
-    private static Query rangeQuery(long fromSeqNo, long toSeqNo, Version indexVersionCreated) {
+    private static Query rangeQuery(long fromSeqNo, long toSeqNo, IndexVersion indexVersionCreated) {
         return new BooleanQuery.Builder().add(LongPoint.newRangeQuery(SeqNoFieldMapper.NAME, fromSeqNo, toSeqNo), BooleanClause.Occur.MUST)
             .add(Queries.newNonNestedFilter(indexVersionCreated), BooleanClause.Occur.MUST) // exclude non-root nested documents
             .build();
     }
 
-    static int countOperations(Engine.Searcher engineSearcher, long fromSeqNo, long toSeqNo, Version indexVersionCreated)
+    static int countOperations(Engine.Searcher engineSearcher, long fromSeqNo, long toSeqNo, IndexVersion indexVersionCreated)
         throws IOException {
         if (fromSeqNo < 0 || toSeqNo < 0 || fromSeqNo > toSeqNo) {
             throw new IllegalArgumentException("Invalid range; from_seqno [" + fromSeqNo + "], to_seqno [" + toSeqNo + "]");
@@ -296,14 +297,14 @@ final class LuceneChangesSnapshot implements Translog.Snapshot {
         final Query rangeQuery = rangeQuery(Math.max(fromSeqNo, lastSeenSeqNo), toSeqNo, indexVersionCreated);
         assert accurateTotalHits == false || after == null : "accurate total hits is required by the first batch only";
         final SortField sortBySeqNo = new SortField(SeqNoFieldMapper.NAME, SortField.Type.LONG);
-        final TopFieldCollector collector = TopFieldCollector.create(
+        TopFieldCollectorManager topFieldCollectorManager = new TopFieldCollectorManager(
             new Sort(sortBySeqNo),
             searchBatchSize,
             after,
-            accurateTotalHits ? Integer.MAX_VALUE : 0
+            accurateTotalHits ? Integer.MAX_VALUE : 0,
+            false
         );
-        indexSearcher.search(rangeQuery, collector);
-        return collector.topDocs();
+        return indexSearcher.search(rangeQuery, topFieldCollectorManager);
     }
 
     private Translog.Operation readDocAsOp(int docIndex) throws IOException {

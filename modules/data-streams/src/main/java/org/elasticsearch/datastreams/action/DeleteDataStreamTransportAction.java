@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.datastreams.action;
 
@@ -26,10 +27,12 @@ import org.elasticsearch.cluster.metadata.MetadataDeleteIndexService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.indices.SystemIndices;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.snapshots.SnapshotInProgressException;
 import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.tasks.Task;
@@ -42,13 +45,12 @@ import java.util.List;
 import java.util.Set;
 import java.util.function.Consumer;
 
-import static org.elasticsearch.datastreams.action.DataStreamsActionUtil.getDataStreamNames;
+import static org.elasticsearch.action.datastreams.DataStreamsActionUtil.getDataStreamNames;
 
 public class DeleteDataStreamTransportAction extends AcknowledgedTransportMasterNodeAction<DeleteDataStreamAction.Request> {
 
     private static final Logger LOGGER = LogManager.getLogger(DeleteDataStreamTransportAction.class);
 
-    private final MetadataDeleteIndexService deleteIndexService;
     private final SystemIndices systemIndices;
 
     @Inject
@@ -58,7 +60,6 @@ public class DeleteDataStreamTransportAction extends AcknowledgedTransportMaster
         ThreadPool threadPool,
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
-        MetadataDeleteIndexService deleteIndexService,
         SystemIndices systemIndices
     ) {
         super(
@@ -69,9 +70,8 @@ public class DeleteDataStreamTransportAction extends AcknowledgedTransportMaster
             actionFilters,
             DeleteDataStreamAction.Request::new,
             indexNameExpressionResolver,
-            ThreadPool.Names.SAME
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
-        this.deleteIndexService = deleteIndexService;
         this.systemIndices = systemIndices;
     }
 
@@ -100,11 +100,11 @@ public class DeleteDataStreamTransportAction extends AcknowledgedTransportMaster
                 @Override
                 public ClusterState execute(ClusterState currentState) {
                     return removeDataStream(
-                        deleteIndexService,
                         indexNameExpressionResolver,
                         currentState,
                         request,
-                        ds -> systemIndices.validateDataStreamAccess(ds, threadPool.getThreadContext())
+                        ds -> systemIndices.validateDataStreamAccess(ds, threadPool.getThreadContext()),
+                        clusterService.getSettings()
                     );
                 }
 
@@ -122,11 +122,11 @@ public class DeleteDataStreamTransportAction extends AcknowledgedTransportMaster
     }
 
     static ClusterState removeDataStream(
-        MetadataDeleteIndexService deleteIndexService,
         IndexNameExpressionResolver indexNameExpressionResolver,
         ClusterState currentState,
         DeleteDataStreamAction.Request request,
-        Consumer<String> systemDataStreamAccessValidator
+        Consumer<String> systemDataStreamAccessValidator,
+        Settings settings
     ) {
         List<String> names = getDataStreamNames(indexNameExpressionResolver, currentState, request.getNames(), request.indicesOptions());
         Set<String> dataStreams = new HashSet<>(names);
@@ -156,6 +156,7 @@ public class DeleteDataStreamTransportAction extends AcknowledgedTransportMaster
             DataStream dataStream = currentState.metadata().dataStreams().get(dataStreamName);
             assert dataStream != null;
             backingIndicesToRemove.addAll(dataStream.getIndices());
+            backingIndicesToRemove.addAll(dataStream.getFailureIndices().getIndices());
         }
 
         // first delete the data streams and then the indices:
@@ -168,7 +169,7 @@ public class DeleteDataStreamTransportAction extends AcknowledgedTransportMaster
             metadata.removeDataStream(ds);
         }
         currentState = ClusterState.builder(currentState).metadata(metadata).build();
-        return deleteIndexService.deleteIndices(currentState, backingIndicesToRemove);
+        return MetadataDeleteIndexService.deleteIndices(currentState, backingIndicesToRemove, settings);
     }
 
     @Override

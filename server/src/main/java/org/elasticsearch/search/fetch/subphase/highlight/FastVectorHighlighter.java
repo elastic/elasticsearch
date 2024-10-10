@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.search.fetch.subphase.highlight;
 
@@ -68,7 +69,6 @@ public class FastVectorHighlighter implements Highlighter {
         SearchHighlightContext.Field field = fieldContext.field;
         FetchSubPhase.HitContext hitContext = fieldContext.hitContext;
         MappedFieldType fieldType = fieldContext.fieldType;
-        boolean forceSource = fieldContext.forceSource;
         boolean fixBrokenAnalysis = fieldContext.context.containsBrokenAnalysis(fieldContext.fieldName);
 
         if (canHighlight(fieldType) == false) {
@@ -100,7 +100,6 @@ public class FastVectorHighlighter implements Highlighter {
                 field,
                 fieldType,
                 fieldContext.context,
-                forceSource,
                 fixBrokenAnalysis
             );
 
@@ -220,13 +219,12 @@ public class FastVectorHighlighter implements Highlighter {
         SearchHighlightContext.Field field,
         MappedFieldType fieldType,
         FetchContext fetchContext,
-        boolean forceSource,
         boolean fixBrokenAnalysis
     ) {
         BoundaryScanner boundaryScanner = getBoundaryScanner(field);
         FieldOptions options = field.fieldOptions();
         Function<Source, BaseFragmentsBuilder> supplier;
-        if (forceSource == false && fieldType.isStored()) {
+        if (fieldType.isStored()) {
             if (options.numberOfFragments() != 0 && options.scoreOrdered()) {
                 supplier = ignored -> new ScoreOrderFragmentsBuilder(options.preTags(), options.postTags(), boundaryScanner);
             } else {
@@ -315,6 +313,6 @@ public class FastVectorHighlighter implements Highlighter {
 
     private static class HighlighterEntry {
         public org.apache.lucene.search.vectorhighlight.FastVectorHighlighter fvh;
-        public Map<MappedFieldType, FieldHighlightEntry> fields = new HashMap<>();
+        public final Map<MappedFieldType, FieldHighlightEntry> fields = new HashMap<>();
     }
 }

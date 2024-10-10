@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.inference.InferenceConfigItemTestCase;
@@ -17,7 +17,7 @@ import java.util.function.Predicate;
 
 public class QuestionAnsweringConfigTests extends InferenceConfigItemTestCase<QuestionAnsweringConfig> {
 
-    public static QuestionAnsweringConfig mutateForVersion(QuestionAnsweringConfig instance, Version version) {
+    public static QuestionAnsweringConfig mutateForVersion(QuestionAnsweringConfig instance, TransportVersion version) {
         return new QuestionAnsweringConfig(
             instance.getNumTopClasses(),
             instance.getMaxAnswerLength(),
@@ -58,7 +58,7 @@ public class QuestionAnsweringConfigTests extends InferenceConfigItemTestCase<Qu
     }
 
     @Override
-    protected QuestionAnsweringConfig mutateInstanceForVersion(QuestionAnsweringConfig instance, Version version) {
+    protected QuestionAnsweringConfig mutateInstanceForVersion(QuestionAnsweringConfig instance, TransportVersion version) {
         return mutateForVersion(instance, version);
     }
 

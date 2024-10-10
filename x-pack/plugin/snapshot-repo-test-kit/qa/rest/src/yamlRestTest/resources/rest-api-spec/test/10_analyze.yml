@@ -29,8 +29,8 @@ setup:
 
 ---
 "Analysis fails on readonly repositories":
-  - skip:
-      version: "- 7.13.99"
+  - requires:
+      cluster_features: "gte_v7.14.0"
       reason: "abortWrites flag introduced in 7.14, and mixed-cluster support not required"
 
   - do:
@@ -45,8 +45,8 @@ setup:
 
 ---
 "Analysis without details":
-  - skip:
-      version: "- 7.13.99"
+  - requires:
+      cluster_features: "gte_v7.14.0"
       reason: "abortWrites flag introduced in 7.14, and mixed-cluster support not required"
 
   - do:
@@ -100,8 +100,8 @@ setup:
 
 ---
 "Analysis with details":
-  - skip:
-      version: "- 7.13.99"
+  - requires:
+      cluster_features: "gte_v7.14.0"
       reason: "abortWrites flag introduced in 7.14, and mixed-cluster support not required"
 
   - do:
@@ -131,8 +131,8 @@ setup:
 
 ---
 "Analysis with ?human=false":
-  - skip:
-      version: "- 7.13.99"
+  - requires:
+      cluster_features: "gte_v7.14.0"
       reason: "abortWrites flag introduced in 7.14, and mixed-cluster support not required"
 
   - do:
@@ -157,9 +157,9 @@ setup:
 
 ---
 "Timeout with large blobs":
-  - skip:
-      version: all
-      reason: "AwaitsFix https://github.com/elastic/elasticsearch/issues/90353"
+  - requires:
+      cluster_features: "gte_v7.14.0"
+      reason: "abortWrites flag introduced in 7.14, and mixed-cluster support not required"
 
   - do:
       catch: request
@@ -175,5 +175,6 @@ setup:
 
   - match: { status: 500 }
   - match: { error.type: repository_verification_exception }
-  - match: { error.reason: "/.*test_repo_slow..analysis.failed.*/" }
-  - match: { error.root_cause.0.type: receive_timeout_transport_exception }
+  - match: { error.reason: "/.*test_repo_slow..Repository.analysis.timed.out.*/" }
+  - match: { error.root_cause.0.type: repository_verification_exception }
+  - match: { error.root_cause.0.reason: "/.*test_repo_slow..analysis.timed.out.after..1s.*/" }

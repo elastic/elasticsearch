@@ -4,8 +4,7 @@
 <titleabbrev>Span or</titleabbrev>
 ++++
 
-Matches the union of its span clauses. The span or query maps to Lucene
-`SpanOrQuery`. Here is an example:
+Matches the union of its span clauses. Here is an example:
 
 [source,console]
 --------------------------------------------------

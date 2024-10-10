@@ -69,17 +69,29 @@ public class VectorTileCCSIT extends ESRestTestCase {
         try (RestClient local = buildLocalClusterClient(); RestClient remote = buildRemoteClusterClient()) {
             final int localGeometries = createIndex(local, "test");
             final int remoteGeometries = createIndex(remote, "test");
-            // check call in each cluster
-            final Request mvtRequest = new Request(HttpPost.METHOD_NAME, "test/_mvt/location/0/0/0");
-            final VectorTile.Tile localTile = execute(local, mvtRequest);
-            assertThat(getLayer(localTile, "hits").getFeaturesCount(), Matchers.equalTo(localGeometries));
-            final VectorTile.Tile remoteTile = execute(remote, mvtRequest);
-            assertThat(getLayer(remoteTile, "hits").getFeaturesCount(), Matchers.equalTo(remoteGeometries));
-            // call to both clusters
-            final Request mvtCCSRequest = new Request(HttpPost.METHOD_NAME, "/test,other:test/_mvt/location/0/0/0");
-            final VectorTile.Tile ccsTile = execute(local, mvtCCSRequest);
-            assertThat(getLayer(ccsTile, "hits").getFeaturesCount(), Matchers.equalTo(localGeometries + remoteGeometries));
+            // check with no params
+            assertLocalAndRemote(local, remote, localGeometries, remoteGeometries, "");
+            // check with labels
+            assertLocalAndRemote(local, remote, 2 * localGeometries, 2 * remoteGeometries, "?with_labels=true");
         }
+    }
+
+    private void assertLocalAndRemote(RestClient local, RestClient remote, int localGeometries, int remoteGeometries, String param)
+        throws IOException {
+        // check call in each cluster
+        final Request mvtRequest = new Request(HttpPost.METHOD_NAME, "test/_mvt/location/0/0/0" + param);
+        final VectorTile.Tile localTile = execute(local, mvtRequest);
+        assertThat(getLayer(localTile, "hits").getFeaturesCount(), Matchers.equalTo(localGeometries));
+        assertEquals(localGeometries, countFeaturesWithTag(getLayer(localTile, "hits"), "_index", "test"));
+        final VectorTile.Tile remoteTile = execute(remote, mvtRequest);
+        assertThat(getLayer(remoteTile, "hits").getFeaturesCount(), Matchers.equalTo(remoteGeometries));
+        assertEquals(remoteGeometries, countFeaturesWithTag(getLayer(remoteTile, "hits"), "_index", "test"));
+        // call to both clusters
+        final Request mvtCCSRequest = new Request(HttpPost.METHOD_NAME, "/test,other:test/_mvt/location/0/0/0" + param);
+        final VectorTile.Tile ccsTile = execute(local, mvtCCSRequest);
+        assertThat(getLayer(ccsTile, "hits").getFeaturesCount(), Matchers.equalTo(localGeometries + remoteGeometries));
+        assertEquals(localGeometries, countFeaturesWithTag(getLayer(ccsTile, "hits"), "_index", "test"));
+        assertEquals(remoteGeometries, countFeaturesWithTag(getLayer(ccsTile, "hits"), "_index", "other:test"));
     }
 
     private VectorTile.Tile.Layer getLayer(VectorTile.Tile tile, String layerName) {
@@ -116,5 +128,27 @@ public class VectorTileCCSIT extends ESRestTestCase {
             getProtocol()
         );
         return buildClient(restAdminSettings(), new HttpHost[] { httpHost });
+    }
+
+    private int countFeaturesWithTag(VectorTile.Tile.Layer layer, String tag, String value) {
+        int count = 0;
+        for (int i = 0; i < layer.getFeaturesCount(); i++) {
+            VectorTile.Tile.Feature feature = layer.getFeatures(i);
+            if (hasLabel(layer, feature, tag, value)) {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    private boolean hasLabel(VectorTile.Tile.Layer layer, VectorTile.Tile.Feature feature, String tag, String value) {
+        for (int i = 0; i < feature.getTagsCount(); i += 2) {
+            String thisTag = layer.getKeys(feature.getTags(i));
+            if (tag.equals(thisTag)) {
+                VectorTile.Tile.Value thisValue = layer.getValues(feature.getTags(i + 1));
+                return value.equals(thisValue.getStringValue());
+            }
+        }
+        return false;
     }
 }

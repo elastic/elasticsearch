@@ -22,7 +22,7 @@ public class UpdateCalendarJobAction extends ActionType<PutCalendarAction.Respon
     public static final String NAME = "cluster:admin/xpack/ml/calendars/jobs/update";
 
     private UpdateCalendarJobAction() {
-        super(NAME, PutCalendarAction.Response::new);
+        super(NAME);
     }
 
     public static class Request extends ActionRequest {

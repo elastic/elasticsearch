@@ -1,0 +1,601 @@
+---
+setup:
+  - requires:
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [logsdb_index_mode]
+      reason: "Support for 'logsdb' index mode capability required"
+
+---
+create logs index:
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [ logsdb_index_mode ]
+      reason: "Support for 'logsdb' index mode capability required"
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            index:
+              mode: logsdb
+              number_of_shards: 2
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+              host.name:
+                type: keyword
+              agent_id:
+                type: keyword
+              process_id:
+                type: integer
+              http_method:
+                type: keyword
+              message:
+                type: text
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "@timestamp": "2024-02-12T10:30:00Z", ignored_field_stats: "foo", "agent_id": "darth-vader", "process_id": 101, "http_method": "GET", "message": "No, I am your father." }
+          - { "index": { } }
+          - { "@timestamp": "2024-02-12T10:31:00Z", "host.name": "bar", "agent_id": "yoda", "process_id": 102, "http_method": "PUT", "message": "Do. Or do not. There is no try." }
+          - { "index": { } }
+          - { "@timestamp": "2024-02-12T10:32:00Z", "host.name": "foo", "agent_id": "obi-wan", "process_id": 103, "http_method": "GET", "message": "May the force be with you." }
+          - { "index": { } }
+          - { "@timestamp": "2024-02-12T10:33:00Z", "host.name": "baz", "agent_id": "darth-vader", "process_id": 102, "http_method": "POST", "message": "I find your lack of faith disturbing." }
+          - { "index": { } }
+          - { "@timestamp": "2024-02-12T10:34:00Z", "host.name": "baz", "agent_id": "yoda", "process_id": 104, "http_method": "POST", "message": "Wars not make one great." }
+          - { "index": { } }
+          - { "@timestamp": "2024-02-12T10:35:00Z", "host.name": "foo", "agent_id": "obi-wan", "process_id": 105, "http_method": "GET", "message": "That's no moon. It's a space station." }
+
+
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            match_all: {}
+
+  - match: { hits.total.value: 6 }
+
+  - do:
+      indices.get_settings:
+        index: test
+
+  - is_true: test
+  - match: { test.settings.index.mode: "logsdb" }
+
+  - do:
+      indices.get_mapping:
+        index: test
+  - match: { test.mappings._source.mode: synthetic }
+
+---
+using default timestamp field mapping:
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [ logsdb_index_mode ]
+      reason: "Support for 'logsdb' index mode capability required"
+
+  - do:
+      indices.create:
+        index: test-timestamp-missing
+        body:
+          settings:
+            index:
+              mode: logsdb
+              number_of_replicas: 0
+              number_of_shards: 2
+          mappings:
+            properties:
+              host.name:
+                type: keyword
+              agent_id:
+                type: keyword
+              process_id:
+                type: integer
+              http_method:
+                type: keyword
+              message:
+                type: text
+
+---
+missing hostname field:
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [ logsdb_index_mode ]
+      reason: "Support for 'logsdb' index mode capability required"
+
+  - do:
+      indices.create:
+        index: test-hostname-missing
+        body:
+          settings:
+            index:
+              mode: logsdb
+              number_of_replicas: 0
+              number_of_shards: 2
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+              agent_id:
+                type: keyword
+              process_id:
+                type: integer
+              http_method:
+                type: keyword
+              message:
+                type: text
+
+  - do:
+      indices.get_settings:
+        index: test-hostname-missing
+
+  - is_true: test-hostname-missing
+  - match: { test-hostname-missing.settings.index.mode: "logsdb" }
+
+---
+missing sort field:
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [ logsdb_index_mode ]
+      reason: "Support for 'logsdb' index mode capability required"
+
+  - do:
+      catch: bad_request
+      indices.create:
+        index: test-hostname-missing
+        body:
+          settings:
+            index:
+              mode: logsdb
+              number_of_replicas: 0
+              number_of_shards: 2
+              sort:
+                field: [ "host_name" ]
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+              host.name:
+                type: keyword
+              agent_id:
+                type: keyword
+              process_id:
+                type: integer
+              http_method:
+                type: keyword
+              message:
+                type: text
+
+  - match: { error.root_cause.0.type: "illegal_argument_exception" }
+  - match: { error.type: "illegal_argument_exception" }
+  - match: { error.reason: "unknown index sort field:[host_name]" }
+
+---
+non-default sort settings:
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [ logsdb_index_mode ]
+      reason: "Support for 'logsdb' index mode capability required"
+
+  - do:
+      indices.create:
+        index: test-sort
+        body:
+          settings:
+
+            index:
+              mode: logsdb
+              number_of_shards: 2
+              number_of_replicas: 0
+              sort:
+                field: [ "agent_id", "@timestamp" ]
+                order: [ "asc", "desc" ]
+                missing: [ "_last", "_first" ]
+                mode: [ "max", "max" ]
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+              agent_id:
+                type: keyword
+              process_id:
+                type: integer
+              http_method:
+                type: keyword
+              message:
+                type: text
+
+  - do:
+      indices.get_settings:
+        index: test-sort
+
+  - is_true: test-sort
+  - match: { test-sort.settings.index.mode: "logsdb" }
+  - match: { test-sort.settings.index.sort.field.0: "agent_id" }
+  - match: { test-sort.settings.index.sort.field.1: "@timestamp" }
+  - match: { test-sort.settings.index.sort.order.0: "asc" }
+  - match: { test-sort.settings.index.sort.order.1: "desc" }
+  - match: { test-sort.settings.index.sort.missing.0: "_last" }
+  - match: { test-sort.settings.index.sort.missing.1: "_first" }
+  - match: { test-sort.settings.index.sort.mode.0: "max" }
+  - match: { test-sort.settings.index.sort.mode.1: "max" }
+
+---
+override sort order settings:
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [ logsdb_index_mode ]
+      reason: "Support for 'logsdb' index mode capability required"
+
+  - do:
+      indices.create:
+        index: test-sort-order
+        body:
+          settings:
+
+            index:
+              mode: logsdb
+              number_of_shards: 2
+              number_of_replicas: 0
+              sort:
+                order: [ "asc", "asc" ]
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+              host.name:
+                type: keyword
+              agent_id:
+                type: keyword
+              process_id:
+                type: integer
+              http_method:
+                type: keyword
+              message:
+                type: text
+
+  - do:
+      indices.get_settings:
+        index: test-sort-order
+
+  - is_true: test-sort-order
+  - match: { test-sort-order.settings.index.mode: "logsdb" }
+  - match: { test-sort-order.settings.index.sort.field.0: null }
+  - match: { test-sort-order.settings.index.sort.field.1: null }
+  - match: { test-sort-order.settings.index.sort.order.0: "asc" }
+  - match: { test-sort-order.settings.index.sort.order.1: "asc" }
+
+---
+override sort missing settings:
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [ logsdb_index_mode ]
+      reason: "Support for 'logsdb' index mode capability required"
+
+  - do:
+      indices.create:
+        index: test-sort-missing
+        body:
+          settings:
+
+            index:
+              mode: logsdb
+              number_of_shards: 2
+              number_of_replicas: 0
+              sort:
+                missing: [ "_last", "_first" ]
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+              host.name:
+                type: keyword
+              agent_id:
+                type: keyword
+              process_id:
+                type: integer
+              http_method:
+                type: keyword
+              message:
+                type: text
+
+  - do:
+      indices.get_settings:
+        index: test-sort-missing
+
+  - is_true: test-sort-missing
+  - match: { test-sort-missing.settings.index.mode: "logsdb" }
+  - match: { test-sort-missing.settings.index.sort.field.0: null }
+  - match: { test-sort-missing.settings.index.sort.field.1: null }
+  - match: { test-sort-missing.settings.index.sort.missing.0: "_last" }
+  - match: { test-sort-missing.settings.index.sort.missing.1: "_first" }
+
+---
+override sort mode settings:
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [ logsdb_index_mode ]
+      reason: "Support for 'logsdb' index mode capability required"
+
+  - do:
+      indices.create:
+        index: test-sort-mode
+        body:
+          settings:
+
+            index:
+              mode: logsdb
+              number_of_shards: 2
+              number_of_replicas: 0
+              sort:
+                mode: [ "max", "max" ]
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+              host.name:
+                type: keyword
+              agent_id:
+                type: keyword
+              process_id:
+                type: integer
+              http_method:
+                type: keyword
+              message:
+                type: text
+
+  - do:
+      indices.get_settings:
+        index: test-sort-mode
+
+  - is_true: test-sort-mode
+  - match: { test-sort-mode.settings.index.mode: "logsdb" }
+  - match: { test-sort-mode.settings.index.sort.field.0: null }
+  - match: { test-sort-mode.settings.index.sort.field.1: null }
+  - match: { test-sort-mode.settings.index.sort.mode.0: "max" }
+  - match: { test-sort-mode.settings.index.sort.mode.1: "max" }
+
+---
+override sort field using nested field type in sorting:
+  - requires:
+      cluster_features: ["mapper.index_sorting_on_nested"]
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [ logsdb_index_mode ]
+      reason: "Support for 'logsdb' index mode capability required"
+
+  - do:
+      catch: bad_request
+      indices.create:
+        index: test-nested-sort
+        body:
+          settings:
+            index:
+              mode: logsdb
+              number_of_replicas: 0
+              number_of_shards: 2
+              sort:
+                field: [ "host.name", "nested", "@timestamp" ]
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+              host.name:
+                type: keyword
+              agent_id:
+                type: keyword
+              process_id:
+                type: integer
+              http_method:
+                type: keyword
+              message:
+                type: text
+              nested:
+                type: nested
+                properties:
+                  keywords:
+                    type: keyword
+
+  - match: { error.root_cause.0.type: "illegal_argument_exception" }
+  - match: { error.type: "illegal_argument_exception" }
+  - match: { error.reason: "cannot apply index sort to field [nested] under nested object [nested]" }
+
+---
+override sort field using nested field type:
+  - requires:
+      cluster_features: ["mapper.index_sorting_on_nested"]
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [ logsdb_index_mode ]
+      reason: "Support for 'logsdb' index mode capability required"
+
+  - do:
+      indices.create:
+        index: test-nested
+        body:
+          settings:
+            index:
+              mode: logsdb
+              number_of_replicas: 0
+              number_of_shards: 2
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+              host.name:
+                type: keyword
+              agent_id:
+                type: keyword
+              process_id:
+                type: integer
+              http_method:
+                type: keyword
+              message:
+                type: text
+              nested:
+                type: nested
+                properties:
+                  keywords:
+                    type: keyword
+  - is_false: error
+
+---
+routing path not allowed in logs mode:
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [ logsdb_index_mode ]
+      reason: "Support for 'logsdb' index mode capability required"
+
+  - do:
+      catch: bad_request
+      indices.create:
+        index: test
+        body:
+          settings:
+            index:
+              mode: logsdb
+              number_of_replicas: 0
+              number_of_shards: 2
+              routing_path: [ "host.name", "agent_id" ]
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+              host.name:
+                type: keyword
+              agent_id:
+                type: keyword
+              process_id:
+                type: integer
+              http_method:
+                type: keyword
+              message:
+                type: text
+
+  - match: { error.root_cause.0.type: "illegal_argument_exception" }
+  - match: { error.type: "illegal_argument_exception" }
+  - match: { error.reason: "[index.routing_path] requires [index.mode=time_series]" }
+
+---
+start time not allowed in logs mode:
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [ logsdb_index_mode ]
+      reason: "Support for 'logsdb' index mode capability required"
+
+  - do:
+      catch: bad_request
+      indices.create:
+        index: test
+        body:
+          settings:
+            index:
+              mode: logsdb
+              number_of_replicas: 0
+              number_of_shards: 2
+              time_series:
+                start_time: 2023-01-01T00:00:00Z
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+              host.name:
+                type: keyword
+              agent_id:
+                type: keyword
+              process_id:
+                type: integer
+              http_method:
+                type: keyword
+              message:
+                type: text
+
+  - match: { error.root_cause.0.type: "illegal_argument_exception" }
+  - match: { error.type: "illegal_argument_exception" }
+  - match: { error.reason: "[index.time_series.start_time] requires [index.mode=time_series]" }
+
+---
+end time not allowed in logs mode:
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [ logsdb_index_mode ]
+      reason: "Support for 'logsdb' index mode capability required"
+
+  - do:
+      catch: bad_request
+      indices.create:
+        index: test
+        body:
+          settings:
+            index:
+              mode: logsdb
+              number_of_replicas: 0
+              number_of_shards: 2
+              time_series:
+                end_time: 2023-01-30T00:00:00Z
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+              host.name:
+                type: keyword
+              agent_id:
+                type: keyword
+              process_id:
+                type: integer
+              http_method:
+                type: keyword
+              message:
+                type: text
+
+  - match: { error.root_cause.0.type: "illegal_argument_exception" }
+  - match: { error.type: "illegal_argument_exception" }
+  - match: { error.reason: "[index.time_series.end_time] requires [index.mode=time_series]" }

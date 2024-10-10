@@ -1,0 +1,5 @@
+pr: 110993
+summary:  Add link to Max Shards Per Node exception message
+area: Distributed
+type: enhancement
+issues: []

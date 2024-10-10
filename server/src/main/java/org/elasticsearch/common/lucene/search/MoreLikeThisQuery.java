@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.lucene.search;
@@ -12,12 +13,12 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.index.Fields;
-import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.similarities.ClassicSimilarity;
@@ -116,12 +117,12 @@ public class MoreLikeThisQuery extends Query {
     }
 
     @Override
-    public Query rewrite(IndexReader reader) throws IOException {
-        Query rewritten = super.rewrite(reader);
+    public Query rewrite(IndexSearcher searcher) throws IOException {
+        Query rewritten = super.rewrite(searcher);
         if (rewritten != this) {
             return rewritten;
         }
-        XMoreLikeThis mlt = new XMoreLikeThis(reader, similarity == null ? new ClassicSimilarity() : similarity);
+        XMoreLikeThis mlt = new XMoreLikeThis(searcher.getIndexReader(), similarity == null ? new ClassicSimilarity() : similarity);
 
         mlt.setFieldNames(moreLikeFields);
         mlt.setAnalyzer(analyzer);

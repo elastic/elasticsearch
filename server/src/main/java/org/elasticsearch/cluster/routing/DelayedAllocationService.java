@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.routing;
@@ -19,10 +20,11 @@ import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -41,7 +43,7 @@ import static org.elasticsearch.cluster.routing.allocation.allocator.AllocationA
  * This class is responsible for choosing the next (closest) delay expiration of a
  * delayed shard to schedule a reroute to remove the delay marker.
  * The actual removal of the delay marker happens in
- * {@link AllocationService#removeDelayMarkers(RoutingAllocation)}, triggering yet
+ * {@link AllocationService.RerouteStrategy#removeDelayMarkers(RoutingAllocation)}, triggering yet
  * another cluster change event.
  */
 public class DelayedAllocationService extends AbstractLifecycleComponent implements ClusterStateListener {
@@ -96,7 +98,7 @@ public class DelayedAllocationService extends AbstractLifecycleComponent impleme
                     logger.warn("failed to submit schedule/execute reroute post unassigned shard", e);
                     removeIfSameTask(DelayedRerouteTask.this);
                 }
-            }, nextDelay, ThreadPool.Names.SAME);
+            }, nextDelay, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         }
 
         @Override
@@ -128,6 +130,7 @@ public class DelayedAllocationService extends AbstractLifecycleComponent impleme
         clusterService.submitUnbatchedStateUpdateTask(source, task);
     }
 
+    @SuppressWarnings("this-escape")
     @Inject
     public DelayedAllocationService(ThreadPool threadPool, ClusterService clusterService, AllocationService allocationService) {
         this.threadPool = threadPool;

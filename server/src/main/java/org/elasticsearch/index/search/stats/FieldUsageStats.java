@@ -1,14 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.search.stats;
 
-import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -52,12 +53,12 @@ public class FieldUsageStats implements ToXContentObject, Writeable {
     }
 
     public FieldUsageStats(StreamInput in) throws IOException {
-        stats = in.readMap(StreamInput::readString, PerFieldUsageStats::new);
+        stats = in.readMap(PerFieldUsageStats::new);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeMap(stats, StreamOutput::writeString, (o, v) -> v.writeTo(o));
+        out.writeMap(stats, StreamOutput::writeWriteable);
     }
 
     @Override
@@ -210,7 +211,7 @@ public class FieldUsageStats implements ToXContentObject, Writeable {
             payloads = in.readVLong();
             termVectors = in.readVLong();
             points = in.readVLong();
-            if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_1_0)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_1_0)) {
                 knnVectors = in.readVLong();
             } else {
                 knnVectors = 0;
@@ -232,7 +233,7 @@ public class FieldUsageStats implements ToXContentObject, Writeable {
             out.writeVLong(payloads);
             out.writeVLong(termVectors);
             out.writeVLong(points);
-            if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_1_0)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_1_0)) {
                 out.writeVLong(knnVectors);
             }
         }

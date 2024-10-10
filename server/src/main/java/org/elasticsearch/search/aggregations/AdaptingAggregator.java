@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations;
@@ -26,6 +27,7 @@ public abstract class AdaptingAggregator extends Aggregator {
     private final Aggregator parent;
     private final Aggregator delegate;
 
+    @SuppressWarnings("this-escape")
     public AdaptingAggregator(
         Aggregator parent,
         AggregatorFactories subAggregators,
@@ -49,6 +51,11 @@ public abstract class AdaptingAggregator extends Aggregator {
      * result expected by this {@linkplain Aggregator}.
      */
     protected abstract InternalAggregation adapt(InternalAggregation delegateResult) throws IOException;
+
+    @Override
+    public void releaseAggregations() {
+        delegate.releaseAggregations();
+    }
 
     @Override
     public final void close() {
@@ -122,10 +129,6 @@ public abstract class AdaptingAggregator extends Aggregator {
         Map<String, Object> delegateDebug = new HashMap<>();
         delegate.collectDebugInfo(delegateDebug::put);
         add.accept("delegate_debug", delegateDebug);
-    }
-
-    public Aggregator delegate() {
-        return delegate;
     }
 
     @Override

@@ -6,11 +6,44 @@ teardown:
         ignore: 404
 
 ---
+"Test Rename Processor":
+  - do:
+      ingest.put_pipeline:
+        id: "1"
+        body: >
+          {
+            "processors": [
+              {
+                "rename" : {
+                  "field" : "foo",
+                  "target_field": "bar"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index: test
+        id: "1"
+        pipeline: "1"
+        body: {
+          foo: "test"
+        }
+
+  - do:
+      get:
+        index: test
+        id: "1"
+  - match: { _source.bar: "test" }
+
+---
 "Test Rename Processor with template snippets and ignore_missing":
   - do:
       ingest.put_pipeline:
         id: "1"
-        body:  >
+        body: >
           {
             "processors": [
               {
@@ -38,3 +71,40 @@ teardown:
         index: test
         id: "1"
   - match: { _source.message: "test" }
+
+---
+"Test Rename Processor with override":
+  - do:
+      ingest.put_pipeline:
+        id: "1"
+        body: >
+          {
+            "processors": [
+              {
+                "rename" : {
+                  "field" : "message",
+                  "target_field": "event.original",
+                  "override": true
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index: test
+        id: "1"
+        pipeline: "1"
+        body: {
+          message: "overridden original message",
+          event: {
+            original: "original message"
+          }
+        }
+
+  - do:
+      get:
+        index: test
+        id: "1"
+  - match: { _source.event.original: "overridden original message" }

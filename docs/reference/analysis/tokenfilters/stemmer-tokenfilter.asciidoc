@@ -144,12 +144,12 @@ https://snowballstem.org/algorithms/danish/stemmer.html[*`danish`*]
 
 Dutch::
 https://snowballstem.org/algorithms/dutch/stemmer.html[*`dutch`*],
-https://snowballstem.org/algorithms/kraaij_pohlmann/stemmer.html[`dutch_kp`]
+https://snowballstem.org/algorithms/kraaij_pohlmann/stemmer.html[`dutch_kp`] deprecated:[8.16.0, `dutch_kp` will be removed in a future version]
 
 English::
 https://snowballstem.org/algorithms/porter/stemmer.html[*`english`*],
 https://ciir.cs.umass.edu/pubfiles/ir-35.pdf[`light_english`],
-https://snowballstem.org/algorithms/lovins/stemmer.html[`lovins`],
+https://snowballstem.org/algorithms/lovins/stemmer.html[`lovins`] deprecated:[8.16.0, `lovins` will be removed in a future version],
 https://www.researchgate.net/publication/220433848_How_effective_is_suffixing[`minimal_english`],
 https://snowballstem.org/algorithms/english/stemmer.html[`porter2`],
 {lucene-analysis-docs}/en/EnglishPossessiveFilter.html[`possessive_english`]
@@ -214,6 +214,9 @@ Norwegian (Nynorsk)::
 {lucene-analysis-docs}/no/NorwegianLightStemmer.html[*`light_nynorsk`*],
 {lucene-analysis-docs}/no/NorwegianMinimalStemmer.html[`minimal_nynorsk`]
 
+Persian::
+{lucene-analysis-docs}/fa/PersianStemmer.html[*`persian`*]
+
 Portuguese::
 https://dl.acm.org/citation.cfm?id=1141523&dl=ACM&coll=DL&CFID=179095584&CFTOKEN=80067181[*`light_portuguese`*],
 pass:macros[http://www.inf.ufrgs.br/~buriol/papers/Orengo_CLEF07.pdf[`minimal_portuguese`\]],
@@ -227,9 +230,13 @@ Russian::
 https://snowballstem.org/algorithms/russian/stemmer.html[*`russian`*],
 https://doc.rero.ch/lm.php?url=1000%2C43%2C4%2C20091209094227-CA%2FDolamic_Ljiljana_-_Indexing_and_Searching_Strategies_for_the_Russian_20091209.pdf[`light_russian`]
 
+Serbian::
+https://snowballstem.org/algorithms/serbian/stemmer.html[*`serbian`*]
+
 Spanish::
 https://www.ercim.eu/publication/ws-proceedings/CLEF2/savoy.pdf[*`light_spanish`*],
 https://snowballstem.org/algorithms/spanish/stemmer.html[`spanish`]
+https://www.wikilengua.org/index.php/Plural_(formaci%C3%B3n)[`spanish_plural`]
 
 Swedish::
 https://snowballstem.org/algorithms/swedish/stemmer.html[*`swedish`*],

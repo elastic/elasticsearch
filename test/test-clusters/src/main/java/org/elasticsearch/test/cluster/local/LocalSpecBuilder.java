@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.test.cluster.local;
@@ -11,10 +12,13 @@ package org.elasticsearch.test.cluster.local;
 import org.elasticsearch.test.cluster.EnvironmentProvider;
 import org.elasticsearch.test.cluster.FeatureFlag;
 import org.elasticsearch.test.cluster.SettingsProvider;
+import org.elasticsearch.test.cluster.SystemPropertyProvider;
+import org.elasticsearch.test.cluster.local.LocalClusterSpec.LocalNodeSpec;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.cluster.util.Version;
 import org.elasticsearch.test.cluster.util.resource.Resource;
 
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 interface LocalSpecBuilder<T extends LocalSpecBuilder<?>> {
@@ -34,6 +38,11 @@ interface LocalSpecBuilder<T extends LocalSpecBuilder<?>> {
     T setting(String setting, Supplier<String> value);
 
     /**
+     * Add a new node setting computed by the given supplier when the given predicate evaluates to {@code true}.
+     */
+    T setting(String setting, Supplier<String> value, Predicate<LocalNodeSpec> predicate);
+
+    /**
      * Register a {@link EnvironmentProvider}.
      */
     T environment(EnvironmentProvider environmentProvider);
@@ -42,6 +51,11 @@ interface LocalSpecBuilder<T extends LocalSpecBuilder<?>> {
      * Add a new node environment variable.
      */
     T environment(String key, String value);
+
+    /**
+     * Add a new node environment variable computed by the given supplier.
+     */
+    T environment(String key, Supplier<String> supplier);
 
     /**
      * Set the cluster {@link DistributionType}. By default, the {@link DistributionType#INTEG_TEST} distribution is used.
@@ -75,6 +89,21 @@ interface LocalSpecBuilder<T extends LocalSpecBuilder<?>> {
     T keystore(String key, Resource file);
 
     /**
+     * Add a secure setting computed by the given supplier.
+     */
+    T keystore(String key, Supplier<String> supplier);
+
+    /**
+     * Add a secure setting computed by the given supplier when the given predicate evaluates to {@code true}.
+     */
+    T keystore(String key, Supplier<String> supplier, Predicate<LocalNodeSpec> predicate);
+
+    /**
+     * Register a {@link SettingsProvider} for keystore settings.
+     */
+    T keystore(SettingsProvider settingsProvider);
+
+    /**
      * Sets the security setting keystore password.
      */
     T keystorePassword(String password);
@@ -93,4 +122,25 @@ interface LocalSpecBuilder<T extends LocalSpecBuilder<?>> {
      * Adds a system property to node JVM arguments.
      */
     T systemProperty(String property, String value);
+
+    /**
+     * Adds a system property to node JVM arguments computed by the given supplier
+     */
+    T systemProperty(String property, Supplier<String> supplier);
+
+    /**
+     * Adds a system property to node JVM arguments computed by the given supplier
+     * when the given predicate evaluates to {@code true}.
+     */
+    T systemProperty(String setting, Supplier<String> value, Predicate<LocalNodeSpec> predicate);
+
+    /**
+     * Register a {@link SystemPropertyProvider}.
+     */
+    T systemProperty(SystemPropertyProvider systemPropertyProvider);
+
+    /**
+     * Adds an additional command line argument to node JVM arguments.
+     */
+    T jvmArg(String arg);
 }

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.upgrades;
@@ -11,7 +12,6 @@ package org.elasticsearch.upgrades;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequestBuilder;
@@ -19,6 +19,7 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexClusterStateUpda
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsClusterStateUpdateRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.action.support.master.ShardsAcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
@@ -31,11 +32,12 @@ import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.cluster.metadata.MetadataUpdateSettingsService;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
@@ -55,7 +57,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.action.admin.cluster.migration.TransportGetFeatureUpgradeStatusAction.NO_UPGRADE_REQUIRED_VERSION;
+import static org.elasticsearch.action.admin.cluster.migration.TransportGetFeatureUpgradeStatusAction.NO_UPGRADE_REQUIRED_INDEX_VERSION;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.State.CLOSE;
 import static org.elasticsearch.core.Strings.format;
 
@@ -67,8 +69,6 @@ import static org.elasticsearch.core.Strings.format;
  */
 public class SystemIndexMigrator extends AllocatedPersistentTask {
     private static final Logger logger = LogManager.getLogger(SystemIndexMigrator.class);
-
-    private static final Version READY_FOR_MIGRATION_VERSION = Version.V_7_16_0;
 
     // Fixed properties & services
     private final ParentTaskAssigningClient baseClient;
@@ -298,16 +298,13 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
         MigrationResultsUpdateTask updateTask = MigrationResultsUpdateTask.upsert(
             lastMigrationInfo.getFeatureName(),
             SingleFeatureMigrationResult.success(),
-            ActionListener.wrap(
-                state -> {
-                    prepareNextIndex(
-                        state,
-                        clusterState -> migrateSingleIndex(clusterState, this::finishIndexAndLoop),
-                        lastMigrationInfo.getFeatureName()
-                    );
-                },
-                this::markAsFailed
-            )
+            ActionListener.wrap(state -> {
+                prepareNextIndex(
+                    state,
+                    clusterState -> migrateSingleIndex(clusterState, this::finishIndexAndLoop),
+                    lastMigrationInfo.getFeatureName()
+                );
+            }, this::markAsFailed)
         );
         updateTask.submit(clusterService);
     }
@@ -362,7 +359,7 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
         if (indexMetadata == null) {
             return false;
         }
-        return indexMetadata.isSystem() && indexMetadata.getCreationVersion().before(NO_UPGRADE_REQUIRED_VERSION);
+        return indexMetadata.isSystem() && indexMetadata.getCreationVersion().before(NO_UPGRADE_REQUIRED_INDEX_VERSION);
     }
 
     private void migrateSingleIndex(ClusterState clusterState, Consumer<BulkByScrollResponse> listener) {
@@ -424,12 +421,7 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
         logger.info("migrating index [{}] from feature [{}] to new index [{}]", oldIndexName, migrationInfo.getFeatureName(), newIndexName);
         ActionListener<BulkByScrollResponse> innerListener = ActionListener.wrap(listener::accept, this::markAsFailed);
         try {
-            Exception versionException = checkNodeVersionsReadyForMigration(clusterState);
-            if (versionException != null) {
-                markAsFailed(versionException);
-                return;
-            }
-            createIndex(migrationInfo, ActionListener.wrap(shardsAcknowledgedResponse -> {
+            createIndex(migrationInfo, innerListener.delegateFailureAndWrap((delegate, shardsAcknowledgedResponse) -> {
                 logger.debug(
                     "while migrating [{}] , got create index response: [{}]",
                     oldIndexName,
@@ -438,45 +430,45 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
                 setWriteBlock(
                     oldIndex,
                     true,
-                    ActionListener.wrap(setReadOnlyResponse -> reindex(migrationInfo, ActionListener.wrap(bulkByScrollResponse -> {
-                        logger.debug(
-                            "while migrating [{}], got reindex response: [{}]",
-                            oldIndexName,
-                            Strings.toString(bulkByScrollResponse)
-                        );
-                        if ((bulkByScrollResponse.getBulkFailures() != null && bulkByScrollResponse.getBulkFailures().isEmpty() == false)
-                            || (bulkByScrollResponse.getSearchFailures() != null
-                                && bulkByScrollResponse.getSearchFailures().isEmpty() == false)) {
-                            removeReadOnlyBlockOnReindexFailure(
-                                oldIndex,
-                                innerListener,
-                                logAndThrowExceptionForFailures(bulkByScrollResponse)
-                            );
-                        } else {
-                            // Successful completion of reindexing - remove read only and delete old index
-                            setWriteBlock(
-                                oldIndex,
-                                false,
-                                ActionListener.wrap(
-                                    setAliasAndRemoveOldIndex(migrationInfo, bulkByScrollResponse, innerListener),
-                                    innerListener::onFailure
-                                )
-                            );
-                        }
-                    }, e -> {
-                        logger.error(
-                            () -> format(
-                                "error occurred while reindexing index [%s] from feature [%s] to destination index [%s]",
+                    delegate.delegateFailureAndWrap(
+                        (delegate2, setReadOnlyResponse) -> reindex(migrationInfo, ActionListener.wrap(bulkByScrollResponse -> {
+                            logger.debug(
+                                "while migrating [{}], got reindex response: [{}]",
                                 oldIndexName,
-                                migrationInfo.getFeatureName(),
-                                newIndexName
-                            ),
-                            e
-                        );
-                        removeReadOnlyBlockOnReindexFailure(oldIndex, innerListener, e);
-                    })), innerListener::onFailure)
+                                Strings.toString(bulkByScrollResponse)
+                            );
+                            if ((bulkByScrollResponse.getBulkFailures() != null
+                                && bulkByScrollResponse.getBulkFailures().isEmpty() == false)
+                                || (bulkByScrollResponse.getSearchFailures() != null
+                                    && bulkByScrollResponse.getSearchFailures().isEmpty() == false)) {
+                                removeReadOnlyBlockOnReindexFailure(
+                                    oldIndex,
+                                    delegate2,
+                                    logAndThrowExceptionForFailures(bulkByScrollResponse)
+                                );
+                            } else {
+                                // Successful completion of reindexing - remove read only and delete old index
+                                setWriteBlock(
+                                    oldIndex,
+                                    false,
+                                    delegate2.delegateFailureAndWrap(setAliasAndRemoveOldIndex(migrationInfo, bulkByScrollResponse))
+                                );
+                            }
+                        }, e -> {
+                            logger.error(
+                                () -> format(
+                                    "error occurred while reindexing index [%s] from feature [%s] to destination index [%s]",
+                                    oldIndexName,
+                                    migrationInfo.getFeatureName(),
+                                    newIndexName
+                                ),
+                                e
+                            );
+                            removeReadOnlyBlockOnReindexFailure(oldIndex, delegate2, e);
+                        }))
+                    )
                 );
-            }, innerListener::onFailure));
+            }));
         } catch (Exception ex) {
             logger.error(
                 () -> format(
@@ -509,13 +501,18 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
         createRequest.waitForActiveShards(ActiveShardCount.ALL)
             .mappings(migrationInfo.getMappings())
             .settings(Objects.requireNonNullElse(settingsBuilder.build(), Settings.EMPTY));
-        metadataCreateIndexService.createIndex(createRequest, listener);
+        metadataCreateIndexService.createIndex(
+            MasterNodeRequest.INFINITE_MASTER_NODE_TIMEOUT,
+            TimeValue.ZERO,
+            null,
+            createRequest,
+            listener
+        );
     }
 
-    private CheckedConsumer<AcknowledgedResponse, Exception> setAliasAndRemoveOldIndex(
+    private CheckedBiConsumer<ActionListener<BulkByScrollResponse>, AcknowledgedResponse, Exception> setAliasAndRemoveOldIndex(
         SystemIndexMigrationInfo migrationInfo,
-        BulkByScrollResponse bulkByScrollResponse,
-        ActionListener<BulkByScrollResponse> listener
+        BulkByScrollResponse bulkByScrollResponse
     ) {
         final IndicesAliasesRequestBuilder aliasesRequest = migrationInfo.createClient(baseClient).admin().indices().prepareAliases();
         aliasesRequest.removeIndex(migrationInfo.getCurrentIndexName());
@@ -537,8 +534,8 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
 
         // Technically this callback might have a different cluster state, but it shouldn't matter - these indices shouldn't be changing
         // while we're trying to migrate them.
-        return unsetReadOnlyResponse -> aliasesRequest.execute(
-            ActionListener.wrap(deleteIndexResponse -> listener.onResponse(bulkByScrollResponse), listener::onFailure)
+        return (listener, unsetReadOnlyResponse) -> aliasesRequest.execute(
+            listener.delegateFailureAndWrap((l, deleteIndexResponse) -> l.onResponse(bulkByScrollResponse))
         );
     }
 
@@ -547,11 +544,18 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
      */
     private void setWriteBlock(Index index, boolean readOnlyValue, ActionListener<AcknowledgedResponse> listener) {
         final Settings readOnlySettings = Settings.builder().put(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey(), readOnlyValue).build();
-        UpdateSettingsClusterStateUpdateRequest updateSettingsRequest = new UpdateSettingsClusterStateUpdateRequest().indices(
-            new Index[] { index }
-        ).settings(readOnlySettings).setPreserveExisting(false);
 
-        metadataUpdateSettingsService.updateSettings(updateSettingsRequest, listener);
+        metadataUpdateSettingsService.updateSettings(
+            new UpdateSettingsClusterStateUpdateRequest(
+                MasterNodeRequest.INFINITE_MASTER_NODE_TIMEOUT,
+                TimeValue.ZERO,
+                readOnlySettings,
+                UpdateSettingsClusterStateUpdateRequest.OnExisting.OVERWRITE,
+                UpdateSettingsClusterStateUpdateRequest.OnStaticSetting.REJECT,
+                index
+            ),
+            listener
+        );
     }
 
     private void reindex(SystemIndexMigrationInfo migrationInfo, ActionListener<BulkByScrollResponse> listener) {
@@ -603,20 +607,6 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
             ActionListener.wrap(state -> super.markAsFailed(e), exception -> super.markAsFailed(e))
         ).submit(clusterService);
         super.markAsFailed(e);
-    }
-
-    private static Exception checkNodeVersionsReadyForMigration(ClusterState state) {
-        final Version minNodeVersion = state.nodes().getMinNodeVersion();
-        if (minNodeVersion.before(READY_FOR_MIGRATION_VERSION)) {
-            return new IllegalStateException(
-                "all nodes must be on version ["
-                    + READY_FOR_MIGRATION_VERSION
-                    + "] or later to migrate feature indices but lowest node version currently in cluster is ["
-                    + minNodeVersion
-                    + "]"
-            );
-        }
-        return null;
     }
 
     /**

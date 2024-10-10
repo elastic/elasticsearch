@@ -12,7 +12,7 @@ exceeds 85%.
 
 **Check JVM memory pressure**
 
-include::{es-repo-dir}/tab-widgets/jvm-memory-pressure-widget.asciidoc[]
+include::{es-ref-dir}/tab-widgets/jvm-memory-pressure-widget.asciidoc[]
 
 **Check garbage collection logs**
 
@@ -27,9 +27,17 @@ collection.
 [timestamp_short_interval_from_last][INFO ][o.e.m.j.JvmGcMonitorService] [node_id] [gc][number] overhead, spent [21s] collecting in the last [40s]
 ----
 
+**Capture a JVM heap dump**
+
+To determine the exact reason for the high JVM memory pressure, capture a heap
+dump of the JVM while its memory usage is high, and also capture the
+<<gc-logging,garbage collector logs>> covering the same time period.
+
 [discrete]
 [[reduce-jvm-memory-pressure]]
 ==== Reduce JVM memory pressure
+
+This section contains some common suggestions for reducing JVM memory pressure.
 
 **Reduce your shard count**
 
@@ -57,6 +65,8 @@ searches, consider the following setting changes:
 * Disable expensive queries using the
 <<query-dsl-allow-expensive-queries,`search.allow_expensive_queries`>> cluster
 setting.
+
+* Set a default search timeout using the <<search-timeout,`search.default_search_timeout`>> cluster setting. 
 
 [source,console]
 ----

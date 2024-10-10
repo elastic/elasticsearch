@@ -7,11 +7,12 @@
 package org.elasticsearch.xpack.ccr;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -89,7 +90,7 @@ public class CCRInfoTransportAction extends XPackInfoFeatureTransportAction {
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersion.V_7_0_0;
+            return TransportVersions.V_7_0_0;
         }
 
         public int getNumberOfFollowerIndices() {

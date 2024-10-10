@@ -1,13 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.action.support;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.DelegatingActionListener;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 
 import java.util.function.Supplier;
@@ -16,7 +18,7 @@ import java.util.function.Supplier;
  * Restores the given {@link org.elasticsearch.common.util.concurrent.ThreadContext.StoredContext}
  * once the listener is invoked
  */
-public final class ContextPreservingActionListener<R> extends ActionListener.Delegating<R, R> {
+public final class ContextPreservingActionListener<R> extends DelegatingActionListener<R, R> {
 
     private final Supplier<ThreadContext.StoredContext> context;
 
@@ -35,7 +37,7 @@ public final class ContextPreservingActionListener<R> extends ActionListener.Del
     @Override
     public void onFailure(Exception e) {
         try (ThreadContext.StoredContext ignore = context.get()) {
-            delegate.onFailure(e);
+            super.onFailure(e);
         }
     }
 

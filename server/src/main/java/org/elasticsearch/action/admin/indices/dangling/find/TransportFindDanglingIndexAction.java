@@ -1,22 +1,24 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.indices.dangling.find;
 
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.nodes.TransportNodesAction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.gateway.DanglingIndicesState;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -32,9 +34,11 @@ public class TransportFindDanglingIndexAction extends TransportNodesAction<
     FindDanglingIndexRequest,
     FindDanglingIndexResponse,
     NodeFindDanglingIndexRequest,
-    NodeFindDanglingIndexResponse> {
+    NodeFindDanglingIndexResponse,
+    Void> {
 
-    private final TransportService transportService;
+    public static final ActionType<FindDanglingIndexResponse> TYPE = new ActionType<>("cluster:admin/indices/dangling/find");
+
     private final DanglingIndicesState danglingIndicesState;
 
     @Inject
@@ -46,17 +50,13 @@ public class TransportFindDanglingIndexAction extends TransportNodesAction<
         DanglingIndicesState danglingIndicesState
     ) {
         super(
-            FindDanglingIndexAction.NAME,
-            threadPool,
+            TYPE.name(),
             clusterService,
             transportService,
             actionFilters,
-            FindDanglingIndexRequest::new,
             NodeFindDanglingIndexRequest::new,
-            ThreadPool.Names.MANAGEMENT,
-            NodeFindDanglingIndexResponse.class
+            threadPool.executor(ThreadPool.Names.MANAGEMENT)
         );
-        this.transportService = transportService;
         this.danglingIndicesState = danglingIndicesState;
     }
 

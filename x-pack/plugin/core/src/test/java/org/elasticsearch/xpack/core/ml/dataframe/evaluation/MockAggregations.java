@@ -6,13 +6,14 @@
  */
 package org.elasticsearch.xpack.core.ml.dataframe.evaluation;
 
-import org.elasticsearch.search.aggregations.Aggregations;
-import org.elasticsearch.search.aggregations.bucket.filter.Filter;
+import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.bucket.filter.Filters;
-import org.elasticsearch.search.aggregations.bucket.terms.Terms;
-import org.elasticsearch.search.aggregations.metrics.Cardinality;
-import org.elasticsearch.search.aggregations.metrics.ExtendedStats;
-import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregation;
+import org.elasticsearch.search.aggregations.bucket.filter.InternalFilter;
+import org.elasticsearch.search.aggregations.bucket.filter.InternalFilters;
+import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
+import org.elasticsearch.search.aggregations.metrics.InternalCardinality;
+import org.elasticsearch.search.aggregations.metrics.InternalExtendedStats;
+import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggregation;
 
 import java.util.Collections;
 import java.util.List;
@@ -23,72 +24,72 @@ import static org.mockito.Mockito.when;
 
 public final class MockAggregations {
 
-    public static Terms mockTerms(String name) {
+    public static StringTerms mockTerms(String name) {
         return mockTerms(name, Collections.emptyList(), 0);
     }
 
-    public static Terms mockTerms(String name, List<Terms.Bucket> buckets, long sumOfOtherDocCounts) {
-        Terms agg = mock(Terms.class);
+    public static StringTerms mockTerms(String name, List<StringTerms.Bucket> buckets, long sumOfOtherDocCounts) {
+        StringTerms agg = mock(StringTerms.class);
         when(agg.getName()).thenReturn(name);
         doReturn(buckets).when(agg).getBuckets();
         when(agg.getSumOfOtherDocCounts()).thenReturn(sumOfOtherDocCounts);
         return agg;
     }
 
-    public static Terms.Bucket mockTermsBucket(String key, Aggregations subAggs) {
-        Terms.Bucket bucket = mock(Terms.Bucket.class);
+    public static StringTerms.Bucket mockTermsBucket(String key, InternalAggregations subAggs) {
+        StringTerms.Bucket bucket = mock(StringTerms.Bucket.class);
         when(bucket.getKeyAsString()).thenReturn(key);
         when(bucket.getAggregations()).thenReturn(subAggs);
         return bucket;
     }
 
-    public static Filters mockFilters(String name) {
+    public static InternalFilters mockFilters(String name) {
         return mockFilters(name, Collections.emptyList());
     }
 
-    public static Filters mockFilters(String name, List<Filters.Bucket> buckets) {
-        Filters agg = mock(Filters.class);
+    public static InternalFilters mockFilters(String name, List<Filters.Bucket> buckets) {
+        InternalFilters agg = mock(InternalFilters.class);
         when(agg.getName()).thenReturn(name);
         doReturn(buckets).when(agg).getBuckets();
         return agg;
     }
 
-    public static Filters.Bucket mockFiltersBucket(String key, long docCount, Aggregations subAggs) {
-        Filters.Bucket bucket = mockFiltersBucket(key, docCount);
+    public static InternalFilters.InternalBucket mockFiltersBucket(String key, long docCount, InternalAggregations subAggs) {
+        InternalFilters.InternalBucket bucket = mockFiltersBucket(key, docCount);
         when(bucket.getAggregations()).thenReturn(subAggs);
         return bucket;
     }
 
-    public static Filters.Bucket mockFiltersBucket(String key, long docCount) {
-        Filters.Bucket bucket = mock(Filters.Bucket.class);
+    public static InternalFilters.InternalBucket mockFiltersBucket(String key, long docCount) {
+        InternalFilters.InternalBucket bucket = mock(InternalFilters.InternalBucket.class);
         when(bucket.getKeyAsString()).thenReturn(key);
         when(bucket.getDocCount()).thenReturn(docCount);
         return bucket;
     }
 
-    public static Filter mockFilter(String name, long docCount) {
-        Filter agg = mock(Filter.class);
+    public static InternalFilter mockFilter(String name, long docCount) {
+        InternalFilter agg = mock(InternalFilter.class);
         when(agg.getName()).thenReturn(name);
         when(agg.getDocCount()).thenReturn(docCount);
         return agg;
     }
 
-    public static NumericMetricsAggregation.SingleValue mockSingleValue(String name, double value) {
-        NumericMetricsAggregation.SingleValue agg = mock(NumericMetricsAggregation.SingleValue.class);
+    public static InternalNumericMetricsAggregation.SingleValue mockSingleValue(String name, double value) {
+        InternalNumericMetricsAggregation.SingleValue agg = mock(InternalNumericMetricsAggregation.SingleValue.class);
         when(agg.getName()).thenReturn(name);
         when(agg.value()).thenReturn(value);
         return agg;
     }
 
-    public static Cardinality mockCardinality(String name, long value) {
-        Cardinality agg = mock(Cardinality.class);
+    public static InternalCardinality mockCardinality(String name, long value) {
+        InternalCardinality agg = mock(InternalCardinality.class);
         when(agg.getName()).thenReturn(name);
         when(agg.getValue()).thenReturn(value);
         return agg;
     }
 
-    public static ExtendedStats mockExtendedStats(String name, double variance, long count) {
-        ExtendedStats agg = mock(ExtendedStats.class);
+    public static InternalExtendedStats mockExtendedStats(String name, double variance, long count) {
+        InternalExtendedStats agg = mock(InternalExtendedStats.class);
         when(agg.getName()).thenReturn(name);
         when(agg.getVariance()).thenReturn(variance);
         when(agg.getCount()).thenReturn(count);

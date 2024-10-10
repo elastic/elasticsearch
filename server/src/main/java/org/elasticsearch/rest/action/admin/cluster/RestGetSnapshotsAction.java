@@ -1,28 +1,32 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.rest.action.admin.cluster;
 
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
+import org.elasticsearch.action.admin.cluster.snapshots.get.SnapshotSortKey;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestCancellableNodeClient;
-import org.elasticsearch.rest.action.RestChunkedToXContentListener;
+import org.elasticsearch.rest.action.RestRefCountedChunkedToXContentListener;
 import org.elasticsearch.search.sort.SortOrder;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Set;
 
-import static org.elasticsearch.client.internal.Requests.getSnapshotsRequest;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
+import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
 import static org.elasticsearch.snapshots.SnapshotInfo.INCLUDE_REPOSITORY_XCONTENT_PARAM;
 import static org.elasticsearch.snapshots.SnapshotInfo.INDEX_DETAILS_XCONTENT_PARAM;
 import static org.elasticsearch.snapshots.SnapshotInfo.INDEX_NAMES_XCONTENT_PARAM;
@@ -30,6 +34,7 @@ import static org.elasticsearch.snapshots.SnapshotInfo.INDEX_NAMES_XCONTENT_PARA
 /**
  * Returns information about snapshot
  */
+@ServerlessScope(Scope.INTERNAL)
 public class RestGetSnapshotsAction extends BaseRestHandler {
 
     public RestGetSnapshotsAction() {}
@@ -54,10 +59,10 @@ public class RestGetSnapshotsAction extends BaseRestHandler {
         String[] repositories = request.paramAsStringArray("repository", Strings.EMPTY_ARRAY);
         String[] snapshots = request.paramAsStringArray("snapshot", Strings.EMPTY_ARRAY);
 
-        GetSnapshotsRequest getSnapshotsRequest = getSnapshotsRequest(repositories).snapshots(snapshots);
+        final var getSnapshotsRequest = new GetSnapshotsRequest(getMasterNodeTimeout(request), repositories).snapshots(snapshots);
         getSnapshotsRequest.ignoreUnavailable(request.paramAsBoolean("ignore_unavailable", getSnapshotsRequest.ignoreUnavailable()));
         getSnapshotsRequest.verbose(request.paramAsBoolean("verbose", getSnapshotsRequest.verbose()));
-        final GetSnapshotsRequest.SortBy sort = GetSnapshotsRequest.SortBy.of(request.param("sort", getSnapshotsRequest.sort().toString()));
+        final SnapshotSortKey sort = SnapshotSortKey.of(request.param("sort", getSnapshotsRequest.sort().toString()));
         getSnapshotsRequest.sort(sort);
         final int size = request.paramAsInt("size", getSnapshotsRequest.size());
         getSnapshotsRequest.size(size);
@@ -65,7 +70,7 @@ public class RestGetSnapshotsAction extends BaseRestHandler {
         getSnapshotsRequest.offset(offset);
         final String afterString = request.param("after");
         if (afterString != null) {
-            getSnapshotsRequest.after(GetSnapshotsRequest.After.fromQueryParam(afterString));
+            getSnapshotsRequest.after(SnapshotSortKey.decodeAfterQueryParam(afterString));
         }
         final String fromSortValue = request.param("from_sort_value");
         if (fromSortValue != null) {
@@ -77,9 +82,8 @@ public class RestGetSnapshotsAction extends BaseRestHandler {
         final SortOrder order = SortOrder.fromString(request.param("order", getSnapshotsRequest.order().toString()));
         getSnapshotsRequest.order(order);
         getSnapshotsRequest.includeIndexNames(request.paramAsBoolean(INDEX_NAMES_XCONTENT_PARAM, getSnapshotsRequest.includeIndexNames()));
-        getSnapshotsRequest.masterNodeTimeout(request.paramAsTime("master_timeout", getSnapshotsRequest.masterNodeTimeout()));
         return channel -> new RestCancellableNodeClient(client, request.getHttpChannel()).admin()
             .cluster()
-            .getSnapshots(getSnapshotsRequest, new RestChunkedToXContentListener<>(channel));
+            .getSnapshots(getSnapshotsRequest, new RestRefCountedChunkedToXContentListener<>(channel));
     }
 }

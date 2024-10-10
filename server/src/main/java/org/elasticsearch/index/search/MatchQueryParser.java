@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.search;
@@ -43,7 +44,6 @@ import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.ZeroTermsQueryOption;
-import org.elasticsearch.index.query.support.QueryParsers;
 import org.elasticsearch.lucene.analysis.miscellaneous.DisableGraphAttribute;
 
 import java.io.IOException;
@@ -471,21 +471,22 @@ public class MatchQueryParser {
 
         @Override
         protected Query newTermQuery(Term term, float boost) {
-            Supplier<Query> querySupplier;
+            final Supplier<Query> querySupplier;
             if (fuzziness != null) {
-                querySupplier = () -> {
-                    Query query = fieldType.fuzzyQuery(term.text(), fuzziness, fuzzyPrefixLength, maxExpansions, transpositions, context);
-                    if (query instanceof FuzzyQuery) {
-                        QueryParsers.setRewriteMethod((FuzzyQuery) query, fuzzyRewriteMethod);
-                    }
-                    return query;
-                };
+                querySupplier = () -> fieldType.fuzzyQuery(
+                    term.text(),
+                    fuzziness,
+                    fuzzyPrefixLength,
+                    maxExpansions,
+                    transpositions,
+                    context,
+                    fuzzyRewriteMethod
+                );
             } else {
                 querySupplier = () -> fieldType.termQuery(term.bytes(), context);
             }
             try {
-                Query query = querySupplier.get();
-                return query;
+                return querySupplier.get();
             } catch (RuntimeException e) {
                 if (lenient) {
                     return newLenientFieldQuery(fieldType.name(), e);

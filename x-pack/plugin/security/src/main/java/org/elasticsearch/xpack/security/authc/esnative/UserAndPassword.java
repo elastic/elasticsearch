@@ -10,6 +10,8 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.user.User;
 
+import java.util.Arrays;
+
 /**
  * Like User, but includes the hashed password
  *
@@ -51,7 +53,7 @@ class UserAndPassword {
     @Override
     public int hashCode() {
         int result = this.user.hashCode();
-        result = 31 * result + passwordHash().hashCode();
+        result = 31 * result + Arrays.hashCode(passwordHash());
         return result;
     }
 

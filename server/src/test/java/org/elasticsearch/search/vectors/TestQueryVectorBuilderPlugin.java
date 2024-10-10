@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.vectors;
@@ -58,7 +59,7 @@ class TestQueryVectorBuilderPlugin implements SearchPlugin {
         }
 
         TestQueryVectorBuilder(StreamInput in) throws IOException {
-            this.vectorToBuild = in.readList(StreamInput::readFloat);
+            this.vectorToBuild = in.readCollectionAsList(StreamInput::readFloat);
         }
 
         @Override
@@ -73,7 +74,7 @@ class TestQueryVectorBuilderPlugin implements SearchPlugin {
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersion.CURRENT;
+            return TransportVersion.current();
         }
 
         @Override
@@ -108,7 +109,7 @@ class TestQueryVectorBuilderPlugin implements SearchPlugin {
     @Override
     public List<QueryVectorBuilderSpec<?>> getQueryVectorBuilders() {
         return List.of(
-            new QueryVectorBuilderSpec<>(TestQueryVectorBuilder.NAME, TestQueryVectorBuilder::new, TestQueryVectorBuilder.PARSER::apply)
+            new QueryVectorBuilderSpec<>(TestQueryVectorBuilder.NAME, TestQueryVectorBuilder::new, TestQueryVectorBuilder.PARSER)
         );
     }
 }

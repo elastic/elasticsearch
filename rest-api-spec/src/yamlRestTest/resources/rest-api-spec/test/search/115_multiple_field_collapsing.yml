@@ -1,3 +1,9 @@
+setup:
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/issues/109476"
+      known_issues:
+        - cluster_feature: "gte_v8.13.0"
+          fixed_by: "gte_v8.14.0"
 ---
 "two levels fields collapsing":
 
@@ -7,7 +13,6 @@
           body:
             settings:
               number_of_shards: 1
-              number_of_replicas: 1
             mappings:
               properties:
                 country: {"type": "keyword"}

@@ -1,7 +1,7 @@
 [[snapshots-read-only-repository]]
 === Read-only URL repository
 
-include::{es-repo-dir}/snapshot-restore/on-prem-repo-type.asciidoc[]
+include::{es-ref-dir}/snapshot-restore/on-prem-repo-type.asciidoc[]
 
 You can use a URL repository to give a cluster read-only access to a shared file
 system. Since URL repositories are always read-only, they're a safer and more

@@ -1,16 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.routing.allocation.decider;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -18,12 +19,14 @@ import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodesHelper;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
-import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.core.Predicates;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -36,13 +39,14 @@ import java.util.stream.Collector;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class AllocationDecidersTests extends ESTestCase {
+public class AllocationDecidersTests extends ESAllocationTestCase {
 
     public void testCheckAllDecidersBeforeReturningYes() {
         var allDecisions = generateDecisions(() -> Decision.YES);
         var debugMode = randomFrom(RoutingAllocation.DebugMode.values());
         var expectedDecision = switch (debugMode) {
-            case OFF, EXCLUDE_YES_DECISIONS -> new Decision.Multi();
+            case OFF -> Decision.YES;
+            case EXCLUDE_YES_DECISIONS -> new Decision.Multi();
             case ON -> collectToMultiDecision(allDecisions);
         };
 
@@ -53,7 +57,8 @@ public class AllocationDecidersTests extends ESTestCase {
         var allDecisions = generateDecisions(Decision.THROTTLE, () -> Decision.YES);
         var debugMode = randomFrom(RoutingAllocation.DebugMode.values());
         var expectedDecision = switch (debugMode) {
-            case OFF, EXCLUDE_YES_DECISIONS -> new Decision.Multi().add(Decision.THROTTLE);
+            case OFF -> Decision.THROTTLE;
+            case EXCLUDE_YES_DECISIONS -> new Decision.Multi().add(Decision.THROTTLE);
             case ON -> collectToMultiDecision(allDecisions);
         };
 
@@ -61,10 +66,9 @@ public class AllocationDecidersTests extends ESTestCase {
     }
 
     public void testExitsAfterFirstNoDecision() {
-        var expectedDecision = Decision.NO;
-        var terminatingDecision = randomFrom(Decision.NO, Decision.single(Decision.Type.NO, "no with label", "explanation"));
-        var allDecisions = generateDecisions(terminatingDecision, () -> randomFrom(Decision.YES, Decision.THROTTLE));
-        var expectedCalls = allDecisions.indexOf(terminatingDecision) + 1;
+        var expectedDecision = randomFrom(Decision.NO, Decision.single(Decision.Type.NO, "no with label", "explanation"));
+        var allDecisions = generateDecisions(expectedDecision, () -> randomFrom(Decision.YES, Decision.THROTTLE));
+        var expectedCalls = allDecisions.indexOf(expectedDecision) + 1;
 
         verifyDecidersCall(RoutingAllocation.DebugMode.OFF, allDecisions, expectedCalls, expectedDecision);
     }
@@ -111,15 +115,13 @@ public class AllocationDecidersTests extends ESTestCase {
     }
 
     private static Decision.Multi collectToMultiDecision(List<Decision> decisions) {
-        return collectToMultiDecision(decisions, ignored -> true);
+        return collectToMultiDecision(decisions, Predicates.always());
     }
 
     private static Decision.Multi collectToMultiDecision(List<Decision> decisions, Predicate<Decision> filter) {
-        return decisions.stream()
-            .filter(filter)
-            .collect(
-                Collector.of(Decision.Multi::new, Decision.Multi::add, (a, b) -> { throw new AssertionError("should not be called"); })
-            );
+        return decisions.stream().filter(filter).collect(Collector.of(Decision.Multi::new, Decision.Multi::add, (a, b) -> {
+            throw new AssertionError("should not be called");
+        }));
     }
 
     private void verifyDecidersCall(
@@ -128,30 +130,29 @@ public class AllocationDecidersTests extends ESTestCase {
         int expectedAllocationDecidersCalls,
         Decision expectedDecision
     ) {
-        IndexMetadata index = IndexMetadata.builder("index")
-            .settings(settings(Version.CURRENT))
-            .numberOfShards(1)
-            .numberOfReplicas(0)
-            .build();
+        IndexMetadata index = IndexMetadata.builder("index").settings(indexSettings(IndexVersion.current(), 1, 0)).build();
+        ShardId shardId = new ShardId(index.getIndex(), 0);
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .metadata(Metadata.builder().put(index, false).build())
             .build();
-        ShardRouting shardRouting = createShardRouting(index.getIndex());
+
+        ShardRouting startedShard = TestShardRouting.newShardRouting(shardId, "node", true, ShardRoutingState.STARTED);
+        ShardRouting unassignedShard = createUnassignedShard(index.getIndex());
+
         RoutingNode routingNode = RoutingNodesHelper.routingNode("node", null);
-        DiscoveryNode discoveryNode = new DiscoveryNode("node", new TransportAddress(TransportAddress.META_ADDRESS, 0), Version.CURRENT);
+        DiscoveryNode discoveryNode = newNode("node");
 
         List.<BiFunction<RoutingAllocation, AllocationDeciders, Decision>>of(
-            (allocation, deciders) -> deciders.canAllocate(shardRouting, allocation),
-            (allocation, deciders) -> deciders.canAllocate(shardRouting, routingNode, allocation),
+            (allocation, deciders) -> deciders.canAllocate(unassignedShard, allocation),
+            (allocation, deciders) -> deciders.canAllocate(unassignedShard, routingNode, allocation),
             (allocation, deciders) -> deciders.canAllocate(index, routingNode, allocation),
             (allocation, deciders) -> deciders.canRebalance(allocation),
-            (allocation, deciders) -> deciders.canRebalance(shardRouting, allocation),
-            // TODO https://github.com/elastic/elasticsearch/pull/93374
-            // (allocation, deciders) -> deciders.canRemain(shardRouting, routingNode, allocation),
+            (allocation, deciders) -> deciders.canRebalance(startedShard, allocation),
+            (allocation, deciders) -> deciders.canRemain(unassignedShard, routingNode, allocation),
             (allocation, deciders) -> deciders.shouldAutoExpandToNode(index, discoveryNode, allocation),
-            (allocation, deciders) -> deciders.canForceAllocatePrimary(shardRouting, routingNode, allocation),
-            (allocation, deciders) -> deciders.canForceAllocateDuringReplace(shardRouting, routingNode, allocation),
-            (allocation, deciders) -> deciders.canAllocateReplicaWhenThereIsRetentionLease(shardRouting, routingNode, allocation)
+            (allocation, deciders) -> deciders.canForceAllocatePrimary(unassignedShard, routingNode, allocation),
+            (allocation, deciders) -> deciders.canForceAllocateDuringReplace(unassignedShard, routingNode, allocation),
+            (allocation, deciders) -> deciders.canAllocateReplicaWhenThereIsRetentionLease(unassignedShard, routingNode, allocation)
         ).forEach(operation -> {
             var decidersCalled = new int[] { 0 };
             var deciders = new AllocationDeciders(decisions.stream().map(decision -> new TestAllocationDecider(() -> {
@@ -181,7 +182,7 @@ public class AllocationDecidersTests extends ESTestCase {
         );
 
         assertThat(
-            deciders.getForcedInitialShardAllocationToNodes(createShardRouting(), createRoutingAllocation(deciders)),
+            deciders.getForcedInitialShardAllocationToNodes(createUnassignedShard(), createRoutingAllocation(deciders)),
             equalTo(Optional.empty())
         );
     }
@@ -198,7 +199,7 @@ public class AllocationDecidersTests extends ESTestCase {
         );
 
         assertThat(
-            deciders.getForcedInitialShardAllocationToNodes(createShardRouting(), createRoutingAllocation(deciders)),
+            deciders.getForcedInitialShardAllocationToNodes(createUnassignedShard(), createRoutingAllocation(deciders)),
             equalTo(Optional.of(Set.of("node-1", "node-2")))
         );
     }
@@ -216,12 +217,12 @@ public class AllocationDecidersTests extends ESTestCase {
         );
 
         assertThat(
-            deciders.getForcedInitialShardAllocationToNodes(createShardRouting(), createRoutingAllocation(deciders)),
+            deciders.getForcedInitialShardAllocationToNodes(createUnassignedShard(), createRoutingAllocation(deciders)),
             equalTo(Optional.of(Set.of("node-2")))
         );
     }
 
-    private static ShardRouting createShardRouting(Index index) {
+    private static ShardRouting createUnassignedShard(Index index) {
         return ShardRouting.newUnassigned(
             new ShardId(index, 0),
             true,
@@ -231,8 +232,8 @@ public class AllocationDecidersTests extends ESTestCase {
         );
     }
 
-    private static ShardRouting createShardRouting() {
-        return createShardRouting(new Index("test", "testUUID"));
+    private static ShardRouting createUnassignedShard() {
+        return createUnassignedShard(new Index("test", "testUUID"));
     }
 
     private static RoutingAllocation createRoutingAllocation(AllocationDeciders deciders) {

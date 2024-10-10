@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.query;
@@ -373,7 +374,7 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
                 "message1" : ["term1", "term2"]
               }
             }""";
-        expectThrows(IllegalStateException.class, () -> parseQuery(json2));
+        expectThrows(IllegalArgumentException.class, () -> parseQuery(json2));
     }
 
     public void testExceptionUsingAnalyzerOnNumericField() {
@@ -604,55 +605,67 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
     public void testRewriteToTermQueries() throws IOException {
         MatchQueryBuilder queryBuilder = new MatchQueryBuilder(KEYWORD_FIELD_NAME, "value");
         queryBuilder.boost(2f);
-        SearchExecutionContext context = createSearchExecutionContext();
-        QueryBuilder rewritten = queryBuilder.rewrite(context);
-        assertThat(rewritten, instanceOf(TermQueryBuilder.class));
-        TermQueryBuilder tqb = (TermQueryBuilder) rewritten;
-        assertEquals(KEYWORD_FIELD_NAME, tqb.fieldName);
-        assertEquals(new BytesRef("value"), tqb.value);
-        assertThat(rewritten.boost(), equalTo(2f));
+        QueryRewriteContext[] contexts = new QueryRewriteContext[] { createSearchExecutionContext(), createQueryRewriteContext() };
+        for (QueryRewriteContext context : contexts) {
+            QueryBuilder rewritten = queryBuilder.rewrite(context);
+            assertThat(rewritten, instanceOf(TermQueryBuilder.class));
+            TermQueryBuilder tqb = (TermQueryBuilder) rewritten;
+            assertEquals(KEYWORD_FIELD_NAME, tqb.fieldName);
+            assertEquals(new BytesRef("value"), tqb.value);
+            assertThat(rewritten.boost(), equalTo(2f));
+        }
     }
 
     public void testRewriteToTermQueryWithAnalyzer() throws IOException {
         MatchQueryBuilder queryBuilder = new MatchQueryBuilder(TEXT_FIELD_NAME, "value");
         queryBuilder.analyzer("keyword");
-        SearchExecutionContext context = createSearchExecutionContext();
-        QueryBuilder rewritten = queryBuilder.rewrite(context);
-        assertThat(rewritten, instanceOf(TermQueryBuilder.class));
-        TermQueryBuilder tqb = (TermQueryBuilder) rewritten;
-        assertEquals(TEXT_FIELD_NAME, tqb.fieldName);
-        assertEquals(new BytesRef("value"), tqb.value);
+        QueryRewriteContext[] contexts = new QueryRewriteContext[] { createSearchExecutionContext(), createQueryRewriteContext() };
+        for (QueryRewriteContext context : contexts) {
+            QueryBuilder rewritten = queryBuilder.rewrite(context);
+            assertThat(rewritten, instanceOf(TermQueryBuilder.class));
+            TermQueryBuilder tqb = (TermQueryBuilder) rewritten;
+            assertEquals(TEXT_FIELD_NAME, tqb.fieldName);
+            assertEquals(new BytesRef("value"), tqb.value);
+        }
     }
 
     public void testRewriteWithFuzziness() throws IOException {
         // If we've configured fuzziness then we can't rewrite to a term query
         MatchQueryBuilder queryBuilder = new MatchQueryBuilder(KEYWORD_FIELD_NAME, "value");
         queryBuilder.fuzziness(Fuzziness.AUTO);
-        SearchExecutionContext context = createSearchExecutionContext();
-        QueryBuilder rewritten = queryBuilder.rewrite(context);
-        assertEquals(queryBuilder, rewritten);
+        QueryRewriteContext[] contexts = new QueryRewriteContext[] { createSearchExecutionContext(), createQueryRewriteContext() };
+        for (QueryRewriteContext context : contexts) {
+            QueryBuilder rewritten = queryBuilder.rewrite(context);
+            assertEquals(queryBuilder, rewritten);
+        }
     }
 
     public void testRewriteWithLeniency() throws IOException {
         // If we've configured leniency then we can't rewrite to a term query
         MatchQueryBuilder queryBuilder = new MatchQueryBuilder(KEYWORD_FIELD_NAME, "value");
         queryBuilder.lenient(true);
-        SearchExecutionContext context = createSearchExecutionContext();
-        QueryBuilder rewritten = queryBuilder.rewrite(context);
-        assertEquals(queryBuilder, rewritten);
+        QueryRewriteContext[] contexts = new QueryRewriteContext[] { createSearchExecutionContext(), createQueryRewriteContext() };
+        for (QueryRewriteContext context : contexts) {
+            QueryBuilder rewritten = queryBuilder.rewrite(context);
+            assertEquals(queryBuilder, rewritten);
+        }
     }
 
     public void testRewriteIndexQueryToMatchNone() throws IOException {
         QueryBuilder query = new MatchQueryBuilder("_index", "does_not_exist");
-        SearchExecutionContext searchExecutionContext = createSearchExecutionContext();
-        QueryBuilder rewritten = query.rewrite(searchExecutionContext);
-        assertThat(rewritten, instanceOf(MatchNoneQueryBuilder.class));
+        QueryRewriteContext[] contexts = new QueryRewriteContext[] { createSearchExecutionContext(), createQueryRewriteContext() };
+        for (QueryRewriteContext context : contexts) {
+            QueryBuilder rewritten = query.rewrite(context);
+            assertThat(rewritten, instanceOf(MatchNoneQueryBuilder.class));
+        }
     }
 
     public void testRewriteIndexQueryToNotMatchNone() throws IOException {
         QueryBuilder query = new MatchQueryBuilder("_index", getIndex().getName());
-        SearchExecutionContext searchExecutionContext = createSearchExecutionContext();
-        QueryBuilder rewritten = query.rewrite(searchExecutionContext);
-        assertThat(rewritten, instanceOf(MatchAllQueryBuilder.class));
+        QueryRewriteContext[] contexts = new QueryRewriteContext[] { createSearchExecutionContext(), createQueryRewriteContext() };
+        for (QueryRewriteContext context : contexts) {
+            QueryBuilder rewritten = query.rewrite(context);
+            assertThat(rewritten, instanceOf(MatchAllQueryBuilder.class));
+        }
     }
 }

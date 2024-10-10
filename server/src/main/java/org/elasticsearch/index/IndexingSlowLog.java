@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index;
@@ -69,6 +70,13 @@ public final class IndexingSlowLog implements IndexingOperationListener {
         Property.IndexScope
     );
 
+    public static final Setting<Boolean> INDEX_INDEXING_SLOWLOG_INCLUDE_USER_SETTING = Setting.boolSetting(
+        INDEX_INDEXING_SLOWLOG_PREFIX + ".include.user",
+        false,
+        Property.Dynamic,
+        Property.IndexScope
+    );
+
     /**
      * Legacy index setting, kept for 7.x BWC compatibility. This setting has no effect in 8.x. Do not use.
      * TODO: Remove in 9.0
@@ -83,7 +91,11 @@ public final class IndexingSlowLog implements IndexingOperationListener {
         Property.IndexSettingDeprecatedInV7AndRemovedInV8
     );
 
-    private final Logger indexLogger;
+    private static final Logger indexLogger = LogManager.getLogger(INDEX_INDEXING_SLOWLOG_PREFIX + ".index");
+    static {
+        Loggers.setLevel(indexLogger, Level.TRACE);
+    }
+
     private final Index index;
 
     private boolean reformat;
@@ -96,6 +108,7 @@ public final class IndexingSlowLog implements IndexingOperationListener {
      * <em>characters</em> of the source.
      */
     private int maxSourceCharsToLog;
+    private final SlowLogFieldProvider slowLogFieldProvider;
 
     /**
      * Reads how much of the source to log. The user can specify any value they
@@ -117,9 +130,8 @@ public final class IndexingSlowLog implements IndexingOperationListener {
         Property.IndexScope
     );
 
-    IndexingSlowLog(IndexSettings indexSettings) {
-        this.indexLogger = LogManager.getLogger(INDEX_INDEXING_SLOWLOG_PREFIX + ".index");
-        Loggers.setLevel(this.indexLogger, Level.TRACE);
+    IndexingSlowLog(IndexSettings indexSettings, SlowLogFieldProvider slowLogFieldProvider) {
+        this.slowLogFieldProvider = slowLogFieldProvider;
         this.index = indexSettings.getIndex();
 
         indexSettings.getScopedSettings().addSettingsUpdateConsumer(INDEX_INDEXING_SLOWLOG_REFORMAT_SETTING, this::setReformat);
@@ -171,22 +183,66 @@ public final class IndexingSlowLog implements IndexingOperationListener {
             final ParsedDocument doc = indexOperation.parsedDoc();
             final long tookInNanos = result.getTook();
             if (indexWarnThreshold >= 0 && tookInNanos > indexWarnThreshold) {
-                indexLogger.warn(IndexingSlowLogMessage.of(index, doc, tookInNanos, reformat, maxSourceCharsToLog));
+                indexLogger.warn(
+                    IndexingSlowLogMessage.of(
+                        this.slowLogFieldProvider.indexSlowLogFields(),
+                        index,
+                        doc,
+                        tookInNanos,
+                        reformat,
+                        maxSourceCharsToLog
+                    )
+                );
             } else if (indexInfoThreshold >= 0 && tookInNanos > indexInfoThreshold) {
-                indexLogger.info(IndexingSlowLogMessage.of(index, doc, tookInNanos, reformat, maxSourceCharsToLog));
+                indexLogger.info(
+                    IndexingSlowLogMessage.of(
+                        this.slowLogFieldProvider.indexSlowLogFields(),
+                        index,
+                        doc,
+                        tookInNanos,
+                        reformat,
+                        maxSourceCharsToLog
+                    )
+                );
             } else if (indexDebugThreshold >= 0 && tookInNanos > indexDebugThreshold) {
-                indexLogger.debug(IndexingSlowLogMessage.of(index, doc, tookInNanos, reformat, maxSourceCharsToLog));
+                indexLogger.debug(
+                    IndexingSlowLogMessage.of(
+                        this.slowLogFieldProvider.indexSlowLogFields(),
+                        index,
+                        doc,
+                        tookInNanos,
+                        reformat,
+                        maxSourceCharsToLog
+                    )
+                );
             } else if (indexTraceThreshold >= 0 && tookInNanos > indexTraceThreshold) {
-                indexLogger.trace(IndexingSlowLogMessage.of(index, doc, tookInNanos, reformat, maxSourceCharsToLog));
+                indexLogger.trace(
+                    IndexingSlowLogMessage.of(
+                        this.slowLogFieldProvider.indexSlowLogFields(),
+                        index,
+                        doc,
+                        tookInNanos,
+                        reformat,
+                        maxSourceCharsToLog
+                    )
+                );
             }
         }
     }
 
     static final class IndexingSlowLogMessage {
 
-        public static ESLogMessage of(Index index, ParsedDocument doc, long tookInNanos, boolean reformat, int maxSourceCharsToLog) {
+        public static ESLogMessage of(
+            Map<String, String> additionalFields,
+            Index index,
+            ParsedDocument doc,
+            long tookInNanos,
+            boolean reformat,
+            int maxSourceCharsToLog
+        ) {
 
             Map<String, Object> jsonFields = prepareMap(index, doc, tookInNanos, reformat, maxSourceCharsToLog);
+            jsonFields.putAll(additionalFields);
             return new ESLogMessage().withFields(jsonFields);
         }
 

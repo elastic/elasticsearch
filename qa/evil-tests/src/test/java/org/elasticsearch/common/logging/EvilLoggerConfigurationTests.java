@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.logging;
@@ -26,6 +27,7 @@ import java.nio.file.Path;
 import java.util.Map;
 
 import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -144,7 +146,13 @@ public class EvilLoggerConfigurationTests extends ESTestCase {
         final LoggerContext ctx = (LoggerContext) LogManager.getContext(false);
         final Configuration config = ctx.getConfiguration();
         final Map<String, LoggerConfig> loggerConfigs = config.getLoggers();
-        assertThat(loggerConfigs.size(), equalTo(3));
+
+        if (rootLevel.isMoreSpecificThan(Level.INFO)) {
+            assertThat(loggerConfigs.size(), equalTo(5));
+        } else {
+            // below INFO restricted loggers will be set in addition
+            assertThat(loggerConfigs.size(), greaterThan(5));
+        }
         assertThat(loggerConfigs, hasKey(""));
         assertThat(loggerConfigs.get("").getLevel(), equalTo(rootLevel));
         assertThat(loggerConfigs, hasKey("foo"));

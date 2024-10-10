@@ -1,14 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.cluster.stats;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Strings;
@@ -16,11 +17,12 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
@@ -31,11 +33,7 @@ import java.util.List;
 
 public class MappingStatsTests extends AbstractWireSerializingTestCase<MappingStats> {
 
-    private static final Settings SINGLE_SHARD_NO_REPLICAS = Settings.builder()
-        .put("index.number_of_replicas", 0)
-        .put("index.number_of_shards", 1)
-        .put("index.version.created", Version.CURRENT)
-        .build();
+    private static final Settings SINGLE_SHARD_NO_REPLICAS = indexSettings(IndexVersion.current(), 1, 0).build();
 
     public static final String MAPPING_TEMPLATE = """
         {
@@ -116,7 +114,16 @@ public class MappingStatsTests extends AbstractWireSerializingTestCase<MappingSt
                     "index_count" : 2,
                     "indexed_vector_count" : 2,
                     "indexed_vector_dim_min" : 100,
-                    "indexed_vector_dim_max" : 100
+                    "indexed_vector_dim_max" : 100,
+                    "vector_index_type_count" : {
+                      "hnsw" : 2
+                    },
+                    "vector_similarity_type_count" : {
+                      "dot_product" : 2
+                    },
+                    "vector_element_type_count" : {
+                      "float" : 2
+                    }
                   },
                   {
                     "name" : "keyword",
@@ -236,7 +243,16 @@ public class MappingStatsTests extends AbstractWireSerializingTestCase<MappingSt
                     "index_count" : 3,
                     "indexed_vector_count" : 3,
                     "indexed_vector_dim_min" : 100,
-                    "indexed_vector_dim_max" : 100
+                    "indexed_vector_dim_max" : 100,
+                    "vector_index_type_count" : {
+                      "hnsw" : 3
+                    },
+                    "vector_similarity_type_count" : {
+                      "dot_product" : 3
+                    },
+                    "vector_element_type_count" : {
+                      "float" : 3
+                    }
                   },
                   {
                     "name" : "keyword",
@@ -462,18 +478,19 @@ public class MappingStatsTests extends AbstractWireSerializingTestCase<MappingSt
         expectedStats.indexedVectorCount = 2 * indicesCount;
         expectedStats.indexedVectorDimMin = 768;
         expectedStats.indexedVectorDimMax = 1024;
+        expectedStats.vectorIndexTypeCount.put("hnsw", 2 * indicesCount);
+        expectedStats.vectorIndexTypeCount.put("not_indexed", 2);
+        expectedStats.vectorSimilarityTypeCount.put("dot_product", 3);
+        expectedStats.vectorSimilarityTypeCount.put("cosine", 3);
+        expectedStats.vectorElementTypeCount.put("float", 4 * indicesCount);
         assertEquals(Collections.singletonList(expectedStats), mappingStats.getFieldTypeStats());
     }
 
     public void testAccountsRegularIndices() {
         String mapping = """
             {"properties":{"bar":{"type":"long"}}}""";
-        Settings settings = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 4)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-            .build();
-        IndexMetadata.Builder indexMetadata = new IndexMetadata.Builder("foo").settings(settings).putMapping(mapping);
+        IndexMetadata.Builder indexMetadata = new IndexMetadata.Builder("foo").settings(indexSettings(IndexVersion.current(), 4, 1))
+            .putMapping(mapping);
         Metadata metadata = new Metadata.Builder().put(indexMetadata).build();
         MappingStats mappingStats = MappingStats.of(metadata, () -> {});
         FieldStats expectedStats = new FieldStats("long");
@@ -485,11 +502,7 @@ public class MappingStatsTests extends AbstractWireSerializingTestCase<MappingSt
     public void testIgnoreSystemIndices() {
         String mapping = """
             {"properties":{"bar":{"type":"long"}}}""";
-        Settings settings = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 4)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-            .build();
+        Settings settings = indexSettings(IndexVersion.current(), 4, 1).build();
         IndexMetadata.Builder indexMetadata = new IndexMetadata.Builder("foo").settings(settings).putMapping(mapping).system(true);
         Metadata metadata = new Metadata.Builder().put(indexMetadata).build();
         MappingStats mappingStats = MappingStats.of(metadata, () -> {});
@@ -497,11 +510,7 @@ public class MappingStatsTests extends AbstractWireSerializingTestCase<MappingSt
     }
 
     public void testChecksForCancellation() {
-        Settings settings = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 4)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-            .build();
+        Settings settings = indexSettings(IndexVersion.current(), 4, 1).build();
         IndexMetadata.Builder indexMetadata = new IndexMetadata.Builder("foo").settings(settings).putMapping("{}");
         Metadata metadata = new Metadata.Builder().put(indexMetadata).build();
         expectThrows(
@@ -513,11 +522,11 @@ public class MappingStatsTests extends AbstractWireSerializingTestCase<MappingSt
     public void testWriteTo() throws IOException {
         MappingStats instance = createTestInstance();
         BytesStreamOutput out = new BytesStreamOutput();
-        Version version = VersionUtils.randomCompatibleVersion(random(), Version.CURRENT);
-        out.setVersion(version);
+        TransportVersion version = TransportVersionUtils.randomCompatibleVersion(random());
+        out.setTransportVersion(version);
         instance.writeTo(out);
         StreamInput in = StreamInput.wrap(out.bytes().toBytesRef().bytes);
-        in.setVersion(version);
+        in.setTransportVersion(version);
         MappingStats deserialized = new MappingStats(in);
         assertEquals(instance.getFieldTypeStats(), deserialized.getFieldTypeStats());
         assertEquals(instance.getRuntimeFieldStats(), deserialized.getRuntimeFieldStats());

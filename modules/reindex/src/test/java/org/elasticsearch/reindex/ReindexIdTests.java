@@ -1,14 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.reindex;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
@@ -19,6 +19,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.reindex.AbstractAsyncBulkByScrollActionTestCase;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.ReindexRequest;
@@ -59,16 +60,19 @@ public class ReindexIdTests extends AbstractAsyncBulkByScrollActionTestCase<Rein
         Template template = new Template(settings.build(), null, null);
         if (randomBoolean()) {
             metadata.put("c", new ComponentTemplate(template, null, null));
-            metadata.put("c", new ComposableIndexTemplate(List.of("dest_index"), null, List.of("c"), null, null, null));
+            metadata.put(
+                "c",
+                ComposableIndexTemplate.builder().indexPatterns(List.of("dest_index")).componentTemplates(List.of("c")).build()
+            );
         } else {
-            metadata.put("c", new ComposableIndexTemplate(List.of("dest_index"), template, null, null, null, null));
+            metadata.put("c", ComposableIndexTemplate.builder().indexPatterns(List.of("dest_index")).template(template).build());
         }
         return ClusterState.builder(ClusterState.EMPTY_STATE).metadata(metadata).build();
     }
 
     private ClusterState stateWithIndex(Settings.Builder settings) {
         IndexMetadata.Builder meta = IndexMetadata.builder(request().getDestination().index())
-            .settings(settings.put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT))
+            .settings(settings.put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()))
             .numberOfReplicas(0)
             .numberOfShards(1);
         return ClusterState.builder(ClusterState.EMPTY_STATE).metadata(Metadata.builder(Metadata.EMPTY_METADATA).put(meta)).build();

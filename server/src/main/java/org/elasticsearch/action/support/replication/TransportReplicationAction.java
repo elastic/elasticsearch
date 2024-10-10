@@ -1,15 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.support.replication;
 
 import org.apache.lucene.store.AlreadyClosedException;
-import org.elasticsearch.Assertions;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
@@ -39,6 +39,8 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
@@ -70,6 +72,7 @@ import org.elasticsearch.transport.TransportService;
 import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.core.Strings.format;
@@ -86,6 +89,48 @@ public abstract class TransportReplicationAction<
     Request extends ReplicationRequest<Request>,
     ReplicaRequest extends ReplicationRequest<ReplicaRequest>,
     Response extends ReplicationResponse> extends TransportAction<Request, Response> {
+
+    /**
+     * Execution of the primary action
+     */
+    protected enum PrimaryActionExecution {
+        /**
+         * Is subject to usual queue length and indexing pressure checks
+         */
+        RejectOnOverload,
+        /**
+         * Will be "forced" (bypassing queue length and indexing pressure checks)
+         */
+        Force
+    }
+
+    /**
+     * Global checkpoint behaviour
+     */
+    protected enum SyncGlobalCheckpointAfterOperation {
+        /**
+         * Do not sync as part of this action
+         */
+        DoNotSync,
+        /**
+         * Attempt to sync the global checkpoint to the replica(s) after success
+         */
+        AttemptAfterSuccess
+    }
+
+    /**
+     * Execution of the replica action
+     */
+    protected enum ReplicaActionExecution {
+        /**
+         * Will only execute when permitted by the configured circuit breakers
+         */
+        SubjectToCircuitBreaker,
+        /**
+         * Will bypass the configured circuit breaker checks
+         */
+        BypassCircuitBreaker
+    }
 
     /**
      * The timeout for retrying replication requests.
@@ -115,7 +160,7 @@ public abstract class TransportReplicationAction<
     protected final ShardStateAction shardStateAction;
     protected final IndicesService indicesService;
     protected final TransportRequestOptions transportOptions;
-    protected final String executor;
+    protected final Executor executor;
     protected final boolean forceExecutionOnPrimary;
 
     // package private for testing
@@ -126,6 +171,7 @@ public abstract class TransportReplicationAction<
     private volatile TimeValue initialRetryBackoffBound;
     private volatile TimeValue retryTimeout;
 
+    @SuppressWarnings("this-escape")
     protected TransportReplicationAction(
         Settings settings,
         String actionName,
@@ -137,41 +183,16 @@ public abstract class TransportReplicationAction<
         ActionFilters actionFilters,
         Writeable.Reader<Request> requestReader,
         Writeable.Reader<ReplicaRequest> replicaRequestReader,
-        String executor
+        Executor executor,
+        SyncGlobalCheckpointAfterOperation syncGlobalCheckpointAfterOperation,
+        PrimaryActionExecution primaryActionExecution,
+        ReplicaActionExecution replicaActionExecution
     ) {
-        this(
-            settings,
-            actionName,
-            transportService,
-            clusterService,
-            indicesService,
-            threadPool,
-            shardStateAction,
-            actionFilters,
-            requestReader,
-            replicaRequestReader,
-            executor,
-            false,
-            false
-        );
-    }
-
-    protected TransportReplicationAction(
-        Settings settings,
-        String actionName,
-        TransportService transportService,
-        ClusterService clusterService,
-        IndicesService indicesService,
-        ThreadPool threadPool,
-        ShardStateAction shardStateAction,
-        ActionFilters actionFilters,
-        Writeable.Reader<Request> requestReader,
-        Writeable.Reader<ReplicaRequest> replicaRequestReader,
-        String executor,
-        boolean syncGlobalCheckpointAfterOperation,
-        boolean forceExecutionOnPrimary
-    ) {
-        super(actionName, actionFilters, transportService.getTaskManager());
+        // TODO: consider passing the executor, investigate doExecute and let InboundHandler/TransportAction handle concurrency.
+        super(actionName, actionFilters, transportService.getTaskManager(), EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        assert syncGlobalCheckpointAfterOperation != null : "Must specify global checkpoint sync behaviour";
+        assert primaryActionExecution != null : "Must specify primary action execution behaviour";
+        assert replicaActionExecution != null : "Must specify replica action execution behaviour";
         this.threadPool = threadPool;
         this.transportService = transportService;
         this.clusterService = clusterService;
@@ -184,9 +205,17 @@ public abstract class TransportReplicationAction<
 
         this.initialRetryBackoffBound = REPLICATION_INITIAL_RETRY_BACKOFF_BOUND.get(settings);
         this.retryTimeout = REPLICATION_RETRY_TIMEOUT.get(settings);
-        this.forceExecutionOnPrimary = forceExecutionOnPrimary;
+        this.forceExecutionOnPrimary = switch (primaryActionExecution) {
+            case Force -> true;
+            case RejectOnOverload -> false;
+        };
 
-        transportService.registerRequestHandler(actionName, ThreadPool.Names.SAME, requestReader, this::handleOperationRequest);
+        transportService.registerRequestHandler(
+            actionName,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            requestReader,
+            this::handleOperationRequest
+        );
 
         transportService.registerRequestHandler(
             transportPrimaryAction,
@@ -197,19 +226,25 @@ public abstract class TransportReplicationAction<
             this::handlePrimaryRequest
         );
 
-        // we must never reject on because of thread pool capacity on replicas
+        boolean canTripCircuitBreakerOnReplica = switch (replicaActionExecution) {
+            case BypassCircuitBreaker -> false;
+            case SubjectToCircuitBreaker -> true;
+        };
         transportService.registerRequestHandler(
             transportReplicaAction,
             executor,
-            true,
-            true,
+            true, // we must never reject because of thread pool capacity on replicas
+            canTripCircuitBreakerOnReplica,
             in -> new ConcreteReplicaRequest<>(replicaRequestReader, in),
             this::handleReplicaRequest
         );
 
         this.transportOptions = transportOptions();
 
-        this.syncGlobalCheckpointAfterOperation = syncGlobalCheckpointAfterOperation;
+        this.syncGlobalCheckpointAfterOperation = switch (syncGlobalCheckpointAfterOperation) {
+            case AttemptAfterSuccess -> true;
+            case DoNotSync -> false;
+        };
 
         ClusterSettings clusterSettings = clusterService.getClusterSettings();
         clusterSettings.addSettingsUpdateConsumer(REPLICATION_INITIAL_RETRY_BACKOFF_BOUND, (v) -> initialRetryBackoffBound = v);
@@ -265,7 +300,7 @@ public abstract class TransportReplicationAction<
 
     /**
      * Execute the specified replica operation. This is done under a permit from
-     * {@link IndexShard#acquireReplicaOperationPermit(long, long, long, ActionListener, String, Object)}.
+     * {@link IndexShard#acquireReplicaOperationPermit(long, long, long, ActionListener, Executor)}.
      *
      * @param shardRequest the request to the replica shard
      * @param replica      the replica shard to perform the operation on
@@ -445,7 +480,7 @@ public abstract class TransportReplicationAction<
                             primaryRequest.getPrimaryTerm()
                         ),
                         transportOptions,
-                        new ActionListenerResponseHandler<>(onCompletionListener, reader) {
+                        new ActionListenerResponseHandler<>(onCompletionListener, reader, TransportResponseHandler.TRANSPORT_WORKER) {
                             @Override
                             public void handleResponse(Response response) {
                                 setPhase(replicationTask, "finished");
@@ -483,6 +518,7 @@ public abstract class TransportReplicationAction<
                             }
                         }
 
+                        assert primaryShardReference.indexShard.isPrimaryMode();
                         primaryShardReference.close(); // release shard operation lock before responding to caller
                         setPhase(replicationTask, "finished");
                         onCompletionListener.onResponse(response);
@@ -596,7 +632,7 @@ public abstract class TransportReplicationAction<
         return () -> {};
     }
 
-    public static class RetryOnReplicaException extends ElasticsearchException {
+    public static final class RetryOnReplicaException extends ElasticsearchException {
 
         public RetryOnReplicaException(ShardId shardId, String msg) {
             super(msg);
@@ -692,7 +728,11 @@ public abstract class TransportReplicationAction<
                             clusterService.localNode(),
                             transportReplicaAction,
                             replicaRequest,
-                            new ActionListenerResponseHandler<>(onCompletionListener, ReplicaResponse::new)
+                            new ActionListenerResponseHandler<>(
+                                onCompletionListener,
+                                ReplicaResponse::new,
+                                TransportResponseHandler.TRANSPORT_WORKER
+                            )
                         );
                     }
 
@@ -835,7 +875,7 @@ public abstract class TransportReplicationAction<
                     : "request waitForActiveShards must be set in resolveRequest";
 
                 final ShardRouting primary = state.getRoutingTable().shardRoutingTable(request.shardId()).primaryShard();
-                if (primary == null || primary.active() == false) {
+                if (primary.active() == false) {
                     logger.trace(
                         "primary shard [{}] is not yet active, scheduling a retry: action [{}], request [{}], "
                             + "cluster state version [{}]",
@@ -948,6 +988,11 @@ public abstract class TransportReplicationAction<
                 }
 
                 @Override
+                public Executor executor() {
+                    return TransportResponseHandler.TRANSPORT_WORKER;
+                }
+
+                @Override
                 public void handleResponse(Response response) {
                     finishOnSuccess(response);
                 }
@@ -1057,7 +1102,7 @@ public abstract class TransportReplicationAction<
         final Request request,
         final ActionListener<Releasable> onAcquired
     ) {
-        primary.acquirePrimaryOperationPermit(onAcquired, executor, request, forceExecutionOnPrimary);
+        primary.acquirePrimaryOperationPermit(onAcquired, executor, forceExecutionOnPrimary);
     }
 
     /**
@@ -1072,7 +1117,7 @@ public abstract class TransportReplicationAction<
         final long globalCheckpoint,
         final long maxSeqNoOfUpdatesOrDeletes
     ) {
-        replica.acquireReplicaOperationPermit(primaryTerm, globalCheckpoint, maxSeqNoOfUpdatesOrDeletes, onAcquired, executor, request);
+        replica.acquireReplicaOperationPermit(primaryTerm, globalCheckpoint, maxSeqNoOfUpdatesOrDeletes, onAcquired, executor);
     }
 
     class PrimaryShardReference
@@ -1165,8 +1210,8 @@ public abstract class TransportReplicationAction<
     }
 
     public static class ReplicaResponse extends ActionResponse implements ReplicationOperation.ReplicaResponse {
-        private long localCheckpoint;
-        private long globalCheckpoint;
+        private final long localCheckpoint;
+        private final long globalCheckpoint;
 
         ReplicaResponse(StreamInput in) throws IOException {
             super(in);
@@ -1247,7 +1292,8 @@ public abstract class TransportReplicationAction<
             );
             final ActionListenerResponseHandler<ReplicaResponse> handler = new ActionListenerResponseHandler<>(
                 listener,
-                ReplicaResponse::new
+                ReplicaResponse::new,
+                TransportResponseHandler.TRANSPORT_WORKER
             );
             transportService.sendRequest(node, transportReplicaAction, replicaRequest, transportOptions, handler);
         }
@@ -1333,6 +1379,16 @@ public abstract class TransportReplicationAction<
         @Override
         public TaskId getParentTask() {
             return request.getParentTask();
+        }
+
+        @Override
+        public void setRequestId(long requestId) {
+            request.setRequestId(requestId);
+        }
+
+        @Override
+        public long getRequestId() {
+            return request.getRequestId();
         }
 
         @Override

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.upgrades;
@@ -199,7 +200,7 @@ class SystemIndexMigrationInfo implements Comparable<SystemIndexMigrationInfo> {
         if (descriptor.isAutomaticallyManaged()) {
             Settings.Builder settingsBuilder = Settings.builder();
             settingsBuilder.put(descriptor.getSettings());
-            settingsBuilder.remove("index.version.created"); // Simplifies testing, should never impact real uses.
+            settingsBuilder.remove(IndexMetadata.SETTING_VERSION_CREATED); // Simplifies testing, should never impact real uses.
             settings = settingsBuilder.build();
 
             mapping = descriptor.getMappings();
@@ -230,14 +231,16 @@ class SystemIndexMigrationInfo implements Comparable<SystemIndexMigrationInfo> {
             .filter(Objects::nonNull)
             .filter(setting -> setting.getProperties().contains(Setting.Property.NotCopyableOnResize) == false)
             .filter(setting -> setting.getProperties().contains(Setting.Property.PrivateIndex) == false)
-            .forEach(setting -> { newIndexSettings.put(setting.getKey(), currentIndexSettings.get(setting.getKey())); });
+            .forEach(setting -> {
+                newIndexSettings.put(setting.getKey(), currentIndexSettings.get(setting.getKey()));
+            });
         return newIndexSettings.build();
     }
 
     /**
      * Convenience factory method holding the logic for creating instances from a Feature object.
      * @param feature The feature that
-     * @param metadata The current metadata, as index migration depends on the current state of the clsuter.
+     * @param metadata The current metadata, as index migration depends on the current state of the cluster.
      * @param indexScopedSettings This is necessary to make adjustments to the indices settings for unmanaged indices.
      * @return A {@link Stream} of {@link SystemIndexMigrationInfo}s that represent all the indices the given feature currently owns.
      */

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.rest;
@@ -19,6 +20,7 @@ import java.util.Map;
 import static java.util.Collections.unmodifiableMap;
 
 public enum RestStatus {
+
     /**
      * The client SHOULD continue with its request. This interim response is used to inform the client that the
      * initial part of the request has been received and has not yet been rejected by the server. The client
@@ -26,6 +28,7 @@ public enum RestStatus {
      * ignore this response. The server MUST send a final response after the request has been completed.
      */
     CONTINUE(100),
+
     /**
      * The server understands and is willing to comply with the client's request, via the Upgrade message header field
      * (section 14.42), for a change in the application protocol being used on this connection. The server will
@@ -33,6 +36,7 @@ public enum RestStatus {
      * which terminates the 101 response.
      */
     SWITCHING_PROTOCOLS(101),
+
     /**
      * The request has succeeded. The information returned with the response is dependent on the method
      * used in the request, for example:
@@ -44,6 +48,7 @@ public enum RestStatus {
      * </ul>
      */
     OK(200),
+
     /**
      * The request has been fulfilled and resulted in a new resource being created. The newly created resource can
      * be referenced by the URI(s) returned in the entity of the response, with the most specific URI for the
@@ -57,6 +62,7 @@ public enum RestStatus {
      * for the requested variant just created, see section 14.19.
      */
     CREATED(201),
+
     /**
      * The request has been accepted for processing, but the processing has not been completed.  The request might
      * or might not eventually be acted upon, as it might be disallowed when processing actually takes place. There
@@ -69,6 +75,7 @@ public enum RestStatus {
      * monitor or some estimate of when the user can expect the request to be fulfilled.
      */
     ACCEPTED(202),
+
     /**
      * The returned meta information in the entity-header is not the definitive set as available from the origin
      * server, but is gathered from a local or a third-party copy. The set presented MAY be a subset or super set
@@ -77,6 +84,7 @@ public enum RestStatus {
      * is not required and is only appropriate when the response would otherwise be 200 (OK).
      */
     NON_AUTHORITATIVE_INFORMATION(203),
+
     /**
      * The server has fulfilled the request but does not need to return an entity-body, and might want to return
      * updated meta information. The response MAY include new or updated meta information in the form of
@@ -91,6 +99,7 @@ public enum RestStatus {
      * line after the header fields.
      */
     NO_CONTENT(204),
+
     /**
      * The server has fulfilled the request and the user agent SHOULD reset the document view which caused the
      * request to be sent. This response is primarily intended to allow input for actions to take place via user
@@ -98,6 +107,7 @@ public enum RestStatus {
      * another input action. The response MUST NOT include an entity.
      */
     RESET_CONTENT(205),
+
     /**
      * The server has fulfilled the partial GET request for the resource. The request MUST have included a Range
      * header field (section 14.35) indicating the desired range, and MAY have included an If-Range header
@@ -127,6 +137,7 @@ public enum RestStatus {
      * A cache that does not support the Range and Content-Range headers MUST NOT cache 206 (Partial) responses.
      */
     PARTIAL_CONTENT(206),
+
     /**
      * The 207 (Multi-Status) status code provides status for multiple independent operations (see Section 13 for
      * more information).
@@ -146,6 +157,7 @@ public enum RestStatus {
      * to identify the resource.
      */
     MULTI_STATUS(207),
+
     /**
      * The requested resource corresponds to any one of a set of representations, each with its own specific
      * location, and agent-driven negotiation information (section 12) is being provided so that the user (or user
@@ -162,6 +174,7 @@ public enum RestStatus {
      * This response is cacheable unless indicated otherwise.
      */
     MULTIPLE_CHOICES(300),
+
     /**
      * The requested resource has been assigned a new permanent URI and any future references to this resource
      * SHOULD use one of the returned URIs.  Clients with link editing capabilities ought to automatically re-link
@@ -176,6 +189,7 @@ public enum RestStatus {
      * the conditions under which the request was issued.
      */
     MOVED_PERMANENTLY(301),
+
     /**
      * The requested resource resides temporarily under a different URI. Since the redirection might be altered on
      * occasion, the client SHOULD continue to use the Request-URI for future requests.  This response is only
@@ -189,6 +203,7 @@ public enum RestStatus {
      * the conditions under which the request was issued.
      */
     FOUND(302),
+
     /**
      * The response to the request can be found under a different URI and SHOULD be retrieved using a GET method on
      * that resource. This method exists primarily to allow the output of a POST-activated script to redirect the
@@ -200,6 +215,7 @@ public enum RestStatus {
      * HEAD, the entity of the response SHOULD contain a short hypertext note with a hyperlink to the new URI(s).
      */
     SEE_OTHER(303),
+
     /**
      * If the client has performed a conditional GET request and access is allowed, but the document has not been
      * modified, the server SHOULD respond with this status code. The 304 response MUST NOT contain a message-body,
@@ -228,12 +244,14 @@ public enum RestStatus {
      * reflect any new field values given in the response.
      */
     NOT_MODIFIED(304),
+
     /**
      * The requested resource MUST be accessed through the proxy given by the Location field. The Location field
      * gives the URI of the proxy. The recipient is expected to repeat this single request via the proxy.
      * 305 responses MUST only be generated by origin servers.
      */
     USE_PROXY(305),
+
     /**
      * The requested resource resides temporarily under a different URI. Since the redirection MAY be altered on
      * occasion, the client SHOULD continue to use the Request-URI for future requests.  This response is only
@@ -249,11 +267,13 @@ public enum RestStatus {
      * conditions under which the request was issued.
      */
     TEMPORARY_REDIRECT(307),
+
     /**
      * The request could not be understood by the server due to malformed syntax. The client SHOULD NOT repeat the
      * request without modifications.
      */
     BAD_REQUEST(400),
+
     /**
      * The request requires user authentication. The response MUST include a WWW-Authenticate header field
      * (section 14.47) containing a challenge applicable to the requested resource. The client MAY repeat the request
@@ -265,10 +285,12 @@ public enum RestStatus {
      * "HTTP Authentication: Basic and Digest Access Authentication" [43].
      */
     UNAUTHORIZED(401),
+
     /**
      * This code is reserved for future use.
      */
     PAYMENT_REQUIRED(402),
+
     /**
      * The server understood the request, but is refusing to fulfill it. Authorization will not help and the request
      * SHOULD NOT be repeated. If the request method was not HEAD and the server wishes to make public why the
@@ -277,6 +299,7 @@ public enum RestStatus {
      * instead.
      */
     FORBIDDEN(403),
+
     /**
      * The server has not found anything matching the Request-URI. No indication is given of whether the condition
      * is temporary or permanent. The 410 (Gone) status code SHOULD be used if the server knows, through some
@@ -285,11 +308,13 @@ public enum RestStatus {
      * has been refused, or when no other response is applicable.
      */
     NOT_FOUND(404),
+
     /**
      * The method specified in the Request-Line is not allowed for the resource identified by the Request-URI.
      * The response MUST include an Allow header containing a list of valid methods for the requested resource.
      */
     METHOD_NOT_ALLOWED(405),
+
     /**
      * The resource identified by the request is only capable of generating response entities which have content
      * characteristics not acceptable according to the accept headers sent in the request.
@@ -308,6 +333,7 @@ public enum RestStatus {
      * the user for a decision on further actions.
      */
     NOT_ACCEPTABLE(406),
+
     /**
      * This code is similar to 401 (Unauthorized), but indicates that the client must first authenticate itself with
      * the proxy. The proxy MUST return a Proxy-Authenticate header field (section 14.33) containing a challenge
@@ -316,11 +342,13 @@ public enum RestStatus {
      * "HTTP Authentication: Basic and Digest Access Authentication" [43].
      */
     PROXY_AUTHENTICATION(407),
+
     /**
      * The client did not produce a request within the time that the server was prepared to wait. The client MAY
      * repeat the request without modifications at any later time.
      */
     REQUEST_TIMEOUT(408),
+
     /**
      * The request could not be completed due to a conflict with the current state of the resource. This code is
      * only allowed in situations where it is expected that the user might be able to resolve the conflict and
@@ -335,6 +363,7 @@ public enum RestStatus {
      * a format defined by the response Content-Type.
      */
     CONFLICT(409),
+
     /**
      * The requested resource is no longer available at the server and no forwarding address is known. This condition
      * is expected to be considered permanent. Clients with link editing capabilities SHOULD delete references to
@@ -350,11 +379,13 @@ public enum RestStatus {
      * owner.
      */
     GONE(410),
+
     /**
      * The server refuses to accept the request without a defined Content-Length. The client MAY repeat the request
      * if it adds a valid Content-Length header field containing the length of the message-body in the request message.
      */
     LENGTH_REQUIRED(411),
+
     /**
      * The precondition given in one or more of the request-header fields evaluated to false when it was tested on
      * the server. This response code allows the client to place preconditions on the current resource metainformation
@@ -362,6 +393,7 @@ public enum RestStatus {
      * intended.
      */
     PRECONDITION_FAILED(412),
+
     /**
      * The server is refusing to process a request because the request entity is larger than the server is willing
      * or able to process. The server MAY close the connection to prevent the client from continuing the request.
@@ -370,6 +402,7 @@ public enum RestStatus {
      * is temporary and after what time the client MAY try again.
      */
     REQUEST_ENTITY_TOO_LARGE(413),
+
     /**
      * The server is refusing to service the request because the Request-URI is longer than the server is willing
      * to interpret. This rare condition is only likely to occur when a client has improperly converted a POST
@@ -379,11 +412,13 @@ public enum RestStatus {
      * buffers for reading or manipulating the Request-URI.
      */
     REQUEST_URI_TOO_LONG(414),
+
     /**
      * The server is refusing to service the request because the entity of the request is in a format not supported
      * by the requested resource for the requested method.
      */
     UNSUPPORTED_MEDIA_TYPE(415),
+
     /**
      * A server SHOULD return a response with this status code if a request included a Range request-header field
      * (section 14.35), and none of the range-specifier values in this field overlap the current extent of the
@@ -396,12 +431,14 @@ public enum RestStatus {
      * response MUST NOT use the multipart/byteranges content-type.
      */
     REQUESTED_RANGE_NOT_SATISFIED(416),
+
     /**
      * The expectation given in an Expect request-header field (see section 14.20) could not be met by this server,
      * or, if the server is a proxy, the server has unambiguous evidence that the request could not be met by the
      * next-hop server.
      */
     EXPECTATION_FAILED(417),
+
     /**
      * The 422 (Unprocessable Entity) status code means the server understands the content type of the request
      * entity (hence a 415(Unsupported Media Type) status code is inappropriate), and the syntax of the request
@@ -410,37 +447,44 @@ public enum RestStatus {
      * well-formed (i.e., syntactically correct), but semantically erroneous, XML instructions.
      */
     UNPROCESSABLE_ENTITY(422),
+
     /**
      * The 423 (Locked) status code means the source or destination resource of a method is locked. This response
      * SHOULD contain an appropriate precondition or postcondition code, such as 'lock-token-submitted' or
      * 'no-conflicting-lock'.
      */
     LOCKED(423),
+
     /**
      * The 424 (Failed Dependency) status code means that the method could not be performed on the resource because
      * the requested action depended on another action and that action failed. For example, if a command in a
      * PROPPATCH method fails, then, at minimum, the rest of the commands will also fail with 424 (Failed Dependency).
      */
     FAILED_DEPENDENCY(424),
+
     /**
      * 429 Too Many Requests (RFC6585)
      */
     TOO_MANY_REQUESTS(429),
+
     /**
      * The server encountered an unexpected condition which prevented it from fulfilling the request.
      */
     INTERNAL_SERVER_ERROR(500),
+
     /**
      * The server does not support the functionality required to fulfill the request. This is the appropriate
      * response when the server does not recognize the request method and is not capable of supporting it for any
      * resource.
      */
     NOT_IMPLEMENTED(501),
+
     /**
      * The server, while acting as a gateway or proxy, received an invalid response from the upstream server it
      * accessed in attempting to fulfill the request.
      */
     BAD_GATEWAY(502),
+
     /**
      * The server is currently unable to handle the request due to a temporary overloading or maintenance of the
      * server. The implication is that this is a temporary condition which will be alleviated after some delay.
@@ -448,12 +492,14 @@ public enum RestStatus {
      * the client SHOULD handle the response as it would for a 500 response.
      */
     SERVICE_UNAVAILABLE(503),
+
     /**
      * The server, while acting as a gateway or proxy, did not receive a timely response from the upstream server
      * specified by the URI (e.g. HTTP, FTP, LDAP) or some other auxiliary server (e.g. DNS) it needed to access
      * in attempting to complete the request.
      */
     GATEWAY_TIMEOUT(504),
+
     /**
      * The server does not support, or refuses to support, the HTTP protocol version that was used in the request
      * message. The server is indicating that it is unable or unwilling to complete the request using the same major
@@ -462,6 +508,7 @@ public enum RestStatus {
      * that server.
      */
     HTTP_VERSION_NOT_SUPPORTED(505),
+
     /**
      * The 507 (Insufficient Storage) status code means the method could not be performed on the resource because
      * the server is unable to store the representation needed to successfully complete the request. This condition
@@ -523,5 +570,17 @@ public enum RestStatus {
      */
     public static RestStatus fromCode(int code) {
         return CODE_TO_STATUS.get(code);
+    }
+
+    /**
+     * Utility method to determine if an HTTP status code is "Successful"
+     *
+     * as defined by <a href="https://datatracker.ietf.org/doc/html/rfc9110#section-15.3">RFC 9110</a>
+     *
+     * @param code An HTTP status code
+     * @return true if it is a 2xx code, false otherwise
+     */
+    public static boolean isSuccessful(int code) {
+        return code >= 200 && code < 300;
     }
 }

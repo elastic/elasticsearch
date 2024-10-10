@@ -187,7 +187,7 @@ public class JreHttpUrlConnection implements Closeable {
         }
     }
 
-    private Function<String, List<String>> getHeaderFields(URLConnection con) {
+    private static Function<String, List<String>> getHeaderFields(URLConnection con) {
         return header -> {
             List<String> values = new LinkedList<>();
             for (Map.Entry<String, List<String>> entry : con.getHeaderFields().entrySet()) {
@@ -199,7 +199,7 @@ public class JreHttpUrlConnection implements Closeable {
         };
     }
 
-    private boolean shouldParseBody(int responseCode) {
+    private static boolean shouldParseBody(int responseCode) {
         return responseCode == 200 || responseCode == 201 || responseCode == 202;
     }
 
@@ -345,6 +345,7 @@ public class JreHttpUrlConnection implements Closeable {
                 case "analysis_exception":
                 case "resource_not_found_exception":
                 case "verification_exception":
+                case "invalid_argument_exception":
                     return DATA;
                 case "planning_exception":
                 case "mapping_exception":

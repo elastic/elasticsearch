@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch;
@@ -19,11 +20,13 @@ import org.elasticsearch.client.internal.transport.NoNodeAvailableException;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.coordination.NoMasterBlockService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Tuple;
@@ -41,6 +44,7 @@ import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.RemoteTransportException;
+import org.elasticsearch.xcontent.ObjectPath;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -65,8 +69,11 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXC
 import static org.hamcrest.CoreMatchers.hasItem;
 import static org.hamcrest.CoreMatchers.hasItems;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
 
 public class ElasticsearchExceptionTests extends ESTestCase {
@@ -792,6 +799,48 @@ public class ElasticsearchExceptionTests extends ESTestCase {
         );
     }
 
+    @SuppressWarnings("unchecked")
+    public void testToXContentWithObjectCycles() throws Exception {
+        ElasticsearchException root = new ElasticsearchException("root exception");
+
+        ElasticsearchException suppressed1 = new ElasticsearchException("suppressed#1", root);
+
+        ElasticsearchException suppressed2 = new ElasticsearchException("suppressed#2");
+        ElasticsearchException suppressed3 = new ElasticsearchException("suppressed#3");
+        suppressed3.addSuppressed(suppressed2);
+        suppressed2.addSuppressed(suppressed3);
+
+        root.addSuppressed(suppressed1);
+        root.addSuppressed(suppressed2);
+        root.addSuppressed(suppressed3);
+
+        // Because we support up to 100 nested exceptions, this JSON ends up very long.
+        // Rather than assert the full content, we check that
+        // (a) it generated successfully (no StackOverflowErrors)
+        BytesReference xContent = XContentHelper.toXContent(root, XContentType.JSON, randomBoolean());
+        // (b) it's valid JSON
+        final Map<String, Object> map = XContentHelper.convertToMap(xContent, false, XContentType.JSON).v2();
+        // (c) it contains the right content
+        assertThat(ObjectPath.eval("type", map), equalTo("exception"));
+        assertThat(ObjectPath.eval("reason", map), equalTo("root exception"));
+        assertThat(ObjectPath.eval("suppressed.0.reason", map), equalTo("suppressed#1"));
+        assertThat(ObjectPath.eval("suppressed.0.caused_by.reason", map), equalTo("root exception"));
+        assertThat(ObjectPath.eval("suppressed.0.caused_by.suppressed.0.reason", map), equalTo("suppressed#1"));
+        assertThat(ObjectPath.eval("suppressed.1.reason", map), equalTo("suppressed#2"));
+        assertThat(ObjectPath.eval("suppressed.1.suppressed.0.reason", map), equalTo("suppressed#3"));
+        assertThat(ObjectPath.eval("suppressed.1.suppressed.0.suppressed.0.reason", map), equalTo("suppressed#2"));
+        assertThat(ObjectPath.eval("suppressed.2.reason", map), equalTo("suppressed#3"));
+        assertThat(ObjectPath.eval("suppressed.2.suppressed.0.reason", map), equalTo("suppressed#2"));
+        assertThat(ObjectPath.eval("suppressed.2.suppressed.0.suppressed.0.reason", map), equalTo("suppressed#3"));
+
+        String tailExceptionPath = ".suppressed.0.caused_by".repeat(50).substring(1) + ".suppressed.0";
+        final Object tailException = ObjectPath.eval(tailExceptionPath, map);
+        assertThat(tailException, not(nullValue()));
+        assertThat(tailException, instanceOf(Map.class));
+        assertThat((Map<String, Object>) tailException, hasEntry("reason", "too many nested exceptions"));
+        assertThat((Map<String, Object>) tailException, hasEntry("type", "illegal_state_exception"));
+    }
+
     public void testFromXContent() throws IOException {
         final XContent xContent = randomFrom(XContentType.values()).xContent();
         XContentBuilder builder = XContentBuilder.builder(xContent)
@@ -1136,7 +1185,7 @@ public class ElasticsearchExceptionTests extends ESTestCase {
                 expected.addSuppressed(suppressed);
             }
             case 6 -> { // SearchPhaseExecutionException with cause and multiple failures
-                DiscoveryNode node = new DiscoveryNode("node_g", buildNewFakeTransportAddress(), Version.CURRENT);
+                DiscoveryNode node = DiscoveryNodeUtils.create("node_g");
                 failureCause = new NodeClosedException(node);
                 failureCause = new NoShardAvailableActionException(new ShardId("_index_g", "_uuid_g", 6), "node_g", failureCause);
                 ShardSearchFailure[] shardFailures = new ShardSearchFailure[] {
@@ -1380,5 +1429,55 @@ public class ElasticsearchExceptionTests extends ESTestCase {
             }
         }
         return new Tuple<>(actual, expected);
+    }
+
+    public void testExceptionCauseSerialisationLoop() throws IOException {
+        IOException ex1 = new IOException("ex1");
+        IllegalArgumentException ex2 = new IllegalArgumentException("ex2", ex1);
+        ex1.addSuppressed(ex2);
+
+        testExceptionLoop(ex1);
+    }
+
+    public void testElasticsearchExceptionCauseSerialisationLoop() throws IOException {
+        ElasticsearchException ex1 = new ElasticsearchException("ex1");
+        ElasticsearchException ex2 = new ElasticsearchException("ex2", ex1);
+        ex1.addSuppressed(ex2);
+
+        testExceptionLoop(ex1);
+    }
+
+    public void testExceptionSuppressedSerialisationLoop() throws IOException {
+        IOException ex1 = new IOException("ex1");
+        IllegalArgumentException ex2 = new IllegalArgumentException("ex2");
+        ex1.addSuppressed(ex2);
+        ex2.addSuppressed(ex1);
+
+        testExceptionLoop(ex1);
+    }
+
+    public void testElasticsearchExceptionSuppressedSSerialisationLoop() throws IOException {
+        ElasticsearchException ex1 = new ElasticsearchException("ex1");
+        ElasticsearchException ex2 = new ElasticsearchException("ex2");
+        ex1.addSuppressed(ex2);
+        ex2.addSuppressed(ex1);
+
+        testExceptionLoop(ex1);
+    }
+
+    private void testExceptionLoop(Exception rootException) throws IOException {
+        BytesStreamOutput out = new BytesStreamOutput();
+        AssertionError error = expectThrows(
+            AssertionError.class,
+            () -> ElasticsearchException.writeException(rootException, out, () -> fail("nested limit reached"))
+        );
+        assertThat(error.getMessage(), equalTo("nested limit reached"));
+
+        BytesStreamOutput readOut = new BytesStreamOutput();
+        ElasticsearchException.writeException(rootException, readOut);
+        Exception ser = readOut.bytes().streamInput().readException();
+        assertThat(ser, instanceOf(rootException.getClass()));
+        assertThat(ser.getMessage(), equalTo(rootException.getMessage()));
+        assertArrayEquals(ser.getStackTrace(), rootException.getStackTrace());
     }
 }

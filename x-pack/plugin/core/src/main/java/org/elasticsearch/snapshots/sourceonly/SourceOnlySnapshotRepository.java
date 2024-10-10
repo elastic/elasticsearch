@@ -39,6 +39,7 @@ import org.elasticsearch.repositories.FilterRepository;
 import org.elasticsearch.repositories.FinalizeSnapshotContext;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.Repository;
+import org.elasticsearch.repositories.SnapshotIndexCommit;
 import org.elasticsearch.repositories.SnapshotShardContext;
 
 import java.io.Closeable;
@@ -72,12 +73,7 @@ import static org.elasticsearch.core.Strings.format;
  * match_all scroll searches in order to reindex the data.
  */
 public final class SourceOnlySnapshotRepository extends FilterRepository {
-    private static final Setting<String> DELEGATE_TYPE = new Setting<>(
-        "delegate_type",
-        "",
-        Function.identity(),
-        Setting.Property.NodeScope
-    );
+    private static final Setting<String> DELEGATE_TYPE = Setting.simpleString("delegate_type", Setting.Property.NodeScope);
     public static final Setting<Boolean> SOURCE_ONLY = Setting.boolSetting(
         "index.source_only",
         false,
@@ -172,7 +168,7 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
                 protected void closeInternal() {
                     // do nothing;
                 }
-            }, Store.OnClose.EMPTY);
+            }, Store.OnClose.EMPTY, mapperService.getIndexSettings().getIndexSortConfig().hasIndexSort());
             Supplier<Query> querySupplier = mapperService.hasNested()
                 ? () -> Queries.newNestedFilter(mapperService.getIndexSettings().getIndexVersionCreated())
                 : null;
@@ -194,8 +190,11 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
             SegmentInfos segmentInfos = tempStore.readLastCommittedSegmentsInfo();
             final long maxDoc = segmentInfos.totalMaxDoc();
             tempStore.bootstrapNewHistory(maxDoc, maxDoc);
-            store.incRef();
-            toClose.add(store::decRef);
+            try (var ignored = context.withCommitRef()) {
+                // obtain commit ref first, ensuring the store is still open here, or else reporting aborted snapshots properly
+                store.incRef();
+                toClose.add(store::decRef);
+            }
             DirectoryReader reader = DirectoryReader.open(tempStore.directory());
             toClose.add(reader);
             IndexCommit indexCommit = reader.getIndexCommit();
@@ -205,7 +204,7 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
                     mapperService,
                     context.snapshotId(),
                     context.indexId(),
-                    new Engine.IndexCommitRef(indexCommit, () -> IOUtils.close(toClose)),
+                    new SnapshotIndexCommit(new Engine.IndexCommitRef(indexCommit, () -> IOUtils.close(toClose))),
                     context.stateIdentifier(),
                     context.status(),
                     context.getRepositoryMetaVersion(),
@@ -213,7 +212,7 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
                     context
                 )
             );
-        } catch (IOException e) {
+        } catch (Exception e) {
             try {
                 IOUtils.close(toClose);
             } catch (IOException ex) {

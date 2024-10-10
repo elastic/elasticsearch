@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.cluster.tasks;
@@ -37,7 +38,7 @@ public class PendingTasksBlocksIT extends ESIntegTestCase {
         )) {
             try {
                 enableIndexBlock("test", blockSetting);
-                PendingClusterTasksResponse response = client().admin().cluster().preparePendingClusterTasks().get();
+                PendingClusterTasksResponse response = getClusterPendingTasks();
                 assertNotNull(response.pendingTasks());
             } finally {
                 disableIndexBlock("test", blockSetting);
@@ -53,7 +54,7 @@ public class PendingTasksBlocksIT extends ESIntegTestCase {
 
         try {
             setClusterReadOnly(true);
-            PendingClusterTasksResponse response = client().admin().cluster().preparePendingClusterTasks().get();
+            PendingClusterTasksResponse response = getClusterPendingTasks();
             assertNotNull(response.pendingTasks());
         } finally {
             setClusterReadOnly(false);
@@ -67,7 +68,7 @@ public class PendingTasksBlocksIT extends ESIntegTestCase {
         }
 
         // restart the cluster but prevent it from performing state recovery
-        final int nodeCount = client().admin().cluster().prepareNodesInfo("data:true").get().getNodes().size();
+        final int nodeCount = clusterAdmin().prepareNodesInfo("data:true").get().getNodes().size();
         internalCluster().fullRestart(new InternalTestCluster.RestartCallback() {
             @Override
             public Settings onNodeStopped(String nodeName) {
@@ -80,7 +81,7 @@ public class PendingTasksBlocksIT extends ESIntegTestCase {
             }
         });
 
-        assertNotNull(client().admin().cluster().preparePendingClusterTasks().get().pendingTasks());
+        assertNotNull(getClusterPendingTasks().pendingTasks());
 
         // starting one more node allows the cluster to recover
         internalCluster().startNode();

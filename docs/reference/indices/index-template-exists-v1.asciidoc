@@ -43,17 +43,17 @@ and <<aliases,aliases>> that can be applied automatically to new indices.
 [[template-exists-api-path-params]]
 ==== {api-path-parms-title}
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-template]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=index-template]
 
 
 [[template-exists-api-query-params]]
 ==== {api-query-parms-title}
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=flat-settings]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=flat-settings]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=local]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=local]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
 
 
 [[template-exists-api-response-codes]]

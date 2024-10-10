@@ -10,8 +10,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskAction;
 import org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskRequest;
+import org.elasticsearch.action.admin.cluster.node.tasks.get.TransportGetTaskAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.client.internal.Client;
@@ -20,7 +20,8 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -83,7 +84,7 @@ public class TransportRevertModelSnapshotAction extends TransportMasterNodeActio
             RevertModelSnapshotAction.Request::new,
             indexNameExpressionResolver,
             RevertModelSnapshotAction.Response::new,
-            ThreadPool.Names.SAME
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.client = client;
         this.jobManager = jobManager;
@@ -169,7 +170,8 @@ public class TransportRevertModelSnapshotAction extends TransportMasterNodeActio
                 client,
                 state,
                 request.masterNodeTimeout(),
-                configMappingUpdateListener
+                configMappingUpdateListener,
+                MlConfigIndex.CONFIG_INDEX_MAPPINGS_VERSION
             ),
             listener::onFailure
         );
@@ -208,12 +210,12 @@ public class TransportRevertModelSnapshotAction extends TransportMasterNodeActio
             // to give a chance to this request to be executed without returning an error.
             // This is particularly useful when a relocating job is calling revert.
             getTaskRequest.setWaitForCompletion(request.isForce());
-            getTaskRequest.setTimeout(request.timeout());
+            getTaskRequest.setTimeout(request.ackTimeout());
 
             executeAsyncWithOrigin(
                 client,
                 ML_ORIGIN,
-                GetTaskAction.INSTANCE,
+                TransportGetTaskAction.TYPE,
                 getTaskRequest,
                 ActionListener.wrap(r -> listener.onResponse(r.getTask().isCompleted() == false), e -> {
                     if (ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException) {
@@ -257,7 +259,7 @@ public class TransportRevertModelSnapshotAction extends TransportMasterNodeActio
         }, listener::onFailure);
     }
 
-    private void getModelSnapshot(
+    private static void getModelSnapshot(
         RevertModelSnapshotAction.Request request,
         JobResultsProvider provider,
         Consumer<ModelSnapshot> handler,
@@ -270,7 +272,7 @@ public class TransportRevertModelSnapshotAction extends TransportMasterNodeActio
             return;
         }
 
-        provider.getModelSnapshot(request.getJobId(), request.getSnapshotId(), modelSnapshot -> {
+        provider.getModelSnapshot(request.getJobId(), request.getSnapshotId(), true, modelSnapshot -> {
             if (modelSnapshot == null) {
                 throw missingSnapshotException(request);
             }
@@ -302,12 +304,7 @@ public class TransportRevertModelSnapshotAction extends TransportMasterNodeActio
                 // Because the model that changed is no longer in use as it has been rolled back to a time before those changes occurred
                 Annotation.Event.MODEL_CHANGE.toString()
             );
-            dataDeleter.deleteAnnotations(
-                deleteAfter.getTime() + 1,
-                null,
-                eventsToDelete,
-                listener.delegateFailure((l, r) -> l.onResponse(response))
-            );
+            dataDeleter.deleteAnnotations(deleteAfter.getTime() + 1, null, eventsToDelete, listener.safeMap(r -> response));
         }, listener::onFailure);
     }
 
@@ -325,7 +322,7 @@ public class TransportRevertModelSnapshotAction extends TransportMasterNodeActio
             logger.info("[{}] Removing intervening records after reverting model: deleting results after [{}]", jobId, deleteAfter);
 
             JobDataDeleter dataDeleter = new JobDataDeleter(client, jobId);
-            dataDeleter.deleteResultsFromTime(deleteAfter.getTime() + 1, listener.delegateFailure((l, r) -> l.onResponse(response)));
+            dataDeleter.deleteResultsFromTime(deleteAfter.getTime() + 1, listener.safeMap(r -> response));
         }, listener::onFailure);
     }
 
@@ -336,7 +333,7 @@ public class TransportRevertModelSnapshotAction extends TransportMasterNodeActio
     ) {
         return ActionListener.wrap(response -> jobResultsProvider.dataCounts(jobId, counts -> {
             counts.setLatestRecordTimeStamp(modelSnapshot.getLatestRecordTimeStamp());
-            jobDataCountsPersister.persistDataCountsAsync(jobId, counts, listener.delegateFailure((l, r) -> l.onResponse(response)));
+            jobDataCountsPersister.persistDataCountsAsync(jobId, counts, listener.safeMap(r -> response));
         }, listener::onFailure), listener::onFailure);
     }
 

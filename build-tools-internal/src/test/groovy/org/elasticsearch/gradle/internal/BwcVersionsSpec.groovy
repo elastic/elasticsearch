@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.gradle.internal
@@ -12,7 +13,6 @@ import spock.lang.Specification
 
 import org.elasticsearch.gradle.Version
 import org.elasticsearch.gradle.internal.BwcVersions.UnreleasedVersionInfo
-
 
 class BwcVersionsSpec extends Specification {
     List<String> versionLines = []
@@ -40,11 +40,12 @@ class BwcVersionsSpec extends Specification {
         unreleased == [
             (v('7.16.2')): new UnreleasedVersionInfo(v('7.16.2'), '7.16', ':distribution:bwc:bugfix'),
             (v('7.17.0')): new UnreleasedVersionInfo(v('7.17.0'), '7.17', ':distribution:bwc:staged'),
-            (v('8.0.0')): new UnreleasedVersionInfo(v('8.0.0'), '8.0', ':distribution:bwc:minor'),
+            (v('8.0.0')): new UnreleasedVersionInfo(v('8.0.0'), '8.x', ':distribution:bwc:minor'),
             (v('8.1.0')): new UnreleasedVersionInfo(v('8.1.0'), 'main', ':distribution')
         ]
         bwc.wireCompatible == [v('7.17.0'), v('8.0.0'), v('8.1.0')]
         bwc.indexCompatible == [v('7.14.0'), v('7.14.1'), v('7.14.2'), v('7.15.0'), v('7.15.1'), v('7.15.2'), v('7.16.0'), v('7.16.1'), v('7.16.2'), v('7.17.0'), v('8.0.0'), v('8.1.0')]
+        bwc.minimumWireCompatibleVersion == v('7.17.0')
     }
 
     def "current version is next minor with next major and last minor both staged"() {
@@ -69,7 +70,7 @@ class BwcVersionsSpec extends Specification {
         unreleased == [
             (v('7.16.1')): new UnreleasedVersionInfo(v('7.16.1'), '7.16', ':distribution:bwc:bugfix'),
             (v('7.17.0')): new UnreleasedVersionInfo(v('7.17.0'), '7.17', ':distribution:bwc:staged'),
-            (v('8.0.0')): new UnreleasedVersionInfo(v('8.0.0'), '8.0', ':distribution:bwc:minor'),
+            (v('8.0.0')): new UnreleasedVersionInfo(v('8.0.0'), '8.x', ':distribution:bwc:minor'),
             (v('8.1.0')): new UnreleasedVersionInfo(v('8.1.0'), 'main', ':distribution')
         ]
         bwc.wireCompatible == [v('7.17.0'), v('8.0.0'), v('8.1.0')]
@@ -130,6 +131,60 @@ class BwcVersionsSpec extends Specification {
         ]
         bwc.wireCompatible == [v('7.17.0'), v('7.17.1'), v('8.0.0')]
         bwc.indexCompatible == [v('7.14.0'), v('7.14.1'), v('7.14.2'), v('7.15.0'), v('7.15.1'), v('7.15.2'), v('7.16.0'), v('7.16.1'), v('7.17.0'), v('7.17.1'), v('8.0.0')]
+    }
+
+    def "current version is major with unreleased next minor"() {
+        given:
+        addVersion('7.14.0', '8.9.0')
+        addVersion('7.14.1', '8.9.0')
+        addVersion('7.14.2', '8.9.0')
+        addVersion('7.15.0', '8.9.0')
+        addVersion('7.15.1', '8.9.0')
+        addVersion('7.15.2', '8.9.0')
+        addVersion('7.16.0', '8.10.0')
+        addVersion('7.16.1', '8.10.0')
+        addVersion('7.17.0', '8.10.0')
+        addVersion('8.0.0', '9.0.0')
+
+        when:
+        def bwc = new BwcVersions(versionLines, v('8.0.0'))
+        def unreleased = bwc.unreleased.collectEntries { [it, bwc.unreleasedInfo(it)] }
+
+        then:
+        unreleased == [
+            (v('7.16.1')): new UnreleasedVersionInfo(v('7.16.1'), '7.16', ':distribution:bwc:bugfix'),
+            (v('7.17.0')): new UnreleasedVersionInfo(v('7.17.0'), '7.x', ':distribution:bwc:minor'),
+            (v('8.0.0')): new UnreleasedVersionInfo(v('8.0.0'), 'main', ':distribution'),
+        ]
+        bwc.wireCompatible == [v('7.17.0'), v('8.0.0')]
+        bwc.indexCompatible == [v('7.14.0'), v('7.14.1'), v('7.14.2'), v('7.15.0'), v('7.15.1'), v('7.15.2'), v('7.16.0'), v('7.16.1'), v('7.17.0'), v('8.0.0')]
+    }
+
+    def "current version is major with staged next minor"() {
+        given:
+        addVersion('7.14.0', '8.9.0')
+        addVersion('7.14.1', '8.9.0')
+        addVersion('7.14.2', '8.9.0')
+        addVersion('7.15.0', '8.9.0')
+        addVersion('7.15.1', '8.9.0')
+        addVersion('7.15.2', '8.9.0')
+        addVersion('7.16.0', '8.10.0')
+        addVersion('7.17.0', '8.10.0')
+        addVersion('8.0.0', '9.0.0')
+
+        when:
+        def bwc = new BwcVersions(versionLines, v('8.0.0'))
+        def unreleased = bwc.unreleased.collectEntries { [it, bwc.unreleasedInfo(it)] }
+
+        then:
+        unreleased == [
+            (v('7.15.2')): new UnreleasedVersionInfo(v('7.15.2'), '7.15', ':distribution:bwc:bugfix'),
+            (v('7.16.0')): new UnreleasedVersionInfo(v('7.16.0'), '7.16', ':distribution:bwc:staged'),
+            (v('7.17.0')): new UnreleasedVersionInfo(v('7.17.0'), '7.x', ':distribution:bwc:minor'),
+            (v('8.0.0')): new UnreleasedVersionInfo(v('8.0.0'), 'main', ':distribution'),
+        ]
+        bwc.wireCompatible == [v('7.17.0'), v('8.0.0')]
+        bwc.indexCompatible == [v('7.14.0'), v('7.14.1'), v('7.14.2'), v('7.15.0'), v('7.15.1'), v('7.15.2'), v('7.16.0'), v('7.17.0'), v('8.0.0')]
     }
 
     def "current version is next bugfix"() {
@@ -199,4 +254,5 @@ class BwcVersionsSpec extends Specification {
     private Version v(String version) {
         return Version.fromString(version)
     }
+
 }

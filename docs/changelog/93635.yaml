@@ -1,6 +1,0 @@
-pr: 93635
-summary: Only simulate legal desired moves
-area: Allocation
-type: bug
-issues:
- - 93271

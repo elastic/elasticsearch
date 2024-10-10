@@ -1,12 +1,23 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 import org.gradle.plugins.ide.eclipse.model.SourceFolder
+
+
+buildscript {
+  repositories {
+    maven {
+      url 'https://jitpack.io'
+    }
+    mavenCentral()
+  }
+}
 
 plugins {
     id 'java-gradle-plugin'
@@ -17,8 +28,10 @@ plugins {
 group = "org.elasticsearch"
 
 // This project contains Checkstyle rule implementations used by IDEs which use a Java 11 runtime
-targetCompatibility = 11
-sourceCompatibility = 11
+java {
+  targetCompatibility = 11
+  sourceCompatibility = 11
+}
 
 gradlePlugin {
     // We already configure publication and we don't need or want the one that comes
@@ -57,6 +70,10 @@ gradlePlugin {
 }
 
 repositories {
+    maven {
+      url 'https://jitpack.io'
+    }
+
     mavenCentral()
     gradlePluginPortal()
 }
@@ -66,6 +83,11 @@ dependencies {
     api buildLibs.shadow.plugin
     api buildLibs.apache.rat
     compileOnly buildLibs.checkstyle
+    constraints {
+      api("org.eclipse.platform:org.eclipse.osgi:3.18.300") {
+        because("Use the same version as we do in spotless gradle plugin at runtime")
+      }
+    }
     api(buildLibs.spotless.plugin) {
       exclude module: "groovy-xml"
     }
@@ -84,4 +106,8 @@ project.getPlugins().withType(JavaBasePlugin.class) {
             s.setOutput("out/eclipse" + i)
         }
     }
+}
+
+tasks.withType(JavaCompile).configureEach {
+  options.incremental = System.getenv("JENKINS_URL") == null && System.getenv("BUILDKITE_BUILD_URL") == null && System.getProperty("isCI") == null
 }

@@ -1,15 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.routing;
 
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -25,9 +27,13 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
+
+import static org.elasticsearch.TransportVersions.FAST_REFRESH_RCO;
+import static org.elasticsearch.index.IndexSettings.INDEX_FAST_REFRESH_SETTING;
 
 public class OperationRouting {
 
@@ -39,8 +45,11 @@ public class OperationRouting {
     );
 
     private boolean useAdaptiveReplicaSelection;
+    private final boolean isStateless;
 
+    @SuppressWarnings("this-escape")
     public OperationRouting(Settings settings, ClusterSettings clusterSettings) {
+        this.isStateless = DiscoveryNode.isStateless(settings);
         this.useAdaptiveReplicaSelection = USE_ADAPTIVE_REPLICA_SELECTION_SETTING.get(settings);
         clusterSettings.addSettingsUpdateConsumer(USE_ADAPTIVE_REPLICA_SELECTION_SETTING, this::setUseAdaptiveReplicaSelection);
     }
@@ -51,6 +60,7 @@ public class OperationRouting {
 
     /**
      * Shards to use for a {@code GET} operation.
+     * @return A shard iterator that can be used for GETs, or null if e.g. due to preferences no match is found.
      */
     public ShardIterator getShards(
         ClusterState clusterState,
@@ -74,6 +84,19 @@ public class OperationRouting {
             null,
             null
         );
+    }
+
+    public ShardIterator useOnlyPromotableShardsForStateless(ShardIterator shards) {
+        // If it is stateless, only route promotable shards. This is a temporary workaround until a more cohesive solution can be
+        // implemented for search shards.
+        if (isStateless && shards != null) {
+            return new PlainShardIterator(
+                shards.shardId(),
+                shards.getShardRoutings().stream().filter(ShardRouting::isPromotableToPrimary).collect(Collectors.toList())
+            );
+        } else {
+            return shards;
+        }
     }
 
     public GroupShardsIterator<ShardIterator> searchShards(
@@ -105,11 +128,30 @@ public class OperationRouting {
                 nodeCounts
             );
             if (iterator != null) {
-                var searchableShards = iterator.getShardRoutings().stream().filter(ShardRouting::isSearchable).toList();
-                set.add(new PlainShardIterator(iterator.shardId(), searchableShards));
+                final List<ShardRouting> shardsThatCanHandleSearches;
+                if (isStateless) {
+                    shardsThatCanHandleSearches = statelessShardsThatHandleSearches(clusterState, iterator);
+                } else {
+                    shardsThatCanHandleSearches = statefulShardsThatHandleSearches(iterator);
+                }
+                set.add(new PlainShardIterator(iterator.shardId(), shardsThatCanHandleSearches));
             }
         }
         return GroupShardsIterator.sortAndCreate(new ArrayList<>(set));
+    }
+
+    private static List<ShardRouting> statefulShardsThatHandleSearches(ShardIterator iterator) {
+        final List<ShardRouting> shardsThatCanHandleSearches = new ArrayList<>(iterator.size());
+        for (ShardRouting shardRouting : iterator) {
+            if (shardRouting.isSearchable()) {
+                shardsThatCanHandleSearches.add(shardRouting);
+            }
+        }
+        return shardsThatCanHandleSearches;
+    }
+
+    private static List<ShardRouting> statelessShardsThatHandleSearches(ClusterState clusterState, ShardIterator iterator) {
+        return iterator.getShardRoutings().stream().filter(shardRouting -> canSearchShard(shardRouting, clusterState)).toList();
     }
 
     public static ShardIterator getShards(ClusterState clusterState, ShardId shardId) {
@@ -117,22 +159,32 @@ public class OperationRouting {
         return shard.activeInitializingShardsRandomIt();
     }
 
-    private static final Map<String, Set<String>> EMPTY_ROUTING = Collections.emptyMap();
-
     private static Set<IndexShardRoutingTable> computeTargetedShards(
         ClusterState clusterState,
         String[] concreteIndices,
         @Nullable Map<String, Set<String>> routing
     ) {
-        routing = routing == null ? EMPTY_ROUTING : routing; // just use an empty map
-        final Set<IndexShardRoutingTable> set = new HashSet<>();
         // we use set here and not list since we might get duplicates
+        final Set<IndexShardRoutingTable> set = new HashSet<>();
+        if (routing == null || routing.isEmpty()) {
+            collectTargetShardsNoRouting(clusterState, concreteIndices, set);
+        } else {
+            collectTargetShardsWithRouting(clusterState, concreteIndices, routing, set);
+        }
+        return set;
+    }
+
+    private static void collectTargetShardsWithRouting(
+        ClusterState clusterState,
+        String[] concreteIndices,
+        Map<String, Set<String>> routing,
+        Set<IndexShardRoutingTable> set
+    ) {
         for (String index : concreteIndices) {
             final IndexRoutingTable indexRoutingTable = indexRoutingTable(clusterState, index);
-            final IndexMetadata indexMetadata = indexMetadata(clusterState, index);
             final Set<String> indexSearchRouting = routing.get(index);
             if (indexSearchRouting != null) {
-                IndexRouting indexRouting = IndexRouting.fromIndexMetadata(indexMetadata);
+                IndexRouting indexRouting = IndexRouting.fromIndexMetadata(indexMetadata(clusterState, index));
                 for (String r : indexSearchRouting) {
                     indexRouting.collectSearchShards(r, s -> set.add(RoutingTable.shardRoutingTable(indexRoutingTable, s)));
                 }
@@ -142,7 +194,15 @@ public class OperationRouting {
                 }
             }
         }
-        return set;
+    }
+
+    private static void collectTargetShardsNoRouting(ClusterState clusterState, String[] concreteIndices, Set<IndexShardRoutingTable> set) {
+        for (String index : concreteIndices) {
+            final IndexRoutingTable indexRoutingTable = indexRoutingTable(clusterState, index);
+            for (int i = 0; i < indexRoutingTable.size(); i++) {
+                set.add(indexRoutingTable.shard(i));
+            }
+        }
     }
 
     private ShardIterator preferenceActiveShardIterator(
@@ -154,7 +214,7 @@ public class OperationRouting {
         @Nullable Map<String, Long> nodeCounts
     ) {
         if (preference == null || preference.isEmpty()) {
-            return shardRoutings(indexShard, nodes, collectorService, nodeCounts);
+            return shardRoutings(indexShard, collectorService, nodeCounts);
         }
         if (preference.charAt(0) == '_') {
             Preference preferenceType = Preference.parse(preference);
@@ -181,7 +241,7 @@ public class OperationRouting {
                 }
                 // no more preference
                 if (index == -1 || index == preference.length() - 1) {
-                    return shardRoutings(indexShard, nodes, collectorService, nodeCounts);
+                    return shardRoutings(indexShard, collectorService, nodeCounts);
                 } else {
                     // update the preference and continue
                     preference = preference.substring(index + 1);
@@ -214,7 +274,6 @@ public class OperationRouting {
 
     private ShardIterator shardRoutings(
         IndexShardRoutingTable indexShard,
-        DiscoveryNodes nodes,
         @Nullable ResponseCollectorService collectorService,
         @Nullable Map<String, Long> nodeCounts
     ) {
@@ -244,5 +303,19 @@ public class OperationRouting {
     public ShardId shardId(ClusterState clusterState, String index, String id, @Nullable String routing) {
         IndexMetadata indexMetadata = indexMetadata(clusterState, index);
         return new ShardId(indexMetadata.getIndex(), IndexRouting.fromIndexMetadata(indexMetadata).getShard(id, routing));
+    }
+
+    public static boolean canSearchShard(ShardRouting shardRouting, ClusterState clusterState) {
+        // TODO: remove if and always return isSearchable (ES-9563)
+        if (INDEX_FAST_REFRESH_SETTING.get(clusterState.metadata().index(shardRouting.index()).getSettings())) {
+            // Until all the cluster is upgraded, we send searches/gets to the primary (even if it has been upgraded) to execute locally.
+            if (clusterState.getMinTransportVersion().onOrAfter(FAST_REFRESH_RCO)) {
+                return shardRouting.isSearchable();
+            } else {
+                return shardRouting.isPromotableToPrimary();
+            }
+        } else {
+            return shardRouting.isSearchable();
+        }
     }
 }

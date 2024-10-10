@@ -7,14 +7,18 @@
 
 package org.elasticsearch.blobcache.common;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.core.Tuple;
+import org.elasticsearch.common.CheckedSupplier;
+import org.elasticsearch.core.Nullable;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.function.Supplier;
+import java.util.concurrent.ExecutionException;
+import java.util.function.LongConsumer;
 
 /**
  * An {@link ActionFuture} that listeners can be attached to. Listeners are executed when the future is completed
@@ -25,27 +29,40 @@ import java.util.function.Supplier;
  */
 class ProgressListenableActionFuture extends PlainActionFuture<Long> {
 
-    protected final long start;
-    protected final long end;
+    private static final Logger logger = LogManager.getLogger(ProgressListenableActionFuture.class);
 
-    // modified under 'this' mutex
-    private volatile List<Tuple<Long, ActionListener<Long>>> listeners;
-    protected volatile long progress;
+    private record PositionAndListener(long position, ActionListener<Long> listener) {}
+
+    final long start;
+    final long end;
+
+    /**
+     * A consumer that accepts progress made by this {@link ProgressListenableActionFuture}. The consumer is called before listeners are
+     * notified of the updated progress value in {@link #onProgress(long)} if the value is less than the actual end. The consumer can be
+     * called with out-of-order progress values.
+     */
+    @Nullable
+    private final LongConsumer progressConsumer;
+
+    private List<PositionAndListener> listeners;
+    private long progress;
     private volatile boolean completed;
 
     /**
      * Creates a {@link ProgressListenableActionFuture} that accepts the progression
      * to be within {@code start} (inclusive) and {@code end} (exclusive) values.
      *
-     * @param start the start (inclusive)
-     * @param end   the end (exclusive)
+     * @param start             the start (inclusive)
+     * @param end               the end (exclusive)
+     * @param progressConsumer  a consumer that accepts the progress made by this {@link ProgressListenableActionFuture}
      */
-    ProgressListenableActionFuture(long start, long end) {
+    ProgressListenableActionFuture(long start, long end, @Nullable LongConsumer progressConsumer) {
         super();
         this.start = start;
         this.end = end;
         this.progress = start;
         this.completed = false;
+        this.progressConsumer = progressConsumer;
         assert invariant();
     }
 
@@ -55,7 +72,7 @@ class ProgressListenableActionFuture extends PlainActionFuture<Long> {
             assert completed == false || listeners == null;
             assert start <= progress : start + " <= " + progress;
             assert progress <= end : progress + " <= " + end;
-            assert listeners == null || listeners.stream().allMatch(listener -> progress < listener.v1());
+            assert listeners == null || listeners.stream().allMatch(listener -> progress < listener.position());
         }
         return true;
     }
@@ -78,17 +95,20 @@ class ProgressListenableActionFuture extends PlainActionFuture<Long> {
             assert false : end + " < " + progressValue;
             throw new IllegalArgumentException("Cannot update progress with a value greater than [end=" + end + ']');
         }
+        if (progressValue == end) {
+            return; // reached the end of the range, listeners will be completed by {@link #onResponse(Long)}
+        }
 
         List<ActionListener<Long>> listenersToExecute = null;
         synchronized (this) {
             assert this.progress < progressValue : this.progress + " < " + progressValue;
             this.progress = progressValue;
 
-            final List<Tuple<Long, ActionListener<Long>>> listenersCopy = this.listeners;
+            final List<PositionAndListener> listenersCopy = this.listeners;
             if (listenersCopy != null) {
-                List<Tuple<Long, ActionListener<Long>>> listenersToKeep = null;
-                for (Tuple<Long, ActionListener<Long>> listener : listenersCopy) {
-                    if (progressValue < listener.v1()) {
+                List<PositionAndListener> listenersToKeep = null;
+                for (PositionAndListener listener : listenersCopy) {
+                    if (progressValue < listener.position()) {
                         if (listenersToKeep == null) {
                             listenersToKeep = new ArrayList<>();
                         }
@@ -97,13 +117,16 @@ class ProgressListenableActionFuture extends PlainActionFuture<Long> {
                         if (listenersToExecute == null) {
                             listenersToExecute = new ArrayList<>();
                         }
-                        listenersToExecute.add(listener.v2());
+                        listenersToExecute.add(listener.listener());
                     }
                 }
                 this.listeners = listenersToKeep;
             }
         }
         if (listenersToExecute != null) {
+            if (progressConsumer != null) {
+                safeAcceptProgress(progressConsumer, progressValue);
+            }
             listenersToExecute.forEach(listener -> executeListener(listener, () -> progressValue));
         }
         assert invariant();
@@ -111,8 +134,8 @@ class ProgressListenableActionFuture extends PlainActionFuture<Long> {
 
     @Override
     public void onResponse(Long result) {
-        if (result == null || result < start || end < result) {
-            assert false : start + " < " + result + " < " + end;
+        if (result == null || end != result) {
+            assert false : result + " != " + end;
             throw new IllegalArgumentException("Invalid completion value [start=" + start + ",end=" + end + ",response=" + result + ']');
         }
         ensureNotCompleted();
@@ -134,15 +157,17 @@ class ProgressListenableActionFuture extends PlainActionFuture<Long> {
     @Override
     protected void done(boolean success) {
         super.done(success);
-        final List<Tuple<Long, ActionListener<Long>>> listenersToExecute;
+        final List<PositionAndListener> listenersToExecute;
+        assert invariant();
         synchronized (this) {
-            assert progress == end || success == false;
+            assert completed == false;
             completed = true;
+            assert listeners == null || listeners.stream().allMatch(l -> progress < l.position() && l.position() <= end);
             listenersToExecute = this.listeners;
             listeners = null;
         }
         if (listenersToExecute != null) {
-            listenersToExecute.stream().map(Tuple::v2).forEach(listener -> executeListener(listener, () -> actionGet(0L)));
+            listenersToExecute.forEach(listener -> executeListener(listener.listener(), this::actionResult));
         }
         assert invariant();
     }
@@ -162,21 +187,37 @@ class ProgressListenableActionFuture extends PlainActionFuture<Long> {
             if (completed || value <= progressValue) {
                 executeImmediate = true;
             } else {
-                List<Tuple<Long, ActionListener<Long>>> listenersCopy = this.listeners;
+                List<PositionAndListener> listenersCopy = this.listeners;
                 if (listenersCopy == null) {
                     listenersCopy = new ArrayList<>();
                 }
-                listenersCopy.add(Tuple.tuple(value, listener));
+                listenersCopy.add(new PositionAndListener(value, listener));
                 this.listeners = listenersCopy;
             }
         }
         if (executeImmediate) {
-            executeListener(listener, completed ? () -> actionGet(0L) : () -> progressValue);
+            executeListener(listener, completed ? this::actionResult : () -> progressValue);
         }
         assert invariant();
     }
 
-    private static void executeListener(final ActionListener<Long> listener, final Supplier<Long> result) {
+    /**
+     * Return the result of this future, if it has been completed successfully, or unwrap and throw the exception with which it was
+     * completed exceptionally. It is not valid to call this method if the future is incomplete.
+     */
+    private Long actionResult() throws Exception {
+        try {
+            return result();
+        } catch (ExecutionException e) {
+            if (e.getCause() instanceof Exception exCause) {
+                throw exCause;
+            } else {
+                throw e;
+            }
+        }
+    }
+
+    private static void executeListener(final ActionListener<Long> listener, final CheckedSupplier<Long, ?> result) {
         try {
             listener.onResponse(result.get());
         } catch (Exception e) {
@@ -184,8 +225,18 @@ class ProgressListenableActionFuture extends PlainActionFuture<Long> {
         }
     }
 
+    private static void safeAcceptProgress(LongConsumer consumer, long progress) {
+        assert consumer != null;
+        try {
+            consumer.accept(progress);
+        } catch (Exception e) {
+            assert false : e;
+            logger.warn("Failed to consume progress value", e);
+        }
+    }
+
     @Override
-    public String toString() {
+    public synchronized String toString() {
         return "ProgressListenableActionFuture[start="
             + start
             + ", end="

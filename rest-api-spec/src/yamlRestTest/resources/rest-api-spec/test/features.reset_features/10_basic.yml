@@ -1,8 +1,8 @@
 ---
 "Get Features":
-  - skip:
-      features: contains
-      version: " - 7.12.99"
+  - requires:
+      test_runner_features: contains
+      cluster_features: ["gte_v7.13.0"]
       reason: "This API was added in 7.13.0"
   - do: { features.get_features: {}}
   - contains: {'features': {'name': 'tasks'}}

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.query;
@@ -12,6 +13,7 @@ import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -40,7 +42,7 @@ import java.util.TreeMap;
 /**
  * Same as {@link MatchQueryBuilder} but supports multiple fields.
  */
-public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQueryBuilder> {
+public final class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQueryBuilder> {
 
     public static final String NAME = "multi_match";
     private static final String CUTOFF_FREQUENCY_DEPRECATION_MSG = "cutoff_freqency is not supported."
@@ -223,7 +225,7 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
         fuzzyRewrite = in.readOptionalString();
         tieBreaker = in.readOptionalFloat();
         lenient = in.readOptionalBoolean();
-        if (in.getTransportVersion().before(TransportVersion.V_8_0_0)) {
+        if (in.getTransportVersion().before(TransportVersions.V_8_0_0)) {
             in.readOptionalFloat();
         }
         zeroTermsQuery = ZeroTermsQueryOption.readFromStream(in);
@@ -234,7 +236,7 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeGenericValue(value);
-        out.writeMap(fieldsBoosts, StreamOutput::writeString, StreamOutput::writeFloat);
+        out.writeMap(fieldsBoosts, StreamOutput::writeFloat);
         type.writeTo(out);
         operator.writeTo(out);
         out.writeOptionalString(analyzer);
@@ -246,7 +248,7 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
         out.writeOptionalString(fuzzyRewrite);
         out.writeOptionalFloat(tieBreaker);
         out.writeOptionalBoolean(lenient);
-        if (out.getTransportVersion().before(TransportVersion.V_8_0_0)) {
+        if (out.getTransportVersion().before(TransportVersions.V_8_0_0)) {
             out.writeOptionalFloat(null);
         }
         zeroTermsQuery.writeTo(out);
@@ -827,6 +829,6 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.ZERO;
+        return TransportVersions.ZERO;
     }
 }

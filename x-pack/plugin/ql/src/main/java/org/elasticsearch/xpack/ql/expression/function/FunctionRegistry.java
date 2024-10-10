@@ -47,10 +47,12 @@ public class FunctionRegistry {
     /**
      * Register the given function definitions with this registry.
      */
+    @SuppressWarnings("this-escape")
     public FunctionRegistry(FunctionDefinition... functions) {
         register(functions);
     }
 
+    @SuppressWarnings("this-escape")
     public FunctionRegistry(FunctionDefinition[]... groupFunctions) {
         register(groupFunctions);
     }
@@ -196,7 +198,7 @@ public class FunctionRegistry {
      * Build a {@linkplain FunctionDefinition} for a unary function.
      */
     @SuppressWarnings("overloads")  // These are ambiguous if you aren't using ctor references but we always do
-    protected static <T extends Function> FunctionDefinition def(
+    public static <T extends Function> FunctionDefinition def(
         Class<T> function,
         BiFunction<Source, Expression, T> ctorRef,
         String... names
@@ -410,10 +412,13 @@ public class FunctionRegistry {
         String... names
     ) {
         FunctionBuilder builder = (source, children, cfg) -> {
-            if (children.size() != 2) {
+            boolean isBinaryOptionalParamFunction = OptionalArgument.class.isAssignableFrom(function);
+            if (isBinaryOptionalParamFunction && (children.size() > 2 || children.size() < 1)) {
+                throw new QlIllegalArgumentException("expects one or two arguments");
+            } else if (isBinaryOptionalParamFunction == false && children.size() != 2) {
                 throw new QlIllegalArgumentException("expects exactly two arguments");
             }
-            return ctorRef.build(source, children.get(0), children.get(1), cfg);
+            return ctorRef.build(source, children.get(0), children.size() == 2 ? children.get(1) : null, cfg);
         };
         return def(function, builder, names);
     }
@@ -455,5 +460,4 @@ public class FunctionRegistry {
         }
         return (Boolean) extras[0];
     }
-
 }

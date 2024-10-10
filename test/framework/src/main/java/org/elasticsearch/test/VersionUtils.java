@@ -1,13 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.test;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
@@ -177,7 +179,7 @@ public class VersionUtils {
                 return v;
             }
         }
-        throw new IllegalArgumentException("couldn't find any released versions of the minor before [" + Version.CURRENT + "]");
+        throw new IllegalArgumentException("couldn't find any released versions of the minor before [" + Build.current().version() + "]");
     }
 
     /** Returns the oldest released {@link Version} */
@@ -192,7 +194,7 @@ public class VersionUtils {
 
     /** Returns a random {@link Version} from all available versions, that is compatible with the given version. */
     public static Version randomCompatibleVersion(Random random, Version version) {
-        final List<Version> compatible = ALL_VERSIONS.stream().filter(version::isCompatible).collect(Collectors.toList());
+        final List<Version> compatible = ALL_VERSIONS.stream().filter(version::isCompatible).toList();
         return compatible.get(random.nextInt(compatible.size()));
     }
 
@@ -228,28 +230,8 @@ public class VersionUtils {
 
     /** Returns the maximum {@link Version} that is compatible with the given version. */
     public static Version maxCompatibleVersion(Version version) {
-        final List<Version> compatible = ALL_VERSIONS.stream()
-            .filter(version::isCompatible)
-            .filter(version::onOrBefore)
-            .collect(Collectors.toList());
+        final List<Version> compatible = ALL_VERSIONS.stream().filter(version::isCompatible).filter(version::onOrBefore).toList();
         assert compatible.size() > 0;
         return compatible.get(compatible.size() - 1);
-    }
-
-    /**
-     * Returns a random version index compatible with the current version.
-     */
-    public static Version randomIndexCompatibleVersion(Random random) {
-        return randomVersionBetween(random, Version.CURRENT.minimumIndexCompatibilityVersion(), Version.CURRENT);
-    }
-
-    /**
-     * Returns a random version index compatible with the given version, but not the given version.
-     */
-    public static Version randomPreviousCompatibleVersion(Random random, Version version) {
-        // TODO: change this to minimumCompatibilityVersion(), but first need to remove released/unreleased
-        // versions so getPreviousVerison returns the *actual* previous version. Otherwise eg 8.0.0 returns say 7.0.2 for previous,
-        // but 7.2.0 for minimum compat
-        return randomVersionBetween(random, version.minimumIndexCompatibilityVersion(), getPreviousVersion(version));
     }
 }

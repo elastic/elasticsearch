@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.sql.analysis.analyzer;
 
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.ql.common.Failure;
 import org.elasticsearch.xpack.sql.SqlClientException;
 
@@ -18,8 +17,4 @@ public class VerificationException extends SqlClientException {
         super(Failure.failMessage(sources));
     }
 
-    @Override
-    public RestStatus status() {
-        return RestStatus.BAD_REQUEST;
-    }
 }

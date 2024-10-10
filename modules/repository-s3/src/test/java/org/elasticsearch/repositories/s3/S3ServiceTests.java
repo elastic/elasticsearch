@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.repositories.s3;
 
@@ -11,6 +12,7 @@ import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.watcher.ResourceWatcherService;
 import org.mockito.Mockito;
 
 import java.io.IOException;
@@ -18,7 +20,11 @@ import java.io.IOException;
 public class S3ServiceTests extends ESTestCase {
 
     public void testCachedClientsAreReleased() throws IOException {
-        final S3Service s3Service = new S3Service(Mockito.mock(Environment.class));
+        final S3Service s3Service = new S3Service(
+            Mockito.mock(Environment.class),
+            Settings.EMPTY,
+            Mockito.mock(ResourceWatcherService.class)
+        );
         final Settings settings = Settings.builder().put("endpoint", "http://first").build();
         final RepositoryMetadata metadata1 = new RepositoryMetadata("first", "s3", settings);
         final RepositoryMetadata metadata2 = new RepositoryMetadata("second", "s3", settings);

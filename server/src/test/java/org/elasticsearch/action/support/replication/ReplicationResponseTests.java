@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.support.replication;
@@ -35,34 +36,35 @@ public class ReplicationResponseTests extends ESTestCase {
     public void testShardInfoToString() {
         final int total = 5;
         final int successful = randomIntBetween(1, total);
-        final ShardInfo shardInfo = new ShardInfo(total, successful);
+        final ShardInfo shardInfo = ShardInfo.of(total, successful);
         assertEquals(Strings.format("ShardInfo{total=5, successful=%d, failures=[]}", successful), shardInfo.toString());
     }
 
     public void testShardInfoToXContent() throws IOException {
         {
-            ShardInfo shardInfo = new ShardInfo(5, 3);
+            ShardInfo shardInfo = ShardInfo.of(5, 3);
             String output = Strings.toString(shardInfo);
             assertEquals("{\"total\":5,\"successful\":3,\"failed\":0}", output);
         }
         {
-            ShardInfo shardInfo = new ShardInfo(
+            ShardInfo shardInfo = ShardInfo.of(
                 6,
                 4,
-                new ShardInfo.Failure(
-                    new ShardId("index", "_uuid", 3),
-                    "_node_id",
-                    new IllegalArgumentException("Wrong"),
-                    RestStatus.BAD_REQUEST,
-                    false
-                ),
-                new ShardInfo.Failure(
-                    new ShardId("index", "_uuid", 1),
-                    "_node_id",
-                    new CircuitBreakingException("Wrong", 12, 21, CircuitBreaker.Durability.PERMANENT),
-                    RestStatus.NOT_ACCEPTABLE,
-                    true
-                )
+                new ShardInfo.Failure[] {
+                    new ShardInfo.Failure(
+                        new ShardId("index", "_uuid", 3),
+                        "_node_id",
+                        new IllegalArgumentException("Wrong"),
+                        RestStatus.BAD_REQUEST,
+                        false
+                    ),
+                    new ShardInfo.Failure(
+                        new ShardId("index", "_uuid", 1),
+                        "_node_id",
+                        new CircuitBreakingException("Wrong", 12, 21, CircuitBreaker.Durability.PERMANENT),
+                        RestStatus.NOT_ACCEPTABLE,
+                        true
+                    ) }
             );
             String output = Strings.toString(shardInfo);
             assertEquals(XContentHelper.stripWhitespace("""
@@ -151,10 +153,14 @@ public class ReplicationResponseTests extends ESTestCase {
                 assertEquals(expectedFailure.status(), actualFailure.status());
                 assertEquals(expectedFailure.nodeId(), actualFailure.nodeId());
                 assertEquals(expectedFailure.primary(), actualFailure.primary());
-
-                ElasticsearchException expectedCause = (ElasticsearchException) expectedFailure.getCause();
-                ElasticsearchException actualCause = (ElasticsearchException) actualFailure.getCause();
-                assertDeepEquals(expectedCause, actualCause);
+                Throwable expectedCause = expectedFailure.getCause();
+                Throwable actualCause = actualFailure.getCause();
+                if (expectedCause instanceof ElasticsearchException) {
+                    assertDeepEquals((ElasticsearchException) expectedCause, (ElasticsearchException) actualCause);
+                } else {
+                    assertEquals(expectedCause.getClass(), actualCause.getClass());
+                    assertEquals(expectedCause.getMessage(), actualCause.getMessage());
+                }
             }
         }
     }

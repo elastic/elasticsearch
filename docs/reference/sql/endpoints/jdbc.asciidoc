@@ -162,6 +162,13 @@ experimental:[] See <<modules-cross-cluster-search,{ccs}>>.
 the underlying exception (default).
 
 [discrete]
+==== Troubleshooting
+
+`debug` (default `false`):: Setting it to `true` will enable the debug logging.
+
+`debug.output` (default `err`):: The destination of the debug logs. By default, they are sent to standard error. Value `out` will redirect the logging to standard output. A file path can also be specified.
+
+[discrete]
 ==== Additional
 
 `validate.properties` (default `true`):: If disabled, it will ignore any misspellings or unrecognizable properties. When enabled, an exception

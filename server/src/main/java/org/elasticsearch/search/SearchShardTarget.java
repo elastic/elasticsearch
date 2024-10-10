@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search;
@@ -23,7 +24,6 @@ import java.util.Objects;
  * The target that the search request was executed on.
  */
 public final class SearchShardTarget implements Writeable, Comparable<SearchShardTarget> {
-
     private final Text nodeId;
     private final ShardId shardId;
     private final String clusterAlias;
@@ -113,6 +113,11 @@ public final class SearchShardTarget implements Writeable, Comparable<SearchShar
         return Objects.hash(nodeId, shardId, clusterAlias);
     }
 
+    /**
+     * NOTE: this representation is used as the "id" for shards for the REST response
+     * when query profiling is requested. So changing this formulation may break
+     * systems that rely on the format, including the parser in SearchProfileResults.
+     */
     @Override
     public String toString() {
         String shardToString = "["

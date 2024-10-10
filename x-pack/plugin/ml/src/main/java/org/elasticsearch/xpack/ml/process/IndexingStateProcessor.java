@@ -228,8 +228,12 @@ public class IndexingStateProcessor implements StateProcessor {
             () -> true,
             retryMessage -> LOGGER.debug("[{}] {} {}", jobId, documentId, retryMessage)
         );
-        return searchResponse.getHits().getHits().length > 0
-            ? searchResponse.getHits().getHits()[0].getIndex()
-            : AnomalyDetectorsIndex.jobStateIndexWriteAlias();
+        try {
+            return searchResponse.getHits().getHits().length > 0
+                ? searchResponse.getHits().getHits()[0].getIndex()
+                : AnomalyDetectorsIndex.jobStateIndexWriteAlias();
+        } finally {
+            searchResponse.decRef();
+        }
     }
 }

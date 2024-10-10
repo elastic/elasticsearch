@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.gradle.internal;
@@ -25,12 +26,16 @@ import org.gradle.api.Task;
 import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.file.FileCollection;
 import org.gradle.api.plugins.JavaPlugin;
+import org.gradle.api.provider.ProviderFactory;
 import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.tasks.SourceSetContainer;
 import org.gradle.api.tasks.testing.Test;
 
 import java.io.File;
+import java.util.List;
 import java.util.Map;
+
+import javax.inject.Inject;
 
 import static org.elasticsearch.gradle.util.FileUtils.mkdirs;
 import static org.elasticsearch.gradle.util.GradleUtils.maybeConfigure;
@@ -38,7 +43,12 @@ import static org.elasticsearch.gradle.util.GradleUtils.maybeConfigure;
 /**
  * Applies commonly used settings to all Test tasks in the project
  */
-public class ElasticsearchTestBasePlugin implements Plugin<Project> {
+public abstract class ElasticsearchTestBasePlugin implements Plugin<Project> {
+
+    public static final String DUMP_OUTPUT_ON_FAILURE_PROP_NAME = "dumpOutputOnFailure";
+
+    @Inject
+    protected abstract ProviderFactory getProviderFactory();
 
     @Override
     public void apply(Project project) {
@@ -55,7 +65,7 @@ public class ElasticsearchTestBasePlugin implements Plugin<Project> {
             File testOutputDir = new File(test.getReports().getJunitXml().getOutputLocation().getAsFile().get(), "output");
 
             ErrorReportingTestListener listener = new ErrorReportingTestListener(test, testOutputDir);
-            test.getExtensions().getExtraProperties().set("dumpOutputOnFailure", true);
+            test.getExtensions().getExtraProperties().set(DUMP_OUTPUT_ON_FAILURE_PROP_NAME, true);
             test.getExtensions().add("errorReportingTestListener", listener);
             test.addTestOutputListener(listener);
             test.addTestListener(listener);
@@ -83,7 +93,7 @@ public class ElasticsearchTestBasePlugin implements Plugin<Project> {
                     mkdirs(test.getWorkingDir().toPath().resolve("temp").toFile());
 
                     // TODO remove once jvm.options are added to test system properties
-                    test.systemProperty("java.locale.providers", "SPI,COMPAT");
+                    test.systemProperty("java.locale.providers", "CLDR");
                 }
             });
             test.getJvmArgumentProviders().add(nonInputProperties);
@@ -98,6 +108,8 @@ public class ElasticsearchTestBasePlugin implements Plugin<Project> {
                 "-Xmx" + System.getProperty("tests.heap.size", "512m"),
                 "-Xms" + System.getProperty("tests.heap.size", "512m"),
                 "-Djava.security.manager=allow",
+                "-Dtests.testfeatures.enabled=true",
+                "--add-opens=java.base/java.util=ALL-UNNAMED",
                 // TODO: only open these for mockito when it is modularized
                 "--add-opens=java.base/java.security.cert=ALL-UNNAMED",
                 "--add-opens=java.base/java.nio.channels=ALL-UNNAMED",
@@ -142,16 +154,15 @@ public class ElasticsearchTestBasePlugin implements Plugin<Project> {
             // don't track these as inputs since they contain absolute paths and break cache relocatability
             File gradleUserHome = project.getGradle().getGradleUserHomeDir();
             nonInputProperties.systemProperty("gradle.user.home", gradleUserHome);
+            nonInputProperties.systemProperty("workspace.dir", Util.locateElasticsearchWorkspace(project.getGradle()));
             // we use 'temp' relative to CWD since this is per JVM and tests are forbidden from writing to CWD
             nonInputProperties.systemProperty("java.io.tmpdir", test.getWorkingDir().toPath().resolve("temp"));
 
+            test.systemProperties(getProviderFactory().systemPropertiesPrefixedBy("tests.").get());
+            test.systemProperties(getProviderFactory().systemPropertiesPrefixedBy("es.").get());
+
             // TODO: remove setting logging level via system property
             test.systemProperty("tests.logger.level", "WARN");
-            System.getProperties().entrySet().forEach(entry -> {
-                if ((entry.getKey().toString().startsWith("tests.") || entry.getKey().toString().startsWith("es."))) {
-                    test.systemProperty(entry.getKey().toString(), entry.getValue());
-                }
-            });
 
             // TODO: remove this once ctx isn't added to update script params in 7.0
             test.systemProperty("es.scripting.update.ctx_in_params", "false");
@@ -195,6 +206,30 @@ public class ElasticsearchTestBasePlugin implements Plugin<Project> {
                     test.setClasspath(testRuntime.minus(mainRuntime).plus(shadowConfig).plus(shadowJar));
                 }
             });
+        });
+        configureImmutableCollectionsPatch(project);
+    }
+
+    private void configureImmutableCollectionsPatch(Project project) {
+        String patchProject = ":test:immutable-collections-patch";
+        if (project.findProject(patchProject) == null) {
+            return; // build tests may not have this project, just skip
+        }
+        String configurationName = "immutableCollectionsPatch";
+        FileCollection patchedFileCollection = project.getConfigurations()
+            .create(configurationName, config -> config.setCanBeConsumed(false));
+        var deps = project.getDependencies();
+        deps.add(configurationName, deps.project(Map.of("path", patchProject, "configuration", "patch")));
+        project.getTasks().withType(Test.class).matching(task -> task.getName().equals("test")).configureEach(test -> {
+            test.getInputs().files(patchedFileCollection);
+            test.systemProperty("tests.hackImmutableCollections", "true");
+            test.getJvmArgumentProviders()
+                .add(
+                    () -> List.of(
+                        "--patch-module=java.base=" + patchedFileCollection.getSingleFile() + "/java.base",
+                        "--add-opens=java.base/java.util=ALL-UNNAMED"
+                    )
+                );
         });
     }
 }

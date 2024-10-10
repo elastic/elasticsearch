@@ -1,15 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.util.concurrent;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors.TaskTrackingConfig;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.test.ESTestCase;
 
@@ -20,6 +22,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
@@ -82,7 +85,7 @@ public class AbstractThrottledTaskRunnerTests extends ESTestCase {
         final var threadBlocker = new CyclicBarrier(totalTasks);
         for (int i = 0; i < totalTasks; i++) {
             new Thread(() -> {
-                CyclicBarrierUtils.await(threadBlocker);
+                safeAwait(threadBlocker);
                 taskRunner.enqueueTask(new TestTask());
                 assertThat(taskRunner.runningTasks(), lessThanOrEqualTo(maxTasks));
             }).start();
@@ -94,7 +97,7 @@ public class AbstractThrottledTaskRunnerTests extends ESTestCase {
         assertNoRunningTasks(taskRunner);
     }
 
-    public void testEnqueueSpawnsNewTasksUpToMax() throws Exception {
+    public void testEnqueueSpawnsNewTasksUpToMax() {
         int maxTasks = randomIntBetween(1, maxThreads);
         final int enqueued = maxTasks - 1; // So that it is possible to run at least one more task
         final int newTasks = randomIntBetween(1, 10);
@@ -112,9 +115,7 @@ public class AbstractThrottledTaskRunnerTests extends ESTestCase {
             @Override
             public void onResponse(Releasable releasable) {
                 try {
-                    taskBlocker.await();
-                } catch (InterruptedException e) {
-                    throw new AssertionError(e);
+                    safeAwait(taskBlocker);
                 } finally {
                     executedCountDown.countDown();
                     releasable.close();
@@ -137,7 +138,56 @@ public class AbstractThrottledTaskRunnerTests extends ESTestCase {
         }
         taskBlocker.countDown();
         /// Eventually all tasks are executed
-        assertTrue(executedCountDown.await(10, TimeUnit.SECONDS));
+        safeAwait(executedCountDown);
+        assertTrue(queue.isEmpty());
+        assertNoRunningTasks(taskRunner);
+    }
+
+    public void testRunSyncTasksEagerly() {
+        final int maxTasks = randomIntBetween(1, maxThreads);
+        final int taskCount = between(maxTasks, maxTasks * 2);
+        final var barrier = new CyclicBarrier(maxTasks + 1);
+        final var executedCountDown = new CountDownLatch(taskCount);
+        final var testThread = Thread.currentThread();
+
+        class TestTask implements ActionListener<Releasable> {
+
+            @Override
+            public void onFailure(Exception e) {
+                throw new AssertionError(e);
+            }
+
+            @Override
+            public void onResponse(Releasable releasable) {
+                try (releasable) {
+                    if (Thread.currentThread() != testThread) {
+                        safeAwait(barrier);
+                        safeAwait(barrier);
+                    }
+                } finally {
+                    executedCountDown.countDown();
+                }
+            }
+        }
+
+        final BlockingQueue<TestTask> queue = ConcurrentCollections.newBlockingQueue();
+        final AbstractThrottledTaskRunner<TestTask> taskRunner = new AbstractThrottledTaskRunner<>("test", maxTasks, executor, queue);
+        for (int i = 0; i < taskCount; i++) {
+            taskRunner.enqueueTask(new TestTask());
+        }
+
+        safeAwait(barrier);
+        assertThat(taskRunner.runningTasks(), equalTo(maxTasks)); // maxTasks tasks are running now
+        assertEquals(taskCount - maxTasks, queue.size()); // the remainder are enqueued
+
+        final var capturedTask = new AtomicReference<Runnable>();
+        taskRunner.runSyncTasksEagerly(t -> assertTrue(capturedTask.compareAndSet(null, t)));
+        assertEquals(taskCount - maxTasks, queue.size()); // hasn't run any tasks yet
+        capturedTask.get().run();
+        assertTrue(queue.isEmpty());
+
+        safeAwait(barrier);
+        safeAwait(executedCountDown);
         assertTrue(queue.isEmpty());
         assertNoRunningTasks(taskRunner);
     }
@@ -145,7 +195,7 @@ public class AbstractThrottledTaskRunnerTests extends ESTestCase {
     public void testFailsTasksOnRejectionOrShutdown() throws Exception {
         final var executor = randomBoolean()
             ? EsExecutors.newScaling("test", maxThreads, maxThreads, 0, TimeUnit.MILLISECONDS, true, threadFactory, threadContext)
-            : EsExecutors.newFixed("test", maxThreads, between(1, 5), threadFactory, threadContext, false);
+            : EsExecutors.newFixed("test", maxThreads, between(1, 5), threadFactory, threadContext, TaskTrackingConfig.DO_NOT_TRACK);
 
         final var totalPermits = between(1, maxThreads * 2);
         final var permits = new Semaphore(totalPermits);
@@ -201,9 +251,9 @@ public class AbstractThrottledTaskRunnerTests extends ESTestCase {
     private void assertNoRunningTasks(AbstractThrottledTaskRunner<?> taskRunner) {
         final var barrier = new CyclicBarrier(maxThreads + 1);
         for (int i = 0; i < maxThreads; i++) {
-            executor.execute(() -> CyclicBarrierUtils.await(barrier));
+            executor.execute(() -> safeAwait(barrier));
         }
-        CyclicBarrierUtils.await(barrier);
+        safeAwait(barrier);
         assertThat(taskRunner.runningTasks(), equalTo(0));
     }
 

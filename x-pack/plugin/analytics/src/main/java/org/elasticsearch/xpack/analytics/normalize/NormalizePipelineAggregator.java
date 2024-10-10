@@ -71,7 +71,6 @@ public class NormalizePipelineAggregator extends PipelineAggregator {
             }
 
             List<InternalAggregation> aggs = StreamSupport.stream(bucket.getAggregations().spliterator(), false)
-                .map((p) -> (InternalAggregation) p)
                 .collect(Collectors.toList());
             aggs.add(new InternalSimpleValue(name(), normalizedBucketValue, formatter, metadata()));
             InternalMultiBucketAggregation.InternalBucket newBucket = originalAgg.createBucket(InternalAggregations.from(aggs), bucket);

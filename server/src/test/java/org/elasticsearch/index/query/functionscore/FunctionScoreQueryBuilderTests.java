@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.query.functionscore;
@@ -252,8 +253,8 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
                     Instant.ofEpochMilli(System.currentTimeMillis() - randomIntBetween(0, 1000000)),
                     ZoneOffset.UTC
                 ).toString();
-                scale = randomTimeValue(1, 1000, "d", "h", "ms", "s", "m");
-                offset = randomPositiveTimeValue();
+                scale = between(1, 1000) + randomFrom("d", "h", "ms", "s", "m");
+                offset = between(1, 1000) + randomFrom("d", "h", "ms", "s", "m", "micros", "nanos");
             }
             default -> {
                 origin = randomBoolean() ? randomInt() : randomFloat();
@@ -895,7 +896,7 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
         Directory directory = newDirectory();
         RandomIndexWriter iw = new RandomIndexWriter(random(), directory);
         iw.addDocument(new Document());
-        final IndexSearcher searcher = new IndexSearcher(iw.getReader());
+        final IndexSearcher searcher = newSearcher(iw.getReader());
         iw.close();
         assertThat(searcher.getIndexReader().leaves().size(), greaterThan(0));
 

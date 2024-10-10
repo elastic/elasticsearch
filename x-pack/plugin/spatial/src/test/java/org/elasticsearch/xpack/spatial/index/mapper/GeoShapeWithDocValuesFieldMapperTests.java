@@ -7,26 +7,35 @@
 package org.elasticsearch.xpack.spatial.index.mapper;
 
 import org.apache.lucene.index.IndexableField;
-import org.elasticsearch.Version;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.Orientation;
+import org.elasticsearch.core.UpdateForV9;
+import org.elasticsearch.geometry.Geometry;
+import org.elasticsearch.geometry.utils.GeometryValidator;
+import org.elasticsearch.geometry.utils.WellKnownBinary;
+import org.elasticsearch.geometry.utils.WellKnownText;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.AbstractGeometryFieldMapper;
 import org.elasticsearch.index.mapper.AbstractShapeGeometryFieldMapper;
 import org.elasticsearch.index.mapper.AbstractShapeGeometryFieldMapper.AbstractShapeGeometryFieldType;
 import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
-import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.ToXContent;
 import org.junit.AssumptionViolatedException;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
+import java.util.function.Function;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -46,14 +55,10 @@ public class GeoShapeWithDocValuesFieldMapperTests extends GeoFieldMapperTests {
     }
 
     @Override
-    protected boolean supportsStoredFields() {
-        return false;
-    }
-
-    @Override
     protected void registerParameters(ParameterChecker checker) throws IOException {
         checker.registerConflictCheck("doc_values", b -> b.field("doc_values", false));
         checker.registerConflictCheck("index", b -> b.field("index", false));
+        checker.registerConflictCheck("store", b -> b.field("store", true));
         checker.registerUpdateCheck(b -> b.field("orientation", "right"), m -> {
             AbstractShapeGeometryFieldMapper<?> gsfm = (AbstractShapeGeometryFieldMapper<?>) m;
             assertEquals(Orientation.RIGHT, gsfm.orientation());
@@ -85,16 +90,6 @@ public class GeoShapeWithDocValuesFieldMapperTests extends GeoFieldMapperTests {
         AbstractShapeGeometryFieldType<?> fieldType = fieldType(fieldMapper);
         assertThat(fieldType.orientation(), equalTo(Orientation.RIGHT));
         assertTrue(fieldType.hasDocValues());
-    }
-
-    public void testDefaultDocValueConfigurationOnPre7_8() throws IOException {
-        Version oldVersion = VersionUtils.randomVersionBetween(random(), Version.V_7_0_0, Version.V_7_7_0);
-        DocumentMapper defaultMapper = createDocumentMapper(oldVersion, fieldMapping(this::minimalMapping));
-        Mapper fieldMapper = defaultMapper.mappers().getMapper(FIELD_NAME);
-        assertThat(fieldMapper, instanceOf(fieldMapperClass()));
-
-        GeoShapeWithDocValuesFieldMapper geoShapeFieldMapper = (GeoShapeWithDocValuesFieldMapper) fieldMapper;
-        assertFalse(geoShapeFieldMapper.fieldType().hasDocValues());
     }
 
     /**
@@ -228,6 +223,32 @@ public class GeoShapeWithDocValuesFieldMapperTests extends GeoFieldMapperTests {
         assertFalse(((AbstractGeometryFieldMapper<?>) fieldMapper).fieldType().isAggregatable());
     }
 
+    /**
+     * Test that store parameter correctly parses
+     */
+    public void testStore() throws IOException {
+        DocumentMapper defaultMapper = createDocumentMapper(fieldMapping(b -> {
+            b.field("type", getFieldName());
+            b.field("store", true);
+        }));
+        Mapper fieldMapper = defaultMapper.mappers().getMapper(FIELD_NAME);
+        assertThat(fieldMapper, instanceOf(fieldMapperClass()));
+
+        boolean isStored = ((AbstractGeometryFieldMapper<?>) fieldMapper).fieldType().isStored();
+        assertTrue(isStored);
+
+        // explicit false doc_values
+        defaultMapper = createDocumentMapper(fieldMapping(b -> {
+            b.field("type", getFieldName());
+            b.field("store", false);
+        }));
+        fieldMapper = defaultMapper.mappers().getMapper(FIELD_NAME);
+        assertThat(fieldMapper, instanceOf(fieldMapperClass()));
+
+        isStored = ((AbstractGeometryFieldMapper<?>) fieldMapper).fieldType().isStored();
+        assertFalse(isStored);
+    }
+
     public void testShapeMapperMerge() throws Exception {
         MapperService mapperService = createMapperService(fieldMapping(b -> {
             b.field("type", getFieldName());
@@ -249,10 +270,9 @@ public class GeoShapeWithDocValuesFieldMapperTests extends GeoFieldMapperTests {
     public void testInvalidCurrentVersion() {
         MapperParsingException e = expectThrows(
             MapperParsingException.class,
-            () -> super.createMapperService(
-                Version.CURRENT,
-                fieldMapping((b) -> { b.field("type", getFieldName()).field("strategy", "recursive"); })
-            )
+            () -> super.createMapperService(IndexVersion.current(), fieldMapping((b) -> {
+                b.field("type", getFieldName()).field("strategy", "recursive");
+            }))
         );
         assertThat(
             e.getMessage(),
@@ -260,8 +280,10 @@ public class GeoShapeWithDocValuesFieldMapperTests extends GeoFieldMapperTests {
         );
     }
 
+    @UpdateForV9(owner = UpdateForV9.Owner.SEARCH_ANALYTICS)
+    @AwaitsFix(bugUrl = "this is testing legacy functionality so can likely be removed in 9.0")
     public void testGeoShapeLegacyMerge() throws Exception {
-        Version version = VersionUtils.randomPreviousCompatibleVersion(random(), Version.V_8_0_0);
+        IndexVersion version = IndexVersionUtils.randomPreviousCompatibleVersion(random(), IndexVersions.V_8_0_0);
         MapperService m = createMapperService(version, fieldMapping(b -> b.field("type", getFieldName())));
         Exception e = expectThrows(
             IllegalArgumentException.class,
@@ -290,6 +312,27 @@ public class GeoShapeWithDocValuesFieldMapperTests extends GeoFieldMapperTests {
         String serialized = toXContentString((GeoShapeWithDocValuesFieldMapper) defaultMapper.mappers().getMapper(FIELD_NAME));
         assertTrue(serialized, serialized.contains("\"orientation\":\"" + Orientation.RIGHT + "\""));
         assertTrue(serialized, serialized.contains("\"doc_values\":true"));
+        assertTrue(serialized, serialized.contains("\"store\":false"));
+        assertTrue(serialized, serialized.contains("\"index\":true"));
+    }
+
+    public void testSerializeNonDefaultsDefaults() throws Exception {
+        boolean docValues = randomBoolean();
+        boolean store = randomBoolean();
+        boolean index = randomBoolean();
+        Orientation orientation = randomBoolean() ? Orientation.LEFT : Orientation.RIGHT;
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
+            b.field("type", getFieldName());
+            b.field("doc_values", docValues);
+            b.field("store", store);
+            b.field("index", index);
+            b.field("orientation", orientation);
+        }));
+        String serialized = toXContentString((GeoShapeWithDocValuesFieldMapper) mapper.mappers().getMapper(FIELD_NAME));
+        assertTrue(serialized, serialized.contains("\"orientation\":\"" + orientation + "\""));
+        assertTrue(serialized, serialized.contains("\"doc_values\":" + docValues));
+        assertTrue(serialized, serialized.contains("\"store\":" + store));
+        assertTrue(serialized, serialized.contains("\"index\":" + index));
     }
 
     public void testSerializeDocValues() throws IOException {
@@ -301,14 +344,19 @@ public class GeoShapeWithDocValuesFieldMapperTests extends GeoFieldMapperTests {
         String serialized = toXContentString((GeoShapeWithDocValuesFieldMapper) mapper.mappers().getMapper(FIELD_NAME));
         assertTrue(serialized, serialized.contains("\"orientation\":\"" + Orientation.RIGHT + "\""));
         assertTrue(serialized, serialized.contains("\"doc_values\":" + docValues));
+        assertTrue(serialized, serialized.contains("\"store\":false"));
+        assertTrue(serialized, serialized.contains("\"index\":true"));
     }
 
     public void testShapeArrayParsing() throws Exception {
 
-        DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
+            b.field("type", getFieldName());
+            b.field("store", true);
+        }));
 
         SourceToParse sourceToParse = source(b -> {
-            b.startArray("shape")
+            b.startArray(FIELD_NAME)
                 .startObject()
                 .field("type", "Point")
                 .startArray("coordinates")
@@ -328,8 +376,9 @@ public class GeoShapeWithDocValuesFieldMapperTests extends GeoFieldMapperTests {
 
         ParsedDocument document = mapper.parse(sourceToParse);
         assertThat(document.docs(), hasSize(1));
-        IndexableField[] fields = document.docs().get(0).getFields("shape.type");
-        assertThat(fields.length, equalTo(2));
+        List<IndexableField> fields = document.docs().get(0).getFields(FIELD_NAME);
+        // 2 BKD points, 2 stored fields and 1 doc value
+        assertThat(fields, hasSize(5));
     }
 
     public void testMultiFieldsDeprecationWarning() throws Exception {
@@ -344,8 +393,8 @@ public class GeoShapeWithDocValuesFieldMapperTests extends GeoFieldMapperTests {
 
     public void testSelfIntersectPolygon() throws IOException {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
-        MapperParsingException ex = expectThrows(
-            MapperParsingException.class,
+        DocumentParsingException ex = expectThrows(
+            DocumentParsingException.class,
             () -> mapper.parse(source(b -> b.field("field", "POLYGON((0 0, 1 1, 0 1, 1 0, 0 0))")))
         );
         assertThat(ex.getCause().getMessage(), containsString("Polygon self-intersection at lat=0.5 lon=0.5"));
@@ -365,11 +414,6 @@ public class GeoShapeWithDocValuesFieldMapperTests extends GeoFieldMapperTests {
     }
 
     @Override
-    protected void assertSearchable(MappedFieldType fieldType) {
-
-    }
-
-    @Override
     protected Object generateRandomInputValue(MappedFieldType ft) {
         assumeFalse("Test implemented in a follow up", true);
         return null;
@@ -377,7 +421,24 @@ public class GeoShapeWithDocValuesFieldMapperTests extends GeoFieldMapperTests {
 
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed) {
-        throw new AssumptionViolatedException("not supported");
+        return new GeometricShapeSyntheticSourceSupport(GeometricShapeSyntheticSourceSupport.FieldType.GEO_SHAPE, ignoreMalformed);
+    }
+
+    @Override
+    protected Function<Object, Object> loadBlockExpected(BlockReaderSupport blockReaderSupport, boolean columnReader) {
+        return v -> asWKT((BytesRef) v);
+    }
+
+    protected static Object asWKT(BytesRef value) {
+        // Internally we use WKB in BytesRef, but for test assertions we want to use WKT for readability
+        Geometry geometry = WellKnownBinary.fromWKB(GeometryValidator.NOOP, false, value.bytes);
+        return WellKnownText.toWKT(geometry);
+    }
+
+    @Override
+    protected BlockReaderSupport getSupportedReaders(MapperService mapper, String loaderFieldName) {
+        // Synthetic source is currently not supported.
+        return new BlockReaderSupport(false, false, mapper, loaderFieldName);
     }
 
     @Override

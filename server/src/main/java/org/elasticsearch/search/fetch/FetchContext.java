@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.fetch;
@@ -24,8 +25,8 @@ import org.elasticsearch.search.fetch.subphase.ScriptFieldsContext;
 import org.elasticsearch.search.fetch.subphase.highlight.SearchHighlightContext;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.lookup.Source;
+import org.elasticsearch.search.rank.RankBuilder;
 import org.elasticsearch.search.rescore.RescoreContext;
 
 import java.util.Collections;
@@ -101,13 +102,6 @@ public class FetchContext {
     }
 
     /**
-     * The {@code SearchLookup} for the this context
-     */
-    public SearchLookup searchLookup() {
-        return searchContext.getSearchExecutionContext().lookup();
-    }
-
-    /**
      * The original query, not rewritten.
      */
     public Query query() {
@@ -164,6 +158,19 @@ public class FetchContext {
     }
 
     /**
+     * The rank builder used in the original search
+     */
+    public RankBuilder rankBuilder() {
+        return searchContext.request().source() == null ? null : searchContext.request().source().rankBuilder();
+    }
+
+    public List<String> queryNames() {
+        return searchContext.request().source() == null
+            ? Collections.emptyList()
+            : searchContext.request().source().subSearches().stream().map(x -> x.getQueryBuilder().queryName()).toList();
+    }
+
+    /**
      * Should the response include sequence number and primary term metadata
      */
     public boolean seqNoAndPrimaryTerm() {
@@ -183,7 +190,7 @@ public class FetchContext {
                     searchContext.getSearchExecutionContext(),
                     Collections.singletonList(new FieldAndFormat(name, null))
                 );
-            } else if (searchContext.docValuesContext().fields().stream().map(ff -> ff.field).anyMatch(name::equals) == false) {
+            } else if (searchContext.docValuesContext().fields().stream().map(ff -> ff.field).noneMatch(name::equals)) {
                 dvContext.fields().add(new FieldAndFormat(name, null));
             }
         }

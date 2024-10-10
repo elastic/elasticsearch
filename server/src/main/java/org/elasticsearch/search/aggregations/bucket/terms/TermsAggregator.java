@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.bucket.terms;
@@ -33,6 +34,11 @@ import java.util.Objects;
 import java.util.Set;
 
 public abstract class TermsAggregator extends DeferableBucketAggregator {
+
+    /**
+     * This class provides bucket thresholds configuration, but can be used ensure default value immutability
+     */
+    public record ConstantBucketCountThresholds(long minDocCount, long shardMinDocCount, int requiredSize, int shardSize) {}
 
     public static class BucketCountThresholds implements Writeable, ToXContentFragment {
         private long minDocCount;
@@ -66,6 +72,15 @@ public abstract class TermsAggregator extends DeferableBucketAggregator {
         }
 
         public BucketCountThresholds(BucketCountThresholds bucketCountThresholds) {
+            this(
+                bucketCountThresholds.minDocCount,
+                bucketCountThresholds.shardMinDocCount,
+                bucketCountThresholds.requiredSize,
+                bucketCountThresholds.shardSize
+            );
+        }
+
+        public BucketCountThresholds(ConstantBucketCountThresholds bucketCountThresholds) {
             this(
                 bucketCountThresholds.minDocCount,
                 bucketCountThresholds.shardMinDocCount,
@@ -179,6 +194,7 @@ public abstract class TermsAggregator extends DeferableBucketAggregator {
     protected final Set<Aggregator> aggsUsedForSorting;
     protected final SubAggCollectionMode collectMode;
 
+    @SuppressWarnings("this-escape")
     public TermsAggregator(
         String name,
         AggregatorFactories factories,

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.index.mapper;
 
@@ -14,9 +15,15 @@ import java.util.Map;
 import java.util.function.Function;
 
 /**
- * Base class for {@link GeoShapeFieldMapper}
+ * Base class for shape field mappers
  */
 public abstract class AbstractShapeGeometryFieldMapper<T> extends AbstractGeometryFieldMapper<T> {
+    @Override
+    protected boolean supportsParsingObject() {
+        // ShapeGeometryFieldMapper supports parsing Well-Known Text (WKT) and GeoJSON.
+        // WKT are of type String and GeoJSON for all shapes are of type Array.
+        return false;
+    }
 
     public static Parameter<Explicit<Boolean>> coerceParam(Function<FieldMapper, Explicit<Boolean>> initializer, boolean coerceByDefault) {
         return Parameter.explicitBoolParam("coerce", true, initializer, coerceByDefault);
@@ -49,12 +56,18 @@ public abstract class AbstractShapeGeometryFieldMapper<T> extends AbstractGeomet
             Orientation orientation,
             Map<String, String> meta
         ) {
-            super(name, isSearchable, isStored, hasDocValues, parser, meta);
+            super(name, isSearchable, isStored, hasDocValues, parser, null, meta);
             this.orientation = orientation;
         }
 
         public Orientation orientation() {
             return this.orientation;
+        }
+
+        @Override
+        protected Object nullValueAsSource(T nullValue) {
+            // we don't support null value fors shapes
+            return nullValue;
         }
     }
 
@@ -64,15 +77,14 @@ public abstract class AbstractShapeGeometryFieldMapper<T> extends AbstractGeomet
     protected AbstractShapeGeometryFieldMapper(
         String simpleName,
         MappedFieldType mappedFieldType,
+        BuilderParams builderParams,
         Explicit<Boolean> ignoreMalformed,
         Explicit<Boolean> coerce,
         Explicit<Boolean> ignoreZValue,
         Explicit<Orientation> orientation,
-        MultiFields multiFields,
-        CopyTo copyTo,
         Parser<T> parser
     ) {
-        super(simpleName, mappedFieldType, ignoreMalformed, ignoreZValue, multiFields, copyTo, parser);
+        super(simpleName, mappedFieldType, builderParams, ignoreMalformed, ignoreZValue, parser);
         this.coerce = coerce;
         this.orientation = orientation;
     }

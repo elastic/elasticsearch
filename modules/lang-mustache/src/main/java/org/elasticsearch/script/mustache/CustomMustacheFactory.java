@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.script.mustache;
@@ -14,9 +15,7 @@ import com.github.mustachejava.DefaultMustacheVisitor;
 import com.github.mustachejava.Mustache;
 import com.github.mustachejava.MustacheException;
 import com.github.mustachejava.MustacheVisitor;
-import com.github.mustachejava.SafeMustacheFactory;
 import com.github.mustachejava.TemplateContext;
-import com.github.mustachejava.TemplateFunction;
 import com.github.mustachejava.codes.DefaultMustache;
 import com.github.mustachejava.codes.IterableCode;
 import com.github.mustachejava.codes.WriteCode;
@@ -36,11 +35,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.StringJoiner;
+import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-public class CustomMustacheFactory extends SafeMustacheFactory {
+public final class CustomMustacheFactory extends DefaultMustacheFactory {
     static final String V7_JSON_MEDIA_TYPE_WITH_CHARSET = "application/json; charset=UTF-8";
     static final String JSON_MEDIA_TYPE_WITH_CHARSET = "application/json;charset=utf-8";
     static final String JSON_MEDIA_TYPE = "application/json";
@@ -48,6 +48,7 @@ public class CustomMustacheFactory extends SafeMustacheFactory {
     static final String X_WWW_FORM_URLENCODED_MEDIA_TYPE = "application/x-www-form-urlencoded";
 
     private static final String DEFAULT_MEDIA_TYPE = JSON_MEDIA_TYPE;
+    private static final boolean DEFAULT_DETECT_MISSING_PARAMS = false;
 
     private static final Map<String, Supplier<Encoder>> ENCODERS = Map.of(
         V7_JSON_MEDIA_TYPE_WITH_CHARSET,
@@ -64,14 +65,30 @@ public class CustomMustacheFactory extends SafeMustacheFactory {
 
     private final Encoder encoder;
 
+    /**
+     * Initializes a CustomMustacheFactory object with a specified mediaType.
+     *
+     * @deprecated Use {@link #builder()} instead to retrieve a {@link Builder} object that can be used to create a factory.
+     */
+    @Deprecated
     public CustomMustacheFactory(String mediaType) {
-        super(Collections.emptySet(), ".");
-        setObjectHandler(new CustomReflectionObjectHandler());
-        this.encoder = createEncoder(mediaType);
+        this(mediaType, DEFAULT_DETECT_MISSING_PARAMS);
     }
 
+    /**
+     * Default constructor for the factory.
+     *
+     * @deprecated Use {@link #builder()} instead to retrieve a {@link Builder} object that can be used to create a factory.
+     */
+    @Deprecated
     public CustomMustacheFactory() {
-        this(DEFAULT_MEDIA_TYPE);
+        this(DEFAULT_MEDIA_TYPE, DEFAULT_DETECT_MISSING_PARAMS);
+    }
+
+    private CustomMustacheFactory(String mediaType, boolean detectMissingParams) {
+        super();
+        setObjectHandler(new CustomReflectionObjectHandler(detectMissingParams));
+        this.encoder = createEncoder(mediaType);
     }
 
     @Override
@@ -94,6 +111,10 @@ public class CustomMustacheFactory extends SafeMustacheFactory {
     @Override
     public MustacheVisitor createMustacheVisitor() {
         return new CustomMustacheVisitor(this);
+    }
+
+    public static Builder builder() {
+        return new Builder();
     }
 
     class CustomMustacheVisitor extends DefaultMustacheVisitor {
@@ -146,7 +167,7 @@ public class CustomMustacheFactory extends SafeMustacheFactory {
             writer.write(tc.endChars());
         }
 
-        protected abstract TemplateFunction createFunction(Object resolved);
+        protected abstract Function<String, String> createFunction(Object resolved);
 
         /**
          * At compile time, this function extracts the name of the variable:
@@ -189,7 +210,7 @@ public class CustomMustacheFactory extends SafeMustacheFactory {
 
         @Override
         @SuppressWarnings("unchecked")
-        protected TemplateFunction createFunction(Object resolved) {
+        protected Function<String, String> createFunction(Object resolved) {
             return s -> {
                 if (resolved == null) {
                     return null;
@@ -239,7 +260,7 @@ public class CustomMustacheFactory extends SafeMustacheFactory {
         }
 
         @Override
-        protected TemplateFunction createFunction(Object resolved) {
+        protected Function<String, String> createFunction(Object resolved) {
             return s -> {
                 if (s == null) {
                     return null;
@@ -359,6 +380,36 @@ public class CustomMustacheFactory extends SafeMustacheFactory {
         @Override
         public void encode(String s, Writer writer) throws IOException {
             writer.write(URLEncoder.encode(s, StandardCharsets.UTF_8));
+        }
+    }
+
+    /**
+     * Build a new {@link CustomMustacheFactory} object.
+     */
+    public static class Builder {
+        private String mediaType = DEFAULT_MEDIA_TYPE;
+        private boolean detectMissingParams = DEFAULT_DETECT_MISSING_PARAMS;
+
+        private Builder() {}
+
+        public Builder mediaType(String mediaType) {
+            this.mediaType = mediaType;
+            return this;
+        }
+
+        /**
+         * Sets the behavior for handling missing parameters during template execution.
+         *
+         * @param detectMissingParams If true, an exception is thrown when executing the template with missing parameters.
+         *                            If false, the template gracefully handles missing parameters without throwing an exception.
+         */
+        public Builder detectMissingParams(boolean detectMissingParams) {
+            this.detectMissingParams = detectMissingParams;
+            return this;
+        }
+
+        public CustomMustacheFactory build() {
+            return new CustomMustacheFactory(mediaType, detectMissingParams);
         }
     }
 }

@@ -1,15 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.search;
 
 import org.apache.lucene.search.FieldComparator;
 import org.apache.lucene.search.FieldDoc;
+import org.apache.lucene.search.Pruning;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TopFieldDocs;
 import org.apache.lucene.search.TotalHits;
@@ -234,7 +236,7 @@ public class BottomSortValuesCollectorTests extends ESTestCase {
     private TopFieldDocs createTopDocs(SortField sortField, int totalHits, Object[] values) {
         FieldDoc[] fieldDocs = new FieldDoc[values.length];
         @SuppressWarnings("unchecked")
-        FieldComparator<Object> cmp = (FieldComparator<Object>) sortField.getComparator(1, false);
+        FieldComparator<Object> cmp = (FieldComparator<Object>) sortField.getComparator(1, Pruning.NONE);
         for (int i = 0; i < values.length; i++) {
             fieldDocs[i] = new FieldDoc(i, Float.NaN, new Object[] { values[i] });
         }

@@ -1,21 +1,22 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations;
 
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.PriorityQueue;
-import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation.Bucket;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
+import java.util.function.BiFunction;
 import java.util.function.Consumer;
 
 /**
@@ -53,16 +54,20 @@ public abstract class TopBucketBuilder<B extends InternalMultiBucketAggregation.
      * @param size the requested size of the list
      * @param order the sort order of the buckets
      * @param nonCompetitive called with non-competitive buckets
+     * @param reduce function to reduce a list of buckets
+     * @param reduceContext the reduce context
      */
     public static <B extends InternalMultiBucketAggregation.InternalBucket> TopBucketBuilder<B> build(
         int size,
         BucketOrder order,
-        Consumer<DelayedBucket<B>> nonCompetitive
+        Consumer<DelayedBucket<B>> nonCompetitive,
+        BiFunction<List<B>, AggregationReduceContext, B> reduce,
+        AggregationReduceContext reduceContext
     ) {
         if (size < USE_BUFFERING_BUILDER) {
-            return new PriorityQueueTopBucketBuilder<>(size, order, nonCompetitive);
+            return new PriorityQueueTopBucketBuilder<>(size, order, nonCompetitive, reduce, reduceContext);
         }
-        return new BufferingTopBucketBuilder<>(size, order, nonCompetitive);
+        return new BufferingTopBucketBuilder<>(size, order, nonCompetitive, reduce, reduceContext);
     }
 
     protected final Consumer<DelayedBucket<B>> nonCompetitive;
@@ -96,14 +101,24 @@ public abstract class TopBucketBuilder<B extends InternalMultiBucketAggregation.
      */
     static class PriorityQueueTopBucketBuilder<B extends InternalMultiBucketAggregation.InternalBucket> extends TopBucketBuilder<B> {
         private final PriorityQueue<DelayedBucket<B>> queue;
+        private final BiFunction<List<B>, AggregationReduceContext, B> reduce;
+        private final AggregationReduceContext reduceContext;
 
-        PriorityQueueTopBucketBuilder(int size, BucketOrder order, Consumer<DelayedBucket<B>> nonCompetitive) {
+        PriorityQueueTopBucketBuilder(
+            int size,
+            BucketOrder order,
+            Consumer<DelayedBucket<B>> nonCompetitive,
+            BiFunction<List<B>, AggregationReduceContext, B> reduce,
+            AggregationReduceContext reduceContext
+        ) {
             super(nonCompetitive);
             if (size >= ArrayUtil.MAX_ARRAY_LENGTH) {
                 throw new IllegalArgumentException("can't reduce more than [" + ArrayUtil.MAX_ARRAY_LENGTH + "] buckets");
             }
-            queue = new PriorityQueue<DelayedBucket<B>>(size) {
-                private final Comparator<DelayedBucket<? extends Bucket>> comparator = order.delayedBucketComparator();
+            this.reduce = reduce;
+            this.reduceContext = reduceContext;
+            queue = new PriorityQueue<>(size) {
+                private final Comparator<DelayedBucket<B>> comparator = order.delayedBucketComparator(reduce, reduceContext);
 
                 @Override
                 protected boolean lessThan(DelayedBucket<B> a, DelayedBucket<B> b) {
@@ -117,7 +132,11 @@ public abstract class TopBucketBuilder<B extends InternalMultiBucketAggregation.
             DelayedBucket<B> removed = queue.insertWithOverflow(bucket);
             if (removed != null) {
                 nonCompetitive.accept(removed);
-                removed.nonCompetitive();
+                // release any created sub-buckets
+                removed.nonCompetitive(reduceContext);
+            } else {
+                // add one bucket to the final result
+                reduceContext.consumeBucketsAndMaybeBreak(1);
             }
         }
 
@@ -125,7 +144,7 @@ public abstract class TopBucketBuilder<B extends InternalMultiBucketAggregation.
         public List<B> build() {
             List<B> result = new ArrayList<>(queue.size());
             for (int i = queue.size() - 1; i >= 0; i--) {
-                result.add(queue.pop().reduced());
+                result.add(queue.pop().reduced(reduce, reduceContext));
             }
             Collections.reverse(result);
             return result;
@@ -140,12 +159,22 @@ public abstract class TopBucketBuilder<B extends InternalMultiBucketAggregation.
     private static class BufferingTopBucketBuilder<B extends InternalMultiBucketAggregation.InternalBucket> extends TopBucketBuilder<B> {
         private final int size;
         private final BucketOrder order;
+        private final BiFunction<List<B>, AggregationReduceContext, B> reduce;
+        private final AggregationReduceContext reduceContext;
 
         private List<DelayedBucket<B>> buffer;
         private PriorityQueueTopBucketBuilder<B> next;
 
-        BufferingTopBucketBuilder(int size, BucketOrder order, Consumer<DelayedBucket<B>> nonCompetitive) {
+        BufferingTopBucketBuilder(
+            int size,
+            BucketOrder order,
+            Consumer<DelayedBucket<B>> nonCompetitive,
+            BiFunction<List<B>, AggregationReduceContext, B> reduce,
+            AggregationReduceContext reduceContext
+        ) {
             super(nonCompetitive);
+            this.reduce = reduce;
+            this.reduceContext = reduceContext;
             this.size = size;
             this.order = order;
             buffer = new ArrayList<>();
@@ -158,11 +187,13 @@ public abstract class TopBucketBuilder<B extends InternalMultiBucketAggregation.
                 next.add(bucket);
                 return;
             }
+            // add one bucket to the final result
+            reduceContext.consumeBucketsAndMaybeBreak(1);
             buffer.add(bucket);
             if (buffer.size() < size) {
                 return;
             }
-            next = new PriorityQueueTopBucketBuilder<>(size, order, nonCompetitive);
+            next = new PriorityQueueTopBucketBuilder<>(size, order, nonCompetitive, reduce, reduceContext);
             for (DelayedBucket<B> b : buffer) {
                 next.queue.add(b);
             }
@@ -177,7 +208,7 @@ public abstract class TopBucketBuilder<B extends InternalMultiBucketAggregation.
             }
             List<B> result = new ArrayList<>(buffer.size());
             for (DelayedBucket<B> b : buffer) {
-                result.add(b.reduced());
+                result.add(b.reduced(reduce, reduceContext));
             }
             result.sort(order.comparator());
             return result;

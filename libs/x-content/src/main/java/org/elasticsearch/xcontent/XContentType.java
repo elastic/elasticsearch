@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.xcontent;
@@ -24,7 +25,7 @@ public enum XContentType implements MediaType {
     /**
      * A JSON based content type.
      */
-    JSON(0) {
+    JSON(0, JsonXContent.jsonXContent) {
         @Override
         public String mediaTypeWithoutParameters() {
             return "application/json";
@@ -41,11 +42,6 @@ public enum XContentType implements MediaType {
         }
 
         @Override
-        public XContent xContent() {
-            return JsonXContent.jsonXContent;
-        }
-
-        @Override
         public Set<HeaderValue> headerValues() {
             return Set.of(new HeaderValue("application/json"), new HeaderValue("application/x-ndjson"), new HeaderValue("application/*"));
         }
@@ -53,7 +49,7 @@ public enum XContentType implements MediaType {
     /**
      * The jackson based smile binary format. Fast and compact binary format.
      */
-    SMILE(1) {
+    SMILE(1, SmileXContent.smileXContent) {
         @Override
         public String mediaTypeWithoutParameters() {
             return "application/smile";
@@ -65,11 +61,6 @@ public enum XContentType implements MediaType {
         }
 
         @Override
-        public XContent xContent() {
-            return SmileXContent.smileXContent;
-        }
-
-        @Override
         public Set<HeaderValue> headerValues() {
             return Set.of(new HeaderValue("application/smile"));
         }
@@ -77,7 +68,7 @@ public enum XContentType implements MediaType {
     /**
      * A YAML based content type.
      */
-    YAML(2) {
+    YAML(2, YamlXContent.yamlXContent) {
         @Override
         public String mediaTypeWithoutParameters() {
             return "application/yaml";
@@ -89,11 +80,6 @@ public enum XContentType implements MediaType {
         }
 
         @Override
-        public XContent xContent() {
-            return YamlXContent.yamlXContent;
-        }
-
-        @Override
         public Set<HeaderValue> headerValues() {
             return Set.of(new HeaderValue("application/yaml"));
         }
@@ -101,7 +87,7 @@ public enum XContentType implements MediaType {
     /**
      * A CBOR based content type.
      */
-    CBOR(3) {
+    CBOR(3, CborXContent.cborXContent) {
         @Override
         public String mediaTypeWithoutParameters() {
             return "application/cbor";
@@ -113,11 +99,6 @@ public enum XContentType implements MediaType {
         }
 
         @Override
-        public XContent xContent() {
-            return CborXContent.cborXContent;
-        }
-
-        @Override
         public Set<HeaderValue> headerValues() {
             return Set.of(new HeaderValue("application/cbor"));
         }
@@ -125,7 +106,7 @@ public enum XContentType implements MediaType {
     /**
      * A versioned JSON based content type.
      */
-    VND_JSON(4) {
+    VND_JSON(4, JsonXContent.jsonXContent) {
         @Override
         public String mediaTypeWithoutParameters() {
             return VENDOR_APPLICATION_PREFIX + "json";
@@ -134,11 +115,6 @@ public enum XContentType implements MediaType {
         @Override
         public String queryParameter() {
             return "vnd_json";
-        }
-
-        @Override
-        public XContent xContent() {
-            return JsonXContent.jsonXContent;
         }
 
         @Override
@@ -157,7 +133,7 @@ public enum XContentType implements MediaType {
     /**
      * Versioned jackson based smile binary format. Fast and compact binary format.
      */
-    VND_SMILE(5) {
+    VND_SMILE(5, SmileXContent.smileXContent) {
         @Override
         public String mediaTypeWithoutParameters() {
             return VENDOR_APPLICATION_PREFIX + "smile";
@@ -166,11 +142,6 @@ public enum XContentType implements MediaType {
         @Override
         public String queryParameter() {
             return "vnd_smile";
-        }
-
-        @Override
-        public XContent xContent() {
-            return SmileXContent.smileXContent;
         }
 
         @Override
@@ -186,7 +157,7 @@ public enum XContentType implements MediaType {
     /**
      * A Versioned YAML based content type.
      */
-    VND_YAML(6) {
+    VND_YAML(6, YamlXContent.yamlXContent) {
         @Override
         public String mediaTypeWithoutParameters() {
             return VENDOR_APPLICATION_PREFIX + "yaml";
@@ -195,11 +166,6 @@ public enum XContentType implements MediaType {
         @Override
         public String queryParameter() {
             return "vnd_yaml";
-        }
-
-        @Override
-        public XContent xContent() {
-            return YamlXContent.yamlXContent;
         }
 
         @Override
@@ -215,7 +181,7 @@ public enum XContentType implements MediaType {
     /**
      * A Versioned CBOR based content type.
      */
-    VND_CBOR(7) {
+    VND_CBOR(7, CborXContent.cborXContent) {
         @Override
         public String mediaTypeWithoutParameters() {
             return VENDOR_APPLICATION_PREFIX + "cbor";
@@ -224,11 +190,6 @@ public enum XContentType implements MediaType {
         @Override
         public String queryParameter() {
             return "vnd_cbor";
-        }
-
-        @Override
-        public XContent xContent() {
-            return CborXContent.cborXContent;
         }
 
         @Override
@@ -273,10 +234,13 @@ public enum XContentType implements MediaType {
         return null;
     }
 
-    private int index;
+    private final int index;
 
-    XContentType(int index) {
+    private final XContent xContent;
+
+    XContentType(int index, XContent xContent) {
         this.index = index;
+        this.xContent = xContent;
     }
 
     public static Byte parseVersion(String mediaType) {
@@ -296,7 +260,9 @@ public enum XContentType implements MediaType {
         return mediaTypeWithoutParameters();
     }
 
-    public abstract XContent xContent();
+    public final XContent xContent() {
+        return xContent;
+    }
 
     public abstract String mediaTypeWithoutParameters();
 
@@ -314,5 +280,11 @@ public enum XContentType implements MediaType {
      */
     public XContentType canonical() {
         return this;
+    }
+
+    private static final XContentType[] values = values();
+
+    public static XContentType ofOrdinal(int ordinal) {
+        return values[ordinal];
     }
 }

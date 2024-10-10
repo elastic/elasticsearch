@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.search.fetch.subphase.highlight;
 
@@ -22,7 +23,6 @@ public class FieldHighlightContext {
     public final FetchContext context;
     public final FetchSubPhase.HitContext hitContext;
     public final Query query;
-    public final boolean forceSource;
     public final Map<String, Object> cache;
 
     public FieldHighlightContext(
@@ -32,7 +32,6 @@ public class FieldHighlightContext {
         FetchContext context,
         FetchSubPhase.HitContext hitContext,
         Query query,
-        boolean forceSource,
         Map<String, Object> cache
     ) {
         this.fieldName = fieldName;
@@ -41,7 +40,6 @@ public class FieldHighlightContext {
         this.context = context;
         this.hitContext = hitContext;
         this.query = query;
-        this.forceSource = forceSource;
         this.cache = cache;
     }
 }

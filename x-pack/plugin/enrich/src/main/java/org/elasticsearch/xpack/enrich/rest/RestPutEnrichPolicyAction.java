@@ -9,6 +9,9 @@ package org.elasticsearch.xpack.enrich.rest;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestUtils;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.enrich.action.PutEnrichPolicyAction;
@@ -18,6 +21,7 @@ import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
+@ServerlessScope(Scope.PUBLIC)
 public class RestPutEnrichPolicyAction extends BaseRestHandler {
 
     @Override
@@ -38,7 +42,7 @@ public class RestPutEnrichPolicyAction extends BaseRestHandler {
 
     static PutEnrichPolicyAction.Request createRequest(RestRequest restRequest) throws IOException {
         try (XContentParser parser = restRequest.contentOrSourceParamParser()) {
-            return PutEnrichPolicyAction.fromXContent(parser, restRequest.param("name"));
+            return PutEnrichPolicyAction.fromXContent(RestUtils.getMasterNodeTimeout(restRequest), parser, restRequest.param("name"));
         }
     }
 }

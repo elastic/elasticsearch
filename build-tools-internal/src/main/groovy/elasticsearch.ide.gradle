@@ -1,13 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 import org.elasticsearch.gradle.util.Pair
+import org.elasticsearch.gradle.util.GradleUtils
 import org.elasticsearch.gradle.internal.info.BuildParams
+import org.elasticsearch.gradle.internal.test.TestUtil
 import org.jetbrains.gradle.ext.JUnit
 
 import java.nio.file.Files
@@ -109,15 +112,31 @@ if (providers.systemProperty('idea.active').getOrNull() == 'true') {
     }
   }
 
+  // aggregate task so dependency artifacts below can can use one task name
+  tasks.register("generateProviderImpls").configure {
+    group = 'ide'
+    description = 'Builds all embedded provider impls'
+
+    dependsOn subprojects
+      .collect { GradleUtils.findByName(it.tasks, 'generateProviderImpls') }
+      .findAll { it != null }
+  }
+
   tasks.register('buildDependencyArtifacts') {
     group = 'ide'
     description = 'Builds artifacts needed as dependency for IDE modules'
-    dependsOn([':client:rest-high-level:shadowJar',
-      ':plugins:repository-hdfs:hadoop-client-api:shadowJar',
-      ':libs:elasticsearch-x-content:generateProviderImpl',
+    dependsOn([':plugins:repository-hdfs:hadoop-client-api:shadowJar',
+      ':x-pack:plugin:esql:compute:ann:jar',
+      ':x-pack:plugin:esql:compute:gen:jar',
       ':server:generateModulesList',
-      ':server:generatePluginsList'].collect { elasticsearchProject.right()?.task(it) ?: it })
+      ':server:generatePluginsList',
+      ':generateProviderImpls',
+      ':libs:elasticsearch-native:elasticsearch-native-libraries:extractLibs',
+      ':x-pack:libs:es-opensaml-security-api:shadowJar'].collect { elasticsearchProject.right()?.task(it) ?: it })
   }
+
+  // this path is produced by the extractLibs task above
+  String testLibraryPath = TestUtil.getTestLibraryPath("${elasticsearchProject.left()}/libs/native/libraries/build/platform")
 
   idea {
     project {
@@ -149,10 +168,13 @@ if (providers.systemProperty('idea.active').getOrNull() == 'true') {
             vmParameters = [
               '-ea',
               '-Djava.security.manager=allow',
-              '-Djava.locale.providers=SPI,COMPAT',
+              '-Djava.locale.providers=CLDR',
+              '-Dtests.testfeatures.enabled=true',
+              '-Des.nativelibs.path="' + testLibraryPath + '"',
               // TODO: only open these for mockito when it is modularized
               '--add-opens=java.base/java.security.cert=ALL-UNNAMED',
               '--add-opens=java.base/java.nio.channels=ALL-UNNAMED',
+              '--add-opens=java.base/java.io=ALL-UNNAMED',
               '--add-opens=java.base/java.net=ALL-UNNAMED',
               '--add-opens=java.base/javax.net.ssl=ALL-UNNAMED',
               '--add-opens=java.base/java.nio.file=ALL-UNNAMED',
@@ -167,13 +189,14 @@ if (providers.systemProperty('idea.active').getOrNull() == 'true') {
           scopes = ['x-pack': 'Elastic', 'llrc': 'Apache2']
           profiles {
             Default {
-              keyword = 'the Elastic License 2.0 or the Server'
+              keyword = 'GNU Affero General Public License v3.0'
               notice = '''\
                 Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
-                or more contributor license agreements. Licensed under the Elastic License
-                2.0 and the Server Side Public License, v 1; you may not use this file except
-                in compliance with, at your election, the Elastic License 2.0 or the Server
-                Side Public License, v 1.'''.stripIndent()
+                or more contributor license agreements. Licensed under the "Elastic License
+                2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+                Public License v 1"; you may not use this file except in compliance with, at
+                your election, the "Elastic License 2.0", the "GNU Affero General Public
+                License v3.0 only", or the "Server Side Public License, v 1".'''.stripIndent()
             }
             Elastic {
               keyword = '2.0; you may not use this file except in compliance with the Elastic License'
@@ -219,20 +242,22 @@ if (providers.systemProperty('idea.active').getOrNull() == 'true') {
  * but before the XML document, e.g. a doctype or comment
  */
 void modifyXml(Object path, Action<? super Node> action, String preface = null) {
-  Node xml = parseXml(path)
-  action.execute(xml)
+  if (project.file(path).exists()) {
+    Node xml = parseXml(path)
+    action.execute(xml)
 
-  File xmlFile = project.file(path)
-  xmlFile.withPrintWriter { writer ->
-    def printer = new XmlNodePrinter(writer)
-    printer.namespaceAware = true
-    printer.preserveWhitespace = true
-    writer.write("<?xml version=\"1.0\"?>\n")
+    File xmlFile = project.file(path)
+    xmlFile.withPrintWriter { writer ->
+      def printer = new XmlNodePrinter(writer)
+      printer.namespaceAware = true
+      printer.preserveWhitespace = true
+      writer.write("<?xml version=\"1.0\"?>\n")
 
-    if (preface != null) {
-      writer.write(preface)
+      if (preface != null) {
+        writer.write(preface)
+      }
+      printer.print(xml)
     }
-    printer.print(xml)
   }
 }
 
@@ -244,20 +269,20 @@ Node parseXml(Object path) {
   return xml
 }
 
-Pair<File, IncludedBuild> locateElasticsearchWorkspace(Gradle project) {
-  if (project.parent == null) {
-    // See if any of these included builds is the Elasticsearch project
-    for (IncludedBuild includedBuild : project.includedBuilds) {
+Pair<File, IncludedBuild> locateElasticsearchWorkspace(Gradle gradle) {
+  if (gradle.parent == null) {
+    // See if any of these included builds is the Elasticsearch gradle
+    for (IncludedBuild includedBuild : gradle.includedBuilds) {
       File versionProperties = new File(includedBuild.projectDir, 'build-tools-internal/version.properties')
       if (versionProperties.exists()) {
         return Pair.of(includedBuild.projectDir, includedBuild)
       }
     }
 
-    // Otherwise assume this project is the root elasticsearch workspace
-    return Pair.of(project.getRootProject().getRootDir(), null)
+    // Otherwise assume this gradle is the root elasticsearch workspace
+    return Pair.of(gradle.getRootProject().getRootDir(), null)
   } else {
     // We're an included build, so keep looking
-    return locateElasticsearchWorkspace(project.parent)
+    return locateElasticsearchWorkspace(gradle.parent)
   }
 }

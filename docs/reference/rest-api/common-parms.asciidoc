@@ -130,8 +130,8 @@ shards. Statuses are:
     All shards are assigned.
 
   * `yellow`:
-    All primary shards are assigned, but one or more replica shards are 
-    unassigned. If a node in the cluster fails, some data could be unavailable 
+    All primary shards are assigned, but one or more replica shards are
+    unassigned. If a node in the cluster fails, some data could be unavailable
     until that node is repaired.
 
   * `red`:
@@ -192,6 +192,25 @@ In the case of a `latest` transform, the mappings are never deduced. If dynamic
 mappings for the destination index are undesirable, use the
 <<indices-create-index,Create index API>> prior to starting the {transform}.
 end::dest-index[]
+
+tag::dest-aliases[]
+The aliases that the destination index for the {transform} should have.
+Aliases are manipulated using the stored credentials of the transform, which means the secondary credentials supplied
+at creation time (if both primary and secondary credentials are specified).
+
+The destination index is added to the aliases regardless whether the destination
+index was created by the transform or pre-created by the user.
+end::dest-aliases[]
+
+tag::dest-aliases-alias[]
+The name of the alias.
+end::dest-aliases-alias[]
+
+tag::dest-aliases-move-on-creation[]
+Whether or not the destination index should be the **only** index in this alias.
+If `true`, all the other indices will be removed from this alias before adding the destination index to this alias.
+Defaults to `false`.
+end::dest-aliases-move-on-creation[]
 
 tag::dest-pipeline[]
 The unique identifier for an <<ingest,ingest pipeline>>.
@@ -255,7 +274,7 @@ Type of data stream that wildcard patterns can match. Supports
 comma-separated values, such as `open,hidden`. Valid values are:
 
 `all`, `hidden`::
-Match any data stream, including <<hidden,hidden>> ones.
+Match any data stream, including <<multi-hidden,hidden>> ones.
 
 `open`, `closed`::
 Matches any non-hidden data stream. Data streams cannot be closed.
@@ -276,7 +295,7 @@ streams. Supports comma-separated values, such as `open,hidden`. Valid values
 are:
 
 `all`::
-Match any data stream or index, including <<hidden,hidden>> ones.
+Match any data stream or index, including <<multi-hidden,hidden>> ones.
 
 `open`::
 Match open, non-hidden indices. Also matches any non-hidden data stream.
@@ -419,6 +438,8 @@ tag::ignore_throttled[]
 `ignore_throttled`::
 (Optional, Boolean) If `true`, concrete, expanded or aliased indices are
 ignored when frozen. Defaults to `true`.
++
+deprecated:[7.16.0]
 end::ignore_throttled[]
 
 tag::index-ignore-unavailable[]
@@ -486,12 +507,16 @@ Return all statistics.
 `completion`::
 <<completion-suggester,Completion suggester>> statistics.
 
+`dense_vector`::
+Total number of dense vectors indexed.
+<<indices-refresh,Index refreshes>> can affect this statistic.
+
 `docs`::
-Number of documents and deleted docs, which have not yet merged out.
+Number of documents, number of deleted docs which have not yet merged out, and total size in bytes.
 <<indices-refresh,Index refreshes>> can affect this statistic.
 
 `fielddata`::
-<<fielddata,Fielddata>> statistics.
+<<fielddata-mapping-param,Fielddata>> statistics.
 
 `flush`::
 <<indices-flush,Flush>> statistics.
@@ -530,14 +555,17 @@ If the `include_segment_file_sizes` parameter is `true`,
 this metric includes the aggregated disk usage
 of each Lucene index file.
 
+`sparse_vector`::
+Total number of sparse vectors indexed.
+
+<<indices-refresh,Index refreshes>> can affect this statistic.
+
 `store`::
 Size of the index in <<byte-units, byte units>>.
 
 `translog`::
 <<index-modules-translog,Translog>> statistics.
 
-`warmer`::
-<<indices-warmers,Warmer>> statistics.
 --
 end::index-metric[]
 
@@ -566,20 +594,45 @@ end::knn-filter[]
 
 tag::knn-k[]
 Number of nearest neighbors to return as top hits. This value must be less than
-`num_candidates`.
+or equal to `num_candidates`. Defaults to `size`.
 end::knn-k[]
 
 tag::knn-num-candidates[]
-The number of nearest neighbor candidates to consider per shard. Cannot exceed
-10,000. {es} collects `num_candidates` results from each shard, then merges them
+The number of nearest neighbor candidates to consider per shard.
+Needs to be greater than `k`, or `size` if `k` is omitted, and cannot exceed 10,000.
+{es} collects `num_candidates` results from each shard, then merges them
 to find the top `k` results. Increasing `num_candidates` tends to improve the
-accuracy of the final `k` results.
+accuracy of the final `k` results. Defaults to `Math.min(1.5 * k, 10_000)`.
 end::knn-num-candidates[]
 
 tag::knn-query-vector[]
 Query vector. Must have the same number of dimensions as the vector field you
-are searching against.
+are searching against. Must be either an array of floats or a hex-encoded byte vector.
 end::knn-query-vector[]
+
+tag::knn-query-vector-builder[]
+A configuration object indicating how to build a query_vector before executing
+the request. You must provide either a `query_vector_builder` or `query_vector`,
+but not both. Refer to <<knn-semantic-search>> to learn more.
+end::knn-query-vector-builder[]
+
+tag::knn-similarity[]
+The minimum similarity required for a document to be considered a match. The similarity
+value calculated relates to the raw <<dense-vector-similarity, `similarity`>> used. Not the
+document score. The matched documents are then scored according to <<dense-vector-similarity, `similarity`>>
+and the provided `boost` is applied.
+
++
+--
+The `similarity` parameter is the direct vector similarity calculation.
+
+* `l2_norm`: also known as Euclidean, will include documents where the vector is within
+the `dims` dimensional hypersphere with radius `similarity` with origin at `query_vector`.
+* `cosine`, `dot_product`, and `max_inner_product`: Only return vectors where the cosine similarity or dot-product are at least the provided
+`similarity`.
+--
+Read more here: <<knn-similarity-search, knn similarity search>>
+end::knn-similarity[]
 
 tag::lenient[]
 `lenient`::
@@ -596,8 +649,9 @@ tag::level[]
 +
 --
 (Optional, string)
-Indicates whether statistics are aggregated
-at the cluster, index, or shard level.
+Indicates whether statistics are aggregated at the cluster, index, or shard level.
+If the shards level is requested, some additional
+<<cluster-nodes-stats,shard-specific statistics>> are shown.
 
 Valid values are:
 
@@ -656,6 +710,12 @@ tag::require-alias[]
 Defaults to `false`.
 end::require-alias[]
 
+tag::bulk-list-executed-pipelines[]
+`list_executed_pipelines`::
+(Optional, Boolean) If `true`, the response will include the ingest pipelines that
+were executed. Defaults to `false`.
+end::bulk-list-executed-pipelines[]
+
 tag::bulk-dynamic-templates[]
 `dynamic_templates`::
 (Optional, map)
@@ -678,12 +738,11 @@ tag::node-id[]
 returned information.
 end::node-id[]
 
-tag::node-id-query-parm[]
-`node_id`::
-(Optional, string)
-Comma-separated list of node IDs or names
-used to limit returned information.
-end::node-id-query-parm[]
+tag::nodes[]
+`nodes`::
+(Optional, string) Comma-separated list of node IDs or names used to limit
+returned information.
+end::nodes[]
 
 tag::offsets[]
 `<offsets>`::
@@ -735,6 +794,7 @@ currently supported:
 +
 --
 * <<search-aggregations-metrics-avg-aggregation,Average>>
+* <<search-aggregations-metrics-boxplot-aggregation,Boxplot>>
 * <<search-aggregations-pipeline-bucket-script-aggregation,Bucket script>>
 * <<search-aggregations-pipeline-bucket-selector-aggregation,Bucket selector>>
 * <<search-aggregations-metrics-cardinality-aggregation,Cardinality>>
@@ -1012,8 +1072,8 @@ end::stats[]
 
 tag::stored_fields[]
 `stored_fields`::
-(Optional, Boolean) If `true`, retrieves the document fields stored in the
-index rather than the document `_source`. Defaults to `false`.
+(Optional, string)
+A comma-separated list of <<mapping-store,`stored fields`>> to include in the response.
 end::stored_fields[]
 
 tag::sync[]
@@ -1130,7 +1190,7 @@ tag::target-index[]
 (Required, string)
 Name of the target index to create.
 
-include::{es-repo-dir}/indices/create-index.asciidoc[tag=index-name-reqs]
+include::{es-ref-dir}/indices/create-index.asciidoc[tag=index-name-reqs]
 --
 end::target-index[]
 
@@ -1168,18 +1228,26 @@ tag::timeoutparms[]
 tag::master-timeout[]
 `master_timeout`::
 (Optional, <<time-units, time units>>)
-Period to wait for a connection to the master node. If no response is received
-before the timeout expires, the request fails and returns an error. Defaults to
-`30s`.
+Period to wait for the master node. If the master node is not available before
+the timeout expires, the request fails and returns an error. Defaults to `30s`.
+Can also be set to `-1` to indicate that the request should never timeout.
 end::master-timeout[]
 
-tag::timeout[]
+`timeout`::
+(Optional, <<time-units, time units>>) Period to wait for a response from all relevant nodes in the cluster after updating the cluster metadata.
+If no response is received before the timeout expires, the cluster metadata update still applies but the response will indicate that it was not completely acknowledged.
+Defaults to `30s`.
+Can also be set to `-1` to indicate that the request should never timeout.
+end::timeoutparms[]
+
+tag::timeout-nodes-request[]
 `timeout`::
 (Optional, <<time-units, time units>>)
-Period to wait for a response. If no response is received before the timeout
-expires, the request fails and returns an error. Defaults to `30s`.
-end::timeout[]
-end::timeoutparms[]
+Period to wait for each node to respond. If a node does not respond before its
+timeout expires, the response does not include its information. However, timed out
+nodes are included in the response's `_nodes.failed` property. Defaults to no
+timeout.
+end::timeout-nodes-request[]
 
 tag::transform-id[]
 Identifier for the {transform}.
@@ -1230,11 +1298,51 @@ tag::wait_for_active_shards[]
 `wait_for_active_shards`::
 +
 --
-(Optional, string) The number of shard copies that must be active before
-proceeding with the operation. Set to `all` or any positive integer up
-to the total number of shards in the index (`number_of_replicas+1`).
-Default: 1, the primary shard.
+(Optional, string) The number of copies of each shard that must be active
+before proceeding with the operation. Set to `all` or any non-negative integer
+up to the total number of copies of each shard in the index
+(`number_of_replicas+1`). Defaults to `1`, meaning to wait just for each
+primary shard to be active.
 
 See <<index-wait-for-active-shards>>.
 --
 end::wait_for_active_shards[]
+
+tag::rrf-retrievers[]
+`retrievers`::
+(Required, array of retriever objects)
++
+A list of child retrievers to specify which sets of returned top documents
+will have the RRF formula applied to them. Each child retriever carries an
+equal weight as part of the RRF formula. Two or more child retrievers are
+required.
+end::rrf-retrievers[]
+
+tag::rrf-rank-constant[]
+`rank_constant`::
+(Optional, integer)
++
+This value determines how much influence documents in individual
+result sets per query have over the final ranked result set. A higher value indicates
+that lower ranked documents have more influence. This value must be greater than or
+equal to `1`. Defaults to `60`.
+end::rrf-rank-constant[]
+
+tag::rrf-rank-window-size[]
+`rank_window_size`::
+(Optional, integer)
++
+This value determines the size of the individual result sets per
+query. A higher value will improve result relevance at the cost of performance. The final
+ranked result set is pruned down to the search request's <<search-size-param, size>>.
+`rank_window_size` must be greater than or equal to `size` and greater than or equal to `1`.
+Defaults to the `size` parameter.
+end::rrf-rank-window-size[]
+
+tag::rrf-filter[]
+`filter`::
+(Optional, <<query-dsl, query object or list of query objects>>)
++
+Applies the specified <<query-dsl-bool-query, boolean query filter>> to all of the specified sub-retrievers,
+according to each retriever's specifications.
+end::rrf-filter[]

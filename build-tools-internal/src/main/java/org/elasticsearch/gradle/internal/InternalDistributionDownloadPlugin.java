@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.gradle.internal;
@@ -23,15 +24,16 @@ import org.elasticsearch.gradle.internal.info.BuildParams;
 import org.elasticsearch.gradle.internal.info.GlobalBuildInfoPlugin;
 import org.elasticsearch.gradle.util.GradleUtils;
 import org.gradle.api.GradleException;
-import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.artifacts.Dependency;
+import org.gradle.api.artifacts.dsl.DependencyHandler;
 import org.gradle.api.provider.Provider;
 
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.function.Function;
-
-import static org.elasticsearch.gradle.util.GradleUtils.projectDependency;
 
 /**
  * An internal elasticsearch build plugin that registers additional
@@ -64,18 +66,18 @@ public class InternalDistributionDownloadPlugin implements Plugin<Project> {
      * <p>
      * BWC versions are resolved as project to projects under `:distribution:bwc`.
      */
-    private void registerInternalDistributionResolutions(NamedDomainObjectContainer<DistributionResolution> resolutions) {
-        resolutions.register("localBuild", distributionResolution -> distributionResolution.setResolver((project, distribution) -> {
+    private void registerInternalDistributionResolutions(List<DistributionResolution> resolutions) {
+        resolutions.add(new DistributionResolution("local-build", (project, distribution) -> {
             if (isCurrentVersion(distribution)) {
                 // non-external project, so depend on local build
                 return new ProjectBasedDistributionDependency(
-                    config -> projectDependency(project, distributionProjectPath(distribution), config)
+                    config -> projectDependency(project.getDependencies(), distributionProjectPath(distribution), config)
                 );
             }
             return null;
         }));
 
-        resolutions.register("bwc", distributionResolution -> distributionResolution.setResolver((project, distribution) -> {
+        resolutions.add(new DistributionResolution("bwc", (project, distribution) -> {
             BwcVersions.UnreleasedVersionInfo unreleasedInfo = BuildParams.getBwcVersions()
                 .unreleasedInfo(Version.fromString(distribution.getVersion()));
             if (unreleasedInfo != null) {
@@ -89,7 +91,7 @@ public class InternalDistributionDownloadPlugin implements Plugin<Project> {
                 }
                 String projectConfig = getProjectConfig(distribution, unreleasedInfo);
                 return new ProjectBasedDistributionDependency(
-                    (config) -> projectDependency(project, unreleasedInfo.gradleProjectPath(), projectConfig)
+                    (config) -> projectDependency(project.getDependencies(), unreleasedInfo.gradleProjectPath(), projectConfig)
                 );
             }
             return null;
@@ -114,6 +116,13 @@ public class InternalDistributionDownloadPlugin implements Plugin<Project> {
         } else {
             return distributionProjectName;
         }
+    }
+
+    private static Dependency projectDependency(DependencyHandler dependencyHandler, String projectPath, String projectConfig) {
+        Map<String, Object> depConfig = new HashMap<>();
+        depConfig.put("path", projectPath);
+        depConfig.put("configuration", projectConfig);
+        return dependencyHandler.project(depConfig);
     }
 
     private static String distributionProjectPath(ElasticsearchDistribution distribution) {
@@ -169,14 +178,20 @@ public class InternalDistributionDownloadPlugin implements Plugin<Project> {
         if (distribution.getType() == InternalElasticsearchDistributionTypes.DOCKER_CLOUD_ESS) {
             return projectName + "cloud-ess-docker" + archString + "-export";
         }
+        if (distribution.getType() == InternalElasticsearchDistributionTypes.DOCKER_WOLFI) {
+            return projectName + "wolfi-docker" + archString + "-export";
+        }
+        if (distribution.getType() == InternalElasticsearchDistributionTypes.DOCKER_WOLFI_ESS) {
+            return projectName + "wolfi-ess-docker" + archString + "-export";
+        }
         return projectName + distribution.getType().getName();
     }
 
-    private static class ProjectBasedDistributionDependency implements DistributionDependency {
+    public static class ProjectBasedDistributionDependency implements DistributionDependency {
 
         private Function<String, Dependency> function;
 
-        ProjectBasedDistributionDependency(Function<String, Dependency> function) {
+        public ProjectBasedDistributionDependency(Function<String, Dependency> function) {
             this.function = function;
         }
 

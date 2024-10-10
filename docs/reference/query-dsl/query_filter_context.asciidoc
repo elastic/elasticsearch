@@ -9,7 +9,7 @@ By default, Elasticsearch sorts matching search results by **relevance
 score**, which measures how well each document matches a query.
 
 The relevance score is a positive floating point number, returned in the
-`_score` metadata field of the <<search-request-body,search>> API. The higher the
+`_score` metadata field of the <<search-search,search>> API. The higher the
 `_score`, the more relevant the document. While each query type can calculate
 relevance scores differently, score calculation also depends on whether the
 query clause is run in a **query** or **filter** context.

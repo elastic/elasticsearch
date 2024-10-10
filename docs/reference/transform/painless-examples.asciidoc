@@ -5,6 +5,9 @@
 <titleabbrev>Painless examples</titleabbrev>
 ++++
 
+
+IMPORTANT: The examples that use the `scripted_metric` aggregation are not supported on {es} Serverless.
+
 These examples demonstrate how to use Painless in {transforms}. You can learn 
 more about the Painless scripting language in the 
 {painless}/painless-guide.html[Painless guide].
@@ -36,6 +39,8 @@ This snippet shows how to find the latest document, in other words the document
 with the latest timestamp. From a technical perspective, it helps to achieve 
 the function of a <<search-aggregations-metrics-top-hits-aggregation>> by using 
 scripted metric aggregation in a {transform}, which provides a metric output.
+
+IMPORTANT: This example uses a `scripted_metric` aggregation which is not supported on {es} Serverless.
 
 [source,js]
 --------------------------------------------------
@@ -106,6 +111,101 @@ You can retrieve the last value in a similar way:
 }
 --------------------------------------------------
 // NOTCONSOLE
+
+
+[discrete]
+[[top-hits-stored-scripts]]
+=== Getting top hits by using stored scripts
+
+You can also use the power of 
+{ref}/create-stored-script-api.html[stored scripts] to get the latest value. 
+Stored scripts reduce compilation time,  make searches faster, and are 
+updatable. 
+
+1. Create the stored scripts:
++
+--
+[source,js]
+--------------------------------------------------
+POST _scripts/last-value-map-init
+{
+  "script": {
+    "lang": "painless",
+    "source": """
+        state.timestamp_latest = 0L; state.last_value = ''
+    """
+  }
+}
+
+POST _scripts/last-value-map
+{
+  "script": {
+    "lang": "painless",
+    "source": """
+      def current_date = doc['@timestamp'].getValue().toInstant().toEpochMilli();
+        if (current_date > state.timestamp_latest)
+        {state.timestamp_latest = current_date;
+        state.last_value = doc[params['key']].value;}
+    """
+  }
+}
+
+POST _scripts/last-value-combine
+{
+  "script": {
+    "lang": "painless",
+    "source": """
+        return state
+    """
+  }
+}
+
+POST _scripts/last-value-reduce
+{
+  "script": {
+    "lang": "painless",
+    "source": """
+        def last_value = '';
+        def timestamp_latest = 0L;
+        for (s in states) {if (s.timestamp_latest > (timestamp_latest))
+        {timestamp_latest = s.timestamp_latest; last_value = s.last_value;}}
+        return last_value
+    """
+  }
+}
+--------------------------------------------------
+// NOTCONSOLE
+--
+
+2. Use the stored scripts in a scripted metric aggregation.
++
+--
+[source,js]
+--------------------------------------------------
+"aggregations":{
+   "latest_value":{
+      "scripted_metric":{
+         "init_script":{
+            "id":"last-value-map-init"
+         },
+         "map_script":{
+            "id":"last-value-map",
+            "params":{
+               "key":"field_with_last_value" <1>
+            }
+         },
+         "combine_script":{
+            "id":"last-value-combine"
+         },
+         "reduce_script":{
+            "id":"last-value-reduce"
+         }
+--------------------------------------------------
+// NOTCONSOLE
+<1> The parameter `field_with_last_value` can be set any field that you want the 
+latest value for.
+--
+
 
 [[painless-time-features]]
 == Getting time features by using aggregations
@@ -358,6 +458,8 @@ example for details.
 The example below assumes that the HTTP response codes are stored as keywords in 
 the `response` field of the documents.
 
+IMPORTANT: This example uses a `scripted_metric` aggregation which is not supported on {es} Serverless.
+
 [source,js]
 --------------------------------------------------
 "aggregations": { <1>
@@ -412,7 +514,9 @@ Finally, returns the `counts` array with the response counts.
 == Comparing indices by using scripted metric aggregations
 
 This example shows how to compare the content of two indices by a {transform} 
-that uses a scripted metric aggregation. 
+that uses a scripted metric aggregation.
+
+IMPORTANT: This example uses a `scripted_metric` aggregation which is not supported on {es} Serverless.
 
 [source,console]
 --------------------------------------------------
@@ -527,6 +631,8 @@ Let's take a look on the example source document from the data:
 By using the `sessionid` as a group-by field, you are able to enumerate events 
 through the session and get more details of the session by using scripted metric 
 aggregation.
+
+IMPORTANT: This example uses a `scripted_metric` aggregation which is not supported on {es} Serverless.
 
 [source,js]
 --------------------------------------------------

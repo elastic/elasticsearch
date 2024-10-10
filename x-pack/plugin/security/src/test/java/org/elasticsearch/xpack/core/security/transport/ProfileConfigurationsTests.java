@@ -72,7 +72,7 @@ public class ProfileConfigurationsTests extends ESTestCase {
             .put("xpack.security.transport.ssl.enabled", transportSslEnabled)
             .put("xpack.security.transport.ssl.keystore.path", getKeystorePath().toString())
             .put("xpack.security.transport.ssl.verification_mode", SslVerificationMode.NONE.name())
-            .put("remote_cluster.enabled", true)
+            .put("remote_cluster_server.enabled", true)
             .put("xpack.security.remote_cluster_server.ssl.enabled", remoteClusterServerSslEnabled)
             .put("xpack.security.remote_cluster_server.ssl.keystore.path", getKeystorePath().toString())
             .put("xpack.security.remote_cluster_server.ssl.verification_mode", SslVerificationMode.CERTIFICATE.name())
@@ -114,7 +114,7 @@ public class ProfileConfigurationsTests extends ESTestCase {
             .put("xpack.security.transport.ssl.enabled", true)
             .put("xpack.security.transport.ssl.keystore.path", getKeystorePath().toString())
             .put("xpack.security.transport.ssl.verification_mode", SslVerificationMode.NONE.name())
-            .put("remote_cluster.enabled", false)
+            .put("remote_cluster_server.enabled", false)
             .put("xpack.security.remote_cluster_server.ssl.enabled", true)
             .put("xpack.security.remote_cluster_server.ssl.keystore.path", getKeystorePath().toString())
             .put("xpack.security.remote_cluster_server.ssl.verification_mode", SslVerificationMode.CERTIFICATE.name())
@@ -140,7 +140,7 @@ public class ProfileConfigurationsTests extends ESTestCase {
             .put("xpack.security.transport.ssl.enabled", false)
             .put("xpack.security.transport.ssl.keystore.path", getKeystorePath().toString())
             .put("transport.profiles.client.xpack.security.ssl.client_authentication", SslClientAuthenticationMode.NONE)
-            .put("remote_cluster.enabled", remoteClusterPortEnabled)
+            .put("remote_cluster_server.enabled", remoteClusterPortEnabled)
             .put("xpack.security.transport.ssl.verification_mode", SslVerificationMode.NONE.name())
             .put("xpack.security.remote_cluster_server.ssl.enabled", false)
             .put("xpack.security.remote_cluster_server.ssl.keystore.path", getKeystorePath().toString())
@@ -182,10 +182,9 @@ public class ProfileConfigurationsTests extends ESTestCase {
 
     private static MockSecureSettings getKeystoreSecureSettings(String... sslContexts) {
         final MockSecureSettings secureSettings = new MockSecureSettings();
-        Arrays.stream(sslContexts)
-            .forEach(
-                sslContext -> { secureSettings.setString("xpack.security." + sslContext + ".ssl.keystore.secure_password", "testnode"); }
-            );
+        Arrays.stream(sslContexts).forEach(sslContext -> {
+            secureSettings.setString("xpack.security." + sslContext + ".ssl.keystore.secure_password", "testnode");
+        });
         return secureSettings;
     }
 

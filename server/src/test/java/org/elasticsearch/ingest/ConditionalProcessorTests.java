@@ -1,13 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.ingest;
 
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.script.IngestConditionalScript;
 import org.elasticsearch.script.MockScriptEngine;
@@ -25,7 +27,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
@@ -95,10 +96,6 @@ public class ConditionalProcessorTests extends ESTestCase {
                     return null;
                 }
 
-                @Override
-                public boolean isAsync() {
-                    return false;
-                }
             },
             relativeTimeProvider
         );
@@ -194,11 +191,9 @@ public class ConditionalProcessorTests extends ESTestCase {
     }
 
     public void testPrecompiledError() {
-        ScriptService scriptService = MockScriptService.singleContext(
-            IngestConditionalScript.CONTEXT,
-            code -> { throw new ScriptException("bad script", new ParseException("error", 0), List.of(), "", "lang", null); },
-            Map.of()
-        );
+        ScriptService scriptService = MockScriptService.singleContext(IngestConditionalScript.CONTEXT, code -> {
+            throw new ScriptException("bad script", new ParseException("error", 0), List.of(), "", "lang", null);
+        }, Map.of());
         Script script = new Script(ScriptType.INLINE, "lang", "foo", Map.of());
         ScriptException e = expectThrows(ScriptException.class, () -> new ConditionalProcessor(null, null, script, scriptService, null));
         assertThat(e.getMessage(), equalTo("bad script"));
@@ -248,14 +243,14 @@ public class ConditionalProcessorTests extends ESTestCase {
 
     private static void assertMutatingCtxThrows(Consumer<Map<String, Object>> mutation) throws Exception {
         String scriptName = "conditionalScript";
-        CompletableFuture<Exception> expectedException = new CompletableFuture<>();
+        PlainActionFuture<Exception> expectedException = new PlainActionFuture<>();
         ScriptService scriptService = new ScriptService(
             Settings.builder().build(),
             Map.of(Script.DEFAULT_SCRIPT_LANG, new MockScriptEngine(Script.DEFAULT_SCRIPT_LANG, Map.of(scriptName, ctx -> {
                 try {
                     mutation.accept(ctx);
                 } catch (Exception e) {
-                    expectedException.complete(e);
+                    expectedException.onResponse(e);
                 }
                 return false;
             }), Map.of())),
@@ -273,7 +268,7 @@ public class ConditionalProcessorTests extends ESTestCase {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
         ingestDocument.setFieldValue("listField", new ArrayList<>());
         execProcessor(processor, ingestDocument, (result, e) -> {});
-        Exception e = expectedException.get();
+        Exception e = safeGet(expectedException);
         assertThat(e, instanceOf(UnsupportedOperationException.class));
         assertEquals("Mutating ingest documents in conditionals is not supported", e.getMessage());
         assertStats(processor, 0, 0, 0);
@@ -281,10 +276,10 @@ public class ConditionalProcessorTests extends ESTestCase {
 
     private static void assertStats(ConditionalProcessor conditionalProcessor, long count, long failed, long time) {
         IngestStats.Stats stats = conditionalProcessor.getMetric().createStats();
-        assertThat(stats.getIngestCount(), equalTo(count));
-        assertThat(stats.getIngestCurrent(), equalTo(0L));
-        assertThat(stats.getIngestFailedCount(), equalTo(failed));
-        assertThat(stats.getIngestTimeInMillis(), greaterThanOrEqualTo(time));
+        assertThat(stats.ingestCount(), equalTo(count));
+        assertThat(stats.ingestCurrent(), equalTo(0L));
+        assertThat(stats.ingestFailedCount(), equalTo(failed));
+        assertThat(stats.ingestTimeInMillis(), greaterThanOrEqualTo(time));
     }
 
     private static void execProcessor(Processor processor, IngestDocument doc, BiConsumer<IngestDocument, Exception> handler) {

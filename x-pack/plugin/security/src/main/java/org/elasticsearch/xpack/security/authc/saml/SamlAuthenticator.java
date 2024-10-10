@@ -130,7 +130,7 @@ class SamlAuthenticator extends SamlResponseHandler {
         return new SamlAttributes(nameId, session, attributes);
     }
 
-    private String getSessionIndex(Assertion assertion) {
+    private static String getSessionIndex(Assertion assertion) {
         return assertion.getAuthnStatements().stream().map(as -> as.getSessionIndex()).filter(Objects::nonNull).findFirst().orElse(null);
     }
 
@@ -166,7 +166,7 @@ class SamlAuthenticator extends SamlResponseHandler {
         throw samlException("No assertions found in SAML response");
     }
 
-    private void moveToNewDocument(XMLObject xmlObject) {
+    private static void moveToNewDocument(XMLObject xmlObject) {
         final Element element = xmlObject.getDOM();
         final Document doc = element.getOwnerDocument().getImplementation().createDocument(null, null, null);
         doc.adoptNode(element);
@@ -320,7 +320,10 @@ class SamlAuthenticator extends SamlResponseHandler {
         checkSubjectInResponseTo(confirmationData.get(0), allowedSamlRequestIds);
     }
 
-    private void checkSubjectInResponseTo(SubjectConfirmationData subjectConfirmationData, Collection<String> allowedSamlRequestIds) {
+    private static void checkSubjectInResponseTo(
+        SubjectConfirmationData subjectConfirmationData,
+        Collection<String> allowedSamlRequestIds
+    ) {
         // Allow for IdP initiated SSO where InResponseTo MUST be missing
         if (Strings.hasText(subjectConfirmationData.getInResponseTo())
             && allowedSamlRequestIds.contains(subjectConfirmationData.getInResponseTo()) == false) {

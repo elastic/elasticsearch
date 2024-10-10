@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.core.security.action.role;
 
 import org.elasticsearch.action.FailedNodeException;
+import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.support.nodes.BaseNodeResponse;
 import org.elasticsearch.action.support.nodes.BaseNodesResponse;
 import org.elasticsearch.cluster.ClusterName;
@@ -25,22 +26,18 @@ import java.util.List;
  */
 public class ClearRolesCacheResponse extends BaseNodesResponse<ClearRolesCacheResponse.Node> implements ToXContentFragment {
 
-    public ClearRolesCacheResponse(StreamInput in) throws IOException {
-        super(in);
-    }
-
     public ClearRolesCacheResponse(ClusterName clusterName, List<Node> nodes, List<FailedNodeException> failures) {
         super(clusterName, nodes, failures);
     }
 
     @Override
     protected List<ClearRolesCacheResponse.Node> readNodesFrom(StreamInput in) throws IOException {
-        return in.readList(Node::new);
+        return TransportAction.localOnly();
     }
 
     @Override
     protected void writeNodesTo(StreamOutput out, List<ClearRolesCacheResponse.Node> nodes) throws IOException {
-        out.writeList(nodes);
+        TransportAction.localOnly();
     }
 
     @Override

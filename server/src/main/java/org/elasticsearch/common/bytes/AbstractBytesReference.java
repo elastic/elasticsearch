@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.common.bytes;
 
@@ -18,8 +19,19 @@ import java.util.function.ToIntBiFunction;
 
 public abstract class AbstractBytesReference implements BytesReference {
 
+    protected final int length;
+
     private int hash;           // we cache the hash of this reference since it can be quite costly to re-calculated it
     private boolean hashIsZero; // if the calculated hash is actually zero
+
+    protected AbstractBytesReference(int length) {
+        this.length = length;
+    }
+
+    @Override
+    public final int length() {
+        return length;
+    }
 
     @Override
     public int getInt(int index) {
@@ -71,20 +83,6 @@ public abstract class AbstractBytesReference implements BytesReference {
     @Override
     public String utf8ToString() {
         return toBytesRef().utf8ToString();
-    }
-
-    @Override
-    public BytesRefIterator iterator() {
-        return new BytesRefIterator() {
-            BytesRef ref = length() == 0 ? null : toBytesRef();
-
-            @Override
-            public BytesRef next() {
-                BytesRef r = ref;
-                ref = null; // only return it once...
-                return r;
-            }
-        };
     }
 
     @Override

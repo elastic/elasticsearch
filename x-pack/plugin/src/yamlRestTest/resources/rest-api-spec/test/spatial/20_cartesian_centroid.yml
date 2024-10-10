@@ -1,0 +1,301 @@
+setup:
+  - skip:
+      features: close_to
+
+  - do:
+      indices.create:
+        index: locations
+        body:
+          settings:
+            number_of_shards: 1
+          mappings:
+            properties:
+              location:
+                type: shape
+              city:
+                type: keyword
+              name:
+                type: keyword
+
+  - do:
+      bulk:
+        refresh: true
+        index: locations
+        body: |
+          {"index":{}}
+          {"location": "POINT(488.9187 5237.3184)", "city": "Amsterdam", "name": "Royal Palace Amsterdam"}
+          {"index":{}}
+          {"location": "POINT(488.5057 5237.0159)", "city": "Amsterdam", "name": "The Amsterdam Dungeon"}
+          {"index":{}}
+          {"location": "POINT(490.1618 5236.9219)", "city": "Amsterdam", "name": "Museum Het Rembrandthuis"}
+          {"index":{}}
+          {"location": "POINT(491.2350 5237.4081)", "city": "Amsterdam", "name": "NEMO Science Museum"}
+          {"index":{}}
+          {"location": "POINT(491.4722 5237.1667)", "city": "Amsterdam", "name": "Nederlands Scheepvaartmuseum"}
+          {"index":{}}
+          {"location": "POINT(488.394 5237.52)", "city": "Amsterdam", "name": "Anne Frank House"}
+          {"index":{}}
+          {"location": "POINT(440.5200 5122.2900)", "city": "Antwerp", "name": "Letterenhuis"}
+          {"index":{}}
+          {"location": "POINT(233.6389 4886.1111)", "city": "Paris", "name": "Musée du Louvre"}
+          {"index":{}}
+          {"location": "POINT(232.7000 4886.0000)", "city": "Paris", "name": "Musée dOrsay"}
+
+  - do:
+      indices.create:
+        index: shapes
+        body:
+          settings:
+            number_of_shards: 1
+          mappings:
+            properties:
+              shape:
+                type: shape
+              category:
+                type: keyword
+              name:
+                type: keyword
+
+  - do:
+      bulk:
+        refresh: true
+        index: shapes
+        body: |
+          {"index":{}}
+          {"shape": "POINT(488.9187 5237.3184)", "category": "points", "name": "Royal Palace Amsterdam"}
+          {"index":{}}
+          {"shape": "POINT(488.5057 5237.0159)", "category": "points", "name": "The Amsterdam Dungeon"}
+          {"index":{}}
+          {"shape": "POINT(490.1618 5236.9219)", "category": "points", "name": "Museum Het Rembrandthuis"}
+          {"index":{}}
+          {"shape": "POINT(491.2350 5237.4081)", "category": "points", "name": "NEMO Science Museum"}
+          {"index":{}}
+          {"shape": "POINT(491.4722 5237.1667)", "category": "points", "name": "Nederlands Scheepvaartmuseum"}
+          {"index":{}}
+          {"shape": "POINT(488.394 5237.52)", "category": "points", "name": "Anne Frank House"}
+          {"index":{}}
+          {"shape": "LINESTRING(491.4722 5237.1667, 488.9187 5237.3184)", "category": "linestrings", "name": "Path of: Nederlands Scheepvaartmuseum, Royal Palace Amsterdam"}
+          {"index":{}}
+          {"shape": "LINESTRING(490.1618 5236.9219, 491.2350 5237.4081, 491.4722 5237.1667)", "category": "linestrings", "name": "Path of: Museum Het Rembrandthuis, NEMO Science Museum, Nederlands Scheepvaartmuseum"}
+          {"index":{}}
+          {"shape": "LINESTRING(488.9187 5237.3184, 488.5057 5237.0159, 490.1618 5236.9219, 491.2350 5237.4081, 491.4722 5237.1667)", "category": "linestrings", "name": "Path of: Royal Palace Amsterdam, The Amsterdam Dungeon, Museum Het Rembrandthuis, NEMO Science Museum, Nederlands Scheepvaartmuseum"}
+          {"index":{}}
+          {"shape": "POLYGON((488.9187 5237.3184, 488.5057 5237.0159, 490.1618 5236.9219, 491.4722 5237.1667, 491.2350 5237.4081, 488.9187 5237.3184))", "category": "polygons", "name": "Area of: Royal Palace Amsterdam, The Amsterdam Dungeon, Museum Het Rembrandthuis, Nederlands Scheepvaartmuseum, NEMO Science Museum"}
+          {"index":{}}
+          {"shape": "POLYGON((488.35 5237.50, 488.44 5237.50, 488.44 5237.54, 488.35 5237.54, 488.35 5237.50))", "category": "polygons", "name": "Box around: Anne Frank House"}
+          {"index":{}}
+          {"shape": "MULTIPOLYGON(((488.9187 5237.3184, 488.5057 5237.0159, 490.1618 5236.9219, 491.4722 5237.1667, 491.2350 5237.4081, 488.9187 5237.3184)), ((488.35 5237.50, 488.44 5237.50, 488.44 5237.54, 488.35 5237.54, 488.35 5237.50)))", "category": "multipolygons", "name": "Two areas"}
+          {"index":{}}
+          {"shape": "GEOMETRYCOLLECTION(POINT(488.394 5237.52), LINESTRING(488.9187 5237.3184, 488.5057 5237.0159, 490.1618 5236.9219, 491.2350 5237.4081, 491.4722 5237.1667), POLYGON((488.35 5237.50, 488.44 5237.50, 488.44 5237.54, 488.35 5237.54, 488.35 5237.50)), MULTIPOLYGON(((488.9187 5237.3184, 488.5057 5237.0159, 490.1618 5236.9219, 491.4722 5237.1667, 491.2350 5237.4081, 488.9187 5237.3184)), ((488.35 5237.50, 488.44 5237.50, 488.44 5237.54, 488.35 5237.54, 488.35 5237.50))))", "category": "collections", "name": "Collection of point, line, polygon and multipolygon"}
+          {"index":{}}
+          {"shape": "GEOMETRYCOLLECTION(POINT(488.394 5237.52), LINESTRING(488.9187 5237.3184, 488.5057 5237.0159, 490.1618 5236.9219, 491.2350 5237.4081, 491.4722 5237.1667), POLYGON((488.35 5237.50, 488.44 5237.50, 488.44 5237.54, 488.35 5237.54, 488.35 5237.50)))", "category": "collections", "name": "Collection of point, line and polygon"}
+          {"index":{}}
+          {"shape": "GEOMETRYCOLLECTION(POINT(488.394 5237.52), LINESTRING(488.9187 5237.3184, 488.5057 5237.0159, 490.1618 5236.9219, 491.2350 5237.4081, 491.4722 5237.1667))", "category": "collections", "name": "Collection of point and line"}
+          {"index":{}}
+          {"shape": "GEOMETRYCOLLECTION(POINT(488.394 5237.52))", "category": "collections", "name": "Collection of one point"}
+          {"index":{}}
+          {"shape": "GEOMETRYCOLLECTION(POINT(488.394 5237.52), POINT(488.9187 5237.3184))", "category": "collections", "name": "Collection of two points"}
+
+  - do:
+      indices.refresh: { }
+
+---
+"Test cartesian_centroid aggregation on cartesian shape points":
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: locations
+        size: 0
+        body:
+          aggs:
+            centroid:
+              cartesian_centroid:
+                field: location
+  - match: { hits.total: 9 }
+  - match: { aggregations.centroid.count: 9 }
+  - close_to: { aggregations.centroid.location.x: { value: 427.2829, error: 0.0001 } }
+  - close_to: { aggregations.centroid.location.y: { value: 5146.4169, error: 0.0001 } }
+
+---
+"Test cartesian_centroid aggregation on cartesian shape shapes":
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: shapes
+        size: 0
+        body:
+          aggs:
+            centroid:
+              cartesian_centroid:
+                field: shape
+  - match: { hits.total: 17 }
+  - match: { aggregations.centroid.count: 17 }
+  - close_to: { aggregations.centroid.location.x: { value: 490.0065, error: 0.0001 } }
+  - close_to: { aggregations.centroid.location.y: { value: 5237.1722, error: 0.0001 } }
+
+---
+"Test cartesian_centroid aggregation on cartesian shape points with filter":
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: locations
+        size: 0
+        body:
+          query:
+            term:
+              city: "Amsterdam"
+          aggs:
+            centroid:
+              cartesian_centroid:
+                field: location
+  - match: { hits.total: 6 }
+  - match: { aggregations.centroid.count: 6 }
+  - close_to: { aggregations.centroid.location.x: { value: 489.7812, error: 0.0001 } }
+  - close_to: { aggregations.centroid.location.y: { value: 5237.2252, error: 0.0001 } }
+
+---
+"Test cartesian_centroid aggregation on cartesian shape shapes with filter":
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: shapes
+        size: 0
+        body:
+          query:
+            term:
+              category: "points"
+          aggs:
+            centroid:
+              cartesian_centroid:
+                field: shape
+  - match: { hits.total: 6 }
+  - match: { aggregations.centroid.count: 6 }
+  - close_to: { aggregations.centroid.location.x: { value: 489.7812, error: 0.0001 } }
+  - close_to: { aggregations.centroid.location.y: { value: 5237.2252, error: 0.0001 } }
+
+---
+"Test cartesian_centroid aggregation on cartesian shape points with grouping":
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: locations
+        size: 0
+        body:
+          aggs:
+            cities:
+              terms:
+                field: "city"
+              aggs:
+                centroid:
+                  cartesian_centroid:
+                    field: location
+  - match: { hits.total: 9 }
+  - length: { aggregations.cities.buckets: 3 }
+  - match: { aggregations.cities.buckets.0.key: "Amsterdam" }
+  - match: { aggregations.cities.buckets.0.doc_count: 6 }
+  - match: { aggregations.cities.buckets.0.centroid.count: 6 }
+  - close_to: { aggregations.cities.buckets.0.centroid.location.x: { value: 489.7812, error: 0.0001 } }
+  - close_to: { aggregations.cities.buckets.0.centroid.location.y: { value: 5237.2252, error: 0.0001 } }
+  - match: { aggregations.cities.buckets.1.key: "Paris" }
+  - match: { aggregations.cities.buckets.1.doc_count: 2 }
+  - match: { aggregations.cities.buckets.1.centroid.count: 2 }
+  - close_to: { aggregations.cities.buckets.1.centroid.location.x: { value: 233.1694, error: 0.0001 } }
+  - close_to: { aggregations.cities.buckets.1.centroid.location.y: { value: 4886.0557, error: 0.0001 } }
+  - match: { aggregations.cities.buckets.2.key: "Antwerp" }
+  - match: { aggregations.cities.buckets.2.doc_count: 1 }
+  - match: { aggregations.cities.buckets.2.centroid.count: 1 }
+  - close_to: { aggregations.cities.buckets.2.centroid.location.x: { value: 440.5200, error: 0.0001 } }
+  - close_to: { aggregations.cities.buckets.2.centroid.location.y: { value: 5122.2900, error: 0.0001 } }
+
+---
+"Test cartesian_centroid aggregation on cartesian shape shapes with grouping":
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: shapes
+        size: 0
+        body:
+          aggs:
+            categories:
+              terms:
+                field: "category"
+              aggs:
+                centroid:
+                  cartesian_centroid:
+                    field: shape
+  - match: { hits.total: 17 }
+  - length: { aggregations.categories.buckets: 5 }
+  - match: { aggregations.categories.buckets.0.key: "points" }
+  - match: { aggregations.categories.buckets.0.doc_count: 6 }
+  - match: { aggregations.categories.buckets.0.centroid.count: 6 }
+  - close_to: { aggregations.categories.buckets.0.centroid.location.x: { value: 489.7812, error: 0.0001 } }
+  - close_to: { aggregations.categories.buckets.0.centroid.location.y: { value: 5237.2252, error: 0.0001 } }
+  - match: { aggregations.categories.buckets.1.key: "collections" }
+  - match: { aggregations.categories.buckets.1.doc_count: 5 }
+  - match: { aggregations.categories.buckets.1.centroid.count: 5 }
+  - close_to: { aggregations.categories.buckets.1.centroid.location.x: { value: 489.9987, error: 0.0001 } }
+  - close_to: { aggregations.categories.buckets.1.centroid.location.y: { value: 5237.1741, error: 0.0001 } }
+  - match: { aggregations.categories.buckets.2.key: "linestrings" }
+  - match: { aggregations.categories.buckets.2.doc_count: 3 }
+  - match: { aggregations.categories.buckets.2.centroid.count: 3 }
+  - close_to: { aggregations.categories.buckets.2.centroid.location.x: { value: 490.1672, error: 0.0001 } }
+  - close_to: { aggregations.categories.buckets.2.centroid.location.y: { value: 5237.1595, error: 0.0001 } }
+  - match: { aggregations.categories.buckets.3.key: "polygons" }
+  - match: { aggregations.categories.buckets.3.doc_count: 2 }
+  - match: { aggregations.categories.buckets.3.centroid.count: 2 }
+  - close_to: { aggregations.categories.buckets.3.centroid.location.x: { value: 490.0105, error: 0.0001 } }
+  - close_to: { aggregations.categories.buckets.3.centroid.location.y: { value: 5237.1712, error: 0.0001 } }
+  - match: { aggregations.categories.buckets.4.key: "multipolygons" }
+  - match: { aggregations.categories.buckets.4.doc_count: 1 }
+  - match: { aggregations.categories.buckets.4.centroid.count: 1 }
+  - close_to: { aggregations.categories.buckets.4.centroid.location.x: { value: 490.0105, error: 0.0001 } }
+  - close_to: { aggregations.categories.buckets.4.centroid.location.y: { value: 5237.1714, error: 0.0001 } }
+
+---
+"Test cartesian_centroid aggregation on cartesian shape shapes with grouping and filter":
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: shapes
+        size: 0
+        body:
+          query:
+            term:
+              category: "collections"
+          aggs:
+            names:
+              terms:
+                field: "name"
+                order:
+                  _key: "asc"
+              aggs:
+                centroid:
+                  cartesian_centroid:
+                    field: shape
+  - match: { hits.total: 5 }
+  - length: { aggregations.names.buckets: 5 }
+  - match: { aggregations.names.buckets.0.key: "Collection of one point" }
+  - match: { aggregations.names.buckets.0.doc_count: 1 }
+  - match: { aggregations.names.buckets.0.centroid.count: 1 }
+  - close_to: { aggregations.names.buckets.0.centroid.location.x: { value: 488.394, error: 0.0001 } }
+  - close_to: { aggregations.names.buckets.0.centroid.location.y: { value: 5237.5200, error: 0.0001 } }
+  - match: { aggregations.names.buckets.1.key: "Collection of point and line" }
+  - match: { aggregations.names.buckets.1.doc_count: 1 }
+  - match: { aggregations.names.buckets.1.centroid.count: 1 }
+  - close_to: { aggregations.names.buckets.1.centroid.location.x: { value: 489.86888, error: 0.0001 } }
+  - close_to: { aggregations.names.buckets.1.centroid.location.y: { value: 5237.0883, error: 0.0001 } }
+  - match: { aggregations.names.buckets.2.key: "Collection of point, line and polygon" }
+  - match: { aggregations.names.buckets.2.doc_count: 1 }
+  - match: { aggregations.names.buckets.2.centroid.count: 1 }
+  - close_to: { aggregations.names.buckets.2.centroid.location.x: { value: 488.395, error: 0.0001 } }
+  - close_to: { aggregations.names.buckets.2.centroid.location.y: { value: 5237.5201, error: 0.0001 } }
+  - match: { aggregations.names.buckets.3.key: "Collection of point, line, polygon and multipolygon" }
+  - match: { aggregations.names.buckets.3.doc_count: 1 }
+  - match: { aggregations.names.buckets.3.centroid.count: 1 }
+  - close_to: { aggregations.names.buckets.3.centroid.location.x: { value: 490.0046, error: 0.0001 } }
+  - close_to: { aggregations.names.buckets.3.centroid.location.y: { value: 5237.1729, error: 0.0001 } }
+  - match: { aggregations.names.buckets.4.key: "Collection of two points" }
+  - match: { aggregations.names.buckets.4.doc_count: 1 }
+  - match: { aggregations.names.buckets.4.centroid.count: 1 }
+  - close_to: { aggregations.names.buckets.4.centroid.location.x: { value: 488.6563, error: 0.0001 } }
+  - close_to: { aggregations.names.buckets.4.centroid.location.y: { value: 5237.4194, error: 0.0001 } }

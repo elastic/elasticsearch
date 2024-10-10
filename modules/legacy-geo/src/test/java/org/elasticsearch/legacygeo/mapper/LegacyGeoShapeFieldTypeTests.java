@@ -1,24 +1,30 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.legacygeo.mapper;
 
-import org.elasticsearch.Version;
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.common.geo.SpatialStrategy;
+import org.elasticsearch.core.UpdateForV9;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.FieldTypeTestCase;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.legacygeo.mapper.LegacyGeoShapeFieldMapper.GeoShapeFieldType;
-import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.test.index.IndexVersionUtils;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
+@UpdateForV9(owner = UpdateForV9.Owner.SEARCH_ANALYTICS)
+@LuceneTestCase.AwaitsFix(bugUrl = "this is testing legacy functionality so can likely be removed in 9.0")
 public class LegacyGeoShapeFieldTypeTests extends FieldTypeTestCase {
 
     /**
@@ -35,9 +41,9 @@ public class LegacyGeoShapeFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testFetchSourceValue() throws IOException {
-        Version version = VersionUtils.randomPreviousCompatibleVersion(random(), Version.V_8_0_0);
+        IndexVersion version = IndexVersionUtils.randomPreviousCompatibleVersion(random(), IndexVersions.V_8_0_0);
         MappedFieldType mapper = new LegacyGeoShapeFieldMapper.Builder("field", version, false, true).build(
-            MapperBuilderContext.root(false)
+            MapperBuilderContext.root(false, false)
         ).fieldType();
 
         Map<String, Object> jsonLineString = Map.of("type", "LineString", "coordinates", List.of(List.of(42.0, 27.1), List.of(30.0, 50.0)));

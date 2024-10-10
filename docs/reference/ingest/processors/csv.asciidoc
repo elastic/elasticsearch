@@ -15,7 +15,7 @@ Extracts fields from CSV line out of a single text field within a document. Any 
 | `target_fields`   | yes       | -        | The array of fields to assign extracted values to
 | `separator`       | no        | ,        | Separator used in CSV, has to be single character string
 | `quote`           | no        | "        | Quote used in CSV, has to be single character string
-| `ignore_missing`  | no        | `true`   | If `true` and `field` does not exist, the processor quietly exits without modifying the document
+| `ignore_missing`  | no        | `false`  | If `true` and `field` does not exist, the processor quietly exits without modifying the document
 | `trim`            | no        | `false`  | Trim whitespaces in unquoted fields
 | `empty_value`     | no        | -        | Value used to fill empty fields, empty fields will be skipped if this is not provided.
                                              Empty field is one with no value (2 consecutive separators) or empty quotes (`""`)

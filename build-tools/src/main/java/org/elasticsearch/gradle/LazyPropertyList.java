@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.gradle;
 
@@ -56,7 +57,7 @@ public class LazyPropertyList<T> extends AbstractLazyPropertyCollection implemen
 
     @Override
     public <T1> T1[] toArray(T1[] a) {
-        return delegate.stream().peek(this::validate).map(PropertyListEntry::getValue).collect(Collectors.toList()).toArray(a);
+        return delegate.stream().peek(this::validate).map(PropertyListEntry::getValue).toList().toArray(a);
     }
 
     @Override
@@ -79,7 +80,7 @@ public class LazyPropertyList<T> extends AbstractLazyPropertyCollection implemen
 
     @Override
     public boolean containsAll(Collection<?> c) {
-        return delegate.stream().map(PropertyListEntry::getValue).collect(Collectors.toList()).containsAll(c);
+        return delegate.stream().map(PropertyListEntry::getValue).collect(Collectors.toSet()).containsAll(c);
     }
 
     @Override

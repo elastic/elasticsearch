@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.restart;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
@@ -24,7 +23,6 @@ import org.elasticsearch.upgrades.FullClusterRestartUpgradeStatus;
 import org.elasticsearch.upgrades.ParameterizedFullClusterRestartTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
-import org.junit.BeforeClass;
 import org.junit.ClassRule;
 
 import java.io.IOException;
@@ -63,6 +61,7 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
         .keystore("xpack.watcher.encryption_key", Resource.fromClasspath("system_key"))
         .keystore("xpack.security.transport.ssl.secure_key_passphrase", "testnode")
         .feature(FeatureFlag.TIME_SERIES_MODE)
+        .feature(FeatureFlag.FAILURE_STORE_ENABLED)
         .build();
 
     public FullClusterRestartIT(@Name("cluster") FullClusterRestartUpgradeStatus upgradeStatus) {
@@ -84,11 +83,6 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
             // account for delayed shards
             .put(ESRestTestCase.CLIENT_SOCKET_TIMEOUT, "90s")
             .build();
-    }
-
-    @BeforeClass
-    public static void checkClusterVersion() {
-        assumeTrue("no shutdown in versions before " + Version.V_7_15_0, getOldClusterVersion().onOrAfter(Version.V_7_15_0));
     }
 
     @SuppressWarnings("unchecked")

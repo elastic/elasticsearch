@@ -48,13 +48,13 @@ import org.apache.lucene.index.TermsEnum.SeekStatus;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.analysis.MockAnalyzer;
+import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.apache.lucene.util.automaton.Operations;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -63,9 +63,13 @@ import org.elasticsearch.common.lucene.index.SequentialStoredFieldsLeafReader;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
+import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
+import org.elasticsearch.index.mapper.MapperServiceTestCase;
+import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
-import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissions;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsDefinition;
@@ -87,7 +91,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import static org.hamcrest.Matchers.equalTo;
 
 /** Simple tests for this filterreader */
-public class FieldSubsetReaderTests extends ESTestCase {
+public class FieldSubsetReaderTests extends MapperServiceTestCase {
 
     /**
      * test filtering two string fields
@@ -210,7 +214,9 @@ public class FieldSubsetReaderTests extends ESTestCase {
 
         // Check that we can't see fieldB
         assertNull(leafReader.getFloatVectorValues("fieldB"));
-        assertNull(leafReader.searchNearestVectors("fieldB", new float[] { 1.0f, 1.0f, 1.0f }, 5, null, Integer.MAX_VALUE));
+        topDocs = leafReader.searchNearestVectors("fieldB", new float[] { 1.0f, 1.0f, 1.0f }, 5, null, Integer.MAX_VALUE);
+        assertEquals(0, topDocs.totalHits.value);
+        assertEquals(0, topDocs.scoreDocs.length);
 
         TestUtil.checkReader(ir);
         IOUtils.close(ir, iw, dir);
@@ -242,7 +248,9 @@ public class FieldSubsetReaderTests extends ESTestCase {
 
         // Check that we can't see fieldB
         assertNull(leafReader.getByteVectorValues("fieldB"));
-        assertNull(leafReader.searchNearestVectors("fieldB", new byte[] { 1, 1, 1 }, 5, null, Integer.MAX_VALUE));
+        topDocs = leafReader.searchNearestVectors("fieldB", new byte[] { 1, 1, 1 }, 5, null, Integer.MAX_VALUE);
+        assertEquals(0, topDocs.totalHits.value);
+        assertEquals(0, topDocs.scoreDocs.length);
 
         TestUtil.checkReader(ir);
         IOUtils.close(ir, iw, dir);
@@ -708,6 +716,127 @@ public class FieldSubsetReaderTests extends ESTestCase {
         IOUtils.close(ir, iw, dir);
     }
 
+    public void testIgnoredSourceFilteringIntegration() throws Exception {
+        DocumentMapper mapper = createMapperService(
+            Settings.builder()
+                .put("index.mapping.total_fields.limit", 1)
+                .put("index.mapping.total_fields.ignore_dynamic_beyond_limit", true)
+                .build(),
+            syntheticSourceMapping(b -> {
+                b.startObject("foo").field("type", "keyword").endObject();
+            })
+        ).documentMapper();
+
+        try (Directory directory = newDirectory()) {
+            RandomIndexWriter iw = indexWriterForSyntheticSource(directory);
+            ParsedDocument doc = mapper.parse(source(b -> {
+                b.field("fieldA", "testA");
+                b.field("fieldB", "testB");
+                b.startObject("obj").field("fieldC", "testC").endObject();
+                b.startArray("arr").startObject().field("fieldD", "testD").endObject().endArray();
+            }));
+            doc.updateSeqID(0, 0);
+            doc.version().setLongValue(0);
+            iw.addDocuments(doc.docs());
+            iw.close();
+
+            {
+                Automaton automaton = Automatons.patterns(Arrays.asList("fieldA", IgnoredSourceFieldMapper.NAME));
+                try (
+                    DirectoryReader indexReader = FieldSubsetReader.wrap(
+                        wrapInMockESDirectoryReader(DirectoryReader.open(directory)),
+                        new CharacterRunAutomaton(automaton)
+                    )
+                ) {
+                    String syntheticSource = syntheticSource(mapper, indexReader, doc.docs().size() - 1);
+                    assertEquals("{\"fieldA\":\"testA\"}", syntheticSource);
+                }
+            }
+
+            {
+                Automaton automaton = Operations.minus(
+                    Automata.makeAnyString(),
+                    Automatons.patterns("fieldA"),
+                    Operations.DEFAULT_DETERMINIZE_WORK_LIMIT
+                );
+                try (
+                    DirectoryReader indexReader = FieldSubsetReader.wrap(
+                        wrapInMockESDirectoryReader(DirectoryReader.open(directory)),
+                        new CharacterRunAutomaton(automaton)
+                    )
+                ) {
+                    String syntheticSource = syntheticSource(mapper, indexReader, doc.docs().size() - 1);
+                    assertEquals("""
+                        {"arr":[{"fieldD":"testD"}],"fieldB":"testB","obj":{"fieldC":"testC"}}""", syntheticSource);
+                }
+            }
+
+            {
+                Automaton automaton = Automatons.patterns(Arrays.asList("obj.fieldC", IgnoredSourceFieldMapper.NAME));
+                try (
+                    DirectoryReader indexReader = FieldSubsetReader.wrap(
+                        wrapInMockESDirectoryReader(DirectoryReader.open(directory)),
+                        new CharacterRunAutomaton(automaton)
+                    )
+                ) {
+                    String syntheticSource = syntheticSource(mapper, indexReader, doc.docs().size() - 1);
+                    assertEquals("""
+                        {"obj":{"fieldC":"testC"}}""", syntheticSource);
+                }
+            }
+
+            {
+                Automaton automaton = Operations.minus(
+                    Automata.makeAnyString(),
+                    Automatons.patterns("obj.fieldC"),
+                    Operations.DEFAULT_DETERMINIZE_WORK_LIMIT
+                );
+                try (
+                    DirectoryReader indexReader = FieldSubsetReader.wrap(
+                        wrapInMockESDirectoryReader(DirectoryReader.open(directory)),
+                        new CharacterRunAutomaton(automaton)
+                    )
+                ) {
+                    String syntheticSource = syntheticSource(mapper, indexReader, doc.docs().size() - 1);
+                    assertEquals("""
+                        {"arr":[{"fieldD":"testD"}],"fieldA":"testA","fieldB":"testB"}""", syntheticSource);
+                }
+            }
+
+            {
+                Automaton automaton = Automatons.patterns(Arrays.asList("arr.fieldD", IgnoredSourceFieldMapper.NAME));
+                try (
+                    DirectoryReader indexReader = FieldSubsetReader.wrap(
+                        wrapInMockESDirectoryReader(DirectoryReader.open(directory)),
+                        new CharacterRunAutomaton(automaton)
+                    )
+                ) {
+                    String syntheticSource = syntheticSource(mapper, indexReader, doc.docs().size() - 1);
+                    assertEquals("""
+                        {"arr":[{"fieldD":"testD"}]}""", syntheticSource);
+                }
+            }
+
+            {
+                Automaton automaton = Operations.minus(
+                    Automata.makeAnyString(),
+                    Automatons.patterns("arr.fieldD"),
+                    Operations.DEFAULT_DETERMINIZE_WORK_LIMIT
+                );
+                try (
+                    DirectoryReader indexReader = FieldSubsetReader.wrap(
+                        wrapInMockESDirectoryReader(DirectoryReader.open(directory)),
+                        new CharacterRunAutomaton(automaton)
+                    )
+                ) {
+                    String syntheticSource = syntheticSource(mapper, indexReader, doc.docs().size() - 1);
+                    assertEquals("""
+                        {"arr":[{}],"fieldA":"testA","fieldB":"testB","obj":{"fieldC":"testC"}}""", syntheticSource);
+                }
+            }
+        }
+    }
+
     public void testSourceFiltering() {
         // include on top-level value
         Map<String, Object> map = new HashMap<>();
@@ -1144,16 +1273,7 @@ public class FieldSubsetReaderTests extends ESTestCase {
     @SuppressWarnings("unchecked")
     public void testMappingsFilteringDuelWithSourceFiltering() throws Exception {
         Metadata metadata = Metadata.builder()
-            .put(
-                IndexMetadata.builder("index")
-                    .settings(
-                        Settings.builder()
-                            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-                            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                    )
-                    .putMapping(MAPPING_TEST_ITEM)
-            )
+            .put(IndexMetadata.builder("index").settings(indexSettings(IndexVersion.current(), 1, 0)).putMapping(MAPPING_TEST_ITEM))
             .build();
 
         {

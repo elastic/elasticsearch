@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.xcontent.support;
@@ -195,7 +196,18 @@ public class XContentMapValues {
             for (Object o : valueList) {
                 Object listValue = extractValue(pathElements, index, o, nullValue);
                 if (listValue != null) {
-                    newList.add(listValue);
+                    // we add arrays as list elements only if we are already at leaf,
+                    // otherwise append individual elements to the new list so we don't
+                    // accumulate intermediate array structures
+                    if (listValue instanceof List<?> list) {
+                        if (index == pathElements.length) {
+                            newList.add(list);
+                        } else {
+                            newList.addAll(list);
+                        }
+                    } else {
+                        newList.add(listValue);
+                    }
                 }
             }
             return newList;
@@ -544,7 +556,7 @@ public class XContentMapValues {
         if (node instanceof Map) {
             return (Map<String, Object>) node;
         } else {
-            throw new ElasticsearchParseException(desc + " should be a hash but was of type: " + node.getClass());
+            throw new ElasticsearchParseException(desc + " should be a map but was of type: " + node.getClass());
         }
     }
 

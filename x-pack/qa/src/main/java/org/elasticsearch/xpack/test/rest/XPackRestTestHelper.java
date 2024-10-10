@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.test.rest;
 
 import org.apache.http.util.EntityUtils;
-import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -18,12 +17,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.ESTestCase.assertBusy;
-import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.equalTo;
 import static org.junit.Assert.fail;
 
 public final class XPackRestTestHelper {
@@ -31,8 +27,7 @@ public final class XPackRestTestHelper {
     private XPackRestTestHelper() {}
 
     /**
-     * For each template name wait for the template to be created and
-     * for the template version to be equal to the master node version.
+     * For each template name wait for the template to be created.
      *
      * @param client             The rest client
      * @param expectedTemplates  Names of the templates to wait for
@@ -41,23 +36,6 @@ public final class XPackRestTestHelper {
     @SuppressWarnings("unchecked")
     public static void waitForTemplates(RestClient client, List<String> expectedTemplates, boolean clusterUnderstandsComposableTemplates)
         throws Exception {
-        AtomicReference<Version> masterNodeVersion = new AtomicReference<>();
-
-        assertBusy(() -> {
-            Request request = new Request("GET", "/_cat/nodes");
-            request.addParameter("h", "master,version");
-            request.addParameter("error_trace", "true");
-            String response = EntityUtils.toString(client.performRequest(request).getEntity());
-
-            for (String line : response.split("\n")) {
-                if (line.startsWith("*")) {
-                    masterNodeVersion.set(Version.fromString(line.substring(2).trim()));
-                    return;
-                }
-            }
-            fail("No master elected");
-        });
-
         // TODO: legacy support can be removed once all X-Pack plugins use only composable
         // templates in the oldest version we test upgrades from
         assertBusy(() -> {
@@ -89,7 +67,7 @@ public final class XPackRestTestHelper {
             final List<String> missingTemplates = expectedTemplates.stream()
                 .filter(each -> templates.contains(each) == false)
                 .filter(each -> legacyTemplates.contains(each) == false)
-                .collect(Collectors.toList());
+                .toList();
 
             // While it's possible to use a Hamcrest matcher for this, the failure is much less legible.
             if (missingTemplates.isEmpty() == false) {
@@ -102,18 +80,6 @@ public final class XPackRestTestHelper {
                         + legacyTemplates
                 );
             }
-
-            expectedTemplates.forEach(template -> {
-                Map<?, ?> templateDefinition = (Map<?, ?>) response.get(template);
-                if (templateDefinition == null) {
-                    templateDefinition = (Map<?, ?>) legacyResponse.get(template);
-                }
-                assertThat(
-                    "Template [" + template + "] has unexpected version",
-                    Version.fromId((Integer) templateDefinition.get("version")),
-                    equalTo(masterNodeVersion.get())
-                );
-            });
         });
     }
 

@@ -12,6 +12,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.grok.Grok;
+import org.elasticsearch.grok.GrokBuiltinPatterns;
 
 import java.time.DateTimeException;
 import java.time.Instant;
@@ -349,7 +350,7 @@ public final class TimestampFormatFinder {
                     p -> (("CATALINA_DATESTAMP".equals(p.outputGrokPatternName) == false)
                         && ("TOMCAT_DATESTAMP".equals(p.outputGrokPatternName) == false))
                 )
-                .collect(Collectors.toList())
+                .toList()
         );
 
         ORDERED_CANDIDATE_FORMATS_ECS_V1 = Collections.unmodifiableList(items);
@@ -1802,13 +1803,13 @@ public final class TimestampFormatFinder {
             this.strictGrokPattern = Objects.requireNonNull(strictGrokPattern);
             // The (?m) here has the Ruby meaning, which is equivalent to (?s) in Java
             this.strictSearchGrok = new Grok(
-                Grok.getBuiltinPatterns(false),
+                GrokBuiltinPatterns.legacyPatterns(),
                 "(?m)%{DATA:" + PREFACE + "}" + strictGrokPattern + "%{GREEDYDATA:" + EPILOGUE + "}",
                 TimeoutChecker.watchdog,
                 logger::warn
             );
             this.strictFullMatchGrok = new Grok(
-                Grok.getBuiltinPatterns(false),
+                GrokBuiltinPatterns.legacyPatterns(),
                 "^" + strictGrokPattern + "$",
                 TimeoutChecker.watchdog,
                 logger::warn

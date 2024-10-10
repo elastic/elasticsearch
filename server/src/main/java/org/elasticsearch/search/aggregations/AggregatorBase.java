@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.search.aggregations;
 
@@ -58,6 +59,7 @@ public abstract class AggregatorBase extends Aggregator {
      * @param subAggregatorCardinality Upper bound of the number of buckets that sub aggregations will collect
      * @param metadata              The metadata associated with this aggregator
      */
+    @SuppressWarnings("this-escape")
     protected AggregatorBase(
         String name,
         AggregatorFactories factories,
@@ -141,8 +143,9 @@ public abstract class AggregatorBase extends Aggregator {
      * @return the cumulative size in bytes allocated by this aggregator to service this request
      */
     protected long addRequestCircuitBreakerBytes(long bytes) {
-        // Only use the potential to circuit break if bytes are being incremented
-        if (bytes > 0) {
+        // Only use the potential to circuit break if bytes are being incremented, In the case of 0
+        // bytes, it will trigger the parent circuit breaker.
+        if (bytes >= 0) {
             context.breaker().addEstimateBytesAndMaybeBreak(bytes, "<agg [" + name + "]>");
         } else {
             context.breaker().addWithoutBreaking(bytes);
@@ -266,11 +269,20 @@ public abstract class AggregatorBase extends Aggregator {
     public Aggregator subAggregator(String aggName) {
         if (subAggregatorbyName == null) {
             subAggregatorbyName = Maps.newMapWithExpectedSize(subAggregators.length);
-            for (int i = 0; i < subAggregators.length; i++) {
-                subAggregatorbyName.put(subAggregators[i].name(), subAggregators[i]);
+            for (Aggregator subAggregator : subAggregators) {
+                subAggregatorbyName.put(subAggregator.name(), subAggregator);
             }
         }
         return subAggregatorbyName.get(aggName);
+    }
+
+    @Override
+    public void releaseAggregations() {
+        // release sub aggregations
+        Arrays.stream(subAggregators).forEach(Aggregator::releaseAggregations);
+        // release this aggregation
+        close();
+        context.removeReleasable(this);
     }
 
     /**
@@ -305,7 +317,10 @@ public abstract class AggregatorBase extends Aggregator {
     protected void doPostCollection() throws IOException {}
 
     protected final InternalAggregations buildEmptySubAggregations() {
-        List<InternalAggregation> aggs = new ArrayList<>();
+        if (subAggregators.length == 0) {
+            return InternalAggregations.EMPTY;
+        }
+        List<InternalAggregation> aggs = new ArrayList<>(subAggregators.length);
         for (Aggregator aggregator : subAggregators) {
             aggs.add(aggregator.buildEmptyAggregation());
         }

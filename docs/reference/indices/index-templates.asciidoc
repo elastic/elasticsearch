@@ -28,6 +28,8 @@ applied.
 template, the settings from the <<indices-create-index,create index>> request
 take precedence over settings specified in the index template and its component
 templates.
+* Settings specified in the index template itself take precedence over the settings
+in its component templates.
 * If a new data stream or index matches more than one index template, the index
 template with the highest priority is used.
 
@@ -41,6 +43,8 @@ following index patterns:
 - `logs-*-*`
 - `metrics-*-*`
 - `synthetics-*-*`
+- `profiling-*`
+- `security_solution-*-*`
 // end::built-in-index-template-patterns[]
 
 {fleet-guide}/fleet-overview.html[{agent}] uses these templates to create
@@ -62,6 +66,8 @@ For example, if you don't use {fleet} or {agent} and want to create a template
 for the `logs-*` index pattern, assign your template a priority of `500`. This
 ensures your template is applied instead of the built-in template for
 `logs-*-*`.
+
+- To avoid naming collisions with built-in and Fleet-managed index templates, avoid using `@` as part of the name of your own index templates.
 ****
 
 [discrete]
@@ -97,7 +103,7 @@ PUT _component_template/runtime_component_template
         "day_of_week": {
           "type": "keyword",
           "script": {
-            "source": "emit(doc['@timestamp'].value.dayOfWeekEnum.getDisplayName(TextStyle.FULL, Locale.ROOT))"
+            "source": "emit(doc['@timestamp'].value.dayOfWeekEnum.getDisplayName(TextStyle.FULL, Locale.ENGLISH))"
           }
         }
       }

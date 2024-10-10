@@ -37,7 +37,7 @@ setup:
           settings:
             index:
               number_of_shards:   1
-              number_of_replicas: 0
+              number_of_replicas: 1
           mappings:
             properties:
               name:
@@ -50,7 +50,7 @@ setup:
           settings:
             index:
               number_of_shards:   1
-              number_of_replicas: 0
+              number_of_replicas: 1
           mappings:
             properties:
               name:
@@ -62,7 +62,7 @@ setup:
           settings:
             index:
               number_of_shards:   1
-              number_of_replicas: 0
+              number_of_replicas: 1
           mappings:
             properties:
               name:
@@ -75,7 +75,7 @@ setup:
           settings:
             index:
               number_of_shards:   1
-              number_of_replicas: 0
+              number_of_replicas: 1
           mappings:
             properties:
               name:
@@ -138,7 +138,6 @@ teardown:
   - do:
       headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
       delete:
-        refresh: true
         index: only_delete
         id: "3"
 
@@ -152,7 +151,6 @@ teardown:
   - do:
       headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
       bulk:
-        refresh: true
         body:
             - '{"delete": {"_index": "only_delete", "_id": "4"}}'
             - '{"delete": {"_index": "everything" , "_id": "9"}}'
@@ -160,7 +158,6 @@ teardown:
   - do:
       headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
       bulk:
-        refresh: true
         body: # The rest test won't send streaming content unless it has multiple bodies, so we send the same delete twice
             - '{"delete": {"_index": "only_delete", "_id": "5"}}'
             - '{"delete": {"_index": "only_delete", "_id": "5"}}'
@@ -176,6 +173,10 @@ teardown:
           - delete:
               _index: everything
               _id: "10"
+
+  - do: # superuser
+      indices.refresh:
+        index: only_delete
 
   - do: # superuser
       search:
@@ -197,7 +198,6 @@ teardown:
       catch: forbidden
       headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
       delete:
-        refresh: true
         index: only_read
         id: "1"
 
@@ -205,14 +205,12 @@ teardown:
       catch: forbidden
       headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
       delete:
-        refresh: true
         index: only_index
         id: "2"
 
   - do:
       headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
       bulk:
-        refresh: true
         body:
             - '{"delete": {"_index": "only_read" , "_id": "1"}}'
             - '{"delete": {"_index": "only_index", "_id": "2"}}'
@@ -226,7 +224,6 @@ teardown:
   - do:
       headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
       bulk:
-        refresh: true
         body: # The rest test won't send streaming content unless it has multiple bodies, so we send the same delete twice
             - '{"delete": {"_index": "only_read" , "_id": "1"}}'
             - '{"delete": {"_index": "only_read" , "_id": "1"}}'
@@ -240,7 +237,6 @@ teardown:
   - do:
       headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
       bulk:
-        refresh: true
         body: # The rest test won't send streaming content unless it has multiple bodies, so we send the same delete twice
             - '{"delete": {"_index": "only_index", "_id": "2"}}'
             - '{"delete": {"_index": "only_index", "_id": "2"}}'
@@ -250,6 +246,10 @@ teardown:
   - match: { items.0.delete.error.type: "security_exception" }
   - match: { items.1.delete.status: 403 }
   - match: { items.1.delete.error.type: "security_exception" }
+
+  - do: # superuser
+      indices.refresh:
+        index: only_read,only_index
 
   - do: # superuser
       search:
@@ -270,7 +270,6 @@ teardown:
   - do:
       headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
       bulk:
-        refresh: true
         body:
             - '{"delete": {"_index": "only_read"  , "_id": "1"}}'
             - '{"delete": {"_index": "only_delete", "_id": "6"}}'
@@ -278,6 +277,10 @@ teardown:
   - match: { items.0.delete.status: 403 }
   - match: { items.0.delete.error.type: "security_exception" }
   - match: { items.1.delete.status: 200 }
+
+  - do: # superuser
+      indices.refresh:
+        index: only_read,only_delete
 
   - do: # superuser
       search:
@@ -298,7 +301,6 @@ teardown:
   - do:
       headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
       bulk:
-        refresh: true
         body:
             - '{"index" : {"_index": "only_delete", "_id": "11"}}'
             - '{"name"  : "doc11"}'
@@ -313,6 +315,10 @@ teardown:
   - match: { items.2.index.status: 201 }
   - match: { items.3.delete.status: 403 }
   - match: { items.3.delete.error.type: "security_exception" }
+
+  - do: # superuser
+      indices.refresh:
+        index: only_delete,only_index
 
   - do: # superuser
       search:

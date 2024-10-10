@@ -1,0 +1,85 @@
+# just a few tests to verify that ignoreOrder works as expected
+
+simple
+from employees | where emp_no < 10004 | keep emp_no, still_hired;
+ignoreOrder:true
+emp_no:integer | still_hired:boolean
+10003          | false
+10002          | true
+10001          | true
+;
+
+simple2
+from employees | where emp_no < 10004 | keep emp_no, still_hired;
+ignoreOrder:true
+emp_no:integer | still_hired:boolean
+10001          | true
+10003          | false
+10002          | true
+;
+
+
+booleansFirst
+from employees | where emp_no < 10004 | keep still_hired, emp_no;
+ignoreOrder:true
+still_hired:boolean | emp_no:integer  
+true                | 10001           
+false               | 10003
+true                | 10002          
+;
+
+
+booleansFirst2
+from employees | where emp_no < 10004 | keep still_hired, emp_no;
+ignoreOrder:true
+still_hired:boolean | emp_no:integer  
+true                | 10001           
+true                | 10002          
+false               | 10003
+;
+
+nulls
+from employees | where emp_no >= 10007 and emp_no < 10012 | keep gender, emp_no;
+ignoreOrder:true
+gender:keyword | emp_no:integer
+F              | 10007
+M              | 10008
+F              | 10009
+null           | 10010
+null           | 10011
+;
+
+
+nulls2
+from employees | where emp_no >= 10007 and emp_no < 10012 | keep gender, emp_no;
+ignoreOrder:true
+gender:keyword | emp_no:integer
+null           | 10010
+F              | 10009
+F              | 10007
+M              | 10008
+null           | 10011
+;
+
+dates
+from employees | where emp_no >= 10007 and emp_no < 10012 | keep birth_date, emp_no;
+ignoreOrder:true
+birth_date:date        | emp_no:integer
+1957-05-23T00:00:00Z   | 10007
+1958-02-19T00:00:00Z   | 10008
+1952-04-19T00:00:00Z   | 10009
+1963-06-01T00:00:00Z   | 10010
+1953-11-07T00:00:00Z   | 10011
+;
+
+dates2
+from employees | where emp_no >= 10007 and emp_no < 10012 | keep birth_date, emp_no;
+ignoreOrder:true
+birth_date:date        | emp_no:integer
+1953-11-07T00:00:00Z   | 10011
+1957-05-23T00:00:00Z   | 10007
+1952-04-19T00:00:00Z   | 10009
+1958-02-19T00:00:00Z   | 10008
+1963-06-01T00:00:00Z   | 10010
+;
+

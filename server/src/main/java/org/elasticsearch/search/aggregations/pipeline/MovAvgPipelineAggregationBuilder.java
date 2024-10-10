@@ -1,19 +1,22 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.pipeline;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.core.RestApiVersion;
+import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.index.query.CommonTermsQueryBuilder;
 import org.elasticsearch.xcontent.ContextParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -30,13 +33,14 @@ import java.util.Map;
  *
  * @deprecated Only for 7.x rest compat
  */
+@UpdateForV9(owner = UpdateForV9.Owner.SEARCH_ANALYTICS) // remove this since it's only for 7.x compat and 7.x compat will be removed in 9.0
 @Deprecated
 public class MovAvgPipelineAggregationBuilder extends AbstractPipelineAggregationBuilder<MovAvgPipelineAggregationBuilder> {
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(CommonTermsQueryBuilder.class);
     public static final String MOVING_AVG_AGG_DEPRECATION_MSG = "Moving Average aggregation usage is not supported. "
         + "Use the [moving_fn] aggregation instead.";
 
-    public static ParseField NAME_V7 = new ParseField("moving_avg").withAllDeprecated(MOVING_AVG_AGG_DEPRECATION_MSG)
+    public static final ParseField NAME_V7 = new ParseField("moving_avg").withAllDeprecated(MOVING_AVG_AGG_DEPRECATION_MSG)
         .forRestApiVersion(RestApiVersion.equalTo(RestApiVersion.V_7));
 
     public static final ContextParser<String, MovAvgPipelineAggregationBuilder> PARSER = (parser, name) -> {
@@ -76,6 +80,6 @@ public class MovAvgPipelineAggregationBuilder extends AbstractPipelineAggregatio
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.ZERO;
+        return TransportVersions.ZERO;
     }
 }

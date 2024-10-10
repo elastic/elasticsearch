@@ -1,16 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.env;
 
 import joptsimple.OptionSet;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
 import org.elasticsearch.cli.MockTerminal;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cluster.ClusterName;
@@ -25,6 +25,7 @@ import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.gateway.PersistedClusterStateService;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matcher;
 import org.junit.Before;
@@ -240,7 +241,7 @@ public class NodeRepurposeCommandTests extends ESTestCase {
                                         IndexMetadata.builder(INDEX.getName())
                                             .settings(
                                                 Settings.builder()
-                                                    .put("index.version.created", Version.CURRENT)
+                                                    .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
                                                     .put(IndexMetadata.SETTING_INDEX_UUID, INDEX.getUUID())
                                             )
                                             .numberOfShards(1)

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.test;
@@ -246,7 +247,7 @@ public final class RandomObjects {
     public static Tuple<ShardInfo, ShardInfo> randomShardInfo(Random random, boolean withShardFailures) {
         int total = randomIntBetween(random, 1, 10);
         if (withShardFailures == false) {
-            return Tuple.tuple(new ShardInfo(total, total), new ShardInfo(total, total));
+            return Tuple.tuple(ShardInfo.allSuccessful(total), ShardInfo.allSuccessful(total));
         }
 
         int successful = randomIntBetween(random, 1, Math.max(1, (total - 1)));
@@ -260,7 +261,7 @@ public final class RandomObjects {
             actualFailures[i] = failure.v1();
             expectedFailures[i] = failure.v2();
         }
-        return Tuple.tuple(new ShardInfo(total, successful, actualFailures), new ShardInfo(total, successful, expectedFailures));
+        return Tuple.tuple(ShardInfo.of(total, successful, actualFailures), ShardInfo.of(total, successful, expectedFailures));
     }
 
     /**

@@ -13,31 +13,18 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
-import org.elasticsearch.xpack.core.security.user.AsyncSearchUser;
-import org.elasticsearch.xpack.core.security.user.SecurityProfileUser;
-import org.elasticsearch.xpack.core.security.user.SystemUser;
-import org.elasticsearch.xpack.core.security.user.UsernamesField;
-import org.elasticsearch.xpack.core.security.user.XPackSecurityUser;
-import org.elasticsearch.xpack.core.security.user.XPackUser;
+import org.elasticsearch.xpack.core.security.user.InternalUsers;
+import org.elasticsearch.xpack.core.security.user.User;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
 import java.nio.file.Path;
 
 public class InternalUserAndRoleIntegTests extends AbstractPrivilegeTestCase {
-    private static final String[] INTERNAL_USERNAMES = new String[] {
-        SystemUser.NAME,
-        XPackUser.NAME,
-        XPackSecurityUser.NAME,
-        AsyncSearchUser.NAME,
-        SecurityProfileUser.NAME };
 
-    private static final String[] INTERNAL_ROLE_NAMES = new String[] {
-        UsernamesField.SYSTEM_ROLE,
-        UsernamesField.XPACK_ROLE,
-        UsernamesField.XPACK_SECURITY_ROLE,
-        UsernamesField.ASYNC_SEARCH_ROLE,
-        UsernamesField.SECURITY_PROFILE_ROLE };
+    private static final String[] INTERNAL_USERNAMES = InternalUsers.get().stream().map(User::principal).toArray(String[]::new);
+    private static final String[] INTERNAL_ROLE_NAMES = INTERNAL_USERNAMES;
+
     public static final String NON_INTERNAL_USERNAME = "user";
     public static final String NON_INTERNAL_ROLE_NAME = "role";
 

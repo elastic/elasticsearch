@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.core.ml.inference.results;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.inference.InferenceResults;
 
 import java.io.IOException;
 

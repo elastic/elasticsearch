@@ -1,5 +1,0 @@
-pr: 91508
-summary: "Add kibana.stats.elasticsearch_client stats to the monitoring index templates."
-area: Monitoring
-type: enhancement
-issues: []

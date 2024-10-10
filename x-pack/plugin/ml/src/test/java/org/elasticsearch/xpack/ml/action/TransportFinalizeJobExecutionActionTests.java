@@ -9,8 +9,9 @@ package org.elasticsearch.xpack.ml.action;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.action.update.UpdateAction;
+import org.elasticsearch.action.update.TransportUpdateAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -58,7 +59,7 @@ public class TransportFinalizeJobExecutionActionTests extends ESTestCase {
             ActionListener listener = (ActionListener) invocationOnMock.getArguments()[2];
             listener.onResponse(null);
             return null;
-        }).when(client).execute(eq(UpdateAction.INSTANCE), any(), any());
+        }).when(client).execute(eq(TransportUpdateAction.TYPE), any(), any());
 
         when(client.threadPool()).thenReturn(threadPool);
         when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
@@ -72,10 +73,10 @@ public class TransportFinalizeJobExecutionActionTests extends ESTestCase {
 
         FinalizeJobExecutionAction.Request request = new FinalizeJobExecutionAction.Request(new String[] { "job1", "job2" });
         AtomicReference<AcknowledgedResponse> ack = new AtomicReference<>();
-        action.masterOperation(null, request, clusterState, ActionListener.wrap(ack::set, e -> assertNull(e.getMessage())));
+        action.masterOperation(null, request, clusterState, ActionTestUtils.assertNoFailureListener(ack::set));
 
         assertTrue(ack.get().isAcknowledged());
-        verify(client, times(2)).execute(eq(UpdateAction.INSTANCE), any(), any());
+        verify(client, times(2)).execute(eq(TransportUpdateAction.TYPE), any(), any());
         verify(clusterService, never()).submitUnbatchedStateUpdateTask(any(), any());
     }
 

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.analysis.common;
@@ -11,12 +12,13 @@ package org.elasticsearch.analysis.common;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
+import org.elasticsearch.index.IndexService.IndexCreationContext;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.MyFilterTokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
@@ -64,7 +66,7 @@ public class CompoundAnalysisTests extends ESTestCase {
     private List<String> analyze(Settings settings, String analyzerName, String text) throws IOException {
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("test", settings);
         AnalysisModule analysisModule = createAnalysisModule(settings);
-        IndexAnalyzers indexAnalyzers = analysisModule.getAnalysisRegistry().build(idxSettings);
+        IndexAnalyzers indexAnalyzers = analysisModule.getAnalysisRegistry().build(IndexCreationContext.CREATE_INDEX, idxSettings);
         Analyzer analyzer = indexAnalyzers.get(analyzerName).analyzer();
 
         TokenStream stream = analyzer.tokenStream("", text);
@@ -93,7 +95,7 @@ public class CompoundAnalysisTests extends ESTestCase {
         String json = "/org/elasticsearch/analysis/common/test1.json";
         return Settings.builder()
             .loadFromStream(json, getClass().getResourceAsStream(json), false)
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
             .build();
     }
@@ -102,7 +104,7 @@ public class CompoundAnalysisTests extends ESTestCase {
         String yaml = "/org/elasticsearch/analysis/common/test1.yml";
         return Settings.builder()
             .loadFromStream(yaml, getClass().getResourceAsStream(yaml), false)
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
             .build();
     }

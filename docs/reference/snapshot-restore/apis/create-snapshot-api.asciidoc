@@ -56,7 +56,7 @@ unique within the snapshot repository.
 [[create-snapshot-api-query-params]]
 ==== {api-query-parms-title}
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
 
 `wait_for_completion`::
 (Optional, Boolean) If `true`, the request returns a response when the snapshot
@@ -78,7 +78,7 @@ match data streams and indices. Supports comma-separated values, such as
 `open,hidden`. Defaults to `all`. Valid values are:
 
 `all`:::
-Match any data stream or index, including <<hidden,hidden>> ones.
+Match any data stream or index, including closed and <<multi-hidden,hidden>> ones.
 
 `open`:::
 Match open indices and data streams.

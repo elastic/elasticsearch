@@ -1,5 +1,7 @@
 ---
 "Test watcher usage stats output":
+  - skip:
+      awaits_fix: "https://github.com/elastic/elasticsearch/issues/65547"
   - do:
       catch: missing
       watcher.delete_watch:

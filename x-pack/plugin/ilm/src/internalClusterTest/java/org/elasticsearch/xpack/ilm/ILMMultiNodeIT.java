@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.ilm;
 
-import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
+import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -18,7 +18,9 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.xpack.ccr.Ccr;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
+import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.ilm.ExplainLifecycleRequest;
 import org.elasticsearch.xpack.core.ilm.ExplainLifecycleResponse;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleExplainResponse;
@@ -28,7 +30,8 @@ import org.elasticsearch.xpack.core.ilm.Phase;
 import org.elasticsearch.xpack.core.ilm.RolloverAction;
 import org.elasticsearch.xpack.core.ilm.ShrinkAction;
 import org.elasticsearch.xpack.core.ilm.action.ExplainLifecycleAction;
-import org.elasticsearch.xpack.core.ilm.action.PutLifecycleAction;
+import org.elasticsearch.xpack.core.ilm.action.ILMActions;
+import org.elasticsearch.xpack.core.ilm.action.PutLifecycleRequest;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -46,7 +49,7 @@ public class ILMMultiNodeIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(LocalStateCompositeXPackPlugin.class, DataStreamsPlugin.class, IndexLifecycle.class);
+        return Arrays.asList(LocalStateCompositeXPackPlugin.class, DataStreamsPlugin.class, IndexLifecycle.class, Ccr.class);
     }
 
     @Override
@@ -56,6 +59,7 @@ public class ILMMultiNodeIT extends ESIntegTestCase {
             .put(LifecycleSettings.LIFECYCLE_POLL_INTERVAL, "1s")
             // This just generates less churn and makes it easier to read the log file if needed
             .put(LifecycleSettings.LIFECYCLE_HISTORY_INDEX_ENABLED, false)
+            .put(XPackSettings.CCR_ENABLED_SETTING.getKey(), true)
             .build();
     }
 
@@ -66,13 +70,13 @@ public class ILMMultiNodeIT extends ESIntegTestCase {
 
         RolloverAction rolloverAction = new RolloverAction(null, null, null, 1L, null, null, null, null, null, null);
         Phase hotPhase = new Phase("hot", TimeValue.ZERO, Collections.singletonMap(rolloverAction.getWriteableName(), rolloverAction));
-        ShrinkAction shrinkAction = new ShrinkAction(1, null);
+        ShrinkAction shrinkAction = new ShrinkAction(1, null, false);
         Phase warmPhase = new Phase("warm", TimeValue.ZERO, Collections.singletonMap(shrinkAction.getWriteableName(), shrinkAction));
         Map<String, Phase> phases = new HashMap<>();
         phases.put(hotPhase.getName(), hotPhase);
         phases.put(warmPhase.getName(), warmPhase);
         LifecyclePolicy lifecyclePolicy = new LifecyclePolicy("shrink-policy", phases);
-        client().execute(PutLifecycleAction.INSTANCE, new PutLifecycleAction.Request(lifecyclePolicy)).get();
+        client().execute(ILMActions.PUT, new PutLifecycleRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, lifecyclePolicy)).get();
 
         Template t = new Template(
             Settings.builder()
@@ -84,21 +88,16 @@ public class ILMMultiNodeIT extends ESIntegTestCase {
             null
         );
 
-        ComposableIndexTemplate template = new ComposableIndexTemplate(
-            Collections.singletonList(index),
-            t,
-            null,
-            null,
-            null,
-            null,
-            new ComposableIndexTemplate.DataStreamTemplate(),
-            null
-        );
+        ComposableIndexTemplate template = ComposableIndexTemplate.builder()
+            .indexPatterns(Collections.singletonList(index))
+            .template(t)
+            .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+            .build();
         client().execute(
-            PutComposableIndexTemplateAction.INSTANCE,
-            new PutComposableIndexTemplateAction.Request("template").indexTemplate(template)
+            TransportPutComposableIndexTemplateAction.TYPE,
+            new TransportPutComposableIndexTemplateAction.Request("template").indexTemplate(template)
         ).actionGet();
-        client().prepareIndex(index).setCreate(true).setId("1").setSource("@timestamp", "2020-09-09").get();
+        prepareIndex(index).setCreate(true).setId("1").setSource("@timestamp", "2020-09-09").get();
 
         assertBusy(() -> {
             ExplainLifecycleResponse explain = client().execute(ExplainLifecycleAction.INSTANCE, new ExplainLifecycleRequest().indices("*"))

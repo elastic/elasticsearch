@@ -1,15 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.routing;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
@@ -21,6 +22,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes.Builder;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.FailedShard;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexVersion;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -40,7 +42,9 @@ public class PrimaryTermsTests extends ESAllocationTestCase {
     private static final String TEST_INDEX_2 = "test2";
     private int numberOfShards;
     private int numberOfReplicas;
-    private static final Settings DEFAULT_SETTINGS = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build();
+    private static final Settings DEFAULT_SETTINGS = Settings.builder()
+        .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+        .build();
     private AllocationService allocationService;
     private ClusterState clusterState;
 
@@ -73,10 +77,7 @@ public class PrimaryTermsTests extends ESAllocationTestCase {
             )
             .build();
 
-        this.clusterState = ClusterState.builder(org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
-            .metadata(metadata)
-            .routingTable(routingTable)
-            .build();
+        this.clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).routingTable(routingTable).build();
     }
 
     /**
@@ -119,9 +120,7 @@ public class PrimaryTermsTests extends ESAllocationTestCase {
         ClusterState previousClusterState = this.clusterState;
         ClusterState.Builder builder = ClusterState.builder(newClusterState).incrementVersion();
         if (previousClusterState.routingTable() != newClusterState.routingTable()) {
-            builder.routingTable(
-                RoutingTable.builder(newClusterState.routingTable()).version(newClusterState.routingTable().version() + 1).build()
-            );
+            builder.routingTable(RoutingTable.builder(newClusterState.routingTable()).build());
         }
         if (previousClusterState.metadata() != newClusterState.metadata()) {
             builder.metadata(Metadata.builder(newClusterState.metadata()).version(newClusterState.metadata().version() + 1));

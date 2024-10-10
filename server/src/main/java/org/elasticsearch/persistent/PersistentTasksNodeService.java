@@ -1,16 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.persistent;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksResponse;
+import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.common.Strings;
@@ -74,31 +75,35 @@ public class PersistentTasksNodeService implements ClusterStateListener {
         PersistentTasksCustomMetadata tasks = event.state().getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
         PersistentTasksCustomMetadata previousTasks = event.previousState().getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
 
-        // Cluster State Local State Local Action
-        // STARTED NULL Create as STARTED, Start
-        // STARTED STARTED Noop - running
-        // STARTED COMPLETED Noop - waiting for notification ack
-        // STARTED LOCAL_ABORTED Noop - waiting for notification ack
-
-        // NULL NULL Noop - nothing to do
-        // NULL STARTED Remove locally, Mark as PENDING_CANCEL, Cancel
-        // NULL COMPLETED Remove locally
-        // NULL LOCAL_ABORTED Remove locally
-
-        // Master states:
-        // NULL - doesn't exist in the cluster state
-        // STARTED - exist in the cluster state
-
-        // Local state:
-        // NULL - we don't have task registered locally in runningTasks
-        // STARTED - registered in TaskManager, requires master notification when finishes
-        // PENDING_CANCEL - registered in TaskManager, doesn't require master notification when finishes
-        // COMPLETED - not registered in TaskManager, notified, waiting for master to remove it from CS so we can remove locally
-        // LOCAL_ABORTED - not registered in TaskManager, notified, waiting for master to adjust it in CS so we can remove locally
-
-        // When task finishes if it is marked as STARTED or PENDING_CANCEL it is marked as COMPLETED and unregistered,
-        // If the task was STARTED, the master notification is also triggered (this is handled by unregisterTask() method, which is
-        // triggered by PersistentTaskListener
+        /*
+         * Master states:
+         * NULL    - doesn't exist in the cluster state
+         * STARTED - exist in the cluster state
+         *
+         * Local states (see org.elasticsearch.persistent.AllocatedPersistentTask.State)
+         * NULL           - we don't have task registered locally in runningTasks
+         * STARTED        - registered in TaskManager, requires master notification when finishes
+         * PENDING_CANCEL - registered in TaskManager, doesn't require master notification when finishes
+         * COMPLETED      - not registered in TaskManager, notified, waiting for master to remove it from CS so we can remove locally
+         * LOCAL_ABORTED  - not registered in TaskManager, notified, waiting for master to adjust it in CS so we can remove locally
+         *
+         *  Master state  | Local state    | Local action
+         * ---------------+----------------+-----------------------------------------------
+         *  STARTED       | NULL           | Create as STARTED, Start
+         *  STARTED       | STARTED        | Noop - running
+         *  STARTED       | PENDING_CANCEL | Impossible
+         *  STARTED       | COMPLETED      | Noop - waiting for notification ack
+         *  STARTED       | LOCAL_ABORTED  | Noop - waiting for notification ack
+         *  NULL          | NULL           | Noop - nothing to do
+         *  NULL          | STARTED        | Remove locally, Mark as PENDING_CANCEL, Cancel
+         *  NULL          | PENDING_CANCEL | Noop - will remove locally when complete
+         *  NULL          | COMPLETED      | Remove locally
+         *  NULL          | LOCAL_ABORTED  | Remove locally
+         *
+         * When task finishes if it is marked as STARTED or PENDING_CANCEL it is marked as COMPLETED and unregistered,
+         * If the task was STARTED, the master notification is also triggered (this is handled by unregisterTask() method, which is
+         * triggered by PersistentTaskListener
+         */
 
         if (Objects.equals(tasks, previousTasks) == false || event.nodesChanged()) {
             // We have some changes let's check if they are related to our node
@@ -173,6 +178,11 @@ public class PersistentTasksNodeService implements ClusterStateListener {
             @Override
             public void setParentTask(TaskId taskId) {
                 throw new UnsupportedOperationException("parent task if for persistent tasks shouldn't change");
+            }
+
+            @Override
+            public void setRequestId(long requestId) {
+                throw new UnsupportedOperationException("does not have a request ID");
             }
 
             @Override
@@ -260,6 +270,7 @@ public class PersistentTasksNodeService implements ClusterStateListener {
             taskInProgress.getAllocationId(),
             originalException,
             null,
+            null,
             new ActionListener<>() {
                 @Override
                 public void onResponse(PersistentTask<?> persistentTask) {
@@ -287,7 +298,7 @@ public class PersistentTasksNodeService implements ClusterStateListener {
     }
 
     /**
-     * Unregisters and then cancels the locally running task using the task manager. No notification to master will be send upon
+     * Unregisters and then cancels the locally running task using the task manager. No notification to master will be sent upon
      * cancellation.
      */
     private void cancelTask(Long allocationId) {
@@ -295,9 +306,9 @@ public class PersistentTasksNodeService implements ClusterStateListener {
         if (task.markAsCancelled()) {
             // Cancel the local task using the task manager
             String reason = "task has been removed, cancelling locally";
-            persistentTasksService.sendCancelRequest(task.getId(), reason, new ActionListener<CancelTasksResponse>() {
+            persistentTasksService.sendCancelRequest(task.getId(), reason, null, new ActionListener<>() {
                 @Override
-                public void onResponse(CancelTasksResponse cancelTasksResponse) {
+                public void onResponse(ListTasksResponse cancelTasksResponse) {
                     logger.trace(
                         "Persistent task [{}] with id [{}] and allocation id [{}] was cancelled",
                         task.getAction(),
@@ -358,11 +369,6 @@ public class PersistentTasksNodeService implements ClusterStateListener {
         @Override
         public String toString() {
             return Strings.toString(this);
-        }
-
-        @Override
-        public boolean isFragment() {
-            return false;
         }
 
         @Override

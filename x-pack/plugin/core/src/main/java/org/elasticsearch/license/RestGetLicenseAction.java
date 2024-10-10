@@ -16,6 +16,9 @@ import org.elasticsearch.protocol.xpack.license.GetLicenseRequest;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
+import org.elasticsearch.rest.RestUtils;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestBuilderListener;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -31,11 +34,12 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestStatus.NOT_FOUND;
 import static org.elasticsearch.rest.RestStatus.OK;
 
+@ServerlessScope(Scope.PUBLIC)
 public class RestGetLicenseAction extends BaseRestHandler {
 
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestGetLicenseAction.class);
 
-    RestGetLicenseAction() {}
+    public RestGetLicenseAction() {}
 
     @Override
     public List<Route> routes() {
@@ -81,7 +85,7 @@ public class RestGetLicenseAction extends BaseRestHandler {
         }
 
         final ToXContent.Params params = new ToXContent.DelegatingMapParams(overrideParams, request);
-        GetLicenseRequest getLicenseRequest = new GetLicenseRequest();
+        GetLicenseRequest getLicenseRequest = new GetLicenseRequest(RestUtils.getMasterNodeTimeout(request));
         getLicenseRequest.local(request.paramAsBoolean("local", getLicenseRequest.local()));
         return channel -> client.admin()
             .cluster()

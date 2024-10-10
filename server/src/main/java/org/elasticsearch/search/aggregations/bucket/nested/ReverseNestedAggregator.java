@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.search.aggregations.bucket.nested;
 
@@ -33,7 +34,6 @@ public class ReverseNestedAggregator extends BucketsAggregator implements Single
 
     static final ParseField PATH_FIELD = new ParseField("path");
 
-    private final Query parentFilter;
     private final BitSetProducer parentBitsetProducer;
 
     public ReverseNestedAggregator(
@@ -46,6 +46,7 @@ public class ReverseNestedAggregator extends BucketsAggregator implements Single
         Map<String, Object> metadata
     ) throws IOException {
         super(name, factories, context, parent, cardinality, metadata);
+        Query parentFilter;
         if (objectMapper == null) {
             parentFilter = Queries.newNonNestedFilter(context.getIndexSettings().getIndexVersionCreated());
         } else {
@@ -102,7 +103,4 @@ public class ReverseNestedAggregator extends BucketsAggregator implements Single
         return new InternalReverseNested(name, 0, buildEmptySubAggregations(), metadata());
     }
 
-    Query getParentFilter() {
-        return parentFilter;
-    }
 }

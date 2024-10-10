@@ -23,12 +23,6 @@ public class ClearPrivilegesCacheRequest extends BaseNodesRequest<ClearPrivilege
         super((String[]) null);
     }
 
-    public ClearPrivilegesCacheRequest(StreamInput in) throws IOException {
-        super(in);
-        applicationNames = in.readOptionalStringArray();
-        clearRolesCache = in.readBoolean();
-    }
-
     public ClearPrivilegesCacheRequest applicationNames(String... applicationNames) {
         this.applicationNames = applicationNames;
         return this;
@@ -45,13 +39,6 @@ public class ClearPrivilegesCacheRequest extends BaseNodesRequest<ClearPrivilege
 
     public boolean clearRolesCache() {
         return clearRolesCache;
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        out.writeOptionalStringArray(applicationNames);
-        out.writeBoolean(clearRolesCache);
     }
 
     public static class Node extends TransportRequest {

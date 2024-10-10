@@ -13,6 +13,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.PriorityQueue;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.DelegatingActionListener;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
@@ -20,11 +21,12 @@ import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.internal.node.NodeClient;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.protocol.xpack.graph.Connection;
@@ -96,7 +98,7 @@ public class TransportGraphExploreAction extends HandledTransportAction<GraphExp
         ActionFilters actionFilters,
         XPackLicenseState licenseState
     ) {
-        super(GraphExploreAction.NAME, transportService, actionFilters, GraphExploreRequest::new);
+        super(GraphExploreAction.NAME, transportService, actionFilters, GraphExploreRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.threadPool = threadPool;
         this.client = client;
         this.licenseState = licenseState;
@@ -328,7 +330,7 @@ public class TransportGraphExploreAction extends HandledTransportAction<GraphExp
             searchRequest.source(source);
 
             logger.trace("executing expansion graph search request");
-            client.search(searchRequest, new ActionListener.Delegating<>(listener) {
+            client.search(searchRequest, new DelegatingActionListener<>(listener) {
                 @Override
                 public void onResponse(SearchResponse searchResponse) {
                     addShardFailures(searchResponse.getShardFailures());
@@ -548,7 +550,7 @@ public class TransportGraphExploreAction extends HandledTransportAction<GraphExp
             });
         }
 
-        private void addUserDefinedIncludesToQuery(Hop hop, BoolQueryBuilder sourceTermsOrClause) {
+        private static void addUserDefinedIncludesToQuery(Hop hop, BoolQueryBuilder sourceTermsOrClause) {
             for (int i = 0; i < hop.getNumberVertexRequests(); i++) {
                 VertexRequest vr = hop.getVertexRequest(i);
                 if (vr.hasIncludeClauses()) {
@@ -557,7 +559,7 @@ public class TransportGraphExploreAction extends HandledTransportAction<GraphExp
             }
         }
 
-        private void addBigOrClause(Map<String, Set<Vertex>> lastHopFindings, BoolQueryBuilder sourceTermsOrClause) {
+        private static void addBigOrClause(Map<String, Set<Vertex>> lastHopFindings, BoolQueryBuilder sourceTermsOrClause) {
             int numClauses = sourceTermsOrClause.should().size();
             for (Entry<String, Set<Vertex>> entry : lastHopFindings.entrySet()) {
                 numClauses += entry.getValue().size();
@@ -680,7 +682,7 @@ public class TransportGraphExploreAction extends HandledTransportAction<GraphExp
                 }
                 searchRequest.source(source);
                 logger.trace("executing initial graph search request");
-                client.search(searchRequest, new ActionListener.Delegating<>(listener) {
+                client.search(searchRequest, new DelegatingActionListener<>(listener) {
                     @Override
                     public void onResponse(SearchResponse searchResponse) {
                         addShardFailures(searchResponse.getShardFailures());
@@ -750,7 +752,7 @@ public class TransportGraphExploreAction extends HandledTransportAction<GraphExp
             }
         }
 
-        private void addNormalizedBoosts(BoolQueryBuilder includesContainer, VertexRequest vr) {
+        private static void addNormalizedBoosts(BoolQueryBuilder includesContainer, VertexRequest vr) {
             TermBoost[] termBoosts = vr.includeValues();
 
             if ((includesContainer.should().size() + termBoosts.length) > BooleanQuery.getMaxClauseCount()) {

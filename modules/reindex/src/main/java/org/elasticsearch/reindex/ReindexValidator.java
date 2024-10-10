@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.reindex;
@@ -30,7 +31,9 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.index.reindex.RemoteInfo;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.transport.RemoteClusterAware;
 
+import java.util.Arrays;
 import java.util.List;
 
 public class ReindexValidator {
@@ -138,12 +141,25 @@ public class ReindexValidator {
              */
             target = indexNameExpressionResolver.concreteWriteIndex(clusterState, destination).getName();
         }
-        for (String sourceIndex : indexNameExpressionResolver.concreteIndexNames(clusterState, source)) {
+        SearchRequest filteredSource = skipRemoteIndexNames(source);
+        if (filteredSource.indices().length == 0) {
+            return;
+        }
+        String[] sourceIndexNames = indexNameExpressionResolver.concreteIndexNames(clusterState, filteredSource);
+        for (String sourceIndex : sourceIndexNames) {
             if (sourceIndex.equals(target)) {
                 ActionRequestValidationException e = new ActionRequestValidationException();
                 e.addValidationError("reindex cannot write into an index its reading from [" + target + ']');
                 throw e;
             }
         }
+    }
+
+    private static SearchRequest skipRemoteIndexNames(SearchRequest source) {
+        // An index expression that references a remote cluster uses ":" to separate the cluster-alias from the index portion of the
+        // expression, e.g., cluster0:index-name
+        return new SearchRequest(source).indices(
+            Arrays.stream(source.indices()).filter(name -> RemoteClusterAware.isRemoteIndexName(name) == false).toArray(String[]::new)
+        );
     }
 }

@@ -1,19 +1,18 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.env;
 
 import org.apache.lucene.util.Constants;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.StatelessSecureSettings;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
 
@@ -26,10 +25,8 @@ import java.nio.file.FileStore;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
-import java.util.function.Function;
 
 /**
  * The environment of where things exists.
@@ -42,19 +39,9 @@ public class Environment {
     private static final Path[] EMPTY_PATH_ARRAY = new Path[0];
 
     public static final Setting<String> PATH_HOME_SETTING = Setting.simpleString("path.home", Property.NodeScope);
-    public static final Setting<List<String>> PATH_DATA_SETTING = Setting.listSetting(
-        "path.data",
-        Collections.emptyList(),
-        Function.identity(),
-        Property.NodeScope
-    );
-    public static final Setting<String> PATH_LOGS_SETTING = new Setting<>("path.logs", "", Function.identity(), Property.NodeScope);
-    public static final Setting<List<String>> PATH_REPO_SETTING = Setting.listSetting(
-        "path.repo",
-        Collections.emptyList(),
-        Function.identity(),
-        Property.NodeScope
-    );
+    public static final Setting<List<String>> PATH_DATA_SETTING = Setting.stringListSetting("path.data", Property.NodeScope);
+    public static final Setting<String> PATH_LOGS_SETTING = Setting.simpleString("path.logs", Property.NodeScope);
+    public static final Setting<List<String>> PATH_REPO_SETTING = Setting.stringListSetting("path.repo", Property.NodeScope);
     public static final Setting<String> PATH_SHARED_DATA_SETTING = Setting.simpleString("path.shared_data", Property.NodeScope);
 
     private final Settings settings;
@@ -159,11 +146,7 @@ public class Environment {
             finalSettings.put(Environment.PATH_SHARED_DATA_SETTING.getKey(), sharedDataFile.toString());
         }
 
-        if (DiscoveryNode.isStateless(settings)) {
-            this.settings = StatelessSecureSettings.install(finalSettings.build());
-        } else {
-            this.settings = finalSettings.build();
-        }
+        this.settings = finalSettings.build();
     }
 
     /**
@@ -343,11 +326,7 @@ public class Environment {
 
     public static long getUsableSpace(Path path) throws IOException {
         long freeSpaceInBytes = Environment.getFileStore(path).getUsableSpace();
-
-        /* See: https://bugs.openjdk.java.net/browse/JDK-8162520 */
-        if (freeSpaceInBytes < 0) {
-            freeSpaceInBytes = Long.MAX_VALUE;
-        }
+        assert freeSpaceInBytes >= 0;
         return freeSpaceInBytes;
     }
 

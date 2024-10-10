@@ -1,6 +1,0 @@
-pr: 92099
-summary: Add methods to prevent allocating long arrays during child navigation on
-  H3 api
-area: Geo
-type: enhancement
-issues: []

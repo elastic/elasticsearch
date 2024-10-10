@@ -38,8 +38,9 @@ This limit applies to each node separately. If multiple nodes in a cluster
 perform recoveries at the same time, the cluster's total recovery traffic may
 exceed this limit.
 +
-If this limit is too high, ongoing recoveries may consume an excess of bandwidth
-and other resources, which can destabilize the cluster.
+If this limit is too high, ongoing recoveries may consume an excess of
+bandwidth and other resources, which can have a performance impact on your
+cluster and in extreme cases may destabilize it.
 +
 This is a dynamic setting, which means you can set it in each node's
 `elasticsearch.yml` config file and you can update it dynamically using the

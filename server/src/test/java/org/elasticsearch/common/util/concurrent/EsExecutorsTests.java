@@ -1,33 +1,45 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.util.concurrent;
 
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Processors;
+import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.hamcrest.Matcher;
 
 import java.util.Locale;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.Executor;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import static org.elasticsearch.common.util.concurrent.EsExecutors.TaskTrackingConfig.DEFAULT;
+import static org.elasticsearch.common.util.concurrent.EsExecutors.TaskTrackingConfig.DO_NOT_TRACK;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasToString;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.nullValue;
 
 /**
  * Tests for EsExecutors and its components like EsAbortPolicy.
@@ -51,7 +63,7 @@ public class EsExecutorsTests extends ESTestCase {
             1,
             EsExecutors.daemonThreadFactory("test"),
             threadContext,
-            randomBoolean()
+            randomFrom(DEFAULT, DO_NOT_TRACK)
         );
         final CountDownLatch wait = new CountDownLatch(1);
 
@@ -120,7 +132,7 @@ public class EsExecutorsTests extends ESTestCase {
             1,
             EsExecutors.daemonThreadFactory("test"),
             threadContext,
-            randomBoolean()
+            randomFrom(DEFAULT, DO_NOT_TRACK)
         );
         final CountDownLatch wait = new CountDownLatch(1);
 
@@ -174,7 +186,7 @@ public class EsExecutorsTests extends ESTestCase {
         terminate(executor);
     }
 
-    public void testScaleUp() throws Exception {
+    public void testScaleUp() {
         final int min = between(1, 3);
         final int max = between(min + 1, 6);
         final CyclicBarrier barrier = new CyclicBarrier(max + 1);
@@ -196,23 +208,19 @@ public class EsExecutorsTests extends ESTestCase {
             final CountDownLatch latch = new CountDownLatch(1);
             pool.execute(() -> {
                 latch.countDown();
-                try {
-                    barrier.await();
-                    barrier.await();
-                } catch (Exception e) {
-                    throw new AssertionError(e);
-                }
+                safeAwait(barrier);
+                safeAwait(barrier);
             });
 
             // wait until thread executes this task
             // otherwise, a task might be queued
-            latch.await();
+            safeAwait(latch);
         }
 
-        barrier.await();
+        safeAwait(barrier);
         assertThat("wrong pool size", pool.getPoolSize(), equalTo(max));
         assertThat("wrong active size", pool.getActiveCount(), equalTo(max));
-        barrier.await();
+        safeAwait(barrier);
         terminate(pool);
     }
 
@@ -238,23 +246,19 @@ public class EsExecutorsTests extends ESTestCase {
             final CountDownLatch latch = new CountDownLatch(1);
             pool.execute(() -> {
                 latch.countDown();
-                try {
-                    barrier.await();
-                    barrier.await();
-                } catch (Exception e) {
-                    throw new AssertionError(e);
-                }
+                safeAwait(barrier);
+                safeAwait(barrier);
             });
 
             // wait until thread executes this task
             // otherwise, a task might be queued
-            latch.await();
+            safeAwait(latch);
         }
 
-        barrier.await();
+        safeAwait(barrier);
         assertThat("wrong pool size", pool.getPoolSize(), equalTo(max));
         assertThat("wrong active size", pool.getActiveCount(), equalTo(max));
-        barrier.await();
+        safeAwait(barrier);
         assertBusy(() -> {
             assertThat("wrong active count", pool.getActiveCount(), equalTo(0));
             assertThat("idle threads didn't shrink below max. (" + pool.getPoolSize() + ")", pool.getPoolSize(), lessThan(max));
@@ -273,7 +277,7 @@ public class EsExecutorsTests extends ESTestCase {
             queue,
             EsExecutors.daemonThreadFactory("dummy"),
             threadContext,
-            randomBoolean()
+            randomFrom(DEFAULT, DO_NOT_TRACK)
         );
         try {
             for (int i = 0; i < actions; i++) {
@@ -308,7 +312,7 @@ public class EsExecutorsTests extends ESTestCase {
                 assertThat(
                     message,
                     either(containsString("on EsThreadPoolExecutor[name = " + getName())).or(
-                        containsString("on EWMATrackingEsThreadPoolExecutor[name = " + getName())
+                        containsString("on TaskExecutionTimeTrackingEsThreadPoolExecutor[name = " + getName())
                     )
                 );
                 assertThat(message, containsString("queue capacity = " + queue));
@@ -353,7 +357,7 @@ public class EsExecutorsTests extends ESTestCase {
             assertThat(
                 message,
                 either(containsString("on EsThreadPoolExecutor[name = " + getName())).or(
-                    containsString("on EWMATrackingEsThreadPoolExecutor[name = " + getName())
+                    containsString("on TaskExecutionTimeTrackingEsThreadPoolExecutor[name = " + getName())
                 )
             );
             assertThat(message, containsString("queue capacity = " + queue));
@@ -379,7 +383,7 @@ public class EsExecutorsTests extends ESTestCase {
             queue,
             EsExecutors.daemonThreadFactory("dummy"),
             threadContext,
-            randomBoolean()
+            randomFrom(DEFAULT, DO_NOT_TRACK)
         );
         try {
             executor.execute(() -> {
@@ -416,7 +420,7 @@ public class EsExecutorsTests extends ESTestCase {
             queue,
             EsExecutors.daemonThreadFactory("dummy"),
             threadContext,
-            randomBoolean()
+            randomFrom(DEFAULT, DO_NOT_TRACK)
         );
         try {
             Runnable r = () -> {
@@ -507,4 +511,241 @@ public class EsExecutorsTests extends ESTestCase {
         }
     }
 
+    // This test must complete to ensure that our basic infrastructure is working as expected.
+    // Specifically that ExecutorScalingQueue, which subclasses LinkedTransferQueue, correctly
+    // tracks tasks submitted to the executor.
+    public void testBasicTaskExecution() {
+        final var executorService = EsExecutors.newScaling(
+            "test",
+            0,
+            between(1, 5),
+            60,
+            TimeUnit.SECONDS,
+            randomBoolean(),
+            EsExecutors.daemonThreadFactory("test"),
+            new ThreadContext(Settings.EMPTY)
+        );
+        try {
+            final var countDownLatch = new CountDownLatch(between(1, 10));
+            class TestTask extends AbstractRunnable {
+                @Override
+                protected void doRun() {
+                    countDownLatch.countDown();
+                    if (countDownLatch.getCount() > 0) {
+                        executorService.execute(TestTask.this);
+                    }
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    fail(e);
+                }
+            }
+
+            executorService.execute(new TestTask());
+            safeAwait(countDownLatch);
+        } finally {
+            ThreadPool.terminate(executorService, 10, TimeUnit.SECONDS);
+        }
+    }
+
+    public void testScalingDropOnShutdown() {
+        final var executor = EsExecutors.newScaling(
+            getName(),
+            0,
+            between(1, 5),
+            60,
+            TimeUnit.SECONDS,
+            false,
+            EsExecutors.daemonThreadFactory(getName()),
+            new ThreadContext(Settings.EMPTY)
+        );
+        ThreadPool.terminate(executor, 10, TimeUnit.SECONDS);
+        executor.execute(() -> fail("should not run")); // no-op
+        executor.execute(new AbstractRunnable() {
+            @Override
+            public void onFailure(Exception e) {
+                fail("should not call onFailure");
+            }
+
+            @Override
+            protected void doRun() {
+                fail("should not call doRun");
+            }
+
+            @Override
+            public boolean isForceExecution() {
+                return randomBoolean();
+            }
+
+            @Override
+            public void onRejection(Exception e) {
+                fail("should not call onRejection");
+            }
+
+            @Override
+            public void onAfter() {
+                fail("should not call onAfter");
+            }
+        });
+    }
+
+    public void testScalingRejectOnShutdown() {
+        runRejectOnShutdownTest(
+            EsExecutors.newScaling(
+                getName(),
+                0,
+                between(1, 5),
+                60,
+                TimeUnit.SECONDS,
+                true,
+                EsExecutors.daemonThreadFactory(getName()),
+                new ThreadContext(Settings.EMPTY)
+            )
+        );
+    }
+
+    public void testFixedBoundedRejectOnShutdown() {
+        runRejectOnShutdownTest(
+            EsExecutors.newFixed(
+                getName(),
+                between(1, 5),
+                between(1, 5),
+                EsExecutors.daemonThreadFactory(getName()),
+                threadContext,
+                randomFrom(DEFAULT, DO_NOT_TRACK)
+            )
+        );
+    }
+
+    public void testFixedUnboundedRejectOnShutdown() {
+        runRejectOnShutdownTest(
+            EsExecutors.newFixed(
+                getName(),
+                between(1, 5),
+                -1,
+                EsExecutors.daemonThreadFactory(getName()),
+                threadContext,
+                randomFrom(DEFAULT, DO_NOT_TRACK)
+            )
+        );
+    }
+
+    public void testParseExecutorName() throws InterruptedException {
+        final var executorName = randomAlphaOfLength(10);
+        final String nodeName = rarely() ? null : randomIdentifier();
+        final ThreadFactory threadFactory;
+        if (nodeName == null) {
+            threadFactory = EsExecutors.daemonThreadFactory(Settings.EMPTY, executorName);
+        } else if (randomBoolean()) {
+            threadFactory = EsExecutors.daemonThreadFactory(
+                Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), nodeName).build(),
+                executorName
+            );
+        } else {
+            threadFactory = EsExecutors.daemonThreadFactory(nodeName, executorName);
+        }
+
+        final var thread = threadFactory.newThread(() -> {});
+        try {
+            assertThat(EsExecutors.executorName(thread.getName()), equalTo(executorName));
+            assertThat(EsExecutors.executorName(thread), equalTo(executorName));
+            assertThat(EsExecutors.executorName("TEST-" + thread.getName()), is(nullValue()));
+            assertThat(EsExecutors.executorName("LuceneTestCase" + thread.getName()), is(nullValue()));
+        } finally {
+            thread.join();
+        }
+    }
+
+    public void testScalingWithTaskTimeTracking() {
+        final int min = between(1, 3);
+        final int max = between(min + 1, 6);
+
+        {
+            ThreadPoolExecutor pool = EsExecutors.newScaling(
+                getClass().getName() + "/" + getTestName(),
+                min,
+                max,
+                between(1, 100),
+                randomTimeUnit(),
+                randomBoolean(),
+                EsExecutors.daemonThreadFactory("test"),
+                threadContext,
+                new EsExecutors.TaskTrackingConfig(randomBoolean(), randomDoubleBetween(0.01, 0.1, true))
+            );
+            assertThat(pool, instanceOf(TaskExecutionTimeTrackingEsThreadPoolExecutor.class));
+        }
+
+        {
+            ThreadPoolExecutor pool = EsExecutors.newScaling(
+                getClass().getName() + "/" + getTestName(),
+                min,
+                max,
+                between(1, 100),
+                randomTimeUnit(),
+                randomBoolean(),
+                EsExecutors.daemonThreadFactory("test"),
+                threadContext
+            );
+            assertThat(pool, instanceOf(EsThreadPoolExecutor.class));
+        }
+
+        {
+            ThreadPoolExecutor pool = EsExecutors.newScaling(
+                getClass().getName() + "/" + getTestName(),
+                min,
+                max,
+                between(1, 100),
+                randomTimeUnit(),
+                randomBoolean(),
+                EsExecutors.daemonThreadFactory("test"),
+                threadContext,
+                DO_NOT_TRACK
+            );
+            assertThat(pool, instanceOf(EsThreadPoolExecutor.class));
+        }
+    }
+
+    private static void runRejectOnShutdownTest(ExecutorService executor) {
+        for (int i = between(0, 10); i > 0; i--) {
+            final var delayMillis = between(0, 100);
+            executor.execute(ActionRunnable.wrap(ActionListener.noop(), l -> safeSleep(delayMillis)));
+        }
+        try {
+            executor.shutdown();
+            assertShutdownAndRejectingTasks(executor);
+        } finally {
+            ThreadPool.terminate(executor, 10, TimeUnit.SECONDS);
+        }
+        assertShutdownAndRejectingTasks(executor);
+    }
+
+    private static void assertShutdownAndRejectingTasks(Executor executor) {
+        final var rejected = new AtomicBoolean();
+        final var shouldBeRejected = new AbstractRunnable() {
+            @Override
+            public void onFailure(Exception e) {
+                fail("should not call onFailure");
+            }
+
+            @Override
+            protected void doRun() {
+                fail("should not call doRun");
+            }
+
+            @Override
+            public boolean isForceExecution() {
+                return randomBoolean();
+            }
+
+            @Override
+            public void onRejection(Exception e) {
+                assertTrue(asInstanceOf(EsRejectedExecutionException.class, e).isExecutorShutdown());
+                assertTrue(rejected.compareAndSet(false, true));
+            }
+        };
+        assertTrue(expectThrows(EsRejectedExecutionException.class, () -> executor.execute(shouldBeRejected::doRun)).isExecutorShutdown());
+        executor.execute(shouldBeRejected);
+        assertTrue(rejected.get());
+    }
 }

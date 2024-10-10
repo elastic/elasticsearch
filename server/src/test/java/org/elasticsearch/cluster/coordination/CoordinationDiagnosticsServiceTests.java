@@ -1,20 +1,21 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.coordination;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -23,12 +24,14 @@ import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.monitor.StatusInfo;
+import org.elasticsearch.test.EnumSerializationTestUtils;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.hamcrest.Matchers;
 import org.junit.Before;
+import org.mockito.stubbing.Answer;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -44,6 +47,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.coordination.AbstractCoordinatorTestCase.Cluster.EXTREME_DELAY_VARIABILITY;
@@ -74,88 +78,79 @@ public class CoordinationDiagnosticsServiceTests extends AbstractCoordinatorTest
 
     @Before
     public void setup() throws Exception {
-        node1 = new DiscoveryNode(
-            "node1",
-            randomNodeId(),
-            buildNewFakeTransportAddress(),
-            Collections.emptyMap(),
-            DiscoveryNodeRole.roles(),
-            Version.CURRENT
-        );
-        node2 = new DiscoveryNode(
-            "node2",
-            randomNodeId(),
-            buildNewFakeTransportAddress(),
-            Collections.emptyMap(),
-            DiscoveryNodeRole.roles(),
-            Version.CURRENT
-        );
-        node3 = new DiscoveryNode(
-            "node3",
-            randomNodeId(),
-            buildNewFakeTransportAddress(),
-            Collections.emptyMap(),
-            DiscoveryNodeRole.roles(),
-            Version.CURRENT
-        );
-        nullMasterClusterState = createClusterState(null);
-        node1MasterClusterState = createClusterState(node1);
-        node2MasterClusterState = createClusterState(node2);
-        node3MasterClusterState = createClusterState(node3);
+        node1 = DiscoveryNodeUtils.create("node1", randomNodeId());
+        node2 = DiscoveryNodeUtils.create("node2", randomNodeId());
+        node3 = DiscoveryNodeUtils.create("node3", randomNodeId());
+        nullMasterClusterState = createClusterState(null, node1, node2, node3);
+        node1MasterClusterState = createClusterState(node1, node2, node3);
+        node2MasterClusterState = createClusterState(node2, node1, node3);
+        node3MasterClusterState = createClusterState(node3, node1, node2);
     }
 
     @SuppressWarnings("unchecked")
     public void testMoreThanThreeMasterChanges() throws Exception {
-        MasterHistoryService masterHistoryService = createMasterHistoryService();
+        AtomicReference<ClusterState> currentClusterState = new AtomicReference<>(nullMasterClusterState);
+        ClusterService clusterService = createClusterService(currentClusterState::get);
+        MasterHistoryService masterHistoryService = createMasterHistoryService(clusterService);
         MasterHistory localMasterHistory = masterHistoryService.getLocalMasterHistory();
-        CoordinationDiagnosticsService service = createCoordinationDiagnosticsService(nullMasterClusterState, masterHistoryService);
+        CoordinationDiagnosticsService service = createCoordinationDiagnosticsService(clusterService, masterHistoryService);
         // First master:
         localMasterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, node1MasterClusterState, nullMasterClusterState));
+        currentClusterState.set(node1MasterClusterState);
         CoordinationDiagnosticsService.CoordinationDiagnosticsResult result = service.diagnoseMasterStability(true);
         assertThat(result.status(), equalTo(CoordinationDiagnosticsService.CoordinationDiagnosticsStatus.GREEN));
 
         // Null, so not counted:
         localMasterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, nullMasterClusterState, node1MasterClusterState));
+        currentClusterState.set(nullMasterClusterState);
         result = service.diagnoseMasterStability(true);
         assertThat(result.status(), equalTo(CoordinationDiagnosticsService.CoordinationDiagnosticsStatus.GREEN));
 
         // Change 1:
         localMasterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, node2MasterClusterState, nullMasterClusterState));
+        currentClusterState.set(node2MasterClusterState);
         result = service.diagnoseMasterStability(true);
         assertThat(result.status(), equalTo(CoordinationDiagnosticsService.CoordinationDiagnosticsStatus.GREEN));
 
         // Null, so not counted:
         localMasterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, nullMasterClusterState, node2MasterClusterState));
+        currentClusterState.set(nullMasterClusterState);
         result = service.diagnoseMasterStability(true);
         assertThat(result.status(), equalTo(CoordinationDiagnosticsService.CoordinationDiagnosticsStatus.GREEN));
 
         // Change 2:
         localMasterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, node1MasterClusterState, nullMasterClusterState));
+        currentClusterState.set(node1MasterClusterState);
         result = service.diagnoseMasterStability(true);
         assertThat(result.status(), equalTo(CoordinationDiagnosticsService.CoordinationDiagnosticsStatus.GREEN));
 
         // Null, so not counted:
         localMasterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, nullMasterClusterState, node1MasterClusterState));
+        currentClusterState.set(nullMasterClusterState);
         result = service.diagnoseMasterStability(true);
         assertThat(result.status(), equalTo(CoordinationDiagnosticsService.CoordinationDiagnosticsStatus.GREEN));
 
         // Change 3:
         localMasterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, node3MasterClusterState, nullMasterClusterState));
+        currentClusterState.set(node3MasterClusterState);
         result = service.diagnoseMasterStability(true);
         assertThat(result.status(), equalTo(CoordinationDiagnosticsService.CoordinationDiagnosticsStatus.GREEN));
 
         // Null, so not counted:
         localMasterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, nullMasterClusterState, node3MasterClusterState));
+        currentClusterState.set(nullMasterClusterState);
         result = service.diagnoseMasterStability(true);
         assertThat(result.status(), equalTo(CoordinationDiagnosticsService.CoordinationDiagnosticsStatus.GREEN));
 
         // Still node 3, so no change:
         localMasterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, node3MasterClusterState, nullMasterClusterState));
+        currentClusterState.set(node3MasterClusterState);
         result = service.diagnoseMasterStability(true);
         assertThat(result.status(), equalTo(CoordinationDiagnosticsService.CoordinationDiagnosticsStatus.GREEN));
 
         // Change 4:
         localMasterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, node2MasterClusterState, node3MasterClusterState));
+        currentClusterState.set(node2MasterClusterState);
         result = service.diagnoseMasterStability(true);
         assertThat(result.status(), equalTo(CoordinationDiagnosticsService.CoordinationDiagnosticsStatus.YELLOW));
         assertThat(result.summary(), equalTo("The elected master node has changed 4 times in the last 30m"));
@@ -167,6 +162,11 @@ public class CoordinationDiagnosticsServiceTests extends AbstractCoordinatorTest
             assertThat(recentMaster.getName(), not(emptyOrNullString()));
             assertThat(recentMaster.getId(), not(emptyOrNullString()));
         }
+
+        // Now make sure that if a node is not in the cluster state it does not count against us:
+        currentClusterState.set(createClusterState(node2, node1));
+        result = service.diagnoseMasterStability(true);
+        assertThat(result.status(), equalTo(CoordinationDiagnosticsStatus.GREEN));
     }
 
     public void testMasterGoesNull() throws Exception {
@@ -179,9 +179,10 @@ public class CoordinationDiagnosticsServiceTests extends AbstractCoordinatorTest
          * the local node. So we check the remote history. The remote history sees that the master went to null 4 times, the status is
          * YELLOW.
          */
-        MasterHistoryService masterHistoryService = createMasterHistoryService();
+        ClusterService clusterService = createClusterService(nullMasterClusterState);
+        MasterHistoryService masterHistoryService = createMasterHistoryService(clusterService);
         MasterHistory localMasterHistory = masterHistoryService.getLocalMasterHistory();
-        CoordinationDiagnosticsService service = createCoordinationDiagnosticsService(nullMasterClusterState, masterHistoryService);
+        CoordinationDiagnosticsService service = createCoordinationDiagnosticsService(clusterService, masterHistoryService);
         localMasterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, nullMasterClusterState, nullMasterClusterState));
         localMasterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, node1MasterClusterState, nullMasterClusterState));
         // Only start counting nulls once the master has been node1, so 1:
@@ -232,10 +233,12 @@ public class CoordinationDiagnosticsServiceTests extends AbstractCoordinatorTest
          * In this case, the master identity changed 0 times as seen from the local node. The same master went null 4 times as seen from
          * the local node. So we check the remote history. The remote history throws an exception, so the status is YELLOW.
          */
-        MasterHistoryService masterHistoryService = createMasterHistoryService();
+        AtomicReference<ClusterState> currentClusterState = new AtomicReference<>(nullMasterClusterState);
+        ClusterService clusterService = createClusterService(currentClusterState::get);
+        MasterHistoryService masterHistoryService = createMasterHistoryService(clusterService);
         MasterHistory localMasterHistory = masterHistoryService.getLocalMasterHistory();
+        CoordinationDiagnosticsService service = createCoordinationDiagnosticsService(clusterService, masterHistoryService);
         when(masterHistoryService.getRemoteMasterHistory()).thenThrow(new Exception("Failure on master"));
-        CoordinationDiagnosticsService service = createCoordinationDiagnosticsService(nullMasterClusterState, masterHistoryService);
         localMasterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, nullMasterClusterState, nullMasterClusterState));
         localMasterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, node1MasterClusterState, nullMasterClusterState));
         localMasterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, nullMasterClusterState, node1MasterClusterState));
@@ -252,6 +255,11 @@ public class CoordinationDiagnosticsServiceTests extends AbstractCoordinatorTest
         CoordinationDiagnosticsService.CoordinationDiagnosticsDetails details = result.details();
         assertThat(details.currentMaster(), equalTo(null));
         assertThat(details.remoteExceptionMessage(), equalTo("Failure on master"));
+
+        // Now make sure that nodes that are not in the cluster don't count against us:
+        currentClusterState.set(createClusterState((DiscoveryNode) null));
+        result = service.diagnoseMasterStability(true);
+        assertThat(result.status(), equalTo(CoordinationDiagnosticsStatus.GREEN));
     }
 
     public void testMasterGoesNullLocallyButRemotelyChangesIdentity() throws Exception {
@@ -265,7 +273,8 @@ public class CoordinationDiagnosticsServiceTests extends AbstractCoordinatorTest
          * still get a status of YELLOW. (Note: This scenario might not be possible in the real world for a couple of reasons, but it tests
          * edge cases)
          */
-        MasterHistoryService masterHistoryService = createMasterHistoryService();
+        ClusterService clusterService = createClusterService(nullMasterClusterState);
+        MasterHistoryService masterHistoryService = createMasterHistoryService(clusterService);
         MasterHistory localMasterHistory = masterHistoryService.getLocalMasterHistory();
         List<DiscoveryNode> remoteMasterHistory = new ArrayList<>();
         remoteMasterHistory.add(node1);
@@ -276,7 +285,7 @@ public class CoordinationDiagnosticsServiceTests extends AbstractCoordinatorTest
         remoteMasterHistory.add(node2);
         remoteMasterHistory.add(node3);
         when(masterHistoryService.getRemoteMasterHistory()).thenReturn(remoteMasterHistory);
-        CoordinationDiagnosticsService service = createCoordinationDiagnosticsService(nullMasterClusterState, masterHistoryService);
+        CoordinationDiagnosticsService service = createCoordinationDiagnosticsService(clusterService, masterHistoryService);
         localMasterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, nullMasterClusterState, nullMasterClusterState));
         localMasterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, node1MasterClusterState, nullMasterClusterState));
         localMasterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, nullMasterClusterState, node1MasterClusterState));
@@ -300,10 +309,11 @@ public class CoordinationDiagnosticsServiceTests extends AbstractCoordinatorTest
          * check the remote master, and get a status of GREEN. (Note: This scenario is not possible in the real world because we would
          * see null values in between, so it is just here to test an edge case)
          */
-        MasterHistoryService masterHistoryService = createMasterHistoryService();
+        ClusterService clusterService = createClusterService(nullMasterClusterState);
+        MasterHistoryService masterHistoryService = createMasterHistoryService(clusterService);
         MasterHistory localMasterHistory = masterHistoryService.getLocalMasterHistory();
         when(masterHistoryService.getRemoteMasterHistory()).thenThrow(new RuntimeException("Should never call this"));
-        CoordinationDiagnosticsService service = createCoordinationDiagnosticsService(nullMasterClusterState, masterHistoryService);
+        CoordinationDiagnosticsService service = createCoordinationDiagnosticsService(clusterService, masterHistoryService);
         localMasterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, node1MasterClusterState, nullMasterClusterState));
         localMasterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, node1MasterClusterState, node1MasterClusterState));
         localMasterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, node1MasterClusterState, node1MasterClusterState));
@@ -350,9 +360,11 @@ public class CoordinationDiagnosticsServiceTests extends AbstractCoordinatorTest
          * In this case we detect 2 identity changes (node1 -> node2, and node2 -> node1). We detect that node1 has gone to 5 times. So
          * we get a status of YELLOW.
          */
-        MasterHistoryService masterHistoryService = createMasterHistoryService();
+        AtomicReference<ClusterState> currentClusterState = new AtomicReference<>(nullMasterClusterState);
+        ClusterService clusterService = createClusterService(currentClusterState::get);
+        MasterHistoryService masterHistoryService = createMasterHistoryService(clusterService);
         MasterHistory localMasterHistory = masterHistoryService.getLocalMasterHistory();
-        CoordinationDiagnosticsService service = createCoordinationDiagnosticsService(nullMasterClusterState, masterHistoryService);
+        CoordinationDiagnosticsService service = createCoordinationDiagnosticsService(clusterService, masterHistoryService);
         localMasterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, node1MasterClusterState, nullMasterClusterState));
         localMasterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, nullMasterClusterState, node1MasterClusterState));
         localMasterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, node1MasterClusterState, nullMasterClusterState));
@@ -368,6 +380,11 @@ public class CoordinationDiagnosticsServiceTests extends AbstractCoordinatorTest
         when(masterHistoryService.getRemoteMasterHistory()).thenReturn(remoteHistory);
         CoordinationDiagnosticsService.CoordinationDiagnosticsResult result = service.diagnoseMasterStability(true);
         assertThat(result.status(), equalTo(expectedStatus));
+
+        // Now we make sure that nodes that are no longer in the cluster don't count against us
+        currentClusterState.set(createClusterState(null, node2));
+        result = service.diagnoseMasterStability(true);
+        assertThat(result.status(), equalTo(CoordinationDiagnosticsStatus.GREEN));
     }
 
     public void testGreenForStableCluster() {
@@ -978,6 +995,7 @@ public class CoordinationDiagnosticsServiceTests extends AbstractCoordinatorTest
             hasDiscoveredAllNodes
                 ? allMasterEligibleNodes
                 : randomSubsetOf(randomInt(allMasterEligibleNodes.size() - 1), allMasterEligibleNodes),
+            Collections.emptySet(),
             randomLong(),
             hasDiscoveredQuorum,
             new StatusInfo(randomFrom(StatusInfo.Status.HEALTHY, StatusInfo.Status.UNHEALTHY), randomAlphaOfLength(20)),
@@ -986,10 +1004,8 @@ public class CoordinationDiagnosticsServiceTests extends AbstractCoordinatorTest
     }
 
     public void testBeginPollingClusterFormationInfo() throws Exception {
-        MasterHistoryService masterHistoryService = createMasterHistoryService();
-        var clusterService = mock(ClusterService.class);
-        when(clusterService.getSettings()).thenReturn(Settings.EMPTY);
-        when(clusterService.state()).thenReturn(nullMasterClusterState);
+        ClusterService clusterService = createClusterService(nullMasterClusterState);
+        MasterHistoryService masterHistoryService = createMasterHistoryService(clusterService);
         DiscoveryNode localNode = node3;
         when(clusterService.localNode()).thenReturn(localNode);
         Coordinator coordinator = mock(Coordinator.class);
@@ -1058,19 +1074,12 @@ public class CoordinationDiagnosticsServiceTests extends AbstractCoordinatorTest
     }
 
     public void testBeginPollingRemoteMasterStabilityDiagnostic() throws Exception {
-        MasterHistoryService masterHistoryService = createMasterHistoryService();
-        var clusterService = mock(ClusterService.class);
-        when(clusterService.getSettings()).thenReturn(Settings.EMPTY);
-        when(clusterService.state()).thenReturn(nullMasterClusterState);
-        DiscoveryNode localNode = new DiscoveryNode(
-            "node4",
-            randomNodeId(),
-            buildNewFakeTransportAddress(),
-            Collections.emptyMap(),
-            Set.of(DiscoveryNodeRole.DATA_ROLE),
-            Version.CURRENT
-        );
-        when(clusterService.localNode()).thenReturn(localNode);
+        ClusterService clusterService = createClusterService(nullMasterClusterState);
+        MasterHistoryService masterHistoryService = createMasterHistoryService(clusterService);
+        DiscoveryNode localNode = DiscoveryNodeUtils.builder(randomNodeId())
+            .name("node4")
+            .roles(Set.of(DiscoveryNodeRole.DATA_ROLE))
+            .build();
         Coordinator coordinator = mock(Coordinator.class);
         when(coordinator.getFoundPeers()).thenReturn(List.of(node1, node2, localNode));
         DeterministicTaskQueue deterministicTaskQueue = new DeterministicTaskQueue();
@@ -1153,10 +1162,8 @@ public class CoordinationDiagnosticsServiceTests extends AbstractCoordinatorTest
     }
 
     public void testRandomMasterEligibleNode() throws Exception {
-        MasterHistoryService masterHistoryService = createMasterHistoryService();
-        ClusterService clusterService = mock(ClusterService.class);
-        when(clusterService.getSettings()).thenReturn(Settings.EMPTY);
-        when(clusterService.state()).thenReturn(nullMasterClusterState);
+        ClusterService clusterService = createClusterService(nullMasterClusterState);
+        MasterHistoryService masterHistoryService = createMasterHistoryService(clusterService);
         when(clusterService.localNode()).thenReturn(node3);
         Coordinator coordinator = mock(Coordinator.class);
         Set<DiscoveryNode> allMasterEligibleNodes = Set.of(node1, node2, node3);
@@ -1339,13 +1346,21 @@ public class CoordinationDiagnosticsServiceTests extends AbstractCoordinatorTest
         return randomAlphaOfLengthBetween(minCodeUnits, maxCodeUnits);
     }
 
-    private static ClusterState createClusterState(DiscoveryNode masterNode) {
+    /*
+     * If not null, the first node given will be the elected master. If the first entry is null, there will be no elected master.
+     */
+    private static ClusterState createClusterState(DiscoveryNode... nodes) {
         var routingTableBuilder = RoutingTable.builder();
         Metadata.Builder metadataBuilder = Metadata.builder();
         DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder();
-        if (masterNode != null) {
-            nodesBuilder.masterNodeId(masterNode.getId());
-            nodesBuilder.add(masterNode);
+        for (int i = 0; i < nodes.length; i++) {
+            DiscoveryNode node = nodes[i];
+            if (node != null) {
+                if (i == 0) {
+                    nodesBuilder.masterNodeId(node.getId());
+                }
+                nodesBuilder.add(node);
+            }
         }
         return ClusterState.builder(new ClusterName("test-cluster"))
             .routingTable(routingTableBuilder.build())
@@ -1362,11 +1377,9 @@ public class CoordinationDiagnosticsServiceTests extends AbstractCoordinatorTest
      * Creates a mocked MasterHistoryService with a non-mocked local master history (which can be updated with clusterChanged calls). The
      * remote master history is mocked.
      */
-    private static MasterHistoryService createMasterHistoryService() throws Exception {
-        var clusterService = mock(ClusterService.class);
-        when(clusterService.getSettings()).thenReturn(Settings.EMPTY);
+    private static MasterHistoryService createMasterHistoryService(ClusterService clusterService) throws Exception {
         ThreadPool threadPool = mock(ThreadPool.class);
-        when(threadPool.relativeTimeInMillis()).thenReturn(System.currentTimeMillis());
+        when(threadPool.relativeTimeInMillisSupplier()).thenReturn(System::currentTimeMillis);
         MasterHistory localMasterHistory = new MasterHistory(threadPool, clusterService);
         MasterHistoryService masterHistoryService = mock(MasterHistoryService.class);
         when(masterHistoryService.getLocalMasterHistory()).thenReturn(localMasterHistory);
@@ -1376,19 +1389,28 @@ public class CoordinationDiagnosticsServiceTests extends AbstractCoordinatorTest
     }
 
     private static CoordinationDiagnosticsService createCoordinationDiagnosticsService(
-        ClusterState clusterState,
+        ClusterService clusterService,
         MasterHistoryService masterHistoryService
     ) {
-        var clusterService = mock(ClusterService.class);
-        when(clusterService.getSettings()).thenReturn(Settings.EMPTY);
-        when(clusterService.state()).thenReturn(clusterState);
-        DiscoveryNode localNode = mock(DiscoveryNode.class);
-        when(clusterService.localNode()).thenReturn(localNode);
-        when(localNode.isMasterNode()).thenReturn(false);
         Coordinator coordinator = mock(Coordinator.class);
         when(coordinator.getFoundPeers()).thenReturn(Collections.emptyList());
         TransportService transportService = mock(TransportService.class);
+        when(transportService.getThreadPool()).thenReturn(mock(ThreadPool.class));
         return new CoordinationDiagnosticsService(clusterService, transportService, coordinator, masterHistoryService);
+    }
+
+    private static ClusterService createClusterService(ClusterState clusterState) {
+        return createClusterService(() -> clusterState);
+    }
+
+    private static ClusterService createClusterService(Supplier<ClusterState> clusterStateSupplier) {
+        ClusterService clusterService = mock(ClusterService.class);
+        when(clusterService.getSettings()).thenReturn(Settings.EMPTY);
+        when(clusterService.state()).thenAnswer((Answer<ClusterState>) invocation -> clusterStateSupplier.get());
+        DiscoveryNode localNode = mock(DiscoveryNode.class);
+        when(clusterService.localNode()).thenReturn(localNode);
+        when(localNode.isMasterNode()).thenReturn(false);
+        return clusterService;
     }
 
     private void createAndAddNonMasterNode(Cluster cluster) {
@@ -1396,5 +1418,15 @@ public class CoordinationDiagnosticsServiceTests extends AbstractCoordinatorTest
             nextNodeIndex.getAndIncrement(), false, Settings.EMPTY, () -> new StatusInfo(HEALTHY, "healthy-info")
         );
         cluster.clusterNodes.add(nonMasterNode);
+    }
+
+    public void testCoordinationDiagnosticsStatusSerialization() {
+        EnumSerializationTestUtils.assertEnumSerialization(
+            CoordinationDiagnosticsStatus.class,
+            CoordinationDiagnosticsStatus.GREEN,
+            CoordinationDiagnosticsStatus.UNKNOWN,
+            CoordinationDiagnosticsStatus.YELLOW,
+            CoordinationDiagnosticsStatus.RED
+        );
     }
 }

@@ -1,6 +1,0 @@
-pr: 92948
-summary: Transform _schedule_now API
-area: Transform
-type: feature
-issues:
- - 44722

@@ -8,40 +8,37 @@ package org.elasticsearch.xpack.enrich;
 
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.routing.allocation.AllocationService;
-import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.unit.MemorySizeValue;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.env.Environment;
-import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
-import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
-import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.tracing.Tracer;
-import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
+import org.elasticsearch.xpack.core.enrich.EnrichMetadata;
 import org.elasticsearch.xpack.core.enrich.action.DeleteEnrichPolicyAction;
 import org.elasticsearch.xpack.core.enrich.action.EnrichStatsAction;
 import org.elasticsearch.xpack.core.enrich.action.ExecuteEnrichPolicyAction;
@@ -67,10 +64,10 @@ import org.elasticsearch.xpack.enrich.rest.RestGetEnrichPolicyAction;
 import org.elasticsearch.xpack.enrich.rest.RestPutEnrichPolicyAction;
 
 import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.core.enrich.EnrichPolicy.ENRICH_INDEX_PATTERN;
@@ -129,14 +126,29 @@ public class EnrichPlugin extends Plugin implements SystemIndexPlugin, IngestPlu
         return String.valueOf(maxConcurrentRequests * maxLookupsPerRequest);
     }, val -> Setting.parseInt(val, 1, Integer.MAX_VALUE, QUEUE_CAPACITY_SETTING_NAME), Setting.Property.NodeScope);
 
-    public static final Setting<Long> CACHE_SIZE = Setting.longSetting("enrich.cache_size", 1000, 0, Setting.Property.NodeScope);
+    public static final String CACHE_SIZE_SETTING_NAME = "enrich.cache.size";
+    public static final Setting<FlatNumberOrByteSizeValue> CACHE_SIZE = new Setting<>(
+        "enrich.cache.size",
+        (String) null,
+        (String s) -> FlatNumberOrByteSizeValue.parse(
+            s,
+            CACHE_SIZE_SETTING_NAME,
+            new FlatNumberOrByteSizeValue(ByteSizeValue.ofBytes((long) (0.01 * JvmInfo.jvmInfo().getConfiguredMaxHeapSize())))
+        ),
+        Setting.Property.NodeScope
+    );
 
     private final Settings settings;
     private final EnrichCache enrichCache;
 
     public EnrichPlugin(final Settings settings) {
         this.settings = settings;
-        this.enrichCache = new EnrichCache(CACHE_SIZE.get(settings));
+        FlatNumberOrByteSizeValue maxSize = CACHE_SIZE.get(settings);
+        if (maxSize.byteSizeValue() != null) {
+            this.enrichCache = new EnrichCache(maxSize.byteSizeValue());
+        } else {
+            this.enrichCache = new EnrichCache(maxSize.flatNumber());
+        }
     }
 
     @Override
@@ -171,12 +183,14 @@ public class EnrichPlugin extends Plugin implements SystemIndexPlugin, IngestPlu
     @Override
     public List<RestHandler> getRestHandlers(
         Settings unused,
+        NamedWriteableRegistry namedWriteableRegistry,
         RestController restController,
         ClusterSettings clusterSettings,
         IndexScopedSettings indexScopedSettings,
         SettingsFilter settingsFilter,
         IndexNameExpressionResolver indexNameExpressionResolver,
-        Supplier<DiscoveryNodes> nodesInCluster
+        Supplier<DiscoveryNodes> nodesInCluster,
+        Predicate<NodeFeature> clusterSupportsFeature
     ) {
         return List.of(
             new RestGetEnrichPolicyAction(),
@@ -188,42 +202,29 @@ public class EnrichPlugin extends Plugin implements SystemIndexPlugin, IngestPlu
     }
 
     @Override
-    public Collection<Object> createComponents(
-        Client client,
-        ClusterService clusterService,
-        ThreadPool threadPool,
-        ResourceWatcherService resourceWatcherService,
-        ScriptService scriptService,
-        NamedXContentRegistry xContentRegistry,
-        Environment environment,
-        NodeEnvironment nodeEnvironment,
-        NamedWriteableRegistry namedWriteableRegistry,
-        IndexNameExpressionResolver expressionResolver,
-        Supplier<RepositoriesService> repositoriesServiceSupplier,
-        Tracer tracer,
-        AllocationService allocationService
-    ) {
+    public Collection<?> createComponents(PluginServices services) {
         EnrichPolicyLocks enrichPolicyLocks = new EnrichPolicyLocks();
         EnrichPolicyExecutor enrichPolicyExecutor = new EnrichPolicyExecutor(
             settings,
-            clusterService,
-            client,
-            threadPool,
-            expressionResolver,
+            services.clusterService(),
+            services.indicesService(),
+            services.client(),
+            services.threadPool(),
+            services.indexNameExpressionResolver(),
             enrichPolicyLocks,
             System::currentTimeMillis
         );
         EnrichPolicyMaintenanceService enrichPolicyMaintenanceService = new EnrichPolicyMaintenanceService(
             settings,
-            client,
-            clusterService,
-            threadPool,
+            services.client(),
+            services.clusterService(),
+            services.threadPool(),
             enrichPolicyLocks
         );
         enrichPolicyMaintenanceService.initialize();
         return List.of(
             enrichPolicyLocks,
-            new EnrichCoordinatorProxyAction.Coordinator(client, settings),
+            new EnrichCoordinatorProxyAction.Coordinator(services.client(), settings),
             enrichPolicyMaintenanceService,
             enrichPolicyExecutor,
             enrichCache
@@ -265,8 +266,13 @@ public class EnrichPlugin extends Plugin implements SystemIndexPlugin, IngestPlu
 
     @Override
     public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings unused) {
-        return Collections.singletonList(
-            new SystemIndexDescriptor(ENRICH_INDEX_PATTERN, "Contains data to support enrich ingest processors.")
+        return List.of(
+            SystemIndexDescriptor.builder()
+                .setIndexPattern(ENRICH_INDEX_PATTERN)
+                .setDescription("Contains data to support enrich ingest processors.")
+                .setType(SystemIndexDescriptor.Type.INTERNAL_UNMANAGED)
+                .setAllowedElasticProductOrigins(List.of())
+                .build()
         );
     }
 
@@ -278,5 +284,46 @@ public class EnrichPlugin extends Plugin implements SystemIndexPlugin, IngestPlu
     @Override
     public String getFeatureDescription() {
         return "Manages data related to Enrich policies";
+    }
+
+    /**
+     * A class that specifies either a flat (unit-less) number or a byte size value.
+     */
+    public static class FlatNumberOrByteSizeValue {
+
+        @Nullable
+        private final Long flatNumber;
+        @Nullable
+        private final ByteSizeValue byteSizeValue;
+
+        public FlatNumberOrByteSizeValue(ByteSizeValue byteSizeValue) {
+            this.byteSizeValue = byteSizeValue;
+            this.flatNumber = null;
+        }
+
+        public FlatNumberOrByteSizeValue(Long flatNumber) {
+            this.flatNumber = flatNumber;
+            this.byteSizeValue = null;
+        }
+
+        public static FlatNumberOrByteSizeValue parse(String value, String settingName, FlatNumberOrByteSizeValue defaultValue) {
+            if (Strings.hasText(value) == false) {
+                return defaultValue;
+            }
+            if (Character.isDigit(value.charAt(value.length() - 1)) == false) {
+                return new FlatNumberOrByteSizeValue(MemorySizeValue.parseBytesSizeValueOrHeapRatio(value, settingName));
+            }
+            return new FlatNumberOrByteSizeValue(Long.parseLong(value));
+        }
+
+        @Nullable
+        public ByteSizeValue byteSizeValue() {
+            return byteSizeValue;
+        }
+
+        @Nullable
+        public Long flatNumber() {
+            return flatNumber;
+        }
     }
 }

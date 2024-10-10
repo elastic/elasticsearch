@@ -5,7 +5,7 @@
 <titleabbrev>Retry policy</titleabbrev>
 ++++
 
-Retry executing the policy for an index that is in the ERROR step.
+Retry executing the <<index-lifecycle-management,lifecycle>> policy for an index that is in the ERROR step.
 
 [[ilm-retry-policy-request]]
 ==== {api-request-title}
@@ -35,7 +35,7 @@ step.
 [[ilm-retry-policy-query-params]]
 ==== {api-query-parms-title}
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 
 [[ilm-retry-policy-example]]
 ==== {api-examples-title}

@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.core.security.action.rolemapping;
 
-import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.WriteRequest;
@@ -46,12 +46,12 @@ public class PutRoleMappingRequest extends ActionRequest implements WriteRequest
         super(in);
         this.name = in.readString();
         this.enabled = in.readBoolean();
-        this.roles = in.readStringList();
-        if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_2_0)) {
-            this.roleTemplates = in.readList(TemplateRoleName::new);
+        this.roles = in.readStringCollectionAsList();
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_2_0)) {
+            this.roleTemplates = in.readCollectionAsList(TemplateRoleName::new);
         }
         this.rules = ExpressionParser.readExpression(in);
-        this.metadata = in.readMap();
+        this.metadata = in.readGenericMap();
         this.refreshPolicy = RefreshPolicy.readFrom(in);
     }
 
@@ -155,8 +155,8 @@ public class PutRoleMappingRequest extends ActionRequest implements WriteRequest
         out.writeString(name);
         out.writeBoolean(enabled);
         out.writeStringCollection(roles);
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_2_0)) {
-            out.writeList(roleTemplates);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_2_0)) {
+            out.writeCollection(roleTemplates);
         }
         ExpressionParser.writeExpression(rules, out);
         out.writeGenericMap(metadata);
@@ -165,17 +165,5 @@ public class PutRoleMappingRequest extends ActionRequest implements WriteRequest
 
     public ExpressionRoleMapping getMapping() {
         return new ExpressionRoleMapping(name, rules, roles, roleTemplates, metadata, enabled);
-    }
-
-    public static PutRoleMappingRequest fromMapping(ExpressionRoleMapping mapping) {
-        var request = new PutRoleMappingRequest();
-        request.setName(mapping.getName());
-        request.setEnabled(mapping.isEnabled());
-        request.setRoles(mapping.getRoles());
-        request.setRoleTemplates(mapping.getRoleTemplates());
-        request.setRules(mapping.getExpression());
-        request.setMetadata(mapping.getMetadata());
-
-        return request;
     }
 }

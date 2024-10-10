@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.cluster.metadata;
 
@@ -181,7 +182,7 @@ public class IndexTemplateMetadata implements SimpleDiffable<IndexTemplateMetada
     public static IndexTemplateMetadata readFrom(StreamInput in) throws IOException {
         Builder builder = new Builder(in.readString());
         builder.order(in.readInt());
-        builder.patterns(in.readStringList());
+        builder.patterns(in.readStringCollectionAsList());
         builder.settings(Settings.readSettingsFromStream(in));
         int mappingsSize = in.readVInt();
         for (int i = 0; i < mappingsSize; i++) {
@@ -206,7 +207,7 @@ public class IndexTemplateMetadata implements SimpleDiffable<IndexTemplateMetada
         out.writeInt(order);
         out.writeStringCollection(patterns);
         settings.writeTo(out);
-        out.writeMap(mappings, StreamOutput::writeString, (o, v) -> v.writeTo(o));
+        out.writeMap(mappings, StreamOutput::writeWriteable);
         out.writeCollection(aliases.values());
         out.writeOptionalVInt(version);
     }
@@ -224,7 +225,7 @@ public class IndexTemplateMetadata implements SimpleDiffable<IndexTemplateMetada
         }
     }
 
-    public static class Builder {
+    public static final class Builder {
 
         private static final Set<String> VALID_FIELDS = Set.of("order", "mappings", "settings", "index_patterns", "aliases", "version");
 

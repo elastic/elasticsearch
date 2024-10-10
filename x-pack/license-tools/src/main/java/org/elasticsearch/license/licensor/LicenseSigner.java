@@ -96,7 +96,7 @@ public class LicenseSigner {
         return License.builder().fromLicenseSpec(licenseSpec, Base64.getEncoder().encodeToString(bytes)).build();
     }
 
-    private byte[] getPublicKeyFingerprint(byte[] keyBytes) {
+    private static byte[] getPublicKeyFingerprint(byte[] keyBytes) {
         MessageDigest sha256 = MessageDigests.sha256();
         sha256.update(keyBytes);
         return sha256.digest();

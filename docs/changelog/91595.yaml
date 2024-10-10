@@ -1,5 +1,0 @@
-pr: 91595
-summary: Support `fields` in synthetic source in last cases
-area: TSDB
-type: enhancement
-issues: []

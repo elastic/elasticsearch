@@ -31,7 +31,7 @@ For more information, see
 
 `<calendar_id>`::
 (Required, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=calendar-id]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=calendar-id]
 +
 You can get information for multiple calendars in a single API request by using
 a comma-separated list of ids or a wildcard expression. You can get information
@@ -76,7 +76,7 @@ properties:
 
 `calendar_id`::
 (string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=calendar-id]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=calendar-id]
 
 `job_ids`::
 (array) An array of {anomaly-job} identifiers. For example:

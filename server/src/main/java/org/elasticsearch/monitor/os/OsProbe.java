@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.monitor.os;
@@ -469,8 +470,13 @@ public class OsProbe {
      * nr_bursts \d+
      * burst_time
      * </pre></blockquote>
-     * These additional fields are currently ignored.
      *
+     * When schedstat_enabled is enabled, an additional statistics information {@code wait_sum} will also be available
+     * <blockquote><pre>
+     * wait_sum \d+
+     * </pre></blockquote>
+     * {@code wait_sum} represent the conflict between task groups, which is simply sum the wait time of group's cfs_rq
+     *  These three additional fields are currently ignored.
      * @param controlGroup the control group to which the Elasticsearch process belongs for the {@code cpu} subsystem
      * @return the lines from {@code cpu.stat}
      * @throws IOException if an I/O exception occurs reading {@code cpu.stat} for the control group
@@ -478,7 +484,7 @@ public class OsProbe {
     @SuppressForbidden(reason = "access /sys/fs/cgroup/cpu")
     List<String> readSysFsCgroupCpuAcctCpuStat(final String controlGroup) throws IOException {
         final List<String> lines = Files.readAllLines(PathUtils.get("/sys/fs/cgroup/cpu", controlGroup, "cpu.stat"));
-        assert lines != null && (lines.size() == 3 || lines.size() == 5);
+        assert lines != null && (lines.size() >= 3);
         return lines;
     }
 
@@ -692,7 +698,7 @@ public class OsProbe {
                 // `cpuacct` was merged with `cpu` in v2
                 final Map<String, Long> cpuStatsMap = getCgroupV2CpuStats(cpuControlGroup);
 
-                cgroupCpuAcctUsageNanos = cpuStatsMap.get("usage_usec");
+                cgroupCpuAcctUsageNanos = cpuStatsMap.get("usage_usec") * 1000; // convert from micros to nanos
 
                 long[] cpuLimits = getCgroupV2CpuLimit(cpuControlGroup);
                 cgroupCpuAcctCpuCfsQuotaMicros = cpuLimits[0];
@@ -701,7 +707,7 @@ public class OsProbe {
                 cpuStat = new OsStats.Cgroup.CpuStat(
                     cpuStatsMap.get("nr_periods"),
                     cpuStatsMap.get("nr_throttled"),
-                    cpuStatsMap.get("throttled_usec")
+                    cpuStatsMap.get("throttled_usec") * 1000
                 );
 
                 cgroupMemoryLimitInBytes = getCgroupV2MemoryLimitInBytes(memoryControlGroup);

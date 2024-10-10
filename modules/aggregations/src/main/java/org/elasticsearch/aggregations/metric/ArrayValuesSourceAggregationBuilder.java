@@ -1,16 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.aggregations.metric;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
-import org.elasticsearch.search.aggregations.AggregationInitializationException;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
@@ -41,12 +41,11 @@ public abstract class ArrayValuesSourceAggregationBuilder<AB extends ArrayValues
             super(name);
         }
 
+        @SuppressWarnings("this-escape")
         protected LeafOnly(LeafOnly<AB> clone, Builder factoriesBuilder, Map<String, Object> metadata) {
             super(clone, factoriesBuilder, metadata);
             if (factoriesBuilder.count() > 0) {
-                throw new AggregationInitializationException(
-                    "Aggregator [" + name + "] of type [" + getType() + "] cannot accept sub-aggregations"
-                );
+                throw new IllegalArgumentException("Aggregator [" + name + "] of type [" + getType() + "] cannot accept sub-aggregations");
             }
         }
 
@@ -59,9 +58,7 @@ public abstract class ArrayValuesSourceAggregationBuilder<AB extends ArrayValues
 
         @Override
         public AB subAggregations(Builder subFactories) {
-            throw new AggregationInitializationException(
-                "Aggregator [" + name + "] of type [" + getType() + "] cannot accept sub-aggregations"
-            );
+            throw new IllegalArgumentException("Aggregator [" + name + "] of type [" + getType() + "] cannot accept sub-aggregations");
         }
 
         @Override
@@ -109,7 +106,7 @@ public abstract class ArrayValuesSourceAggregationBuilder<AB extends ArrayValues
         fields = (ArrayList<String>) in.readGenericValue();
         userValueTypeHint = in.readOptionalWriteable(ValueType::readFromStream);
         format = in.readOptionalString();
-        missingMap = in.readMap();
+        missingMap = in.readGenericMap();
     }
 
     @Override

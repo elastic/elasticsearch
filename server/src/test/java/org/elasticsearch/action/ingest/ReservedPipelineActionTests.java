@@ -1,31 +1,36 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.ingest;
 
 import org.elasticsearch.Build;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
+import org.elasticsearch.action.bulk.FailureStoreMetrics;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.ingest.FakeProcessor;
 import org.elasticsearch.ingest.IngestInfo;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.ingest.ProcessorInfo;
 import org.elasticsearch.plugins.IngestPlugin;
+import org.elasticsearch.plugins.internal.DocumentParsingProvider;
 import org.elasticsearch.reservedstate.TransformState;
 import org.elasticsearch.reservedstate.service.FileSettingsService;
 import org.elasticsearch.reservedstate.service.ReservedClusterStateService;
@@ -41,7 +46,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
@@ -86,25 +90,26 @@ public class ReservedPipelineActionTests extends ESTestCase {
             null,
             null,
             Collections.singletonList(DUMMY_PLUGIN),
-            client
+            client,
+            null,
+            DocumentParsingProvider.EMPTY_INSTANCE,
+            FailureStoreMetrics.NOOP
         );
         Map<String, Processor.Factory> factories = ingestService.getProcessorFactories();
         assertTrue(factories.containsKey("set"));
         assertEquals(1, factories.size());
 
-        DiscoveryNode discoveryNode = new DiscoveryNode(
-            "_node_id",
-            buildNewFakeTransportAddress(),
-            emptyMap(),
-            emptySet(),
-            Version.CURRENT
-        );
+        DiscoveryNode discoveryNode = DiscoveryNodeUtils.builder("_node_id").roles(emptySet()).build();
 
         NodeInfo nodeInfo = new NodeInfo(
-            Version.CURRENT,
-            Build.CURRENT,
+            Build.current().version(),
+            TransportVersion.current(),
+            IndexVersion.current(),
+            Map.of(),
+            Build.current(),
             discoveryNode,
             Settings.EMPTY,
+            null,
             null,
             null,
             null,

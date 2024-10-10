@@ -30,7 +30,7 @@ import java.util.Objects;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.parseIndexNameCounter;
 
 /**
- * After we performed the index rollover we wait for the the configured number of shards for the rolled over index (ie. newly created
+ * After we performed the index rollover we wait for the configured number of shards for the rolled over index (ie. newly created
  * index) to become available.
  */
 public class WaitForActiveShardsStep extends ClusterStateWaitStep {
@@ -80,14 +80,21 @@ public class WaitForActiveShardsStep extends ClusterStateWaitStep {
         IndexAbstraction indexAbstraction = metadata.getIndicesLookup().get(index.getName());
         final String rolledIndexName;
         final String waitForActiveShardsSettingValue;
-        if (indexAbstraction.getParentDataStream() != null) {
-            DataStream dataStream = indexAbstraction.getParentDataStream().getDataStream();
+        DataStream dataStream = indexAbstraction.getParentDataStream();
+        if (dataStream != null) {
             IndexAbstraction dataStreamAbstraction = metadata.getIndicesLookup().get(dataStream.getName());
             assert dataStreamAbstraction != null : dataStream.getName() + " datastream is not present in the metadata indices lookup";
-            if (dataStreamAbstraction.getWriteIndex() == null) {
+            // Determine which write index we care about right now:
+            final Index rolledIndex;
+            if (dataStream.isFailureStoreIndex(index.getName())) {
+                rolledIndex = dataStream.getFailureStoreWriteIndex();
+            } else {
+                rolledIndex = dataStream.getWriteIndex();
+            }
+            if (rolledIndex == null) {
                 return getErrorResultOnNullMetadata(getKey(), index);
             }
-            IndexMetadata rolledIndexMeta = metadata.index(dataStreamAbstraction.getWriteIndex());
+            IndexMetadata rolledIndexMeta = metadata.index(rolledIndex);
             rolledIndexName = rolledIndexMeta.getIndex().getName();
             waitForActiveShardsSettingValue = rolledIndexMeta.getSettings().get(IndexMetadata.SETTING_WAIT_FOR_ACTIVE_SHARDS.getKey());
         } else {

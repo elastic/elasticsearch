@@ -1,14 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.gradle.internal
 
-import spock.lang.TempDir
+
 import spock.lang.Unroll
 import com.github.tomakehurst.wiremock.WireMockServer
 
@@ -35,6 +36,10 @@ class JdkDownloadPluginFuncTest extends AbstractGradleFuncTest {
     private static final String OPEN_JDK_VERSION = "12.0.1+99@123456789123456789123456789abcde"
     private static final Pattern JDK_HOME_LOGLINE = Pattern.compile("JDK HOME: (.*)")
 
+    def setup() {
+        configurationCacheCompatible = false
+    }
+
     @Unroll
     def "jdk #jdkVendor for #platform#suffix are downloaded and extracted"() {
         given:
@@ -54,10 +59,11 @@ class JdkDownloadPluginFuncTest extends AbstractGradleFuncTest {
               }
             }
 
+            def theJdks = jdks
             tasks.register("getJdk") {
                 dependsOn jdks.myJdk
                 doLast {
-                    println "JDK HOME: " + jdks.myJdk
+                    println "JDK HOME: " + theJdks.myJdk
                 }
             }
         """
@@ -94,17 +100,13 @@ class JdkDownloadPluginFuncTest extends AbstractGradleFuncTest {
         given:
         def mockRepoUrl = urlPath(jdkVendor, jdkVersion, platform)
         def mockedContent = filebytes(jdkVendor, platform)
-        3.times {
-            settingsFile << """
-                include ':sub-$it'
-            """
-        }
         buildFile.text = """
             plugins {
              id 'elasticsearch.jdk-download' apply false
             }
-
-            subprojects {
+        """
+        3.times {
+            subProject(':sub-' + it) << """
                 apply plugin: 'elasticsearch.jdk-download'
 
                 jdks {
@@ -121,8 +123,8 @@ class JdkDownloadPluginFuncTest extends AbstractGradleFuncTest {
                         println "JDK HOME: " + jdks.myJdk
                     }
                 }
-            }
-        """
+            """
+        }
 
         when:
         def result = WiremockFixture.withWireMock(mockRepoUrl, mockedContent) { server ->
@@ -160,7 +162,7 @@ class JdkDownloadPluginFuncTest extends AbstractGradleFuncTest {
                 architecture = "x64"
               }
             }
-            
+
             tasks.register("getJdk", PrintJdk) {
                 dependsOn jdks.myJdk
                 jdkPath = jdks.myJdk.getPath()
@@ -169,7 +171,7 @@ class JdkDownloadPluginFuncTest extends AbstractGradleFuncTest {
             class PrintJdk extends DefaultTask {
                 @Input
                 String jdkPath
-                
+
                 @TaskAction void print() {
                     println "JDK HOME: " + jdkPath
                 }

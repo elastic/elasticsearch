@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.core.ccr.action;
 
-import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
@@ -14,6 +14,7 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -37,7 +38,7 @@ public class PutAutoFollowPatternAction extends ActionType<AcknowledgedResponse>
     private static final int MAX_NAME_BYTES = 255;
 
     private PutAutoFollowPatternAction() {
-        super(NAME, AcknowledgedResponse::readFrom);
+        super(NAME);
     }
 
     public static class Request extends AcknowledgedRequest<Request> implements ToXContentObject {
@@ -62,9 +63,10 @@ public class PutAutoFollowPatternAction extends ActionType<AcknowledgedResponse>
             FollowParameters.initParser(PARSER);
         }
 
-        public static Request fromXContent(XContentParser parser, String name) throws IOException {
+        public static Request fromXContent(TimeValue masterNodeTimeout, TimeValue ackTimeout, XContentParser parser, String name)
+            throws IOException {
             PutAutoFollowPatternParameters parameters = PARSER.parse(parser, null);
-            Request request = new Request();
+            Request request = new Request(masterNodeTimeout, ackTimeout);
             request.setName(name);
             request.setRemoteCluster(parameters.remoteCluster);
             request.setLeaderIndexPatterns(parameters.leaderIndexPatterns);
@@ -85,7 +87,9 @@ public class PutAutoFollowPatternAction extends ActionType<AcknowledgedResponse>
         private FollowParameters parameters = new FollowParameters();
         private List<String> leaderIndexExclusionPatterns = Collections.emptyList();
 
-        public Request() {}
+        public Request(TimeValue masterNodeTimeout, TimeValue ackTimeout) {
+            super(masterNodeTimeout, ackTimeout);
+        }
 
         @Override
         public ActionRequestValidationException validate() {
@@ -183,14 +187,14 @@ public class PutAutoFollowPatternAction extends ActionType<AcknowledgedResponse>
             super(in);
             name = in.readString();
             remoteCluster = in.readString();
-            leaderIndexPatterns = in.readStringList();
+            leaderIndexPatterns = in.readStringCollectionAsList();
             followIndexNamePattern = in.readOptionalString();
-            if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_9_0)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_9_0)) {
                 settings = Settings.readSettingsFromStream(in);
             }
             parameters = new FollowParameters(in);
-            if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_14_0)) {
-                leaderIndexExclusionPatterns = in.readStringList();
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_14_0)) {
+                leaderIndexExclusionPatterns = in.readStringCollectionAsList();
             }
         }
 
@@ -201,11 +205,11 @@ public class PutAutoFollowPatternAction extends ActionType<AcknowledgedResponse>
             out.writeString(remoteCluster);
             out.writeStringCollection(leaderIndexPatterns);
             out.writeOptionalString(followIndexNamePattern);
-            if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_9_0)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_9_0)) {
                 settings.writeTo(out);
             }
             parameters.writeTo(out);
-            if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_14_0)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_14_0)) {
                 out.writeStringCollection(leaderIndexExclusionPatterns);
             }
         }

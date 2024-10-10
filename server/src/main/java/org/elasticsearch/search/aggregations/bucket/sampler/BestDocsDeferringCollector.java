@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.search.aggregations.bucket.sampler;
 
@@ -45,7 +46,7 @@ public class BestDocsDeferringCollector extends DeferringBucketCollector impleme
     private final List<PerSegmentCollects> entries = new ArrayList<>();
     private BucketCollector deferred;
     private ObjectArray<PerParentBucketSamples> perBucketSamples;
-    private int shardSize;
+    private final int shardSize;
     private PerSegmentCollects perSegCollector;
     private final BigArrays bigArrays;
     private final Consumer<Long> circuitBreakerConsumer;
@@ -210,7 +211,7 @@ public class BestDocsDeferringCollector extends DeferringBucketCollector impleme
     }
 
     class PerSegmentCollects extends Scorable {
-        private AggregationExecutionContext aggCtx;
+        private final AggregationExecutionContext aggCtx;
         int maxDocId = Integer.MIN_VALUE;
         private float currentScore;
         private int currentDocId = -1;

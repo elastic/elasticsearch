@@ -11,6 +11,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.deprecation.DeprecationInfoAction.Request;
 
@@ -45,8 +46,11 @@ public class RestDeprecationInfoAction extends BaseRestHandler {
         }
     }
 
-    private RestChannelConsumer handleGet(final RestRequest request, NodeClient client) {
-        Request infoRequest = new Request(Strings.splitStringByCommaToArray(request.param("index")));
+    private static RestChannelConsumer handleGet(final RestRequest request, NodeClient client) {
+        final var infoRequest = new Request(
+            RestUtils.getMasterNodeTimeout(request),
+            Strings.splitStringByCommaToArray(request.param("index"))
+        );
         return channel -> client.execute(DeprecationInfoAction.INSTANCE, infoRequest, new RestToXContentListener<>(channel));
     }
 }

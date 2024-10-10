@@ -1,14 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.termvectors;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.RoutingMissingException;
@@ -21,7 +21,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.routing.OperationRouting;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -31,12 +31,12 @@ import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.EmptySystemIndices;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
-import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -79,19 +79,13 @@ public class TransportMultiTermVectorsActionTests extends ESTestCase {
             mock(Transport.class),
             threadPool,
             TransportService.NOOP_TRANSPORT_INTERCEPTOR,
-            boundAddress -> DiscoveryNode.createLocal(
-                Settings.builder().put("node.name", "node1").build(),
-                boundAddress.publishAddress(),
-                randomBase64UUID()
-            ),
+            boundAddress -> DiscoveryNodeUtils.builder(randomBase64UUID())
+                .applySettings(Settings.builder().put("node.name", "node1").build())
+                .address(boundAddress.publishAddress())
+                .build(),
             null,
             emptySet()
-        ) {
-            @Override
-            public TaskManager getTaskManager() {
-                return taskManager;
-            }
-        };
+        );
 
         final Index index1 = new Index("index1", randomBase64UUID());
         final Index index2 = new Index("index2", randomBase64UUID());
@@ -99,11 +93,7 @@ public class TransportMultiTermVectorsActionTests extends ESTestCase {
             .metadata(
                 new Metadata.Builder().put(
                     new IndexMetadata.Builder(index1.getName()).settings(
-                        Settings.builder()
-                            .put("index.version.created", Version.CURRENT)
-                            .put("index.number_of_shards", 1)
-                            .put("index.number_of_replicas", 1)
-                            .put(IndexMetadata.SETTING_INDEX_UUID, index1.getUUID())
+                        indexSettings(IndexVersion.current(), 1, 1).put(IndexMetadata.SETTING_INDEX_UUID, index1.getUUID())
                     )
                         .putMapping(
                             XContentHelper.convertToJson(
@@ -124,11 +114,7 @@ public class TransportMultiTermVectorsActionTests extends ESTestCase {
                 )
                     .put(
                         new IndexMetadata.Builder(index2.getName()).settings(
-                            Settings.builder()
-                                .put("index.version.created", Version.CURRENT)
-                                .put("index.number_of_shards", 1)
-                                .put("index.number_of_replicas", 1)
-                                .put(IndexMetadata.SETTING_INDEX_UUID, index1.getUUID())
+                            indexSettings(IndexVersion.current(), 1, 1).put(IndexMetadata.SETTING_INDEX_UUID, index1.getUUID())
                         )
                             .putMapping(
                                 XContentHelper.convertToJson(
@@ -205,7 +191,7 @@ public class TransportMultiTermVectorsActionTests extends ESTestCase {
     public void testTransportMultiGetAction() {
         final Task task = createTask();
         final NodeClient client = new NodeClient(Settings.EMPTY, threadPool);
-        final MultiTermVectorsRequestBuilder request = new MultiTermVectorsRequestBuilder(client, MultiTermVectorsAction.INSTANCE);
+        final MultiTermVectorsRequestBuilder request = new MultiTermVectorsRequestBuilder(client);
         request.add(new TermVectorsRequest("index1", "1"));
         request.add(new TermVectorsRequest("index2", "2"));
 
@@ -237,7 +223,7 @@ public class TransportMultiTermVectorsActionTests extends ESTestCase {
     public void testTransportMultiGetAction_withMissingRouting() {
         final Task task = createTask();
         final NodeClient client = new NodeClient(Settings.EMPTY, threadPool);
-        final MultiTermVectorsRequestBuilder request = new MultiTermVectorsRequestBuilder(client, MultiTermVectorsAction.INSTANCE);
+        final MultiTermVectorsRequestBuilder request = new MultiTermVectorsRequestBuilder(client);
         request.add(new TermVectorsRequest("index2", "1").routing("1"));
         request.add(new TermVectorsRequest("index2", "2"));
 

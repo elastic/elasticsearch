@@ -11,9 +11,9 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.transport.TransportService;
@@ -54,7 +54,7 @@ public class TransportGetFiltersAction extends AbstractTransportGetResourcesActi
         searchResources(
             request,
             new TaskId(clusterService.localNode().getId(), task.getId()),
-            ActionListener.wrap(filters -> listener.onResponse(new GetFiltersAction.Response(filters)), listener::onFailure)
+            listener.delegateFailureAndWrap((l, filters) -> l.onResponse(new GetFiltersAction.Response(filters)))
         );
     }
 

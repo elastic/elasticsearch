@@ -9,8 +9,8 @@ package org.elasticsearch.xpack.ml.job.persistence;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.index.TransportIndexAction;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.xcontent.ToXContent;
@@ -124,13 +124,7 @@ public class JobDataCountsPersister {
                 .setRequireAlias(true)
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
                 .source(content);
-            executeAsyncWithOrigin(
-                client,
-                ML_ORIGIN,
-                IndexAction.INSTANCE,
-                request,
-                listener.delegateFailure((l, r) -> l.onResponse(true))
-            );
+            executeAsyncWithOrigin(client, ML_ORIGIN, TransportIndexAction.TYPE, request, listener.safeMap(r -> true));
         } catch (IOException ioe) {
             String msg = "[" + jobId + "] Failed writing data_counts stats";
             logger.error(msg, ioe);

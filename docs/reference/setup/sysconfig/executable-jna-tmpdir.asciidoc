@@ -34,6 +34,9 @@ instance:
 export ES_TMPDIR=/usr/share/elasticsearch/tmp
 --------------------------------------------
 
+* For installs done through RPM or DEB packages, the environment variable needs
+to be set through the <<sysconfig,system configuration file>>.
+
 * If you are using `systemd` to run {es} as a service, add the following
 line to the `[Service]` section in a <<systemd,service override file>>:
 +
@@ -48,3 +51,10 @@ also configure the path that JNA uses with the <<set-jvm-options,JVM flag>>
 temporary files by setting the `LIBFFI_TMPDIR` environment variable. Future
 versions of {es} may need additional configuration, so you should prefer to set
 `ES_TMPDIR` wherever possible.
+
+NOTE: {es} does not remove its temporary directory. You should remove leftover
+temporary directories while {es} is not running. It is best to do this
+automatically, for instance on each reboot. If you are running on Linux, you
+can achieve this by using the
+link:https://www.kernel.org/doc/html/latest/filesystems/tmpfs.html[tmpfs] file
+system.

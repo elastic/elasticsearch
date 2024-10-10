@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.aggregations.pipeline;
@@ -50,7 +51,6 @@ public class MovFnPipelineAggregator extends PipelineAggregator {
     private final DocValueFormat formatter;
     private final BucketHelpers.GapPolicy gapPolicy;
     private final Script script;
-    private final String bucketsPath;
     private final int window;
     private final int shift;
 
@@ -65,7 +65,6 @@ public class MovFnPipelineAggregator extends PipelineAggregator {
         Map<String, Object> metadata
     ) {
         super(name, new String[] { bucketsPath }, metadata);
-        this.bucketsPath = bucketsPath;
         this.script = script;
         this.formatter = formatter;
         this.gapPolicy = gapPolicy;
@@ -136,9 +135,6 @@ public class MovFnPipelineAggregator extends PipelineAggregator {
         if (index < 0) {
             return 0;
         }
-        if (index > list.size()) {
-            return list.size();
-        }
-        return index;
+        return Math.min(index, list.size());
     }
 }

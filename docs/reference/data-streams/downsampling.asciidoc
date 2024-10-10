@@ -1,4 +1,14 @@
 [[downsampling]]
+
+/////
+[source,console]
+--------------------------------------------------
+DELETE _ilm/policy/my_policy
+--------------------------------------------------
+// TEST
+// TEARDOWN
+/////
+
 === Downsampling a time series data stream
 
 Downsampling provides a method to reduce the footprint of your <<tsds,time
@@ -8,9 +18,9 @@ Metrics solutions collect large amounts of time series data that grow over time.
 As that data ages, it becomes less relevant to the current state of the system.
 The downsampling process rolls up documents within a fixed time interval into a
 single summary document. Each summary document includes statistical
-representations of the original data: the `min`, `max`, `sum`, `value_count`,
-and `average` for each metric. Data stream <<time-series-dimension,time series
-dimensions>> are stored unchanged.
+representations of the original data: the `min`, `max`, `sum` and `value_count`
+for each metric. Data stream <<time-series-dimension,time series dimensions>>
+are stored unchanged.
 
 Downsampling, in effect, lets you to trade data resolution and precision for
 storage size. You can include it in an <<index-lifecycle-management,{ilm}
@@ -113,17 +123,41 @@ on a downsampled index that has been downsampled at an hourly resolution
 minute 0, then 59 empty buckets, and then a bucket with data again for the next
 hour.
 
-NOTE:
+[discrete]
+[[querying-downsampled-indices-notes]]
+==== Notes on downsample queries
 
-There are a few things to note when querying downsampled indices:
+There are a few things to note about querying downsampled indices:
 
 * When you run queries in {kib} and through Elastic solutions, a normal
 response is returned without notification that some of the queried indices are
 downsampled.
-* For 
-<<search-aggregations-bucket-datehistogram-aggregation,date histogram aggregations>>, 
+* For
+<<search-aggregations-bucket-datehistogram-aggregation,date histogram aggregations>>,
 only `fixed_intervals` (and not calendar-aware intervals) are supported.
-* Only Coordinated Universal Time (UTC) date-times are supported.
+* Timezone support comes with caveats:
+
+** Date histograms at intervals that are multiples of an hour are based on
+values generated at UTC. This works well for timezones that are on the hour, e.g.
++5:00 or -3:00, but requires offsetting the reported time buckets, e.g.
+`2020-01-01T10:30:00.000` instead of `2020-03-07T10:00:00.000` for
+timezone +5:30 (India), if downsampling aggregates values per hour. In this case,
+the results include the field `downsampled_results_offset: true`, to indicate that
+the time buckets are shifted. This can be avoided if a downsampling interval of 15
+minutes is used, as it allows properly calculating hourly values for the shifted
+buckets.
+
+** Date histograms at intervals that are multiples of a day are similarly
+affected, in case downsampling aggregates values per day. In this case, the
+beginning of each day is always calculated at UTC when generated the downsampled
+values, so the time buckets need to be shifted, e.g. reported as
+`2020-03-07T19:00:00.000` instead of `2020-03-07T00:00:00.000` for timezone `America/New_York`.
+The field `downsampled_results_offset: true` is added in this case too.
+
+** Daylight savings and similar peculiarities around timezones affect
+reported results, as <<datehistogram-aggregation-time-zone,documented>>
+for date histogram aggregation. Besides, downsampling at daily interval
+hinders tracking any information related to daylight savings changes.
 
 [discrete]
 [[downsampling-restrictions]]
@@ -131,13 +165,13 @@ only `fixed_intervals` (and not calendar-aware intervals) are supported.
 
 The following restrictions and limitations apply for downsampling:
 
-* Only indices in a <<tsds,time series data stream>> are supported. 
+* Only indices in a <<tsds,time series data stream>> are supported.
 
 * Data is downsampled based on the time dimension only. All other dimensions are
 copied to the new index without any modification.
 
 * Within a data stream, a downsampled index replaces the original index and the
-original index is deleted. Only one index can exist for a given time period. 
+original index is deleted. Only one index can exist for a given time period.
 
 * A source index must be in read-only mode for the downsampling process to
 succeed. Check the <<downsampling-manual,Run downsampling manually>> example for
@@ -156,7 +190,7 @@ and it inherits its settings (for example, the number of shards and replicas).
 supported.
 
 * The downsampling configuration is extracted from the time series data stream
-<<tsds-create-mappings-component-template,index mapping>>. The only additional
+<<create-tsds-index-template,index mapping>>. The only additional
 required setting is the downsampling `fixed_interval`.
 
 [discrete]

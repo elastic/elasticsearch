@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.bucket.terms;
@@ -58,7 +59,7 @@ public abstract class InternalMappedSignificantTerms<
         subsetSize = in.readVLong();
         supersetSize = in.readVLong();
         significanceHeuristic = in.readNamedWriteable(SignificanceHeuristic.class);
-        buckets = in.readList(stream -> bucketReader.read(stream, subsetSize, supersetSize, format));
+        buckets = in.readCollectionAsList(stream -> bucketReader.read(stream, subsetSize, supersetSize, format));
     }
 
     @Override
@@ -67,12 +68,13 @@ public abstract class InternalMappedSignificantTerms<
         out.writeVLong(subsetSize);
         out.writeVLong(supersetSize);
         out.writeNamedWriteable(significanceHeuristic);
-        out.writeList(buckets);
+        out.writeCollection(buckets);
     }
 
     @Override
+    @SuppressWarnings({ "rawtypes", "unchecked" })
     public Iterator<SignificantTerms.Bucket> iterator() {
-        return buckets.stream().map(bucket -> (SignificantTerms.Bucket) bucket).toList().iterator();
+        return (Iterator) buckets.iterator();
     }
 
     @Override

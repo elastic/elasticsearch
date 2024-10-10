@@ -1,16 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.search.aggregations.bucket.terms;
 
 import org.apache.lucene.document.Document;
 import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
@@ -21,7 +20,6 @@ import org.elasticsearch.common.Numbers;
 import org.elasticsearch.index.mapper.BinaryFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.support.ValueType;
 
@@ -75,8 +73,8 @@ public class BinaryTermsAggregatorTests extends AggregatorTestCase {
         IncludeExclude includeExclude = new IncludeExclude("foo", null, null, null);
 
         // Make sure the include/exclude fails regardless of how the user tries to type hint the agg
-        AggregationExecutionException e = expectThrows(
-            AggregationExecutionException.class,
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
             () -> testSearchCase(
                 new MatchNoDocsQuery(),
                 dataset,
@@ -94,7 +92,7 @@ public class BinaryTermsAggregatorTests extends AggregatorTestCase {
         );
 
         e = expectThrows(
-            AggregationExecutionException.class,
+            IllegalArgumentException.class,
             () -> testSearchCase(
                 new MatchNoDocsQuery(),
                 dataset,
@@ -143,9 +141,7 @@ public class BinaryTermsAggregatorTests extends AggregatorTestCase {
                 }
             }
 
-            try (IndexReader indexReader = DirectoryReader.open(directory)) {
-                IndexSearcher indexSearcher = newIndexSearcher(indexReader);
-
+            try (DirectoryReader indexReader = DirectoryReader.open(directory)) {
                 TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("_name");
                 if (valueType != null) {
                     aggregationBuilder.userValueTypeHint(valueType);
@@ -157,7 +153,7 @@ public class BinaryTermsAggregatorTests extends AggregatorTestCase {
                 MappedFieldType binaryFieldType = new BinaryFieldMapper.BinaryFieldType(BINARY_FIELD);
 
                 InternalMappedTerms<?, ?> rareTerms = searchAndReduce(
-                    indexSearcher,
+                    indexReader,
                     new AggTestConfig(aggregationBuilder, binaryFieldType).withQuery(query)
                 );
                 verify.accept(rareTerms);

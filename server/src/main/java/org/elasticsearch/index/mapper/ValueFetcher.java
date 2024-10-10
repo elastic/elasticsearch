@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
@@ -11,6 +12,7 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.search.fetch.StoredFieldsSpec;
 import org.elasticsearch.search.fetch.subphase.FetchFieldsPhase;
 import org.elasticsearch.search.lookup.Source;
 
@@ -66,4 +68,35 @@ public interface ValueFetcher {
      * Update the leaf reader used to fetch values.
      */
     default void setNextReader(LeafReaderContext context) {}
+
+    /**
+     * The stored field or source requirements of this value fetcher
+     */
+    StoredFieldsSpec storedFieldsSpec();
+
+    ValueFetcher EMPTY = new ValueFetcher() {
+        @Override
+        public List<Object> fetchValues(Source source, int doc, List<Object> ignoredValues) {
+            return List.of();
+        }
+
+        @Override
+        public StoredFieldsSpec storedFieldsSpec() {
+            return StoredFieldsSpec.NO_REQUIREMENTS;
+        }
+    };
+
+    static ValueFetcher singleton(Object value) {
+        return new ValueFetcher() {
+            @Override
+            public List<Object> fetchValues(Source source, int doc, List<Object> ignoredValues) {
+                return List.of(value);
+            }
+
+            @Override
+            public StoredFieldsSpec storedFieldsSpec() {
+                return StoredFieldsSpec.NO_REQUIREMENTS;
+            }
+        };
+    }
 }

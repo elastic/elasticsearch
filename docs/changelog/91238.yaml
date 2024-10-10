@@ -1,7 +1,0 @@
-pr: 91238
-summary: Avoiding `BulkProcessor` deadlock in ILMHistoryStore
-area: ILM+SLM
-type: bug
-issues:
- - 68468
- - 50440

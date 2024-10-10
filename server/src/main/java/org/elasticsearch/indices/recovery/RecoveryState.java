@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.indices.recovery;
@@ -580,7 +581,7 @@ public class RecoveryState implements ToXContentFragment, Writeable {
 
         /**
          * Sets the total number of translog operations to be recovered locally before performing peer recovery
-         * @see IndexShard#recoverLocallyUpToGlobalCheckpoint()
+         * @see IndexShard#recoverLocallyUpToGlobalCheckpoint
          */
         public synchronized void totalLocal(int totalLocal) {
             assert totalLocal >= recovered : totalLocal + " < " + recovered;
@@ -610,6 +611,17 @@ public class RecoveryState implements ToXContentFragment, Writeable {
             builder.humanReadableField(Fields.TOTAL_TIME_IN_MILLIS, Fields.TOTAL_TIME, new TimeValue(time()));
             return builder;
         }
+
+        @Override
+        public synchronized String toString() {
+            return Strings.format(
+                "Translog{recovered=%d, total=%d, totalOnStart=%d, totalLocal=%d}",
+                recovered,
+                total,
+                totalOnStart,
+                totalLocal
+            );
+        }
     }
 
     public static class FileDetail implements ToXContentObject, Writeable {
@@ -631,7 +643,7 @@ public class RecoveryState implements ToXContentFragment, Writeable {
             length = in.readVLong();
             recovered = in.readVLong();
             reused = in.readBoolean();
-            if (in.getTransportVersion().onOrAfter(RecoverySettings.SNAPSHOT_RECOVERIES_SUPPORTED_VERSION.transportVersion)) {
+            if (in.getTransportVersion().onOrAfter(RecoverySettings.SNAPSHOT_RECOVERIES_SUPPORTED_TRANSPORT_VERSION)) {
                 recoveredFromSnapshot = in.readLong();
             }
         }
@@ -642,7 +654,7 @@ public class RecoveryState implements ToXContentFragment, Writeable {
             out.writeVLong(length);
             out.writeVLong(recovered);
             out.writeBoolean(reused);
-            if (out.getTransportVersion().onOrAfter(RecoverySettings.SNAPSHOT_RECOVERIES_SUPPORTED_VERSION.transportVersion)) {
+            if (out.getTransportVersion().onOrAfter(RecoverySettings.SNAPSHOT_RECOVERIES_SUPPORTED_TRANSPORT_VERSION)) {
                 out.writeLong(recoveredFromSnapshot);
             }
         }
@@ -833,10 +845,6 @@ public class RecoveryState implements ToXContentFragment, Writeable {
             return fileDetails.size();
         }
 
-        public boolean isEmpty() {
-            return fileDetails.isEmpty();
-        }
-
         public void clear() {
             fileDetails.clear();
             complete = false;
@@ -990,8 +998,7 @@ public class RecoveryState implements ToXContentFragment, Writeable {
             if (total == recovered) {
                 return 100.0f;
             } else {
-                float result = 100.0f * (recovered / (float) total);
-                return result;
+                return 100.0f * (recovered / (float) total);
             }
         }
 

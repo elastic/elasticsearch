@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.coordination;
@@ -18,6 +19,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
@@ -34,13 +36,13 @@ import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportRequestOptions.Type;
-import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportResponse.Empty;
 import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.Objects;
+import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
@@ -110,7 +112,7 @@ public class LeaderChecker {
 
         transportService.registerRequestHandler(
             LEADER_CHECK_ACTION_NAME,
-            Names.SAME,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
             false,
             false,
             LeaderCheckRequest::new,
@@ -160,7 +162,8 @@ public class LeaderChecker {
      * publication targets, and also called if a leader becomes a non-leader.
      */
     void setCurrentNodes(DiscoveryNodes discoveryNodes) {
-        logger.trace("setCurrentNodes: {}", discoveryNodes);
+        // Sorting the nodes for deterministic logging until https://github.com/elastic/elasticsearch/issues/94946 is fixed
+        logger.trace(() -> format("setCurrentNodes: %s", discoveryNodes.mastersFirstStream().toList()));
         this.discoveryNodes = discoveryNodes;
     }
 
@@ -234,9 +237,13 @@ public class LeaderChecker {
                 new LeaderCheckRequest(transportService.getLocalNode()),
                 TransportRequestOptions.of(leaderCheckTimeout, Type.PING),
                 new TransportResponseHandler.Empty() {
+                    @Override
+                    public Executor executor() {
+                        return TransportResponseHandler.TRANSPORT_WORKER;
+                    }
 
                     @Override
-                    public void handleResponse(TransportResponse.Empty response) {
+                    public void handleResponse() {
                         if (isClosed.get()) {
                             logger.debug("closed check scheduler received a response, doing nothing");
                             return;
@@ -375,17 +382,18 @@ public class LeaderChecker {
 
         private void scheduleNextWakeUp() {
             logger.trace("scheduling next check of {} for [{}] = {}", leader, LEADER_CHECK_INTERVAL_SETTING.getKey(), leaderCheckInterval);
-            transportService.getThreadPool().schedule(new Runnable() {
-                @Override
-                public void run() {
-                    handleWakeUp();
-                }
+            transportService.getThreadPool()
+                .scheduleUnlessShuttingDown(leaderCheckInterval, EsExecutors.DIRECT_EXECUTOR_SERVICE, new Runnable() {
+                    @Override
+                    public void run() {
+                        handleWakeUp();
+                    }
 
-                @Override
-                public String toString() {
-                    return "scheduled check of leader " + leader;
-                }
-            }, leaderCheckInterval, Names.SAME);
+                    @Override
+                    public String toString() {
+                        return "scheduled check of leader " + leader;
+                    }
+                });
         }
     }
 

@@ -58,16 +58,16 @@ Default metric sub-field to use for queries, scripts, and aggregations that
 don't use a sub-field. Must be a value from the `metrics` array.
 
 `time_series_metric`::
-preview:[] (Optional, string)
+(Optional, string)
 include::numeric.asciidoc[tag=time_series_metric]
 +
 .Valid `time_series_metric` values for `aggregate_metric_double` fields
 [%collapsible%open]
 ====
 
-include::{es-repo-dir}/data-streams/tsds.asciidoc[tag=time-series-metric-gauge]
+include::{es-ref-dir}/data-streams/tsds.asciidoc[tag=time-series-metric-gauge]
 
-include::{es-repo-dir}/data-streams/tsds.asciidoc[tag=time-series-metric-null]
+include::{es-ref-dir}/data-streams/tsds.asciidoc[tag=time-series-metric-null]
 ====
 
 [[aggregate-metric-double-uses]]
@@ -255,12 +255,12 @@ The search returns the following hit. The value of the `default_metric` field,
 IMPORTANT: Synthetic `_source` is Generally Available only for TSDB indices
 (indices that have `index.mode` set to `time_series`). For other indices
 synthetic `_source` is in technical preview. Features in technical preview may
-be changed or removed in a future release. Elastic will apply best effort to fix
+be changed or removed in a future release. Elastic will work to fix
 any issues, but features in technical preview are not subject to the support SLA
 of official GA features.
 
 `aggregate_metric-double` fields support <<synthetic-source,synthetic `_source`>> in their default
-configuration. Synthetic `_source` cannot be used together with <<ignore-malformed,`ignore_malformed`>>.
+configuration.
 
 For example:
 [source,console,id=synthetic-source-aggregate-metric-double-example]

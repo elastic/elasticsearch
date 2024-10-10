@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.ingest.common;
@@ -30,6 +31,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ConcurrentMap;
+import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
@@ -45,7 +47,7 @@ public final class DateProcessor extends AbstractProcessor {
     private final String field;
     private final String targetField;
     private final List<String> formats;
-    private final List<Function<Map<String, Object>, Function<String, ZonedDateTime>>> dateParsers;
+    private final List<BiFunction<ZoneId, Locale, Function<String, ZonedDateTime>>> dateParsers;
     private final String outputFormat;
 
     DateProcessor(
@@ -80,25 +82,23 @@ public final class DateProcessor extends AbstractProcessor {
 
         for (String format : formats) {
             DateFormat dateFormat = DateFormat.fromString(format);
-            dateParsers.add((params) -> {
-                var documentZoneId = newDateTimeZone(params);
-                var documentLocale = newLocale(params);
-                return Cache.INSTANCE.getOrCompute(
-                    new Cache.Key(format, documentZoneId, documentLocale),
-                    () -> dateFormat.getFunction(format, documentZoneId, documentLocale)
-                );
-            });
+            dateParsers.add(
+                (documentTimezone, documentLocale) -> Cache.INSTANCE.getOrCompute(
+                    new Cache.Key(format, documentTimezone, documentLocale),
+                    () -> dateFormat.getFunction(format, documentTimezone, documentLocale)
+                )
+            );
         }
         this.outputFormat = outputFormat;
         formatter = DateFormatter.forPattern(this.outputFormat);
     }
 
-    private ZoneId newDateTimeZone(Map<String, Object> params) {
-        return timezone == null ? ZoneOffset.UTC : ZoneId.of(timezone.newInstance(params).execute());
+    private static ZoneId newDateTimeZone(String timezone) {
+        return timezone == null ? ZoneOffset.UTC : ZoneId.of(timezone);
     }
 
-    private Locale newLocale(Map<String, Object> params) {
-        return locale == null ? Locale.ROOT : LocaleUtils.parse(locale.newInstance(params).execute());
+    private static Locale newLocale(String locale) {
+        return locale == null ? Locale.ENGLISH : LocaleUtils.parse(locale);
     }
 
     @Override
@@ -106,15 +106,27 @@ public final class DateProcessor extends AbstractProcessor {
         Object obj = ingestDocument.getFieldValue(field, Object.class);
         String value = null;
         if (obj != null) {
-            // Not use Objects.toString(...) here, because null gets changed to "null" which may confuse some date parsers
+            // Don't use Objects.toString(...) here, because null gets changed to "null" which may confuse some date parsers
             value = obj.toString();
+        }
+
+        // run (potential) mustache application just a single time for this document in order to
+        // extract the timezone and locale to use for date parsing
+        final ZoneId documentTimezone;
+        final Locale documentLocale;
+        final Map<String, Object> sourceAndMetadata = ingestDocument.getSourceAndMetadata();
+        try {
+            documentTimezone = newDateTimeZone(timezone == null ? null : timezone.newInstance(sourceAndMetadata).execute());
+            documentLocale = newLocale(locale == null ? null : locale.newInstance(sourceAndMetadata).execute());
+        } catch (Exception e) {
+            throw new IllegalArgumentException("unable to parse date [" + value + "]", e);
         }
 
         ZonedDateTime dateTime = null;
         Exception lastException = null;
-        for (Function<Map<String, Object>, Function<String, ZonedDateTime>> dateParser : dateParsers) {
+        for (BiFunction<ZoneId, Locale, Function<String, ZonedDateTime>> dateParser : dateParsers) {
             try {
-                dateTime = dateParser.apply(ingestDocument.getSourceAndMetadata()).apply(value);
+                dateTime = dateParser.apply(documentTimezone, documentLocale).apply(value);
                 break;
             } catch (Exception e) {
                 // try the next parser and keep track of the exceptions

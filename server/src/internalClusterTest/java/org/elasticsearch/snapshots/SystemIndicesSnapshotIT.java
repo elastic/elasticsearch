@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.snapshots;
@@ -16,6 +17,7 @@ import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.AssociatedIndexDescriptor;
 import org.elasticsearch.indices.SystemIndexDescriptor;
+import org.elasticsearch.indices.SystemIndexDescriptorUtils;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.rest.RestStatus;
@@ -82,10 +84,11 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
         assertThat(getDocCount(SystemIndexTestPlugin.SYSTEM_INDEX_NAME), equalTo(2L));
 
         // restore snapshot with global state, without closing the system index
-        RestoreSnapshotResponse restoreSnapshotResponse = clusterAdmin().prepareRestoreSnapshot(REPO_NAME, "test-snap")
-            .setWaitForCompletion(true)
-            .setRestoreGlobalState(true)
-            .get();
+        RestoreSnapshotResponse restoreSnapshotResponse = clusterAdmin().prepareRestoreSnapshot(
+            TEST_REQUEST_TIMEOUT,
+            REPO_NAME,
+            "test-snap"
+        ).setWaitForCompletion(true).setRestoreGlobalState(true).get();
         assertThat(restoreSnapshotResponse.getRestoreInfo().totalShards(), greaterThan(0));
 
         // verify only the original document is restored
@@ -101,15 +104,15 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
         indexDoc("not-a-system-index", "1", "purpose", "non system index doc");
 
         // run a snapshot without global state
-        CreateSnapshotResponse createSnapshotResponse = clusterAdmin().prepareCreateSnapshot(REPO_NAME, "test-snap")
+        CreateSnapshotResponse createSnapshotResponse = clusterAdmin().prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, REPO_NAME, "test-snap")
             .setWaitForCompletion(true)
             .setIncludeGlobalState(false)
             .get();
         assertSnapshotSuccess(createSnapshotResponse);
 
         // check snapshot info for for which
-        clusterAdmin().prepareGetRepositories(REPO_NAME).get();
-        Set<String> snapshottedIndices = clusterAdmin().prepareGetSnapshots(REPO_NAME)
+        clusterAdmin().prepareGetRepositories(TEST_REQUEST_TIMEOUT, REPO_NAME).get();
+        Set<String> snapshottedIndices = clusterAdmin().prepareGetSnapshots(TEST_REQUEST_TIMEOUT, REPO_NAME)
             .get()
             .getSnapshots()
             .stream()
@@ -131,7 +134,7 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
         refresh(SystemIndexTestPlugin.SYSTEM_INDEX_NAME, AnotherSystemIndexTestPlugin.SYSTEM_INDEX_NAME);
 
         // snapshot by feature
-        CreateSnapshotResponse createSnapshotResponse = clusterAdmin().prepareCreateSnapshot(REPO_NAME, "test-snap")
+        CreateSnapshotResponse createSnapshotResponse = clusterAdmin().prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, REPO_NAME, "test-snap")
             .setIncludeGlobalState(true)
             .setWaitForCompletion(true)
             .setFeatureStates(SystemIndexTestPlugin.class.getSimpleName(), AnotherSystemIndexTestPlugin.class.getSimpleName())
@@ -147,10 +150,11 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
         assertThat(getDocCount(AnotherSystemIndexTestPlugin.SYSTEM_INDEX_NAME), equalTo(2L));
 
         // restore indices as global state without closing the index
-        RestoreSnapshotResponse restoreSnapshotResponse = clusterAdmin().prepareRestoreSnapshot(REPO_NAME, "test-snap")
-            .setWaitForCompletion(true)
-            .setRestoreGlobalState(true)
-            .get();
+        RestoreSnapshotResponse restoreSnapshotResponse = clusterAdmin().prepareRestoreSnapshot(
+            TEST_REQUEST_TIMEOUT,
+            REPO_NAME,
+            "test-snap"
+        ).setWaitForCompletion(true).setRestoreGlobalState(true).get();
         assertThat(restoreSnapshotResponse.getRestoreInfo().totalShards(), greaterThan(0));
 
         // verify only the original document is restored
@@ -174,7 +178,7 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
         refresh(regularIndex, SystemIndexTestPlugin.SYSTEM_INDEX_NAME);
 
         // snapshot including global state
-        CreateSnapshotResponse createSnapshotResponse = clusterAdmin().prepareCreateSnapshot(REPO_NAME, "test-snap")
+        CreateSnapshotResponse createSnapshotResponse = clusterAdmin().prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, REPO_NAME, "test-snap")
             .setWaitForCompletion(true)
             .setIncludeGlobalState(true)
             .get();
@@ -183,7 +187,7 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
         // Delete the regular index so we can restore it
         assertAcked(cluster().client().admin().indices().prepareDelete(regularIndex));
 
-        RestoreSnapshotResponse restoreResponse = clusterAdmin().prepareRestoreSnapshot(REPO_NAME, "test-snap")
+        RestoreSnapshotResponse restoreResponse = clusterAdmin().prepareRestoreSnapshot(TEST_REQUEST_TIMEOUT, REPO_NAME, "test-snap")
             .setWaitForCompletion(true)
             .get();
         assertThat(restoreResponse.getRestoreInfo().totalShards(), greaterThan(0));
@@ -206,7 +210,7 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
         refresh(regularIndex, SystemIndexTestPlugin.SYSTEM_INDEX_NAME, AnotherSystemIndexTestPlugin.SYSTEM_INDEX_NAME);
 
         // snapshot including global state
-        CreateSnapshotResponse createSnapshotResponse = clusterAdmin().prepareCreateSnapshot(REPO_NAME, "test-snap")
+        CreateSnapshotResponse createSnapshotResponse = clusterAdmin().prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, REPO_NAME, "test-snap")
             .setWaitForCompletion(true)
             .setIncludeGlobalState(true)
             .get();
@@ -224,10 +228,11 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
         assertAcked(cluster().client().admin().indices().prepareDelete(regularIndex));
 
         // restore indices by feature
-        RestoreSnapshotResponse restoreSnapshotResponse = clusterAdmin().prepareRestoreSnapshot(REPO_NAME, "test-snap")
-            .setWaitForCompletion(true)
-            .setFeatureStates("SystemIndexTestPlugin")
-            .get();
+        RestoreSnapshotResponse restoreSnapshotResponse = clusterAdmin().prepareRestoreSnapshot(
+            TEST_REQUEST_TIMEOUT,
+            REPO_NAME,
+            "test-snap"
+        ).setWaitForCompletion(true).setFeatureStates("SystemIndexTestPlugin").get();
         assertThat(restoreSnapshotResponse.getRestoreInfo().totalShards(), greaterThan(0));
 
         // verify that the restored system index has only one document
@@ -252,14 +257,14 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
         refresh(regularIndex, AssociatedIndicesTestPlugin.SYSTEM_INDEX_NAME, AssociatedIndicesTestPlugin.ASSOCIATED_INDEX_NAME);
 
         // snapshot
-        CreateSnapshotResponse createSnapshotResponse = clusterAdmin().prepareCreateSnapshot(REPO_NAME, "test-snap")
+        CreateSnapshotResponse createSnapshotResponse = clusterAdmin().prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, REPO_NAME, "test-snap")
             .setFeatureStates(AssociatedIndicesTestPlugin.class.getSimpleName())
             .setWaitForCompletion(true)
             .get();
         assertSnapshotSuccess(createSnapshotResponse);
 
         // verify the correctness of the snapshot
-        Set<String> snapshottedIndices = clusterAdmin().prepareGetSnapshots(REPO_NAME)
+        Set<String> snapshottedIndices = clusterAdmin().prepareGetSnapshots(TEST_REQUEST_TIMEOUT, REPO_NAME)
             .get()
             .getSnapshots()
             .stream()
@@ -278,10 +283,14 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
         assertThat(getDocCount(AssociatedIndicesTestPlugin.SYSTEM_INDEX_NAME), equalTo(2L));
 
         // And delete the associated index so we can restore it
-        assertAcked(client().admin().indices().prepareDelete(AssociatedIndicesTestPlugin.ASSOCIATED_INDEX_NAME).get());
+        assertAcked(indicesAdmin().prepareDelete(AssociatedIndicesTestPlugin.ASSOCIATED_INDEX_NAME).get());
 
         // restore the feature state and its associated index
-        RestoreSnapshotResponse restoreSnapshotResponse = clusterAdmin().prepareRestoreSnapshot(REPO_NAME, "test-snap")
+        RestoreSnapshotResponse restoreSnapshotResponse = clusterAdmin().prepareRestoreSnapshot(
+            TEST_REQUEST_TIMEOUT,
+            REPO_NAME,
+            "test-snap"
+        )
             .setIndices(AssociatedIndicesTestPlugin.ASSOCIATED_INDEX_NAME)
             .setWaitForCompletion(true)
             .setFeatureStates(AssociatedIndicesTestPlugin.class.getSimpleName())
@@ -302,7 +311,7 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
         refresh(SystemIndexTestPlugin.SYSTEM_INDEX_NAME);
 
         // snapshot including global state
-        CreateSnapshotResponse createSnapshotResponse = clusterAdmin().prepareCreateSnapshot(REPO_NAME, "test-snap")
+        CreateSnapshotResponse createSnapshotResponse = clusterAdmin().prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, REPO_NAME, "test-snap")
             .setWaitForCompletion(true)
             .setIncludeGlobalState(true)
             .get();
@@ -311,10 +320,9 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
         final String fakeFeatureStateName = "NonExistentTestPlugin";
         SnapshotRestoreException exception = expectThrows(
             SnapshotRestoreException.class,
-            () -> clusterAdmin().prepareRestoreSnapshot(REPO_NAME, "test-snap")
+            clusterAdmin().prepareRestoreSnapshot(TEST_REQUEST_TIMEOUT, REPO_NAME, "test-snap")
                 .setWaitForCompletion(true)
                 .setFeatureStates("SystemIndexTestPlugin", fakeFeatureStateName)
-                .get()
         );
 
         assertThat(
@@ -331,11 +339,10 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
 
         IllegalArgumentException error = expectThrows(
             IllegalArgumentException.class,
-            () -> clusterAdmin().prepareCreateSnapshot(REPO_NAME, "test-snap")
+            clusterAdmin().prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, REPO_NAME, "test-snap")
                 .setIndices(SystemIndexTestPlugin.SYSTEM_INDEX_NAME)
                 .setWaitForCompletion(true)
                 .setIncludeGlobalState(randomBoolean())
-                .get()
         );
         assertThat(
             error.getMessage(),
@@ -346,7 +353,7 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
         );
 
         // And create a successful snapshot so we don't upset the test framework
-        CreateSnapshotResponse createSnapshotResponse = clusterAdmin().prepareCreateSnapshot(REPO_NAME, "test-snap")
+        CreateSnapshotResponse createSnapshotResponse = clusterAdmin().prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, REPO_NAME, "test-snap")
             .setWaitForCompletion(true)
             .setIncludeGlobalState(true)
             .get();
@@ -363,7 +370,7 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
         refresh(SystemIndexTestPlugin.SYSTEM_INDEX_NAME);
 
         // snapshot including global state
-        CreateSnapshotResponse createSnapshotResponse = clusterAdmin().prepareCreateSnapshot(REPO_NAME, "test-snap")
+        CreateSnapshotResponse createSnapshotResponse = clusterAdmin().prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, REPO_NAME, "test-snap")
             .setWaitForCompletion(true)
             .setIncludeGlobalState(true)
             .get();
@@ -375,10 +382,9 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
 
         IllegalArgumentException ex = expectThrows(
             IllegalArgumentException.class,
-            () -> clusterAdmin().prepareRestoreSnapshot(REPO_NAME, "test-snap")
+            clusterAdmin().prepareRestoreSnapshot(TEST_REQUEST_TIMEOUT, REPO_NAME, "test-snap")
                 .setWaitForCompletion(true)
                 .setIndices(SystemIndexTestPlugin.SYSTEM_INDEX_NAME)
-                .get()
         );
         assertThat(
             ex.getMessage(),
@@ -400,16 +406,16 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
         refresh(SystemIndexTestPlugin.SYSTEM_INDEX_NAME);
 
         // snapshot including global state
-        CreateSnapshotResponse createSnapshotResponse = clusterAdmin().prepareCreateSnapshot(REPO_NAME, "test-snap")
+        CreateSnapshotResponse createSnapshotResponse = clusterAdmin().prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, REPO_NAME, "test-snap")
             .setWaitForCompletion(true)
             .setIncludeGlobalState(true)
             .get();
         assertSnapshotSuccess(createSnapshotResponse);
 
-        assertAcked(client().admin().indices().prepareDelete(SystemIndexTestPlugin.SYSTEM_INDEX_NAME, nonSystemIndex).get());
+        assertAcked(indicesAdmin().prepareDelete(SystemIndexTestPlugin.SYSTEM_INDEX_NAME, nonSystemIndex).get());
 
         // Restore using a rename pattern that matches both the regular and the system index
-        clusterAdmin().prepareRestoreSnapshot(REPO_NAME, "test-snap")
+        clusterAdmin().prepareRestoreSnapshot(TEST_REQUEST_TIMEOUT, REPO_NAME, "test-snap")
             .setWaitForCompletion(true)
             .setRestoreGlobalState(true)
             .setRenamePattern(".test-(.+)")
@@ -435,7 +441,7 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
         refresh(SystemIndexTestPlugin.SYSTEM_INDEX_NAME);
 
         // run a snapshot including global state
-        CreateSnapshotResponse createSnapshotResponse = clusterAdmin().prepareCreateSnapshot(REPO_NAME, "test-snap")
+        CreateSnapshotResponse createSnapshotResponse = clusterAdmin().prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, REPO_NAME, "test-snap")
             .setWaitForCompletion(true)
             .setIncludeGlobalState(true)
             .get();
@@ -448,10 +454,11 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
         assertThat(getDocCount(SystemIndexTestPlugin.SYSTEM_INDEX_NAME), equalTo(2L));
 
         // restore indices as global state a null list of feature states
-        RestoreSnapshotResponse restoreSnapshotResponse = clusterAdmin().prepareRestoreSnapshot(REPO_NAME, "test-snap")
-            .setWaitForCompletion(true)
-            .setRestoreGlobalState(true)
-            .get();
+        RestoreSnapshotResponse restoreSnapshotResponse = clusterAdmin().prepareRestoreSnapshot(
+            TEST_REQUEST_TIMEOUT,
+            REPO_NAME,
+            "test-snap"
+        ).setWaitForCompletion(true).setRestoreGlobalState(true).get();
         assertThat(restoreSnapshotResponse.getRestoreInfo().totalShards(), greaterThan(0));
 
         // verify that the system index is destroyed
@@ -470,7 +477,7 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
         refresh(SystemIndexTestPlugin.SYSTEM_INDEX_NAME, regularIndex);
 
         // run a snapshot including global state
-        CreateSnapshotResponse createSnapshotResponse = clusterAdmin().prepareCreateSnapshot(REPO_NAME, "test-snap")
+        CreateSnapshotResponse createSnapshotResponse = clusterAdmin().prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, REPO_NAME, "test-snap")
             .setWaitForCompletion(true)
             .setIncludeGlobalState(true)
             .get();
@@ -480,15 +487,15 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
         indexDoc(SystemIndexTestPlugin.SYSTEM_INDEX_NAME, "2", "purpose", "post-snapshot doc");
         refresh(SystemIndexTestPlugin.SYSTEM_INDEX_NAME);
 
-        assertAcked(client().admin().indices().prepareDelete(regularIndex).get());
+        assertAcked(indicesAdmin().prepareDelete(regularIndex).get());
         assertThat(getDocCount(SystemIndexTestPlugin.SYSTEM_INDEX_NAME), equalTo(2L));
 
         // restore with global state and all indices but explicitly no feature states.
-        RestoreSnapshotResponse restoreSnapshotResponse = clusterAdmin().prepareRestoreSnapshot(REPO_NAME, "test-snap")
-            .setWaitForCompletion(true)
-            .setRestoreGlobalState(true)
-            .setFeatureStates(new String[] { randomFrom("none", "NONE") })
-            .get();
+        RestoreSnapshotResponse restoreSnapshotResponse = clusterAdmin().prepareRestoreSnapshot(
+            TEST_REQUEST_TIMEOUT,
+            REPO_NAME,
+            "test-snap"
+        ).setWaitForCompletion(true).setRestoreGlobalState(true).setFeatureStates(new String[] { randomFrom("none", "NONE") }).get();
         assertThat(restoreSnapshotResponse.getRestoreInfo().totalShards(), greaterThan(0));
 
         // verify that the system index still has the updated document, i.e. has not been restored
@@ -518,7 +525,7 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
         indexDoc(regularIndex, "1", "purpose", "pre-snapshot doc");
 
         // run a snapshot including global state
-        CreateSnapshotResponse createSnapshotResponse = clusterAdmin().prepareCreateSnapshot(REPO_NAME, "test-snap")
+        CreateSnapshotResponse createSnapshotResponse = clusterAdmin().prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, REPO_NAME, "test-snap")
             .setWaitForCompletion(true)
             .setIncludeGlobalState(true)
             .get();
@@ -537,11 +544,11 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
         assertAcked(cluster().client().admin().indices().prepareDelete(regularIndex));
 
         // restore the snapshot
-        RestoreSnapshotResponse restoreSnapshotResponse = clusterAdmin().prepareRestoreSnapshot(REPO_NAME, "test-snap")
-            .setFeatureStates("SystemIndexTestPlugin")
-            .setWaitForCompletion(true)
-            .setRestoreGlobalState(true)
-            .get();
+        RestoreSnapshotResponse restoreSnapshotResponse = clusterAdmin().prepareRestoreSnapshot(
+            TEST_REQUEST_TIMEOUT,
+            REPO_NAME,
+            "test-snap"
+        ).setFeatureStates("SystemIndexTestPlugin").setWaitForCompletion(true).setRestoreGlobalState(true).get();
         assertThat(restoreSnapshotResponse.getRestoreInfo().totalShards(), greaterThan(0));
 
         // The index we created after the snapshot should be gone
@@ -566,17 +573,10 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
 
         // And make sure they both have aliases
         final String systemIndexAlias = SystemIndexTestPlugin.SYSTEM_INDEX_NAME + "-alias";
-        assertAcked(
-            client().admin()
-                .indices()
-                .prepareAliases()
-                .addAlias(systemIndexName, systemIndexAlias)
-                .addAlias(regularIndex, regularAlias)
-                .get()
-        );
+        assertAcked(indicesAdmin().prepareAliases().addAlias(systemIndexName, systemIndexAlias).addAlias(regularIndex, regularAlias).get());
 
         // run a snapshot including global state
-        CreateSnapshotResponse createSnapshotResponse = clusterAdmin().prepareCreateSnapshot(REPO_NAME, "test-snap")
+        CreateSnapshotResponse createSnapshotResponse = clusterAdmin().prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, REPO_NAME, "test-snap")
             .setWaitForCompletion(true)
             .setIncludeGlobalState(true)
             .get();
@@ -586,12 +586,11 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
         assertAcked(cluster().client().admin().indices().prepareDelete(regularIndex, systemIndexName));
 
         // Now restore the snapshot with no aliases
-        RestoreSnapshotResponse restoreSnapshotResponse = clusterAdmin().prepareRestoreSnapshot(REPO_NAME, "test-snap")
-            .setFeatureStates("SystemIndexTestPlugin")
-            .setWaitForCompletion(true)
-            .setRestoreGlobalState(false)
-            .setIncludeAliases(false)
-            .get();
+        RestoreSnapshotResponse restoreSnapshotResponse = clusterAdmin().prepareRestoreSnapshot(
+            TEST_REQUEST_TIMEOUT,
+            REPO_NAME,
+            "test-snap"
+        ).setFeatureStates("SystemIndexTestPlugin").setWaitForCompletion(true).setRestoreGlobalState(false).setIncludeAliases(false).get();
         assertThat(restoreSnapshotResponse.getRestoreInfo().totalShards(), greaterThan(0));
 
         // The regular index should exist
@@ -617,11 +616,10 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
         // run a snapshot including global state
         IllegalArgumentException createEx = expectThrows(
             IllegalArgumentException.class,
-            () -> clusterAdmin().prepareCreateSnapshot(REPO_NAME, "test-snap")
+            clusterAdmin().prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, REPO_NAME, "test-snap")
                 .setWaitForCompletion(true)
                 .setIncludeGlobalState(randomBoolean())
                 .setFeatureStates("SystemIndexTestPlugin", "none", "AnotherSystemIndexTestPlugin")
-                .get()
         );
         assertThat(
             createEx.getMessage(),
@@ -632,7 +630,7 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
         );
 
         // create a successful snapshot with global state/all features
-        CreateSnapshotResponse createSnapshotResponse = clusterAdmin().prepareCreateSnapshot(REPO_NAME, "test-snap")
+        CreateSnapshotResponse createSnapshotResponse = clusterAdmin().prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, REPO_NAME, "test-snap")
             .setWaitForCompletion(true)
             .setIncludeGlobalState(true)
             .get();
@@ -640,11 +638,10 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
 
         SnapshotRestoreException restoreEx = expectThrows(
             SnapshotRestoreException.class,
-            () -> clusterAdmin().prepareRestoreSnapshot(REPO_NAME, "test-snap")
+            clusterAdmin().prepareRestoreSnapshot(TEST_REQUEST_TIMEOUT, REPO_NAME, "test-snap")
                 .setWaitForCompletion(true)
                 .setRestoreGlobalState(randomBoolean())
                 .setFeatureStates("SystemIndexTestPlugin", "none")
-                .get()
         );
         assertThat(
             restoreEx.getMessage(),
@@ -670,7 +667,7 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
         indexDoc(SystemIndexTestPlugin.SYSTEM_INDEX_NAME, "1", "purpose", "pre-snapshot doc");
         refresh(regularIndex, SystemIndexTestPlugin.SYSTEM_INDEX_NAME);
 
-        CreateSnapshotResponse createSnapshotResponse = clusterAdmin().prepareCreateSnapshot(REPO_NAME, "test-snap")
+        CreateSnapshotResponse createSnapshotResponse = clusterAdmin().prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, REPO_NAME, "test-snap")
             .setWaitForCompletion(true)
             .setIncludeGlobalState(true)
             .setFeatureStates(randomFrom("none", "NONE"))
@@ -678,7 +675,7 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
         assertSnapshotSuccess(createSnapshotResponse);
 
         // Verify that the system index was not included
-        Set<String> snapshottedIndices = clusterAdmin().prepareGetSnapshots(REPO_NAME)
+        Set<String> snapshottedIndices = clusterAdmin().prepareGetSnapshots(TEST_REQUEST_TIMEOUT, REPO_NAME)
             .get()
             .getSnapshots()
             .stream()
@@ -709,7 +706,7 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
         // Stop a random data node so we lose a shard from the partial index
         internalCluster().stopRandomDataNode();
         assertBusy(
-            () -> assertEquals(ClusterHealthStatus.RED, client().admin().cluster().prepareHealth().get().getStatus()),
+            () -> assertEquals(ClusterHealthStatus.RED, clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT).get().getStatus()),
             30,
             TimeUnit.SECONDS
         );
@@ -719,20 +716,18 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
 
         // Start a snapshot and wait for it to hit the block, then kill the master to force a failover
         final String partialSnapName = "test-partial-snap";
-        CreateSnapshotResponse createSnapshotResponse = clusterAdmin().prepareCreateSnapshot(REPO_NAME, partialSnapName)
-            .setIncludeGlobalState(true)
-            .setWaitForCompletion(false)
-            .setPartial(true)
-            .get();
+        CreateSnapshotResponse createSnapshotResponse = clusterAdmin().prepareCreateSnapshot(
+            TEST_REQUEST_TIMEOUT,
+            REPO_NAME,
+            partialSnapName
+        ).setIncludeGlobalState(true).setWaitForCompletion(false).setPartial(true).get();
         assertThat(createSnapshotResponse.status(), equalTo(RestStatus.ACCEPTED));
         waitForBlock(internalCluster().getMasterName(), REPO_NAME);
         internalCluster().stopCurrentMasterNode();
 
         // Now get the snapshot and do our checks
         assertBusy(() -> {
-            GetSnapshotsResponse snapshotsStatusResponse = client().admin()
-                .cluster()
-                .prepareGetSnapshots(REPO_NAME)
+            GetSnapshotsResponse snapshotsStatusResponse = clusterAdmin().prepareGetSnapshots(TEST_REQUEST_TIMEOUT, REPO_NAME)
                 .setSnapshots(partialSnapName)
                 .get();
             SnapshotInfo snapshotInfo = snapshotsStatusResponse.getSnapshots().get(0);
@@ -778,11 +773,11 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
         // Start a snapshot - need to do this async because some blocks will block this call
         logger.info("--> Blocked repo, starting snapshot...");
         final String partialSnapName = "test-partial-snap";
-        ActionFuture<CreateSnapshotResponse> createSnapshotFuture = clusterAdmin().prepareCreateSnapshot(REPO_NAME, partialSnapName)
-            .setIncludeGlobalState(true)
-            .setWaitForCompletion(true)
-            .setPartial(true)
-            .execute();
+        ActionFuture<CreateSnapshotResponse> createSnapshotFuture = clusterAdmin().prepareCreateSnapshot(
+            TEST_REQUEST_TIMEOUT,
+            REPO_NAME,
+            partialSnapName
+        ).setIncludeGlobalState(true).setWaitForCompletion(true).setPartial(true).execute();
 
         logger.info("--> Started snapshot, waiting for block...");
         waitForBlock(dataNodes.get(1), REPO_NAME);
@@ -816,7 +811,7 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
     }
 
     private long getDocCount(String indexName) {
-        return client().admin().indices().prepareStats(indexName).get().getPrimaries().getDocs().getCount();
+        return indicesAdmin().prepareStats(indexName).get().getPrimaries().getDocs().getCount();
     }
 
     public static class SystemIndexTestPlugin extends Plugin implements SystemIndexPlugin {
@@ -825,7 +820,9 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
 
         @Override
         public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
-            return Collections.singletonList(new SystemIndexDescriptor(SYSTEM_INDEX_NAME + "*", "System indices for tests"));
+            return Collections.singletonList(
+                SystemIndexDescriptorUtils.createUnmanaged(SYSTEM_INDEX_NAME + "*", "System indices for tests")
+            );
         }
 
         @Override
@@ -845,7 +842,9 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
 
         @Override
         public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
-            return Collections.singletonList(new SystemIndexDescriptor(SYSTEM_INDEX_NAME + "*", "System indices for tests"));
+            return Collections.singletonList(
+                SystemIndexDescriptorUtils.createUnmanaged(SYSTEM_INDEX_NAME + "*", "System indices for tests")
+            );
         }
 
         @Override
@@ -866,7 +865,9 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
 
         @Override
         public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
-            return Collections.singletonList(new SystemIndexDescriptor(SYSTEM_INDEX_NAME + "*", "System & associated indices for tests"));
+            return Collections.singletonList(
+                SystemIndexDescriptorUtils.createUnmanaged(SYSTEM_INDEX_NAME + "*", "System & associated indices for tests")
+            );
         }
 
         @Override

@@ -31,7 +31,7 @@ public class HasPrivilegesRequestTests extends ESTestCase {
 
     public void testSerializationCurrentVersion() throws IOException {
         final HasPrivilegesRequest original = randomRequest();
-        final TransportVersion version = TransportVersionUtils.randomCompatibleVersion(random(), TransportVersion.CURRENT);
+        final TransportVersion version = TransportVersionUtils.randomCompatibleVersion(random());
         final HasPrivilegesRequest copy = serializeAndDeserialize(original, version);
 
         assertThat(copy.username(), equalTo(original.username()));

@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
@@ -38,14 +39,10 @@ public class OpenJobAction extends ActionType<NodeAcknowledgedResponse> {
     public static final String NAME = "cluster:admin/xpack/ml/job/open";
 
     private OpenJobAction() {
-        super(NAME, NodeAcknowledgedResponse::new);
+        super(NAME);
     }
 
     public static class Request extends MasterNodeRequest<Request> implements ToXContentObject {
-
-        public static Request fromXContent(XContentParser parser) {
-            return parseRequest(null, parser);
-        }
 
         public static Request parseRequest(String jobId, XContentParser parser) {
             JobParams jobParams = JobParams.PARSER.apply(parser, null);
@@ -58,10 +55,12 @@ public class OpenJobAction extends ActionType<NodeAcknowledgedResponse> {
         private JobParams jobParams;
 
         public Request(JobParams jobParams) {
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
             this.jobParams = Objects.requireNonNull(jobParams);
         }
 
         public Request(String jobId) {
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
             this.jobParams = new JobParams(jobId);
         }
 
@@ -230,7 +229,7 @@ public class OpenJobAction extends ActionType<NodeAcknowledgedResponse> {
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersion.CURRENT.minimumCompatibilityVersion();
+            return TransportVersions.MINIMUM_COMPATIBLE;
         }
 
         @Override

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.index.mapper;
 
@@ -15,8 +16,8 @@ import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.network.InetAddresses;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.script.ScriptCompiler;
 
 import java.io.IOException;
@@ -348,16 +349,16 @@ public class IpFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testFetchSourceValue() throws IOException {
-        MappedFieldType mapper = new IpFieldMapper.Builder("field", ScriptCompiler.NONE, true, Version.CURRENT).build(
-            MapperBuilderContext.root(false)
+        MappedFieldType mapper = new IpFieldMapper.Builder("field", ScriptCompiler.NONE, true, IndexVersion.current()).build(
+            MapperBuilderContext.root(false, false)
         ).fieldType();
         assertEquals(List.of("2001:db8::2:1"), fetchSourceValue(mapper, "2001:db8::2:1"));
         assertEquals(List.of("2001:db8::2:1"), fetchSourceValue(mapper, "2001:db8:0:0:0:0:2:1"));
         assertEquals(List.of("::1"), fetchSourceValue(mapper, "0:0:0:0:0:0:0:1"));
 
-        MappedFieldType nullValueMapper = new IpFieldMapper.Builder("field", ScriptCompiler.NONE, true, Version.CURRENT).nullValue(
+        MappedFieldType nullValueMapper = new IpFieldMapper.Builder("field", ScriptCompiler.NONE, true, IndexVersion.current()).nullValue(
             "2001:db8:0:0:0:0:2:7"
-        ).build(MapperBuilderContext.root(false)).fieldType();
+        ).build(MapperBuilderContext.root(false, false)).fieldType();
         assertEquals(List.of("2001:db8::2:7"), fetchSourceValue(nullValueMapper, null));
     }
 }

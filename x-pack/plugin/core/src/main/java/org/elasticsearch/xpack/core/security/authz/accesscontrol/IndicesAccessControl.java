@@ -46,7 +46,7 @@ public class IndicesAccessControl {
 
     public IndicesAccessControl(boolean granted, Supplier<Map<String, IndexAccessControl>> indexPermissionsSupplier) {
         this.granted = granted;
-        this.indexPermissionsSupplier = new CachedSupplier<>(Objects.requireNonNull(indexPermissionsSupplier));
+        this.indexPermissionsSupplier = CachedSupplier.wrap(Objects.requireNonNull(indexPermissionsSupplier));
     }
 
     protected IndicesAccessControl(IndicesAccessControl copy) {

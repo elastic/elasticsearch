@@ -12,7 +12,14 @@ import org.elasticsearch.xpack.core.ml.notifications.DataFrameAnalyticsAuditMess
 
 public class DataFrameAnalyticsAuditor extends AbstractMlAuditor<DataFrameAnalyticsAuditMessage> {
 
-    public DataFrameAnalyticsAuditor(Client client, ClusterService clusterService) {
+    private final boolean includeNodeInfo;
+
+    public DataFrameAnalyticsAuditor(Client client, ClusterService clusterService, boolean includeNodeInfo) {
         super(client, DataFrameAnalyticsAuditMessage::new, clusterService);
+        this.includeNodeInfo = includeNodeInfo;
+    }
+
+    public boolean includeNodeInfo() {
+        return includeNodeInfo;
     }
 }

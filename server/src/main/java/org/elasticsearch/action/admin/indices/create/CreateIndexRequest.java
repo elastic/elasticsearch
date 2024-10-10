@@ -1,16 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.indices.create;
 
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.admin.indices.alias.Alias;
@@ -45,12 +46,11 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.common.settings.Settings.readSettingsFromStream;
 
 /**
- * A request to create an index. Best created with {@link org.elasticsearch.client.internal.Requests#createIndexRequest(String)}.
+ * A request to create an index.
  * <p>
  * The index created can optionally be created with {@link #settings(org.elasticsearch.common.settings.Settings)}.
  *
  * @see org.elasticsearch.client.internal.IndicesAdminClient#create(CreateIndexRequest)
- * @see org.elasticsearch.client.internal.Requests#createIndexRequest(String)
  * @see CreateIndexResponse
  */
 public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> implements IndicesRequest {
@@ -63,9 +63,14 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
 
     private String index;
 
-    private Settings settings = Settings.EMPTY;
+    private boolean requireDataStream;
 
-    private String mappings = "{}";
+    private boolean initializeFailureStore;
+
+    private Settings settings = Settings.EMPTY;
+    public static final String EMPTY_MAPPINGS = "{}";
+
+    private String mappings = EMPTY_MAPPINGS;
 
     private final Set<Alias> aliases = new HashSet<>();
 
@@ -82,7 +87,7 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
         cause = in.readString();
         index = in.readString();
         settings = readSettingsFromStream(in);
-        if (in.getTransportVersion().before(TransportVersion.V_8_0_0)) {
+        if (in.getTransportVersion().before(TransportVersions.V_8_0_0)) {
             int size = in.readVInt();
             assert size <= 1 : "Expected to read 0 or 1 mappings, but received " + size;
             if (size == 1) {
@@ -100,12 +105,24 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
             aliases.add(new Alias(in));
         }
         waitForActiveShards = ActiveShardCount.readFrom(in);
-        if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_12_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_12_0)) {
             origin = in.readString();
+        }
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
+            requireDataStream = in.readBoolean();
+        } else {
+            requireDataStream = false;
+        }
+        if (in.getTransportVersion().onOrAfter(TransportVersions.FAILURE_STORE_LAZY_CREATION)) {
+            initializeFailureStore = in.readBoolean();
+        } else {
+            initializeFailureStore = true;
         }
     }
 
-    public CreateIndexRequest() {}
+    public CreateIndexRequest() {
+        super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, DEFAULT_ACK_TIMEOUT);
+    }
 
     /**
      * Constructs a request to create an index.
@@ -123,6 +140,7 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
      * @param settings the settings to apply to the index
      */
     public CreateIndexRequest(String index, Settings settings) {
+        super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, DEFAULT_ACK_TIMEOUT);
         this.index = index;
         this.settings = settings;
     }
@@ -268,8 +286,11 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
     }
 
     private CreateIndexRequest mapping(String type, Map<String, ?> source) {
-        // wrap it in a type map if its not
-        if (source.size() != 1 || source.containsKey(type) == false) {
+        if (source.isEmpty()) {
+            // If no source is provided we return empty mappings
+            return mapping(EMPTY_MAPPINGS);
+        } else if (source.size() != 1 || source.containsKey(type) == false) {
+            // wrap it in a type map if its not
             source = Map.of(MapperService.SINGLE_MAPPING_NAME, source);
         } else if (MapperService.SINGLE_MAPPING_NAME.equals(type) == false) {
             // if it has a different type name, then unwrap and rewrap with _doc
@@ -447,13 +468,38 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
         return waitForActiveShards(ActiveShardCount.from(waitForActiveShards));
     }
 
+    public boolean isRequireDataStream() {
+        return requireDataStream;
+    }
+
+    /**
+     * Set whether this CreateIndexRequest requires a data stream. The data stream may be pre-existing or to-be-created.
+     */
+    public CreateIndexRequest requireDataStream(boolean requireDataStream) {
+        this.requireDataStream = requireDataStream;
+        return this;
+    }
+
+    public boolean isInitializeFailureStore() {
+        return initializeFailureStore;
+    }
+
+    /**
+     * Set whether this CreateIndexRequest should initialize the failure store on data stream creation. This can be necessary when, for
+     * example, a failure occurs while trying to ingest a document into a data stream that has to be auto-created.
+     */
+    public CreateIndexRequest initializeFailureStore(boolean initializeFailureStore) {
+        this.initializeFailureStore = initializeFailureStore;
+        return this;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeString(cause);
         out.writeString(index);
         settings.writeTo(out);
-        if (out.getTransportVersion().before(TransportVersion.V_8_0_0)) {
+        if (out.getTransportVersion().before(TransportVersions.V_8_0_0)) {
             if ("{}".equals(mappings)) {
                 out.writeVInt(0);
             } else {
@@ -466,8 +512,14 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
         }
         out.writeCollection(aliases);
         waitForActiveShards.writeTo(out);
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_12_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_12_0)) {
             out.writeString(origin);
+        }
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
+            out.writeBoolean(this.requireDataStream);
+        }
+        if (out.getTransportVersion().onOrAfter(TransportVersions.FAILURE_STORE_LAZY_CREATION)) {
+            out.writeBoolean(this.initializeFailureStore);
         }
     }
 

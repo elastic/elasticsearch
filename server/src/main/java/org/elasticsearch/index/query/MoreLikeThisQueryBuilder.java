@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.query;
@@ -16,6 +17,7 @@ import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.RoutingMissingException;
 import org.elasticsearch.action.termvectors.MultiTermVectorsItemResponse;
 import org.elasticsearch.action.termvectors.MultiTermVectorsRequest;
@@ -206,7 +208,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
         @SuppressWarnings("unchecked")
         Item(StreamInput in) throws IOException {
             index = in.readOptionalString();
-            if (in.getTransportVersion().before(TransportVersion.V_8_0_0)) {
+            if (in.getTransportVersion().before(TransportVersions.V_8_0_0)) {
                 // types no longer relevant so ignore
                 String type = in.readOptionalString();
                 if (type != null) {
@@ -229,7 +231,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeOptionalString(index);
-            if (out.getTransportVersion().before(TransportVersion.V_8_0_0)) {
+            if (out.getTransportVersion().before(TransportVersions.V_8_0_0)) {
                 // types not supported so send an empty array to previous versions
                 out.writeOptionalString(null);
             }
@@ -515,9 +517,9 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
     protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeOptionalStringArray(fields);
         out.writeStringArray(likeTexts);
-        out.writeList(Arrays.asList(likeItems));
+        out.writeCollection(Arrays.asList(likeItems));
         out.writeStringArray(unlikeTexts);
-        out.writeList(Arrays.asList(unlikeItems));
+        out.writeCollection(Arrays.asList(unlikeItems));
         out.writeVInt(maxQueryTerms);
         out.writeVInt(minTermFreq);
         out.writeVInt(minDocFreq);
@@ -1186,6 +1188,6 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.ZERO;
+        return TransportVersions.ZERO;
     }
 }

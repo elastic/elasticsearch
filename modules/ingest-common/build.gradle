@@ -1,12 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
-apply plugin: 'elasticsearch.legacy-yaml-rest-test'
-apply plugin: 'elasticsearch.legacy-yaml-rest-compat-test'
+import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
+
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
+apply plugin: 'elasticsearch.yaml-rest-compat-test'
 apply plugin: 'elasticsearch.internal-cluster-test'
 
 esplugin {
@@ -25,8 +28,12 @@ dependencies {
 
 restResources {
   restApi {
-    include '_common', 'ingest', 'cluster', 'indices', 'index', 'bulk', 'nodes', 'get', 'update', 'cat', 'mget'
+    include '_common', 'ingest', 'cluster', 'indices', 'index', 'bulk', 'nodes', 'get', 'update', 'cat', 'mget', 'search'
   }
+}
+
+tasks.withType(StandaloneRestIntegTestTask).configureEach {
+  usesDefaultDistribution()
 }
 
 testClusters.configureEach {
@@ -44,6 +51,6 @@ tasks.named("thirdPartyAudit").configure {
   )
 }
 
-tasks.named("yamlRestTestV7CompatTransform").configure { task ->
-  task.addAllowedWarningRegex("\\[types removal\\].*")
-}
+tasks.named("yamlRestCompatTestTransform").configure({ task ->
+  task.skipTest("ingest/30_date_processor/Test week based date parsing", "week-date behaviour has changed")
+})

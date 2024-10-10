@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.metrics;
@@ -20,7 +21,6 @@ import org.apache.lucene.search.TopDocsCollector;
 import org.apache.lucene.search.TopFieldCollector;
 import org.apache.lucene.search.TopFieldDocs;
 import org.apache.lucene.search.TopScoreDocCollector;
-import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.search.MaxScoreCollector;
 import org.elasticsearch.common.lucene.Lucene;
@@ -29,6 +29,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.LongObjectPagedHashMap;
 import org.elasticsearch.common.util.LongObjectPagedHashMap.Cursor;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.AggregationExecutionContext;
@@ -191,9 +192,7 @@ class TopHitsAggregator extends MetricsAggregator {
         for (int i = 0; i < topDocs.scoreDocs.length; i++) {
             docIdsToLoad[i] = topDocs.scoreDocs[i].doc;
         }
-        subSearchContext.docIdsToLoad(docIdsToLoad);
-        subSearchContext.fetchPhase().execute(subSearchContext);
-        FetchSearchResult fetchResult = subSearchContext.fetchResult();
+        FetchSearchResult fetchResult = runFetchPhase(subSearchContext, docIdsToLoad);
         if (fetchProfiles != null) {
             fetchProfiles.add(fetchResult.profileResult());
         }
@@ -217,15 +216,24 @@ class TopHitsAggregator extends MetricsAggregator {
         );
     }
 
+    private static FetchSearchResult runFetchPhase(SubSearchContext subSearchContext, int[] docIdsToLoad) {
+        // Fork the search execution context for each slice, because the fetch phase does not support concurrent execution yet.
+        SearchExecutionContext searchExecutionContext = new SearchExecutionContext(subSearchContext.getSearchExecutionContext());
+        SubSearchContext fetchSubSearchContext = new SubSearchContext(subSearchContext) {
+            @Override
+            public SearchExecutionContext getSearchExecutionContext() {
+                return searchExecutionContext;
+            }
+        };
+        fetchSubSearchContext.fetchPhase().execute(fetchSubSearchContext, docIdsToLoad, null);
+        return fetchSubSearchContext.fetchResult();
+    }
+
     @Override
     public InternalTopHits buildEmptyAggregation() {
         TopDocs topDocs;
         if (subSearchContext.sort() != null) {
-            topDocs = new TopFieldDocs(
-                new TotalHits(0, TotalHits.Relation.EQUAL_TO),
-                new FieldDoc[0],
-                subSearchContext.sort().sort.getSort()
-            );
+            topDocs = new TopFieldDocs(Lucene.TOTAL_HITS_EQUAL_TO_ZERO, new FieldDoc[0], subSearchContext.sort().sort.getSort());
         } else {
             topDocs = Lucene.EMPTY_TOP_DOCS;
         }

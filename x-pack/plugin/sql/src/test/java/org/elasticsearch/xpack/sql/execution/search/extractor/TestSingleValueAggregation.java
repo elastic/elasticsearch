@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.sql.execution.search.extractor;
 
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
+import org.elasticsearch.search.aggregations.AggregatorReducer;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -38,7 +39,7 @@ public class TestSingleValueAggregation extends InternalAggregation {
     }
 
     @Override
-    public InternalAggregation reduce(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
+    protected AggregatorReducer getLeaderReducer(AggregationReduceContext reduceContext, int size) {
         throw new UnsupportedOperationException();
     }
 

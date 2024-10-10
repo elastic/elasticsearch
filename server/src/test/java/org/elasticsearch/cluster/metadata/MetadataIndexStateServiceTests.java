@@ -1,14 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.metadata;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.close.CloseIndexResponse;
 import org.elasticsearch.action.admin.indices.close.CloseIndexResponse.IndexResult;
 import org.elasticsearch.cluster.ClusterName;
@@ -29,6 +29,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.ShardGeneration;
@@ -37,7 +38,7 @@ import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInProgressException;
 import org.elasticsearch.snapshots.SnapshotInfoTestUtils;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.test.index.IndexVersionUtils;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -47,9 +48,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
-import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
-import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_VERSION_CREATED;
 import static org.elasticsearch.cluster.metadata.MetadataIndexStateService.INDEX_CLOSED_BLOCK;
 import static org.elasticsearch.cluster.metadata.MetadataIndexStateService.INDEX_CLOSED_BLOCK_ID;
 import static org.elasticsearch.cluster.routing.TestShardRouting.newShardRouting;
@@ -277,12 +275,7 @@ public class MetadataIndexStateServiceTests extends ESTestCase {
             IndexMetadata indexMetadata = IndexMetadata.builder(indexName)
                 .state(IndexMetadata.State.CLOSE)
                 .creationDate(randomNonNegativeLong())
-                .settings(
-                    Settings.builder()
-                        .put(SETTING_VERSION_CREATED, Version.CURRENT)
-                        .put(SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 3))
-                        .put(SETTING_NUMBER_OF_REPLICAS, randomIntBetween(0, 3))
-                )
+                .settings(indexSettings(IndexVersion.current(), randomIntBetween(1, 3), randomIntBetween(0, 3)))
                 .build();
             assertFalse(MetadataIndexStateService.isIndexVerifiedBeforeClosed(indexMetadata));
         }
@@ -375,7 +368,7 @@ public class MetadataIndexStateServiceTests extends ESTestCase {
             snapshot,
             randomBoolean(),
             false,
-            SnapshotsInProgress.State.INIT,
+            SnapshotsInProgress.State.STARTED,
             Collections.singletonMap(index, new IndexId(index, index)),
             Collections.emptyList(),
             Collections.emptyList(),
@@ -384,7 +377,7 @@ public class MetadataIndexStateServiceTests extends ESTestCase {
             shardsBuilder,
             null,
             SnapshotInfoTestUtils.randomUserMetadata(),
-            VersionUtils.randomVersion(random())
+            IndexVersionUtils.randomVersion(random())
         );
         return ClusterState.builder(newState).putCustom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY.withAddedEntry(entry)).build();
     }
@@ -398,10 +391,7 @@ public class MetadataIndexStateServiceTests extends ESTestCase {
         @Nullable final ClusterBlock block
     ) {
 
-        final Settings.Builder settings = Settings.builder()
-            .put(SETTING_VERSION_CREATED, Version.CURRENT)
-            .put(SETTING_NUMBER_OF_SHARDS, numShards)
-            .put(SETTING_NUMBER_OF_REPLICAS, numReplicas);
+        final Settings.Builder settings = indexSettings(IndexVersion.current(), numShards, numReplicas);
         if (state == IndexMetadata.State.CLOSE) {
             settings.put(MetadataIndexStateService.VERIFIED_BEFORE_CLOSE_SETTING.getKey(), true);
         }
@@ -468,7 +458,7 @@ public class MetadataIndexStateServiceTests extends ESTestCase {
             assertThat(
                 RoutingNodesHelper.asStream(shardRoutingTable)
                     .map(ShardRouting::unassignedInfo)
-                    .map(UnassignedInfo::getReason)
+                    .map(UnassignedInfo::reason)
                     .allMatch(info -> info == UnassignedInfo.Reason.INDEX_CLOSED),
                 is(true)
             );

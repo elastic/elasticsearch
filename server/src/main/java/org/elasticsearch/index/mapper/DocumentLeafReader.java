@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
@@ -33,7 +34,7 @@ import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.index.memory.MemoryIndex;
 import org.apache.lucene.search.DocIdSetIterator;
-import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.search.KnnCollector;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 
@@ -148,38 +149,43 @@ class DocumentLeafReader extends LeafReader {
 
     @Override
     public void document(int docID, StoredFieldVisitor visitor) throws IOException {
-        List<IndexableField> fields = document.getFields().stream().filter(f -> f.fieldType().stored()).toList();
-        for (IndexableField field : fields) {
-            FieldInfo fieldInfo = fieldInfo(field.name());
-            if (visitor.needsField(fieldInfo) != StoredFieldVisitor.Status.YES) {
-                continue;
-            }
-            if (field.numericValue() != null) {
-                Number v = field.numericValue();
-                if (v instanceof Integer) {
-                    visitor.intField(fieldInfo, v.intValue());
-                } else if (v instanceof Long) {
-                    visitor.longField(fieldInfo, v.longValue());
-                } else if (v instanceof Float) {
-                    visitor.floatField(fieldInfo, v.floatValue());
-                } else if (v instanceof Double) {
-                    visitor.doubleField(fieldInfo, v.doubleValue());
-                }
-            } else if (field.stringValue() != null) {
-                visitor.stringField(fieldInfo, field.stringValue());
-            } else if (field.binaryValue() != null) {
-                // We can't just pass field.binaryValue().bytes here as there may be offset/length
-                // considerations
-                byte[] data = new byte[field.binaryValue().length];
-                System.arraycopy(field.binaryValue().bytes, field.binaryValue().offset, data, 0, data.length);
-                visitor.binaryField(fieldInfo, data);
-            }
-        }
+        storedFields().document(docID, visitor);
     }
 
     @Override
     public StoredFields storedFields() throws IOException {
-        throw new UnsupportedOperationException();
+        return new StoredFields() {
+            @Override
+            public void document(int docID, StoredFieldVisitor visitor) throws IOException {
+                List<IndexableField> fields = document.getFields().stream().filter(f -> f.fieldType().stored()).toList();
+                for (IndexableField field : fields) {
+                    FieldInfo fieldInfo = fieldInfo(field.name());
+                    if (visitor.needsField(fieldInfo) != StoredFieldVisitor.Status.YES) {
+                        continue;
+                    }
+                    if (field.numericValue() != null) {
+                        Number v = field.numericValue();
+                        if (v instanceof Integer) {
+                            visitor.intField(fieldInfo, v.intValue());
+                        } else if (v instanceof Long) {
+                            visitor.longField(fieldInfo, v.longValue());
+                        } else if (v instanceof Float) {
+                            visitor.floatField(fieldInfo, v.floatValue());
+                        } else if (v instanceof Double) {
+                            visitor.doubleField(fieldInfo, v.doubleValue());
+                        }
+                    } else if (field.stringValue() != null) {
+                        visitor.stringField(fieldInfo, field.stringValue());
+                    } else if (field.binaryValue() != null) {
+                        // We can't just pass field.binaryValue().bytes here as there may be offset/length
+                        // considerations
+                        byte[] data = new byte[field.binaryValue().length];
+                        System.arraycopy(field.binaryValue().bytes, field.binaryValue().offset, data, 0, data.length);
+                        visitor.binaryField(fieldInfo, data);
+                    }
+                }
+            }
+        };
     }
 
     @Override
@@ -203,7 +209,7 @@ class DocumentLeafReader extends LeafReader {
     }
 
     @Override
-    public TopDocs searchNearestVectors(String field, float[] target, int k, Bits acceptDocs, int visitedLimit) {
+    public void searchNearestVectors(String field, float[] target, KnnCollector knnCollector, Bits acceptDocs) {
         throw new UnsupportedOperationException();
     }
 
@@ -253,7 +259,7 @@ class DocumentLeafReader extends LeafReader {
     }
 
     @Override
-    public TopDocs searchNearestVectors(String field, byte[] target, int k, Bits acceptDocs, int visitedLimit) {
+    public void searchNearestVectors(String field, byte[] target, KnnCollector knnCollector, Bits acceptDocs) {
         throw new UnsupportedOperationException();
     }
 
@@ -286,6 +292,7 @@ class DocumentLeafReader extends LeafReader {
             0,
             VectorEncoding.FLOAT32,
             VectorSimilarityFunction.EUCLIDEAN,
+            false,
             false
         );
     }

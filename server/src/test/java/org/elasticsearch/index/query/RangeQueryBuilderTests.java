@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.query;
@@ -34,12 +35,12 @@ import java.io.IOException;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
-import java.util.HashMap;
-import java.util.Map;
 
 import static org.elasticsearch.index.query.QueryBuilders.rangeQuery;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
 public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuilder> {
@@ -106,44 +107,6 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
             );
         }
         return query;
-    }
-
-    @Override
-    protected Map<String, RangeQueryBuilder> getAlternateVersions() {
-        Map<String, RangeQueryBuilder> alternateVersions = new HashMap<>();
-        RangeQueryBuilder rangeQueryBuilder = new RangeQueryBuilder(INT_FIELD_NAME);
-
-        rangeQueryBuilder.includeLower(randomBoolean());
-        rangeQueryBuilder.includeUpper(randomBoolean());
-
-        if (randomBoolean()) {
-            rangeQueryBuilder.from(randomIntBetween(1, 100));
-        }
-
-        if (randomBoolean()) {
-            rangeQueryBuilder.to(randomIntBetween(101, 200));
-        }
-
-        String query = Strings.format(
-            """
-                {
-                    "range":{
-                        "%s": {
-                            "include_lower":%s,
-                            "include_upper":%s,
-                            "from":%s,
-                            "to":%s
-                        }
-                    }
-                }""",
-            INT_FIELD_NAME,
-            rangeQueryBuilder.includeLower(),
-            rangeQueryBuilder.includeUpper(),
-            rangeQueryBuilder.from(),
-            rangeQueryBuilder.to()
-        );
-        alternateVersions.put(query, rangeQueryBuilder);
-        return alternateVersions;
     }
 
     @Override
@@ -417,8 +380,8 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
             {
               "range" : {
                 "timestamp" : {
-                  "from" : "2015-01-01 00:00:00",
-                  "to" : "now",
+                  "gte" : "2015-01-01 00:00:00",
+                  "lte" : "now",
                   "boost" : 1.0,
                   "_name" : "my_range"
                 }
@@ -431,7 +394,7 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
         String fieldName = DATE_FIELD_NAME;
         RangeQueryBuilder query = new RangeQueryBuilder(fieldName) {
             @Override
-            protected MappedFieldType.Relation getRelation(QueryRewriteContext queryRewriteContext) {
+            protected MappedFieldType.Relation getRelation(SearchExecutionContext context) {
                 return Relation.WITHIN;
             }
         };
@@ -466,7 +429,7 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
         String fieldName = DATE_FIELD_NAME;
         RangeQueryBuilder query = new RangeQueryBuilder(fieldName) {
             @Override
-            protected MappedFieldType.Relation getRelation(QueryRewriteContext queryRewriteContext) {
+            protected MappedFieldType.Relation getRelation(SearchExecutionContext context) {
                 return Relation.WITHIN;
             }
         };
@@ -491,7 +454,7 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
         String fieldName = randomAlphaOfLengthBetween(1, 20);
         RangeQueryBuilder query = new RangeQueryBuilder(fieldName) {
             @Override
-            protected MappedFieldType.Relation getRelation(QueryRewriteContext queryRewriteContext) {
+            protected MappedFieldType.Relation getRelation(SearchExecutionContext context) {
                 return Relation.DISJOINT;
             }
         };
@@ -508,7 +471,7 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
         String fieldName = randomAlphaOfLengthBetween(1, 20);
         RangeQueryBuilder query = new RangeQueryBuilder(fieldName) {
             @Override
-            protected MappedFieldType.Relation getRelation(QueryRewriteContext queryRewriteContext) {
+            protected MappedFieldType.Relation getRelation(SearchExecutionContext context) {
                 return Relation.INTERSECTS;
             }
         };
@@ -525,13 +488,114 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
         String fieldName = randomAlphaOfLengthBetween(1, 20);
         RangeQueryBuilder query = new RangeQueryBuilder(fieldName) {
             @Override
-            protected MappedFieldType.Relation getRelation(QueryRewriteContext queryRewriteContext) {
+            protected MappedFieldType.Relation getRelation(SearchExecutionContext context) {
                 return Relation.INTERSECTS;
             }
         };
         SearchExecutionContext searchExecutionContext = createSearchExecutionContext();
         QueryBuilder rewritten = query.rewrite(searchExecutionContext);
         assertThat(rewritten, sameInstance(query));
+    }
+
+    public void testCoordinatorRewrite() throws IOException {
+        final String fieldName = randomAlphaOfLengthBetween(1, 20);
+        final RangeQueryBuilder query = new RangeQueryBuilder(fieldName) {
+            @Override
+            protected QueryBuilder doCoordinatorRewrite(CoordinatorRewriteContext coordinatorRewriteContext) {
+                return new MatchNoneQueryBuilder();
+            }
+
+            @Override
+            protected QueryBuilder doSearchRewrite(SearchExecutionContext searchExecutionContext) throws IOException {
+                throw new UnsupportedOperationException("Unexpected rewrite on data node");
+            }
+        };
+        final CoordinatorRewriteContext coordinatorRewriteContext = createCoordinatorRewriteContext(
+            new DateFieldMapper.DateFieldType("@timestamp"),
+            randomIntBetween(0, 1_100_000),
+            randomIntBetween(1_500_000, Integer.MAX_VALUE)
+        );
+        final QueryBuilder rewritten = query.rewrite(coordinatorRewriteContext);
+        assertThat(rewritten, not(sameInstance(query)));
+    }
+
+    public void testCoordinatorRewriteTimestampField() throws IOException {
+        final String timestampFieldName = "@timestamp";
+        RangeQueryBuilder query = new RangeQueryBuilder(timestampFieldName) {
+            @Override
+            protected QueryBuilder doSearchRewrite(SearchExecutionContext searchExecutionContext) throws IOException {
+                throw new UnsupportedOperationException("Unexpected rewrite on data node");
+            }
+        };
+        long minTimestamp = 1685714000000L;
+        long maxTimestamp = 1685715000000L;
+        final CoordinatorRewriteContext coordinatorRewriteContext = createCoordinatorRewriteContext(
+            new DateFieldMapper.DateFieldType(timestampFieldName),
+            minTimestamp,
+            maxTimestamp
+        );
+
+        // Before timestamp field range, so rewrites to match no docs:
+        long range = 10000L;
+        query.from(minTimestamp - range);
+        query.to(minTimestamp - 1);
+        QueryBuilder rewritten = query.rewrite(coordinatorRewriteContext);
+        assertThat(rewritten, not(sameInstance(query)));
+        assertThat(rewritten, instanceOf(MatchNoneQueryBuilder.class));
+
+        // After timestamp field range, so rewrites to match no docs:
+        query.from(maxTimestamp + 1);
+        query.to(maxTimestamp + range);
+        rewritten = query.rewrite(coordinatorRewriteContext);
+        assertThat(rewritten, not(sameInstance(query)));
+        assertThat(rewritten, instanceOf(MatchNoneQueryBuilder.class));
+
+        // Range within timestamp field range, so rewrite to open bounded range query:
+        query.from(minTimestamp - range);
+        query.to(maxTimestamp + range);
+        rewritten = query.rewrite(coordinatorRewriteContext);
+        assertThat(rewritten, not(sameInstance(query)));
+        assertThat(rewritten, instanceOf(RangeQueryBuilder.class));
+        RangeQueryBuilder rewrittenRangeQuery = (RangeQueryBuilder) rewritten;
+        assertThat(rewrittenRangeQuery.fieldName(), equalTo(timestampFieldName));
+        assertThat(rewrittenRangeQuery.from(), nullValue());
+        assertThat(rewrittenRangeQuery.to(), nullValue());
+
+        // Overlaps with timestamp field range, nothing that can be done so rewrite does nothing:
+        query.from(minTimestamp - (range / 2));
+        query.to(minTimestamp + (range / 2));
+        rewritten = query.rewrite(coordinatorRewriteContext);
+        assertThat(rewritten, sameInstance(query));
+
+        // Use different field name than timestamp field name, coordinating node rewrite should do nothing:
+        RangeQueryBuilder otherQuery = new RangeQueryBuilder("other_field") {
+            @Override
+            protected QueryBuilder doSearchRewrite(SearchExecutionContext searchExecutionContext) throws IOException {
+                throw new UnsupportedOperationException("Unexpected rewrite on data node");
+            }
+        };
+        otherQuery.from(minTimestamp - range);
+        otherQuery.to(minTimestamp - 1);
+        rewritten = otherQuery.rewrite(coordinatorRewriteContext);
+        assertThat(rewritten, sameInstance(otherQuery));
+    }
+
+    public void testNoCoordinatorRewrite() throws IOException {
+        final String fieldName = randomAlphaOfLengthBetween(1, 20);
+        final RangeQueryBuilder query = new RangeQueryBuilder(fieldName) {
+            @Override
+            protected QueryBuilder doCoordinatorRewrite(CoordinatorRewriteContext coordinatorRewriteContext) {
+                throw new UnsupportedOperationException("Unexpected rewrite on coordinator node");
+            }
+
+            @Override
+            protected QueryBuilder doSearchRewrite(SearchExecutionContext searchExecutionContext) throws IOException {
+                return new MatchNoneQueryBuilder();
+            }
+        };
+        final SearchExecutionContext searchExecutionContext = createSearchExecutionContext();
+        final QueryBuilder rewritten = query.rewrite(searchExecutionContext);
+        assertThat(rewritten, not(sameInstance(query)));
     }
 
     public void testParseFailsWithMultipleFields() {

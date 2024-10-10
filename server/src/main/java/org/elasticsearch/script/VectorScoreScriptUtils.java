@@ -1,21 +1,27 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.script;
 
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.features.NodeFeature;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.script.field.vectors.DenseVector;
 import org.elasticsearch.script.field.vectors.DenseVectorDocValuesField;
 
 import java.io.IOException;
+import java.util.HexFormat;
 import java.util.List;
 
 public class VectorScoreScriptUtils {
+
+    public static final NodeFeature HAMMING_DISTANCE_FUNCTION = new NodeFeature("script.hamming");
 
     public static class DenseVectorFunction {
         protected final ScoreScript scoreScript;
@@ -51,7 +57,7 @@ public class VectorScoreScriptUtils {
          */
         public ByteDenseVectorFunction(ScoreScript scoreScript, DenseVectorDocValuesField field, List<Number> queryVector) {
             super(scoreScript, field);
-            DenseVector.checkDimensions(field.get().getDims(), queryVector.size());
+            field.getElementType().checkDimensions(field.get().getDims(), queryVector.size());
             this.queryVector = new byte[queryVector.size()];
             float[] validateValues = new float[queryVector.size()];
             int queryMagnitude = 0;
@@ -64,6 +70,23 @@ public class VectorScoreScriptUtils {
             }
             this.qvMagnitude = (float) Math.sqrt(queryMagnitude);
             field.getElementType().checkVectorBounds(validateValues);
+        }
+
+        /**
+         * Constructs a dense vector function used for byte-sized vectors.
+         *
+         * @param scoreScript The script in which this function was referenced.
+         * @param field The vector field.
+         * @param queryVector The query vector.
+         */
+        public ByteDenseVectorFunction(ScoreScript scoreScript, DenseVectorDocValuesField field, byte[] queryVector) {
+            super(scoreScript, field);
+            this.queryVector = queryVector;
+            float queryMagnitude = 0.0f;
+            for (byte value : queryVector) {
+                queryMagnitude += value * value;
+            }
+            this.qvMagnitude = (float) Math.sqrt(queryMagnitude);
         }
     }
 
@@ -99,7 +122,7 @@ public class VectorScoreScriptUtils {
 
             if (normalizeQuery) {
                 for (int dim = 0; dim < this.queryVector.length; dim++) {
-                    this.queryVector[dim] /= queryMagnitude;
+                    this.queryVector[dim] /= (float) queryMagnitude;
                 }
             }
         }
@@ -113,6 +136,10 @@ public class VectorScoreScriptUtils {
     public static class ByteL1Norm extends ByteDenseVectorFunction implements L1NormInterface {
 
         public ByteL1Norm(ScoreScript scoreScript, DenseVectorDocValuesField field, List<Number> queryVector) {
+            super(scoreScript, field, queryVector);
+        }
+
+        public ByteL1Norm(ScoreScript scoreScript, DenseVectorDocValuesField field, byte[] queryVector) {
             super(scoreScript, field, queryVector);
         }
 
@@ -138,16 +165,76 @@ public class VectorScoreScriptUtils {
 
         private final L1NormInterface function;
 
-        public L1Norm(ScoreScript scoreScript, List<Number> queryVector, String fieldName) {
+        @SuppressWarnings("unchecked")
+        public L1Norm(ScoreScript scoreScript, Object queryVector, String fieldName) {
             DenseVectorDocValuesField field = (DenseVectorDocValuesField) scoreScript.field(fieldName);
             function = switch (field.getElementType()) {
-                case BYTE -> new ByteL1Norm(scoreScript, field, queryVector);
-                case FLOAT -> new FloatL1Norm(scoreScript, field, queryVector);
+                case BYTE, BIT -> {
+                    if (queryVector instanceof List) {
+                        yield new ByteL1Norm(scoreScript, field, (List<Number>) queryVector);
+                    } else if (queryVector instanceof String s) {
+                        byte[] parsedQueryVector = HexFormat.of().parseHex(s);
+                        yield new ByteL1Norm(scoreScript, field, parsedQueryVector);
+                    }
+                    throw new IllegalArgumentException("Unsupported input object for byte vectors: " + queryVector.getClass().getName());
+                }
+                case FLOAT -> {
+                    if (queryVector instanceof List) {
+                        yield new FloatL1Norm(scoreScript, field, (List<Number>) queryVector);
+                    }
+                    throw new IllegalArgumentException("Unsupported input object for float vectors: " + queryVector.getClass().getName());
+                }
             };
         }
 
         public double l1norm() {
             return function.l1norm();
+        }
+    }
+
+    // Calculate Hamming distances between a query's dense vector and documents' dense vectors
+    public interface HammingDistanceInterface {
+        int hamming();
+    }
+
+    public static class ByteHammingDistance extends ByteDenseVectorFunction implements HammingDistanceInterface {
+
+        public ByteHammingDistance(ScoreScript scoreScript, DenseVectorDocValuesField field, List<Number> queryVector) {
+            super(scoreScript, field, queryVector);
+        }
+
+        public ByteHammingDistance(ScoreScript scoreScript, DenseVectorDocValuesField field, byte[] queryVector) {
+            super(scoreScript, field, queryVector);
+        }
+
+        public int hamming() {
+            setNextVector();
+            return field.get().hamming(queryVector);
+        }
+    }
+
+    public static final class Hamming {
+
+        private final HammingDistanceInterface function;
+
+        @SuppressWarnings("unchecked")
+        public Hamming(ScoreScript scoreScript, Object queryVector, String fieldName) {
+            DenseVectorDocValuesField field = (DenseVectorDocValuesField) scoreScript.field(fieldName);
+            if (field.getElementType() == DenseVectorFieldMapper.ElementType.FLOAT) {
+                throw new IllegalArgumentException("hamming distance is only supported for byte or bit vectors");
+            }
+            if (queryVector instanceof List) {
+                function = new ByteHammingDistance(scoreScript, field, (List<Number>) queryVector);
+            } else if (queryVector instanceof String s) {
+                byte[] parsedQueryVector = HexFormat.of().parseHex(s);
+                function = new ByteHammingDistance(scoreScript, field, parsedQueryVector);
+            } else {
+                throw new IllegalArgumentException("Unsupported input object for byte vectors: " + queryVector.getClass().getName());
+            }
+        }
+
+        public double hamming() {
+            return function.hamming();
         }
     }
 
@@ -159,6 +246,10 @@ public class VectorScoreScriptUtils {
     public static class ByteL2Norm extends ByteDenseVectorFunction implements L2NormInterface {
 
         public ByteL2Norm(ScoreScript scoreScript, DenseVectorDocValuesField field, List<Number> queryVector) {
+            super(scoreScript, field, queryVector);
+        }
+
+        public ByteL2Norm(ScoreScript scoreScript, DenseVectorDocValuesField field, byte[] queryVector) {
             super(scoreScript, field, queryVector);
         }
 
@@ -184,11 +275,25 @@ public class VectorScoreScriptUtils {
 
         private final L2NormInterface function;
 
-        public L2Norm(ScoreScript scoreScript, List<Number> queryVector, String fieldName) {
+        @SuppressWarnings("unchecked")
+        public L2Norm(ScoreScript scoreScript, Object queryVector, String fieldName) {
             DenseVectorDocValuesField field = (DenseVectorDocValuesField) scoreScript.field(fieldName);
             function = switch (field.getElementType()) {
-                case BYTE -> new ByteL2Norm(scoreScript, field, queryVector);
-                case FLOAT -> new FloatL2Norm(scoreScript, field, queryVector);
+                case BYTE, BIT -> {
+                    if (queryVector instanceof List) {
+                        yield new ByteL2Norm(scoreScript, field, (List<Number>) queryVector);
+                    } else if (queryVector instanceof String s) {
+                        byte[] parsedQueryVector = HexFormat.of().parseHex(s);
+                        yield new ByteL2Norm(scoreScript, field, parsedQueryVector);
+                    }
+                    throw new IllegalArgumentException("Unsupported input object for byte vectors: " + queryVector.getClass().getName());
+                }
+                case FLOAT -> {
+                    if (queryVector instanceof List) {
+                        yield new FloatL2Norm(scoreScript, field, (List<Number>) queryVector);
+                    }
+                    throw new IllegalArgumentException("Unsupported input object for float vectors: " + queryVector.getClass().getName());
+                }
             };
         }
 
@@ -205,6 +310,10 @@ public class VectorScoreScriptUtils {
     public static class ByteDotProduct extends ByteDenseVectorFunction implements DotProductInterface {
 
         public ByteDotProduct(ScoreScript scoreScript, DenseVectorDocValuesField field, List<Number> queryVector) {
+            super(scoreScript, field, queryVector);
+        }
+
+        public ByteDotProduct(ScoreScript scoreScript, DenseVectorDocValuesField field, byte[] queryVector) {
             super(scoreScript, field, queryVector);
         }
 
@@ -230,11 +339,25 @@ public class VectorScoreScriptUtils {
 
         private final DotProductInterface function;
 
-        public DotProduct(ScoreScript scoreScript, List<Number> queryVector, String fieldName) {
+        @SuppressWarnings("unchecked")
+        public DotProduct(ScoreScript scoreScript, Object queryVector, String fieldName) {
             DenseVectorDocValuesField field = (DenseVectorDocValuesField) scoreScript.field(fieldName);
             function = switch (field.getElementType()) {
-                case BYTE -> new ByteDotProduct(scoreScript, field, queryVector);
-                case FLOAT -> new FloatDotProduct(scoreScript, field, queryVector);
+                case BYTE, BIT -> {
+                    if (queryVector instanceof List) {
+                        yield new ByteDotProduct(scoreScript, field, (List<Number>) queryVector);
+                    } else if (queryVector instanceof String s) {
+                        byte[] parsedQueryVector = HexFormat.of().parseHex(s);
+                        yield new ByteDotProduct(scoreScript, field, parsedQueryVector);
+                    }
+                    throw new IllegalArgumentException("Unsupported input object for byte vectors: " + queryVector.getClass().getName());
+                }
+                case FLOAT -> {
+                    if (queryVector instanceof List) {
+                        yield new FloatDotProduct(scoreScript, field, (List<Number>) queryVector);
+                    }
+                    throw new IllegalArgumentException("Unsupported input object for float vectors: " + queryVector.getClass().getName());
+                }
             };
         }
 
@@ -251,6 +374,10 @@ public class VectorScoreScriptUtils {
     public static class ByteCosineSimilarity extends ByteDenseVectorFunction implements CosineSimilarityInterface {
 
         public ByteCosineSimilarity(ScoreScript scoreScript, DenseVectorDocValuesField field, List<Number> queryVector) {
+            super(scoreScript, field, queryVector);
+        }
+
+        public ByteCosineSimilarity(ScoreScript scoreScript, DenseVectorDocValuesField field, byte[] queryVector) {
             super(scoreScript, field, queryVector);
         }
 
@@ -276,11 +403,25 @@ public class VectorScoreScriptUtils {
 
         private final CosineSimilarityInterface function;
 
-        public CosineSimilarity(ScoreScript scoreScript, List<Number> queryVector, String fieldName) {
+        @SuppressWarnings("unchecked")
+        public CosineSimilarity(ScoreScript scoreScript, Object queryVector, String fieldName) {
             DenseVectorDocValuesField field = (DenseVectorDocValuesField) scoreScript.field(fieldName);
             function = switch (field.getElementType()) {
-                case BYTE -> new ByteCosineSimilarity(scoreScript, field, queryVector);
-                case FLOAT -> new FloatCosineSimilarity(scoreScript, field, queryVector);
+                case BYTE, BIT -> {
+                    if (queryVector instanceof List) {
+                        yield new ByteCosineSimilarity(scoreScript, field, (List<Number>) queryVector);
+                    } else if (queryVector instanceof String s) {
+                        byte[] parsedQueryVector = HexFormat.of().parseHex(s);
+                        yield new ByteCosineSimilarity(scoreScript, field, parsedQueryVector);
+                    }
+                    throw new IllegalArgumentException("Unsupported input object for byte vectors: " + queryVector.getClass().getName());
+                }
+                case FLOAT -> {
+                    if (queryVector instanceof List) {
+                        yield new FloatCosineSimilarity(scoreScript, field, (List<Number>) queryVector);
+                    }
+                    throw new IllegalArgumentException("Unsupported input object for float vectors: " + queryVector.getClass().getName());
+                }
             };
         }
 

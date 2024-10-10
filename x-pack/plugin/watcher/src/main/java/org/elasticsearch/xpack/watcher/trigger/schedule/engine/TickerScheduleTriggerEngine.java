@@ -14,6 +14,7 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.xpack.core.watcher.support.WatcherDateTimeUtils;
 import org.elasticsearch.xpack.core.watcher.trigger.TriggerEvent;
 import org.elasticsearch.xpack.core.watcher.watch.Watch;
 import org.elasticsearch.xpack.watcher.trigger.schedule.Schedule;
@@ -33,6 +34,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.common.settings.Setting.positiveTimeSetting;
 
@@ -49,6 +51,7 @@ public class TickerScheduleTriggerEngine extends ScheduleTriggerEngine {
     private final TimeValue tickInterval;
     private final Map<String, ActiveSchedule> schedules = new ConcurrentHashMap<>();
     private final Ticker ticker;
+    private final AtomicBoolean isRunning = new AtomicBoolean(false);
 
     public TickerScheduleTriggerEngine(Settings settings, ScheduleRegistry scheduleRegistry, Clock clock) {
         super(scheduleRegistry, clock);
@@ -59,9 +62,11 @@ public class TickerScheduleTriggerEngine extends ScheduleTriggerEngine {
     @Override
     public synchronized void start(Collection<Watch> jobs) {
         long startTime = clock.millis();
+        isRunning.set(true);
+        logger.info("Starting watcher engine at {}", WatcherDateTimeUtils.dateTimeFormatter.formatMillis(startTime));
         Map<String, ActiveSchedule> startingSchedules = Maps.newMapWithExpectedSize(jobs.size());
         for (Watch job : jobs) {
-            if (job.trigger()instanceof ScheduleTrigger trigger) {
+            if (job.trigger() instanceof ScheduleTrigger trigger) {
                 startingSchedules.put(job.id(), new ActiveSchedule(job.id(), trigger.getSchedule(), startTime));
             }
         }
@@ -79,17 +84,22 @@ public class TickerScheduleTriggerEngine extends ScheduleTriggerEngine {
 
     @Override
     public void stop() {
+        logger.info("Stopping watcher engine");
+        isRunning.set(false);
         schedules.clear();
         ticker.close();
     }
 
     @Override
-    public synchronized void pauseExecution() {
+    public void pauseExecution() {
+        logger.info("Pausing watcher engine");
+        isRunning.set(false);
         schedules.clear();
     }
 
     @Override
     public void add(Watch watch) {
+        logger.trace("Adding watch [{}] to engine (engine is running: {})", watch.id(), isRunning.get());
         assert watch.trigger() instanceof ScheduleTrigger;
         ScheduleTrigger trigger = (ScheduleTrigger) watch.trigger();
         ActiveSchedule currentSchedule = schedules.get(watch.id());
@@ -104,13 +114,25 @@ public class TickerScheduleTriggerEngine extends ScheduleTriggerEngine {
 
     @Override
     public boolean remove(String jobId) {
+        logger.debug("Removing watch [{}] from engine (engine is running: {})", jobId, isRunning.get());
         return schedules.remove(jobId) != null;
     }
 
     void checkJobs() {
+        if (isRunning.get() == false) {
+            logger.debug(
+                "Watcher not running because the engine is paused. Currently scheduled watches being skipped: {}",
+                schedules.size()
+            );
+            return;
+        }
         long triggeredTime = clock.millis();
         List<TriggerEvent> events = new ArrayList<>();
         for (ActiveSchedule schedule : schedules.values()) {
+            if (isRunning.get() == false) {
+                logger.debug("Watcher paused while running [{}]", schedule.name);
+                break;
+            }
             long scheduledTime = schedule.check(triggeredTime);
             if (scheduledTime > 0) {
                 ZonedDateTime triggeredDateTime = utcDateTimeAtEpochMillis(triggeredTime);
@@ -128,7 +150,7 @@ public class TickerScheduleTriggerEngine extends ScheduleTriggerEngine {
         }
     }
 
-    private ZonedDateTime utcDateTimeAtEpochMillis(long triggeredTime) {
+    private static ZonedDateTime utcDateTimeAtEpochMillis(long triggeredTime) {
         return Instant.ofEpochMilli(triggeredTime).atZone(ZoneOffset.UTC);
     }
 
@@ -154,6 +176,11 @@ public class TickerScheduleTriggerEngine extends ScheduleTriggerEngine {
             this.schedule = schedule;
             this.startTime = startTime;
             this.scheduledTime = schedule.nextScheduledTimeAfter(startTime, startTime);
+            logger.debug(
+                "Watcher: activating schedule for watch '{}', first run at {}",
+                name,
+                WatcherDateTimeUtils.dateTimeFormatter.formatMillis(scheduledTime)
+            );
         }
 
         /**

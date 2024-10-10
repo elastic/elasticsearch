@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.script.mustache;
@@ -13,6 +14,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.rest.action.search.RestMultiSearchAction;
 import org.elasticsearch.rest.action.search.RestSearchAction;
@@ -24,6 +27,7 @@ import java.util.Set;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
+@ServerlessScope(Scope.PUBLIC)
 public class RestMultiSearchTemplateAction extends BaseRestHandler {
     static final String TYPES_DEPRECATION_MESSAGE = "[types removal]"
         + " Specifying types in multi search template requests is deprecated.";
@@ -56,7 +60,7 @@ public class RestMultiSearchTemplateAction extends BaseRestHandler {
     @Override
     public RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         MultiSearchTemplateRequest multiRequest = parseRequest(request, allowExplicitIndex);
-        return channel -> client.execute(MultiSearchTemplateAction.INSTANCE, multiRequest, new RestToXContentListener<>(channel));
+        return channel -> client.execute(MustachePlugin.MULTI_SEARCH_TEMPLATE_ACTION, multiRequest, new RestToXContentListener<>(channel));
     }
 
     /**
@@ -91,7 +95,7 @@ public class RestMultiSearchTemplateAction extends BaseRestHandler {
     }
 
     @Override
-    public boolean supportsContentStream() {
+    public boolean supportsBulkContent() {
         return true;
     }
 

@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.enrich;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.Releasable;
 
-import java.util.HashSet;
+import java.util.Collections;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Semaphore;
@@ -108,11 +108,13 @@ public class EnrichPolicyLocks {
     }
 
     public Set<String> lockedPolices() {
-        return new HashSet<>(policyLocks.keySet());
+        // Wrap as unmodifiable instead of copying
+        return Collections.unmodifiableSet(policyLocks.keySet());
     }
 
     public Set<String> inflightPolicyIndices() {
-        return new HashSet<>(workingIndices.keySet());
+        // Wrap as unmodifiable instead of copying
+        return Collections.unmodifiableSet(workingIndices.keySet());
     }
 
 }

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.bucket.terms;
@@ -16,6 +17,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BytesRefHash;
 import org.elasticsearch.common.util.ObjectArray;
@@ -133,7 +135,7 @@ public class SignificantTextAggregatorFactory extends AggregatorFactory {
         }
 
         BucketCountThresholds bucketCountThresholds = new BucketCountThresholds(this.bucketCountThresholds);
-        if (bucketCountThresholds.getShardSize() == SignificantTextAggregationBuilder.DEFAULT_BUCKET_COUNT_THRESHOLDS.getShardSize()) {
+        if (bucketCountThresholds.getShardSize() == SignificantTextAggregationBuilder.DEFAULT_BUCKET_COUNT_THRESHOLDS.shardSize()) {
             // The user has not made a shardSize selection.
             // Use default heuristic to avoid any wrong-ranking caused by
             // distributed counting but request double the usual amount.
@@ -150,10 +152,10 @@ public class SignificantTextAggregatorFactory extends AggregatorFactory {
         // If min_doc_count and shard_min_doc_count is provided, we do not support them being larger than 1
         // This is because we cannot be sure about their relative scale when sampled
         if (samplingContext.isSampled()) {
-            if ((bucketCountThresholds.getMinDocCount() != SignificantTextAggregationBuilder.DEFAULT_BUCKET_COUNT_THRESHOLDS
-                .getMinDocCount() && bucketCountThresholds.getMinDocCount() > 1)
+            if ((bucketCountThresholds.getMinDocCount() != SignificantTextAggregationBuilder.DEFAULT_BUCKET_COUNT_THRESHOLDS.minDocCount()
+                && bucketCountThresholds.getMinDocCount() > 1)
                 || (bucketCountThresholds.getShardMinDocCount() != SignificantTextAggregationBuilder.DEFAULT_BUCKET_COUNT_THRESHOLDS
-                    .getMinDocCount() && bucketCountThresholds.getShardMinDocCount() > 1)) {
+                    .minDocCount() && bucketCountThresholds.getShardMinDocCount() > 1)) {
                 throw new ElasticsearchStatusException(
                     "aggregation [{}] is within a sampling context; "
                         + "min_doc_count, provided [{}], and min_shard_doc_count, provided [{}], cannot be greater than 1",
@@ -189,7 +191,8 @@ public class SignificantTextAggregatorFactory extends AggregatorFactory {
                 SubAggCollectionMode.BREADTH_FIRST,
                 false,
                 cardinality,
-                metadata
+                metadata,
+                false
             );
             success = true;
             return mapStringTermsAggregator;
@@ -316,7 +319,7 @@ public class SignificantTextAggregatorFactory extends AggregatorFactory {
                     Source source = sourceProvider.getSource(ctx, doc).filter(sourceFilter);
                     try {
                         for (String sourceField : sourceFieldNames) {
-                            Iterator<String> itr = extractRawValues(source, sourceField).stream().map(obj -> {
+                            Iterator<String> itr = Iterators.map(extractRawValues(source, sourceField).iterator(), obj -> {
                                 if (obj == null) {
                                     return null;
                                 }
@@ -324,7 +327,7 @@ public class SignificantTextAggregatorFactory extends AggregatorFactory {
                                     return fieldType.valueForDisplay(obj).toString();
                                 }
                                 return obj.toString();
-                            }).iterator();
+                            });
                             while (itr.hasNext()) {
                                 String text = itr.next();
                                 TokenStream ts = analyzer.tokenStream(fieldType.name(), text);

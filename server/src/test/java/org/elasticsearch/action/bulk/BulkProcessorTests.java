@@ -1,15 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.bulk;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
@@ -17,6 +16,7 @@ import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.common.BackoffPolicy;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -26,6 +26,7 @@ import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.ScheduledExecutorServiceScheduler;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -39,6 +40,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
@@ -57,7 +59,6 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 public class BulkProcessorTests extends ESTestCase {
 
     private ThreadPool threadPool;
-    private final Logger logger = LogManager.getLogger(BulkProcessorTests.class);
 
     @Before
     public void startThreadPool() {
@@ -225,7 +226,7 @@ public class BulkProcessorTests extends ESTestCase {
                 maxBatchSize,
                 ByteSizeValue.ofBytes(Integer.MAX_VALUE),
                 null,
-                (command, delay, executor) -> null,
+                UnusedScheduler.INSTANCE,
                 () -> called.set(true),
                 BulkRequest::new
             )
@@ -344,9 +345,7 @@ public class BulkProcessorTests extends ESTestCase {
                 maxBatchSize,
                 ByteSizeValue.ofBytes(Integer.MAX_VALUE),
                 TimeValue.timeValueMillis(simulateWorkTimeInMillis * 2),
-                (command, delay, executor) -> Scheduler.wrapAsScheduledCancellable(
-                    flushExecutor.schedule(command, delay.millis(), TimeUnit.MILLISECONDS)
-                ),
+                new ScheduledExecutorServiceScheduler(flushExecutor),
                 () -> {
                     flushExecutor.shutdown();
                     try {
@@ -447,7 +446,7 @@ public class BulkProcessorTests extends ESTestCase {
             10,
             ByteSizeValue.ofBytes(1000),
             null,
-            (command, delay, executor) -> null,
+            UnusedScheduler.INSTANCE,
             () -> called.set(true),
             BulkRequest::new
         );
@@ -545,5 +544,14 @@ public class BulkProcessorTests extends ESTestCase {
 
     private DocWriteResponse mockResponse() {
         return new IndexResponse(new ShardId("index", "uid", 0), "id", 1, 1, 1, true);
+    }
+
+    private static class UnusedScheduler implements Scheduler {
+        static UnusedScheduler INSTANCE = new UnusedScheduler();
+
+        @Override
+        public ScheduledCancellable schedule(Runnable command, TimeValue delay, Executor executor) {
+            throw new AssertionError("should not be called");
+        }
     }
 }

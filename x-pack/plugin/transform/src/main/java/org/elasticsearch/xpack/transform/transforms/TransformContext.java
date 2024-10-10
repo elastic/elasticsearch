@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.transform.transforms;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.xpack.core.transform.transforms.AuthorizationState;
 import org.elasticsearch.xpack.core.transform.transforms.TransformTaskState;
 import org.elasticsearch.xpack.transform.Transform;
 
@@ -23,7 +24,7 @@ public class TransformContext {
 
         void failureCountChanged();
 
-        void fail(String failureMessage, ActionListener<Void> listener);
+        void fail(Throwable exception, String failureMessage, ActionListener<Void> listener);
     }
 
     private final AtomicReference<TransformTaskState> taskState;
@@ -38,9 +39,14 @@ public class TransformContext {
     private final AtomicInteger statePersistenceFailureCount = new AtomicInteger();
     private final AtomicReference<Throwable> lastStatePersistenceFailure = new AtomicReference<>();
     private volatile Instant lastStatePersistenceFailureStartTime;
+    private final AtomicInteger startUpFailureCount = new AtomicInteger();
+    private final AtomicReference<Throwable> lastStartUpFailure = new AtomicReference<>();
+    private volatile Instant startUpFailureTime;
     private volatile Instant changesLastDetectedAt;
     private volatile Instant lastSearchTime;
     private volatile boolean shouldStopAtCheckpoint = false;
+    private volatile boolean shouldRecreateDestinationIndex = false;
+    private volatile AuthorizationState authState;
     private volatile int pageSize = 0;
 
     // the checkpoint of this transform, storing the checkpoint until data indexing from source to dest is _complete_
@@ -169,6 +175,22 @@ public class TransformContext {
         this.shouldStopAtCheckpoint = shouldStopAtCheckpoint;
     }
 
+    public boolean shouldRecreateDestinationIndex() {
+        return shouldRecreateDestinationIndex;
+    }
+
+    public void setShouldRecreateDestinationIndex(boolean shouldRecreateDestinationIndex) {
+        this.shouldRecreateDestinationIndex = shouldRecreateDestinationIndex;
+    }
+
+    public AuthorizationState getAuthState() {
+        return authState;
+    }
+
+    public void setAuthState(AuthorizationState authState) {
+        this.authState = authState;
+    }
+
     int getPageSize() {
         return pageSize;
     }
@@ -204,12 +226,43 @@ public class TransformContext {
         return lastStatePersistenceFailureStartTime;
     }
 
+    void resetStartUpFailureCount() {
+        startUpFailureCount.set(0);
+        lastStartUpFailure.set(null);
+        startUpFailureTime = null;
+    }
+
+    int getStartUpFailureCount() {
+        return startUpFailureCount.get();
+    }
+
+    Throwable getStartUpFailure() {
+        return lastStartUpFailure.get();
+    }
+
+    int incrementAndGetStartUpFailureCount(Throwable failure) {
+        lastStartUpFailure.set(failure);
+        int newFailureCount = startUpFailureCount.incrementAndGet();
+        if (newFailureCount == 1) {
+            startUpFailureTime = Instant.now();
+        }
+        return newFailureCount;
+    }
+
+    Instant getStartUpFailureTime() {
+        return startUpFailureTime;
+    }
+
+    boolean doesNotHaveFailures() {
+        return getFailureCount() == 0 && getStatePersistenceFailureCount() == 0 && getStartUpFailureCount() == 0;
+    }
+
     void shutdown() {
         taskListener.shutdown();
     }
 
-    void markAsFailed(String failureMessage) {
-        taskListener.fail(failureMessage, ActionListener.wrap(r -> {
+    void markAsFailed(Throwable exception, String failureMessage) {
+        taskListener.fail(exception, failureMessage, ActionListener.wrap(r -> {
             // Successfully marked as failed, reset counter so that task can be restarted
             failureCount.set(0);
         }, e -> {}));

@@ -1,14 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.cluster.stats;
 
-import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -85,16 +86,43 @@ public final class MappingStats implements ToXContentFragment, Writeable {
                     FieldStats stats;
                     if (type.equals("dense_vector")) {
                         stats = fieldTypes.computeIfAbsent(type, DenseVectorFieldStats::new);
-                        boolean indexed = fieldMapping.containsKey("index") ? (boolean) fieldMapping.get("index") : false;
+                        DenseVectorFieldStats vStats = (DenseVectorFieldStats) stats;
+                        if (fieldMapping.containsKey("similarity")) {
+                            Object similarity = fieldMapping.get("similarity");
+                            vStats.vectorSimilarityTypeCount.compute(similarity.toString(), (t, c) -> c == null ? count : c + count);
+                        }
+                        String elementTypeStr = "float";
+                        if (fieldMapping.containsKey("element_type")) {
+                            Object elementType = fieldMapping.get("element_type");
+                            elementTypeStr = elementType.toString();
+                        }
+                        vStats.vectorElementTypeCount.compute(elementTypeStr, (t, c) -> c == null ? count : c + count);
+                        boolean indexed = fieldMapping.containsKey("index") && (boolean) fieldMapping.get("index");
                         if (indexed) {
-                            ((DenseVectorFieldStats) stats).indexedVectorCount += count;
-                            int dims = (int) fieldMapping.get("dims");
-                            if (dims < ((DenseVectorFieldStats) stats).indexedVectorDimMin) {
-                                ((DenseVectorFieldStats) stats).indexedVectorDimMin = dims;
+                            Object indexOptions = fieldMapping.get("index_options");
+                            // NOTE, while the default for `float` is now `int8_hnsw`, that is actually added to the mapping
+                            // if the value is truly missing & we are indexed, we default to hnsw.
+                            String indexTypeStr = "hnsw";
+                            if (indexOptions instanceof Map<?, ?> indexOptionsMap) {
+                                Object indexType = indexOptionsMap.get("type");
+                                if (indexType != null) {
+                                    indexTypeStr = indexType.toString();
+                                }
                             }
-                            if (dims > ((DenseVectorFieldStats) stats).indexedVectorDimMax) {
-                                ((DenseVectorFieldStats) stats).indexedVectorDimMax = dims;
+                            vStats.vectorIndexTypeCount.compute(indexTypeStr, (t, c) -> c == null ? count : c + count);
+                            vStats.indexedVectorCount += count;
+                            Object obj = fieldMapping.get("dims");
+                            if (obj != null) {
+                                int dims = (int) obj;
+                                if (vStats.indexedVectorDimMin == DenseVectorFieldStats.UNSET || dims < vStats.indexedVectorDimMin) {
+                                    vStats.indexedVectorDimMin = dims;
+                                }
+                                if (vStats.indexedVectorDimMin == DenseVectorFieldStats.UNSET || dims > vStats.indexedVectorDimMax) {
+                                    vStats.indexedVectorDimMax = dims;
+                                }
                             }
+                        } else {
+                            vStats.vectorIndexTypeCount.compute(DenseVectorFieldStats.NOT_INDEXED, (t, c) -> c == null ? 1 : c + 1);
                         }
                     } else {
                         stats = fieldTypes.computeIfAbsent(type, FieldStats::new);
@@ -207,7 +235,7 @@ public final class MappingStats implements ToXContentFragment, Writeable {
     }
 
     MappingStats(StreamInput in) throws IOException {
-        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_4_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
             totalFieldCount = in.readOptionalVLong();
             totalDeduplicatedFieldCount = in.readOptionalVLong();
             totalMappingSizeBytes = in.readOptionalVLong();
@@ -216,17 +244,17 @@ public final class MappingStats implements ToXContentFragment, Writeable {
             totalDeduplicatedFieldCount = null;
             totalMappingSizeBytes = null;
         }
-        fieldTypeStats = in.readImmutableList(FieldStats::new);
-        runtimeFieldStats = in.readImmutableList(RuntimeFieldStats::new);
+        fieldTypeStats = in.readCollectionAsImmutableList(FieldStats::new);
+        runtimeFieldStats = in.readCollectionAsImmutableList(RuntimeFieldStats::new);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_4_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
             out.writeOptionalVLong(totalFieldCount);
             out.writeOptionalVLong(totalDeduplicatedFieldCount);
             out.writeOptionalVLong(totalMappingSizeBytes);
-        } // else just omit these stats, they're not computed on older nodes anyway
+        }
         out.writeCollection(fieldTypeStats);
         out.writeCollection(runtimeFieldStats);
     }

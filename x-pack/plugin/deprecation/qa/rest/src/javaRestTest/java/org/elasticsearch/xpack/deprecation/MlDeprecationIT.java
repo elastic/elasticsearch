@@ -26,7 +26,6 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
-@SuppressWarnings("removal")
 public class MlDeprecationIT extends ESRestTestCase {
 
     private static final RequestOptions REQUEST_OPTIONS = RequestOptions.DEFAULT.toBuilder()

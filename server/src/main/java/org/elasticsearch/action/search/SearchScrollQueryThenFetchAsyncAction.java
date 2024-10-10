@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.search;
@@ -55,7 +56,7 @@ final class SearchScrollQueryThenFetchAsyncAction extends SearchScrollAsyncActio
     protected void executeInitialPhase(
         Transport.Connection connection,
         InternalScrollSearchRequest internalRequest,
-        SearchActionListener<ScrollQuerySearchResult> searchActionListener
+        ActionListener<ScrollQuerySearchResult> searchActionListener
     ) {
         searchTransportService.sendExecuteScrollQuery(connection, internalRequest, task, searchActionListener);
     }
@@ -73,7 +74,10 @@ final class SearchScrollQueryThenFetchAsyncAction extends SearchScrollAsyncActio
                     sendResponse(reducedQueryPhase, fetchResults);
                     return;
                 }
+                doRun(scoreDocs, reducedQueryPhase);
+            }
 
+            private void doRun(ScoreDoc[] scoreDocs, SearchPhaseController.ReducedQueryPhase reducedQueryPhase) {
                 final List<Integer>[] docIdsToLoad = SearchPhaseController.fillDocIdsToLoad(queryResults.length(), scoreDocs);
                 final ScoreDoc[] lastEmittedDocPerShard = SearchPhaseController.getLastEmittedDocPerShard(
                     reducedQueryPhase,
@@ -99,13 +103,12 @@ final class SearchScrollQueryThenFetchAsyncAction extends SearchScrollAsyncActio
                             connection,
                             shardFetchRequest,
                             task,
-                            new SearchActionListener<FetchSearchResult>(querySearchResult.getSearchShardTarget(), index) {
+                            new SearchActionListener<>(querySearchResult.getSearchShardTarget(), index) {
                                 @Override
                                 protected void innerOnResponse(FetchSearchResult response) {
                                     fetchResults.setOnce(response.getShardIndex(), response);
-                                    if (counter.countDown()) {
-                                        sendResponse(reducedQueryPhase, fetchResults);
-                                    }
+                                    response.incRef();
+                                    consumeResponse(counter, reducedQueryPhase);
                                 }
 
                                 @Override
@@ -124,13 +127,20 @@ final class SearchScrollQueryThenFetchAsyncAction extends SearchScrollAsyncActio
                     } else {
                         // the counter is set to the total size of docIdsToLoad
                         // which can have null values so we have to count them down too
-                        if (counter.countDown()) {
-                            sendResponse(reducedQueryPhase, fetchResults);
-                        }
+                        consumeResponse(counter, reducedQueryPhase);
                     }
                 }
             }
         };
+    }
+
+    private void consumeResponse(CountDown counter, SearchPhaseController.ReducedQueryPhase reducedQueryPhase) {
+        if (counter.countDown()) {
+            sendResponse(reducedQueryPhase, fetchResults);
+            for (FetchSearchResult fetchSearchResult : fetchResults.asList()) {
+                fetchSearchResult.decRef();
+            }
+        }
     }
 
 }

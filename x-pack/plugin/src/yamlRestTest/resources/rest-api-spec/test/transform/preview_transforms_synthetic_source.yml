@@ -1,0 +1,103 @@
+simple:
+  - skip:
+      features: headers
+
+  - do:
+      indices.create:
+        index: airline-data
+        body:
+          mappings:
+            _source:
+              mode: synthetic
+            properties:
+              time:
+                type: date
+              airline:
+                type: keyword
+              responsetime:
+                type: float
+              event_rate:
+                type: integer
+
+  - do:
+      index:
+        index: airline-data
+        id: "1"
+        body: '{ "time": "2017-02-18T00:00:00Z",  "airline": "airline1", "responsetime": 1.0, "event_rate": 5 }'
+
+  - do:
+      index:
+        index: airline-data
+        id: "2"
+        body: '{ "time": "2017-02-18T00:30:00Z", "airline": "airline1", "responsetime": 2.0, "event_rate": 6 }'
+
+  - do:
+      index:
+        index: airline-data
+        id: "3"
+        body: '{ "time": "2017-02-18T01:00:00Z", "airline": "airline2", "responsetime": 11.0, "event_rate": 8 }'
+
+  - do:
+      index:
+        index: airline-data
+        id: "4"
+        body: '{ "time": "2017-02-18T01:01:00Z", "airline": "airline1", "responsetime": 22.0, "event_rate": 7 }'
+
+  - do:
+      indices.refresh:
+        index: airline-data
+
+  - do:
+      transform.preview_transform:
+        body: >
+          {
+            "source": { "index": "airline-data" },
+            "pivot": {
+              "group_by": {
+                "airline": {"terms": {"field": "airline"}},
+                "by-hour": {"date_histogram": {"fixed_interval": "1h", "field": "time"}}},
+              "aggs": {
+                "avg_response": {"avg": {"field": "responsetime"}},
+                "time.max": {"max": {"field": "time"}},
+                "time.min": {"min": {"field": "time"}}
+              }
+            }
+          }
+  - match: { preview.0.airline: airline1 }
+  - match: { preview.0.by-hour: "2017-02-18T00:00:00.000Z" }
+  - match: { preview.0.avg_response: 1.5 }
+  - match: { preview.0.time.max: "2017-02-18T00:30:00.000Z" }
+  - match: { preview.0.time.min: "2017-02-18T00:00:00.000Z" }
+  - match: { preview.1.airline: airline1 }
+  - match: { preview.1.by-hour: "2017-02-18T01:00:00.000Z" }
+  - match: { preview.1.avg_response: 22.0 }
+  - match: { preview.1.time.max: "2017-02-18T01:01:00.000Z" }
+  - match: { preview.1.time.min: "2017-02-18T01:01:00.000Z" }
+  - match: { preview.2.airline: airline2 }
+  - match: { preview.2.by-hour: "2017-02-18T01:00:00.000Z" }
+  - match: { preview.2.avg_response: 11.0 }
+  - match: { preview.2.time.max: "2017-02-18T01:00:00.000Z" }
+  - match: { preview.2.time.min: "2017-02-18T01:00:00.000Z" }
+  - match: { generated_dest_index.mappings.properties.airline.type: "keyword" }
+  - match: { generated_dest_index.mappings.properties.by-hour.type: "date" }
+  - match: { generated_dest_index.mappings.properties.avg_response.type: "double" }
+  - match: { generated_dest_index.mappings.properties.time\.max.type: "date" }
+  - match: { generated_dest_index.mappings.properties.time\.min.type: "date" }
+
+  - do:
+      transform.preview_transform:
+        body: >
+          {
+            "source": { "index": "airline-data" },
+            "latest": {
+              "unique_key": ["airline"],
+              "sort": "time"
+            }
+          }
+  - length: { $body: 2 }
+  - match: { preview.0.airline: airline1 }
+  - match: { preview.0.time: "2017-02-18T01:01:00.000Z" }
+  - match: { preview.0.responsetime: 22.0 }
+  - match: { preview.1.airline: airline2 }
+  - match: { preview.1.time: "2017-02-18T01:00:00.000Z" }
+  - match: { preview.1.responsetime: 11.0 }

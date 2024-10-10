@@ -1,0 +1,5 @@
+pr: 110951
+summary: Allow task canceling of validate API calls
+area: Transform
+type: bug
+issues: []

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.gradle.testclusters;
 
@@ -22,11 +23,16 @@ public abstract class TestClustersRegistry implements BuildService<BuildServiceP
     private static final String TESTCLUSTERS_INSPECT_FAILURE = "testclusters.inspect.failure";
     private final Boolean allowClusterToSurvive = Boolean.valueOf(System.getProperty(TESTCLUSTERS_INSPECT_FAILURE, "false"));
     private final Map<ElasticsearchCluster, Integer> claimsInventory = new HashMap<>();
+
     private final Set<ElasticsearchCluster> runningClusters = new HashSet<>();
 
     public void claimCluster(ElasticsearchCluster cluster) {
         cluster.freeze();
-        claimsInventory.put(cluster, claimsInventory.getOrDefault(cluster, 0) + 1);
+        int claim = claimsInventory.getOrDefault(cluster, 0) + 1;
+        claimsInventory.put(cluster, claim);
+        if (claim > 1) {
+            cluster.setShared(true);
+        }
     }
 
     public void maybeStartCluster(ElasticsearchCluster cluster) {
@@ -63,7 +69,6 @@ public abstract class TestClustersRegistry implements BuildService<BuildServiceP
         } else {
             int currentClaims = claimsInventory.getOrDefault(cluster, 0) - 1;
             claimsInventory.put(cluster, currentClaims);
-
             if (currentClaims <= 0 && runningClusters.contains(cluster)) {
                 cluster.stop(false);
                 runningClusters.remove(cluster);

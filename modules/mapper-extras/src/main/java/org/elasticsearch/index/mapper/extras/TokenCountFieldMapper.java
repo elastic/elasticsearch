@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper.extras;
@@ -24,7 +25,6 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
@@ -78,17 +78,17 @@ public class TokenCountFieldMapper extends FieldMapper {
         @Override
         public TokenCountFieldMapper build(MapperBuilderContext context) {
             if (analyzer.getValue() == null) {
-                throw new MapperParsingException("Analyzer must be set for field [" + name + "] but wasn't.");
+                throw new MapperParsingException("Analyzer must be set for field [" + leafName() + "] but wasn't.");
             }
             MappedFieldType ft = new TokenCountFieldType(
-                context.buildFullName(name),
+                context.buildFullName(leafName()),
                 index.getValue(),
                 store.getValue(),
                 hasDocValues.getValue(),
                 nullValue.getValue(),
                 meta.getValue()
             );
-            return new TokenCountFieldMapper(name, ft, multiFieldsBuilder.build(this, context), copyTo.build(), this);
+            return new TokenCountFieldMapper(leafName(), ft, builderParams(this, context), this);
         }
     }
 
@@ -113,6 +113,7 @@ public class TokenCountFieldMapper extends FieldMapper {
                 meta,
                 null,
                 false,
+                null,
                 null
             );
         }
@@ -120,7 +121,7 @@ public class TokenCountFieldMapper extends FieldMapper {
         @Override
         public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
             if (hasDocValues() == false) {
-                return (lookup, doc, ignoredValues) -> List.of();
+                return ValueFetcher.EMPTY;
             }
             return new DocValueFetcher(docValueFormat(format, null), context.getForField(this, FielddataOperation.SEARCH));
         }
@@ -135,14 +136,8 @@ public class TokenCountFieldMapper extends FieldMapper {
     private final boolean enablePositionIncrements;
     private final Integer nullValue;
 
-    protected TokenCountFieldMapper(
-        String simpleName,
-        MappedFieldType defaultFieldType,
-        MultiFields multiFields,
-        CopyTo copyTo,
-        Builder builder
-    ) {
-        super(simpleName, defaultFieldType, multiFields, copyTo);
+    protected TokenCountFieldMapper(String simpleName, MappedFieldType defaultFieldType, BuilderParams builderParams, Builder builder) {
+        super(simpleName, defaultFieldType, builderParams);
         this.analyzer = builder.analyzer.getValue();
         this.enablePositionIncrements = builder.enablePositionIncrements.getValue();
         this.nullValue = builder.nullValue.getValue();
@@ -163,7 +158,7 @@ public class TokenCountFieldMapper extends FieldMapper {
         if (value == null) {
             tokenCount = nullValue;
         } else {
-            tokenCount = countPositions(analyzer, name(), value, enablePositionIncrements);
+            tokenCount = countPositions(analyzer, fullPath(), value, enablePositionIncrements);
         }
 
         NumberFieldMapper.NumberType.INTEGER.addFields(context.doc(), fieldType().name(), tokenCount, index, hasDocValues, store);
@@ -206,14 +201,6 @@ public class TokenCountFieldMapper extends FieldMapper {
         return analyzer.name();
     }
 
-    /**
-     * Indicates if position increments are counted.
-     * @return <code>true</code> if position increments are counted
-     */
-    public boolean enablePositionIncrements() {
-        return enablePositionIncrements;
-    }
-
     @Override
     protected String contentType() {
         return CONTENT_TYPE;
@@ -221,6 +208,6 @@ public class TokenCountFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(simpleName()).init(this);
+        return new Builder(leafName()).init(this);
     }
 }

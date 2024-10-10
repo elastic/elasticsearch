@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.indices.recovery;
@@ -15,7 +16,7 @@ import org.apache.lucene.store.ByteBuffersIndexOutput;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.tests.util.TestUtil;
-import org.elasticsearch.Version;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardTestCase;
 import org.elasticsearch.index.store.Store;
@@ -89,7 +90,7 @@ public class MultiFileWriterTests extends IndexShardTestCase {
     }
 
     private MultiFileWriter createMultiFileWriter(boolean verifyOutput) {
-        return new MultiFileWriter(store, mock(RecoveryState.Index.class), "temp_", logger, mock(Runnable.class), verifyOutput);
+        return new MultiFileWriter(store, mock(RecoveryState.Index.class), "temp_", logger, verifyOutput);
     }
 
     private record FileAndMetadata(byte[] bytes, StoreFileMetadata metadata) {}
@@ -104,7 +105,10 @@ public class MultiFileWriterTests extends IndexShardTestCase {
         CodecUtil.writeBELong(output, output.getChecksum());
         output.close();
 
-        return new FileAndMetadata(buffer.toArrayCopy(), new StoreFileMetadata(name, buffer.size(), checksum, Version.CURRENT.toString()));
+        return new FileAndMetadata(
+            buffer.toArrayCopy(),
+            new StoreFileMetadata(name, buffer.size(), checksum, IndexVersion.current().luceneVersion().toString())
+        );
     }
 
     private static StoreFileMetadata withWrongChecksum(StoreFileMetadata metadata) {

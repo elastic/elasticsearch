@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.profile.query;
@@ -30,7 +31,7 @@ public final class ProfileWeight extends Weight {
     private final Weight subQueryWeight;
     private final QueryProfileBreakdown profile;
 
-    public ProfileWeight(Query query, Weight subQueryWeight, QueryProfileBreakdown profile) throws IOException {
+    public ProfileWeight(Query query, Weight subQueryWeight, QueryProfileBreakdown profile) {
         super(query);
         this.subQueryWeight = subQueryWeight;
         this.profile = profile;
@@ -47,7 +48,7 @@ public final class ProfileWeight extends Weight {
 
     @Override
     public ScorerSupplier scorerSupplier(LeafReaderContext context) throws IOException {
-        Timer timer = profile.getTimer(QueryTimingType.BUILD_SCORER);
+        final Timer timer = profile.getNewTimer(QueryTimingType.BUILD_SCORER);
         timer.start();
         final ScorerSupplier subQueryScorerSupplier;
         try {
@@ -81,6 +82,11 @@ public final class ProfileWeight extends Weight {
                     timer.stop();
                 }
             }
+
+            @Override
+            public void setTopLevelScoringClause() throws IOException {
+                subQueryScorerSupplier.setTopLevelScoringClause();
+            }
         };
     }
 
@@ -103,7 +109,7 @@ public final class ProfileWeight extends Weight {
 
     @Override
     public int count(LeafReaderContext context) throws IOException {
-        Timer timer = profile.getTimer(QueryTimingType.COUNT_WEIGHT);
+        Timer timer = profile.getNewTimer(QueryTimingType.COUNT_WEIGHT);
         timer.start();
         try {
             return subQueryWeight.count(context);

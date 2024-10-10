@@ -22,12 +22,6 @@ public class ClearRealmCacheRequest extends BaseNodesRequest<ClearRealmCacheRequ
         super((String[]) null);
     }
 
-    public ClearRealmCacheRequest(StreamInput in) throws IOException {
-        super(in);
-        realms = in.readStringArray();
-        usernames = in.readStringArray();
-    }
-
     /**
      * @return  {@code true} if this request targets realms, {@code false} otherwise.
      */
@@ -76,13 +70,6 @@ public class ClearRealmCacheRequest extends BaseNodesRequest<ClearRealmCacheRequ
     public ClearRealmCacheRequest usernames(String... usernames) {
         this.usernames = usernames;
         return this;
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        out.writeStringArrayNullable(realms);
-        out.writeStringArrayNullable(usernames);
     }
 
     public static class Node extends TransportRequest {

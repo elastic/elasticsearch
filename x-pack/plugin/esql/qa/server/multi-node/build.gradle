@@ -1,0 +1,34 @@
+import org.elasticsearch.gradle.util.GradleUtils
+
+apply plugin: 'elasticsearch.internal-java-rest-test'
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
+apply plugin: 'elasticsearch.internal-test-artifact'
+
+dependencies {
+  javaRestTestImplementation project(xpackModule('esql:qa:testFixtures'))
+  javaRestTestImplementation project(xpackModule('esql:qa:server'))
+  yamlRestTestImplementation project(xpackModule('esql:qa:server'))
+
+  clusterPlugins project(':plugins:mapper-size')
+  clusterPlugins project(':plugins:mapper-murmur3')
+}
+
+GradleUtils.extendSourceSet(project, "javaRestTest", "yamlRestTest")
+
+tasks.named('javaRestTest') {
+  usesDefaultDistribution()
+}
+
+restResources {
+  restApi {
+    include '_common', 'bulk', 'get', 'indices', 'esql', 'xpack', 'enrich', 'cluster', 'capabilities'
+  }
+  restTests {
+    includeXpack 'esql'
+  }
+}
+
+tasks.named('yamlRestTest') {
+  usesDefaultDistribution()
+  maxParallelForks = 1
+}

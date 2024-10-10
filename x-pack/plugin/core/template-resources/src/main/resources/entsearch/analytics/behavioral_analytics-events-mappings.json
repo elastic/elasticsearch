@@ -1,0 +1,275 @@
+{
+  "template": {
+    "mappings": {
+      "dynamic": "strict",
+      "properties": {
+        "@timestamp": {
+          "type": "date"
+        },
+        "data_stream": {
+          "properties": {
+            "namespace": {
+              "type": "keyword"
+            },
+            "dataset": {
+              "type": "keyword"
+            },
+            "type": {
+              "type": "keyword"
+            }
+          }
+        },
+        "event": {
+          "properties": {
+            "action": {
+              "ignore_above": 1024,
+              "type": "keyword"
+            },
+            "source": {
+              "ignore_above": 1024,
+              "type": "keyword"
+            }
+          }
+        },
+        "document": {
+          "properties": {
+            "index": {
+              "ignore_above": 1024,
+              "type": "keyword"
+            },
+            "id": {
+              "ignore_above": 1024,
+              "type": "keyword"
+            }
+          }
+        },
+        "session": {
+          "properties": {
+            "id": {
+              "ignore_above": 1024,
+              "type": "keyword"
+            },
+            "location": {
+              "properties": {
+                "continent_name": {
+                  "ignore_above": 1024,
+                  "type": "keyword"
+                },
+                "region_iso_code": {
+                  "ignore_above": 1024,
+                  "type": "keyword"
+                },
+                "city_name": {
+                  "ignore_above": 1024,
+                  "type": "keyword"
+                },
+                "country_iso_code": {
+                  "ignore_above": 1024,
+                  "type": "keyword"
+                },
+                "country_name": {
+                  "ignore_above": 1024,
+                  "type": "keyword"
+                },
+                "region_name": {
+                  "ignore_above": 1024,
+                  "type": "keyword"
+                },
+                "location": {
+                  "type": "geo_point"
+                }
+              }
+            },
+            "user_agent": {
+              "properties": {
+                "os": {
+                  "properties": {
+                    "name": {
+                      "ignore_above": 1024,
+                      "type": "keyword"
+                    },
+                    "version": {
+                      "ignore_above": 1024,
+                      "type": "keyword"
+                    },
+                    "full": {
+                      "ignore_above": 1024,
+                      "type": "keyword"
+                    }
+                  }
+                },
+                "browser": {
+                  "properties": {
+                    "name": {
+                      "ignore_above": 1024,
+                      "type": "keyword"
+                    },
+                    "version": {
+                      "ignore_above": 1024,
+                      "type": "keyword"
+                    }
+                  }
+                },
+                "device": {
+                  "properties": {
+                    "name": {
+                      "ignore_above": 1024,
+                      "type": "keyword"
+                    },
+                    "type": {
+                      "ignore_above": 1024,
+                      "type": "keyword"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "user": {
+          "properties": {
+            "id": {
+              "ignore_above": 1024,
+              "type": "keyword"
+            }
+          }
+        },
+        "page": {
+          "properties": {
+            "url": {
+              "properties": {
+                "domain": {
+                  "ignore_above": 1024,
+                  "type": "keyword"
+                },
+                "extension": {
+                  "ignore_above": 1024,
+                  "type": "keyword"
+                },
+                "fragment": {
+                  "ignore_above": 1024,
+                  "type": "keyword"
+                },
+                "original": {
+                  "ignore_above": 1024,
+                  "type": "keyword"
+                },
+                "path": {
+                  "ignore_above": 1024,
+                  "type": "keyword"
+                },
+                "port": {
+                  "type": "long"
+                },
+                "query": {
+                  "ignore_above": 1024,
+                  "type": "keyword"
+                },
+                "scheme": {
+                  "ignore_above": 1024,
+                  "type": "keyword"
+                }
+              }
+            },
+            "title": {
+              "ignore_above": 1024,
+              "type": "keyword"
+            },
+            "referrer": {
+              "properties": {
+                "domain": {
+                  "ignore_above": 1024,
+                  "type": "keyword"
+                },
+                "extension": {
+                  "ignore_above": 1024,
+                  "type": "keyword"
+                },
+                "fragment": {
+                  "ignore_above": 1024,
+                  "type": "keyword"
+                },
+                "original": {
+                  "ignore_above": 1024,
+                  "type": "keyword"
+                },
+                "path": {
+                  "ignore_above": 1024,
+                  "type": "keyword"
+                },
+                "port": {
+                  "type": "long"
+                },
+                "query": {
+                  "ignore_above": 1024,
+                  "type": "keyword"
+                },
+                "scheme": {
+                  "ignore_above": 1024,
+                  "type": "keyword"
+                }
+              }
+            }
+          }
+        },
+        "search": {
+          "properties": {
+            "query": {
+              "ignore_above": 1024,
+              "type": "keyword"
+            },
+            "search_application": {
+                "type": "keyword",
+                "ignore_above": 1024
+            },
+            "filters": {
+              "type": "flattened"
+            },
+            "page": {
+              "properties": {
+                "current": {
+                  "type": "integer"
+                },
+                "size": {
+                  "type": "integer"
+                }
+              }
+            },
+            "sort": {
+              "properties": {
+                "name": {
+                  "type": "keyword",
+                  "ignore_above": 1024
+                },
+                "direction": {
+                  "type": "keyword",
+                  "ignore_above": 1024
+                }
+              }
+            },
+            "results": {
+              "properties": {
+                "total_results": {
+                  "type": "integer"
+                },
+                "items": {
+                  "type": "object",
+                  "enabled": false
+                }
+              }
+            }
+          }
+        },
+        "tags": {
+          "ignore_above": 1024,
+          "type": "keyword"
+        }
+      }
+    }
+  },
+  "_meta": {
+    "description": "Built-in mapping applied by default to behavioral analytics event data streams.",
+    "managed": true
+  },
+  "version": ${xpack.entsearch.analytics.template.version}
+}

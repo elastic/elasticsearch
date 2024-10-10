@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common;
@@ -14,13 +15,14 @@ import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentObject;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import static com.carrotsearch.randomizedtesting.RandomizedTest.getRandom;
+import static org.elasticsearch.common.Strings.INVALID_CHARS;
 import static org.elasticsearch.common.Strings.cleanTruncate;
 import static org.elasticsearch.common.Strings.collectionToDelimitedString;
 import static org.elasticsearch.common.Strings.collectionToDelimitedStringWithLimit;
@@ -31,7 +33,7 @@ import static org.elasticsearch.common.Strings.hasText;
 import static org.elasticsearch.common.Strings.isAllOrWildcard;
 import static org.elasticsearch.common.Strings.isEmpty;
 import static org.elasticsearch.common.Strings.padStart;
-import static org.elasticsearch.common.Strings.spaceify;
+import static org.elasticsearch.common.Strings.stripDisallowedChars;
 import static org.elasticsearch.common.Strings.substring;
 import static org.elasticsearch.common.Strings.toLowercaseAscii;
 import static org.elasticsearch.common.Strings.tokenizeByCommaToSet;
@@ -47,19 +49,6 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class StringsTests extends ESTestCase {
-
-    public void testSpaceify() throws Exception {
-        String[] lines = new String[] { randomAlphaOfLength(5), randomAlphaOfLength(5), randomAlphaOfLength(5) };
-
-        // spaceify always finishes with \n regardless of input
-        StringBuilder sb = new StringBuilder();
-        spaceify(4, String.join("\n", lines), sb);
-        assertThat(sb.toString(), equalTo(Arrays.stream(lines).map(s -> " ".repeat(4) + s).collect(Collectors.joining("\n", "", "\n"))));
-
-        sb = new StringBuilder();
-        spaceify(0, String.join("\n", lines), sb);
-        assertThat(sb.toString(), equalTo(Arrays.stream(lines).collect(Collectors.joining("\n", "", "\n"))));
-    }
 
     public void testHasLength() {
         assertFalse(hasLength((String) null));
@@ -339,6 +328,31 @@ public class StringsTests extends ESTestCase {
 
         // sling in some unicode too
         assertThat(toLowercaseAscii(testStr = randomUnicodeOfCodepointLength(20)), equalTo(lowercaseAsciiOnly(testStr)));
+    }
+
+    public void testStripDisallowedChars() {
+        var validFileName = randomAlphaOfLength(INVALID_CHARS.size());
+        var invalidChars = new ArrayList<>(INVALID_CHARS);
+        Collections.shuffle(invalidChars, getRandom());
+
+        var invalidFileName = new StringBuilder();
+
+        // randomly build an invalid file name merging both sets of valid and invalid chars
+        for (var i = 0; i < invalidChars.size(); i++) {
+            if (randomBoolean()) {
+                invalidFileName.append(validFileName.charAt(i)).append(invalidChars.get(i));
+            } else {
+                invalidFileName.append(invalidChars.get(i)).append(validFileName.charAt(i));
+            }
+        }
+
+        assertNotEquals(validFileName, invalidFileName.toString());
+        assertEquals(validFileName, stripDisallowedChars(invalidFileName.toString()));
+    }
+
+    public void testFormat1Decimals() {
+        assertThat(Strings.format1Decimals(100.0 / 2, "%"), equalTo("50%"));
+        assertThat(Strings.format1Decimals(100.0 / 3, "%"), equalTo("33.3%"));
     }
 
     private static String lowercaseAsciiOnly(String s) {

@@ -3,6 +3,14 @@
 
 Also see <<breaking-changes-8.6,Breaking changes in 8.6>>.
 
+[[known-issues-8.6.1]]
+[float]
+=== Known issues
+
+include::8.6.0.asciidoc[tag=reconciliation-imbalance-known-issue]
+
+include::8.4.0.asciidoc[tag=ingest-processor-log4j-cluster-instability-known-issue]
+
 [[bug-8.6.1]]
 [float]
 === Bug fixes
@@ -10,6 +18,8 @@ Also see <<breaking-changes-8.6,Breaking changes in 8.6>>.
 Data streams::
 * Fix wildcard expansion for delete-by-query on data streams {es-pull}92891[#92891]
 * Fix wildcard expansion for update-by-query on data streams {es-pull}92717[#92717] (issue: {es-issue}90272[#90272])
+* Patch jackson-core with locally modified class #92984
+This fixes an issue in jackson parsing (issue: {es-issue}92480[#92480])
 
 Distributed::
 * Fix `ByteArrayIndexInput` with nonzero offset {es-pull}93205[#93205]

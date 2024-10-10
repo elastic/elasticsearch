@@ -1,6 +1,6 @@
 setup:
-  - skip:
-      version: " - 8.5.99"
+  - requires:
+      cluster_features: ["gte_v8.6.0"]
       reason: "support for byte vectors added in 8.6"
 
 ---
@@ -15,6 +15,7 @@ setup:
             properties:
               bdv:
                 type: dense_vector
+                index: false
                 element_type: byte
                 dims: 3
               knn:
@@ -99,6 +100,7 @@ setup:
             properties:
               bdv:
                 type: dense_vector
+                index: false
                 dims: 3
               knn:
                 type: dense_vector
@@ -181,6 +183,7 @@ setup:
             properties:
               bdv:
                 type: dense_vector
+                index: false
                 element_type: byte
                 dims: 3
               knn:
@@ -298,6 +301,7 @@ setup:
               bdv:
                 type: dense_vector
                 element_type: byte
+                index: false
                 dims: 3
               knn:
                 type: dense_vector
@@ -411,6 +415,7 @@ setup:
             properties:
               bdv:
                 type: dense_vector
+                index: false
                 element_type: byte
                 dims: 3
               knn:
@@ -485,6 +490,7 @@ setup:
             properties:
               bdv:
                 type: dense_vector
+                index: false
                 element_type: byte
                 dims: 3
               knn:
@@ -583,6 +589,7 @@ setup:
             properties:
               bdv:
                 type: dense_vector
+                index: false
                 element_type: byte
                 dims: 3
               knn:
@@ -697,6 +704,7 @@ setup:
             properties:
               bdv:
                 type: dense_vector
+                index: false
                 element_type: byte
                 dims: 3
               knn:
@@ -792,6 +800,7 @@ setup:
             properties:
               bdv:
                 type: dense_vector
+                index: false
                 element_type: byte
                 dims: 3
               knn:

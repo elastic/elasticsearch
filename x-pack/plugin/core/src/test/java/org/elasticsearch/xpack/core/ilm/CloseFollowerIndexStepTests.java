@@ -6,12 +6,11 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
 import org.elasticsearch.action.admin.indices.close.CloseIndexResponse;
-import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.index.IndexVersion;
 import org.mockito.Mockito;
 
 import java.util.Collections;
@@ -24,7 +23,7 @@ public class CloseFollowerIndexStepTests extends AbstractStepTestCase<CloseFollo
 
     private static IndexMetadata getIndexMetadata() {
         return IndexMetadata.builder("follower-index")
-            .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE, "true"))
+            .settings(settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE, "true"))
             .putCustom(CCR_METADATA_KEY, Collections.emptyMap())
             .numberOfShards(1)
             .numberOfReplicas(0)
@@ -44,7 +43,7 @@ public class CloseFollowerIndexStepTests extends AbstractStepTestCase<CloseFollo
         }).when(indicesClient).close(Mockito.any(), Mockito.any());
 
         CloseFollowerIndexStep step = new CloseFollowerIndexStep(randomStepKey(), randomStepKey(), client);
-        PlainActionFuture.<Void, Exception>get(f -> step.performAction(indexMetadata, emptyClusterState(), null, f));
+        performActionAndWait(step, indexMetadata, emptyClusterState(), null);
     }
 
     public void testRequestNotAcknowledged() {
@@ -60,10 +59,7 @@ public class CloseFollowerIndexStepTests extends AbstractStepTestCase<CloseFollo
         }).when(indicesClient).close(Mockito.any(), Mockito.any());
 
         CloseFollowerIndexStep step = new CloseFollowerIndexStep(randomStepKey(), randomStepKey(), client);
-        Exception e = expectThrows(
-            Exception.class,
-            () -> PlainActionFuture.<Void, Exception>get(f -> step.performAction(indexMetadata, emptyClusterState(), null, f))
-        );
+        Exception e = expectThrows(Exception.class, () -> performActionAndWait(step, indexMetadata, emptyClusterState(), null));
         assertThat(e.getMessage(), is("close index request failed to be acknowledged"));
     }
 
@@ -81,27 +77,21 @@ public class CloseFollowerIndexStepTests extends AbstractStepTestCase<CloseFollo
         }).when(indicesClient).close(Mockito.any(), Mockito.any());
 
         CloseFollowerIndexStep step = new CloseFollowerIndexStep(randomStepKey(), randomStepKey(), client);
-        assertSame(
-            error,
-            expectThrows(
-                Exception.class,
-                () -> PlainActionFuture.<Void, Exception>get(f -> step.performAction(indexMetadata, emptyClusterState(), null, f))
-            )
-        );
+        assertSame(error, expectThrows(Exception.class, () -> performActionAndWait(step, indexMetadata, emptyClusterState(), null)));
         Mockito.verify(indicesClient).close(Mockito.any(), Mockito.any());
         Mockito.verifyNoMoreInteractions(indicesClient);
     }
 
     public void testCloseFollowerIndexIsNoopForAlreadyClosedIndex() throws Exception {
         IndexMetadata indexMetadata = IndexMetadata.builder("follower-index")
-            .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE, "true"))
+            .settings(settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE, "true"))
             .putCustom(CCR_METADATA_KEY, Collections.emptyMap())
             .state(IndexMetadata.State.CLOSE)
             .numberOfShards(1)
             .numberOfReplicas(0)
             .build();
         CloseFollowerIndexStep step = new CloseFollowerIndexStep(randomStepKey(), randomStepKey(), client);
-        PlainActionFuture.<Void, Exception>get(f -> step.performAction(indexMetadata, emptyClusterState(), null, f));
+        performActionAndWait(step, indexMetadata, emptyClusterState(), null);
         Mockito.verifyNoMoreInteractions(client);
     }
 

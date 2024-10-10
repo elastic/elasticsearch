@@ -261,7 +261,7 @@ public class TransformIndexerStats extends IndexerJobStats {
         }
     }
 
-    private double calculateExpAvg(double previousExpValue, double alpha, long observedValue) {
+    private static double calculateExpAvg(double previousExpValue, double alpha, long observedValue) {
         return alpha * observedValue + (1 - alpha) * previousExpValue;
     }
 

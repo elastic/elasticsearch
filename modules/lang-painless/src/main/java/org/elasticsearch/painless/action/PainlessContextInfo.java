@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.painless.action;
@@ -148,19 +149,19 @@ public class PainlessContextInfo implements Writeable, ToXContentObject {
 
     public PainlessContextInfo(StreamInput in) throws IOException {
         name = in.readString();
-        classes = in.readImmutableList(PainlessContextClassInfo::new);
-        importedMethods = in.readImmutableList(PainlessContextMethodInfo::new);
-        classBindings = in.readImmutableList(PainlessContextClassBindingInfo::new);
-        instanceBindings = in.readImmutableList(PainlessContextInstanceBindingInfo::new);
+        classes = in.readCollectionAsImmutableList(PainlessContextClassInfo::new);
+        importedMethods = in.readCollectionAsImmutableList(PainlessContextMethodInfo::new);
+        classBindings = in.readCollectionAsImmutableList(PainlessContextClassBindingInfo::new);
+        instanceBindings = in.readCollectionAsImmutableList(PainlessContextInstanceBindingInfo::new);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(name);
-        out.writeList(classes);
-        out.writeList(importedMethods);
-        out.writeList(classBindings);
-        out.writeList(instanceBindings);
+        out.writeCollection(classes);
+        out.writeCollection(importedMethods);
+        out.writeCollection(classBindings);
+        out.writeCollection(instanceBindings);
     }
 
     public static PainlessContextInfo fromXContent(XContentParser parser) {

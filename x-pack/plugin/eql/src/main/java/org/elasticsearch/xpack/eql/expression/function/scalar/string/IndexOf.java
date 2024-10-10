@@ -36,7 +36,7 @@ import static org.elasticsearch.xpack.ql.expression.gen.script.ParamsBuilder.par
  * Find the first position (zero-indexed) of a string where a substring is found.
  * If the optional parameter start is provided, then this will find the first occurrence at or after the start position.
  */
-public class IndexOf extends CaseInsensitiveScalarFunction implements OptionalArgument {
+public final class IndexOf extends CaseInsensitiveScalarFunction implements OptionalArgument {
 
     private final Expression input, substring, start;
 
@@ -102,7 +102,7 @@ public class IndexOf extends CaseInsensitiveScalarFunction implements OptionalAr
         return asScriptFrom(inputScript, substringScript, startScript);
     }
 
-    protected ScriptTemplate asScriptFrom(ScriptTemplate inputScript, ScriptTemplate substringScript, ScriptTemplate startScript) {
+    private ScriptTemplate asScriptFrom(ScriptTemplate inputScript, ScriptTemplate substringScript, ScriptTemplate startScript) {
         return new ScriptTemplate(
             format(
                 Locale.ROOT,

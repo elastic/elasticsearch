@@ -11,14 +11,12 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -72,14 +70,8 @@ public class CheckShrinkReadyStep extends ClusterStateWaitStep {
             throw new IllegalStateException("Cannot check shrink allocation as there are no allocation rules by _id");
         }
 
-        boolean nodeBeingRemoved = NodesShutdownMetadata.getShutdowns(clusterState)
-            .map(NodesShutdownMetadata::getAllNodeMetadataMap)
-            .map(shutdownMetadataMap -> shutdownMetadataMap.get(idShardsShouldBeOn))
-            .map(
-                singleNodeShutdown -> singleNodeShutdown.getType() == SingleNodeShutdownMetadata.Type.REMOVE
-                    || singleNodeShutdown.getType() == SingleNodeShutdownMetadata.Type.REPLACE
-            )
-            .orElse(false);
+        var shutdown = clusterState.metadata().nodeShutdowns().get(idShardsShouldBeOn);
+        boolean nodeBeingRemoved = shutdown != null && shutdown.getType() != SingleNodeShutdownMetadata.Type.RESTART;
 
         final IndexRoutingTable routingTable = clusterState.getRoutingTable().index(index);
         int foundShards = 0;
@@ -158,16 +150,6 @@ public class CheckShrinkReadyStep extends ClusterStateWaitStep {
         static final ParseField EXPECTED_SHARDS = new ParseField("expected_shards");
         static final ParseField SHARDS_TO_ALLOCATE = new ParseField("shards_left_to_allocate");
         static final ParseField MESSAGE = new ParseField("message");
-        static final ConstructingObjectParser<CheckShrinkReadyStep.Info, Void> PARSER = new ConstructingObjectParser<>(
-            "check_shrink_ready_step_info",
-            a -> new CheckShrinkReadyStep.Info((String) a[0], (long) a[1], (long) a[2])
-        );
-        static {
-            PARSER.declareString(ConstructingObjectParser.constructorArg(), NODE_ID);
-            PARSER.declareLong(ConstructingObjectParser.constructorArg(), EXPECTED_SHARDS);
-            PARSER.declareLong(ConstructingObjectParser.constructorArg(), SHARDS_TO_ALLOCATE);
-            PARSER.declareString((i, s) -> {}, MESSAGE);
-        }
 
         public Info(String nodeId, long expectedShards, long numberShardsLeftToAllocate) {
             this.nodeId = nodeId;

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.gateway;
@@ -18,6 +19,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRoutingRoleStrategy;
+import org.elasticsearch.cluster.version.CompatibilityVersions;
 import org.elasticsearch.common.settings.ClusterSettings;
 
 import java.util.Map;
@@ -28,25 +30,33 @@ import static org.elasticsearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK
 public class ClusterStateUpdaters {
     private static final Logger logger = LogManager.getLogger(ClusterStateUpdaters.class);
 
-    static ClusterState setLocalNode(final ClusterState clusterState, DiscoveryNode localNode) {
+    public static ClusterState setLocalNode(
+        ClusterState clusterState,
+        DiscoveryNode localNode,
+        CompatibilityVersions compatibilityVersions
+    ) {
         return ClusterState.builder(clusterState)
             .nodes(DiscoveryNodes.builder().add(localNode).localNodeId(localNode.getId()).build())
+            .putCompatibilityVersions(localNode.getId(), compatibilityVersions)
             .build();
     }
 
-    static ClusterState upgradeAndArchiveUnknownOrInvalidSettings(final ClusterState clusterState, final ClusterSettings clusterSettings) {
+    public static ClusterState upgradeAndArchiveUnknownOrInvalidSettings(
+        final ClusterState clusterState,
+        final ClusterSettings clusterSettings
+    ) {
         final Metadata.Builder metadataBuilder = Metadata.builder(clusterState.metadata());
 
         metadataBuilder.persistentSettings(
             clusterSettings.archiveUnknownOrInvalidSettings(
-                clusterSettings.upgradeSettings(metadataBuilder.persistentSettings()),
+                metadataBuilder.persistentSettings(),
                 e -> logUnknownSetting("persistent", e),
                 (e, ex) -> logInvalidSetting("persistent", e, ex)
             )
         );
         metadataBuilder.transientSettings(
             clusterSettings.archiveUnknownOrInvalidSettings(
-                clusterSettings.upgradeSettings(metadataBuilder.transientSettings()),
+                metadataBuilder.transientSettings(),
                 e -> logUnknownSetting("transient", e),
                 (e, ex) -> logInvalidSetting("transient", e, ex)
             )
@@ -65,7 +75,7 @@ public class ClusterStateUpdaters {
         );
     }
 
-    static ClusterState recoverClusterBlocks(final ClusterState state) {
+    public static ClusterState recoverClusterBlocks(final ClusterState state) {
         final ClusterBlocks.Builder blocks = ClusterBlocks.builder().blocks(state.blocks());
 
         if (Metadata.SETTING_READ_ONLY_SETTING.get(state.metadata().settings())) {
@@ -89,8 +99,6 @@ public class ClusterStateUpdaters {
         for (final IndexMetadata indexMetadata : state.metadata().indices().values()) {
             routingTableBuilder.addAsRecovery(indexMetadata);
         }
-        // start with 0 based versions for routing table
-        routingTableBuilder.version(0);
         return ClusterState.builder(state).routingTable(routingTableBuilder.build()).build();
     }
 

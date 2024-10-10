@@ -13,10 +13,10 @@ import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.inference.results.ClassificationInferenceResults;
-import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.RawInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.RegressionInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.TopClassEntry;
@@ -145,7 +145,12 @@ public class EnsembleInferenceModel implements InferenceModel {
         if (preparedForInference == false) {
             throw ExceptionsHelper.serverError("model is not prepared for inference");
         }
-        LOGGER.debug(() -> "Inference called with feature names [" + Strings.arrayToCommaDelimitedString(featureNames) + "]");
+        LOGGER.debug(
+            () -> "Inference called with feature names ["
+                + Strings.arrayToCommaDelimitedString(featureNames)
+                + "] values "
+                + Arrays.toString(features)
+        );
         double[][] inferenceResults = new double[this.models.size()][];
         double[][] featureInfluence = new double[features.length][];
         int i = 0;
@@ -176,7 +181,7 @@ public class EnsembleInferenceModel implements InferenceModel {
         return featureInfluence;
     }
 
-    private void addFeatureImportance(double[][] featureInfluence, RawInferenceResults inferenceResult) {
+    private static void addFeatureImportance(double[][] featureInfluence, RawInferenceResults inferenceResult) {
         double[][] modelFeatureImportance = inferenceResult.getFeatureImportance();
         assert modelFeatureImportance.length == featureInfluence.length;
         for (int j = 0; j < modelFeatureImportance.length; j++) {

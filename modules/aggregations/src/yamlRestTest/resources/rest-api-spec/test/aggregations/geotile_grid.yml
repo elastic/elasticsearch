@@ -1,62 +1,131 @@
 setup:
-
   - do:
       indices.create:
-        index: test_1
+        index: locations
         body:
           settings:
-            number_of_replicas: 0
+            number_of_shards: 3
           mappings:
             properties:
               location:
                 type: geo_point
 
----
-"Basic test":
   - do:
       bulk:
         refresh: true
-        body:
-          - index:
-              _index: test_1
-              _id:    "1"
-          - location: "52.374081,4.912350"
-          - index:
-              _index: test_1
-              _id:    "2"
-          - location: "52.369219,4.901618"
-          - index:
-              _index: test_1
-              _id:    "3"
-          - location: "52.371667,4.914722"
-          - index:
-              _index: test_1
-              _id:    "4"
-          - location: "51.222900,4.405200"
-          - index:
-              _index: test_1
-              _id:    "5"
-          - location: "48.861111,2.336389"
-          - index:
-              _index: test_1
-              _id:    "6"
-          - location: "48.860000,2.327000"
+        index: locations
+        body: |
+          {"index":{}}
+          {"location": "POINT(4.912350 52.374081)", "city": "Amsterdam", "name": "NEMO Science Museum"}
+          {"index":{}}
+          {"location": "POINT(4.901618 52.369219)", "city": "Amsterdam", "name": "Museum Het Rembrandthuis"}
+          {"index":{}}
+          {"location": "POINT(4.914722 52.371667)", "city": "Amsterdam", "name": "Nederlands Scheepvaartmuseum"}
+          {"index":{}}
+          {"location": "POINT(4.405200 51.222900)", "city": "Antwerp", "name": "Letterenhuis"}
+          {"index":{}}
+          {"location": "POINT(2.336389 48.861111)", "city": "Paris", "name": "Musée du Louvre"}
+          {"index":{}}
+          {"location": "POINT(2.327000 48.860000)", "city": "Paris", "name": "Musée dOrsay"}
+
+  - do:
+      indices.refresh: { }
+
+---
+"Test geotile_grid on geo_shape field with defaults":
 
   - do:
       search:
-        rest_total_hits_as_int: true
+        index: locations
+        size: 0
         body:
-          aggregations:
+          aggs:
             grid:
               geotile_grid:
                 field: location
-                precision: 8
-
-
-  - match: { hits.total: 6 }
-  - match: { aggregations.grid.buckets.0.key: "8/131/84" }
-  - match: { aggregations.grid.buckets.0.doc_count: 3 }
-  - match: { aggregations.grid.buckets.1.key: "8/129/88" }
+  - match: { hits.total.value: 6 }
+  - length: { aggregations.grid.buckets: 2 }
+  - match: { aggregations.grid.buckets.0.key: "7/65/42" }
+  - match: { aggregations.grid.buckets.0.doc_count: 4 }
+  - match: { aggregations.grid.buckets.1.key: "7/64/44" }
   - match: { aggregations.grid.buckets.1.doc_count: 2 }
-  - match: { aggregations.grid.buckets.2.key: "8/131/85" }
-  - match: { aggregations.grid.buckets.2.doc_count: 1 }
+
+---
+"Test geotile_grid on geo_shape field with precision":
+
+  - do:
+      search:
+        index: locations
+        size: 0
+        body:
+          aggs:
+            grid:
+              geotile_grid:
+                precision: 5
+                field: location
+  - match: { hits.total.value: 6 }
+  - length: { aggregations.grid.buckets: 2 }
+  - match: { aggregations.grid.buckets.0.key: "5/16/10" }
+  - match: { aggregations.grid.buckets.0.doc_count: 4 }
+  - match: { aggregations.grid.buckets.1.key: "5/16/11" }
+  - match: { aggregations.grid.buckets.1.doc_count: 2 }
+
+---
+"Test geotile_grid on geo_shape field with size":
+
+  - do:
+      search:
+        index: locations
+        size: 0
+        body:
+          aggs:
+            grid:
+              geotile_grid:
+                field: location
+                size: 1
+  - match: { hits.total.value: 6 }
+  - length: { aggregations.grid.buckets: 1 }
+  - match: { aggregations.grid.buckets.0.key: "7/65/42" }
+  - match: { aggregations.grid.buckets.0.doc_count: 4 }
+
+
+---
+"Test geotile_grid on geo_shape field with shard_size":
+
+  - do:
+      search:
+        index: locations
+        size: 0
+        body:
+          aggs:
+            grid:
+              geotile_grid:
+                field: location
+                shard_size: 10
+  - match: { hits.total.value: 6 }
+  - length: { aggregations.grid.buckets: 2 }
+  - match: { aggregations.grid.buckets.0.key: "7/65/42" }
+  - match: { aggregations.grid.buckets.0.doc_count: 4 }
+  - match: { aggregations.grid.buckets.1.key: "7/64/44" }
+  - match: { aggregations.grid.buckets.1.doc_count: 2 }
+
+
+---
+"Test geotile_grid on geo_shape field with bounds":
+
+  - do:
+      search:
+        index: locations
+        size: 0
+        body:
+          aggs:
+            grid:
+              geotile_grid:
+                field: location
+                bounds:
+                  top_left: "POINT (4.9 52.4)"
+                  bottom_right: "POINT (5.0 52.3)"
+  - match: { hits.total.value: 6 }
+  - length: { aggregations.grid.buckets: 1 }
+  - match: { aggregations.grid.buckets.0.key: "7/65/42" }
+  - match: { aggregations.grid.buckets.0.doc_count: 4 }

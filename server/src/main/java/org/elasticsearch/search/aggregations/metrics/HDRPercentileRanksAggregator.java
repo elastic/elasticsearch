@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.search.aggregations.metrics;
 
@@ -12,7 +13,7 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
-import org.elasticsearch.search.aggregations.support.ValuesSource;
+import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 
 import java.io.IOException;
 import java.util.Map;
@@ -21,7 +22,7 @@ class HDRPercentileRanksAggregator extends AbstractHDRPercentilesAggregator {
 
     HDRPercentileRanksAggregator(
         String name,
-        ValuesSource valuesSource,
+        ValuesSourceConfig config,
         AggregationContext context,
         Aggregator parent,
         double[] percents,
@@ -30,7 +31,7 @@ class HDRPercentileRanksAggregator extends AbstractHDRPercentilesAggregator {
         DocValueFormat format,
         Map<String, Object> metadata
     ) throws IOException {
-        super(name, valuesSource, context, parent, percents, numberOfSignificantValueDigits, keyed, format, metadata);
+        super(name, config, context, parent, percents, numberOfSignificantValueDigits, keyed, format, metadata);
     }
 
     @Override
@@ -45,7 +46,7 @@ class HDRPercentileRanksAggregator extends AbstractHDRPercentilesAggregator {
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalHDRPercentileRanks(name, keys, null, keyed, format, metadata());
+        return InternalHDRPercentileRanks.empty(name, keys, keyed, format, metadata());
     }
 
     @Override
@@ -54,7 +55,7 @@ class HDRPercentileRanksAggregator extends AbstractHDRPercentilesAggregator {
         if (state == null) {
             return Double.NaN;
         } else {
-            return InternalHDRPercentileRanks.percentileRank(state, Double.valueOf(name));
+            return InternalHDRPercentileRanks.percentileRank(state, Double.parseDouble(name));
         }
     }
 }

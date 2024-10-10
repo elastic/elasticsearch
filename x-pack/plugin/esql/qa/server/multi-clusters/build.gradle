@@ -1,0 +1,31 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+import org.elasticsearch.gradle.Version
+import org.elasticsearch.gradle.internal.info.BuildParams
+import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
+
+apply plugin: 'elasticsearch.internal-java-rest-test'
+apply plugin: 'elasticsearch.bwc-test'
+
+dependencies {
+  javaRestTestImplementation project(xpackModule('esql:qa:testFixtures'))
+  javaRestTestImplementation project(xpackModule('esql:qa:server'))
+}
+
+def supportedVersion = bwcVersion -> {
+  // ESQL requires its own resolve_fields API
+  return bwcVersion.onOrAfter(Version.fromString("8.16.0"));
+}
+
+BuildParams.bwcVersions.withWireCompatible(supportedVersion) { bwcVersion, baseName ->
+  tasks.register(bwcTaskName(bwcVersion), StandaloneRestIntegTestTask) {
+    usesBwcDistribution(bwcVersion)
+    systemProperty("tests.old_cluster_version", bwcVersion)
+    maxParallelForks = 1
+  }
+}

@@ -6,11 +6,11 @@
  */
 package org.elasticsearch.xpack.core.ml.dataframe.stats.common;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.test.AbstractBWCSerializationTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xpack.core.ml.AbstractBWCSerializationTestCase;
 import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
 import org.junit.Before;
 
@@ -32,7 +32,7 @@ public class DataCountsTests extends AbstractBWCSerializationTestCase<DataCounts
     }
 
     @Override
-    protected DataCounts mutateInstanceForVersion(DataCounts instance, Version version) {
+    protected DataCounts mutateInstanceForVersion(DataCounts instance, TransportVersion version) {
         return instance;
     }
 

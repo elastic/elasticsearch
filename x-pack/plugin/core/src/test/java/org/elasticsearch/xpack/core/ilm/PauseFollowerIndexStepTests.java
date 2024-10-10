@@ -6,9 +6,7 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -17,6 +15,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.xpack.core.ccr.action.PauseFollowAction;
@@ -38,7 +37,7 @@ public class PauseFollowerIndexStepTests extends AbstractUnfollowIndexStepTestCa
 
     public void testPauseFollowingIndex() throws Exception {
         IndexMetadata indexMetadata = IndexMetadata.builder("follower-index")
-            .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE, "true"))
+            .settings(settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE, "true"))
             .putCustom(CCR_METADATA_KEY, Collections.emptyMap())
             .numberOfShards(1)
             .numberOfReplicas(0)
@@ -55,12 +54,12 @@ public class PauseFollowerIndexStepTests extends AbstractUnfollowIndexStepTestCa
         }).when(client).execute(Mockito.same(PauseFollowAction.INSTANCE), Mockito.any(), Mockito.any());
 
         PauseFollowerIndexStep step = new PauseFollowerIndexStep(randomStepKey(), randomStepKey(), client);
-        PlainActionFuture.<Void, Exception>get(f -> step.performAction(indexMetadata, clusterState, null, f));
+        performActionAndWait(step, indexMetadata, clusterState, null);
     }
 
     public void testRequestNotAcknowledged() {
         IndexMetadata indexMetadata = IndexMetadata.builder("follower-index")
-            .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE, "true"))
+            .settings(settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE, "true"))
             .putCustom(CCR_METADATA_KEY, Collections.emptyMap())
             .numberOfShards(1)
             .numberOfReplicas(0)
@@ -75,16 +74,13 @@ public class PauseFollowerIndexStepTests extends AbstractUnfollowIndexStepTestCa
         }).when(client).execute(Mockito.same(PauseFollowAction.INSTANCE), Mockito.any(), Mockito.any());
 
         PauseFollowerIndexStep step = new PauseFollowerIndexStep(randomStepKey(), randomStepKey(), client);
-        Exception e = expectThrows(
-            Exception.class,
-            () -> PlainActionFuture.<Void, Exception>get(f -> step.performAction(indexMetadata, clusterState, null, f))
-        );
+        Exception e = expectThrows(Exception.class, () -> performActionAndWait(step, indexMetadata, clusterState, null));
         assertThat(e.getMessage(), is("pause follow request failed to be acknowledged"));
     }
 
     public void testPauseFollowingIndexFailed() {
         IndexMetadata indexMetadata = IndexMetadata.builder("follower-index")
-            .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE, "true"))
+            .settings(settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE, "true"))
             .putCustom(CCR_METADATA_KEY, Collections.emptyMap())
             .numberOfShards(1)
             .numberOfReplicas(0)
@@ -102,13 +98,7 @@ public class PauseFollowerIndexStepTests extends AbstractUnfollowIndexStepTestCa
         }).when(client).execute(Mockito.same(PauseFollowAction.INSTANCE), Mockito.any(), Mockito.any());
 
         PauseFollowerIndexStep step = new PauseFollowerIndexStep(randomStepKey(), randomStepKey(), client);
-        assertSame(
-            error,
-            expectThrows(
-                Exception.class,
-                () -> PlainActionFuture.<Void, Exception>get(f -> step.performAction(indexMetadata, clusterState, null, f))
-            )
-        );
+        assertSame(error, expectThrows(Exception.class, () -> performActionAndWait(step, indexMetadata, clusterState, null)));
 
         Mockito.verify(client).execute(Mockito.same(PauseFollowAction.INSTANCE), Mockito.any(), Mockito.any());
         Mockito.verifyNoMoreInteractions(client);
@@ -116,7 +106,7 @@ public class PauseFollowerIndexStepTests extends AbstractUnfollowIndexStepTestCa
 
     public final void testNoShardFollowPersistentTasks() throws Exception {
         IndexMetadata indexMetadata = IndexMetadata.builder("managed-index")
-            .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE, "true"))
+            .settings(settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE, "true"))
             .putCustom(CCR_METADATA_KEY, Collections.emptyMap())
             .numberOfShards(1)
             .numberOfReplicas(0)
@@ -134,20 +124,20 @@ public class PauseFollowerIndexStepTests extends AbstractUnfollowIndexStepTestCa
 
         PauseFollowerIndexStep step = newInstance(randomStepKey(), randomStepKey());
 
-        PlainActionFuture.<Void, Exception>get(f -> step.performAction(indexMetadata, clusterState, null, f));
+        performActionAndWait(step, indexMetadata, clusterState, null);
 
         Mockito.verifyNoMoreInteractions(client);
     }
 
     public final void testNoShardFollowTasksForManagedIndex() throws Exception {
         IndexMetadata managedIndex = IndexMetadata.builder("managed-index")
-            .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE, "true"))
+            .settings(settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE, "true"))
             .numberOfShards(1)
             .numberOfReplicas(0)
             .build();
 
         IndexMetadata followerIndex = IndexMetadata.builder("follower-index")
-            .settings(settings(Version.CURRENT))
+            .settings(settings(IndexVersion.current()))
             .putCustom(CCR_METADATA_KEY, Collections.emptyMap())
             .numberOfShards(1)
             .numberOfReplicas(0)
@@ -157,7 +147,7 @@ public class PauseFollowerIndexStepTests extends AbstractUnfollowIndexStepTestCa
             .build();
         PauseFollowerIndexStep step = newInstance(randomStepKey(), randomStepKey());
 
-        PlainActionFuture.<Void, Exception>get(f -> step.performAction(managedIndex, clusterState, null, f));
+        performActionAndWait(step, managedIndex, clusterState, null);
 
         Mockito.verifyNoMoreInteractions(client);
     }

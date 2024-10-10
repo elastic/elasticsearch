@@ -32,7 +32,7 @@ public class ResumeFollowActionRequestTests extends AbstractXContentSerializingT
 
     @Override
     protected ResumeFollowAction.Request createTestInstance() {
-        ResumeFollowAction.Request request = new ResumeFollowAction.Request();
+        ResumeFollowAction.Request request = new ResumeFollowAction.Request(TEST_REQUEST_TIMEOUT);
         request.setFollowerIndex(randomAlphaOfLength(4));
 
         generateFollowParameters(request.getParameters());
@@ -48,19 +48,14 @@ public class ResumeFollowActionRequestTests extends AbstractXContentSerializingT
     protected ResumeFollowAction.Request createXContextTestInstance(XContentType type) {
         // follower index parameter is not part of the request body and is provided in the url path.
         // So this field cannot be used for creating a test instance for xcontent testing.
-        ResumeFollowAction.Request request = new ResumeFollowAction.Request();
+        ResumeFollowAction.Request request = new ResumeFollowAction.Request(TEST_REQUEST_TIMEOUT);
         generateFollowParameters(request.getParameters());
         return request;
     }
 
     @Override
     protected ResumeFollowAction.Request doParseInstance(XContentParser parser) throws IOException {
-        return ResumeFollowAction.Request.fromXContent(parser, null);
-    }
-
-    @Override
-    protected boolean supportsUnknownFields() {
-        return false;
+        return ResumeFollowAction.Request.fromXContent(TEST_REQUEST_TIMEOUT, parser, null);
     }
 
     static void generateFollowParameters(FollowParameters followParameters) {
@@ -97,7 +92,7 @@ public class ResumeFollowActionRequestTests extends AbstractXContentSerializingT
     }
 
     public void testValidate() {
-        ResumeFollowAction.Request request = new ResumeFollowAction.Request();
+        ResumeFollowAction.Request request = new ResumeFollowAction.Request(TEST_REQUEST_TIMEOUT);
         request.setFollowerIndex("index2");
         request.getParameters().setMaxRetryDelay(TimeValue.ZERO);
 

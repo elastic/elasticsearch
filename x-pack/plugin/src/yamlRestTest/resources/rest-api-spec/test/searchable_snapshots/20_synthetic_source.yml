@@ -1,7 +1,7 @@
 ---
 setup:
-  - skip:
-      version: " - 8.4.99"
+  - requires:
+      cluster_features: ["gte_v8.5.0"]
       reason:  added in 8.5
 
   - do:
@@ -56,8 +56,8 @@ setup:
 
 ---
 "Tests searchable snapshots usage stats":
-  - skip:
-      version: " - 8.4.99"
+  - requires:
+      cluster_features: ["gte_v8.5.0"]
       reason:  added in 8.5
 
   - do:

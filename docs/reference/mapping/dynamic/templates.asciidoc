@@ -7,8 +7,8 @@ dynamic mapping by setting the dynamic parameter to `true` or `runtime`. You
 can then use dynamic templates to define custom mappings that can be applied to
 dynamically added fields based on the matching condition:
 
-* <<match-mapping-type,`match_mapping_type`>> operates on the data type that
-{es} detects
+* <<match-mapping-type,`match_mapping_type` and `unmatch_mapping_type`>>
+operate on the data type that {es} detects
 * <<match-unmatch,`match` and `unmatch`>> use a pattern to match on the field
 name
 * <<path-match-unmatch,`path_match` and `path_unmatch`>> operate on the full
@@ -116,10 +116,13 @@ See <<text-only-mappings-strings,this example>> for how to use dynamic templates
 to map `string` fields as either indexed fields or runtime fields.
 
 [[match-mapping-type]]
-==== `match_mapping_type`
+==== `match_mapping_type` and `unmatch_mapping_type`
 
-The `match_mapping_type` is the data type detected by the JSON parser. Because
-JSON doesn't distinguish a `long` from an `integer` or a `double` from
+The `match_mapping_type` parameter matches fields by the data type detected by
+the JSON parser, while `unmatch_mapping_type` excludes fields based on the data
+type.
+
+Because JSON doesn't distinguish a `long` from an `integer` or a `double` from
 a `float`, any parsed floating point number is considered a `double` JSON data
 type, while any parsed `integer` number is considered a `long`.
 
@@ -132,7 +135,10 @@ which is why `"dynamic":"runtime"` uses `double`.
 
 include::field-mapping.asciidoc[tag=dynamic-field-mapping-types-tag]
 
-Use a wildcard (`*`) to match all data types.
+You can specify either a single data type or a list of data types for either
+the `match_mapping_type` or `unmatch_mapping_type` parameters. You can also
+use a wildcard (`*`) for the `match_mapping_type` parameter to match all
+data types.
 
 For example, if we wanted to map all integer fields as `integer` instead of
 `long`, and all `string` fields as both `text` and `keyword`, we
@@ -144,6 +150,16 @@ PUT my-index-000001
 {
   "mappings": {
     "dynamic_templates": [
+      {
+        "numeric_counts": {
+          "match_mapping_type": ["long", "double"],
+          "match": "count",
+          "mapping": {
+            "type": "{dynamic_type}",
+            "index": false
+          }
+        }
+      },
       {
         "integers": {
           "match_mapping_type": "long",
@@ -165,6 +181,15 @@ PUT my-index-000001
             }
           }
         }
+      },
+      {
+        "non_objects_keyword": {
+          "match_mapping_type": "*",
+          "unmatch_mapping_type": "object",
+          "mapping": {
+            "type": "keyword"
+          }
+        }
       }
     ]
   }
@@ -173,18 +198,22 @@ PUT my-index-000001
 PUT my-index-000001/_doc/1
 {
   "my_integer": 5, <1>
-  "my_string": "Some string" <2>
+  "my_string": "Some string", <2>
+  "my_boolean": "false", <3>
+  "field": {"count": 4} <4>
 }
 --------------------------------------------------
 
 <1> The `my_integer` field is mapped as an `integer`.
 <2> The `my_string` field is mapped as a `text`, with a `keyword` <<multi-fields,multi-field>>.
+<3> The `my_boolean` field is mapped as a `keyword`.
+<4> The `field.count` field is mapped as a `long`.
 
 [[match-unmatch]]
 ==== `match` and `unmatch`
 
-The `match` parameter uses a pattern to match on the field name, while
-`unmatch` uses a pattern to exclude fields matched by `match`.
+The `match` parameter uses one or more patterns to match on the field name, while
+`unmatch` uses one or more patterns to exclude fields matched by `match`.
 
 The `match_pattern` parameter adjusts the behavior of the `match` parameter
 to support full Java regular expressions matching on the field name
@@ -231,6 +260,48 @@ PUT my-index-000001/_doc/1
 <1> The `long_num` field is mapped as a `long`.
 <2> The `long_text` field uses the default `string` mapping.
 
+
+You can specify a list of patterns using a JSON array for either the
+`match` or `unmatch` fields.
+
+The next example matches all fields whose name starts with `ip_` or ends with `_ip`, 
+except for fields which start with `one` or end with `two` and maps them
+as `ip` fields:
+
+[source,console]
+--------------------------------------------------
+PUT my-index-000001
+{
+  "mappings": {
+    "dynamic_templates": [
+      {
+        "ip_fields": {
+          "match":   ["ip_*", "*_ip"],
+          "unmatch": ["one*", "*two"],
+          "mapping": {
+            "type": "ip"
+          }
+        }
+      }
+    ]
+  }
+}
+
+PUT my-index/_doc/1
+{
+  "one_ip":   "will not match", <1>
+  "ip_two":   "will not match", <2>
+  "three_ip": "12.12.12.12", <3>
+  "ip_four":  "13.13.13.13" <4>
+}
+--------------------------------------------------
+
+<1> The `one_ip` field is unmatched, so uses the default mapping of `text`.
+<2> The `ip_two` field is unmatched, so uses the default mapping of `text`.
+<3> The `three_ip` field is mapped as type `ip`.
+<4> The `ip_four` field is mapped as type `ip`.
+
+
 [[path-match-unmatch]]
 ==== `path_match` and `path_unmatch`
 
@@ -270,6 +341,55 @@ PUT my-index-000001/_doc/1
   }
 }
 --------------------------------------------------
+
+And the following example uses an array of patterns for both `path_match`
+and `path_unmatch`.
+
+The values of any fields in the `name` object or the `user.name` object
+are copied to the top-level `full_name` field, except for the `middle`
+and `midinitial` fields:
+
+[source,console]
+--------------------------------------------------
+PUT my-index-000001
+{
+  "mappings": {
+    "dynamic_templates": [
+      {
+        "full_name": {
+          "path_match":   ["name.*", "user.name.*"],
+          "path_unmatch": ["*.middle", "*.midinitial"],
+          "mapping": {
+            "type":       "text",
+            "copy_to":    "full_name"
+          }
+        }
+      }
+    ]
+  }
+}
+
+PUT my-index-000001/_doc/1
+{
+  "name": {
+    "first":  "John",
+    "middle": "Winston",
+    "last":   "Lennon"
+  }
+}
+
+PUT my-index-000001/_doc/2
+{
+  "user": {
+    "name": {
+      "first":      "Jane",
+      "midinitial": "M",
+      "last":       "Salazar"
+    }
+  }
+}
+--------------------------------------------------
+
 
 Note that the `path_match` and `path_unmatch` parameters match on object paths
 in addition to leaf fields. As an example, indexing the following document will

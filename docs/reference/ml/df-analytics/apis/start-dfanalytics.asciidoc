@@ -53,14 +53,14 @@ when you created the job, those credentials are used.
 
 `<data_frame_analytics_id>`::
 (Required, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=job-id-data-frame-analytics-define]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=job-id-data-frame-analytics-define]
 
 [[ml-start-dfanalytics-query-params]]
 == {api-query-parms-title}
 
 `timeout`::
 (Optional, <<time-units,time units>>) 
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=timeout-start]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=timeout-start]
 
 [[ml-start-dfanalytics-response-body]]
 == {api-response-body-title}

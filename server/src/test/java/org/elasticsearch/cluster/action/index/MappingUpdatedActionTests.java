@@ -1,22 +1,22 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.cluster.action.index;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.indices.mapping.put.AutoPutMappingAction;
+import org.elasticsearch.action.admin.indices.mapping.put.TransportAutoPutMappingAction;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.AdminClient;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.IndicesAdminClient;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -128,9 +128,7 @@ public class MappingUpdatedActionTests extends ESTestCase {
     }
 
     public void testSendUpdateMappingUsingAutoPutMappingAction() {
-        DiscoveryNodes nodes = DiscoveryNodes.builder()
-            .add(new DiscoveryNode("first", buildNewFakeTransportAddress(), Version.V_7_9_0))
-            .build();
+        DiscoveryNodes nodes = DiscoveryNodes.builder().add(DiscoveryNodeUtils.builder("first").build()).build();
         ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).nodes(nodes).build();
         ClusterService clusterService = mock(ClusterService.class);
         when(clusterService.state()).thenReturn(clusterState);
@@ -148,11 +146,11 @@ public class MappingUpdatedActionTests extends ESTestCase {
         mua.setClient(client);
 
         RootObjectMapper rootObjectMapper = new RootObjectMapper.Builder("name", ObjectMapper.Defaults.SUBOBJECTS).build(
-            MapperBuilderContext.root(false)
+            MapperBuilderContext.root(false, false)
         );
         Mapping update = new Mapping(rootObjectMapper, new MetadataFieldMapper[0], Map.of());
 
         mua.sendUpdateMapping(new Index("name", "uuid"), update, ActionListener.noop());
-        verify(indicesAdminClient).execute(eq(AutoPutMappingAction.INSTANCE), any(), any());
+        verify(indicesAdminClient).execute(eq(TransportAutoPutMappingAction.TYPE), any(), any());
     }
 }

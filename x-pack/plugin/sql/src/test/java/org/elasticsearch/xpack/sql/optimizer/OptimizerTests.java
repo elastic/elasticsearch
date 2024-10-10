@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.sql.optimizer;
 
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
+import org.elasticsearch.xpack.ql.InvalidArgumentException;
 import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Expression.TypeResolution;
@@ -104,7 +104,6 @@ import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.Add;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.Sub;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.sql.optimizer.Optimizer.CombineProjections;
-import org.elasticsearch.xpack.sql.optimizer.Optimizer.FoldNull;
 import org.elasticsearch.xpack.sql.optimizer.Optimizer.ReplaceAggsWithExtendedStats;
 import org.elasticsearch.xpack.sql.optimizer.Optimizer.ReplaceAggsWithStats;
 import org.elasticsearch.xpack.sql.optimizer.Optimizer.ReplaceFoldableAttributes;
@@ -342,12 +341,6 @@ public class OptimizerTests extends ESTestCase {
 
     // Null folding
 
-    public void testNullFoldingIsNull() {
-        FoldNull foldNull = new FoldNull();
-        assertEquals(true, foldNull.rule(new IsNull(EMPTY, NULL)).fold());
-        assertEquals(false, foldNull.rule(new IsNull(EMPTY, TRUE)).fold());
-    }
-
     public void testNullFoldingIsNullWithCast() {
         FoldNull foldNull = new FoldNull();
 
@@ -356,11 +349,8 @@ public class OptimizerTests extends ESTestCase {
         final IsNull isNullOpt = (IsNull) foldNull.rule(isNull);
         assertEquals(isNull, isNullOpt);
 
-        QlIllegalArgumentException sqlIAE = expectThrows(
-            QlIllegalArgumentException.class,
-            () -> isNullOpt.asPipe().asProcessor().process(null)
-        );
-        assertEquals("cannot cast [foo] to [date]: Text 'foo' could not be parsed at index 0", sqlIAE.getMessage());
+        Exception e = expectThrows(InvalidArgumentException.class, () -> isNullOpt.asPipe().asProcessor().process(null));
+        assertEquals("cannot cast [foo] to [date]: Text 'foo' could not be parsed at index 0", e.getMessage());
 
         isNull = new IsNull(EMPTY, new Cast(EMPTY, NULL, randomFrom(DataTypes.types())));
         assertTrue((Boolean) ((IsNull) foldNull.rule(isNull)).asPipe().asProcessor().process(null));
@@ -384,11 +374,8 @@ public class OptimizerTests extends ESTestCase {
         final IsNotNull isNotNullOpt = (IsNotNull) foldNull.rule(isNotNull);
         assertEquals(isNotNull, isNotNullOpt);
 
-        QlIllegalArgumentException sqlIAE = expectThrows(
-            QlIllegalArgumentException.class,
-            () -> isNotNullOpt.asPipe().asProcessor().process(null)
-        );
-        assertEquals("cannot cast [foo] to [date]: Text 'foo' could not be parsed at index 0", sqlIAE.getMessage());
+        Exception e = expectThrows(InvalidArgumentException.class, () -> isNotNullOpt.asPipe().asProcessor().process(null));
+        assertEquals("cannot cast [foo] to [date]: Text 'foo' could not be parsed at index 0", e.getMessage());
 
         isNotNull = new IsNotNull(EMPTY, new Cast(EMPTY, NULL, randomFrom(DataTypes.types())));
         assertFalse((Boolean) ((IsNotNull) foldNull.rule(isNotNull)).asPipe().asProcessor().process(null));
@@ -421,20 +408,6 @@ public class OptimizerTests extends ESTestCase {
         cast = new Cast(EMPTY, L("foo"), DATE);
         assertEquals(Nullability.UNKNOWN, cast.nullable());
         assertEquals(cast, foldNull.rule(cast));
-    }
-
-    public void testNullFoldingDoesNotApplyOnLogicalExpressions() {
-        FoldNull rule = new FoldNull();
-
-        Or or = new Or(EMPTY, NULL, TRUE);
-        assertEquals(or, rule.rule(or));
-        or = new Or(EMPTY, NULL, NULL);
-        assertEquals(or, rule.rule(or));
-
-        And and = new And(EMPTY, NULL, TRUE);
-        assertEquals(and, rule.rule(and));
-        and = new And(EMPTY, NULL, NULL);
-        assertEquals(and, rule.rule(and));
     }
 
     @SuppressWarnings("unchecked")
@@ -1223,5 +1196,4 @@ public class OptimizerTests extends ESTestCase {
 
         optimized.forEachDown(LeafPlan.class, l -> { assertEquals(EsRelation.class, l.getClass()); });
     }
-
 }

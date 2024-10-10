@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.rest.action.admin.indices;
@@ -16,13 +17,20 @@ import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.DataStreamAlias;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.logging.DeprecationCategory;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.RestApiVersion;
+import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestBuilderListener;
+import org.elasticsearch.rest.action.RestCancellableNodeClient;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -41,7 +49,11 @@ import static org.elasticsearch.rest.RestRequest.Method.HEAD;
 /**
  * The REST handler for get alias and head alias APIs.
  */
+@ServerlessScope(Scope.PUBLIC)
 public class RestGetAliasesAction extends BaseRestHandler {
+
+    @UpdateForV9(owner = UpdateForV9.Owner.DATA_MANAGEMENT) // reject the deprecated ?local parameter
+    private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(RestGetAliasesAction.class);
 
     @Override
     public List<Route> routes() {
@@ -198,16 +210,30 @@ public class RestGetAliasesAction extends BaseRestHandler {
         final String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
         getAliasesRequest.indices(indices);
         getAliasesRequest.indicesOptions(IndicesOptions.fromRequest(request, getAliasesRequest.indicesOptions()));
-        getAliasesRequest.local(request.paramAsBoolean("local", getAliasesRequest.local()));
+
+        if (request.hasParam("local")) {
+            // consume this param just for validation
+            final var localParam = request.paramAsBoolean("local", false);
+            if (request.getRestApiVersion() != RestApiVersion.V_7) {
+                DEPRECATION_LOGGER.critical(
+                    DeprecationCategory.API,
+                    "get-aliases-local",
+                    "the [?local={}] query parameter to get-aliases requests has no effect and will be removed in a future version",
+                    localParam
+                );
+            }
+        }
 
         // we may want to move this logic to TransportGetAliasesAction but it is based on the original provided aliases, which will
         // not always be available there (they may get replaced so retrieving request.aliases is not quite the same).
-        return channel -> client.admin().indices().getAliases(getAliasesRequest, new RestBuilderListener<>(channel) {
-            @Override
-            public RestResponse buildResponse(GetAliasesResponse response, XContentBuilder builder) throws Exception {
-                return buildRestResponse(namesProvided, aliases, response.getAliases(), response.getDataStreamAliases(), builder);
-            }
-        });
+        return channel -> new RestCancellableNodeClient(client, request.getHttpChannel()).admin()
+            .indices()
+            .getAliases(getAliasesRequest, new RestBuilderListener<>(channel) {
+                @Override
+                public RestResponse buildResponse(GetAliasesResponse response, XContentBuilder builder) throws Exception {
+                    return buildRestResponse(namesProvided, aliases, response.getAliases(), response.getDataStreamAliases(), builder);
+                }
+            });
     }
 
 }

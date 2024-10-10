@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.script;
@@ -72,6 +73,7 @@ public class Metadata {
      * @param map the backing map for this metadata instance
      * @param properties the immutable map of defined properties for the type of metadata represented by this instance
      */
+    @SuppressWarnings("this-escape")
     protected Metadata(Map<String, Object> map, Map<String, FieldProperty<?>> properties) {
         this.map = map;
         // we can't tell the compiler that properties must be a java.util.ImmutableCollections.AbstractImmutableMap, but
@@ -306,7 +308,7 @@ public class Metadata {
      * @param writable - can the field be updated after the initial set
      * @param extendedValidation - value validation after type checking, may be used for values that may be one of a set
      */
-    public record FieldProperty<T> (Class<T> type, boolean nullable, boolean writable, BiConsumer<String, T> extendedValidation) {
+    public record FieldProperty<T>(Class<T> type, boolean nullable, boolean writable, BiConsumer<String, T> extendedValidation) {
 
         public FieldProperty(Class<T> type) {
             this(type, false, false, null);

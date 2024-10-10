@@ -6,20 +6,20 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotAction;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest;
-import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.admin.cluster.snapshots.create.TransportCreateSnapshotAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.snapshots.SnapshotNameAlreadyInUseException;
 import org.elasticsearch.test.client.NoOpClient;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 
 import java.util.HashMap;
@@ -67,7 +67,7 @@ public class CreateSnapshotStepTests extends AbstractStepTestCase<CreateSnapshot
 
         {
             IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(indexName)
-                .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
+                .settings(settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
                 .numberOfShards(randomIntBetween(1, 5))
                 .numberOfReplicas(randomIntBetween(0, 5));
             Map<String, String> ilmCustom = new HashMap<>();
@@ -84,14 +84,14 @@ public class CreateSnapshotStepTests extends AbstractStepTestCase<CreateSnapshot
             CreateSnapshotStep createSnapshotStep = createRandomInstance();
             Exception e = expectThrows(
                 IllegalStateException.class,
-                () -> PlainActionFuture.<Void, Exception>get(f -> createSnapshotStep.performAction(indexMetadata, clusterState, null, f))
+                () -> performActionAndWait(createSnapshotStep, indexMetadata, clusterState, null)
             );
             assertThat(e.getMessage(), is("snapshot name was not generated for policy [" + policyName + "] and index [" + indexName + "]"));
         }
 
         {
             IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(indexName)
-                .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
+                .settings(settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
                 .numberOfShards(randomIntBetween(1, 5))
                 .numberOfReplicas(randomIntBetween(0, 5));
             IndexMetadata indexMetadata = indexMetadataBuilder.build();
@@ -103,7 +103,7 @@ public class CreateSnapshotStepTests extends AbstractStepTestCase<CreateSnapshot
             CreateSnapshotStep createSnapshotStep = createRandomInstance();
             Exception e = expectThrows(
                 IllegalStateException.class,
-                () -> PlainActionFuture.<Void, Exception>get(f -> createSnapshotStep.performAction(indexMetadata, clusterState, null, f))
+                () -> performActionAndWait(createSnapshotStep, indexMetadata, clusterState, null)
             );
             assertThat(
                 e.getMessage(),
@@ -122,7 +122,7 @@ public class CreateSnapshotStepTests extends AbstractStepTestCase<CreateSnapshot
         ilmCustom.put("snapshot_repository", repository);
 
         IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(indexName)
-            .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
+            .settings(settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
             .putCustom(LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY, ilmCustom)
             .numberOfShards(randomIntBetween(1, 5))
             .numberOfReplicas(randomIntBetween(0, 5));
@@ -132,7 +132,8 @@ public class CreateSnapshotStepTests extends AbstractStepTestCase<CreateSnapshot
             .metadata(Metadata.builder().put(indexMetadata, true).build())
             .build();
 
-        try (NoOpClient client = getCreateSnapshotRequestAssertingClient(repository, snapshotName, indexName)) {
+        try (var threadPool = createThreadPool()) {
+            final var client = getCreateSnapshotRequestAssertingClient(threadPool, repository, snapshotName, indexName);
             CreateSnapshotStep step = new CreateSnapshotStep(randomStepKey(), randomStepKey(), randomStepKey(), client);
             step.performAction(indexMetadata, clusterState, null, ActionListener.noop());
         }
@@ -148,7 +149,7 @@ public class CreateSnapshotStepTests extends AbstractStepTestCase<CreateSnapshot
         ilmCustom.put("snapshot_repository", repository);
 
         IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(indexName)
-            .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
+            .settings(settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
             .putCustom(LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY, ilmCustom)
             .numberOfShards(randomIntBetween(1, 5))
             .numberOfReplicas(randomIntBetween(0, 5));
@@ -158,7 +159,8 @@ public class CreateSnapshotStepTests extends AbstractStepTestCase<CreateSnapshot
             .metadata(Metadata.builder().put(indexMetadata, true).build())
             .build();
         {
-            try (NoOpClient client = new NoOpClient(getTestName())) {
+            try (var threadPool = createThreadPool()) {
+                final var client = new NoOpClient(threadPool);
                 StepKey nextKeyOnComplete = randomStepKey();
                 StepKey nextKeyOnIncomplete = randomStepKey();
                 CreateSnapshotStep completeStep = new CreateSnapshotStep(randomStepKey(), nextKeyOnComplete, nextKeyOnIncomplete, client) {
@@ -173,7 +175,8 @@ public class CreateSnapshotStepTests extends AbstractStepTestCase<CreateSnapshot
         }
 
         {
-            try (NoOpClient client = new NoOpClient(getTestName())) {
+            try (var threadPool = createThreadPool()) {
+                final var client = new NoOpClient(threadPool);
                 StepKey nextKeyOnComplete = randomStepKey();
                 StepKey nextKeyOnIncomplete = randomStepKey();
                 CreateSnapshotStep incompleteStep = new CreateSnapshotStep(
@@ -193,7 +196,8 @@ public class CreateSnapshotStepTests extends AbstractStepTestCase<CreateSnapshot
         }
 
         {
-            try (NoOpClient client = new NoOpClient(getTestName())) {
+            try (var threadPool = createThreadPool()) {
+                final var client = new NoOpClient(threadPool);
                 StepKey nextKeyOnComplete = randomStepKey();
                 StepKey nextKeyOnIncomplete = randomStepKey();
                 CreateSnapshotStep doubleInvocationStep = new CreateSnapshotStep(
@@ -213,15 +217,20 @@ public class CreateSnapshotStepTests extends AbstractStepTestCase<CreateSnapshot
         }
     }
 
-    private NoOpClient getCreateSnapshotRequestAssertingClient(String expectedRepoName, String expectedSnapshotName, String indexName) {
-        return new NoOpClient(getTestName()) {
+    private NoOpClient getCreateSnapshotRequestAssertingClient(
+        ThreadPool threadPool,
+        String expectedRepoName,
+        String expectedSnapshotName,
+        String indexName
+    ) {
+        return new NoOpClient(threadPool) {
             @Override
             protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
                 ActionType<Response> action,
                 Request request,
                 ActionListener<Response> listener
             ) {
-                assertThat(action.name(), is(CreateSnapshotAction.NAME));
+                assertThat(action.name(), is(TransportCreateSnapshotAction.TYPE.name()));
                 assertTrue(request instanceof CreateSnapshotRequest);
                 CreateSnapshotRequest createSnapshotRequest = (CreateSnapshotRequest) request;
                 assertThat(createSnapshotRequest.indices().length, is(1));

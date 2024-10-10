@@ -81,13 +81,8 @@ public class GeoShapeGeoHexGridAggregatorTests extends GeoShapeGeoGridTestCase<I
     public void testMappedMissingGeoShape() throws IOException {
         final String lineString = "LINESTRING (30 10, 10 30, 40 40)";
         final GeoGridAggregationBuilder builder = createBuilder("_name").field(FIELD_NAME).missing(lineString);
-        testCase(
-            new MatchAllDocsQuery(),
-            1,
-            null,
-            iw -> { iw.addDocument(Collections.singleton(new SortedSetDocValuesField("string", new BytesRef("a")))); },
-            geoGrid -> { assertEquals(8, geoGrid.getBuckets().size()); },
-            builder
-        );
+        testCase(new MatchAllDocsQuery(), 1, null, iw -> {
+            iw.addDocument(Collections.singleton(new SortedSetDocValuesField("string", new BytesRef("a"))));
+        }, geoGrid -> { assertEquals(8, geoGrid.getBuckets().size()); }, builder);
     }
 }

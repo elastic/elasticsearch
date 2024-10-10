@@ -1,8 +1,8 @@
 setup:
-  - skip:
-      version: " - 8.5.99"
+  - requires:
+      cluster_features: ["gte_v8.6.0"]
       reason: "support for byte vectors added in 8.6"
-      features: headers
+      test_runner_features: headers
 
   - do:
       indices.create:
@@ -13,6 +13,7 @@ setup:
           mappings:
             properties:
               my_dense_vector:
+                index: false
                 type: dense_vector
                 element_type: byte
                 dims: 5
@@ -69,6 +70,35 @@ setup:
   - gte: {hits.hits.2._score: 29.0}
 
 ---
+"L1 norm hexidecimal":
+  - requires:
+      cluster_features: "gte_v8.14.1"
+      reason: "support for hexidecimal byte vectors added in 8.14"
+  - do:
+      headers:
+        Content-Type: application/json
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query:
+            script_score:
+              query: {match_all: {} }
+              script:
+                source: "l1norm(params.query_vector, 'my_dense_vector')"
+                params:
+                  query_vector: "006ff30e84"
+
+  - match: {hits.total: 3}
+
+  - match: {hits.hits.0._id: "1"}
+  - match: {hits.hits.0._score: 246.0}
+
+  - match: {hits.hits.1._id: "3"}
+  - match: {hits.hits.1._score: 117.0}
+
+  - match: {hits.hits.2._id: "2"}
+  - gte: {hits.hits.2._score: 29.0}
+---
 "L2 norm":
   - do:
       headers:
@@ -83,6 +113,38 @@ setup:
                 source: "l2norm(params.query_vector, 'my_dense_vector')"
                 params:
                   query_vector: [0, 111, -13, 14, -124]
+
+  - match: {hits.total: 3}
+
+  - match: {hits.hits.0._id: "1"}
+  - gte: {hits.hits.0._score: 158.624}
+  - lte: {hits.hits.0._score: 158.627}
+
+  - match: {hits.hits.1._id: "3"}
+  - gte: {hits.hits.1._score: 94.407}
+  - lte: {hits.hits.1._score: 94.41}
+
+  - match: {hits.hits.2._id: "2"}
+  - gte: {hits.hits.2._score: 15.263}
+  - lte: {hits.hits.2._score: 15.266}
+---
+"L2 norm hexidecimal":
+  - requires:
+      cluster_features: "gte_v8.14.1"
+      reason: "support for hexidecimal byte vectors added in 8.14"
+  - do:
+      headers:
+        Content-Type: application/json
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query:
+            script_score:
+              query: {match_all: {} }
+              script:
+                source: "l2norm(params.query_vector, 'my_dense_vector')"
+                params:
+                  query_vector: "006ff30e84"
 
   - match: {hits.total: 3}
 

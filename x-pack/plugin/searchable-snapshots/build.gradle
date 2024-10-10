@@ -8,11 +8,14 @@ esplugin {
   classname 'org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots'
   extendedPlugins = ['x-pack-core', 'blob-cache']
 }
-archivesBaseName = 'x-pack-searchable-snapshots'
+base {
+  archivesName = 'x-pack-searchable-snapshots'
+}
 
 dependencies {
   compileOnly project(path: xpackModule('core'))
   compileOnly project(path: xpackModule('blob-cache'))
+  compileOnly project(path: ':libs:elasticsearch-native')
   testImplementation(testArtifact(project(xpackModule('blob-cache'))))
   internalClusterTestImplementation(testArtifact(project(xpackModule('core'))))
   internalClusterTestImplementation(project(path: xpackModule('shutdown')))

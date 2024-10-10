@@ -32,7 +32,7 @@ public class SpatialStatsAction extends ActionType<SpatialStatsAction.Response> 
     public static final String NAME = "cluster:monitor/xpack/spatial/stats";
 
     private SpatialStatsAction() {
-        super(NAME, Response::new);
+        super(NAME);
     }
 
     /**
@@ -49,10 +49,6 @@ public class SpatialStatsAction extends ActionType<SpatialStatsAction.Response> 
 
         public Request() {
             super((String[]) null);
-        }
-
-        public Request(StreamInput in) throws IOException {
-            super(in);
         }
 
         @Override
@@ -85,9 +81,7 @@ public class SpatialStatsAction extends ActionType<SpatialStatsAction.Response> 
             super(in);
         }
 
-        public NodeRequest(Request request) {
-
-        }
+        public NodeRequest() {}
     }
 
     public static class Response extends BaseNodesResponse<NodeResponse> implements Writeable, ToXContentObject {
@@ -101,12 +95,12 @@ public class SpatialStatsAction extends ActionType<SpatialStatsAction.Response> 
 
         @Override
         protected List<NodeResponse> readNodesFrom(StreamInput in) throws IOException {
-            return in.readList(NodeResponse::new);
+            return in.readCollectionAsList(NodeResponse::new);
         }
 
         @Override
         protected void writeNodesTo(StreamOutput out, List<NodeResponse> nodes) throws IOException {
-            out.writeList(nodes);
+            out.writeCollection(nodes);
         }
 
         public EnumCounters<Item> getStats() {

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.ilm.action;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.license.XPackLicenseState;
@@ -16,8 +17,8 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
-import org.elasticsearch.xpack.core.ilm.action.PutLifecycleAction;
-import org.elasticsearch.xpack.core.template.LifecyclePolicyConfig;
+import org.elasticsearch.xpack.core.ilm.action.DeleteLifecycleAction;
+import org.elasticsearch.xpack.core.ilm.action.PutLifecycleRequest;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -57,12 +58,16 @@ public class ReservedLifecycleAction implements ReservedClusterStateHandler<List
     }
 
     @SuppressWarnings("unchecked")
-    public Collection<PutLifecycleAction.Request> prepare(Object input) throws IOException {
-        List<PutLifecycleAction.Request> result = new ArrayList<>();
+    public Collection<PutLifecycleRequest> prepare(Object input) throws IOException {
+        List<PutLifecycleRequest> result = new ArrayList<>();
         List<LifecyclePolicy> policies = (List<LifecyclePolicy>) input;
 
         for (var policy : policies) {
-            PutLifecycleAction.Request request = new PutLifecycleAction.Request(policy);
+            PutLifecycleRequest request = new PutLifecycleRequest(
+                RESERVED_CLUSTER_STATE_HANDLER_IGNORED_TIMEOUT,
+                RESERVED_CLUSTER_STATE_HANDLER_IGNORED_TIMEOUT,
+                policy
+            );
             validate(request);
             result.add(request);
         }
@@ -94,7 +99,12 @@ public class ReservedLifecycleAction implements ReservedClusterStateHandler<List
 
         for (var policyToDelete : toDelete) {
             TransportDeleteLifecycleAction.DeleteLifecyclePolicyTask task = new TransportDeleteLifecycleAction.DeleteLifecyclePolicyTask(
-                policyToDelete
+                new DeleteLifecycleAction.Request(
+                    RESERVED_CLUSTER_STATE_HANDLER_IGNORED_TIMEOUT,
+                    RESERVED_CLUSTER_STATE_HANDLER_IGNORED_TIMEOUT,
+                    policyToDelete
+                ),
+                ActionListener.noop()
             );
             state = task.execute(state);
         }
@@ -107,7 +117,7 @@ public class ReservedLifecycleAction implements ReservedClusterStateHandler<List
         List<LifecyclePolicy> result = new ArrayList<>();
 
         Map<String, ?> source = parser.map();
-        var config = XContentParserConfiguration.EMPTY.withRegistry(LifecyclePolicyConfig.DEFAULT_X_CONTENT_REGISTRY);
+        var config = XContentParserConfiguration.EMPTY.withRegistry(xContentRegistry);
 
         for (String name : source.keySet()) {
             @SuppressWarnings("unchecked")

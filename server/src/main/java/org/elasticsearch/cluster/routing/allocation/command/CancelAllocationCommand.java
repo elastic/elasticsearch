@@ -1,14 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.routing.allocation.command;
 
 import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -35,6 +37,8 @@ import java.util.Objects;
  * A command that cancels relocation, or recovery of a given shard on a node.
  */
 public class CancelAllocationCommand implements AllocationCommand {
+
+    private static final Logger logger = LogManager.getLogger(CancelAllocationCommand.class);
 
     public static final String NAME = "cancel";
     public static final ParseField COMMAND_NAME_FIELD = new ParseField(NAME);
@@ -166,13 +170,7 @@ public class CancelAllocationCommand implements AllocationCommand {
                 );
             }
         }
-        routingNodes.failShard(
-            LogManager.getLogger(CancelAllocationCommand.class),
-            shardRouting,
-            new UnassignedInfo(UnassignedInfo.Reason.REROUTE_CANCELLED, null),
-            indexMetadata,
-            allocation.changes()
-        );
+        routingNodes.failShard(shardRouting, new UnassignedInfo(UnassignedInfo.Reason.REROUTE_CANCELLED, null), allocation.changes());
         // TODO: We don't have to remove a cancelled shard from in-sync set once we have a strict resync implementation.
         allocation.removeAllocationId(shardRouting);
         return new RerouteExplanation(

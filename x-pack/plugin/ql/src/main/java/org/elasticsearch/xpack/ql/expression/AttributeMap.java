@@ -18,11 +18,21 @@ import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.stream.Stream;
 
-import static java.util.Collections.singletonMap;
-import static java.util.Collections.unmodifiableCollection;
-import static java.util.Collections.unmodifiableSet;
+import static java.util.Collections.emptyMap;
 
-public class AttributeMap<E> implements Map<Attribute, E> {
+/**
+ * Dedicated map for checking {@link Attribute} equality.
+ * This is typically the case when comparing the initial declaration of an Attribute, such as {@link FieldAttribute} with
+ * references to it, namely {@link ReferenceAttribute}.
+ * Using plain object equality, the two references are difference due to their type however semantically, they are the same.
+ * Expressions support semantic equality through {@link Expression#semanticEquals(Expression)} - this map is dedicated solution
+ * for attributes as its common case picked up by the plan rules.
+ * <p>
+ * The map implementation is mutable thus consumers need to be careful NOT to modify the content unless they have ownership.
+ * Worth noting the {@link #combine(AttributeMap)}, {@link #intersect(AttributeMap)} and {@link #subtract(AttributeMap)} methods which
+ * return copies, decoupled from the input maps. In other words the returned maps can be modified without affecting the input or vice-versa.
+ */
+public final class AttributeMap<E> implements Map<Attribute, E> {
 
     static class AttributeWrapper {
 
@@ -39,11 +49,7 @@ public class AttributeMap<E> implements Map<Attribute, E> {
 
         @Override
         public boolean equals(Object obj) {
-            if (obj instanceof AttributeWrapper aw) {
-                return attr.semanticEquals(aw.attr);
-            }
-
-            return false;
+            return obj instanceof AttributeWrapper aw ? attr.semanticEquals(aw.attr) : false;
         }
 
         @Override
@@ -59,7 +65,7 @@ public class AttributeMap<E> implements Map<Attribute, E> {
         private final Set<W> set;
 
         UnwrappingSet(Set<W> originalSet) {
-            set = unmodifiableSet(originalSet);
+            set = originalSet;
         }
 
         @Override
@@ -75,6 +81,11 @@ public class AttributeMap<E> implements Map<Attribute, E> {
                 @Override
                 public U next() {
                     return unwrap(i.next());
+                }
+
+                @Override
+                public void remove() {
+                    i.remove();
                 }
             };
         }
@@ -141,35 +152,26 @@ public class AttributeMap<E> implements Map<Attribute, E> {
     }
 
     @SuppressWarnings("rawtypes")
-    private static final AttributeMap EMPTY = new AttributeMap<>();
+    private static final AttributeMap EMPTY = new AttributeMap<>(emptyMap());
 
     @SuppressWarnings("unchecked")
-    public static final <E> AttributeMap<E> emptyAttributeMap() {
+    public static <E> AttributeMap<E> emptyAttributeMap() {
         return EMPTY;
     }
 
-    private static final Object NOT_FOUND = new Object();
-
     private final Map<AttributeWrapper, E> delegate;
-    private Set<Attribute> keySet = null;
-    private Collection<E> values = null;
-    private Set<Entry<Attribute, E>> entrySet = null;
+
+    private AttributeMap(Map<AttributeWrapper, E> other) {
+        delegate = other;
+    }
 
     public AttributeMap() {
         delegate = new LinkedHashMap<>();
     }
 
     public AttributeMap(Attribute key, E value) {
-        delegate = singletonMap(new AttributeWrapper(key), value);
-    }
-
-    void add(Attribute key, E value) {
-        delegate.put(new AttributeWrapper(key), value);
-    }
-
-    // a set from a collection of sets without (too much) copying
-    void addAll(AttributeMap<E> other) {
-        delegate.putAll(other.delegate);
+        delegate = new LinkedHashMap<>();
+        add(key, value);
     }
 
     public AttributeMap<E> combine(AttributeMap<E> other) {
@@ -218,6 +220,14 @@ public class AttributeMap<E> implements Map<Attribute, E> {
         return true;
     }
 
+    public void add(Attribute key, E value) {
+        put(key, value);
+    }
+
+    public void addAll(AttributeMap<E> other) {
+        putAll(other);
+    }
+
     public Set<String> attributeNames() {
         Set<String> s = Sets.newLinkedHashSetWithExpectedSize(size());
 
@@ -239,10 +249,7 @@ public class AttributeMap<E> implements Map<Attribute, E> {
 
     @Override
     public boolean containsKey(Object key) {
-        if (key instanceof NamedExpression) {
-            return delegate.containsKey(new AttributeWrapper(((NamedExpression) key).toAttribute()));
-        }
-        return false;
+        return key instanceof NamedExpression ne ? delegate.containsKey(new AttributeWrapper(ne.toAttribute())) : false;
     }
 
     @Override
@@ -252,18 +259,14 @@ public class AttributeMap<E> implements Map<Attribute, E> {
 
     @Override
     public E get(Object key) {
-        if (key instanceof NamedExpression) {
-            return delegate.get(new AttributeWrapper(((NamedExpression) key).toAttribute()));
-        }
-        return null;
+        return key instanceof NamedExpression ne ? delegate.get(new AttributeWrapper(ne.toAttribute())) : null;
     }
 
     @Override
     public E getOrDefault(Object key, E defaultValue) {
-        if (key instanceof NamedExpression) {
-            return delegate.getOrDefault(new AttributeWrapper(((NamedExpression) key).toAttribute()), defaultValue);
-        }
-        return defaultValue;
+        return key instanceof NamedExpression ne
+            ? delegate.getOrDefault(new AttributeWrapper(ne.toAttribute()), defaultValue)
+            : defaultValue;
     }
 
     public E resolve(Object key) {
@@ -290,71 +293,64 @@ public class AttributeMap<E> implements Map<Attribute, E> {
 
     @Override
     public E put(Attribute key, E value) {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public E remove(Object key) {
-        throw new UnsupportedOperationException();
+        return delegate.put(new AttributeWrapper(key), value);
     }
 
     @Override
     public void putAll(Map<? extends Attribute, ? extends E> m) {
-        throw new UnsupportedOperationException();
+        for (Entry<? extends Attribute, ? extends E> entry : m.entrySet()) {
+            put(entry.getKey(), entry.getValue());
+        }
+    }
+
+    @Override
+    public E remove(Object key) {
+        return key instanceof NamedExpression ne ? delegate.remove(new AttributeWrapper(ne.toAttribute())) : null;
     }
 
     @Override
     public void clear() {
-        throw new UnsupportedOperationException();
+        delegate.clear();
     }
 
     @Override
     public Set<Attribute> keySet() {
-        if (keySet == null) {
-            keySet = new UnwrappingSet<>(delegate.keySet()) {
-                @Override
-                protected Attribute unwrap(AttributeWrapper next) {
-                    return next.attr;
-                }
-            };
-        }
-        return keySet;
+        return new UnwrappingSet<>(delegate.keySet()) {
+            @Override
+            protected Attribute unwrap(AttributeWrapper next) {
+                return next.attr;
+            }
+        };
     }
 
     @Override
     public Collection<E> values() {
-        if (values == null) {
-            values = unmodifiableCollection(delegate.values());
-        }
-        return values;
+        return delegate.values();
     }
 
     @Override
     public Set<Entry<Attribute, E>> entrySet() {
-        if (entrySet == null) {
-            entrySet = new UnwrappingSet<>(delegate.entrySet()) {
-                @Override
-                protected Entry<Attribute, E> unwrap(final Entry<AttributeWrapper, E> next) {
-                    return new Entry<>() {
-                        @Override
-                        public Attribute getKey() {
-                            return next.getKey().attr;
-                        }
+        return new UnwrappingSet<>(delegate.entrySet()) {
+            @Override
+            protected Entry<Attribute, E> unwrap(final Entry<AttributeWrapper, E> next) {
+                return new Entry<>() {
+                    @Override
+                    public Attribute getKey() {
+                        return next.getKey().attr;
+                    }
 
-                        @Override
-                        public E getValue() {
-                            return next.getValue();
-                        }
+                    @Override
+                    public E getValue() {
+                        return next.getValue();
+                    }
 
-                        @Override
-                        public E setValue(E value) {
-                            throw new UnsupportedOperationException();
-                        }
-                    };
-                }
-            };
-        }
-        return entrySet;
+                    @Override
+                    public E setValue(E value) {
+                        return next.setValue(value);
+                    }
+                };
+            }
+        };
     }
 
     @Override
@@ -369,8 +365,8 @@ public class AttributeMap<E> implements Map<Attribute, E> {
 
     @Override
     public boolean equals(Object obj) {
-        if (obj instanceof AttributeMap<?>) {
-            obj = ((AttributeMap<?>) obj).delegate;
+        if (obj instanceof AttributeMap<?> am) {
+            obj = am.delegate;
         }
         return delegate.equals(obj);
     }

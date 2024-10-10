@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.gateway;
 
@@ -38,8 +39,8 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.NIOFSDirectory;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.InfoStream;
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.Assertions;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -62,14 +63,19 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.env.BuildVersion;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.NodeMetadata;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -124,6 +130,8 @@ import static org.elasticsearch.core.Strings.format;
  * | LAST_ACCEPTED_VERSION_KEY | "last_accepted_version" | The cluster state version corresponding with the persisted metadata           |
  * | NODE_ID_KEY               | "node_id"               | The (persistent) ID of the node that wrote this metadata                      |
  * | NODE_VERSION_KEY          | "node_version"          | The (ID of the) version of the node that wrote this metadata                  |
+ * | CLUSTER_UUID_KEY          | "cluster_uuid"          | The cluster uuid, null otherwise                                              |
+ * | CLUSTER_UUID_COMMITTED_KEY| "cluster_uuid_committed"| Whether or not the cluster uuid was committed                                 |
  * +---------------------------+-------------------------+-------------------------------------------------------------------------------+
  *
  * (the last-accepted term is recorded in Metadata → CoordinationMetadata so does not need repeating here)
@@ -133,6 +141,9 @@ public class PersistedClusterStateService {
     private static final String CURRENT_TERM_KEY = "current_term";
     private static final String LAST_ACCEPTED_VERSION_KEY = "last_accepted_version";
     private static final String NODE_ID_KEY = "node_id";
+    private static final String CLUSTER_UUID_KEY = "cluster_uuid";
+    private static final String CLUSTER_UUID_COMMITTED_KEY = "cluster_uuid_committed";
+    private static final String OVERRIDDEN_NODE_VERSION_KEY = "overridden_node_version";
     static final String NODE_VERSION_KEY = "node_version";
     private static final String OLDEST_INDEX_VERSION_KEY = "oldest_index_version";
     public static final String TYPE_FIELD_NAME = "type";
@@ -146,7 +157,9 @@ public class PersistedClusterStateService {
     public static final String LAST_PAGE_FIELD_NAME = "last_page";
     public static final int IS_LAST_PAGE = 1;
     public static final int IS_NOT_LAST_PAGE = 0;
-    private static final int COMMIT_DATA_SIZE = 5;
+    private static final int COMMIT_DATA_SIZE = 7;
+    // We added CLUSTER_UUID_KEY and CLUSTER_UUID_COMMITTED_KEY in 8.8
+    private static final int COMMIT_DATA_SIZE_BEFORE_8_8 = 5;
 
     private static final MergePolicy NO_MERGE_POLICY = noMergePolicy();
     private static final MergePolicy DEFAULT_MERGE_POLICY = defaultMergePolicy();
@@ -249,6 +262,7 @@ public class PersistedClusterStateService {
 
     private static IndexWriter createIndexWriter(Directory directory, boolean openExisting) throws IOException {
         final IndexWriterConfig indexWriterConfig = new IndexWriterConfig(new KeywordAnalyzer());
+        indexWriterConfig.setInfoStream(InfoStream.NO_OUTPUT);
         // start empty since we re-write the whole cluster state to ensure it is all using the same format version
         indexWriterConfig.setOpenMode(openExisting ? IndexWriterConfig.OpenMode.APPEND : IndexWriterConfig.OpenMode.CREATE);
         // only commit when specifically instructed, we must not write any intermediate states
@@ -274,8 +288,7 @@ public class PersistedClusterStateService {
         }
     }
 
-    // exposed for tests
-    Directory createDirectory(Path path) throws IOException {
+    protected Directory createDirectory(Path path) throws IOException {
         // it is possible to disable the use of MMapDirectory for indices, and it may be surprising to users that have done so if we still
         // use a MMapDirectory here, which might happen with FSDirectory.open(path), so we force an NIOFSDirectory to be on the safe side.
         return new NIOFSDirectory(path);
@@ -286,19 +299,33 @@ public class PersistedClusterStateService {
     }
 
     public static class OnDiskState {
-        private static final OnDiskState NO_ON_DISK_STATE = new OnDiskState(null, null, 0L, 0L, Metadata.EMPTY_METADATA);
+        private static final OnDiskState NO_ON_DISK_STATE = new OnDiskState(null, null, 0L, 0L, null, false, Metadata.EMPTY_METADATA);
 
         private final String nodeId;
         private final Path dataPath;
         public final long currentTerm;
         public final long lastAcceptedVersion;
+        @Nullable
+        public final String clusterUUID;
+        @Nullable
+        public final Boolean clusterUUIDCommitted;
         public final Metadata metadata;
 
-        private OnDiskState(String nodeId, Path dataPath, long currentTerm, long lastAcceptedVersion, Metadata metadata) {
+        private OnDiskState(
+            String nodeId,
+            Path dataPath,
+            long currentTerm,
+            long lastAcceptedVersion,
+            String clusterUUID,
+            Boolean clusterUUIDCommitted,
+            Metadata metadata
+        ) {
             this.nodeId = nodeId;
             this.dataPath = dataPath;
             this.currentTerm = currentTerm;
             this.lastAcceptedVersion = lastAcceptedVersion;
+            this.clusterUUID = clusterUUID;
+            this.clusterUUIDCommitted = clusterUUIDCommitted;
             this.metadata = metadata;
         }
 
@@ -306,6 +333,14 @@ public class PersistedClusterStateService {
             return this == NO_ON_DISK_STATE;
         }
     }
+
+    public record OnDiskStateMetadata(
+        long currentTerm,
+        long lastAcceptedVersion,
+        String nodeId,
+        @Nullable String clusterUUID,
+        @Nullable Boolean clusterUUIDCommitted
+    ) {}
 
     /**
      * Returns the node metadata for the given data paths, and checks if the node ids are unique
@@ -315,7 +350,7 @@ public class PersistedClusterStateService {
     public static NodeMetadata nodeMetadata(Path... dataPaths) throws IOException {
         String nodeId = null;
         Version version = null;
-        Version oldestIndexVersion = Version.V_EMPTY;
+        IndexVersion oldestIndexVersion = IndexVersions.ZERO;
         for (final Path dataPath : dataPaths) {
             final Path indexPath = dataPath.resolve(METADATA_DIRECTORY_NAME);
             if (Files.exists(indexPath)) {
@@ -333,9 +368,9 @@ public class PersistedClusterStateService {
                         nodeId = thisNodeId;
                         version = Version.fromId(Integer.parseInt(userData.get(NODE_VERSION_KEY)));
                         if (userData.containsKey(OLDEST_INDEX_VERSION_KEY)) {
-                            oldestIndexVersion = Version.fromId(Integer.parseInt(userData.get(OLDEST_INDEX_VERSION_KEY)));
+                            oldestIndexVersion = IndexVersion.fromId(Integer.parseInt(userData.get(OLDEST_INDEX_VERSION_KEY)));
                         } else {
-                            oldestIndexVersion = Version.V_EMPTY;
+                            oldestIndexVersion = IndexVersions.ZERO;
                         }
                     }
                 } catch (IndexNotFoundException e) {
@@ -346,7 +381,8 @@ public class PersistedClusterStateService {
         if (nodeId == null) {
             return null;
         }
-        return new NodeMetadata(nodeId, version, oldestIndexVersion);
+        // TODO: remove use of Version here (ES-7343)
+        return new NodeMetadata(nodeId, BuildVersion.fromVersionId(version.id()), oldestIndexVersion);
     }
 
     /**
@@ -363,6 +399,7 @@ public class PersistedClusterStateService {
                     try (IndexWriter indexWriter = createIndexWriter(new NIOFSDirectory(dataPath.resolve(METADATA_DIRECTORY_NAME)), true)) {
                         final Map<String, String> commitData = new HashMap<>(userData);
                         commitData.put(NODE_VERSION_KEY, Integer.toString(newVersion.id));
+                        commitData.put(OVERRIDDEN_NODE_VERSION_KEY, Boolean.toString(true));
                         indexWriter.setLiveCommitData(commitData.entrySet());
                         indexWriter.commit();
                     }
@@ -407,6 +444,10 @@ public class PersistedClusterStateService {
                                 PrintStream printStream = new PrintStream(outputStream, true, StandardCharsets.UTF_8);
                                 CheckIndex checkIndex = new CheckIndex(directory)
                             ) {
+                                // Setting thread count to 1 prevents Lucene from starting disposable threads to execute the check and runs
+                                // the check on this thread which is potentially faster for a small index like the cluster state and saves
+                                // resources during test execution
+                                checkIndex.setThreadCount(1);
                                 checkIndex.setInfoStream(printStream);
                                 checkIndex.setChecksumsOnly(true);
                                 isClean = checkIndex.checkIndex().clean;
@@ -533,7 +574,7 @@ public class PersistedClusterStateService {
         return bestOnDiskState;
     }
 
-    private OnDiskState loadOnDiskState(Path dataPath, DirectoryReader reader) throws IOException {
+    public OnDiskState loadOnDiskState(Path dataPath, DirectoryReader reader) throws IOException {
         final IndexSearcher searcher = new IndexSearcher(reader);
         searcher.setQueryCache(null);
 
@@ -605,23 +646,39 @@ public class PersistedClusterStateService {
 
         final Map<String, String> userData = reader.getIndexCommit().getUserData();
         logger.trace("loaded metadata [{}] from [{}]", userData, reader.directory());
-        assert userData.size() == COMMIT_DATA_SIZE : userData;
-        assert userData.get(CURRENT_TERM_KEY) != null;
-        assert userData.get(LAST_ACCEPTED_VERSION_KEY) != null;
-        assert userData.get(NODE_ID_KEY) != null;
-        assert userData.get(NODE_VERSION_KEY) != null;
+        OnDiskStateMetadata onDiskStateMetadata = loadOnDiskStateMetadataFromUserData(userData);
         return new OnDiskState(
-            userData.get(NODE_ID_KEY),
+            onDiskStateMetadata.nodeId(),
             dataPath,
-            Long.parseLong(userData.get(CURRENT_TERM_KEY)),
-            Long.parseLong(userData.get(LAST_ACCEPTED_VERSION_KEY)),
+            onDiskStateMetadata.currentTerm(),
+            onDiskStateMetadata.lastAcceptedVersion(),
+            onDiskStateMetadata.clusterUUID(),
+            onDiskStateMetadata.clusterUUIDCommitted(),
             builder.build()
         );
     }
 
+    public OnDiskStateMetadata loadOnDiskStateMetadataFromUserData(Map<String, String> userData) {
+        assert userData.get(CURRENT_TERM_KEY) != null;
+        assert userData.get(LAST_ACCEPTED_VERSION_KEY) != null;
+        assert userData.get(NODE_ID_KEY) != null;
+        assert userData.get(NODE_VERSION_KEY) != null;
+        var nodeVersion = Version.fromId(Integer.parseInt(userData.get(NODE_VERSION_KEY)));
+        assert userData.get(CLUSTER_UUID_KEY) != null || nodeVersion.before(Version.V_8_8_0);
+        assert userData.get(CLUSTER_UUID_COMMITTED_KEY) != null || nodeVersion.before(Version.V_8_8_0);
+        assert userData.get(OVERRIDDEN_NODE_VERSION_KEY) != null
+            || userData.size() == (nodeVersion.onOrAfter(Version.V_8_8_0) ? COMMIT_DATA_SIZE : COMMIT_DATA_SIZE_BEFORE_8_8) : userData;
+        return new OnDiskStateMetadata(
+            Long.parseLong(userData.get(CURRENT_TERM_KEY)),
+            Long.parseLong(userData.get(LAST_ACCEPTED_VERSION_KEY)),
+            userData.get(NODE_ID_KEY),
+            userData.get(CLUSTER_UUID_KEY),
+            userData.get(CLUSTER_UUID_COMMITTED_KEY) != null ? Boolean.parseBoolean(userData.get(CLUSTER_UUID_COMMITTED_KEY)) : null
+        );
+    }
+
     private <T> T readXContent(BytesReference bytes, CheckedFunction<XContentParser, T, IOException> reader) throws IOException {
-        final XContentParser parser = XContentFactory.xContent(XContentType.SMILE).createParser(parserConfig, bytes.streamInput());
-        try {
+        try (XContentParser parser = XContentHelper.createParserNotCompressed(parserConfig, bytes, XContentType.SMILE)) {
             return reader.apply(parser);
         } catch (Exception e) {
             throw new CorruptStateException(e);
@@ -656,7 +713,7 @@ public class PersistedClusterStateService {
 
                         if (document.getField(PAGE_FIELD_NAME) == null) {
                             // legacy format: not paginated or compressed
-                            assert Version.CURRENT.minimumIndexCompatibilityVersion().before(Version.V_7_16_0);
+                            assert IndexVersions.MINIMUM_COMPATIBLE.before(IndexVersions.V_7_16_0);
                             bytesReferenceConsumer.accept(documentData);
                             continue;
                         }
@@ -785,7 +842,14 @@ public class PersistedClusterStateService {
             indexWriter.getConfig().setMergePolicy(NO_MERGE_POLICY);
         }
 
-        void prepareCommit(String nodeId, long currentTerm, long lastAcceptedVersion, Version oldestIndexVersion) throws IOException {
+        void prepareCommit(
+            String nodeId,
+            long currentTerm,
+            long lastAcceptedVersion,
+            IndexVersion oldestIndexVersion,
+            String clusterUUID,
+            boolean clusterUUIDCommitted
+        ) throws IOException {
             indexWriter.getConfig().setMergePolicy(DEFAULT_MERGE_POLICY);
             indexWriter.maybeMerge();
 
@@ -793,8 +857,10 @@ public class PersistedClusterStateService {
             commitData.put(CURRENT_TERM_KEY, Long.toString(currentTerm));
             commitData.put(LAST_ACCEPTED_VERSION_KEY, Long.toString(lastAcceptedVersion));
             commitData.put(NODE_VERSION_KEY, Integer.toString(Version.CURRENT.id));
-            commitData.put(OLDEST_INDEX_VERSION_KEY, Integer.toString(oldestIndexVersion.id));
+            commitData.put(OLDEST_INDEX_VERSION_KEY, Integer.toString(oldestIndexVersion.id()));
             commitData.put(NODE_ID_KEY, nodeId);
+            commitData.put(CLUSTER_UUID_KEY, clusterUUID);
+            commitData.put(CLUSTER_UUID_COMMITTED_KEY, Boolean.toString(clusterUUIDCommitted));
             indexWriter.setLiveCommitData(commitData.entrySet());
             indexWriter.prepareCommit();
         }
@@ -873,8 +939,15 @@ public class PersistedClusterStateService {
                     metadataIndexWriter.startWrite();
                 }
 
-                final WriterStats stats = overwriteMetadata(clusterState.metadata());
-                commit(currentTerm, clusterState.version(), clusterState.metadata().oldestIndexVersion());
+                Metadata metadata = clusterState.metadata();
+                final WriterStats stats = overwriteMetadata(metadata);
+                commit(
+                    currentTerm,
+                    clusterState.version(),
+                    metadata.oldestIndexVersion(),
+                    metadata.clusterUUID(),
+                    metadata.clusterUUIDCommitted()
+                );
                 fullStateWritten = true;
                 final long durationMillis = relativeTimeMillisSupplier.getAsLong() - startTimeMillis;
                 final TimeValue finalSlowWriteLoggingThreshold = slowWriteLoggingThresholdSupplier.get();
@@ -908,8 +981,15 @@ public class PersistedClusterStateService {
                     metadataIndexWriter.startWrite();
                 }
 
-                final WriterStats stats = updateMetadata(previousClusterState.metadata(), clusterState.metadata());
-                commit(currentTerm, clusterState.version(), clusterState.metadata().oldestIndexVersion());
+                Metadata metadata = clusterState.metadata();
+                final WriterStats stats = updateMetadata(previousClusterState.metadata(), metadata);
+                commit(
+                    currentTerm,
+                    clusterState.version(),
+                    metadata.oldestIndexVersion(),
+                    metadata.clusterUUID(),
+                    metadata.clusterUUIDCommitted()
+                );
                 final long durationMillis = relativeTimeMillisSupplier.getAsLong() - startTimeMillis;
                 final TimeValue finalSlowWriteLoggingThreshold = slowWriteLoggingThresholdSupplier.get();
                 if (durationMillis >= finalSlowWriteLoggingThreshold.getMillis()) {
@@ -1139,16 +1219,27 @@ public class PersistedClusterStateService {
             return new WriterStats(true, true, 0, metadata.getMappingsByHash().size(), 0, 0, metadata.indices().size(), 0, 0);
         }
 
-        public void writeIncrementalTermUpdateAndCommit(long currentTerm, long lastAcceptedVersion, Version oldestIndexVersion)
-            throws IOException {
+        public void writeIncrementalTermUpdateAndCommit(
+            long currentTerm,
+            long lastAcceptedVersion,
+            IndexVersion oldestIndexVersion,
+            String clusterUUID,
+            boolean clusterUUIDCommitted
+        ) throws IOException {
             ensureOpen();
             ensureFullStateWritten();
-            commit(currentTerm, lastAcceptedVersion, oldestIndexVersion);
+            commit(currentTerm, lastAcceptedVersion, oldestIndexVersion, clusterUUID, clusterUUIDCommitted);
         }
 
-        void commit(long currentTerm, long lastAcceptedVersion, Version oldestIndexVersion) throws IOException {
+        void commit(
+            long currentTerm,
+            long lastAcceptedVersion,
+            IndexVersion oldestIndexVersion,
+            String clusterUUID,
+            boolean clusterUUIDCommitted
+        ) throws IOException {
             ensureOpen();
-            prepareCommit(currentTerm, lastAcceptedVersion, oldestIndexVersion);
+            prepareCommit(currentTerm, lastAcceptedVersion, oldestIndexVersion, clusterUUID, clusterUUIDCommitted);
             completeCommit();
             assert assertOnCommit();
         }
@@ -1168,11 +1259,24 @@ public class PersistedClusterStateService {
             return true;
         }
 
-        private void prepareCommit(long currentTerm, long lastAcceptedVersion, Version oldestIndexVersion) throws IOException {
+        private void prepareCommit(
+            long currentTerm,
+            long lastAcceptedVersion,
+            IndexVersion oldestIndexVersion,
+            String clusterUUID,
+            boolean clusterUUIDCommitted
+        ) throws IOException {
             boolean prepareCommitSuccess = false;
             try {
                 for (MetadataIndexWriter metadataIndexWriter : metadataIndexWriters) {
-                    metadataIndexWriter.prepareCommit(nodeId, currentTerm, lastAcceptedVersion, oldestIndexVersion);
+                    metadataIndexWriter.prepareCommit(
+                        nodeId,
+                        currentTerm,
+                        lastAcceptedVersion,
+                        oldestIndexVersion,
+                        clusterUUID,
+                        clusterUUIDCommitted
+                    );
                 }
                 prepareCommitSuccess = true;
             } catch (Exception e) {

@@ -26,17 +26,26 @@ public record RoleDescriptorsIntersection(Collection<Set<RoleDescriptor>> roleDe
 
     public static RoleDescriptorsIntersection EMPTY = new RoleDescriptorsIntersection(Collections.emptyList());
 
+    private static final RoleDescriptor.Parser ROLE_DESCRIPTOR_PARSER = RoleDescriptor.parserBuilder()
+        .allowRestriction(true)
+        .allowDescription(true)
+        .build();
+
     public RoleDescriptorsIntersection(RoleDescriptor roleDescriptor) {
         this(List.of(Set.of(roleDescriptor)));
     }
 
     public RoleDescriptorsIntersection(StreamInput in) throws IOException {
-        this(in.readImmutableList(inner -> inner.readSet(RoleDescriptor::new)));
+        this(in.readCollectionAsImmutableList(inner -> inner.readCollectionAsSet(RoleDescriptor::new)));
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeCollection(roleDescriptorsList, StreamOutput::writeCollection);
+    }
+
+    public boolean isEmpty() {
+        return roleDescriptorsList().isEmpty();
     }
 
     @Override
@@ -66,7 +75,7 @@ public record RoleDescriptorsIntersection(Collection<Set<RoleDescriptor>> roleDe
             while ((token = p.nextToken()) != XContentParser.Token.END_OBJECT) {
                 XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, p);
                 XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, p.nextToken(), p);
-                roleDescriptors.add(RoleDescriptor.parse(p.currentName(), p, false));
+                roleDescriptors.add(ROLE_DESCRIPTOR_PARSER.parse(p.currentName(), p));
             }
             return Set.copyOf(roleDescriptors);
         });

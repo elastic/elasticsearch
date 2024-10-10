@@ -20,7 +20,7 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TermQuery;
-import org.apache.lucene.search.TotalHitCountCollector;
+import org.apache.lucene.search.TotalHitCountCollectorManager;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -32,6 +32,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper.KeywordFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.MockFieldMapper;
@@ -104,7 +105,8 @@ public class SecurityIndexReaderWrapperIntegrationTests extends AbstractBuilderT
             null,
             () -> true,
             null,
-            emptyMap()
+            emptyMap(),
+            MapperMetrics.NOOP
         );
         SearchExecutionContext searchExecutionContext = spy(realSearchExecutionContext);
         DocumentSubsetBitsetCache bitsetCache = new DocumentSubsetBitsetCache(Settings.EMPTY, Executors.newSingleThreadExecutor());
@@ -191,10 +193,8 @@ public class SecurityIndexReaderWrapperIntegrationTests extends AbstractBuilderT
             int expectedHitCount = valuesHitCount[i];
             logger.info("Going to verify hit count with query [{}] with expected total hits [{}]", parsedQuery.query(), expectedHitCount);
 
-            TotalHitCountCollector countCollector = new TotalHitCountCollector();
-            indexSearcher.search(new MatchAllDocsQuery(), countCollector);
-
-            assertThat(countCollector.getTotalHits(), equalTo(expectedHitCount));
+            Integer totalHits = indexSearcher.search(new MatchAllDocsQuery(), new TotalHitCountCollectorManager());
+            assertThat(totalHits, equalTo(expectedHitCount));
             assertThat(wrappedDirectoryReader.numDocs(), equalTo(expectedHitCount));
         }
 
@@ -261,7 +261,8 @@ public class SecurityIndexReaderWrapperIntegrationTests extends AbstractBuilderT
             null,
             () -> true,
             null,
-            emptyMap()
+            emptyMap(),
+            MapperMetrics.NOOP
         );
         SearchExecutionContext searchExecutionContext = spy(realSearchExecutionContext);
         DocumentSubsetBitsetCache bitsetCache = new DocumentSubsetBitsetCache(Settings.EMPTY, Executors.newSingleThreadExecutor());
@@ -341,6 +342,6 @@ public class SecurityIndexReaderWrapperIntegrationTests extends AbstractBuilderT
 
     private static MappingLookup createMappingLookup(List<MappedFieldType> concreteFields) {
         List<FieldMapper> mappers = concreteFields.stream().map(MockFieldMapper::new).collect(Collectors.toList());
-        return MappingLookup.fromMappers(Mapping.EMPTY, mappers, emptyList(), emptyList());
+        return MappingLookup.fromMappers(Mapping.EMPTY, mappers, emptyList());
     }
 }

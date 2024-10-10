@@ -14,10 +14,10 @@ module org.elasticsearch.ilm {
 
     exports org.elasticsearch.xpack.ilm.action to org.elasticsearch.server;
     exports org.elasticsearch.xpack.ilm;
-    exports org.elasticsearch.xpack.slm.action to org.elasticsearch.server;
-    exports org.elasticsearch.xpack.slm to org.elasticsearch.server;
 
     provides org.elasticsearch.reservedstate.ReservedClusterStateHandlerProvider
         with
             org.elasticsearch.xpack.ilm.ReservedLifecycleStateHandlerProvider;
+
+    provides org.elasticsearch.features.FeatureSpecification with org.elasticsearch.xpack.ilm.IndexLifecycleFeatures;
 }

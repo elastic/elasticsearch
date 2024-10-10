@@ -22,7 +22,7 @@ public class SearchHitBuilder {
     private final SearchHit hit;
 
     public SearchHitBuilder(int docId) {
-        hit = new SearchHit(docId, null);
+        hit = SearchHit.unpooled(docId, null);
     }
 
     public SearchHitBuilder addField(String name, Object value) {

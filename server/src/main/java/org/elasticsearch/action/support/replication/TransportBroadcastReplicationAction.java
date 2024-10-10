@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.support.replication;
@@ -26,6 +27,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.tasks.Task;
@@ -36,6 +38,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Executor;
 
 /**
  * Base class for requests that should be executed on all shards of an index or several indices.
@@ -51,7 +54,7 @@ public abstract class TransportBroadcastReplicationAction<
     private final ClusterService clusterService;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final NodeClient client;
-    private final String executor;
+    private final Executor executor;
 
     public TransportBroadcastReplicationAction(
         String name,
@@ -62,9 +65,9 @@ public abstract class TransportBroadcastReplicationAction<
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
         ActionType<ShardResponse> replicatedBroadcastShardAction,
-        String executor
+        Executor executor
     ) {
-        super(name, transportService, actionFilters, requestReader);
+        super(name, transportService, actionFilters, requestReader, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.client = client;
         this.replicatedBroadcastShardAction = replicatedBroadcastShardAction;
         this.clusterService = clusterService;
@@ -74,7 +77,7 @@ public abstract class TransportBroadcastReplicationAction<
 
     @Override
     protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
-        clusterService.threadPool().executor(executor).execute(ActionRunnable.wrap(listener, createAsyncAction(task, request)));
+        executor.execute(ActionRunnable.wrap(listener, createAsyncAction(task, request)));
     }
 
     private CheckedConsumer<ActionListener<Response>, Exception> createAsyncAction(Task task, Request request) {

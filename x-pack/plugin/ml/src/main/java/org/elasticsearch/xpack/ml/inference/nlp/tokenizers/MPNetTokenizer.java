@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.ml.inference.nlp.tokenizers;
 
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.MPNetTokenization;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.Tokenization;
 
 import java.util.Collections;
@@ -26,7 +27,7 @@ public class MPNetTokenizer extends BertTokenizer {
     public static final String SEPARATOR_TOKEN = "</s>";
     public static final String PAD_TOKEN = "<pad>";
     public static final String CLASS_TOKEN = "<s>";
-    public static final String MASK_TOKEN = "<mask>";
+    public static final String MASK_TOKEN = MPNetTokenization.MASK_TOKEN;
     private static final Set<String> NEVER_SPLIT = Set.of(MASK_TOKEN);
 
     protected MPNetTokenizer(

@@ -1,13 +1,13 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.index.shard;
 
-import org.apache.lucene.index.Term;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineTestCase;
@@ -126,9 +126,9 @@ public class IndexingOperationListenerTests extends ESTestCase {
             indexingOperationListeners,
             logger
         );
-        ParsedDocument doc = EngineTestCase.createParsedDoc("1", EngineTestCase.randomIdFieldType(), null);
-        Engine.Delete delete = new Engine.Delete("1", new Term("_id", Uid.encodeId(doc.id())), randomNonNegativeLong());
-        Engine.Index index = new Engine.Index(new Term("_id", Uid.encodeId(doc.id())), randomNonNegativeLong(), doc);
+        ParsedDocument doc = EngineTestCase.createParsedDoc("1", null);
+        Engine.Delete delete = new Engine.Delete("1", Uid.encodeId(doc.id()), randomNonNegativeLong());
+        Engine.Index index = new Engine.Index(Uid.encodeId(doc.id()), randomNonNegativeLong(), doc);
         compositeListener.postDelete(
             randomShardId,
             delete,

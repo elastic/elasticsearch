@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.cluster.routing.allocation;
 
-import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplanation;
+import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplanationUtils;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -17,7 +17,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
-import org.elasticsearch.cluster.routing.allocation.ShardsAvailabilityHealthIndicatorService;
+import org.elasticsearch.cluster.routing.allocation.shards.ShardsAvailabilityHealthIndicatorService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
@@ -25,6 +25,7 @@ import org.elasticsearch.health.Diagnosis;
 import org.elasticsearch.health.GetHealthAction;
 import org.elasticsearch.health.HealthIndicatorResult;
 import org.elasticsearch.health.HealthStatus;
+import org.elasticsearch.health.plugin.ShardsAvailabilityPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
@@ -41,7 +42,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 
 /**
- * Contains all integration tests for the {@link org.elasticsearch.cluster.routing.allocation.ShardsAvailabilityHealthIndicatorService}
+ * Contains all integration tests for the {@link ShardsAvailabilityHealthIndicatorService}
  * that require the data tiers allocation decider logic.
  */
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
@@ -49,7 +50,7 @@ public class DataTierShardAvailabilityHealthIndicatorIT extends ESIntegTestCase 
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return List.of(LocalStateCompositeXPackPlugin.class);
+        return List.of(LocalStateCompositeXPackPlugin.class, ShardsAvailabilityPlugin.class);
     }
 
     /**
@@ -109,14 +110,7 @@ public class DataTierShardAvailabilityHealthIndicatorIT extends ESIntegTestCase 
             GetHealthAction.INSTANCE,
             new GetHealthAction.Request(ShardsAvailabilityHealthIndicatorService.NAME, true, 1000)
         ).get();
-        ClusterAllocationExplanation explain = client().admin()
-            .cluster()
-            .prepareAllocationExplain()
-            .setIndex("test")
-            .setShard(0)
-            .setPrimary(false)
-            .get()
-            .getExplanation();
+        final var explain = ClusterAllocationExplanationUtils.getClusterAllocationExplanation(client(), "test", 0, false);
         logger.info(XContentHelper.toXContent(explain, XContentType.JSON, true).utf8ToString());
         HealthIndicatorResult indicatorResult = healthResponse.findIndicator(ShardsAvailabilityHealthIndicatorService.NAME);
         assertThat(indicatorResult.status(), equalTo(HealthStatus.YELLOW));
@@ -172,7 +166,7 @@ public class DataTierShardAvailabilityHealthIndicatorIT extends ESIntegTestCase 
         int numDocs = scaledRandomIntBetween(100, 1000);
         IndexRequestBuilder[] builders = new IndexRequestBuilder[numDocs];
         for (int i = 0; i < builders.length; i++) {
-            builders[i] = client().prepareIndex(indexName).setSource("field", "value");
+            builders[i] = prepareIndex(indexName).setSource("field", "value");
         }
         // we want to test both full divergent copies of the shard in terms of segments, and
         // a case where they are the same (using sync flush), index Random does all this goodness
@@ -189,7 +183,7 @@ public class DataTierShardAvailabilityHealthIndicatorIT extends ESIntegTestCase 
     }
 
     private String findNodeWithShard(final String indexName, final int shard, final boolean primary) {
-        ClusterState state = client().admin().cluster().prepareState().get().getState();
+        ClusterState state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
         List<ShardRouting> startedShards = RoutingNodesHelper.shardsWithState(state.getRoutingNodes(), ShardRoutingState.STARTED);
         startedShards = startedShards.stream()
             .filter(shardRouting -> shardRouting.getIndexName().equals(indexName))

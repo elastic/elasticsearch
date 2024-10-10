@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.cluster.node.shutdown;
@@ -31,13 +32,13 @@ public class NodePrevalidateShardPathRequest extends TransportRequest {
 
     public NodePrevalidateShardPathRequest(StreamInput in) throws IOException {
         super(in);
-        this.shardIds = Set.copyOf(Objects.requireNonNull(in.readSet(ShardId::new)));
+        this.shardIds = in.readCollectionAsImmutableSet(ShardId::new);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeCollection(shardIds, (o, value) -> value.writeTo(o));
+        out.writeCollection(shardIds);
     }
 
     public Set<ShardId> getShardIds() {

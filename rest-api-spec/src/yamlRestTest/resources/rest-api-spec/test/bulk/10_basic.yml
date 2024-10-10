@@ -59,8 +59,8 @@
 
 ---
 "Empty _id with op_type create":
-  - skip:
-      version: " - 7.4.99"
+  - requires:
+      cluster_features: ["gte_v7.5.0"]
       reason: "auto id + op type create only supported since 7.5"
 
   - do:
@@ -119,8 +119,8 @@
 
 ---
 "When setting require_alias flag per request":
-  - skip:
-      version: " - 7.9.99"
+  - requires:
+      cluster_features: ["gte_v7.10.0"]
       reason: "require_alias flag was added in version 7.10"
 
   - do:
@@ -162,8 +162,8 @@
         index: new_index_not_created
 ---
 "When setting require_alias flag":
-  - skip:
-      version: " - 7.9.99"
+  - requires:
+      cluster_features: ["gte_v7.10.0"]
       reason: "require_alias flag was added in version 7.10"
 
   - do:
@@ -229,3 +229,23 @@
   - match: { items.0.index.error.type: illegal_argument_exception }
   - match: { items.0.index.error.reason: "no write index is defined for alias [test_index]. The write index may be explicitly disabled using is_write_index=false or the alias points to multiple indices without one being designated as a write index" }
 
+---
+"Took is not orders of magnitude off":
+  - requires:
+      cluster_features: ["gte_v8.15.1"]
+      reason: "Bug reporting wrong took time introduced in 8.15.0, fixed in 8.15.1"
+  - do:
+      bulk:
+        body:
+          - index:
+              _index: took_test
+          - f: 1
+          - index:
+              _index: took_test
+          - f: 2
+          - index:
+              _index: took_test
+          - f: 3
+  - match: { errors: false }
+  - gte: { took: 0 }
+  - lte: { took: 60000 } # Making sure we have a reasonable upper bound and that we're not for example returning nanoseconds

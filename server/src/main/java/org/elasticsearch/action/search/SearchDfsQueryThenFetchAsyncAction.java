@@ -1,17 +1,21 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.search;
 
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.dfs.AggregatedDfs;
 import org.elasticsearch.search.dfs.DfsKnnResults;
@@ -26,27 +30,32 @@ import java.util.function.BiFunction;
 
 final class SearchDfsQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<DfsSearchResult> {
 
-    private final QueryPhaseResultConsumer queryPhaseResultConsumer;
+    private final SearchPhaseResults<SearchPhaseResult> queryPhaseResultConsumer;
+    private final SearchProgressListener progressListener;
+    private final Client client;
 
     SearchDfsQueryThenFetchAsyncAction(
-        final Logger logger,
-        final SearchTransportService searchTransportService,
-        final BiFunction<String, String, Transport.Connection> nodeIdToConnection,
-        final Map<String, AliasFilter> aliasFilter,
-        final Map<String, Float> concreteIndexBoosts,
-        final Executor executor,
-        final QueryPhaseResultConsumer queryPhaseResultConsumer,
-        final SearchRequest request,
-        final ActionListener<SearchResponse> listener,
-        final GroupShardsIterator<SearchShardIterator> shardsIts,
-        final TransportSearchAction.SearchTimeProvider timeProvider,
-        final ClusterState clusterState,
-        final SearchTask task,
-        SearchResponse.Clusters clusters
+        Logger logger,
+        NamedWriteableRegistry namedWriteableRegistry,
+        SearchTransportService searchTransportService,
+        BiFunction<String, String, Transport.Connection> nodeIdToConnection,
+        Map<String, AliasFilter> aliasFilter,
+        Map<String, Float> concreteIndexBoosts,
+        Executor executor,
+        SearchPhaseResults<SearchPhaseResult> queryPhaseResultConsumer,
+        SearchRequest request,
+        ActionListener<SearchResponse> listener,
+        GroupShardsIterator<SearchShardIterator> shardsIts,
+        TransportSearchAction.SearchTimeProvider timeProvider,
+        ClusterState clusterState,
+        SearchTask task,
+        SearchResponse.Clusters clusters,
+        Client client
     ) {
         super(
             "dfs",
             logger,
+            namedWriteableRegistry,
             searchTransportService,
             nodeIdToConnection,
             aliasFilter,
@@ -63,10 +72,13 @@ final class SearchDfsQueryThenFetchAsyncAction extends AbstractSearchAsyncAction
             clusters
         );
         this.queryPhaseResultConsumer = queryPhaseResultConsumer;
-        SearchProgressListener progressListener = task.getProgressListener();
+        addReleasable(queryPhaseResultConsumer);
+        this.progressListener = task.getProgressListener();
+        // don't build the SearchShard list (can be expensive) if the SearchProgressListener won't use it
         if (progressListener != SearchProgressListener.NOOP) {
             notifyListShards(progressListener, clusters, request.source());
         }
+        this.client = client;
     }
 
     @Override
@@ -88,14 +100,18 @@ final class SearchDfsQueryThenFetchAsyncAction extends AbstractSearchAsyncAction
         final List<DfsSearchResult> dfsSearchResults = results.getAtomicArray().asList();
         final AggregatedDfs aggregatedDfs = SearchPhaseController.aggregateDfs(dfsSearchResults);
         final List<DfsKnnResults> mergedKnnResults = SearchPhaseController.mergeKnnResults(getRequest(), dfsSearchResults);
-
         return new DfsQueryPhase(
             dfsSearchResults,
             aggregatedDfs,
             mergedKnnResults,
             queryPhaseResultConsumer,
-            (queryResults) -> new FetchSearchPhase(queryResults, aggregatedDfs, context),
+            (queryResults) -> new RankFeaturePhase(queryResults, aggregatedDfs, context, client),
             context
         );
+    }
+
+    @Override
+    protected void onShardGroupFailure(int shardIndex, SearchShardTarget shardTarget, Exception exc) {
+        progressListener.notifyQueryFailure(shardIndex, shardTarget, exc);
     }
 }

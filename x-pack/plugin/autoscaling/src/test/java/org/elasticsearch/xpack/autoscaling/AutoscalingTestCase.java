@@ -7,9 +7,9 @@
 
 package org.elasticsearch.xpack.autoscaling;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -60,7 +60,9 @@ public abstract class AutoscalingTestCase extends ESTestCase {
     public static AutoscalingDeciderResults randomAutoscalingDeciderResults() {
         final SortedMap<String, AutoscalingDeciderResult> results = IntStream.range(0, randomIntBetween(1, 10))
             .mapToObj(i -> Tuple.tuple(Integer.toString(i), randomAutoscalingDeciderResult()))
-            .collect(Collectors.toMap(Tuple::v1, Tuple::v2, (a, b) -> { throw new IllegalStateException(); }, TreeMap::new));
+            .collect(Collectors.toMap(Tuple::v1, Tuple::v2, (a, b) -> {
+                throw new IllegalStateException();
+            }, TreeMap::new));
         AutoscalingCapacity capacity = new AutoscalingCapacity(randomAutoscalingResources(), randomAutoscalingResources());
         return new AutoscalingDeciderResults(capacity, randomNodes(), results);
     }
@@ -107,12 +109,11 @@ public abstract class AutoscalingTestCase extends ESTestCase {
         String prefix = randomAlphaOfLength(5);
         return IntStream.range(0, randomIntBetween(1, 10))
             .mapToObj(
-                i -> new DiscoveryNode(
+                i -> DiscoveryNodeUtils.create(
                     prefix + i,
                     buildNewFakeTransportAddress(),
                     Map.of(),
-                    randomRoles().stream().map(DiscoveryNodeRole::getRoleFromRoleName).collect(Collectors.toSet()),
-                    Version.CURRENT
+                    randomRoles().stream().map(DiscoveryNodeRole::getRoleFromRoleName).collect(Collectors.toSet())
                 )
             )
             .collect(Collectors.toCollection(() -> new TreeSet<>(DISCOVERY_NODE_COMPARATOR)));

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.rest.action.admin.cluster;
@@ -18,6 +19,8 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.ServerlessScope;
+import org.elasticsearch.rest.action.RestCancellableNodeClient;
 import org.elasticsearch.rest.action.RestChunkedToXContentListener;
 import org.elasticsearch.tasks.TaskId;
 
@@ -26,7 +29,10 @@ import java.util.List;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
+import static org.elasticsearch.rest.RestUtils.getTimeout;
+import static org.elasticsearch.rest.Scope.INTERNAL;
 
+@ServerlessScope(INTERNAL)
 public class RestListTasksAction extends BaseRestHandler {
 
     private final Supplier<DiscoveryNodes> nodesInCluster;
@@ -49,7 +55,9 @@ public class RestListTasksAction extends BaseRestHandler {
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         final ListTasksRequest listTasksRequest = generateListTasksRequest(request);
         final String groupBy = request.param("group_by", "nodes");
-        return channel -> client.admin().cluster().listTasks(listTasksRequest, listTasksResponseListener(nodesInCluster, groupBy, channel));
+        return channel -> new RestCancellableNodeClient(client, request.getHttpChannel()).admin()
+            .cluster()
+            .listTasks(listTasksRequest, listTasksResponseListener(nodesInCluster, groupBy, channel));
     }
 
     public static ListTasksRequest generateListTasksRequest(RestRequest request) {
@@ -58,7 +66,7 @@ public class RestListTasksAction extends BaseRestHandler {
         String[] actions = Strings.splitStringByCommaToArray(request.param("actions"));
         TaskId parentTaskId = new TaskId(request.param("parent_task_id"));
         boolean waitForCompletion = request.paramAsBoolean("wait_for_completion", false);
-        TimeValue timeout = request.paramAsTime("timeout", null);
+        TimeValue timeout = getTimeout(request);
 
         ListTasksRequest listTasksRequest = new ListTasksRequest();
         listTasksRequest.setNodes(nodes);

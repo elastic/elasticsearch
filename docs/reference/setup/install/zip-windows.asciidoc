@@ -1,6 +1,8 @@
 [[zip-windows]]
 === Install {es} with `.zip` on Windows
 
+:include-xpack: true
+
 {es} can be installed on Windows using the Windows `.zip` archive. This
 comes with a `elasticsearch-service.bat` command which will setup {es} to run as a
 service.
@@ -29,11 +31,9 @@ see the <<jvm-version, JVM version requirements>>
 
 ifeval::["{release-state}"=="unreleased"]
 
-Version {version} of {es} has not yet been released.
+WARNING: Version {version} of {es} has not yet been released. The archive might not be available.
 
 endif::[]
-
-ifeval::["{release-state}"!="unreleased"]
 
 Download the `.zip` archive for {es} {version} from: https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-{version}-windows-x86_64.zip
 
@@ -43,10 +43,8 @@ window, `cd` to the `%ES_HOME%` directory, for instance:
 
 ["source","sh",subs="attributes"]
 ----------------------------
-cd C:\elasticsearch-{version}
+cd C:\Program Files\elasticsearch-{version}
 ----------------------------
-
-endif::[]
 
 ifdef::include-xpack[]
 [role="xpack"]
@@ -97,7 +95,7 @@ automatically at boot time without user interaction.
 +
 ["source","sh",subs="attributes"]
 ----
-C:\elasticsearch-{version}{backslash}bin>elasticsearch-service.bat install
+C:\Program Files\elasticsearch-{version}{backslash}bin>elasticsearch-service.bat install
 Installing service      :  "elasticsearch-service-x64"
 Using ES_JAVA_HOME (64-bit):  "C:\jvm\jdk1.8"
 The service 'elasticsearch-service-x64' has been installed.
@@ -108,7 +106,7 @@ default:
 +
 ["source","sh",subs="attributes"]
 ----
-C:\elasticsearch-{version}{backslash}bin>bin\elasticsearch-service.bat start
+C:\Program Files\elasticsearch-{version}{backslash}bin>bin\elasticsearch-service.bat start
 ----
 +
 NOTE: TLS is not enabled or configured when you start {es} as a service.
@@ -119,7 +117,7 @@ to the command line.
 +
 ["source","sh",subs="attributes"]
 ----
-C:\elasticsearch-{version}{backslash}bin>\bin\elasticsearch-reset-password -u elastic
+C:\Program Files\elasticsearch-{version}{backslash}bin>\bin\elasticsearch-reset-password -u elastic
 ----
 
 NOTE: While a JRE can be used for the {es} service, due to its use of a client
@@ -142,7 +140,7 @@ service from the command line.
 
 ["source","sh",subs="attributes,callouts"]
 ----
-C:\elasticsearch-{version}{backslash}bin>elasticsearch-service.bat
+C:\Program Files\elasticsearch-{version}{backslash}bin>elasticsearch-service.bat
 
 Usage: elasticsearch-service.bat install|remove|start|stop|manager [SERVICE_ID]
 ----

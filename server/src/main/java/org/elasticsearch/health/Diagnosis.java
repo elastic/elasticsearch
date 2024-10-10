@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.health;
@@ -44,6 +45,7 @@ public record Diagnosis(Definition definition, @Nullable List<Resource> affected
             INDEX("indices"),
             NODE("nodes"),
             SLM_POLICY("slm_policies"),
+            ILM_POLICY("ilm_policies"),
             FEATURE_STATE("feature_states"),
             SNAPSHOT_REPOSITORY("snapshot_repositories");
 
@@ -79,7 +81,7 @@ public record Diagnosis(Definition definition, @Nullable List<Resource> affected
         public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params outerParams) {
             final Iterator<? extends ToXContent> valuesIterator;
             if (nodes != null) {
-                valuesIterator = nodes.stream().map(node -> (ToXContent) (builder, params) -> {
+                valuesIterator = Iterators.map(nodes.iterator(), node -> (builder, params) -> {
                     builder.startObject();
                     builder.field(ID_FIELD, node.getId());
                     if (node.getName() != null) {
@@ -87,9 +89,9 @@ public record Diagnosis(Definition definition, @Nullable List<Resource> affected
                     }
                     builder.endObject();
                     return builder;
-                }).iterator();
+                });
             } else {
-                valuesIterator = values.stream().map(value -> (ToXContent) (builder, params) -> builder.value(value)).iterator();
+                valuesIterator = Iterators.map(values.iterator(), value -> (builder, params) -> builder.value(value));
             }
             return ChunkedToXContentHelper.array(type.displayValue, valuesIterator);
         }

@@ -1,15 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.client.internal;
 
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
@@ -30,7 +32,6 @@ import org.elasticsearch.action.get.MultiGetRequestBuilder;
 import org.elasticsearch.action.get.MultiGetResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.ClearScrollRequest;
 import org.elasticsearch.action.search.ClearScrollRequestBuilder;
 import org.elasticsearch.action.search.ClearScrollResponse;
@@ -55,9 +56,10 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.Releasable;
+import org.elasticsearch.transport.RemoteClusterService;
 
 import java.util.Map;
+import java.util.concurrent.Executor;
 
 /**
  * A client provides a one stop interface for performing actions/operations against the cluster.
@@ -70,14 +72,15 @@ import java.util.Map;
  *
  * @see org.elasticsearch.node.Node#client()
  */
-public interface Client extends ElasticsearchClient, Releasable {
+public interface Client extends ElasticsearchClient {
 
+    // Note: This setting is registered only for bwc. The value is never read.
     Setting<String> CLIENT_TYPE_SETTING_S = new Setting<>("client.type", "node", (s) -> {
         return switch (s) {
             case "node", "transport" -> s;
             default -> throw new IllegalArgumentException("Can't parse [client.type] must be one of [node, transport]");
         };
-    }, Property.NodeScope);
+    }, Property.NodeScope, Property.Deprecated);
 
     /**
      * The admin client that can be used to perform administrative operations.
@@ -91,9 +94,8 @@ public interface Client extends ElasticsearchClient, Releasable {
      *
      * @param request The index request
      * @return The result future
-     * @see Requests#indexRequest(String)
      */
-    ActionFuture<IndexResponse> index(IndexRequest request);
+    ActionFuture<DocWriteResponse> index(IndexRequest request);
 
     /**
      * Index a document associated with a given index.
@@ -102,9 +104,8 @@ public interface Client extends ElasticsearchClient, Releasable {
      *
      * @param request  The index request
      * @param listener A listener to be notified with a result
-     * @see Requests#indexRequest(String)
      */
-    void index(IndexRequest request, ActionListener<IndexResponse> listener);
+    void index(IndexRequest request, ActionListener<DocWriteResponse> listener);
 
     /**
      * Index a document associated with a given index.
@@ -153,7 +154,6 @@ public interface Client extends ElasticsearchClient, Releasable {
      *
      * @param request The delete request
      * @return The result future
-     * @see Requests#deleteRequest(String)
      */
     ActionFuture<DeleteResponse> delete(DeleteRequest request);
 
@@ -162,7 +162,6 @@ public interface Client extends ElasticsearchClient, Releasable {
      *
      * @param request  The delete request
      * @param listener A listener to be notified with a result
-     * @see Requests#deleteRequest(String)
      */
     void delete(DeleteRequest request, ActionListener<DeleteResponse> listener);
 
@@ -184,7 +183,6 @@ public interface Client extends ElasticsearchClient, Releasable {
      *
      * @param request The bulk request
      * @return The result future
-     * @see org.elasticsearch.client.internal.Requests#bulkRequest()
      */
     ActionFuture<BulkResponse> bulk(BulkRequest request);
 
@@ -193,7 +191,6 @@ public interface Client extends ElasticsearchClient, Releasable {
      *
      * @param request  The bulk request
      * @param listener A listener to be notified with a result
-     * @see org.elasticsearch.client.internal.Requests#bulkRequest()
      */
     void bulk(BulkRequest request, ActionListener<BulkResponse> listener);
 
@@ -212,7 +209,6 @@ public interface Client extends ElasticsearchClient, Releasable {
      *
      * @param request The get request
      * @return The result future
-     * @see Requests#getRequest(String)
      */
     ActionFuture<GetResponse> get(GetRequest request);
 
@@ -221,7 +217,6 @@ public interface Client extends ElasticsearchClient, Releasable {
      *
      * @param request  The get request
      * @param listener A listener to be notified with a result
-     * @see Requests#getRequest(String)
      */
     void get(GetRequest request, ActionListener<GetResponse> listener);
 
@@ -255,7 +250,6 @@ public interface Client extends ElasticsearchClient, Releasable {
      *
      * @param request The search request
      * @return The result future
-     * @see Requests#searchRequest(String...)
      */
     ActionFuture<SearchResponse> search(SearchRequest request);
 
@@ -264,7 +258,6 @@ public interface Client extends ElasticsearchClient, Releasable {
      *
      * @param request  The search request
      * @param listener A listener to be notified of the result
-     * @see Requests#searchRequest(String...)
      */
     void search(SearchRequest request, ActionListener<SearchResponse> listener);
 
@@ -278,7 +271,6 @@ public interface Client extends ElasticsearchClient, Releasable {
      *
      * @param request The search scroll request
      * @return The result future
-     * @see Requests#searchScrollRequest(String)
      */
     ActionFuture<SearchResponse> searchScroll(SearchScrollRequest request);
 
@@ -287,7 +279,6 @@ public interface Client extends ElasticsearchClient, Releasable {
      *
      * @param request  The search scroll request
      * @param listener A listener to be notified of the result
-     * @see Requests#searchScrollRequest(String)
      */
     void searchScroll(SearchScrollRequest request, ActionListener<SearchResponse> listener);
 
@@ -424,7 +415,11 @@ public interface Client extends ElasticsearchClient, Releasable {
      * @throws IllegalArgumentException if the given clusterAlias doesn't exist
      * @throws UnsupportedOperationException if this functionality is not available on this client.
      */
-    default Client getRemoteClusterClient(String clusterAlias) {
+    default RemoteClusterClient getRemoteClusterClient(
+        String clusterAlias,
+        Executor responseExecutor,
+        RemoteClusterService.DisconnectedStrategy disconnectedStrategy
+    ) {
         throw new UnsupportedOperationException("this client doesn't support remote cluster connections");
     }
 }

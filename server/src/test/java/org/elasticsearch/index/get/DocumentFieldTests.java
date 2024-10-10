@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.get;
@@ -41,6 +42,16 @@ public class DocumentFieldTests extends ESTestCase {
         assertEquals("{\"field\":[\"value1\",\"value2\"]}", output);
         String ignoredOutput = Strings.toString(documentField.getIgnoredValuesWriter());
         assertEquals("{\"field\":[\"ignored1\",\"ignored2\"]}", ignoredOutput);
+    }
+
+    public void testUnserializableXContent() {
+        DocumentField df = new DocumentField(
+            "field",
+            List.of((ToXContent) (builder, params) -> { throw new UnsupportedOperationException(); })
+        );
+        String output = Strings.toString(df.getValidValuesWriter());
+        assertEquals("""
+            {"field":["<unserializable>"]}""", output);
     }
 
     public void testEqualsAndHashcode() {

@@ -7,44 +7,30 @@
 
 package org.elasticsearch.xpack.core.security.action.apikey;
 
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 
-import java.io.IOException;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 
-public final class UpdateApiKeyRequest extends BaseUpdateApiKeyRequest {
+public final class UpdateApiKeyRequest extends BaseSingleUpdateApiKeyRequest {
     public static UpdateApiKeyRequest usingApiKeyId(final String id) {
-        return new UpdateApiKeyRequest(id, null, null);
+        return new UpdateApiKeyRequest(id, null, null, null);
     }
-
-    private final String id;
 
     public UpdateApiKeyRequest(
         final String id,
         @Nullable final List<RoleDescriptor> roleDescriptors,
-        @Nullable final Map<String, Object> metadata
+        @Nullable final Map<String, Object> metadata,
+        @Nullable final TimeValue expiration
     ) {
-        super(roleDescriptors, metadata);
-        this.id = Objects.requireNonNull(id, "API key ID must not be null");
-    }
-
-    public UpdateApiKeyRequest(StreamInput in) throws IOException {
-        super(in);
-        this.id = in.readString();
+        super(roleDescriptors, metadata, expiration, id);
     }
 
     @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        out.writeString(id);
+    public ApiKey.Type getType() {
+        return ApiKey.Type.REST;
     }
 
-    public String getId() {
-        return id;
-    }
 }

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.core.security.authz;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
@@ -241,15 +242,18 @@ public interface AuthorizationEngine {
     void getUserPrivileges(AuthorizationInfo authorizationInfo, ActionListener<GetUserPrivilegesResponse> listener);
 
     /**
-     * Retrieve remote access privileges for a given target cluster, from the provided authorization information, to be sent together
+     * Retrieve privileges towards a remote cluster, from the provided authorization information, to be sent together
      * with a cross-cluster request (e.g. CCS) from an originating cluster to the target cluster.
      */
-    default void getRemoteAccessRoleDescriptorsIntersection(
+    default void getRoleDescriptorsIntersectionForRemoteCluster(
         final String remoteClusterAlias,
+        final TransportVersion remoteClusterVersion,
         final AuthorizationInfo authorizationInfo,
         final ActionListener<RoleDescriptorsIntersection> listener
     ) {
-        throw new UnsupportedOperationException("retrieving remote access role descriptors is not supported by this authorization engine");
+        throw new UnsupportedOperationException(
+            "retrieving role descriptors for remote cluster is not supported by this authorization engine"
+        );
     }
 
     /**
@@ -630,8 +634,7 @@ public interface AuthorizationEngine {
                     || Arrays.equals(IndicesAndAliasesResolverField.NO_INDICES_OR_ALIASES_ARRAY, indices)) {
                     return null;
                 }
-                Set<String> deniedIndices = Arrays.asList(indices)
-                    .stream()
+                Set<String> deniedIndices = Arrays.stream(indices)
                     .filter(index -> false == indicesAccessControl.hasIndexPermissions(index))
                     .collect(Collectors.toSet());
                 return getFailureDescription(deniedIndices, restrictedIndices);

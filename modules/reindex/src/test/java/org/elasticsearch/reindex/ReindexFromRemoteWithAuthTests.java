@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.reindex;
@@ -15,40 +16,28 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
-import org.elasticsearch.action.search.SearchAction;
+import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.ActionFilterChain;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
-import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.routing.allocation.AllocationService;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.env.Environment;
-import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.http.HttpInfo;
-import org.elasticsearch.index.reindex.ReindexAction;
 import org.elasticsearch.index.reindex.ReindexRequestBuilder;
 import org.elasticsearch.index.reindex.RemoteInfo;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.rest.RestHeaderDefinition;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.rest.root.MainRestPlugin;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.transport.netty4.Netty4Plugin;
-import org.elasticsearch.watcher.ResourceWatcherService;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.junit.Before;
 
 import java.util.Arrays;
@@ -56,7 +45,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Supplier;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
@@ -69,7 +57,12 @@ public class ReindexFromRemoteWithAuthTests extends ESSingleNodeTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return Arrays.asList(Netty4Plugin.class, ReindexFromRemoteWithAuthTests.TestPlugin.class, ReindexPlugin.class);
+        return Arrays.asList(
+            Netty4Plugin.class,
+            ReindexFromRemoteWithAuthTests.TestPlugin.class,
+            ReindexPlugin.class,
+            MainRestPlugin.class
+        );
     }
 
     @Override
@@ -88,12 +81,12 @@ public class ReindexFromRemoteWithAuthTests extends ESSingleNodeTestCase {
 
     @Before
     public void setupSourceIndex() {
-        client().prepareIndex("source").setSource("test", "test").setRefreshPolicy(RefreshPolicy.IMMEDIATE).get();
+        prepareIndex("source").setSource("test", "test").setRefreshPolicy(RefreshPolicy.IMMEDIATE).get();
     }
 
     @Before
     public void fetchTransportAddress() {
-        NodeInfo nodeInfo = client().admin().cluster().prepareNodesInfo().get().getNodes().get(0);
+        NodeInfo nodeInfo = clusterAdmin().prepareNodesInfo().get().getNodes().get(0);
         address = nodeInfo.getInfo(HttpInfo.class).getAddress().publishAddress();
     }
 
@@ -116,14 +109,14 @@ public class ReindexFromRemoteWithAuthTests extends ESSingleNodeTestCase {
     }
 
     public void testReindexFromRemoteWithAuthentication() throws Exception {
-        ReindexRequestBuilder request = new ReindexRequestBuilder(client(), ReindexAction.INSTANCE).source("source")
+        ReindexRequestBuilder request = new ReindexRequestBuilder(client()).source("source")
             .destination("dest")
             .setRemoteInfo(newRemoteInfo("Aladdin", "open sesame", emptyMap()));
         assertThat(request.get(), matcher().created(1));
     }
 
     public void testReindexSendsHeaders() throws Exception {
-        ReindexRequestBuilder request = new ReindexRequestBuilder(client(), ReindexAction.INSTANCE).source("source")
+        ReindexRequestBuilder request = new ReindexRequestBuilder(client()).source("source")
             .destination("dest")
             .setRemoteInfo(newRemoteInfo(null, null, singletonMap(TestFilter.EXAMPLE_HEADER, "doesn't matter")));
         ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, () -> request.get());
@@ -132,7 +125,7 @@ public class ReindexFromRemoteWithAuthTests extends ESSingleNodeTestCase {
     }
 
     public void testReindexWithoutAuthenticationWhenRequired() throws Exception {
-        ReindexRequestBuilder request = new ReindexRequestBuilder(client(), ReindexAction.INSTANCE).source("source")
+        ReindexRequestBuilder request = new ReindexRequestBuilder(client()).source("source")
             .destination("dest")
             .setRemoteInfo(newRemoteInfo(null, null, emptyMap()));
         ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, () -> request.get());
@@ -142,7 +135,7 @@ public class ReindexFromRemoteWithAuthTests extends ESSingleNodeTestCase {
     }
 
     public void testReindexWithBadAuthentication() throws Exception {
-        ReindexRequestBuilder request = new ReindexRequestBuilder(client(), ReindexAction.INSTANCE).source("source")
+        ReindexRequestBuilder request = new ReindexRequestBuilder(client()).source("source")
             .destination("dest")
             .setRemoteInfo(newRemoteInfo("junk", "auth", emptyMap()));
         ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, () -> request.get());
@@ -157,22 +150,8 @@ public class ReindexFromRemoteWithAuthTests extends ESSingleNodeTestCase {
         private final SetOnce<ReindexFromRemoteWithAuthTests.TestFilter> testFilter = new SetOnce<>();
 
         @Override
-        public Collection<Object> createComponents(
-            Client client,
-            ClusterService clusterService,
-            ThreadPool threadPool,
-            ResourceWatcherService resourceWatcherService,
-            ScriptService scriptService,
-            NamedXContentRegistry xContentRegistry,
-            Environment environment,
-            NodeEnvironment nodeEnvironment,
-            NamedWriteableRegistry namedWriteableRegistry,
-            IndexNameExpressionResolver expressionResolver,
-            Supplier<RepositoriesService> repositoriesServiceSupplier,
-            Tracer tracer,
-            AllocationService allocationService
-        ) {
-            testFilter.set(new ReindexFromRemoteWithAuthTests.TestFilter(threadPool));
+        public Collection<?> createComponents(PluginServices services) {
+            testFilter.set(new ReindexFromRemoteWithAuthTests.TestFilter(services.threadPool()));
             return Collections.emptyList();
         }
 
@@ -220,7 +199,7 @@ public class ReindexFromRemoteWithAuthTests extends ESSingleNodeTestCase {
             ActionListener<Response> listener,
             ActionFilterChain<Request, Response> chain
         ) {
-            if (false == action.equals(SearchAction.NAME)) {
+            if (false == action.equals(TransportSearchAction.TYPE.name())) {
                 chain.proceed(task, action, request, listener);
                 return;
             }

@@ -26,7 +26,7 @@ You can use this API to clear the archived repositories metering information in 
 [[clear-repositories-metering-archive-api-path-params]]
 ==== {api-path-parms-title}
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=node-id]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=node-id]
 
 `<max_version_to_clear>`::
     (long) Specifies the maximum <<get-repositories-metering-api-response-body, archive_version>> to be cleared from the archive.
@@ -37,4 +37,4 @@ All the nodes selective options are explained <<cluster-nodes,here>>.
 ==== {api-response-body-title}
 Returns the deleted archived repositories metering information.
 
-include::{es-repo-dir}/repositories-metering-api/apis/repositories-meterings-body.asciidoc[tag=repositories-metering-body]
+include::{es-ref-dir}/repositories-metering-api/apis/repositories-meterings-body.asciidoc[tag=repositories-metering-body]

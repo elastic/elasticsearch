@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.action.admin.indices.close;
 
@@ -21,7 +22,6 @@ import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
@@ -29,6 +29,7 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -41,9 +42,9 @@ public class TransportVerifyShardBeforeCloseAction extends TransportReplicationA
     TransportVerifyShardBeforeCloseAction.ShardRequest,
     ReplicationResponse> {
 
-    public static final String NAME = CloseIndexAction.NAME + "[s]";
-    public static final ActionType<ReplicationResponse> TYPE = new ActionType<>(NAME, ReplicationResponse::new);
-    protected Logger logger = LogManager.getLogger(getClass());
+    public static final String NAME = TransportCloseIndexAction.NAME + "[s]";
+    public static final ActionType<ReplicationResponse> TYPE = new ActionType<>(NAME);
+    private static final Logger logger = LogManager.getLogger(TransportVerifyShardBeforeCloseAction.class);
 
     @Inject
     public TransportVerifyShardBeforeCloseAction(
@@ -66,7 +67,10 @@ public class TransportVerifyShardBeforeCloseAction extends TransportReplicationA
             actionFilters,
             ShardRequest::new,
             ShardRequest::new,
-            ThreadPool.Names.MANAGEMENT
+            threadPool.executor(ThreadPool.Names.MANAGEMENT),
+            SyncGlobalCheckpointAfterOperation.DoNotSync,
+            PrimaryActionExecution.RejectOnOverload,
+            ReplicaActionExecution.SubjectToCircuitBreaker
         );
     }
 
@@ -163,7 +167,7 @@ public class TransportVerifyShardBeforeCloseAction extends TransportReplicationA
         }
     }
 
-    public static class ShardRequest extends ReplicationRequest<ShardRequest> {
+    public static final class ShardRequest extends ReplicationRequest<ShardRequest> {
 
         private final ClusterBlock clusterBlock;
 

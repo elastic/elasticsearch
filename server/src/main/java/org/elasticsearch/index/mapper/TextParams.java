@@ -1,16 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
-import org.elasticsearch.Version;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.analysis.AnalysisMode;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
@@ -40,7 +41,7 @@ public final class TextParams {
             IndexAnalyzers indexAnalyzers,
             Function<FieldMapper, NamedAnalyzer> analyzerInitFunction,
             Function<FieldMapper, Integer> positionGapInitFunction,
-            Version indexCreatedVersion
+            IndexVersion indexCreatedVersion
         ) {
 
             this.indexAnalyzer = Parameter.analyzerParam(

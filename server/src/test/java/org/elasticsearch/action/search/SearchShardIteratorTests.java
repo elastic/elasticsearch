@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.search;
@@ -70,7 +71,9 @@ public class SearchShardIteratorTests extends ESTestCase {
             List.of(nodeId),
             originalIndices,
             null,
-            null
+            null,
+            false,
+            false
         );
         final SearchShardTarget searchShardTarget = searchShardIterator.nextOrNull();
         assertNotNull(searchShardTarget);
@@ -89,7 +92,9 @@ public class SearchShardIteratorTests extends ESTestCase {
                 s.getTargetNodeIds(),
                 s.getOriginalIndices(),
                 s.getSearchContextId(),
-                s.getSearchContextKeepAlive()
+                s.getSearchContextKeepAlive(),
+                s.prefiltered(),
+                s.skip()
             ),
             s -> {
                 if (randomBoolean()) {
@@ -105,7 +110,9 @@ public class SearchShardIteratorTests extends ESTestCase {
                         s.getTargetNodeIds(),
                         s.getOriginalIndices(),
                         s.getSearchContextId(),
-                        s.getSearchContextKeepAlive()
+                        s.getSearchContextKeepAlive(),
+                        s.prefiltered(),
+                        s.skip()
                     );
                 } else {
                     ShardId shardId = new ShardId(
@@ -119,7 +126,9 @@ public class SearchShardIteratorTests extends ESTestCase {
                         s.getTargetNodeIds(),
                         s.getOriginalIndices(),
                         s.getSearchContextId(),
-                        s.getSearchContextKeepAlive()
+                        s.getSearchContextKeepAlive(),
+                        s.prefiltered(),
+                        s.skip()
                     );
                 }
             }
@@ -186,7 +195,9 @@ public class SearchShardIteratorTests extends ESTestCase {
             shardIterator1.getTargetNodeIds(),
             shardIterator1.getOriginalIndices(),
             shardIterator1.getSearchContextId(),
-            shardIterator1.getSearchContextKeepAlive()
+            shardIterator1.getSearchContextKeepAlive(),
+            shardIterator1.prefiltered(),
+            shardIterator1.skip()
         );
         assertEquals(shardIterator1, shardIterator2);
         assertEquals(0, shardIterator1.compareTo(shardIterator2));

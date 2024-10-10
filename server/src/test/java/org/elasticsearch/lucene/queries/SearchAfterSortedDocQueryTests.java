@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.lucene.queries;
@@ -80,7 +81,7 @@ public class SearchAfterSortedDocQueryTests extends ESTestCase {
             }
         }
         final IndexReader reader = w.getReader();
-        final IndexSearcher searcher = new IndexSearcher(reader);
+        final IndexSearcher searcher = newSearcher(reader);
 
         int step = randomIntBetween(1, 10);
         FixedBitSet bitSet = new FixedBitSet(numDocs);

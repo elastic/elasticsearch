@@ -20,7 +20,9 @@ esplugin {
   classname 'org.elasticsearch.xpack.unsignedlong.UnsignedLongMapperPlugin'
   extendedPlugins = ['x-pack-core', 'lang-painless']
 }
-archivesBaseName = 'x-pack-unsigned-long'
+base {
+  archivesName = 'x-pack-unsigned-long'
+}
 
 dependencies {
   compileOnly project(':modules:lang-painless:spi')
@@ -33,15 +35,6 @@ restResources {
     restApi {
         include '_common', 'bulk', 'indices', 'index', 'search', 'xpack'
     }
-}
-
-tasks.named("yamlRestTestV7CompatTest").configure {
-    systemProperty 'tests.rest.blacklist', [
-        '50_script_values/Scripted fields values return Long',
-        '50_script_values/Scripted sort values',
-        '50_script_values/Script query',
-        '50_script_values/script_score query'
-    ].join(',')
 }
 
 if (BuildParams.isSnapshotBuild() == false) {

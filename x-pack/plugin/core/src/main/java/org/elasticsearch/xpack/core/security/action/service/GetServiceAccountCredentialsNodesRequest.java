@@ -29,19 +29,6 @@ public class GetServiceAccountCredentialsNodesRequest extends BaseNodesRequest<G
         this.serviceName = serviceName;
     }
 
-    public GetServiceAccountCredentialsNodesRequest(StreamInput in) throws IOException {
-        super(in);
-        this.namespace = in.readString();
-        this.serviceName = in.readString();
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        out.writeString(namespace);
-        out.writeString(serviceName);
-    }
-
     public static class Node extends TransportRequest {
 
         private final String namespace;

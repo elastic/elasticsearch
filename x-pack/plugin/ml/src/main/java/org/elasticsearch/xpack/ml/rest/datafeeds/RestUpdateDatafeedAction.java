@@ -12,6 +12,8 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.action.UpdateDatafeedAction;
@@ -21,9 +23,12 @@ import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
+import static org.elasticsearch.rest.RestUtils.getAckTimeout;
+import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
 import static org.elasticsearch.xpack.ml.MachineLearning.BASE_PATH;
 import static org.elasticsearch.xpack.ml.MachineLearning.PRE_V7_BASE_PATH;
 
+@ServerlessScope(Scope.PUBLIC)
 public class RestUpdateDatafeedAction extends BaseRestHandler {
 
     @Override
@@ -50,10 +55,12 @@ public class RestUpdateDatafeedAction extends BaseRestHandler {
             || restRequest.hasParam("ignore_throttled")) {
             indicesOptions = IndicesOptions.fromRequest(restRequest, SearchRequest.DEFAULT_INDICES_OPTIONS);
         }
-        XContentParser parser = restRequest.contentParser();
-        UpdateDatafeedAction.Request updateDatafeedRequest = UpdateDatafeedAction.Request.parseRequest(datafeedId, indicesOptions, parser);
-        updateDatafeedRequest.timeout(restRequest.paramAsTime("timeout", updateDatafeedRequest.timeout()));
-        updateDatafeedRequest.masterNodeTimeout(restRequest.paramAsTime("master_timeout", updateDatafeedRequest.masterNodeTimeout()));
+        UpdateDatafeedAction.Request updateDatafeedRequest;
+        try (XContentParser parser = restRequest.contentParser()) {
+            updateDatafeedRequest = UpdateDatafeedAction.Request.parseRequest(datafeedId, indicesOptions, parser);
+        }
+        updateDatafeedRequest.ackTimeout(getAckTimeout(restRequest));
+        updateDatafeedRequest.masterNodeTimeout(getMasterNodeTimeout(restRequest));
 
         return channel -> client.execute(UpdateDatafeedAction.INSTANCE, updateDatafeedRequest, new RestToXContentListener<>(channel));
     }

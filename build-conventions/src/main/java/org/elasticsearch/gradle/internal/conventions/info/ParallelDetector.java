@@ -1,17 +1,20 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.gradle.internal.conventions.info;
 
+import org.gradle.api.Action;
 import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.Logging;
 import org.gradle.api.Project;
 import org.gradle.api.provider.ProviderFactory;
+import org.gradle.process.ExecSpec;
 
 import java.io.BufferedReader;
 import java.io.ByteArrayOutputStream;
@@ -65,22 +68,18 @@ public class ParallelDetector {
                 }
                 _defaultParallel = socketToCore.values().stream().mapToInt(i -> i).sum();
             } else if (isMac(project.getProviders())) {
-                // Ask macOS to count physical CPUs for us
-                ByteArrayOutputStream stdout = new ByteArrayOutputStream();
-
                 // On Apple silicon, we only want to use the performance cores
                 boolean isAppleSilicon = project.getProviders().systemProperty("os.arch").getOrElse("").equals("aarch64");
                 String query = isAppleSilicon && isMontereyOrNewer(project.getProviders())
                     ? "hw.perflevel0.physicalcpu"
                     : "hw.physicalcpu";
 
-                project.exec(spec -> {
-                    spec.setExecutable("sysctl");
-                    spec.args("-n", query);
-                    spec.setStandardOutput(stdout);
-                });
+                String stdout = project.getProviders().exec(execSpec ->
+                        execSpec.commandLine("sysctl", "-n", query)
+                ).getStandardOutput().getAsText().get();
 
-                _defaultParallel = Integer.parseInt(stdout.toString().trim());
+
+                _defaultParallel = Integer.parseInt(stdout.trim());
             }
 
             if (_defaultParallel == null || _defaultParallel < 1) {

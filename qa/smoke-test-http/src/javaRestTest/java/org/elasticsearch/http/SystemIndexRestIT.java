@@ -1,14 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.http;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.Request;
@@ -19,11 +21,13 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.indices.SystemIndexDescriptor.Type;
 import org.elasticsearch.plugins.Plugin;
@@ -32,7 +36,7 @@ import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.action.RestStatusToXContentListener;
+import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -41,6 +45,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
@@ -152,12 +157,14 @@ public class SystemIndexRestIT extends HttpSmokeTestCase {
         @Override
         public List<RestHandler> getRestHandlers(
             Settings settings,
+            NamedWriteableRegistry namedWriteableRegistry,
             RestController restController,
             ClusterSettings clusterSettings,
             IndexScopedSettings indexScopedSettings,
             SettingsFilter settingsFilter,
             IndexNameExpressionResolver indexNameExpressionResolver,
-            Supplier<DiscoveryNodes> nodesInCluster
+            Supplier<DiscoveryNodes> nodesInCluster,
+            Predicate<NodeFeature> clusterSupportsFeature
         ) {
             return List.of(new AddDocRestHandler());
         }
@@ -169,6 +176,7 @@ public class SystemIndexRestIT extends HttpSmokeTestCase {
                 {
                     builder.startObject("_meta");
                     builder.field("version", Version.CURRENT.toString());
+                    builder.field(SystemIndexDescriptor.VERSION_META_KEY, 1);
                     builder.endObject();
 
                     builder.field("dynamic", "strict");
@@ -233,7 +241,7 @@ public class SystemIndexRestIT extends HttpSmokeTestCase {
                 indexRequest.source(Map.of("some_field", "some_value"));
                 return channel -> client.index(
                     indexRequest,
-                    new RestStatusToXContentListener<>(channel, r -> r.getLocation(indexRequest.routing()))
+                    new RestToXContentListener<>(channel, DocWriteResponse::status, r -> r.getLocation(indexRequest.routing()))
                 );
             }
         }

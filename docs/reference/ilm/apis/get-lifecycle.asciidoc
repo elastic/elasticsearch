@@ -5,7 +5,7 @@
 <titleabbrev>Get policy</titleabbrev>
 ++++
 
-Retrieves a lifecycle policy.
+Retrieves a <<index-lifecycle-management,lifecycle>> policy.
 
 [[ilm-get-lifecycle-request]]
 ==== {api-request-title}
@@ -36,7 +36,7 @@ modified date. If no policy is specified, returns all defined policies.
 [[ilm-get-lifecycle-query-params]]
 ==== {api-query-parms-title}
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 
 [[ilm-get-lifecycle-example]]
 ==== {api-examples-title}
@@ -115,7 +115,6 @@ If the request succeeds, the body of the response contains the policy definition
   }
 }
 --------------------------------------------------
-// TEST[skip:https://github.com/elastic/elasticsearch/issues/89623]
 // TESTRESPONSE[s/"modified_date": 82392349/"modified_date": $body.my_policy.modified_date/]
 
 <1> The policy version is incremented whenever the policy is updated

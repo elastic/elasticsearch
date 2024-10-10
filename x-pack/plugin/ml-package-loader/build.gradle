@@ -1,0 +1,25 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+import org.apache.tools.ant.taskdefs.condition.Os
+import org.elasticsearch.gradle.OS
+
+apply plugin: 'elasticsearch.internal-es-plugin'
+
+esplugin {
+  name 'ml-package-loader'
+  description 'Loader for prepackaged Machine Learning Models from Elastic'
+  classname 'org.elasticsearch.xpack.ml.packageloader.MachineLearningPackageLoader'
+  extendedPlugins = ['x-pack-core']
+}
+
+dependencies {
+  implementation project(path: ':libs:elasticsearch-logging')
+  compileOnly project(":server")
+  compileOnly project(path: xpackModule('core'))
+  testImplementation(testArtifact(project(xpackModule('core'))))
+}

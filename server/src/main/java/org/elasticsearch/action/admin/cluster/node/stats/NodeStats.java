@@ -1,18 +1,23 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.cluster.node.stats;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.support.nodes.BaseNodeResponse;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
+import org.elasticsearch.cluster.routing.allocation.NodeAllocationStats;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.discovery.DiscoveryStats;
 import org.elasticsearch.http.HttpStats;
@@ -25,20 +30,22 @@ import org.elasticsearch.monitor.jvm.JvmStats;
 import org.elasticsearch.monitor.os.OsStats;
 import org.elasticsearch.monitor.process.ProcessStats;
 import org.elasticsearch.node.AdaptiveSelectionStats;
+import org.elasticsearch.repositories.RepositoriesStats;
 import org.elasticsearch.script.ScriptCacheStats;
 import org.elasticsearch.script.ScriptStats;
 import org.elasticsearch.threadpool.ThreadPoolStats;
 import org.elasticsearch.transport.TransportStats;
-import org.elasticsearch.xcontent.ToXContentFragment;
-import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ToXContent;
 
 import java.io.IOException;
+import java.util.Iterator;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * Node statistics (dynamic, changes depending on when created).
  */
-public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
+public class NodeStats extends BaseNodeResponse implements ChunkedToXContent {
 
     private final long timestamp;
 
@@ -87,6 +94,12 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
     @Nullable
     private final IndexingPressureStats indexingPressureStats;
 
+    @Nullable
+    private final RepositoriesStats repositoriesStats;
+
+    @Nullable
+    private final NodeAllocationStats nodeAllocationStats;
+
     public NodeStats(StreamInput in) throws IOException {
         super(in);
         timestamp = in.readVLong();
@@ -101,12 +114,18 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         transport = in.readOptionalWriteable(TransportStats::new);
         http = in.readOptionalWriteable(HttpStats::new);
         breaker = in.readOptionalWriteable(AllCircuitBreakerStats::new);
-        scriptStats = in.readOptionalWriteable(ScriptStats::new);
+        scriptStats = in.readOptionalWriteable(ScriptStats::read);
         scriptCacheStats = scriptStats != null ? scriptStats.toScriptCacheStats() : null;
         discoveryStats = in.readOptionalWriteable(DiscoveryStats::new);
-        ingestStats = in.readOptionalWriteable(IngestStats::new);
+        ingestStats = in.readOptionalWriteable(IngestStats::read);
         adaptiveSelectionStats = in.readOptionalWriteable(AdaptiveSelectionStats::new);
         indexingPressureStats = in.readOptionalWriteable(IndexingPressureStats::new);
+        repositoriesStats = in.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)
+            ? in.readOptionalWriteable(RepositoriesStats::new)
+            : null;
+        nodeAllocationStats = in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)
+            ? in.readOptionalWriteable(NodeAllocationStats::new)
+            : null;
     }
 
     public NodeStats(
@@ -126,7 +145,9 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         @Nullable IngestStats ingestStats,
         @Nullable AdaptiveSelectionStats adaptiveSelectionStats,
         @Nullable ScriptCacheStats scriptCacheStats,
-        @Nullable IndexingPressureStats indexingPressureStats
+        @Nullable IndexingPressureStats indexingPressureStats,
+        @Nullable RepositoriesStats repositoriesStats,
+        @Nullable NodeAllocationStats nodeAllocationStats
     ) {
         super(node);
         this.timestamp = timestamp;
@@ -145,6 +166,35 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         this.adaptiveSelectionStats = adaptiveSelectionStats;
         this.scriptCacheStats = scriptCacheStats;
         this.indexingPressureStats = indexingPressureStats;
+        this.repositoriesStats = repositoriesStats;
+        this.nodeAllocationStats = nodeAllocationStats;
+    }
+
+    public NodeStats withNodeAllocationStats(
+        @Nullable NodeAllocationStats nodeAllocationStats,
+        @Nullable DiskThresholdSettings masterThresholdSettings
+    ) {
+        return new NodeStats(
+            getNode(),
+            timestamp,
+            indices,
+            os,
+            process,
+            jvm,
+            threadPool,
+            FsInfo.setEffectiveWatermarks(fs, masterThresholdSettings, getNode().isDedicatedFrozenNode()),
+            transport,
+            http,
+            breaker,
+            scriptStats,
+            discoveryStats,
+            ingestStats,
+            adaptiveSelectionStats,
+            scriptCacheStats,
+            indexingPressureStats,
+            repositoriesStats,
+            nodeAllocationStats
+        );
     }
 
     public long getTimestamp() {
@@ -249,6 +299,16 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         return indexingPressureStats;
     }
 
+    @Nullable
+    public RepositoriesStats getRepositoriesStats() {
+        return repositoriesStats;
+    }
+
+    @Nullable
+    public NodeAllocationStats getNodeAllocationStats() {
+        return nodeAllocationStats;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
@@ -272,75 +332,59 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         out.writeOptionalWriteable(ingestStats);
         out.writeOptionalWriteable(adaptiveSelectionStats);
         out.writeOptionalWriteable(indexingPressureStats);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
+            out.writeOptionalWriteable(repositoriesStats);
+        }
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
+            out.writeOptionalWriteable(nodeAllocationStats);
+        }
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+    public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params outerParams) {
+        return ChunkedToXContent.builder(outerParams).append((builder, params) -> {
+            builder.field("name", getNode().getName());
+            builder.field("transport_address", getNode().getAddress().toString());
+            builder.field("host", getNode().getHostName());
+            builder.field("ip", getNode().getAddress());
 
-        builder.field("name", getNode().getName());
-        builder.field("transport_address", getNode().getAddress().toString());
-        builder.field("host", getNode().getHostName());
-        builder.field("ip", getNode().getAddress());
-
-        builder.startArray("roles");
-        for (DiscoveryNodeRole role : getNode().getRoles()) {
-            builder.value(role.roleName());
-        }
-        builder.endArray();
-
-        if (getNode().getAttributes().isEmpty() == false) {
-            builder.startObject("attributes");
-            for (Map.Entry<String, String> attrEntry : getNode().getAttributes().entrySet()) {
-                builder.field(attrEntry.getKey(), attrEntry.getValue());
+            builder.startArray("roles");
+            for (DiscoveryNodeRole role : getNode().getRoles()) {
+                builder.value(role.roleName());
             }
-            builder.endObject();
-        }
+            builder.endArray();
 
-        if (getIndices() != null) {
-            getIndices().toXContent(builder, params);
-        }
-        if (getOs() != null) {
-            getOs().toXContent(builder, params);
-        }
-        if (getProcess() != null) {
-            getProcess().toXContent(builder, params);
-        }
-        if (getJvm() != null) {
-            getJvm().toXContent(builder, params);
-        }
-        if (getThreadPool() != null) {
-            getThreadPool().toXContent(builder, params);
-        }
-        if (getFs() != null) {
-            getFs().toXContent(builder, params);
-        }
-        if (getTransport() != null) {
-            getTransport().toXContent(builder, params);
-        }
-        if (getHttp() != null) {
-            getHttp().toXContent(builder, params);
-        }
-        if (getBreaker() != null) {
-            getBreaker().toXContent(builder, params);
-        }
-        if (getScriptStats() != null) {
-            getScriptStats().toXContent(builder, params);
-        }
-        if (getDiscoveryStats() != null) {
-            getDiscoveryStats().toXContent(builder, params);
-        }
-        if (getIngestStats() != null) {
-            getIngestStats().toXContent(builder, params);
-        }
-        if (getAdaptiveSelectionStats() != null) {
-            getAdaptiveSelectionStats().toXContent(builder, params);
-        }
-        if (getScriptCacheStats() != null) {
-            getScriptCacheStats().toXContent(builder, params);
-        }
-        if (getIndexingPressureStats() != null) {
-            getIndexingPressureStats().toXContent(builder, params);
-        }
-        return builder;
+            if (getNode().getAttributes().isEmpty() == false) {
+                builder.startObject("attributes");
+                for (Map.Entry<String, String> attrEntry : getNode().getAttributes().entrySet()) {
+                    builder.field(attrEntry.getKey(), attrEntry.getValue());
+                }
+                builder.endObject();
+            }
+            return builder;
+        })
+
+            .appendIfPresent(getIndices())
+            .append((builder, p) -> builder.value(ifPresent(getOs()), p).value(ifPresent(getProcess()), p).value(ifPresent(getJvm()), p))
+
+            .appendIfPresent(getThreadPool())
+            .appendIfPresent(getFs())
+            .appendIfPresent(getTransport())
+            .appendIfPresent(getHttp())
+            .appendIfPresent(getBreaker())
+            .appendIfPresent(getScriptStats())
+            .appendIfPresent(getDiscoveryStats())
+            .appendIfPresent(getIngestStats())
+            .appendIfPresent(getAdaptiveSelectionStats())
+            .appendIfPresent(getScriptCacheStats())
+            .append(
+                (builder, p) -> builder.value(ifPresent(getIndexingPressureStats()), p)
+                    .value(ifPresent(getRepositoriesStats()), p)
+                    .value(ifPresent(getNodeAllocationStats()), p)
+            );
+    }
+
+    private static ToXContent ifPresent(@Nullable ToXContent toXContent) {
+        return Objects.requireNonNullElse(toXContent, ToXContent.EMPTY);
     }
 }

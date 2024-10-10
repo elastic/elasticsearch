@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.action.bulk;
 
@@ -11,13 +12,16 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.DelegatingActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.common.BackoffPolicy;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.Predicates;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.Scheduler;
-import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -65,12 +69,12 @@ public class Retry {
         BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer,
         BulkRequest bulkRequest
     ) {
-        PlainActionFuture<BulkResponse> future = PlainActionFuture.newFuture();
+        PlainActionFuture<BulkResponse> future = new PlainActionFuture<>();
         withBackoff(consumer, bulkRequest, future);
         return future;
     }
 
-    static class RetryHandler extends ActionListener.Delegating<BulkResponse, BulkResponse> {
+    static class RetryHandler extends DelegatingActionListener<BulkResponse, BulkResponse> {
         private static final RestStatus RETRY_STATUS = RestStatus.TOO_MANY_REQUESTS;
         private static final Logger logger = LogManager.getLogger(RetryHandler.class);
 
@@ -103,14 +107,14 @@ public class Retry {
         public void onResponse(BulkResponse bulkItemResponses) {
             if (bulkItemResponses.hasFailures() == false) {
                 // we're done here, include all responses
-                addResponses(bulkItemResponses, (r -> true));
+                addResponses(bulkItemResponses, Predicates.always());
                 finishHim();
             } else {
                 if (canRetry(bulkItemResponses)) {
                     addResponses(bulkItemResponses, (r -> r.isFailed() == false));
                     retry(createBulkRequestForRetry(bulkItemResponses));
                 } else {
-                    addResponses(bulkItemResponses, (r -> true));
+                    addResponses(bulkItemResponses, Predicates.always());
                     finishHim();
                 }
             }
@@ -135,7 +139,7 @@ public class Retry {
             assert backoff.hasNext();
             TimeValue next = backoff.next();
             logger.trace("Retry of bulk request scheduled in {} ms.", next.millis());
-            retryCancellable = scheduler.schedule(() -> this.execute(bulkRequestForRetry), next, ThreadPool.Names.SAME);
+            retryCancellable = scheduler.schedule(() -> this.execute(bulkRequestForRetry), next, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         }
 
         private BulkRequest createBulkRequestForRetry(BulkResponse bulkItemResponses) {

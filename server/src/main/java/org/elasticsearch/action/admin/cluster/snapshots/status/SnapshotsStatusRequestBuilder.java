@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.cluster.snapshots.status;
@@ -11,6 +12,7 @@ package org.elasticsearch.action.admin.cluster.snapshots.status;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
 import org.elasticsearch.client.internal.ElasticsearchClient;
 import org.elasticsearch.common.util.ArrayUtils;
+import org.elasticsearch.core.TimeValue;
 
 /**
  * Snapshots status request builder
@@ -23,15 +25,15 @@ public class SnapshotsStatusRequestBuilder extends MasterNodeOperationRequestBui
     /**
      * Constructs the new snapshot status request
      */
-    public SnapshotsStatusRequestBuilder(ElasticsearchClient client, SnapshotsStatusAction action) {
-        super(client, action, new SnapshotsStatusRequest());
+    public SnapshotsStatusRequestBuilder(ElasticsearchClient client, TimeValue masterNodeTimeout) {
+        super(client, TransportSnapshotsStatusAction.TYPE, new SnapshotsStatusRequest(masterNodeTimeout));
     }
 
     /**
      * Constructs the new snapshot status request with specified repository
      */
-    public SnapshotsStatusRequestBuilder(ElasticsearchClient client, SnapshotsStatusAction action, String repository) {
-        super(client, action, new SnapshotsStatusRequest(repository));
+    public SnapshotsStatusRequestBuilder(ElasticsearchClient client, TimeValue masterNodeTimeout, String repository) {
+        super(client, TransportSnapshotsStatusAction.TYPE, new SnapshotsStatusRequest(masterNodeTimeout, repository));
     }
 
     /**

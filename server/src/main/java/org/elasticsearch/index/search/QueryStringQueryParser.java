@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.search;
@@ -47,7 +48,6 @@ import org.elasticsearch.index.query.ExistsQueryBuilder;
 import org.elasticsearch.index.query.MultiMatchQueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.ZeroTermsQueryOption;
-import org.elasticsearch.index.query.support.QueryParsers;
 
 import java.io.IOException;
 import java.time.ZoneId;
@@ -490,7 +490,8 @@ public class QueryStringQueryParser extends QueryParser {
                 getFuzzyPrefixLength(),
                 fuzzyMaxExpansions,
                 fuzzyTranspositions,
-                context
+                context,
+                null
             );
         } catch (RuntimeException e) {
             if (lenient) {
@@ -503,9 +504,9 @@ public class QueryStringQueryParser extends QueryParser {
     @Override
     protected Query newFuzzyQuery(Term term, float minimumSimilarity, int prefixLength) {
         int numEdits = Fuzziness.fromEdits((int) minimumSimilarity).asDistance(term.text());
-        FuzzyQuery query = new FuzzyQuery(term, numEdits, prefixLength, fuzzyMaxExpansions, fuzzyTranspositions);
-        QueryParsers.setRewriteMethod(query, fuzzyRewriteMethod);
-        return query;
+        return fuzzyRewriteMethod == null
+            ? new FuzzyQuery(term, numEdits, prefixLength, fuzzyMaxExpansions, fuzzyTranspositions)
+            : new FuzzyQuery(term, numEdits, prefixLength, fuzzyMaxExpansions, fuzzyTranspositions, fuzzyRewriteMethod);
     }
 
     @Override

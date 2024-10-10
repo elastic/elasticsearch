@@ -1,5 +1,8 @@
 ---
 setup:
+  - skip:
+      features: allowed_warnings
+
   - do:
       indices.create:
         index: test1
@@ -40,6 +43,25 @@ setup:
                 type: join
                 relations:
                   data: address
+
+  - do:
+      allowed_warnings:
+        - "index template [my-template1] has index patterns [products-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-template1] will take precedence during new index creation"
+      indices.put_index_template:
+        name: my-template1
+        body:
+          index_patterns: [products-*]
+          template:
+            settings:
+              index.number_of_shards: 1
+            mappings:
+              properties:
+                genre:
+                  type: keyword
+                product:
+                  type: keyword
+                quantity:
+                  type: integer
 
   - do:
       bulk:
@@ -92,6 +114,41 @@ setup:
           - '{"addr": "192.168.0.3", "join": {"name": "address", "parent": "3"}}'
           - '{"index": {"routing": "3"}}'
           - '{"addr": "192.168.0.4", "join": {"name": "address", "parent": "3"}}'
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - '{ "create": {"_index": "products-1"} }'
+          - '{ "genre": "rock", "product": "Product A", "quantity": 4 }'
+          - '{ "create": {"_index": "products-1"} }'
+          - '{ "genre": "rock", "product": "Product A", "quantity": 5 }'
+          - '{ "create": {"_index": "products-1"} }'
+          - '{ "genre": "rock", "product": "Product B", "quantity": 1 }'
+          - '{ "create": {"_index": "products-1"} }'
+          - '{ "genre": "jazz", "product": "Product B", "quantity": 10 }'
+          - '{ "create": {"_index": "products-1"} }'
+          - '{ "genre": "electronic", "product": "Product B", "quantity": 3 }'
+          - '{ "create": {"_index": "products-1"} }'
+          - '{ "genre": "electronic" }'
+          - '{ "create": {"_index": "products-1"} }'
+          - '{ "genre": "pop", "product": "Product C", "quantity": 12 }'
+          - '{ "create": {"_index": "products-1"} }'
+          - '{ "genre": "pop", "product": "Product C", "quantity": 100 }'
+          - '{ "create": {"_index": "products-2"} }'
+          - '{ "genre": "soul", "product": "Product E", "quantity": 133 }'
+          - '{ "create": {"_index": "products-2"} }'
+          - '{ "genre": "soul", "product": "Product E", "quantity": 104 }'
+          - '{ "create": {"_index": "products-2"} }'
+          - '{ "genre": "dance", "product": "Product D", "quantity": 21 }'
+          - '{ "create": {"_index": "products-2"} }'
+          - '{ "genre": "dance", "product": "Product D", "quantity": 110 }'
+          - '{ "create": {"_index": "products-2"} }'
+          - '{ "genre": "trance", "product": "Product G", "quantity": 19 }'
+          - '{ "create": {"_index": "products-2"} }'
+          - '{ "genre": "trance", "product": "Product G", "quantity": 213 }'
+          - '{ "create": {"_index": "products-2"} }'
+          - '{ "genre": "rock", "product": "Product A", "quantity": 34 }'
 
 ---
 "val and uval":
@@ -209,3 +266,294 @@ setup:
   - match: { aggregations.m_terms.buckets.1.key_as_string: "4|4" }
   - match: { aggregations.m_terms.buckets.1.doc_count: 1 }
   - match: { aggregations.m_terms.buckets.1.ips.doc_count: 2 }
+
+---
+"size parameter":
+  - do:
+      search:
+        size: 0
+        index: "products*"
+        body:
+          aggs:
+            genres_and_products:
+              multi_terms:
+                terms:
+                  - field: genre
+                  - field: product
+  - match: { aggregations.genres_and_products.doc_count_error_upper_bound: 0 }
+  - match: { aggregations.genres_and_products.sum_other_doc_count: 0 }
+  - length: { aggregations.genres_and_products.buckets: 8 }
+  - match: { aggregations.genres_and_products.buckets.0.doc_count: 3 }
+  - match: { aggregations.genres_and_products.buckets.0.key_as_string: "rock|Product A" }
+  - match: { aggregations.genres_and_products.buckets.1.doc_count: 2 }
+  - match: { aggregations.genres_and_products.buckets.1.key_as_string: "dance|Product D" }
+  - match: { aggregations.genres_and_products.buckets.2.doc_count: 2 }
+  - match: { aggregations.genres_and_products.buckets.2.key_as_string: "pop|Product C" }
+  - match: { aggregations.genres_and_products.buckets.3.doc_count: 2 }
+  - match: { aggregations.genres_and_products.buckets.3.key_as_string: "soul|Product E" }
+  - match: { aggregations.genres_and_products.buckets.4.doc_count: 2 }
+  - match: { aggregations.genres_and_products.buckets.4.key_as_string: "trance|Product G" }
+  - match: { aggregations.genres_and_products.buckets.5.doc_count: 1 }
+  - match: { aggregations.genres_and_products.buckets.5.key_as_string: "electronic|Product B" }
+  - match: { aggregations.genres_and_products.buckets.6.doc_count: 1 }
+  - match: { aggregations.genres_and_products.buckets.6.key_as_string: "jazz|Product B" }
+  - match: { aggregations.genres_and_products.buckets.7.doc_count: 1 }
+  - match: { aggregations.genres_and_products.buckets.7.key_as_string: "rock|Product B" }
+
+  - do:
+      search:
+        size: 0
+        index: "products*"
+        body:
+          aggs:
+            genres_and_products:
+              multi_terms:
+                size: 1
+                terms:
+                  - field: genre
+                  - field: product
+  - match: { aggregations.genres_and_products.doc_count_error_upper_bound: 0 }
+  - match: { aggregations.genres_and_products.sum_other_doc_count: 11 }
+  - length: { aggregations.genres_and_products.buckets: 1 }
+  - match: { aggregations.genres_and_products.buckets.0.doc_count: 3 }
+  - match: { aggregations.genres_and_products.buckets.0.key_as_string: "rock|Product A" }
+
+---
+"shard_size parameter":
+  - do:
+      search:
+        size: 0
+        index: "products*"
+        body:
+          aggs:
+            genres_and_products:
+              multi_terms:
+                shard_size: 1
+                size: 1
+                terms:
+                  - field: genre
+                  - field: product
+  - match: { aggregations.genres_and_products.doc_count_error_upper_bound: 0 }
+  - match: { aggregations.genres_and_products.sum_other_doc_count: 12 }
+  - length: { aggregations.genres_and_products.buckets: 1 }
+  - match: { aggregations.genres_and_products.buckets.0.doc_count: 2 }
+  - match: { aggregations.genres_and_products.buckets.0.key_as_string: "dance|Product D" }
+
+---
+"show_term_doc_count_error parameter":
+  - do:
+      search:
+        size: 0
+        index: "products*"
+        body:
+          aggs:
+            genres_and_products:
+              multi_terms:
+                size: 1
+                show_term_doc_count_error: true
+                terms:
+                  - field: genre
+                  - field: product
+  - match: { aggregations.genres_and_products.doc_count_error_upper_bound: 0 }
+  - match: { aggregations.genres_and_products.sum_other_doc_count: 11 }
+  - length: { aggregations.genres_and_products.buckets: 1 }
+  - match: { aggregations.genres_and_products.buckets.0.doc_count: 3 }
+  - match: { aggregations.genres_and_products.buckets.0.key_as_string: "rock|Product A" }
+  - match: { aggregations.genres_and_products.buckets.0.doc_count_error_upper_bound: 0 }
+
+---
+"order parameter":
+  - do:
+      search:
+        size: 0
+        index: "products*"
+        body:
+          aggs:
+            genres_and_products:
+              multi_terms:
+                order:
+                  _key: asc
+                terms:
+                  - field: genre
+                  - field: product
+  - match: { aggregations.genres_and_products.doc_count_error_upper_bound: 0 }
+  - match: { aggregations.genres_and_products.sum_other_doc_count: 0 }
+  - length: { aggregations.genres_and_products.buckets: 8 }
+  - match: { aggregations.genres_and_products.buckets.0.doc_count: 2 }
+  - match: { aggregations.genres_and_products.buckets.0.key_as_string: "dance|Product D" }
+
+  - do:
+      search:
+        size: 0
+        index: "products*"
+        body:
+          aggs:
+            genres_and_products:
+              multi_terms:
+                order:
+                  _key: desc
+                terms:
+                  - field: genre
+                  - field: product
+  - match: { aggregations.genres_and_products.doc_count_error_upper_bound: 0 }
+  - match: { aggregations.genres_and_products.sum_other_doc_count: 0 }
+  - length: { aggregations.genres_and_products.buckets: 8 }
+  - match: { aggregations.genres_and_products.buckets.0.doc_count: 2 }
+  - match: { aggregations.genres_and_products.buckets.0.key_as_string: "trance|Product G" }
+
+  - do:
+      search:
+        size: 0
+        index: "products*"
+        body:
+          aggs:
+            genres_and_products:
+              multi_terms:
+                order:
+                  _count: asc
+                terms:
+                  - field: genre
+                  - field: product
+  - match: { aggregations.genres_and_products.doc_count_error_upper_bound: 0 }
+  - match: { aggregations.genres_and_products.sum_other_doc_count: 0 }
+  - length: { aggregations.genres_and_products.buckets: 8 }
+  - match: { aggregations.genres_and_products.buckets.0.doc_count: 1 }
+  - match: { aggregations.genres_and_products.buckets.0.key_as_string: "electronic|Product B" }
+
+  - do:
+      search:
+        size: 0
+        index: "products*"
+        body:
+          aggs:
+            genres_and_products:
+              multi_terms:
+                order:
+                  _count: desc
+                terms:
+                  - field: genre
+                  - field: product
+  - match: { aggregations.genres_and_products.doc_count_error_upper_bound: 0 }
+  - match: { aggregations.genres_and_products.sum_other_doc_count: 0 }
+  - length: { aggregations.genres_and_products.buckets: 8 }
+  - match: { aggregations.genres_and_products.buckets.0.doc_count: 3 }
+  - match: { aggregations.genres_and_products.buckets.0.key_as_string: "rock|Product A" }
+
+  - do:
+      search:
+        size: 0
+        index: "products*"
+        body:
+          aggs:
+            genres_and_products:
+              multi_terms:
+                order:
+                  total_quantity: desc
+                terms:
+                  - field: genre
+                  - field: product
+              aggs:
+                total_quantity:
+                  sum:
+                    field: quantity
+  - match: { aggregations.genres_and_products.doc_count_error_upper_bound: 0 }
+  - match: { aggregations.genres_and_products.sum_other_doc_count: 0 }
+  - length: { aggregations.genres_and_products.buckets: 8 }
+  - match: { aggregations.genres_and_products.buckets.0.doc_count: 2 }
+  - match: { aggregations.genres_and_products.buckets.0.key_as_string: "soul|Product E" }
+
+  - do:
+      search:
+        size: 0
+        index: "products*"
+        body:
+          aggs:
+            genres_and_products:
+              multi_terms:
+                order:
+                  total_quantity: asc
+                terms:
+                  - field: genre
+                  - field: product
+              aggs:
+                total_quantity:
+                  sum:
+                    field: quantity
+  - match: { aggregations.genres_and_products.doc_count_error_upper_bound: 0 }
+  - match: { aggregations.genres_and_products.sum_other_doc_count: 0 }
+  - length: { aggregations.genres_and_products.buckets: 8 }
+  - match: { aggregations.genres_and_products.buckets.0.doc_count: 1 }
+  - match: { aggregations.genres_and_products.buckets.0.key_as_string: "rock|Product B" }
+
+---
+"collect_mode parameter":
+  - do:
+      search:
+        size: 0
+        index: "products*"
+        body:
+          aggs:
+            genres_and_products:
+              multi_terms:
+                size: 1
+                collect_mode: depth_first
+                terms:
+                  - field: genre
+                  - field: product
+  - match: { aggregations.genres_and_products.doc_count_error_upper_bound: 0 }
+  - match: { aggregations.genres_and_products.sum_other_doc_count: 11 }
+  - length: { aggregations.genres_and_products.buckets: 1 }
+  - match: { aggregations.genres_and_products.buckets.0.doc_count: 3 }
+  - match: { aggregations.genres_and_products.buckets.0.key_as_string: "rock|Product A" }
+
+---
+"min_doc_count parameter":
+  - do:
+      search:
+        size: 0
+        index: "products*"
+        body:
+          aggs:
+            genres_and_products:
+              multi_terms:
+                min_doc_count: 2
+                terms:
+                  - field: genre
+                  - field: product
+  - match: { aggregations.genres_and_products.doc_count_error_upper_bound: 0 }
+  - match: { aggregations.genres_and_products.sum_other_doc_count: 0 }
+  - length: { aggregations.genres_and_products.buckets: 5 }
+  # Actually doc_count should be 2, if shard_min_doc_count defaults to min_doc_count like docs suggests.
+  # But in reality shard_min_doc_count always default to 0.
+  # In fact defaults min_doc_count to 1 or to whatever shard_min_doc_count has been set to.
+  - match: { aggregations.genres_and_products.buckets.0.doc_count: 3 }
+  - match: { aggregations.genres_and_products.buckets.0.key_as_string: "rock|Product A" }
+  - match: { aggregations.genres_and_products.buckets.1.doc_count: 2 }
+  - match: { aggregations.genres_and_products.buckets.1.key_as_string: "dance|Product D" }
+  - match: { aggregations.genres_and_products.buckets.2.doc_count: 2 }
+  - match: { aggregations.genres_and_products.buckets.2.key_as_string: "pop|Product C" }
+  - match: { aggregations.genres_and_products.buckets.3.doc_count: 2 }
+  - match: { aggregations.genres_and_products.buckets.3.key_as_string: "soul|Product E" }
+  - match: { aggregations.genres_and_products.buckets.4.doc_count: 2 }
+  - match: { aggregations.genres_and_products.buckets.4.key_as_string: "trance|Product G" }
+
+---
+"shard_min_doc_count parameter":
+  - do:
+      search:
+        size: 0
+        index: "products*"
+        body:
+          aggs:
+            genres_and_products:
+              multi_terms:
+                min_doc_count: 3
+                shard_min_doc_count: 1
+                terms:
+                  - field: genre
+                  - field: product
+  - match: { aggregations.genres_and_products.doc_count_error_upper_bound: 0 }
+  - match: { aggregations.genres_and_products.sum_other_doc_count: 0 }
+  - length: { aggregations.genres_and_products.buckets: 1 }
+  - match: { aggregations.genres_and_products.buckets.0.doc_count: 3 }
+  - match: { aggregations.genres_and_products.buckets.0.key_as_string: "rock|Product A" }

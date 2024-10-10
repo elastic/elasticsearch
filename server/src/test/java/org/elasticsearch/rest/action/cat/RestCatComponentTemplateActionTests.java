@@ -1,14 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.rest.action.cat;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
@@ -19,7 +19,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.Template;
-import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.RestRequest;
@@ -29,11 +29,11 @@ import org.elasticsearch.test.client.NoOpNodeClient;
 import org.elasticsearch.test.rest.FakeRestChannel;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.test.rest.RestActionTestCase;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.HashMap;
 import java.util.Map;
 
-import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static java.util.Collections.singletonMap;
 import static org.hamcrest.Matchers.emptyString;
@@ -53,7 +53,7 @@ public class RestCatComponentTemplateActionTests extends RestActionTestCase {
         action = new RestCatComponentTemplateAction();
         clusterName = new ClusterName("cluster-1");
         DiscoveryNodes.Builder builder = DiscoveryNodes.builder();
-        builder.add(new DiscoveryNode("node-1", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT));
+        builder.add(DiscoveryNodeUtils.builder("node-1").roles(emptySet()).build());
         ComponentTemplate ct1 = new ComponentTemplate(
             new Template(Settings.builder().put("number_of_replicas", 2).put("index.blocks.write", true).build(), null, null),
             2L,
@@ -80,7 +80,8 @@ public class RestCatComponentTemplateActionTests extends RestActionTestCase {
         FakeRestChannel channel = new FakeRestChannel(getCatComponentTemplateRequest, true, 0);
 
         // execute action
-        try (NoOpNodeClient nodeClient = buildNodeClient()) {
+        try (var threadPool = createThreadPool()) {
+            final var nodeClient = buildNodeClient(threadPool);
             action.handleRequest(getCatComponentTemplateRequest, channel, nodeClient);
         }
 
@@ -98,7 +99,8 @@ public class RestCatComponentTemplateActionTests extends RestActionTestCase {
         FakeRestChannel channel = new FakeRestChannel(getCatComponentTemplateRequest, true, 0);
 
         // execute action
-        try (NoOpNodeClient nodeClient = buildNodeClient()) {
+        try (var threadPool = createThreadPool()) {
+            final var nodeClient = buildNodeClient(threadPool);
             action.handleRequest(getCatComponentTemplateRequest, channel, nodeClient);
         }
 
@@ -108,10 +110,10 @@ public class RestCatComponentTemplateActionTests extends RestActionTestCase {
         assertThat(channel.capturedResponse().content().utf8ToString(), emptyString());
     }
 
-    private NoOpNodeClient buildNodeClient() {
+    private NoOpNodeClient buildNodeClient(ThreadPool threadPool) {
         ClusterStateResponse clusterStateResponse = new ClusterStateResponse(clusterName, clusterState, false);
 
-        return new NoOpNodeClient(getTestName()) {
+        return new NoOpNodeClient(threadPool) {
             @Override
             @SuppressWarnings("unchecked")
             public <Request extends ActionRequest, Response extends ActionResponse> void doExecute(

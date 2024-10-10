@@ -1,14 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.get;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.RoutingMissingException;
@@ -20,7 +20,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.routing.OperationRouting;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -30,12 +30,12 @@ import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.EmptySystemIndices;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
-import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -78,19 +78,13 @@ public class TransportMultiGetActionTests extends ESTestCase {
             mock(Transport.class),
             threadPool,
             TransportService.NOOP_TRANSPORT_INTERCEPTOR,
-            boundAddress -> DiscoveryNode.createLocal(
-                Settings.builder().put("node.name", "node1").build(),
-                boundAddress.publishAddress(),
-                randomBase64UUID()
-            ),
+            boundAddress -> DiscoveryNodeUtils.builder(randomBase64UUID())
+                .applySettings(Settings.builder().put("node.name", "node1").build())
+                .address(boundAddress.publishAddress())
+                .build(),
             null,
             emptySet()
-        ) {
-            @Override
-            public TaskManager getTaskManager() {
-                return taskManager;
-            }
-        };
+        );
 
         final Index index1 = new Index("index1", randomBase64UUID());
         final Index index2 = new Index("index2", randomBase64UUID());
@@ -98,11 +92,7 @@ public class TransportMultiGetActionTests extends ESTestCase {
             .metadata(
                 new Metadata.Builder().put(
                     new IndexMetadata.Builder(index1.getName()).settings(
-                        Settings.builder()
-                            .put("index.version.created", Version.CURRENT)
-                            .put("index.number_of_shards", 1)
-                            .put("index.number_of_replicas", 1)
-                            .put(IndexMetadata.SETTING_INDEX_UUID, index1.getUUID())
+                        indexSettings(IndexVersion.current(), 1, 1).put(IndexMetadata.SETTING_INDEX_UUID, index1.getUUID())
                     )
                         .putMapping(
                             XContentHelper.convertToJson(
@@ -123,11 +113,7 @@ public class TransportMultiGetActionTests extends ESTestCase {
                 )
                     .put(
                         new IndexMetadata.Builder(index2.getName()).settings(
-                            Settings.builder()
-                                .put("index.version.created", Version.CURRENT)
-                                .put("index.number_of_shards", 1)
-                                .put("index.number_of_replicas", 1)
-                                .put(IndexMetadata.SETTING_INDEX_UUID, index1.getUUID())
+                            indexSettings(IndexVersion.current(), 1, 1).put(IndexMetadata.SETTING_INDEX_UUID, index1.getUUID())
                         )
                             .putMapping(
                                 XContentHelper.convertToJson(
@@ -173,6 +159,7 @@ public class TransportMultiGetActionTests extends ESTestCase {
         when(clusterService.localNode()).thenReturn(transportService.getLocalNode());
         when(clusterService.state()).thenReturn(clusterState);
         when(clusterService.operationRouting()).thenReturn(operationRouting);
+        final NodeClient client = new NodeClient(Settings.EMPTY, threadPool);
 
         shardAction = new TransportShardMultiGetAction(
             clusterService,
@@ -181,7 +168,8 @@ public class TransportMultiGetActionTests extends ESTestCase {
             threadPool,
             new ActionFilters(emptySet()),
             new Resolver(),
-            EmptySystemIndices.INSTANCE.getExecutorSelector()
+            EmptySystemIndices.INSTANCE.getExecutorSelector(),
+            client
         ) {
             @Override
             protected void doExecute(Task task, MultiGetShardRequest request, ActionListener<MultiGetShardResponse> listener) {}
@@ -201,7 +189,7 @@ public class TransportMultiGetActionTests extends ESTestCase {
     public void testTransportMultiGetAction() {
         final Task task = createTask();
         final NodeClient client = new NodeClient(Settings.EMPTY, threadPool);
-        final MultiGetRequestBuilder request = new MultiGetRequestBuilder(client, MultiGetAction.INSTANCE);
+        final MultiGetRequestBuilder request = new MultiGetRequestBuilder(client);
         request.add(new MultiGetRequest.Item("index1", "1"));
         request.add(new MultiGetRequest.Item("index1", "2"));
 
@@ -211,7 +199,8 @@ public class TransportMultiGetActionTests extends ESTestCase {
             clusterService,
             client,
             new ActionFilters(emptySet()),
-            new Resolver()
+            new Resolver(),
+            mock(IndicesService.class)
         ) {
             @Override
             protected void executeShardAction(
@@ -233,7 +222,7 @@ public class TransportMultiGetActionTests extends ESTestCase {
     public void testTransportMultiGetAction_withMissingRouting() {
         final Task task = createTask();
         final NodeClient client = new NodeClient(Settings.EMPTY, threadPool);
-        final MultiGetRequestBuilder request = new MultiGetRequestBuilder(client, MultiGetAction.INSTANCE);
+        final MultiGetRequestBuilder request = new MultiGetRequestBuilder(client);
         request.add(new MultiGetRequest.Item("index2", "1").routing("1"));
         request.add(new MultiGetRequest.Item("index2", "2"));
 
@@ -243,7 +232,8 @@ public class TransportMultiGetActionTests extends ESTestCase {
             clusterService,
             client,
             new ActionFilters(emptySet()),
-            new Resolver()
+            new Resolver(),
+            mock(IndicesService.class)
         ) {
             @Override
             protected void executeShardAction(
@@ -268,7 +258,7 @@ public class TransportMultiGetActionTests extends ESTestCase {
         return new Task(
             randomLong(),
             "transport",
-            MultiGetAction.NAME,
+            TransportMultiGetAction.NAME,
             "description",
             new TaskId(randomLong() + ":" + randomLong()),
             emptyMap()

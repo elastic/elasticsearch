@@ -1,26 +1,26 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.metrics;
 
-import org.apache.lucene.search.ScoreMode;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.ObjectArray;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.index.fielddata.NumericDoubleValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.aggregations.AggregationExecutionContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
-import org.elasticsearch.search.aggregations.support.ValuesSource;
+import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 
 import java.io.IOException;
 import java.util.Map;
@@ -28,30 +28,31 @@ import java.util.Objects;
 
 import static org.elasticsearch.search.aggregations.metrics.InternalMedianAbsoluteDeviation.computeMedianAbsoluteDeviation;
 
-public class MedianAbsoluteDeviationAggregator extends NumericMetricsAggregator.SingleValue {
+public class MedianAbsoluteDeviationAggregator extends NumericMetricsAggregator.SingleDoubleValue {
 
-    private final ValuesSource.Numeric valuesSource;
     private final DocValueFormat format;
 
     private final double compression;
+
+    private final TDigestExecutionHint executionHint;
 
     private ObjectArray<TDigestState> valueSketches;
 
     MedianAbsoluteDeviationAggregator(
         String name,
-        @Nullable ValuesSource valuesSource,
+        ValuesSourceConfig config,
         DocValueFormat format,
         AggregationContext context,
         Aggregator parent,
         Map<String, Object> metadata,
-        double compression
+        double compression,
+        TDigestExecutionHint executionHint
     ) throws IOException {
-
-        super(name, context, parent, metadata);
-
-        this.valuesSource = (ValuesSource.Numeric) valuesSource;
+        super(name, config, context, parent, metadata);
+        assert config.hasValues();
         this.format = Objects.requireNonNull(format);
         this.compression = compression;
+        this.executionHint = executionHint;
         this.valueSketches = context.bigArrays().newObjectArray(1);
     }
 
@@ -69,43 +70,41 @@ public class MedianAbsoluteDeviationAggregator extends NumericMetricsAggregator.
     }
 
     @Override
-    public ScoreMode scoreMode() {
-        if (valuesSource != null && valuesSource.needsScores()) {
-            return ScoreMode.COMPLETE;
-        } else {
-            return ScoreMode.COMPLETE_NO_SCORES;
-        }
-    }
-
-    @Override
-    protected LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx, LeafBucketCollector sub) throws IOException {
-        if (valuesSource == null) {
-            return LeafBucketCollector.NO_OP_COLLECTOR;
-        }
-
-        final SortedNumericDoubleValues values = valuesSource.doubleValues(aggCtx.getLeafReaderContext());
-
+    protected LeafBucketCollector getLeafCollector(SortedNumericDoubleValues values, LeafBucketCollector sub) {
         return new LeafBucketCollectorBase(sub, values) {
             @Override
             public void collect(int doc, long bucket) throws IOException {
-
-                valueSketches = bigArrays().grow(valueSketches, bucket + 1);
-
-                TDigestState valueSketch = valueSketches.get(bucket);
-                if (valueSketch == null) {
-                    valueSketch = new TDigestState(compression);
-                    valueSketches.set(bucket, valueSketch);
-                }
-
                 if (values.advanceExact(doc)) {
-                    final int valueCount = values.docValueCount();
-                    for (int i = 0; i < valueCount; i++) {
-                        final double value = values.nextValue();
-                        valueSketch.add(value);
+                    final TDigestState valueSketch = getExistingOrNewHistogram(bigArrays(), bucket);
+                    for (int i = 0; i < values.docValueCount(); i++) {
+                        valueSketch.add(values.nextValue());
                     }
                 }
             }
         };
+    }
+
+    @Override
+    protected LeafBucketCollector getLeafCollector(NumericDoubleValues values, LeafBucketCollector sub) {
+        return new LeafBucketCollectorBase(sub, values) {
+            @Override
+            public void collect(int doc, long bucket) throws IOException {
+                if (values.advanceExact(doc)) {
+                    final TDigestState valueSketch = getExistingOrNewHistogram(bigArrays(), bucket);
+                    valueSketch.add(values.doubleValue());
+                }
+            }
+        };
+    }
+
+    private TDigestState getExistingOrNewHistogram(final BigArrays bigArrays, long bucket) {
+        valueSketches = bigArrays.grow(valueSketches, bucket + 1);
+        TDigestState state = valueSketches.get(bucket);
+        if (state == null) {
+            state = TDigestState.createWithoutCircuitBreaking(compression, executionHint);
+            valueSketches.set(bucket, state);
+        }
+        return state;
     }
 
     @Override
@@ -120,7 +119,7 @@ public class MedianAbsoluteDeviationAggregator extends NumericMetricsAggregator.
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalMedianAbsoluteDeviation(name, metadata(), format, new TDigestState(compression));
+        return InternalMedianAbsoluteDeviation.empty(name, metadata(), format, compression, executionHint);
     }
 
     @Override

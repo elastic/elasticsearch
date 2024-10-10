@@ -16,6 +16,6 @@ public class SetProfileEnabledAction extends ActionType<AcknowledgedResponse> {
     public static final SetProfileEnabledAction INSTANCE = new SetProfileEnabledAction();
 
     public SetProfileEnabledAction() {
-        super(NAME, AcknowledgedResponse::readFrom);
+        super(NAME);
     }
 }

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.search;
@@ -15,7 +16,11 @@ import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
+import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
+import org.elasticsearch.cluster.node.VersionInformation;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -26,6 +31,8 @@ import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.lucene.grouping.TopFieldGroups;
 import org.elasticsearch.search.DocValueFormat;
@@ -41,6 +48,7 @@ import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalAggregationTestCase;
 import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.transport.Transport;
 
 import java.util.ArrayList;
@@ -56,6 +64,7 @@ import static java.util.Collections.singletonList;
 import static org.elasticsearch.test.VersionUtils.allVersions;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
@@ -79,8 +88,8 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
         );
 
         Map<String, Transport.Connection> lookup = new ConcurrentHashMap<>();
-        DiscoveryNode primaryNode = new DiscoveryNode("node1", buildNewFakeTransportAddress(), Version.CURRENT);
-        DiscoveryNode replicaNode = new DiscoveryNode("node2", buildNewFakeTransportAddress(), Version.CURRENT);
+        DiscoveryNode primaryNode = DiscoveryNodeUtils.create("node1");
+        DiscoveryNode replicaNode = DiscoveryNodeUtils.create("node2");
         lookup.put("node1", new SearchAsyncActionTests.MockConnection(primaryNode));
         lookup.put("node2", new SearchAsyncActionTests.MockConnection(replicaNode));
 
@@ -95,7 +104,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
                 Transport.Connection connection,
                 ShardSearchRequest request,
                 SearchTask task,
-                SearchActionListener<? super SearchPhaseResult> listener
+                ActionListener<SearchPhaseResult> listener
             ) {
                 int shardId = request.shardId().id();
                 if (request.canReturnNullResponseIfMatchNoDocs()) {
@@ -110,38 +119,49 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
                     new SearchShardTarget("node1", new ShardId("idx", "na", shardId), null),
                     null
                 );
-                SortField sortField = new SortField("timestamp", SortField.Type.LONG);
-                if (withCollapse) {
-                    queryResult.topDocs(
-                        new TopDocsAndMaxScore(
-                            new TopFieldGroups(
-                                "collapse_field",
-                                new TotalHits(1, withScroll ? TotalHits.Relation.EQUAL_TO : TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO),
-                                new FieldDoc[] { new FieldDoc(randomInt(1000), Float.NaN, new Object[] { request.shardId().id() }) },
-                                new SortField[] { sortField },
-                                new Object[] { 0L }
+                try {
+                    SortField sortField = new SortField("timestamp", SortField.Type.LONG);
+                    if (withCollapse) {
+                        queryResult.topDocs(
+                            new TopDocsAndMaxScore(
+                                new TopFieldGroups(
+                                    "collapse_field",
+                                    new TotalHits(
+                                        1,
+                                        withScroll ? TotalHits.Relation.EQUAL_TO : TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO
+                                    ),
+                                    new FieldDoc[] { new FieldDoc(randomInt(1000), Float.NaN, new Object[] { request.shardId().id() }) },
+                                    new SortField[] { sortField },
+                                    new Object[] { 0L }
+                                ),
+                                Float.NaN
                             ),
-                            Float.NaN
-                        ),
-                        new DocValueFormat[] { DocValueFormat.RAW }
-                    );
-                } else {
-                    queryResult.topDocs(
-                        new TopDocsAndMaxScore(
-                            new TopFieldDocs(
-                                new TotalHits(1, withScroll ? TotalHits.Relation.EQUAL_TO : TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO),
-                                new FieldDoc[] { new FieldDoc(randomInt(1000), Float.NaN, new Object[] { request.shardId().id() }) },
-                                new SortField[] { sortField }
+                            new DocValueFormat[] { DocValueFormat.RAW }
+                        );
+                    } else {
+                        queryResult.topDocs(
+                            new TopDocsAndMaxScore(
+                                new TopFieldDocs(
+                                    new TotalHits(
+                                        1,
+                                        withScroll ? TotalHits.Relation.EQUAL_TO : TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO
+                                    ),
+                                    new FieldDoc[] { new FieldDoc(randomInt(1000), Float.NaN, new Object[] { request.shardId().id() }) },
+                                    new SortField[] { sortField }
+                                ),
+                                Float.NaN
                             ),
-                            Float.NaN
-                        ),
-                        new DocValueFormat[] { DocValueFormat.RAW }
-                    );
+                            new DocValueFormat[] { DocValueFormat.RAW }
+                        );
+                    }
+                    queryResult.from(0);
+                    queryResult.size(1);
+                    successfulOps.incrementAndGet();
+                    queryResult.incRef();
+                    new Thread(() -> ActionListener.respondAndRelease(listener, queryResult)).start();
+                } finally {
+                    queryResult.decRef();
                 }
-                queryResult.from(0);
-                queryResult.size(1);
-                successfulOps.incrementAndGet();
-                new Thread(() -> listener.onResponse(queryResult)).start();
             }
         };
         CountDownLatch latch = new CountDownLatch(1);
@@ -168,89 +188,110 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
         searchRequest.allowPartialSearchResults(false);
         SearchPhaseController controller = new SearchPhaseController((t, r) -> InternalAggregationTestCase.emptyReduceContextBuilder());
         SearchTask task = new SearchTask(0, "n/a", "n/a", () -> "test", null, Collections.emptyMap());
-        QueryPhaseResultConsumer resultConsumer = new QueryPhaseResultConsumer(
-            searchRequest,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE,
-            new NoopCircuitBreaker(CircuitBreaker.REQUEST),
-            controller,
-            task::isCancelled,
-            task.getProgressListener(),
-            shardsIter.size(),
-            exc -> {}
-        );
-        SearchQueryThenFetchAsyncAction action = new SearchQueryThenFetchAsyncAction(
-            logger,
-            searchTransportService,
-            (clusterAlias, node) -> lookup.get(node),
-            Collections.singletonMap("_na_", AliasFilter.EMPTY),
-            Collections.emptyMap(),
-            EsExecutors.DIRECT_EXECUTOR_SERVICE,
-            resultConsumer,
-            searchRequest,
-            null,
-            shardsIter,
-            timeProvider,
-            null,
-            task,
-            SearchResponse.Clusters.EMPTY
+        try (
+            QueryPhaseResultConsumer resultConsumer = new QueryPhaseResultConsumer(
+                searchRequest,
+                EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                new NoopCircuitBreaker(CircuitBreaker.REQUEST),
+                controller,
+                task::isCancelled,
+                task.getProgressListener(),
+                shardsIter.size(),
+                exc -> {}
+            )
         ) {
-            @Override
-            protected SearchPhase getNextPhase(SearchPhaseResults<SearchPhaseResult> results, SearchPhaseContext context) {
-                return new SearchPhase("test") {
-                    @Override
-                    public void run() {
-                        latch.countDown();
-                    }
-                };
-            }
-        };
-        action.start();
-        latch.await();
-        assertThat(successfulOps.get(), equalTo(numShards));
-        if (withScroll) {
-            assertFalse(canReturnNullResponse.get());
-            assertThat(numWithTopDocs.get(), equalTo(0));
-        } else {
-            assertTrue(canReturnNullResponse.get());
-            if (withCollapse) {
+            SearchQueryThenFetchAsyncAction action = new SearchQueryThenFetchAsyncAction(
+                logger,
+                null,
+                searchTransportService,
+                (clusterAlias, node) -> lookup.get(node),
+                Collections.singletonMap("_na_", AliasFilter.EMPTY),
+                Collections.emptyMap(),
+                EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                resultConsumer,
+                searchRequest,
+                null,
+                shardsIter,
+                timeProvider,
+                new ClusterState.Builder(new ClusterName("test")).build(),
+                task,
+                SearchResponse.Clusters.EMPTY,
+                null
+            ) {
+                @Override
+                protected SearchPhase getNextPhase(SearchPhaseResults<SearchPhaseResult> results, SearchPhaseContext context) {
+                    return new SearchPhase("test") {
+                        @Override
+                        public void run() {
+                            latch.countDown();
+                        }
+                    };
+                }
+            };
+            action.start();
+            latch.await();
+            assertThat(successfulOps.get(), equalTo(numShards));
+            if (withScroll) {
+                assertFalse(canReturnNullResponse.get());
                 assertThat(numWithTopDocs.get(), equalTo(0));
             } else {
-                assertThat(numWithTopDocs.get(), greaterThanOrEqualTo(1));
+                assertTrue(canReturnNullResponse.get());
+                if (withCollapse) {
+                    assertThat(numWithTopDocs.get(), equalTo(0));
+                } else {
+                    assertThat(numWithTopDocs.get(), greaterThanOrEqualTo(1));
+                }
             }
+            SearchPhaseController.ReducedQueryPhase phase = action.results.reduce();
+            assertThat(phase.numReducePhases(), greaterThanOrEqualTo(1));
+            if (withScroll) {
+                assertThat(phase.totalHits().value, equalTo((long) numShards));
+                assertThat(phase.totalHits().relation, equalTo(TotalHits.Relation.EQUAL_TO));
+            } else {
+                assertThat(phase.totalHits().value, equalTo(2L));
+                assertThat(phase.totalHits().relation, equalTo(TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO));
+            }
+            assertThat(phase.sortedTopDocs().scoreDocs().length, equalTo(1));
+            assertThat(phase.sortedTopDocs().scoreDocs()[0], instanceOf(FieldDoc.class));
+            assertThat(((FieldDoc) phase.sortedTopDocs().scoreDocs()[0]).fields.length, equalTo(1));
+            assertThat(((FieldDoc) phase.sortedTopDocs().scoreDocs()[0]).fields[0], equalTo(0));
         }
-        SearchPhaseController.ReducedQueryPhase phase = action.results.reduce();
-        assertThat(phase.numReducePhases(), greaterThanOrEqualTo(1));
-        if (withScroll) {
-            assertThat(phase.totalHits().value, equalTo((long) numShards));
-            assertThat(phase.totalHits().relation, equalTo(TotalHits.Relation.EQUAL_TO));
-        } else {
-            assertThat(phase.totalHits().value, equalTo(2L));
-            assertThat(phase.totalHits().relation, equalTo(TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO));
-        }
-        assertThat(phase.sortedTopDocs().scoreDocs().length, equalTo(1));
-        assertThat(phase.sortedTopDocs().scoreDocs()[0], instanceOf(FieldDoc.class));
-        assertThat(((FieldDoc) phase.sortedTopDocs().scoreDocs()[0]).fields.length, equalTo(1));
-        assertThat(((FieldDoc) phase.sortedTopDocs().scoreDocs()[0]).fields[0], equalTo(0));
     }
 
     public void testMinimumVersionSameAsNewVersion() throws Exception {
-        Version newVersion = Version.CURRENT;
-        Version oldVersion = VersionUtils.randomPreviousCompatibleVersion(random(), newVersion);
-        testMixedVersionsShardsSearch(newVersion, oldVersion, newVersion);
+        var newVersion = VersionInformation.CURRENT;
+        var oldVersion = new VersionInformation(
+            VersionUtils.randomCompatibleVersion(random(), VersionUtils.getPreviousVersion()),
+            IndexVersions.MINIMUM_COMPATIBLE,
+            IndexVersionUtils.randomCompatibleVersion(random())
+        );
+        testMixedVersionsShardsSearch(newVersion, oldVersion, newVersion.nodeVersion());
     }
 
     public void testMinimumVersionBetweenNewAndOldVersion() throws Exception {
-        Version oldVersion = VersionUtils.getFirstVersion();
-        Version newVersion = VersionUtils.maxCompatibleVersion(oldVersion);
-        Version minVersion = VersionUtils.randomVersionBetween(
-            random(),
-            allVersions().get(allVersions().indexOf(oldVersion) + 1),
-            newVersion
+        var oldVersion = new VersionInformation(
+            VersionUtils.getFirstVersion(),
+            IndexVersions.MINIMUM_COMPATIBLE,
+            IndexVersionUtils.randomCompatibleVersion(random())
         );
+
+        var newVersion = new VersionInformation(
+            VersionUtils.maxCompatibleVersion(VersionUtils.getFirstVersion()),
+            IndexVersions.MINIMUM_COMPATIBLE,
+            IndexVersion.current()
+        );
+
+        var minVersion = VersionUtils.randomVersionBetween(
+            random(),
+            allVersions().get(allVersions().indexOf(oldVersion.nodeVersion()) + 1),
+            newVersion.nodeVersion()
+        );
+
         testMixedVersionsShardsSearch(newVersion, oldVersion, minVersion);
     }
 
-    private void testMixedVersionsShardsSearch(Version oldVersion, Version newVersion, Version minVersion) throws Exception {
+    private void testMixedVersionsShardsSearch(VersionInformation oldVersion, VersionInformation newVersion, Version minVersion)
+        throws Exception {
         final TransportSearchAction.SearchTimeProvider timeProvider = new TransportSearchAction.SearchTimeProvider(
             0,
             System.nanoTime(),
@@ -259,8 +300,8 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
         int numConcurrent = randomIntBetween(1, 4);
 
         Map<String, Transport.Connection> lookup = new ConcurrentHashMap<>();
-        DiscoveryNode newVersionNode = new DiscoveryNode("node1", buildNewFakeTransportAddress(), newVersion);
-        DiscoveryNode oldVersionNode = new DiscoveryNode("node2", buildNewFakeTransportAddress(), oldVersion);
+        DiscoveryNode newVersionNode = DiscoveryNodeUtils.builder("node1").version(newVersion).build();
+        DiscoveryNode oldVersionNode = DiscoveryNodeUtils.builder("node2").version(oldVersion).build();
         lookup.put("node1", new SearchAsyncActionTests.MockConnection(newVersionNode));
         lookup.put("node2", new SearchAsyncActionTests.MockConnection(oldVersionNode));
 
@@ -298,58 +339,69 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
         SearchTransportService searchTransportService = new SearchTransportService(null, null, null);
         SearchPhaseController controller = new SearchPhaseController((t, r) -> InternalAggregationTestCase.emptyReduceContextBuilder());
         SearchTask task = new SearchTask(0, "n/a", "n/a", () -> "test", null, Collections.emptyMap());
-        QueryPhaseResultConsumer resultConsumer = new QueryPhaseResultConsumer(
-            searchRequest,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE,
-            new NoopCircuitBreaker(CircuitBreaker.REQUEST),
-            controller,
-            task::isCancelled,
-            task.getProgressListener(),
-            shardsIter.size(),
-            exc -> {}
-        );
-        final List<Object> responses = new ArrayList<>();
-        SearchQueryThenFetchAsyncAction newSearchAsyncAction = new SearchQueryThenFetchAsyncAction(
-            logger,
-            searchTransportService,
-            (clusterAlias, node) -> lookup.get(node),
-            Collections.singletonMap("_na_", AliasFilter.EMPTY),
-            Collections.emptyMap(),
-            EsExecutors.DIRECT_EXECUTOR_SERVICE,
-            resultConsumer,
-            searchRequest,
-            new ActionListener<SearchResponse>() {
-                @Override
-                public void onFailure(Exception e) {
-                    responses.add(e);
-                }
+        try (
+            QueryPhaseResultConsumer resultConsumer = new QueryPhaseResultConsumer(
+                searchRequest,
+                EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                new NoopCircuitBreaker(CircuitBreaker.REQUEST),
+                controller,
+                task::isCancelled,
+                task.getProgressListener(),
+                shardsIter.size(),
+                exc -> {}
+            )
+        ) {
+            final List<Object> responses = new ArrayList<>();
+            SearchQueryThenFetchAsyncAction newSearchAsyncAction = new SearchQueryThenFetchAsyncAction(
+                logger,
+                null,
+                searchTransportService,
+                (clusterAlias, node) -> lookup.get(node),
+                Collections.singletonMap("_na_", AliasFilter.EMPTY),
+                Collections.emptyMap(),
+                EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                resultConsumer,
+                searchRequest,
+                new ActionListener<>() {
+                    @Override
+                    public void onFailure(Exception e) {
+                        responses.add(e);
+                    }
 
-                public void onResponse(SearchResponse response) {
-                    responses.add(response);
-                };
-            },
-            shardsIter,
-            timeProvider,
-            null,
-            task,
-            SearchResponse.Clusters.EMPTY
-        );
+                    public void onResponse(SearchResponse response) {
+                        responses.add(response);
+                    }
 
-        newSearchAsyncAction.start();
-        assertEquals(1, responses.size());
-        assertTrue(responses.get(0) instanceof SearchPhaseExecutionException);
-        SearchPhaseExecutionException e = (SearchPhaseExecutionException) responses.get(0);
-        assertTrue(e.getCause() instanceof VersionMismatchException);
-        assertThat(
-            e.getCause().getMessage(),
-            equalTo("One of the shards is incompatible with the required minimum version [" + minVersion + "]")
-        );
+                ;
+                },
+                shardsIter,
+                timeProvider,
+                new ClusterState.Builder(new ClusterName("test")).build(),
+                task,
+                SearchResponse.Clusters.EMPTY,
+                null
+            );
+
+            newSearchAsyncAction.start();
+            assertThat(responses, hasSize(1));
+            assertThat(responses.get(0), instanceOf(SearchPhaseExecutionException.class));
+            SearchPhaseExecutionException e = (SearchPhaseExecutionException) responses.get(0);
+            assertThat(e.getCause(), instanceOf(VersionMismatchException.class));
+            assertThat(
+                e.getCause().getMessage(),
+                equalTo("One of the shards is incompatible with the required minimum version [" + minVersion + "]")
+            );
+        }
     }
 
     public void testMinimumVersionSameAsOldVersion() throws Exception {
-        Version newVersion = Version.CURRENT;
-        Version oldVersion = VersionUtils.randomPreviousCompatibleVersion(random(), newVersion);
-        Version minVersion = oldVersion;
+        var newVersion = VersionInformation.CURRENT;
+        var oldVersion = new VersionInformation(
+            VersionUtils.randomCompatibleVersion(random(), VersionUtils.getPreviousVersion()),
+            IndexVersions.MINIMUM_COMPATIBLE,
+            IndexVersionUtils.randomCompatibleVersion(random())
+        );
+        Version minVersion = oldVersion.nodeVersion();
 
         final TransportSearchAction.SearchTimeProvider timeProvider = new TransportSearchAction.SearchTimeProvider(
             0,
@@ -359,8 +411,8 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
         AtomicInteger successfulOps = new AtomicInteger();
 
         Map<String, Transport.Connection> lookup = new ConcurrentHashMap<>();
-        DiscoveryNode newVersionNode = new DiscoveryNode("node1", buildNewFakeTransportAddress(), newVersion);
-        DiscoveryNode oldVersionNode = new DiscoveryNode("node2", buildNewFakeTransportAddress(), oldVersion);
+        DiscoveryNode newVersionNode = DiscoveryNodeUtils.builder("node1").version(newVersion).build();
+        DiscoveryNode oldVersionNode = DiscoveryNodeUtils.builder("node2").version(oldVersion).build();
         lookup.put("node1", new SearchAsyncActionTests.MockConnection(newVersionNode));
         lookup.put("node2", new SearchAsyncActionTests.MockConnection(oldVersionNode));
 
@@ -399,7 +451,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
                 Transport.Connection connection,
                 ShardSearchRequest request,
                 SearchTask task,
-                SearchActionListener<? super SearchPhaseResult> listener
+                ActionListener<SearchPhaseResult> listener
             ) {
                 int shardId = request.shardId().id();
                 QuerySearchResult queryResult = new QuerySearchResult(
@@ -407,91 +459,106 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
                     new SearchShardTarget("node1", new ShardId("idx", "na", shardId), null),
                     null
                 );
-                SortField sortField = new SortField("timestamp", SortField.Type.LONG);
-                if (shardId == 0) {
-                    queryResult.topDocs(
-                        new TopDocsAndMaxScore(
-                            new TopFieldDocs(
-                                new TotalHits(1, TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO),
-                                new FieldDoc[] { new FieldDoc(randomInt(1000), Float.NaN, new Object[] { shardId }) },
-                                new SortField[] { sortField }
+                try {
+                    SortField sortField = new SortField("timestamp", SortField.Type.LONG);
+                    if (shardId == 0) {
+                        queryResult.topDocs(
+                            new TopDocsAndMaxScore(
+                                new TopFieldDocs(
+                                    new TotalHits(1, TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO),
+                                    new FieldDoc[] { new FieldDoc(randomInt(1000), Float.NaN, new Object[] { shardId }) },
+                                    new SortField[] { sortField }
+                                ),
+                                Float.NaN
                             ),
-                            Float.NaN
-                        ),
-                        new DocValueFormat[] { DocValueFormat.RAW }
-                    );
-                } else if (shardId == 1) {
-                    queryResult.topDocs(
-                        new TopDocsAndMaxScore(
-                            new TopFieldDocs(
-                                new TotalHits(1, TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO),
-                                new FieldDoc[] { new FieldDoc(randomInt(1000), Float.NaN, new Object[] { shardId }) },
-                                new SortField[] { sortField }
+                            new DocValueFormat[] { DocValueFormat.RAW }
+                        );
+                    } else if (shardId == 1) {
+                        queryResult.topDocs(
+                            new TopDocsAndMaxScore(
+                                new TopFieldDocs(
+                                    new TotalHits(1, TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO),
+                                    new FieldDoc[] { new FieldDoc(randomInt(1000), Float.NaN, new Object[] { shardId }) },
+                                    new SortField[] { sortField }
+                                ),
+                                Float.NaN
                             ),
-                            Float.NaN
-                        ),
-                        new DocValueFormat[] { DocValueFormat.RAW }
-                    );
+                            new DocValueFormat[] { DocValueFormat.RAW }
+                        );
+                    }
+                    queryResult.from(0);
+                    queryResult.size(1);
+                    successfulOps.incrementAndGet();
+                    queryResult.incRef();
+                    new Thread(() -> ActionListener.respondAndRelease(listener, queryResult)).start();
+                } finally {
+                    queryResult.decRef();
                 }
-                queryResult.from(0);
-                queryResult.size(1);
-                successfulOps.incrementAndGet();
-                new Thread(() -> listener.onResponse(queryResult)).start();
             }
         };
         SearchPhaseController controller = new SearchPhaseController((t, r) -> InternalAggregationTestCase.emptyReduceContextBuilder());
         SearchTask task = new SearchTask(0, "n/a", "n/a", () -> "test", null, Collections.emptyMap());
-        QueryPhaseResultConsumer resultConsumer = new QueryPhaseResultConsumer(
-            searchRequest,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE,
-            new NoopCircuitBreaker(CircuitBreaker.REQUEST),
-            controller,
-            task::isCancelled,
-            task.getProgressListener(),
-            shardsIter.size(),
-            exc -> {}
-        );
-        CountDownLatch latch = new CountDownLatch(1);
-        SearchQueryThenFetchAsyncAction action = new SearchQueryThenFetchAsyncAction(
-            logger,
-            searchTransportService,
-            (clusterAlias, node) -> lookup.get(node),
-            Collections.singletonMap("_na_", AliasFilter.EMPTY),
-            Collections.emptyMap(),
-            EsExecutors.DIRECT_EXECUTOR_SERVICE,
-            resultConsumer,
-            searchRequest,
-            null,
-            shardsIter,
-            timeProvider,
-            null,
-            task,
-            SearchResponse.Clusters.EMPTY
+        try (
+            QueryPhaseResultConsumer resultConsumer = new QueryPhaseResultConsumer(
+                searchRequest,
+                EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                new NoopCircuitBreaker(CircuitBreaker.REQUEST),
+                controller,
+                task::isCancelled,
+                task.getProgressListener(),
+                shardsIter.size(),
+                exc -> {}
+            )
         ) {
-            @Override
-            protected SearchPhase getNextPhase(SearchPhaseResults<SearchPhaseResult> results, SearchPhaseContext context) {
-                return new SearchPhase("test") {
-                    @Override
-                    public void run() {
-                        latch.countDown();
-                    }
-                };
-            }
-        };
+            CountDownLatch latch = new CountDownLatch(1);
+            SearchQueryThenFetchAsyncAction action = new SearchQueryThenFetchAsyncAction(
+                logger,
+                null,
+                searchTransportService,
+                (clusterAlias, node) -> lookup.get(node),
+                Collections.singletonMap("_na_", AliasFilter.EMPTY),
+                Collections.emptyMap(),
+                EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                resultConsumer,
+                searchRequest,
+                null,
+                shardsIter,
+                timeProvider,
+                new ClusterState.Builder(new ClusterName("test")).build(),
+                task,
+                SearchResponse.Clusters.EMPTY,
+                null
+            ) {
+                @Override
+                protected SearchPhase getNextPhase(SearchPhaseResults<SearchPhaseResult> results, SearchPhaseContext context) {
+                    return new SearchPhase("test") {
+                        @Override
+                        public void run() {
+                            latch.countDown();
+                        }
+                    };
+                }
+            };
 
-        action.start();
-        latch.await();
-        assertThat(successfulOps.get(), equalTo(2));
-        SearchPhaseController.ReducedQueryPhase phase = action.results.reduce();
-        assertThat(phase.numReducePhases(), greaterThanOrEqualTo(1));
-        assertThat(phase.totalHits().value, equalTo(2L));
-        assertThat(phase.totalHits().relation, equalTo(TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO));
+            action.start();
+            latch.await();
+            assertThat(successfulOps.get(), equalTo(2));
+            SearchPhaseController.ReducedQueryPhase phase = action.results.reduce();
+            assertThat(phase.numReducePhases(), greaterThanOrEqualTo(1));
+            assertThat(phase.totalHits().value, equalTo(2L));
+            assertThat(phase.totalHits().relation, equalTo(TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO));
+        }
     }
 
     public void testMinimumVersionShardDuringPhaseExecution() throws Exception {
-        Version newVersion = Version.CURRENT;
-        Version oldVersion = VersionUtils.randomPreviousCompatibleVersion(random(), newVersion);
-        Version minVersion = newVersion;
+        var newVersion = VersionInformation.CURRENT;
+        var oldVersion = new VersionInformation(
+            VersionUtils.randomCompatibleVersion(random(), VersionUtils.getPreviousVersion()),
+            IndexVersions.MINIMUM_COMPATIBLE,
+            IndexVersionUtils.randomCompatibleVersion(random())
+        );
+
+        Version minVersion = newVersion.nodeVersion();
 
         final TransportSearchAction.SearchTimeProvider timeProvider = new TransportSearchAction.SearchTimeProvider(
             0,
@@ -501,9 +568,9 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
         AtomicInteger successfulOps = new AtomicInteger();
 
         Map<String, Transport.Connection> lookup = new ConcurrentHashMap<>();
-        DiscoveryNode newVersionNode1 = new DiscoveryNode("node1", buildNewFakeTransportAddress(), newVersion);
-        DiscoveryNode newVersionNode2 = new DiscoveryNode("node2", buildNewFakeTransportAddress(), newVersion);
-        DiscoveryNode oldVersionNode = new DiscoveryNode("node3", buildNewFakeTransportAddress(), oldVersion);
+        DiscoveryNode newVersionNode1 = DiscoveryNodeUtils.builder("node1").version(newVersion).build();
+        DiscoveryNode newVersionNode2 = DiscoveryNodeUtils.builder("node2").version(newVersion).build();
+        DiscoveryNode oldVersionNode = DiscoveryNodeUtils.builder("node3").version(oldVersion).build();
         lookup.put("node1", new SearchAsyncActionTests.MockConnection(newVersionNode1));
         lookup.put("node2", new SearchAsyncActionTests.MockConnection(newVersionNode2));
         lookup.put("node3", new SearchAsyncActionTests.MockConnection(oldVersionNode));
@@ -543,7 +610,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
                 Transport.Connection connection,
                 ShardSearchRequest request,
                 SearchTask task,
-                SearchActionListener<? super SearchPhaseResult> listener
+                ActionListener<SearchPhaseResult> listener
             ) {
                 int shardId = request.shardId().id();
                 QuerySearchResult queryResult = new QuerySearchResult(
@@ -551,109 +618,123 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
                     new SearchShardTarget("node1", new ShardId("idx", "na", shardId), null),
                     null
                 );
-                SortField sortField = new SortField("timestamp", SortField.Type.LONG);
-                if (shardId == 0) {
-                    queryResult.topDocs(
-                        new TopDocsAndMaxScore(
-                            new TopFieldDocs(
-                                new TotalHits(1, TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO),
-                                new FieldDoc[] { new FieldDoc(randomInt(1000), Float.NaN, new Object[] { shardId }) },
-                                new SortField[] { sortField }
+                try {
+                    SortField sortField = new SortField("timestamp", SortField.Type.LONG);
+                    if (shardId == 0) {
+                        queryResult.topDocs(
+                            new TopDocsAndMaxScore(
+                                new TopFieldDocs(
+                                    new TotalHits(1, TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO),
+                                    new FieldDoc[] { new FieldDoc(randomInt(1000), Float.NaN, new Object[] { shardId }) },
+                                    new SortField[] { sortField }
+                                ),
+                                Float.NaN
                             ),
-                            Float.NaN
-                        ),
-                        new DocValueFormat[] { DocValueFormat.RAW }
-                    );
-                } else if (shardId == 1) {
-                    queryResult.topDocs(
-                        new TopDocsAndMaxScore(
-                            new TopFieldDocs(
-                                new TotalHits(1, TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO),
-                                new FieldDoc[] { new FieldDoc(randomInt(1000), Float.NaN, new Object[] { shardId }) },
-                                new SortField[] { sortField }
+                            new DocValueFormat[] { DocValueFormat.RAW }
+                        );
+                    } else if (shardId == 1) {
+                        queryResult.topDocs(
+                            new TopDocsAndMaxScore(
+                                new TopFieldDocs(
+                                    new TotalHits(1, TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO),
+                                    new FieldDoc[] { new FieldDoc(randomInt(1000), Float.NaN, new Object[] { shardId }) },
+                                    new SortField[] { sortField }
+                                ),
+                                Float.NaN
                             ),
-                            Float.NaN
-                        ),
-                        new DocValueFormat[] { DocValueFormat.RAW }
-                    );
+                            new DocValueFormat[] { DocValueFormat.RAW }
+                        );
+                    }
+                    queryResult.from(0);
+                    queryResult.size(1);
+                    successfulOps.incrementAndGet();
+                    queryResult.incRef();
+                    new Thread(() -> ActionListener.respondAndRelease(listener, queryResult)).start();
+                } finally {
+                    queryResult.decRef();
                 }
-                queryResult.from(0);
-                queryResult.size(1);
-                successfulOps.incrementAndGet();
-                new Thread(() -> listener.onResponse(queryResult)).start();
             }
         };
         SearchPhaseController controller = new SearchPhaseController((t, r) -> InternalAggregationTestCase.emptyReduceContextBuilder());
         SearchTask task = new SearchTask(0, "n/a", "n/a", () -> "test", null, Collections.emptyMap());
-        QueryPhaseResultConsumer resultConsumer = new QueryPhaseResultConsumer(
-            searchRequest,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE,
-            new NoopCircuitBreaker(CircuitBreaker.REQUEST),
-            controller,
-            task::isCancelled,
-            task.getProgressListener(),
-            shardsIter.size(),
-            exc -> {}
-        );
+
         CountDownLatch latch = new CountDownLatch(1);
-        SearchQueryThenFetchAsyncAction action = new SearchQueryThenFetchAsyncAction(
-            logger,
-            searchTransportService,
-            (clusterAlias, node) -> lookup.get(node),
-            Collections.singletonMap("_na_", AliasFilter.EMPTY),
-            Collections.emptyMap(),
-            EsExecutors.DIRECT_EXECUTOR_SERVICE,
-            resultConsumer,
-            searchRequest,
-            null,
-            shardsIter,
-            timeProvider,
-            null,
-            task,
-            SearchResponse.Clusters.EMPTY
+        try (
+            QueryPhaseResultConsumer resultConsumer = new QueryPhaseResultConsumer(
+                searchRequest,
+                EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                new NoopCircuitBreaker(CircuitBreaker.REQUEST),
+                controller,
+                task::isCancelled,
+                task.getProgressListener(),
+                shardsIter.size(),
+                exc -> {}
+            )
         ) {
-            @Override
-            protected SearchPhase getNextPhase(SearchPhaseResults<SearchPhaseResult> results, SearchPhaseContext context) {
-                return new SearchPhase("test") {
-                    @Override
-                    public void run() {
-                        latch.countDown();
-                    }
-                };
-            }
-        };
-        ShardRouting routingOldVersionShard = ShardRouting.newUnassigned(
-            new ShardId(new Index("idx", "_na_"), 2),
-            true,
-            RecoverySource.EmptyStoreRecoverySource.INSTANCE,
-            new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foobar"),
-            ShardRouting.Role.DEFAULT
-        );
-        SearchShardIterator shardIt = new SearchShardIterator(
-            null,
-            new ShardId(new Index("idx", "_na_"), 2),
-            singletonList(routingOldVersionShard),
-            idx
-        );
-        routingOldVersionShard = routingOldVersionShard.initialize(oldVersionNode.getId(), "p2", 0);
-        routingOldVersionShard.started();
-        action.start();
-        latch.await();
-        assertThat(successfulOps.get(), equalTo(2));
-        SearchPhaseController.ReducedQueryPhase phase = action.results.reduce();
-        assertThat(phase.numReducePhases(), greaterThanOrEqualTo(1));
-        assertThat(phase.totalHits().value, equalTo(2L));
-        assertThat(phase.totalHits().relation, equalTo(TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO));
+            SearchQueryThenFetchAsyncAction action = new SearchQueryThenFetchAsyncAction(
+                logger,
+                null,
+                searchTransportService,
+                (clusterAlias, node) -> lookup.get(node),
+                Collections.singletonMap("_na_", AliasFilter.EMPTY),
+                Collections.emptyMap(),
+                EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                resultConsumer,
+                searchRequest,
+                null,
+                shardsIter,
+                timeProvider,
+                new ClusterState.Builder(new ClusterName("test")).build(),
+                task,
+                SearchResponse.Clusters.EMPTY,
+                null
+            ) {
+                @Override
+                protected SearchPhase getNextPhase(SearchPhaseResults<SearchPhaseResult> results, SearchPhaseContext context) {
+                    return new SearchPhase("test") {
+                        @Override
+                        public void run() {
+                            latch.countDown();
+                        }
+                    };
+                }
+            };
+            ShardRouting routingOldVersionShard = ShardRouting.newUnassigned(
+                new ShardId(new Index("idx", "_na_"), 2),
+                true,
+                RecoverySource.EmptyStoreRecoverySource.INSTANCE,
+                new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foobar"),
+                ShardRouting.Role.DEFAULT
+            );
+            SearchShardIterator shardIt = new SearchShardIterator(
+                null,
+                new ShardId(new Index("idx", "_na_"), 2),
+                singletonList(routingOldVersionShard),
+                idx
+            );
+            routingOldVersionShard = routingOldVersionShard.initialize(oldVersionNode.getId(), "p2", 0);
+            routingOldVersionShard.started();
+            action.start();
+            latch.await();
+            assertThat(successfulOps.get(), equalTo(2));
+            SearchPhaseController.ReducedQueryPhase phase = action.results.reduce();
+            assertThat(phase.numReducePhases(), greaterThanOrEqualTo(1));
+            assertThat(phase.totalHits().value, equalTo(2L));
+            assertThat(phase.totalHits().relation, equalTo(TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO));
 
-        SearchShardTarget searchShardTarget = new SearchShardTarget("node3", shardIt.shardId(), null);
-        SearchActionListener<SearchPhaseResult> listener = new SearchActionListener<SearchPhaseResult>(searchShardTarget, 0) {
-            @Override
-            public void onFailure(Exception e) {}
+            SearchShardTarget searchShardTarget = new SearchShardTarget("node3", shardIt.shardId(), null);
+            SearchActionListener<SearchPhaseResult> listener = new SearchActionListener<SearchPhaseResult>(searchShardTarget, 0) {
+                @Override
+                public void onFailure(Exception e) {}
 
-            @Override
-            protected void innerOnResponse(SearchPhaseResult response) {}
-        };
-        Exception e = expectThrows(VersionMismatchException.class, () -> action.executePhaseOnShard(shardIt, searchShardTarget, listener));
-        assertThat(e.getMessage(), equalTo("One of the shards is incompatible with the required minimum version [" + minVersion + "]"));
+                @Override
+                protected void innerOnResponse(SearchPhaseResult response) {}
+            };
+            Exception e = expectThrows(
+                VersionMismatchException.class,
+                () -> action.executePhaseOnShard(shardIt, searchShardTarget, listener)
+            );
+            assertThat(e.getMessage(), equalTo("One of the shards is incompatible with the required minimum version [" + minVersion + "]"));
+        }
     }
 }

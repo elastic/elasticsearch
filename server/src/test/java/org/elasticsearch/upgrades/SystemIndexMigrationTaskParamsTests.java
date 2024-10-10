@@ -1,14 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.upgrades;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.test.AbstractNamedWriteableTestCase;
 
@@ -30,7 +31,8 @@ public class SystemIndexMigrationTaskParamsTests extends AbstractNamedWriteableT
     }
 
     @Override
-    protected SystemIndexMigrationTaskParams copyInstance(SystemIndexMigrationTaskParams instance, Version version) throws IOException {
+    protected SystemIndexMigrationTaskParams copyInstance(SystemIndexMigrationTaskParams instance, TransportVersion version)
+        throws IOException {
         return new SystemIndexMigrationTaskParams();
     }
 

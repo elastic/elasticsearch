@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.health.node.action;
@@ -20,6 +21,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.health.node.selection.HealthNode;
 import org.elasticsearch.tasks.CancellableTask;
@@ -28,7 +30,10 @@ import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequestOptions;
+import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
+
+import java.util.concurrent.Executor;
 
 import static org.elasticsearch.core.Strings.format;
 
@@ -55,7 +60,7 @@ public abstract class TransportHealthNodeAction<Request extends HealthNodeReques
     protected final TransportService transportService;
     protected final ClusterService clusterService;
     protected final ThreadPool threadPool;
-    protected final String executor;
+    protected final Executor executor;
     private TimeValue healthNodeTransportActionTimeout;
 
     private final Writeable.Reader<Response> responseReader;
@@ -68,9 +73,9 @@ public abstract class TransportHealthNodeAction<Request extends HealthNodeReques
         ActionFilters actionFilters,
         Writeable.Reader<Request> request,
         Writeable.Reader<Response> response,
-        String executor
+        Executor executor
     ) {
-        super(actionName, true, transportService, actionFilters, request);
+        super(actionName, false, transportService, actionFilters, request, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.transportService = transportService;
         this.clusterService = clusterService;
         this.threadPool = threadPool;
@@ -102,7 +107,7 @@ public abstract class TransportHealthNodeAction<Request extends HealthNodeReques
             if (healthNode == null) {
                 listener.onFailure(new HealthNodeNotDiscoveredException());
             } else if (localNode.getId().equals(healthNode.getId())) {
-                threadPool.executor(executor).execute(() -> {
+                executor.execute(() -> {
                     try {
                         if (isTaskCancelled(task)) {
                             listener.onFailure(new TaskCancelledException("Task was cancelled"));
@@ -115,7 +120,11 @@ public abstract class TransportHealthNodeAction<Request extends HealthNodeReques
                 });
             } else {
                 logger.trace("forwarding request [{}] to health node [{}]", actionName, healthNode);
-                ActionListenerResponseHandler<Response> handler = new ActionListenerResponseHandler<>(listener, responseReader) {
+                ActionListenerResponseHandler<Response> handler = new ActionListenerResponseHandler<>(
+                    listener,
+                    responseReader,
+                    TransportResponseHandler.TRANSPORT_WORKER
+                ) {
                     @Override
                     public void handleException(final TransportException exception) {
                         logger.trace(
@@ -144,7 +153,7 @@ public abstract class TransportHealthNodeAction<Request extends HealthNodeReques
         }
     }
 
-    private boolean isTaskCancelled(Task task) {
+    private static boolean isTaskCancelled(Task task) {
         return (task instanceof CancellableTask t) && t.isCancelled();
     }
 }

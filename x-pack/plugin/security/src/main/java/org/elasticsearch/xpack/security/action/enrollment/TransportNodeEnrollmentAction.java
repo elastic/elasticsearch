@@ -10,16 +10,18 @@ package org.elasticsearch.xpack.security.action.enrollment;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
-import org.elasticsearch.action.admin.cluster.node.info.NodesInfoAction;
+import org.elasticsearch.action.admin.cluster.node.info.NodesInfoMetrics;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest;
+import org.elasticsearch.action.admin.cluster.node.info.TransportNodesInfoAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.ssl.SslKeyConfig;
 import org.elasticsearch.common.ssl.StoreKeyConfig;
 import org.elasticsearch.common.ssl.StoredCertificate;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportInfo;
 import org.elasticsearch.transport.TransportService;
@@ -50,7 +52,7 @@ public class TransportNodeEnrollmentAction extends HandledTransportAction<NodeEn
         Client client,
         ActionFilters actionFilters
     ) {
-        super(NodeEnrollmentAction.NAME, transportService, actionFilters, NodeEnrollmentRequest::new);
+        super(NodeEnrollmentAction.NAME, transportService, actionFilters, NodeEnrollmentRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.sslService = sslService;
         this.client = client;
     }
@@ -142,8 +144,8 @@ public class TransportNodeEnrollmentAction extends HandledTransportAction<NodeEn
         }
 
         final List<String> nodeList = new ArrayList<>();
-        final NodesInfoRequest nodesInfoRequest = new NodesInfoRequest().addMetric(NodesInfoRequest.Metric.TRANSPORT.metricName());
-        executeAsyncWithOrigin(client, SECURITY_ORIGIN, NodesInfoAction.INSTANCE, nodesInfoRequest, ActionListener.wrap(response -> {
+        final NodesInfoRequest nodesInfoRequest = new NodesInfoRequest().addMetric(NodesInfoMetrics.Metric.TRANSPORT.metricName());
+        executeAsyncWithOrigin(client, SECURITY_ORIGIN, TransportNodesInfoAction.TYPE, nodesInfoRequest, ActionListener.wrap(response -> {
             for (NodeInfo nodeInfo : response.getNodes()) {
                 nodeList.add(nodeInfo.getInfo(TransportInfo.class).getAddress().publishAddress().toString());
             }

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.sort;
@@ -15,6 +16,7 @@ import org.apache.lucene.search.SortField;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -109,7 +111,7 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
         type = ScriptSortType.readFromStream(in);
         order = SortOrder.readFromStream(in);
         sortMode = in.readOptionalWriteable(SortMode::readFromStream);
-        if (in.getTransportVersion().before(TransportVersion.V_8_0_0)) {
+        if (in.getTransportVersion().before(TransportVersions.V_8_0_0)) {
             if (in.readOptionalNamedWriteable(QueryBuilder.class) != null || in.readOptionalString() != null) {
                 throw new IOException(
                     "the [sort] options [nested_path] and [nested_filter] are removed in 8.x, " + "please use [nested] instead"
@@ -125,7 +127,7 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
         type.writeTo(out);
         order.writeTo(out);
         out.writeOptionalWriteable(sortMode);
-        if (out.getTransportVersion().before(TransportVersion.V_8_0_0)) {
+        if (out.getTransportVersion().before(TransportVersions.V_8_0_0)) {
             out.writeOptionalString(null);
             out.writeOptionalNamedWriteable(null);
         }
@@ -219,21 +221,13 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
         PARSER.declareString((b, v) -> b.sortMode(SortMode.fromString(v)), SORTMODE_FIELD);
         PARSER.declareObject(ScriptSortBuilder::setNestedSort, (p, c) -> NestedSortBuilder.fromXContent(p), NESTED_FIELD);
 
-        PARSER.declareObject(
-            (b, v) -> {},
-            (p, c) -> {
-                throw new ParsingException(p.getTokenLocation(), "[nested_path] has been removed in favour of the [nested] parameter", c);
-            },
-            NESTED_PATH_FIELD
-        );
+        PARSER.declareObject((b, v) -> {}, (p, c) -> {
+            throw new ParsingException(p.getTokenLocation(), "[nested_path] has been removed in favour of the [nested] parameter", c);
+        }, NESTED_PATH_FIELD);
 
-        PARSER.declareObject(
-            (b, v) -> {},
-            (p, c) -> {
-                throw new ParsingException(p.getTokenLocation(), "[nested_filter] has been removed in favour of the [nested] parameter", c);
-            },
-            NESTED_FILTER_FIELD
-        );
+        PARSER.declareObject((b, v) -> {}, (p, c) -> {
+            throw new ParsingException(p.getTokenLocation(), "[nested_filter] has been removed in favour of the [nested] parameter", c);
+        }, NESTED_FILTER_FIELD);
     }
 
     /**
@@ -302,7 +296,7 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
                             final BytesRefBuilder spare = new BytesRefBuilder();
 
                             @Override
-                            public boolean advanceExact(int doc) throws IOException {
+                            public boolean advanceExact(int doc) {
                                 leafScript.setDocument(doc);
                                 return true;
                             }
@@ -350,7 +344,7 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
                         leafScript = numberSortScript.newInstance(new DocValuesDocReader(searchLookup, context));
                         final NumericDoubleValues values = new NumericDoubleValues() {
                             @Override
-                            public boolean advanceExact(int doc) throws IOException {
+                            public boolean advanceExact(int doc) {
                                 leafScript.setDocument(doc);
                                 return true;
                             }
@@ -381,7 +375,7 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
                         final BinaryDocValues values = new AbstractBinaryDocValues() {
 
                             @Override
-                            public boolean advanceExact(int doc) throws IOException {
+                            public boolean advanceExact(int doc) {
                                 leafScript.setDocument(doc);
                                 return true;
                             }
@@ -459,7 +453,7 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.ZERO;
+        return TransportVersions.ZERO;
     }
 
     public enum ScriptSortType implements Writeable {

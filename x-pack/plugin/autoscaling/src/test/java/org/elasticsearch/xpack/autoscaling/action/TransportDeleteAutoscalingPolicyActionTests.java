@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.test.MockUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.autoscaling.AutoscalingMetadata;
@@ -39,10 +40,12 @@ import static org.mockito.Mockito.verifyNoMoreInteractions;
 public class TransportDeleteAutoscalingPolicyActionTests extends AutoscalingTestCase {
 
     public void testWriteBlock() {
+        ThreadPool threadPool = mock(ThreadPool.class);
+        TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor(threadPool);
         final TransportDeleteAutoscalingPolicyAction action = new TransportDeleteAutoscalingPolicyAction(
-            mock(TransportService.class),
+            transportService,
             mock(ClusterService.class),
-            mock(ThreadPool.class),
+            threadPool,
             mock(ActionFilters.class),
             mock(IndexNameExpressionResolver.class)
         );
@@ -56,21 +59,29 @@ public class TransportDeleteAutoscalingPolicyActionTests extends AutoscalingTest
             )
             .build();
         final ClusterState state = ClusterState.builder(new ClusterName(randomAlphaOfLength(8))).blocks(blocks).build();
-        final ClusterBlockException e = action.checkBlock(new DeleteAutoscalingPolicyAction.Request(randomAlphaOfLength(8)), state);
+        final ClusterBlockException e = action.checkBlock(
+            new DeleteAutoscalingPolicyAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, randomAlphaOfLength(8)),
+            state
+        );
         assertThat(e, not(nullValue()));
     }
 
     public void testNoWriteBlock() {
+        ThreadPool threadPool = mock(ThreadPool.class);
+        TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor(threadPool);
         final TransportDeleteAutoscalingPolicyAction action = new TransportDeleteAutoscalingPolicyAction(
-            mock(TransportService.class),
+            transportService,
             mock(ClusterService.class),
-            mock(ThreadPool.class),
+            threadPool,
             mock(ActionFilters.class),
             mock(IndexNameExpressionResolver.class)
         );
         final ClusterBlocks blocks = ClusterBlocks.builder().build();
         final ClusterState state = ClusterState.builder(new ClusterName(randomAlphaOfLength(8))).blocks(blocks).build();
-        final ClusterBlockException e = action.checkBlock(new DeleteAutoscalingPolicyAction.Request(randomAlphaOfLength(8)), state);
+        final ClusterBlockException e = action.checkBlock(
+            new DeleteAutoscalingPolicyAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, randomAlphaOfLength(8)),
+            state
+        );
         assertThat(e, nullValue());
     }
 

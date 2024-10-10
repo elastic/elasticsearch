@@ -1,15 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.lucene.search.function;
 
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.FilterScorer;
@@ -25,14 +27,17 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.script.ScriptTermStats;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
+import java.util.Set;
 
 /**
  * A query that allows for a pluggable boost function / filter. If it matches
@@ -77,7 +82,7 @@ public class FunctionScoreQuery extends Query {
 
         @Override
         protected ScoreFunction rewrite(IndexReader reader) throws IOException {
-            Query newFilter = filter.rewrite(reader);
+            Query newFilter = filter.rewrite(new IndexSearcher(reader));
             if (newFilter == filter) {
                 return this;
             }
@@ -201,16 +206,16 @@ public class FunctionScoreQuery extends Query {
     }
 
     @Override
-    public Query rewrite(IndexReader reader) throws IOException {
-        Query rewritten = super.rewrite(reader);
+    public Query rewrite(IndexSearcher searcher) throws IOException {
+        Query rewritten = super.rewrite(searcher);
         if (rewritten != this) {
             return rewritten;
         }
-        Query newQ = subQuery.rewrite(reader);
+        Query newQ = subQuery.rewrite(searcher);
         ScoreFunction[] newFunctions = new ScoreFunction[functions.length];
         boolean needsRewrite = (newQ != subQuery);
         for (int i = 0; i < functions.length; i++) {
-            newFunctions[i] = functions[i].rewrite(reader);
+            newFunctions[i] = functions[i].rewrite(searcher.getIndexReader());
             needsRewrite |= (newFunctions[i] != functions[i]);
         }
         if (needsRewrite) {
@@ -240,6 +245,14 @@ public class FunctionScoreQuery extends Query {
                     org.apache.lucene.search.ScoreMode.COMPLETE_NO_SCORES,
                     1f
                 );
+            }
+            if (functions[i] instanceof ScriptScoreFunction scriptScoreFunction && scriptScoreFunction.needsTermStats()) {
+                subQueryScoreMode = org.apache.lucene.search.ScoreMode.COMPLETE;
+                // We collect the different terms used in the child query.
+                final Set<Term> terms = new HashSet<>();
+                this.visit(QueryVisitor.termCollector(terms));
+                scriptScoreFunction.setTermStatsFactory((ctx, docIdSupplier) -> new ScriptTermStats(searcher, ctx, docIdSupplier, terms));
+
             }
         }
         Weight subQueryWeight = subQuery.createWeight(searcher, subQueryScoreMode, boost);

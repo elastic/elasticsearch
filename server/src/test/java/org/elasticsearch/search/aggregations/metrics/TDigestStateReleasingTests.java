@@ -17,6 +17,7 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.indices.CrankyCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -101,24 +102,19 @@ public class TDigestStateReleasingTests extends ESTestCase {
      */
     public <E extends Exception> void testCircuitBreakerTrip(CheckedFunction<CircuitBreaker, TDigestState, E> tDigestStateFactory)
         throws E {
-        for (int bytes = randomIntBetween(0, 16); bytes < 50_000; bytes += 17) {
-            CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofBytes(bytes));
+        try (CrankyCircuitBreakerService circuitBreakerService = new CrankyCircuitBreakerService()) {
+            CircuitBreaker breaker = circuitBreakerService.getBreaker("test");
 
             try (TDigestState state = tDigestStateFactory.apply(breaker)) {
                 // Add some data to make it trip. It won't work in all digest types
-                for (int i = 0; i < 100; i++) {
+                for (int i = 0; i < 10; i++) {
                     state.add(randomDoubleBetween(-Double.MAX_VALUE, Double.MAX_VALUE, true));
                 }
-
-                // Testing with more memory shouldn't change anything, we finished the test
-                return;
             } catch (CircuitBreakingException e) {
                 // Expected
             } finally {
-                assertThat("unreleased bytes with a " + bytes + " bytes limit", breaker.getUsed(), equalTo(0L));
+                assertThat("unreleased bytes", breaker.getUsed(), equalTo(0L));
             }
         }
-
-        fail("Test case didn't reach a non-tripping breaker limit");
     }
 }

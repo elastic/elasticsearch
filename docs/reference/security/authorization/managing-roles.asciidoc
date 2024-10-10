@@ -120,6 +120,12 @@ multiple data streams, indices, and aliases.
 ------------------------------------------------------------------------------
 ==============================================================================
 
+[IMPORTANT]
+==============================
+Granting privileges over an alias and hence granting privileges over all the indices that the alias points to is deprecated and will be removed in a future version of Elasticsearch.
+Instead define permissions exclusively on index names or index name patterns.
+==============================
+
 [[roles-global-priv]]
 ==== Global privileges
 The following describes the structure of the global privileges entry:

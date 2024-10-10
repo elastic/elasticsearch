@@ -43,6 +43,7 @@ import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.core.expression.predicate.Predicates.splitAnd;
 import static org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushFiltersToSource.canPushSpatialFunctionToSource;
+import static org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushFiltersToSource.canPushToSource;
 import static org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushFiltersToSource.getAliasReplacedBy;
 
 /**
@@ -138,7 +139,7 @@ public class EnableSpatialDistancePushdown extends PhysicalOptimizerRules.Parame
             // Find and rewrite any binary comparisons that involve a distance function and a literal
             var rewritten = rewriteDistanceFilters(resExp, distances);
             // If all pushable StDistance functions were found and re-written, we need to re-write the FILTER/EVAL combination
-            if (rewritten.equals(resExp) == false && conditionHasNoReferences(rewritten, distances)) {
+            if (rewritten.equals(resExp) == false && canPushToSource(rewritten, x -> false)) {
                 pushable.add(rewritten);
             } else {
                 nonPushable.add(exp);
@@ -173,10 +174,6 @@ public class EnableSpatialDistancePushdown extends PhysicalOptimizerRules.Parame
             }
         });
         return distances;
-    }
-
-    private boolean conditionHasNoReferences(Expression expr, Map<NameId, StDistance> distances) {
-        return expr.references().stream().filter(r -> distances.containsKey(r.id())).findFirst().isEmpty();
     }
 
     private Expression rewriteDistanceFilters(Expression expr, Map<NameId, StDistance> distances) {

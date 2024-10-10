@@ -5049,6 +5049,75 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     }
 
     /**
+     * This test shows that with if the top level AND'd predicate contains a non-pushable component, we should not push anything.
+     * <code>
+     * ProjectExec[[abbrev{f}#8612, name{f}#8613, location{f}#8616, country{f}#8617, city{f}#8618, scalerank{f}#8614 AS scale]]
+     * \_TopNExec[[Order[distance{r}#8596,ASC,LAST], Order[scalerank{f}#8614,ASC,LAST]],5[INTEGER],0]
+     *   \_ExchangeExec[[abbrev{f}#8612, name{f}#8613, location{f}#8616, country{f}#8617, city{f}#8618,
+     *       scalerank{f}#8614, distance{r}#8596
+     *     ],false]
+     *     \_ProjectExec[[abbrev{f}#8612, name{f}#8613, location{f}#8616, country{f}#8617, city{f}#8618,
+     *         scalerank{f}#8614, distance{r}#8596
+     *       ]]
+     *       \_FieldExtractExec[abbrev{f}#8612, name{f}#8613, country{f}#8617, city..][]
+     *         \_TopNExec[[Order[distance{r}#8596,ASC,LAST], Order[scalerank{f}#8614,ASC,LAST]],5[INTEGER],208]
+     *           \_FilterExec[
+     *               distance{r}#8596 &lt; 500000[INTEGER]
+     *               AND distance{r}#8596 &gt; 10000[INTEGER]
+     *               AND scalerank{f}#8614 &lt; 6[INTEGER]
+     *               OR SUBSTRING(TOSTRING(location{f}#8616),1[INTEGER],5[INTEGER]) == [50 4f 49 4e 54][KEYWORD]
+     *             ]
+     *             \_FieldExtractExec[scalerank{f}#8614][]
+     *               \_EvalExec[[
+     *                   STDISTANCE(location{f}#8616,[1 1 0 0 0 e1 7a 14 ae 47 21 29 40 a0 1a 2f dd 24 d6 4b 40][GEO_POINT]) AS distance
+     *                 ]]
+     *                 \_FieldExtractExec[location{f}#8616][]
+     *                   \_EsQueryExec[airports], indexMode[standard], query[][_doc{f}#8630], limit[], sort[] estimatedRowSize[37]
+     * </code>
+     */
+    public void testPushTopNDistanceWithCompoundFilterToSourceAndDisjunctiveNonPushableEval() {
+        var optimized = optimizedPlan(physicalPlan("""
+            FROM airports
+            | EVAL distance = ST_DISTANCE(location, TO_GEOPOINT("POINT(12.565 55.673)")), scale = scalerank
+            | WHERE distance < 500000 AND distance > 10000 AND scale < 6 OR SUBSTRING(location::keyword, 1, 5) == "POINT"
+            | SORT distance ASC, scale ASC
+            | LIMIT 5
+            | KEEP abbrev, name, location, country, city, scale
+            """, airports));
+
+        var project = as(optimized, ProjectExec.class);
+        var topN = as(project.child(), TopNExec.class);
+        var exchange = asRemoteExchange(topN.child());
+
+        project = as(exchange.child(), ProjectExec.class);
+        assertThat(names(project.projections()), contains("abbrev", "name", "location", "country", "city", "scalerank", "distance"));
+        var extract = as(project.child(), FieldExtractExec.class);
+        assertThat(names(extract.attributesToExtract()), contains("abbrev", "name", "country", "city"));
+        var topNChild = as(extract.child(), TopNExec.class);
+        var filter = as(topNChild.child(), FilterExec.class);
+        assertThat(filter.condition(), isA(Or.class));
+        var filterOr = (Or) filter.condition();
+        assertThat(filterOr.left(), isA(And.class));
+        assertThat(filterOr.right(), isA(Equals.class));
+        extract = as(filter.child(), FieldExtractExec.class);
+        assertThat(names(extract.attributesToExtract()), contains("scalerank"));
+        var evalExec = as(extract.child(), EvalExec.class);
+        assertThat(evalExec.fields().size(), is(1));
+        var aliasDistance = as(evalExec.fields().get(0), Alias.class);
+        assertThat(aliasDistance.name(), is("distance"));
+        var stDistance = as(aliasDistance.child(), StDistance.class);
+        assertThat(stDistance.left().toString(), startsWith("location"));
+        extract = as(evalExec.child(), FieldExtractExec.class);
+        assertThat(names(extract.attributesToExtract()), contains("location"));
+        var source = source(extract.child());
+
+        // In this example neither TopN not filter is pushed down
+        assertThat(source.limit(), nullValue());
+        assertThat(source.sorts(), nullValue());
+        assertThat(source.query(), nullValue());
+    }
+
+    /**
      * <code>
      * ProjectExec[[abbrev{f}#15, name{f}#16, location{f}#19, country{f}#20, city{f}#21]]
      * \_TopNExec[[Order[scalerank{f}#17,ASC,LAST], Order[distance{r}#4,ASC,LAST]],15[INTEGER],0]

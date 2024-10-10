@@ -541,15 +541,6 @@ public class ActionModule extends AbstractModule {
                 var newInstance = function.apply(restPlugin);
                 if (newInstance != null) {
                     logger.debug("Using custom {} from plugin {}", type, plugin.getClass().getName());
-                    if (isInternalPlugin(plugin) == false) {
-                        throw new IllegalArgumentException(
-                            "The "
-                                + plugin.getClass().getName()
-                                + " plugin tried to install a custom "
-                                + type
-                                + ". This functionality is not available to external plugins."
-                        );
-                    }
                     if (result != null) {
                         throw new IllegalArgumentException("Cannot have more than one plugin implementing a " + type);
                     }
@@ -558,14 +549,6 @@ public class ActionModule extends AbstractModule {
             }
         }
         return result;
-    }
-
-    private static boolean isInternalPlugin(ActionPlugin plugin) {
-        final String canonicalName = plugin.getClass().getCanonicalName();
-        if (canonicalName == null) {
-            return false;
-        }
-        return canonicalName.startsWith("org.elasticsearch.xpack.") || canonicalName.startsWith("co.elastic.elasticsearch.");
     }
 
     /**

@@ -1,0 +1,5 @@
+pr: 113126
+summary: RestServerActionPlugin should be implemented and extended by external plugins
+area: rest server plugin
+type: enhancement
+issues: []

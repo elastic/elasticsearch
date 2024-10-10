@@ -238,6 +238,7 @@ public class TransportVersions {
     public static final TransportVersion FAST_REFRESH_RCO = def(8_762_00_0);
     public static final TransportVersion TEXT_SIMILARITY_RERANKER_QUERY_REWRITE = def(8_763_00_0);
     public static final TransportVersion SIMULATE_INDEX_TEMPLATES_SUBSTITUTIONS = def(8_764_00_0);
+    public static final TransportVersion RETRIEVERS_TELEMETRY_ADDED = def(8_765_00_0);
 
     /*
      * STOP! READ THIS FIRST! No, really,

@@ -11,6 +11,7 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.common.time.DateUtils;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -29,6 +30,9 @@ public class ToDateNanosTests extends AbstractScalarFunctionTestCase {
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
+        if (EsqlCapabilities.Cap.TO_DATE_NANOS.isEnabled() == false) {
+            return List.of();
+        }
         final String read = "Attribute[channel=0]";
         final List<TestCaseSupplier> suppliers = new ArrayList<>();
 

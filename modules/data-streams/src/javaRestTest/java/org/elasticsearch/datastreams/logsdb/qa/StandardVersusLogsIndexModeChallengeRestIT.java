@@ -295,8 +295,7 @@ public class StandardVersusLogsIndexModeChallengeRestIT extends AbstractChalleng
         indexDocuments(documents);
 
         final String query = "FROM $index | STATS count(*) BY host.name | SORT host.name | LIMIT " + numberOfDocuments;
-        final MatchResult matchResult = Matcher.matchSource()
-            .mappings(getContenderMappings(), getBaselineMappings())
+        final MatchResult matchResult = Matcher.mappings(getContenderMappings(), getBaselineMappings())
             .settings(getContenderSettings(), getBaselineSettings())
             .expected(getEsqlStatsResults(esqlBaseline(query)))
             .ignoringSort(true)

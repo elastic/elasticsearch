@@ -277,9 +277,8 @@ public final class GeoIpProcessor extends AbstractProcessor {
         }
 
         public static boolean downloadDatabaseOnPipelineCreation(Map<String, Object> config, String processorTag) {
-            return readBooleanProperty(GeoIpProcessor.TYPE, processorTag, config, "download_database_on_pipeline_creation", true);
+            return readBooleanProperty(TYPE, processorTag, config, "download_database_on_pipeline_creation", true);
         }
-
     }
 
     static class DatabaseUnavailableProcessor extends AbstractProcessor {

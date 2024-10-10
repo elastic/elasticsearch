@@ -168,6 +168,6 @@ public final class MockSearchPhaseContext implements SearchPhaseContext {
 
     @Override
     public SearchCoordinatorProfiler profiler() {
-        return null;
+        return getRequest().source() != null && getRequest().source().profile() ? new SearchCoordinatorProfiler("nodeId") : null;
     }
 }

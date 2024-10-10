@@ -808,7 +808,7 @@ public final class SearchPhaseController {
                 return null;
 
             }
-            return profileBuilder.build(fetchResults, profiler.build());
+            return profileBuilder.build(fetchResults, profiler != null ? profiler.build() : null);
         }
     }
 

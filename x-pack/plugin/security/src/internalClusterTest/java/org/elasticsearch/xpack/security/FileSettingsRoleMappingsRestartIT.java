@@ -125,7 +125,7 @@ public class FileSettingsRoleMappingsRestartIT extends SecurityIntegTestCase {
             roleMappings,
             containsInAnyOrder(
                 new ExpressionRoleMapping(
-                    "name_not_available_after_deserialization",
+                    "everyone_kibana_alone",
                     new FieldExpression("username", List.of(new FieldExpression.FieldValue("*"))),
                     List.of("kibana_user"),
                     List.of(),
@@ -133,7 +133,7 @@ public class FileSettingsRoleMappingsRestartIT extends SecurityIntegTestCase {
                     true
                 ),
                 new ExpressionRoleMapping(
-                    "name_not_available_after_deserialization",
+                    "everyone_fleet_alone",
                     new FieldExpression("username", List.of(new FieldExpression.FieldValue("*"))),
                     List.of("fleet_user"),
                     List.of(),

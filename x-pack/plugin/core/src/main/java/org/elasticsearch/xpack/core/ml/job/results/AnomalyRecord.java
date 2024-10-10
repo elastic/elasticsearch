@@ -283,7 +283,7 @@ public class AnomalyRecord implements ToXContentObject, Writeable {
         builder.field(BUCKET_SPAN.getPreferredName(), bucketSpan);
         builder.field(Detector.DETECTOR_INDEX.getPreferredName(), detectorIndex);
         builder.field(Result.IS_INTERIM.getPreferredName(), isInterim);
-        builder.unixEpochMillisField(
+        builder.timestampFieldsFromUnixEpochMillis(
             Result.TIMESTAMP.getPreferredName(),
             Result.TIMESTAMP.getPreferredName() + "_string",
             timestamp.getTime()

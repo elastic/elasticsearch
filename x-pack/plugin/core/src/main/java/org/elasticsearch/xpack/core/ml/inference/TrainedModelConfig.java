@@ -509,7 +509,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
         if (params.paramAsBoolean(EXCLUDE_GENERATED, false) == false) {
             builder.field(CREATED_BY.getPreferredName(), createdBy);
             builder.field(VERSION.getPreferredName(), version.toString());
-            builder.unixEpochMillisField(
+            builder.timestampFieldsFromUnixEpochMillis(
                 CREATE_TIME.getPreferredName(),
                 CREATE_TIME.getPreferredName() + "_string",
                 createTime.toEpochMilli()

@@ -260,7 +260,7 @@ public class ModelPackageConfig implements ToXContentObject, Writeable {
             builder.field(MINIMUM_VERSION.getPreferredName(), minimumVersion);
         }
         if (createTime != null) {
-            builder.unixEpochMillisField(
+            builder.timestampFieldsFromUnixEpochMillis(
                 CREATE_TIME.getPreferredName(),
                 CREATE_TIME.getPreferredName() + "_string",
                 createTime.toEpochMilli()

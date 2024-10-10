@@ -217,8 +217,8 @@ public class ScheduledEvent implements ToXContentObject, Writeable {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(DESCRIPTION.getPreferredName(), description);
-        builder.unixEpochMillisField(START_TIME.getPreferredName(), START_TIME.getPreferredName() + "_string", startTime.toEpochMilli());
-        builder.unixEpochMillisField(END_TIME.getPreferredName(), END_TIME.getPreferredName() + "_string", endTime.toEpochMilli());
+        builder.timestampFieldsFromUnixEpochMillis(START_TIME.getPreferredName(), START_TIME.getPreferredName() + "_string", startTime.toEpochMilli());
+        builder.timestampFieldsFromUnixEpochMillis(END_TIME.getPreferredName(), END_TIME.getPreferredName() + "_string", endTime.toEpochMilli());
         builder.field(SKIP_RESULT.getPreferredName(), skipResult);
         builder.field(SKIP_MODEL_UPDATE.getPreferredName(), skipModelUpdate);
         if (forceTimeShift != null) {

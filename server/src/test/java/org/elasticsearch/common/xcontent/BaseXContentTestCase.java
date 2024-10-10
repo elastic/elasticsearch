@@ -407,11 +407,11 @@ public abstract class BaseXContentTestCase extends ESTestCase {
 
         assertResult(
             "{'date_in_millis':1451606400000}",
-            () -> builder().startObject().unixEpochMillisField("date_in_millis", "date", d.getTime()).endObject()
+            () -> builder().startObject().timestampFieldsFromUnixEpochMillis("date_in_millis", "date", d.getTime()).endObject()
         );
         assertResult(
             "{'date':'2016-01-01T00:00:00.000Z','date_in_millis':1451606400000}",
-            () -> builder().humanReadable(true).startObject().unixEpochMillisField("date_in_millis", "date", d.getTime()).endObject()
+            () -> builder().humanReadable(true).startObject().timestampFieldsFromUnixEpochMillis("date_in_millis", "date", d.getTime()).endObject()
         );
     }
 

@@ -613,13 +613,13 @@ public class Job implements SimpleDiffable<Job>, Writeable, ToXContentObject {
             if (jobVersion != null) {
                 builder.field(JOB_VERSION.getPreferredName(), jobVersion);
             }
-            builder.unixEpochMillisField(
+            builder.timestampFieldsFromUnixEpochMillis(
                 CREATE_TIME.getPreferredName(),
                 CREATE_TIME.getPreferredName() + humanReadableSuffix,
                 createTime.getTime()
             );
             if (finishedTime != null) {
-                builder.unixEpochMillisField(
+                builder.timestampFieldsFromUnixEpochMillis(
                     FINISHED_TIME.getPreferredName(),
                     FINISHED_TIME.getPreferredName() + humanReadableSuffix,
                     finishedTime.getTime()

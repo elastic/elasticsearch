@@ -106,9 +106,9 @@ public class SnapshotInvocationRecord implements SimpleDiffable<SnapshotInvocati
         {
             builder.field(SNAPSHOT_NAME.getPreferredName(), snapshotName);
             if (snapshotStartTimestamp != null) {
-                builder.unixEpochMillisField(START_TIMESTAMP.getPreferredName(), "start_time_string", snapshotStartTimestamp);
+                builder.timestampFieldsFromUnixEpochMillis(START_TIMESTAMP.getPreferredName(), "start_time_string", snapshotStartTimestamp);
             }
-            builder.unixEpochMillisField(TIMESTAMP.getPreferredName(), "time_string", snapshotFinishTimestamp);
+            builder.timestampFieldsFromUnixEpochMillis(TIMESTAMP.getPreferredName(), "time_string", snapshotFinishTimestamp);
             if (Objects.nonNull(details)) {
                 builder.field(DETAILS.getPreferredName(), details);
             }

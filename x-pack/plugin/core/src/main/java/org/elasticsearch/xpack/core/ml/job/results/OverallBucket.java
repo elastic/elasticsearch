@@ -71,7 +71,7 @@ public class OverallBucket implements ToXContentObject, Writeable {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.unixEpochMillisField(
+        builder.timestampFieldsFromUnixEpochMillis(
             Result.TIMESTAMP.getPreferredName(),
             Result.TIMESTAMP.getPreferredName() + "_string",
             timestamp.getTime()

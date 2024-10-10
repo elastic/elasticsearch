@@ -217,10 +217,10 @@ public class TransformCheckpointingInfo implements Writeable, ToXContentObject {
             builder.field(OPERATIONS_BEHIND, operationsBehind);
         }
         if (changesLastDetectedAt != null) {
-            builder.unixEpochMillisField(CHANGES_LAST_DETECTED_AT, CHANGES_LAST_DETECTED_AT_HUMAN, changesLastDetectedAt.toEpochMilli());
+            builder.timestampFieldsFromUnixEpochMillis(CHANGES_LAST_DETECTED_AT, CHANGES_LAST_DETECTED_AT_HUMAN, changesLastDetectedAt.toEpochMilli());
         }
         if (lastSearchTime != null) {
-            builder.unixEpochMillisField(LAST_SEARCH_TIME, LAST_SEARCH_TIME_HUMAN, lastSearchTime.toEpochMilli());
+            builder.timestampFieldsFromUnixEpochMillis(LAST_SEARCH_TIME, LAST_SEARCH_TIME_HUMAN, lastSearchTime.toEpochMilli());
         }
         builder.endObject();
         return builder;

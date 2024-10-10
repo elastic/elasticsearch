@@ -62,9 +62,9 @@ public record DriverSleeps(Map<String, Long> counts, List<Sleep> first, List<Sle
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             builder.field("reason", reason);
-            builder.unixEpochMillisField("sleep_millis", "sleep", sleep);
+            builder.timestampFieldsFromUnixEpochMillis("sleep_millis", "sleep", sleep);
             if (wake > 0) {
-                builder.unixEpochMillisField("wake_millis", "wake", wake);
+                builder.timestampFieldsFromUnixEpochMillis("wake_millis", "wake", wake);
             }
             return builder.endObject();
         }

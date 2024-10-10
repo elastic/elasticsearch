@@ -821,28 +821,30 @@ public final class XContentBuilder implements Closeable, Flushable {
     /**
      * Writes a field containing a formatted representation of this value using the UNIX_EPOCH_MILLIS_FORMATTER.
      */
-    public XContentBuilder unixEpochMillisField(String name, long unixEpochMillis) throws IOException {
+    public XContentBuilder formattedTimestampFieldFromUnixEpochMillis(String name, long unixEpochMillis) throws IOException {
         return field(name, UNIX_EPOCH_MILLIS_FORMATTER.apply(unixEpochMillis));
     }
 
     /**
-     * @deprecated use {@link #unixEpochMillisField} instead.
+     * @deprecated use {@link #formattedTimestampFieldFromUnixEpochMillis} instead.
      */
     @Deprecated(forRemoval = true)
     public XContentBuilder timeField(String name, String readableName, long unixEpochMillis) throws IOException {
-        return unixEpochMillisField(name, readableName, unixEpochMillis);
+        return timestampFieldsFromUnixEpochMillis(name, readableName, unixEpochMillis);
     }
 
     /**
      * Writes a field containing the raw number of milliseconds since the unix epoch, and also if the {@code humanReadable} flag is set,
      * writes a formatted representation of this value using the UNIX_EPOCH_MILLIS_FORMATTER.
      */
-    public XContentBuilder unixEpochMillisField(String name, String readableName, long unixEpochMillis) throws IOException {
-        assert name.equals(readableName) == false : "expected raw and readable field names to differ, but they were both: " + name;
+    public XContentBuilder timestampFieldsFromUnixEpochMillis(String rawFieldName, String humanReadableFieldName, long unixEpochMillis)
+        throws IOException {
+        assert rawFieldName.equals(humanReadableFieldName) == false
+            : "expected raw and readable field names to differ, but they were both: " + rawFieldName;
         if (humanReadable) {
-            field(readableName, UNIX_EPOCH_MILLIS_FORMATTER.apply(unixEpochMillis));
+            field(humanReadableFieldName, UNIX_EPOCH_MILLIS_FORMATTER.apply(unixEpochMillis));
         }
-        field(name, unixEpochMillis);
+        field(rawFieldName, unixEpochMillis);
         return this;
     }
 

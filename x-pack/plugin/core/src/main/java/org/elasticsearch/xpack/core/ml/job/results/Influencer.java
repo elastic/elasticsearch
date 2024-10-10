@@ -132,7 +132,7 @@ public class Influencer implements ToXContentObject, Writeable {
         builder.field(PROBABILITY.getPreferredName(), probability);
         builder.field(BUCKET_SPAN.getPreferredName(), bucketSpan);
         builder.field(Result.IS_INTERIM.getPreferredName(), isInterim);
-        builder.unixEpochMillisField(
+        builder.timestampFieldsFromUnixEpochMillis(
             Result.TIMESTAMP.getPreferredName(),
             Result.TIMESTAMP.getPreferredName() + "_string",
             timestamp.getTime()

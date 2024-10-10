@@ -332,11 +332,11 @@ public class Annotation implements ToXContentObject, Writeable {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(ANNOTATION.getPreferredName(), annotation);
-        builder.unixEpochMillisField(CREATE_TIME.getPreferredName(), CREATE_TIME.getPreferredName() + "_string", createTime.getTime());
+        builder.timestampFieldsFromUnixEpochMillis(CREATE_TIME.getPreferredName(), CREATE_TIME.getPreferredName() + "_string", createTime.getTime());
         builder.field(CREATE_USERNAME.getPreferredName(), createUsername);
-        builder.unixEpochMillisField(TIMESTAMP.getPreferredName(), TIMESTAMP.getPreferredName() + "_string", timestamp.getTime());
+        builder.timestampFieldsFromUnixEpochMillis(TIMESTAMP.getPreferredName(), TIMESTAMP.getPreferredName() + "_string", timestamp.getTime());
         if (endTimestamp != null) {
-            builder.unixEpochMillisField(
+            builder.timestampFieldsFromUnixEpochMillis(
                 END_TIMESTAMP.getPreferredName(),
                 END_TIMESTAMP.getPreferredName() + "_string",
                 endTimestamp.getTime()
@@ -346,7 +346,7 @@ public class Annotation implements ToXContentObject, Writeable {
             builder.field(Job.ID.getPreferredName(), jobId);
         }
         if (modifiedTime != null) {
-            builder.unixEpochMillisField(
+            builder.timestampFieldsFromUnixEpochMillis(
                 MODIFIED_TIME.getPreferredName(),
                 MODIFIED_TIME.getPreferredName() + "_string",
                 modifiedTime.getTime()

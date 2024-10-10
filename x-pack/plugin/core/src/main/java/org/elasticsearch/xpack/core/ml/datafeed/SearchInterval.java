@@ -30,8 +30,8 @@ public record SearchInterval(long startMs, long endMs) implements ToXContentObje
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.unixEpochMillisField(START_MS.getPreferredName(), START.getPreferredName(), startMs);
-        builder.unixEpochMillisField(END_MS.getPreferredName(), END.getPreferredName(), endMs);
+        builder.timestampFieldsFromUnixEpochMillis(START_MS.getPreferredName(), START.getPreferredName(), startMs);
+        builder.timestampFieldsFromUnixEpochMillis(END_MS.getPreferredName(), END.getPreferredName(), endMs);
         builder.endObject();
         return builder;
     }

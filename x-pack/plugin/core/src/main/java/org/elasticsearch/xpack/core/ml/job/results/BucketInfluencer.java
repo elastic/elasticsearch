@@ -132,7 +132,7 @@ public class BucketInfluencer implements ToXContentObject, Writeable {
         builder.field(ANOMALY_SCORE.getPreferredName(), anomalyScore);
         builder.field(RAW_ANOMALY_SCORE.getPreferredName(), rawAnomalyScore);
         builder.field(PROBABILITY.getPreferredName(), probability);
-        builder.unixEpochMillisField(
+        builder.timestampFieldsFromUnixEpochMillis(
             Result.TIMESTAMP.getPreferredName(),
             Result.TIMESTAMP.getPreferredName() + "_string",
             timestamp.getTime()

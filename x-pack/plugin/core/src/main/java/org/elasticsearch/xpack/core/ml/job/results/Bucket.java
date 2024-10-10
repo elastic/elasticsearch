@@ -173,7 +173,7 @@ public class Bucket implements ToXContentObject, Writeable {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(JOB_ID.getPreferredName(), jobId);
-        builder.unixEpochMillisField(
+        builder.timestampFieldsFromUnixEpochMillis(
             Result.TIMESTAMP.getPreferredName(),
             Result.TIMESTAMP.getPreferredName() + "_string",
             timestamp.getTime()

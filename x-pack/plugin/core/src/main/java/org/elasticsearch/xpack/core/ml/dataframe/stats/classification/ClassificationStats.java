@@ -131,7 +131,7 @@ public class ClassificationStats implements AnalysisStats {
             builder.field(Fields.TYPE.getPreferredName(), TYPE_VALUE);
             builder.field(Fields.JOB_ID.getPreferredName(), jobId);
         }
-        builder.unixEpochMillisField(
+        builder.timestampFieldsFromUnixEpochMillis(
             Fields.TIMESTAMP.getPreferredName(),
             Fields.TIMESTAMP.getPreferredName() + "_string",
             timestamp.toEpochMilli()

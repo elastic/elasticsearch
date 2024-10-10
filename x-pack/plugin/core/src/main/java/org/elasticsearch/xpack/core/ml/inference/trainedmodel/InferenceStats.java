@@ -162,7 +162,7 @@ public class InferenceStats implements ToXContentObject, Writeable {
         builder.field(INFERENCE_COUNT.getPreferredName(), inferenceCount);
         builder.field(CACHE_MISS_COUNT.getPreferredName(), cacheMissCount);
         builder.field(MISSING_ALL_FIELDS_COUNT.getPreferredName(), missingAllFieldsCount);
-        builder.unixEpochMillisField(TIMESTAMP.getPreferredName(), TIMESTAMP.getPreferredName() + "_string", timeStamp.toEpochMilli());
+        builder.timestampFieldsFromUnixEpochMillis(TIMESTAMP.getPreferredName(), TIMESTAMP.getPreferredName() + "_string", timeStamp.toEpochMilli());
         builder.endObject();
         return builder;
     }

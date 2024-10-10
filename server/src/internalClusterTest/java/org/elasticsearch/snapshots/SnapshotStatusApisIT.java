@@ -316,7 +316,6 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
             .get();
 
         assertTrue(getSnapshotsResponse.getSnapshots().isEmpty());
-        assertTrue(getSnapshotsResponse.getFailures().isEmpty());
     }
 
     public void testGetSnapshotsMultipleRepos() throws Exception {

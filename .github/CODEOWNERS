@@ -66,6 +66,7 @@ server/src/main/java/org/elasticsearch/bootstrap @elastic/es-core-infra
 server/src/main/java/org/elasticsearch/node @elastic/es-core-infra
 server/src/main/java/org/elasticsearch/plugins @elastic/es-core-infra
 server/src/main/java/org/elasticsearch/threadpool @elastic/es-core-infra
+server/src/main/java/org/elasticsearch/common @elastic/es-core-infra
 
 # Security
 x-pack/plugin/core/src/main/java/org/elasticsearch/xpack/core/security/authz/privilege @elastic/es-security

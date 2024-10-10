@@ -14,6 +14,7 @@ import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.builder.SubSearchSourceBuilder;
 import org.elasticsearch.search.collapse.CollapseBuilder;
@@ -27,6 +28,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
@@ -95,6 +97,48 @@ public final class StandardRetrieverBuilder extends RetrieverBuilder implements 
 
     public StandardRetrieverBuilder(QueryBuilder queryBuilder) {
         this.queryBuilder = queryBuilder;
+    }
+
+    private StandardRetrieverBuilder(StandardRetrieverBuilder clone) {
+        this.retrieverName = clone.retrieverName;
+        this.queryBuilder = clone.queryBuilder;
+        this.minScore = clone.minScore;
+        this.sortBuilders = clone.sortBuilders;
+        this.preFilterQueryBuilders = clone.preFilterQueryBuilders;
+        this.collapseBuilder = clone.collapseBuilder;
+        this.searchAfterBuilder = clone.searchAfterBuilder;
+        this.terminateAfter = clone.terminateAfter;
+    }
+
+    @Override
+    public RetrieverBuilder rewrite(QueryRewriteContext ctx) throws IOException {
+        boolean changed = false;
+        List<SortBuilder<?>> newSortBuilders = null;
+        if (sortBuilders != null) {
+            newSortBuilders = new ArrayList<>(sortBuilders.size());
+            for (var sort : sortBuilders) {
+                var newSort = sort.rewrite(ctx);
+                newSortBuilders.add(newSort);
+                changed = newSort != sort;
+            }
+        }
+        var rewrittenFilters = rewritePreFilters(ctx);
+        changed |= rewrittenFilters != preFilterQueryBuilders;
+
+        QueryBuilder queryBuilderRewrite = null;
+        if (queryBuilder != null) {
+            queryBuilderRewrite = queryBuilder.rewrite(ctx);
+            changed |= queryBuilderRewrite != queryBuilder;
+        }
+
+        if (changed) {
+            var rewritten = new StandardRetrieverBuilder(this);
+            rewritten.sortBuilders = newSortBuilders;
+            rewritten.preFilterQueryBuilders = preFilterQueryBuilders;
+            rewritten.queryBuilder = queryBuilderRewrite;
+            return rewritten;
+        }
+        return this;
     }
 
     @Override

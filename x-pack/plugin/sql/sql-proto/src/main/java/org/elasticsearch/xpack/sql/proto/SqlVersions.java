@@ -192,7 +192,7 @@ public final class SqlVersions {
         final List<SqlVersion> versions = new ArrayList<>(fields.length);
         for (final Field field : fields) {
             final int mod = field.getModifiers();
-            if (false == Modifier.isStatic(mod) && Modifier.isFinal(mod) && Modifier.isPublic(mod)) {
+            if (false == (Modifier.isStatic(mod) && Modifier.isFinal(mod) && Modifier.isPublic(mod))) {
                 continue;
             }
             if (field.getType() != SqlVersion.class) {

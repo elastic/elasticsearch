@@ -19,6 +19,7 @@ import java.io.IOException;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.sql.proto.VersionCompatibility.INTRODUCING_VERSION_COMPATIBILITY;
 
@@ -55,11 +56,10 @@ public class VersionParityTests extends WebServerTestCase {
 
     public void testNoExceptionThrownForCompatibleVersions() throws IOException {
         String url = JdbcConfiguration.URL_PREFIX + webServerAddress();
-        List<SqlVersion> afterVersionCompatibility = new ArrayList<>(SqlVersions.getAllVersions().size());
-        SqlVersions.getAllVersions()
+        List<SqlVersion> afterVersionCompatibility = SqlVersions.getAllVersions()
             .stream()
             .filter(v -> v.onOrAfter(INTRODUCING_VERSION_COMPATIBILITY))
-            .forEach(afterVersionCompatibility::add);
+            .collect(Collectors.toCollection(ArrayList::new));
         afterVersionCompatibility.add(VersionTests.current());
         for (var version : afterVersionCompatibility) {
             try {

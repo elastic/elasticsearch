@@ -18,6 +18,7 @@ import org.elasticsearch.inference.SecretSettings;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
@@ -106,5 +107,10 @@ public class AmazonBedrockSecretSettings implements SecretSettings {
     @Override
     public int hashCode() {
         return Objects.hash(accessKey, secretKey);
+    }
+
+    @Override
+    public SecretSettings newSecretSettings(Map<String, Object> newSecrets) {
+        return fromMap(new HashMap<>(newSecrets));
     }
 }

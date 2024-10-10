@@ -19,6 +19,7 @@ import org.elasticsearch.inference.SecretSettings;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
@@ -124,5 +125,10 @@ public class AzureOpenAiSecretSettings implements SecretSettings {
     @Override
     public int hashCode() {
         return Objects.hash(entraId, apiKey);
+    }
+
+    @Override
+    public SecretSettings newSecretSettings(Map<String, Object> newSecrets) {
+        return AzureOpenAiSecretSettings.fromMap(new HashMap<>(newSecrets));
     }
 }

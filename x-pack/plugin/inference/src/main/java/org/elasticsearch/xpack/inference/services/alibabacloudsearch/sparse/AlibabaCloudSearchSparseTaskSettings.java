@@ -21,6 +21,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
@@ -187,5 +188,11 @@ public class AlibabaCloudSearchSparseTaskSettings implements TaskSettings {
 
     public static String invalidInputTypeMessage(InputType inputType) {
         return Strings.format("received invalid input type value [%s]", inputType.toString());
+    }
+
+    @Override
+    public TaskSettings updatedTaskSettings(Map<String, Object> newSettings) {
+        AlibabaCloudSearchSparseTaskSettings updatedSettings = fromMap(new HashMap<>(newSettings));
+        return of(this, updatedSettings, updatedSettings.getInputType() != null ? updatedSettings.getInputType() : this.inputType);
     }
 }

@@ -1,0 +1,6 @@
+pr: 114457
+summary: "[Inference API] Introduce Update API to change some aspects of existing\
+  \ inference endpoints"
+area: Machine Learning
+type: enhancement
+issues: []

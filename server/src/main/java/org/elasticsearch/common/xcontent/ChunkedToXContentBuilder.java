@@ -248,7 +248,7 @@ public class ChunkedToXContentBuilder implements Iterator<ToXContent> {
         addChunk((b, p) -> b.endArray());
     }
 
-    public ChunkedToXContentBuilder array(String name, String... values) {
+    public ChunkedToXContentBuilder array(String name, String[] values) {
         addChunk((b, p) -> b.array(name, values));
         return this;
     }
@@ -346,6 +346,26 @@ public class ChunkedToXContentBuilder implements Iterator<ToXContent> {
     }
 
     public ChunkedToXContentBuilder field(String name, Long value) {
+        addChunk((b, p) -> b.field(name, value));
+        return this;
+    }
+
+    public ChunkedToXContentBuilder field(String name, float value) {
+        addChunk((b, p) -> b.field(name, value));
+        return this;
+    }
+
+    public ChunkedToXContentBuilder field(String name, Float value) {
+        addChunk((b, p) -> b.field(name, value));
+        return this;
+    }
+
+    public ChunkedToXContentBuilder field(String name, double value) {
+        addChunk((b, p) -> b.field(name, value));
+        return this;
+    }
+
+    public ChunkedToXContentBuilder field(String name, Double value) {
         addChunk((b, p) -> b.field(name, value));
         return this;
     }

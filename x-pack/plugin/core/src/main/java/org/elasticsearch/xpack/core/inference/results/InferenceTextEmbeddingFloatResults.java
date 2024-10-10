@@ -14,7 +14,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
+import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.TaskType;
@@ -103,7 +103,7 @@ public record InferenceTextEmbeddingFloatResults(List<InferenceFloatEmbedding> e
 
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
-        return ChunkedToXContentHelper.array(TEXT_EMBEDDING, embeddings.iterator());
+        return ChunkedToXContent.builder(params).array(TEXT_EMBEDDING, embeddings.iterator());
     }
 
     @Override

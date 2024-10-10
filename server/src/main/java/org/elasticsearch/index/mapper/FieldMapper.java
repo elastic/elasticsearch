@@ -334,12 +334,17 @@ public abstract class FieldMapper extends Mapper {
             }
 
             final String sourceScope = mappers.nestedLookup().getNestedParent(this.fullPath());
+            ObjectMapper.Dynamic dynamic = mappers.getMapping().getRoot().dynamic;
+            boolean needsFieldVerification = dynamic != null && dynamic.equals(ObjectMapper.Dynamic.FALSE);
             for (String copyTo : this.copyTo().copyToFields()) {
                 if (mappers.isMultiField(copyTo)) {
                     throw new IllegalArgumentException("[copy_to] may not be used to copy to a multi-field: [" + copyTo + "]");
                 }
                 if (mappers.isObjectField(copyTo)) {
                     throw new IllegalArgumentException("Cannot copy to field [" + copyTo + "] since it is mapped as an object");
+                }
+                if (needsFieldVerification && mappers.getMapper(copyTo) == null){
+                    throw new IllegalArgumentException("Cannot copy to field [" + copyTo + "] since it is a non existent field");
                 }
 
                 final String targetScope = mappers.nestedLookup().getNestedParent(copyTo);

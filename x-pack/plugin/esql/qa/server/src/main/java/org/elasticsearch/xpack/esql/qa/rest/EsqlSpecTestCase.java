@@ -66,6 +66,8 @@ import static org.elasticsearch.xpack.esql.CsvTestUtils.ExpectedResults;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.isEnabled;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.loadCsvSpecValues;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.CSV_DATASET_MAP;
+import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.clusterHasInferenceEndpoint;
+import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.createInferenceEndpoint;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.loadDataSetIntoEs;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.classpathResources;
 
@@ -129,6 +131,10 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
 
     @Before
     public void setup() throws IOException {
+        if (supportsInferenceTestService() && clusterHasInferenceEndpoint(client()) == false) {
+            createInferenceEndpoint(client());
+        }
+
         if (indexExists(CSV_DATASET_MAP.keySet().iterator().next()) == false) {
             loadDataSetIntoEs(client());
         }
@@ -164,6 +170,9 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
     }
 
     protected void shouldSkipTest(String testName) throws IOException {
+        if (testCase.requiredCapabilities.contains("semantic_text_type")) {
+            assumeTrue("Inference test service needs to be supported for semantic_text", supportsInferenceTestService());
+        }
         checkCapabilities(adminClient(), testFeatureService, testName, testCase);
         assumeTrue("Test " + testName + " is not enabled", isEnabled(testName, instructions, Version.CURRENT));
     }
@@ -173,6 +182,7 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         if (testCase.requiredCapabilities.isEmpty()) {
             return;
         }
+
         try {
             if (clusterHasCapability(client, "POST", "/_query", List.of(), testCase.requiredCapabilities).orElse(false)) {
                 return;
@@ -205,6 +215,10 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
             assumeTrue("Requested capability " + feature + " is an ESQL cluster feature", features.contains(esqlFeature));
             assumeTrue("Test " + testName + " requires " + feature, testFeatureService.clusterHasFeature(esqlFeature));
         }
+    }
+
+    protected boolean supportsInferenceTestService() {
+        return true;
     }
 
     protected final void doTest() throws Throwable {

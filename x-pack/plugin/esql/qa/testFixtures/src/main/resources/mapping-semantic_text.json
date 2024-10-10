@@ -1,0 +1,8 @@
+{
+  "properties": {
+    "semantic_text_field": {
+      "type": "semantic_text",
+      "inference_id": "test_sparse_inference"
+    }
+  }
+}

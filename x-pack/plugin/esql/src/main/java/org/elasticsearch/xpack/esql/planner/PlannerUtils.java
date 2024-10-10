@@ -247,7 +247,7 @@ public class PlannerUtils {
             case INTEGER, COUNTER_INTEGER -> ElementType.INT;
             case DOUBLE, COUNTER_DOUBLE -> ElementType.DOUBLE;
             // unsupported fields are passed through as a BytesRef
-            case KEYWORD, TEXT, IP, SOURCE, VERSION, UNSUPPORTED -> ElementType.BYTES_REF;
+            case KEYWORD, TEXT, IP, SOURCE, VERSION, SEMANTIC_TEXT, UNSUPPORTED -> ElementType.BYTES_REF;
             case NULL -> ElementType.NULL;
             case BOOLEAN -> ElementType.BOOLEAN;
             case DOC_DATA_TYPE -> ElementType.DOC;

@@ -28,19 +28,23 @@ public class AnthropicChatCompletionRequestEntity implements ToXContentObject {
     private static final String TEMPERATURE_FIELD = "temperature";
     private static final String TOP_P_FIELD = "top_p";
     private static final String TOP_K_FIELD = "top_k";
+    private static final String STREAM = "stream";
 
     private final List<String> messages;
     private final AnthropicChatCompletionServiceSettings serviceSettings;
     private final AnthropicChatCompletionTaskSettings taskSettings;
+    private final boolean stream;
 
     public AnthropicChatCompletionRequestEntity(
         List<String> messages,
         AnthropicChatCompletionServiceSettings serviceSettings,
-        AnthropicChatCompletionTaskSettings taskSettings
+        AnthropicChatCompletionTaskSettings taskSettings,
+        boolean stream
     ) {
         this.messages = Objects.requireNonNull(messages);
         this.serviceSettings = Objects.requireNonNull(serviceSettings);
         this.taskSettings = Objects.requireNonNull(taskSettings);
+        this.stream = stream;
     }
 
     @Override
@@ -75,6 +79,10 @@ public class AnthropicChatCompletionRequestEntity implements ToXContentObject {
 
         if (taskSettings.topK() != null) {
             builder.field(TOP_K_FIELD, taskSettings.topK());
+        }
+
+        if (stream) {
+            builder.field(STREAM, true);
         }
 
         builder.endObject();

@@ -297,8 +297,8 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
             return false;
         }
 
-        if (processor.containsKey(GEOIP_TYPE)) {
-            Map<String, Object> processorConfig = (Map<String, Object>) processor.get(GEOIP_TYPE);
+        final Map<String, Object> processorConfig = (Map<String, Object>) processor.get(GEOIP_TYPE);
+        if (processorConfig != null) {
             return downloadDatabaseOnPipelineCreation(GEOIP_TYPE, processorConfig, null) == downloadDatabaseOnPipelineCreation;
         }
 
@@ -337,11 +337,9 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
      */
     @SuppressWarnings("unchecked")
     private static boolean isForeachProcessorWithGeoipProcessor(Map<String, Object> processor, boolean downloadDatabaseOnPipelineCreation) {
-        return processor.containsKey("foreach")
-            && hasAtLeastOneGeoipProcessor(
-                ((Map<String, Map<String, Object>>) processor.get("foreach")).get("processor"),
-                downloadDatabaseOnPipelineCreation
-            );
+        final Map<String, Object> processorConfig = (Map<String, Object>) processor.get("foreach");
+        return processorConfig != null
+            && hasAtLeastOneGeoipProcessor((Map<String, Object>) processorConfig.get("processor"), downloadDatabaseOnPipelineCreation);
     }
 
     private void startTask(Runnable onFailure) {

@@ -13,18 +13,14 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
-import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.function.Function;
-import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -103,7 +99,8 @@ public class TDigestStateReleasingTests extends ESTestCase {
     /**
      * Tests that a circuit breaker trip leaves no unreleased memory.
      */
-    public <E extends Exception> void testCircuitBreakerTrip(CheckedFunction<CircuitBreaker, TDigestState, E> tDigestStateFactory) throws E {
+    public <E extends Exception> void testCircuitBreakerTrip(CheckedFunction<CircuitBreaker, TDigestState, E> tDigestStateFactory)
+        throws E {
         for (int bytes = randomIntBetween(0, 16); bytes < 50_000; bytes += 17) {
             CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofBytes(bytes));
 

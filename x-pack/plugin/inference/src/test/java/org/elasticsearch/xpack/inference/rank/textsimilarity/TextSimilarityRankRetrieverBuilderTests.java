@@ -117,7 +117,10 @@ public class TextSimilarityRankRetrieverBuilderTests extends AbstractXContentTes
             }""";
 
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, json)) {
-            TextSimilarityRankRetrieverBuilder parsed = TextSimilarityRankRetrieverBuilder.PARSER.parse(parser, null);
+            TextSimilarityRankRetrieverBuilder parsed = TextSimilarityRankRetrieverBuilder.PARSER.parse(
+                parser,
+                new RetrieverParserContext(new SearchUsage(), nf -> true)
+            );
             assertEquals(DEFAULT_RANK_WINDOW_SIZE, parsed.rankWindowSize());
         }
     }

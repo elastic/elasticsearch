@@ -23,35 +23,75 @@ import static org.hamcrest.CoreMatchers.is;
 public class AzureAiStudioChatCompletionRequestEntityTests extends ESTestCase {
 
     public void testToXContent_WhenTokenEndpoint_NoParameters() throws IOException {
-        var entity = new AzureAiStudioChatCompletionRequestEntity(List.of("abc"), AzureAiStudioEndpointType.TOKEN, null, null, null, null);
+        var entity = new AzureAiStudioChatCompletionRequestEntity(
+            List.of("abc"),
+            AzureAiStudioEndpointType.TOKEN,
+            null,
+            null,
+            null,
+            null,
+            false
+        );
         var request = getXContentAsString(entity);
         var expectedRequest = getExpectedTokenEndpointRequest(List.of("abc"), null, null, null, null);
         assertThat(request, is(expectedRequest));
     }
 
     public void testToXContent_WhenTokenEndpoint_WithTemperatureParam() throws IOException {
-        var entity = new AzureAiStudioChatCompletionRequestEntity(List.of("abc"), AzureAiStudioEndpointType.TOKEN, 1.0, null, null, null);
+        var entity = new AzureAiStudioChatCompletionRequestEntity(
+            List.of("abc"),
+            AzureAiStudioEndpointType.TOKEN,
+            1.0,
+            null,
+            null,
+            null,
+            false
+        );
         var request = getXContentAsString(entity);
         var expectedRequest = getExpectedTokenEndpointRequest(List.of("abc"), 1.0, null, null, null);
         assertThat(request, is(expectedRequest));
     }
 
     public void testToXContent_WhenTokenEndpoint_WithTopPParam() throws IOException {
-        var entity = new AzureAiStudioChatCompletionRequestEntity(List.of("abc"), AzureAiStudioEndpointType.TOKEN, null, 2.0, null, null);
+        var entity = new AzureAiStudioChatCompletionRequestEntity(
+            List.of("abc"),
+            AzureAiStudioEndpointType.TOKEN,
+            null,
+            2.0,
+            null,
+            null,
+            false
+        );
         var request = getXContentAsString(entity);
         var expectedRequest = getExpectedTokenEndpointRequest(List.of("abc"), null, 2.0, null, null);
         assertThat(request, is(expectedRequest));
     }
 
     public void testToXContent_WhenTokenEndpoint_WithDoSampleParam() throws IOException {
-        var entity = new AzureAiStudioChatCompletionRequestEntity(List.of("abc"), AzureAiStudioEndpointType.TOKEN, null, null, true, null);
+        var entity = new AzureAiStudioChatCompletionRequestEntity(
+            List.of("abc"),
+            AzureAiStudioEndpointType.TOKEN,
+            null,
+            null,
+            true,
+            null,
+            false
+        );
         var request = getXContentAsString(entity);
         var expectedRequest = getExpectedTokenEndpointRequest(List.of("abc"), null, null, true, null);
         assertThat(request, is(expectedRequest));
     }
 
     public void testToXContent_WhenTokenEndpoint_WithMaxNewTokensParam() throws IOException {
-        var entity = new AzureAiStudioChatCompletionRequestEntity(List.of("abc"), AzureAiStudioEndpointType.TOKEN, null, null, null, 512);
+        var entity = new AzureAiStudioChatCompletionRequestEntity(
+            List.of("abc"),
+            AzureAiStudioEndpointType.TOKEN,
+            null,
+            null,
+            null,
+            512,
+            false
+        );
         var request = getXContentAsString(entity);
         var expectedRequest = getExpectedTokenEndpointRequest(List.of("abc"), null, null, null, 512);
         assertThat(request, is(expectedRequest));
@@ -64,7 +104,8 @@ public class AzureAiStudioChatCompletionRequestEntityTests extends ESTestCase {
             null,
             null,
             null,
-            null
+            null,
+            false
         );
         var request = getXContentAsString(entity);
         var expectedRequest = getExpectedRealtimeEndpointRequest(List.of("abc"), null, null, null, null);
@@ -78,7 +119,8 @@ public class AzureAiStudioChatCompletionRequestEntityTests extends ESTestCase {
             1.0,
             null,
             null,
-            null
+            null,
+            false
         );
         var request = getXContentAsString(entity);
         var expectedRequest = getExpectedRealtimeEndpointRequest(List.of("abc"), 1.0, null, null, null);
@@ -92,7 +134,8 @@ public class AzureAiStudioChatCompletionRequestEntityTests extends ESTestCase {
             null,
             2.0,
             null,
-            null
+            null,
+            false
         );
         var request = getXContentAsString(entity);
         var expectedRequest = getExpectedRealtimeEndpointRequest(List.of("abc"), null, 2.0, null, null);
@@ -106,7 +149,8 @@ public class AzureAiStudioChatCompletionRequestEntityTests extends ESTestCase {
             null,
             null,
             true,
-            null
+            null,
+            false
         );
         var request = getXContentAsString(entity);
         var expectedRequest = getExpectedRealtimeEndpointRequest(List.of("abc"), null, null, true, null);
@@ -120,7 +164,8 @@ public class AzureAiStudioChatCompletionRequestEntityTests extends ESTestCase {
             null,
             null,
             null,
-            512
+            512,
+            false
         );
         var request = getXContentAsString(entity);
         var expectedRequest = getExpectedRealtimeEndpointRequest(List.of("abc"), null, null, null, 512);

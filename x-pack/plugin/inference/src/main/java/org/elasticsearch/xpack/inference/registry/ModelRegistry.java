@@ -334,7 +334,7 @@ public class ModelRegistry {
         }
 
         SubscribableListener.<BulkResponse>newForked((subListener) -> {
-
+            // in this block, we try to update the stored model configurations
             IndexRequest configRequest = createIndexRequest(
                 Model.documentId(inferenceEntityId),
                 InferenceIndex.INDEX_NAME,
@@ -342,14 +342,23 @@ public class ModelRegistry {
                 true
             );
 
-            client.prepareBulk().add(configRequest).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).execute(subListener);
+            ActionListener<BulkResponse> storeConfigListener = subListener.delegateResponse((l, e) -> {
+                // this block will only be called if the bulk unexpectedly throws an exception
+                preventDeletionLock.remove(inferenceEntityId);
+                l.onFailure(e);
+            });
+
+            client.prepareBulk().add(configRequest).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).execute(storeConfigListener);
 
         }).<BulkResponse>andThen((subListener, configResponse) -> {
-
+            // in this block, we respond to the success or failure of updating the model configurations, then try to store the new secrets
             if (configResponse.hasFailures()) {
+                // if storing the model configurations failed, it won't throw an exception, we need to check the BulkResponse and handle the
+                // exceptions ourselves.
                 logger.error(
                     format("Failed to update inference endpoint [%s] due to [%s]", inferenceEntityId, configResponse.buildFailureMessage())
                 );
+                // Since none of our updates succeeded at this point, we can simply return.
                 finalListener.onFailure(
                     new ElasticsearchStatusException(
                         format("Failed to update inference endpoint [%s] due to [%s]", inferenceEntityId),
@@ -358,6 +367,7 @@ public class ModelRegistry {
                     )
                 );
             } else {
+                // Since the model configurations were successfully updated, we can now try to store the new secrets
                 IndexRequest secretsRequest = createIndexRequest(
                     Model.documentId(newModel.getConfigurations().getInferenceEntityId()),
                     InferenceSecretsIndex.INDEX_NAME,
@@ -365,48 +375,69 @@ public class ModelRegistry {
                     true
                 );
 
-                client.prepareBulk().add(secretsRequest).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).execute(subListener);
+                ActionListener<BulkResponse> storeSecretsListener = subListener.delegateResponse((l, e) -> {
+                    // this block will only be called if the bulk unexpectedly throws an exception
+                    preventDeletionLock.remove(inferenceEntityId);
+                    l.onFailure(e);
+                });
+
+                client.prepareBulk()
+                    .add(secretsRequest)
+                    .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+                    .execute(storeSecretsListener);
             }
         }).<BulkResponse>andThen((subListener, secretsResponse) -> {
+            // in this block, we respond to the success or failure of updating the model secrets
             if (secretsResponse.hasFailures()) {
+                // since storing the secrets failed, we will try to restore / roll-back-to the previous model configurations
                 IndexRequest configRequest = createIndexRequest(
                     Model.documentId(inferenceEntityId),
                     InferenceIndex.INDEX_NAME,
                     existingModel.getConfigurations(),
                     true
                 );
-
-                client.prepareBulk().add(configRequest).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).execute(subListener);
                 logger.error(
-                    format("Failed to update inference endpoint [%s] due to [%s]", inferenceEntityId, secretsResponse.buildFailureMessage())
+                    "Failed to update inference endpoint secrets [{}], attempting rolling back to previous state",
+                    inferenceEntityId
                 );
-                subListener.onFailure(
-                    new ElasticsearchStatusException(
-                        format("Failed to update inference endpoint [%s] due to [%s]", inferenceEntityId),
-                        RestStatus.INTERNAL_SERVER_ERROR,
-                        secretsResponse.buildFailureMessage()
-                    )
-                );
+
+                ActionListener<BulkResponse> rollbackConfigListener = subListener.delegateResponse((l, e) -> {
+                    // this block will only be called if the bulk unexpectedly throws an exception
+                    preventDeletionLock.remove(inferenceEntityId);
+                    l.onFailure(e);
+                });
+                client.prepareBulk()
+                    .add(configRequest)
+                    .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+                    .execute(rollbackConfigListener);
             } else {
+                // since updating the secrets was successful, we can remove the lock and respond to the final listener
                 preventDeletionLock.remove(inferenceEntityId);
                 finalListener.onResponse(true);
             }
         }).<BulkResponse>andThen((subListener, configResponse) -> {
+            // this block will be called if the secrets response failed, and the rollback didn't throw an exception.
+            // The rollback still could have failed though, so we need to check for that.
             preventDeletionLock.remove(inferenceEntityId);
-            logger.error(
-                format("Failed to update inference endpoint [%s] due to [%s]", inferenceEntityId, configResponse.buildFailureMessage())
-            );
-            finalListener.onFailure(
-                new ElasticsearchStatusException(
-                    format(
-                        "Failed to rollback while handling failure to update inference endpoint [%s]. "
-                            + "Endpoint may be in an inconsistent state due to [%s]",
-                        inferenceEntityId
-                    ),
-                    RestStatus.INTERNAL_SERVER_ERROR,
-                    configResponse.buildFailureMessage()
-                )
-            );
+            if (configResponse.hasFailures()) {
+                logger.error(
+                    format("Failed to update inference endpoint [%s] due to [%s]", inferenceEntityId, configResponse.buildFailureMessage())
+                );
+                finalListener.onFailure(
+                    new ElasticsearchStatusException(
+                        format(
+                            "Failed to rollback while handling failure to update inference endpoint [%s]. "
+                                + "Endpoint may be in an inconsistent state due to [%s]",
+                            inferenceEntityId
+                        ),
+                        RestStatus.INTERNAL_SERVER_ERROR,
+                        configResponse.buildFailureMessage()
+                    )
+                );
+            } else {
+                logger.warn("Failed to update inference endpoint [{}], successfully rolled back to previous state", inferenceEntityId);
+                finalListener.onResponse(false);
+            }
         });
 
     }

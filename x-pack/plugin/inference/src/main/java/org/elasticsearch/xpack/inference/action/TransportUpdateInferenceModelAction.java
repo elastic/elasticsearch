@@ -186,8 +186,8 @@ public class TransportUpdateInferenceModelAction extends TransportMasterNodeActi
     }
 
     /**
-     * Only for non-in-cluster services. Combines the existing model with the new settings to create a new model using the
-     * SecretSettings and TaskSettings implementations for each service
+     * Combines the existing model with the new settings to create a new model using the
+     * SecretSettings and TaskSettings implementations for each service, as well as specifically handling NUM_ALLOCATIONS.
      *
      * @param existingParsedModel the Model representing a third-party service endpoint
      * @param settingsToUpdate    new settings
@@ -287,7 +287,7 @@ public class TransportUpdateInferenceModelAction extends TransportMasterNodeActi
     private void throwIfTrainedModelDoesntExist(UpdateInferenceModelAction.Request request) throws ElasticsearchStatusException {
         var assignments = TrainedModelAssignmentUtils.modelAssignments(request.getInferenceEntityId(), clusterService.state());
         if ((assignments == null || assignments.isEmpty())) {
-            throw ExceptionsHelper.badRequestException(
+            throw ExceptionsHelper.entityNotFoundException(
                 Messages.MODEL_ID_DOES_NOT_MATCH_EXISTING_MODEL_IDS_BUT_MUST_FOR_IN_CLUSTER_SERVICE,
                 request.getInferenceEntityId()
 
@@ -299,7 +299,7 @@ public class TransportUpdateInferenceModelAction extends TransportMasterNodeActi
         modelRegistry.getModelWithSecrets(inferenceEntityId, ActionListener.wrap((model) -> {
             if (model == null) {
                 listener.onFailure(
-                    ExceptionsHelper.badRequestException(Messages.INFERENCE_ENTITY_NON_EXISTANT_NO_UPDATE, inferenceEntityId)
+                    ExceptionsHelper.entityNotFoundException(Messages.INFERENCE_ENTITY_NON_EXISTANT_NO_UPDATE, inferenceEntityId)
                 );
             } else {
                 listener.onResponse(model);
@@ -308,7 +308,7 @@ public class TransportUpdateInferenceModelAction extends TransportMasterNodeActi
             if (e instanceof ResourceNotFoundException) {
                 listener.onFailure(
                     // provide a more specific error message if the inference entity does not exist
-                    ExceptionsHelper.badRequestException(Messages.INFERENCE_ENTITY_NON_EXISTANT_NO_UPDATE, inferenceEntityId)
+                    ExceptionsHelper.entityNotFoundException(Messages.INFERENCE_ENTITY_NON_EXISTANT_NO_UPDATE, inferenceEntityId)
                 );
             } else {
                 listener.onFailure(e);

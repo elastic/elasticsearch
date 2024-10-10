@@ -82,6 +82,9 @@ public class PushTopNToSource extends PhysicalOptimizerRules.ParameterizedOptimi
         }
     }
 
+    /**
+     * TODO: Consider deleting this case entirely. We do not know if this is ever hit.
+     */
     record PushableExchangeExec(ExchangeExec exchangeExec, EsQueryExec queryExec) implements Pushable {
         public PhysicalPlan rewrite(TopNExec topNExec) {
             var sorts = buildFieldSorts(topNExec.order());

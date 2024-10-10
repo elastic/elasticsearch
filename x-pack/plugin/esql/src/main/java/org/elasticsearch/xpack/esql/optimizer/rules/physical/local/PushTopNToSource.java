@@ -115,7 +115,7 @@ public class PushTopNToSource extends PhysicalOptimizerRules.ParameterizedOptimi
             return null;
         }
 
-        private static PushableGeoDistance from(Attribute attr, Expression literal, Order order) {
+        private static PushableGeoDistance from(Attribute attr, Expression foldable, Order order) {
             if (attr instanceof FieldAttribute fieldAttribute) {
                 Geometry geometry = SpatialRelatesUtils.makeGeometryFromLiteral(literal);
                 if (geometry instanceof Point point) {

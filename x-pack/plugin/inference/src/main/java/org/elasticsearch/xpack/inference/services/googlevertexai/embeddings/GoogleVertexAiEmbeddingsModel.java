@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.services.googlevertexai.embeddings;
 
 import org.apache.http.client.utils.URIBuilder;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.TaskType;
@@ -35,6 +36,7 @@ public class GoogleVertexAiEmbeddingsModel extends GoogleVertexAiModel {
         String service,
         Map<String, Object> serviceSettings,
         Map<String, Object> taskSettings,
+        ChunkingSettings chunkingSettings,
         Map<String, Object> secrets,
         ConfigurationParseContext context
     ) {
@@ -44,6 +46,7 @@ public class GoogleVertexAiEmbeddingsModel extends GoogleVertexAiModel {
             service,
             GoogleVertexAiEmbeddingsServiceSettings.fromMap(serviceSettings, context),
             GoogleVertexAiEmbeddingsTaskSettings.fromMap(taskSettings),
+            chunkingSettings,
             GoogleVertexAiSecretSettings.fromMap(secrets)
         );
     }
@@ -59,10 +62,11 @@ public class GoogleVertexAiEmbeddingsModel extends GoogleVertexAiModel {
         String service,
         GoogleVertexAiEmbeddingsServiceSettings serviceSettings,
         GoogleVertexAiEmbeddingsTaskSettings taskSettings,
+        ChunkingSettings chunkingSettings,
         @Nullable GoogleVertexAiSecretSettings secrets
     ) {
         super(
-            new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings),
+            new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings, chunkingSettings),
             new ModelSecrets(secrets),
             serviceSettings
         );

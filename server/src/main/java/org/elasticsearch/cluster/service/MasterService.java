@@ -142,7 +142,7 @@ public class MasterService extends AbstractLifecycleComponent {
     private static ThreadContext.StoredContext getClusterStateUpdateContext(ThreadContext threadContext) {
         try (var ignored = threadContext.newStoredContext()) {
             // capture the context in which to run all cluster state updates here where we know it to be very clean
-            assert threadContext.isDefaultContext();
+            assert threadContext.isDefaultContext() : "must create MasterService in a clean ThreadContext";
             threadContext.markAsSystemContext();
             return threadContext.newStoredContext();
         }

@@ -59,6 +59,7 @@ import org.elasticsearch.gateway.MetaStateService;
 import org.elasticsearch.gateway.PersistedClusterStateService;
 import org.elasticsearch.health.HealthPeriodicLogger;
 import org.elasticsearch.http.HttpServerTransport;
+import org.elasticsearch.index.reindex.ReindexAction;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.indices.recovery.PeerRecoverySourceService;
@@ -634,6 +635,7 @@ public class Node implements Closeable {
 
             stopperRunner.accept("http-server-transport-stop", injector.getInstance(HttpServerTransport.class)::close);
             stopperRunner.accept("async-search-stop", () -> awaitSearchTasksComplete(maxTimeout));
+            stopperRunner.accept("reindex-stop", () -> awaitReindexTasksComplete(TimeValue.min(TimeValue.timeValueMinutes(1), maxTimeout)));
             if (terminationHandler != null) {
                 stopperRunner.accept("termination-handler-stop", terminationHandler::handleTermination);
             }
@@ -699,6 +701,52 @@ public class Node implements Closeable {
                             "interrupted while waiting [%s] for [%d] search tasks to finish",
                             asyncSearchTimeout.toString(),
                             searchTasksRemaining
+                        )
+                    );
+                    return;
+                }
+            }
+        }
+    }
+
+    private void awaitReindexTasksComplete(TimeValue asyncReindexTimeout) {
+        TaskManager taskManager = injector.getInstance(TransportService.class).getTaskManager();
+        long millisWaited = 0;
+        while (true) {
+            long reindexTasksRemaining = taskManager.getTasks()
+                .values()
+                .stream()
+                .filter(task -> ReindexAction.NAME.equals(task.getAction()))
+                .count();
+            if (reindexTasksRemaining == 0) {
+                logger.debug("all reindex tasks complete");
+                return;
+            } else {
+                // Let the system work on those reindex tasks for a while. We're on a dedicated thread to manage app shutdown, so we
+                // literally just want to wait and not take up resources on this thread for now. Poll period chosen to allow short
+                // response times, but checking the tasks list is relatively expensive, and we don't want to waste CPU time we could
+                // be spending on finishing those searches.
+                final TimeValue pollPeriod = TimeValue.timeValueMillis(500);
+                millisWaited += pollPeriod.millis();
+                if (TimeValue.ZERO.equals(asyncReindexTimeout) == false && millisWaited >= asyncReindexTimeout.millis()) {
+                    logger.warn(
+                        format(
+                            "timed out after waiting [%s] for [%d] reindex tasks to finish",
+                            asyncReindexTimeout.toString(),
+                            reindexTasksRemaining
+                        )
+                    );
+                    return;
+                }
+                logger.debug(format("waiting for [%s] reindex tasks to finish, next poll in [%s]", reindexTasksRemaining, pollPeriod));
+                try {
+                    Thread.sleep(pollPeriod.millis());
+                } catch (InterruptedException ex) {
+                    logger.warn(
+                        format(
+                            "interrupted while waiting [%s] for [%d] reindex tasks to finish",
+                            asyncReindexTimeout.toString(),
+                            reindexTasksRemaining
                         )
                     );
                     return;

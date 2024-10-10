@@ -19,7 +19,7 @@ public class ReindexMetrics {
     private final LongHistogram reindexTimeSecsHistogram;
 
     public ReindexMetrics(MeterRegistry meterRegistry) {
-        this(meterRegistry.registerLongHistogram(REINDEX_TIME_HISTOGRAM, "Time to reindex by search", "millis"));
+        this(meterRegistry.registerLongHistogram(REINDEX_TIME_HISTOGRAM, "Time to reindex by search", "seconds"));
     }
 
     private ReindexMetrics(LongHistogram reindexTimeSecsHistogram) {

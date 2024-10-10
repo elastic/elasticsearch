@@ -1,0 +1,5 @@
+pr: 112676
+summary: Log reindexing failures
+area: Reindex
+type: enhancement
+issues: []

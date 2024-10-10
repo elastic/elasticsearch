@@ -137,7 +137,7 @@ public class PushFiltersToSource extends PhysicalOptimizerRules.ParameterizedOpt
                 queryExec.estimatedRowSize()
             );
             // If the eval contains other aliases, not just field attributes, we need to keep them in the plan
-            PhysicalPlan plan = others.isEmpty() ? queryExec : new EvalExec(filterExec.source(), queryExec, others);
+            PhysicalPlan plan = evalFields.isEmpty() ? queryExec : new EvalExec(filterExec.source(), queryExec, evalFields);
             if (nonPushable.size() > 0) {
                 // update filter with remaining non-pushable conditions
                 return new FilterExec(filterExec.source(), plan, Predicates.combineAnd(nonPushable));

@@ -19,10 +19,11 @@ import org.elasticsearch.search.aggregations.AggregatorReducer;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
-import org.elasticsearch.search.aggregations.bucket.IteratorAndCurrent;
+import org.elasticsearch.search.aggregations.bucket.DequeAndCurrent;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -180,9 +181,9 @@ public class InternalTimeSeries extends InternalMultiBucketAggregation<InternalT
 
     @Override
     protected AggregatorReducer getLeaderReducer(AggregationReduceContext reduceContext, int size) {
-        final PriorityQueue<IteratorAndCurrent<InternalBucket>> pq = new PriorityQueue<>(size) {
+        final PriorityQueue<DequeAndCurrent<InternalBucket>> pq = new PriorityQueue<>(size) {
             @Override
-            protected boolean lessThan(IteratorAndCurrent<InternalBucket> a, IteratorAndCurrent<InternalBucket> b) {
+            protected boolean lessThan(DequeAndCurrent<InternalBucket> a, DequeAndCurrent<InternalBucket> b) {
                 return a.current().key.compareTo(b.current().key) < 0;
             }
         };
@@ -194,8 +195,7 @@ public class InternalTimeSeries extends InternalMultiBucketAggregation<InternalT
                 InternalTimeSeries timeSeries = (InternalTimeSeries) aggregation;
                 if (timeSeries.buckets.isEmpty() == false) {
                     initialCapacity = Math.max(initialCapacity, timeSeries.buckets.size());
-                    IteratorAndCurrent<InternalBucket> iterator = new IteratorAndCurrent<>(timeSeries.buckets.iterator());
-                    pq.add(iterator);
+                    pq.add(new DequeAndCurrent<>(new ArrayDeque<>(timeSeries.buckets)));
                 }
             }
 
@@ -212,7 +212,7 @@ public class InternalTimeSeries extends InternalMultiBucketAggregation<InternalT
                     bucketsWithSameKey.clear();
 
                     while (bucketsWithSameKey.isEmpty() || bucketsWithSameKey.get(0).key.equals(pq.top().current().key)) {
-                        IteratorAndCurrent<InternalBucket> iterator = pq.top();
+                        DequeAndCurrent<InternalBucket> iterator = pq.top();
                         bucketsWithSameKey.add(iterator.current());
                         if (iterator.hasNext()) {
                             iterator.next();

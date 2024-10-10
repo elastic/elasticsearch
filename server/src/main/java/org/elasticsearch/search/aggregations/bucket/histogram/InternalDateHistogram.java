@@ -25,7 +25,7 @@ import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.InternalOrder;
 import org.elasticsearch.search.aggregations.KeyComparable;
 import org.elasticsearch.search.aggregations.bucket.BucketReducer;
-import org.elasticsearch.search.aggregations.bucket.IteratorAndCurrent;
+import org.elasticsearch.search.aggregations.bucket.DequeAndCurrent;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
 import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -33,6 +33,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.time.Instant;
 import java.time.ZoneOffset;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -304,7 +305,7 @@ public final class InternalDateHistogram extends InternalMultiBucketAggregation<
         return new Bucket(prototype.key, prototype.docCount, prototype.keyed, prototype.format, aggregations);
     }
 
-    private List<Bucket> reduceBuckets(final PriorityQueue<IteratorAndCurrent<Bucket>> pq, AggregationReduceContext reduceContext) {
+    private List<Bucket> reduceBuckets(final PriorityQueue<DequeAndCurrent<Bucket>> pq, AggregationReduceContext reduceContext) {
         List<Bucket> reducedBuckets = new ArrayList<>();
         if (pq.size() > 0) {
             // list of buckets coming from different shards that have the same key
@@ -312,7 +313,7 @@ public final class InternalDateHistogram extends InternalMultiBucketAggregation<
             double key = pq.top().current().key;
 
             do {
-                final IteratorAndCurrent<Bucket> top = pq.top();
+                final DequeAndCurrent<Bucket> top = pq.top();
 
                 if (top.current().key != key) {
                     // the key changes, reduce what we already buffered and reset the buffer for current buckets
@@ -474,9 +475,9 @@ public final class InternalDateHistogram extends InternalMultiBucketAggregation<
     @Override
     protected AggregatorReducer getLeaderReducer(AggregationReduceContext reduceContext, int size) {
         return new AggregatorReducer() {
-            private final PriorityQueue<IteratorAndCurrent<Bucket>> pq = new PriorityQueue<>(size) {
+            private final PriorityQueue<DequeAndCurrent<Bucket>> pq = new PriorityQueue<>(size) {
                 @Override
-                protected boolean lessThan(IteratorAndCurrent<Bucket> a, IteratorAndCurrent<Bucket> b) {
+                protected boolean lessThan(DequeAndCurrent<Bucket> a, DequeAndCurrent<Bucket> b) {
                     return a.current().key < b.current().key;
                 }
             };
@@ -485,7 +486,7 @@ public final class InternalDateHistogram extends InternalMultiBucketAggregation<
             public void accept(InternalAggregation aggregation) {
                 final InternalDateHistogram histogram = (InternalDateHistogram) aggregation;
                 if (histogram.buckets.isEmpty() == false) {
-                    pq.add(new IteratorAndCurrent<>(histogram.buckets.iterator()));
+                    pq.add(new DequeAndCurrent<>(new ArrayDeque<>(histogram.buckets)));
                 }
             }
 

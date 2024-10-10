@@ -21,12 +21,13 @@ import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.KeyComparable;
 import org.elasticsearch.search.aggregations.bucket.BucketReducer;
-import org.elasticsearch.search.aggregations.bucket.IteratorAndCurrent;
+import org.elasticsearch.search.aggregations.bucket.DequeAndCurrent;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
 import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -317,14 +318,14 @@ public class InternalVariableWidthHistogram extends InternalMultiBucketAggregati
         }
     }
 
-    public List<Bucket> reduceBuckets(PriorityQueue<IteratorAndCurrent<Bucket>> pq, AggregationReduceContext reduceContext) {
+    public List<Bucket> reduceBuckets(PriorityQueue<DequeAndCurrent<Bucket>> pq, AggregationReduceContext reduceContext) {
         List<Bucket> reducedBuckets = new ArrayList<>();
         if (pq.size() > 0) {
             double key = pq.top().current().centroid();
             // list of buckets coming from different shards that have the same key
             final List<Bucket> currentBuckets = new ArrayList<>();
             do {
-                IteratorAndCurrent<Bucket> top = pq.top();
+                DequeAndCurrent<Bucket> top = pq.top();
 
                 if (Double.compare(top.current().centroid(), key) != 0) {
                     // The key changes, reduce what we already buffered and reset the buffer for current buckets.
@@ -511,9 +512,9 @@ public class InternalVariableWidthHistogram extends InternalMultiBucketAggregati
     @Override
     protected AggregatorReducer getLeaderReducer(AggregationReduceContext reduceContext, int size) {
         return new AggregatorReducer() {
-            private final PriorityQueue<IteratorAndCurrent<Bucket>> pq = new PriorityQueue<>(size) {
+            private final PriorityQueue<DequeAndCurrent<Bucket>> pq = new PriorityQueue<>(size) {
                 @Override
-                protected boolean lessThan(IteratorAndCurrent<Bucket> a, IteratorAndCurrent<Bucket> b) {
+                protected boolean lessThan(DequeAndCurrent<Bucket> a, DequeAndCurrent<Bucket> b) {
                     return Double.compare(a.current().centroid, b.current().centroid) < 0;
                 }
             };
@@ -522,7 +523,7 @@ public class InternalVariableWidthHistogram extends InternalMultiBucketAggregati
             public void accept(InternalAggregation aggregation) {
                 final InternalVariableWidthHistogram histogram = (InternalVariableWidthHistogram) aggregation;
                 if (histogram.buckets.isEmpty() == false) {
-                    pq.add(new IteratorAndCurrent<>(histogram.buckets.iterator()));
+                    pq.add(new DequeAndCurrent<>(new ArrayDeque<>(histogram.buckets)));
                 }
             }
 

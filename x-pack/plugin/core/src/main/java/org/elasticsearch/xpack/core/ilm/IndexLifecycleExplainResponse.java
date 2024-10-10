@@ -511,19 +511,31 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
                 builder.field(PHASE_FIELD.getPreferredName(), phase);
             }
             if (phaseTime != null) {
-                builder.timestampFieldsFromUnixEpochMillis(PHASE_TIME_MILLIS_FIELD.getPreferredName(), PHASE_TIME_FIELD.getPreferredName(), phaseTime);
+                builder.timestampFieldsFromUnixEpochMillis(
+                    PHASE_TIME_MILLIS_FIELD.getPreferredName(),
+                    PHASE_TIME_FIELD.getPreferredName(),
+                    phaseTime
+                );
             }
             if (action != null) {
                 builder.field(ACTION_FIELD.getPreferredName(), action);
             }
             if (actionTime != null) {
-                builder.timestampFieldsFromUnixEpochMillis(ACTION_TIME_MILLIS_FIELD.getPreferredName(), ACTION_TIME_FIELD.getPreferredName(), actionTime);
+                builder.timestampFieldsFromUnixEpochMillis(
+                    ACTION_TIME_MILLIS_FIELD.getPreferredName(),
+                    ACTION_TIME_FIELD.getPreferredName(),
+                    actionTime
+                );
             }
             if (step != null) {
                 builder.field(STEP_FIELD.getPreferredName(), step);
             }
             if (stepTime != null) {
-                builder.timestampFieldsFromUnixEpochMillis(STEP_TIME_MILLIS_FIELD.getPreferredName(), STEP_TIME_FIELD.getPreferredName(), stepTime);
+                builder.timestampFieldsFromUnixEpochMillis(
+                    STEP_TIME_MILLIS_FIELD.getPreferredName(),
+                    STEP_TIME_FIELD.getPreferredName(),
+                    stepTime
+                );
             }
             if (Strings.hasLength(failedStep)) {
                 builder.field(FAILED_STEP_FIELD.getPreferredName(), failedStep);

@@ -243,7 +243,11 @@ public class AsyncSearchResponse extends ActionResponse implements ChunkedToXCon
             if (searchResponse != null) {
                 if (isRunning == false) {
                     TimeValue took = searchResponse.getTook();
-                    builder.timestampFieldsFromUnixEpochMillis("completion_time_in_millis", "completion_time", startTimeMillis + took.millis());
+                    builder.timestampFieldsFromUnixEpochMillis(
+                        "completion_time_in_millis",
+                        "completion_time",
+                        startTimeMillis + took.millis()
+                    );
                 }
                 builder.field("response");
             }

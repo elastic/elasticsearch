@@ -411,7 +411,10 @@ public abstract class BaseXContentTestCase extends ESTestCase {
         );
         assertResult(
             "{'date':'2016-01-01T00:00:00.000Z','date_in_millis':1451606400000}",
-            () -> builder().humanReadable(true).startObject().timestampFieldsFromUnixEpochMillis("date_in_millis", "date", d.getTime()).endObject()
+            () -> builder().humanReadable(true)
+                .startObject()
+                .timestampFieldsFromUnixEpochMillis("date_in_millis", "date", d.getTime())
+                .endObject()
         );
     }
 

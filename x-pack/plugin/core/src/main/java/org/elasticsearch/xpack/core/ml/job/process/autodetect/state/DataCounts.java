@@ -619,7 +619,11 @@ public final class DataCounts implements ToXContentObject, Writeable {
         }
         builder.field(INPUT_RECORD_COUNT.getPreferredName(), getInputRecordCount());
         if (logTime != null) {
-            builder.timestampFieldsFromUnixEpochMillis(LOG_TIME.getPreferredName(), LOG_TIME.getPreferredName() + "_string", logTime.toEpochMilli());
+            builder.timestampFieldsFromUnixEpochMillis(
+                LOG_TIME.getPreferredName(),
+                LOG_TIME.getPreferredName() + "_string",
+                logTime.toEpochMilli()
+            );
         }
 
         return builder;

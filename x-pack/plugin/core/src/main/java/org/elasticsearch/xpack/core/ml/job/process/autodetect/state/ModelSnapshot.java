@@ -194,7 +194,11 @@ public class ModelSnapshot implements ToXContentObject, Writeable {
         builder.field(Job.ID.getPreferredName(), jobId);
         builder.field(MIN_VERSION.getPreferredName(), minVersion);
         if (timestamp != null) {
-            builder.timestampFieldsFromUnixEpochMillis(TIMESTAMP.getPreferredName(), TIMESTAMP.getPreferredName() + "_string", timestamp.getTime());
+            builder.timestampFieldsFromUnixEpochMillis(
+                TIMESTAMP.getPreferredName(),
+                TIMESTAMP.getPreferredName() + "_string",
+                timestamp.getTime()
+            );
         }
         if (description != null) {
             builder.field(DESCRIPTION.getPreferredName(), description);

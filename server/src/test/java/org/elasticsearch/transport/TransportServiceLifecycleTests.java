@@ -177,24 +177,27 @@ public class TransportServiceLifecycleTests extends ESTestCase {
         );
     }
 
-    public void testInternalSendExceptionWithNonForkingResponseHandlerCanCompleteFutureWaiterFromGenericThread() throws Exception {
+    public void testInternalSendExceptionWithNonForkingResponseHandlerCompletesListenerInline() {
         try (var nodeA = new TestNode("node-A")) {
-            final var future = new PlainActionFuture<TransportResponse.Empty>();
-            nodeA.transportService.getThreadPool().generic().execute(() -> {
-                assertEquals("simulated exception in sendRequest", getSendRequestException(future, IOException.class).getMessage());
-            });
             final Thread callingThread = Thread.currentThread();
-            nodeA.transportService.sendRequest(
-                nodeA.getThrowingConnection(),
-                TestNode.randomActionName(random()),
-                new EmptyRequest(),
-                TransportRequestOptions.EMPTY,
-                new ActionListenerResponseHandler<>(future.delegateResponse((l, e) -> {
-                    assertThat(Thread.currentThread(), is(callingThread));
-                    l.onFailure(e);
-                }), unusedReader(), EsExecutors.DIRECT_EXECUTOR_SERVICE)
+            assertEquals(
+                "simulated exception in sendRequest",
+                safeAwaitAndUnwrapFailure(
+                    IOException.class,
+                    TransportResponse.Empty.class,
+                    l -> nodeA.transportService.sendRequest(
+                        nodeA.getThrowingConnection(),
+                        TestNode.randomActionName(random()),
+                        new EmptyRequest(),
+                        TransportRequestOptions.EMPTY,
+                        new ActionListenerResponseHandler<>(
+                            ActionListener.runBefore(l, () -> assertSame(callingThread, Thread.currentThread())),
+                            unusedReader(),
+                            EsExecutors.DIRECT_EXECUTOR_SERVICE
+                        )
+                    )
+                ).getMessage()
             );
-            assertBusy(() -> assertTrue(future.isDone()));
         }
     }
 

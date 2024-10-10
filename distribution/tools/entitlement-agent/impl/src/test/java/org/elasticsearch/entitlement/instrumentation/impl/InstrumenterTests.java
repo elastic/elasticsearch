@@ -78,6 +78,8 @@ public class InstrumenterTests extends ESTestCase {
 
         @Override
         public void checkSystemExit(Class<?> callerClass, int status) {
+            assertSame(InstrumenterTests.class, callerClass);
+            assertEquals(123, status);
             throwIfActive();
         }
 

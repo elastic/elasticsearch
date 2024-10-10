@@ -370,6 +370,9 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/114488
 - class: org.elasticsearch.gradle.internal.PublishPluginFuncTest
   issue: https://github.com/elastic/elasticsearch/issues/114492
+- class: org.elasticsearch.xpack.inference.DefaultElserIT
+  method: testInferCreatesDefaultElser
+  issue: https://github.com/elastic/elasticsearch/issues/114503
 
 # Examples:
 #

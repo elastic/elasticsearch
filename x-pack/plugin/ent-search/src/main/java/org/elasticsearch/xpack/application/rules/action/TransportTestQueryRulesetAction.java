@@ -36,12 +36,7 @@ public class TransportTestQueryRulesetAction extends HandledTransportAction<
     private final Client client;
 
     @Inject
-    public TransportTestQueryRulesetAction(
-        TransportService transportService,
-        ClusterService clusterService,
-        ActionFilters actionFilters,
-        Client client
-    ) {
+    public TransportTestQueryRulesetAction(TransportService transportService, ActionFilters actionFilters, Client client) {
         super(
             TestQueryRulesetAction.NAME,
             transportService,

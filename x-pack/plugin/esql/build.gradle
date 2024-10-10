@@ -1,6 +1,5 @@
 import org.elasticsearch.gradle.internal.info.BuildParams
-import org.elasticsearch.gradle.internal.precommit.CheckForbiddenApisTask;
-import org.elasticsearch.gradle.internal.util.SourceDirectoryCommandLineArgumentProvider;
+import org.elasticsearch.gradle.internal.util.SourceDirectoryCommandLineArgumentProvider
 
 apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.internal-cluster-test'
@@ -20,6 +19,7 @@ base {
 
 dependencies {
   compileOnly project(path: xpackModule('core'))
+  compileOnly project(path: xpackModule('kql'))
   compileOnly project(':modules:lang-painless:spi')
   compileOnly project(xpackModule('esql-core'))
   compileOnly project(xpackModule('ml'))

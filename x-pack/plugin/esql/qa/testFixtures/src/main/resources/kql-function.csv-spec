@@ -1,0 +1,24 @@
+###############################################
+# Tests for KQL function
+#
+
+kqlSimpleExample
+required_capability: kql_function
+
+// tag::kql-simple-example[]
+from books 
+| where kql("author: Faulkner")
+| keep book_no, author 
+| sort book_no 
+| limit 5;
+// end::kql-simple-example[]
+
+// tag::kql-simple-example-result[]
+book_no:keyword | author:text
+2378            | [Carol Faulkner, Holly Byers Ochoa, Lucretia Mott]
+2713            | William Faulkner
+2847            | Colleen Faulkner
+2883            | William Faulkner
+3293            | Danny Faulkner
+;
+// end::kql-simple-example-result[]

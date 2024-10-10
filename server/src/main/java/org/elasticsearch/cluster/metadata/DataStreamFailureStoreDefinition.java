@@ -20,6 +20,7 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
 
 import java.io.IOException;
+import java.util.HashSet;
 import java.util.Set;
 
 /**
@@ -38,7 +39,8 @@ public class DataStreamFailureStoreDefinition {
         INDEX_FAILURE_STORE_VERSION_SETTING_NAME,
         IndexMetadata.SETTING_NUMBER_OF_SHARDS,
         IndexMetadata.SETTING_NUMBER_OF_REPLICAS,
-        IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS
+        IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS,
+        IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey()
     );
     public static final CompressedXContent DATA_STREAM_FAILURE_STORE_MAPPING;
 
@@ -210,14 +212,17 @@ public class DataStreamFailureStoreDefinition {
 
     /**
      * Removes the unsupported by the failure store settings from the settings provided.
-     * ATTENTION: This method should be applied BEFORE we set the default and internal settings for an index
+     * ATTENTION: This method should be applied BEFORE we set the necessary settings for an index
      * @param builder the settings builder that is going to be updated
      * @return the original settings builder, with the unsupported settings removed.
      */
     public static Settings.Builder filterUserDefinedSettings(Settings.Builder builder) {
-        for (String setting : builder.keys()) {
-            if (SUPPORTED_USER_SETTINGS.contains(setting) == false) {
-                builder.remove(setting);
+        if (builder.keys().isEmpty() == false) {
+            Set<String> existingKeys = new HashSet<>(builder.keys());
+            for (String setting : existingKeys) {
+                if (SUPPORTED_USER_SETTINGS.contains(setting) == false) {
+                    builder.remove(setting);
+                }
             }
         }
         return builder;

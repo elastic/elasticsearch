@@ -12,7 +12,7 @@ package org.elasticsearch.common.util;
 /**
  * Base implementation for {@link LongObjectPagedHashMap} and {@link ObjectObjectPagedHashMap}.
  */
-public abstract class AbstractObjectHash extends AbstractPagedHashMap {
+abstract class AbstractObjectHash extends AbstractPagedHashMap {
 
     AbstractObjectHash(long capacity, float maxLoadFactor, BigArrays bigArrays) {
         super(capacity, maxLoadFactor, bigArrays);

@@ -31,6 +31,11 @@ public record EmptyTaskSettings() implements TaskSettings {
     }
 
     @Override
+    public boolean isEmpty() {
+        return true;
+    }
+
+    @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.endObject();

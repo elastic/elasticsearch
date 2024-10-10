@@ -36,6 +36,11 @@ public class OpenAiEmbeddingsTaskSettingsTests extends AbstractWireSerializingTe
         var user = randomBoolean() ? randomAlphaOfLength(15) : null;
         return new OpenAiEmbeddingsTaskSettings(user);
     }
+    public void testIsEmpty() {
+        var randomSettings = new OpenAiChatCompletionTaskSettings(randomBoolean() ? null : "username");
+        var stringRep = Strings.toString(randomSettings);
+        assertEquals(stringRep, randomSettings.isEmpty(), stringRep.equals("{}"));
+	}
 
     public void testUpdatedTaskSettings() {
         var initialSettings = createRandom();

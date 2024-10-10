@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference.services.alibabacloudsearch.sparse;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.InputType;
@@ -58,6 +59,12 @@ public class AlibabaCloudSearchSparseTaskSettingsTests extends AbstractWireSeria
                 );
         }
     }
+
+    public void testIsEmpty() {
+        var randomSettings = createRandom();
+        var stringRep = Strings.toString(randomSettings);
+        assertEquals(stringRep, randomSettings.isEmpty(), stringRep.equals("{}"));
+	}
 
     public void testFromMap_WhenInputTypeIsNull() {
         InputType inputType = null;

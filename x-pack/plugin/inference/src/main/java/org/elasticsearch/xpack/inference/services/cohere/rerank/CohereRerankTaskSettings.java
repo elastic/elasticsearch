@@ -115,6 +115,11 @@ public class CohereRerankTaskSettings implements TaskSettings {
     }
 
     @Override
+    public boolean isEmpty() {
+        return topNDocumentsOnly == null && returnDocuments == null && maxChunksPerDoc == null;
+    }
+
+    @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         if (topNDocumentsOnly != null) {

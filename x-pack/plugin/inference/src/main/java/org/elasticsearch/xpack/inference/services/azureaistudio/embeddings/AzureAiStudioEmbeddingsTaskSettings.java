@@ -71,6 +71,11 @@ public class AzureAiStudioEmbeddingsTaskSettings implements TaskSettings {
     }
 
     @Override
+    public boolean isEmpty() {
+        return user == null || user.isEmpty();
+    }
+
+    @Override
     public String getWriteableName() {
         return NAME;
     }

@@ -90,6 +90,10 @@ public class AlibabaCloudSearchEmbeddingsTaskSettings implements TaskSettings {
         return new AlibabaCloudSearchEmbeddingsTaskSettings(inputTypeToUse);
     }
 
+    public boolean isEmpty() {
+        return inputType == null;
+    }
+
     private static InputType getValidInputType(
         AlibabaCloudSearchEmbeddingsTaskSettings originalSettings,
         AlibabaCloudSearchEmbeddingsTaskSettings requestTaskSettings,

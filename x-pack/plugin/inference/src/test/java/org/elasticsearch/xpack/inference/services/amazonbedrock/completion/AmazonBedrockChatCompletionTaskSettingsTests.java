@@ -32,6 +32,12 @@ import static org.hamcrest.Matchers.is;
 public class AmazonBedrockChatCompletionTaskSettingsTests extends AbstractBWCWireSerializationTestCase<
     AmazonBedrockChatCompletionTaskSettings> {
 
+    public void testIsEmpty() {
+        var randomSettings = createRandom();
+        var stringRep = Strings.toString(randomSettings);
+        assertEquals(stringRep, randomSettings.isEmpty(), stringRep.equals("{}"));
+	}
+
     public void updatedTaskSettings_WithEmptyMap_ReturnsSameSettings() {
         var initialSettings = createRandom();
         AmazonBedrockChatCompletionTaskSettings updatedSettings = (AmazonBedrockChatCompletionTaskSettings) initialSettings

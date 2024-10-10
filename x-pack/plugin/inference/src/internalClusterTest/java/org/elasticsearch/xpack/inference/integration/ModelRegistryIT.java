@@ -594,6 +594,10 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
             }
 
             @Override
+            public boolean isEmpty() {
+                return true;
+			}
+
             public TaskSettings updatedTaskSettings(Map<String, Object> newSettings) {
                 return this;
             }

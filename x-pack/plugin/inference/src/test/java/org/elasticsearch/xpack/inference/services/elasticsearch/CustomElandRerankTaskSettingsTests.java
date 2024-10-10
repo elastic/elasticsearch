@@ -24,6 +24,12 @@ import static org.hamcrest.Matchers.sameInstance;
 
 public class CustomElandRerankTaskSettingsTests extends AbstractWireSerializingTestCase<CustomElandRerankTaskSettings> {
 
+    public void testIsEmpty() {
+        var randomSettings = createRandom();
+        var stringRep = Strings.toString(randomSettings);
+        assertEquals(stringRep, randomSettings.isEmpty(), stringRep.equals("{}"));
+	}
+
     public void testUpdatedTaskSettings() {
         var initialSettings = createRandom();
         var newSettings = createRandom();

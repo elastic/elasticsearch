@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference.services.alibabacloudsearch.completion;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;

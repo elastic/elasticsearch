@@ -204,6 +204,7 @@ public class XContentMapValues {
         }
     }
 
+    @SuppressWarnings("unchecked")
     public static Object insertValue(String path, Map<?, ?> map, Object newValue) {
         String[] pathElements = path.split("\\.");
         if (pathElements.length == 0) {
@@ -214,6 +215,9 @@ public class XContentMapValues {
         extractAndInsertValue(pathElements, 0, map, null, true, newValue, extractedValues);
 
         if (extractedValues.isEmpty()) {
+            // No values were extracted, meaning no value was replaced. Add the new value using a flat path to handle if subobjects: false
+            // in downstream parsing.
+            ((Map<String, Object>) map).put(path, newValue);
             return null;
         } else if (extractedValues.size() == 1) {
             return extractedValues.get(0);
@@ -233,7 +237,9 @@ public class XContentMapValues {
         List<Object> extractedValues
     ) {
         if (index == pathElements.length) {
+            // Found an element value to extract
             if (currentValue instanceof List<?> valueList) {
+                // If it's a list, unpack the first list layer to avoid undesired list-of-list representations
                 extractedValues.addAll(replaceNullValues(valueList, nullValue));
             } else {
                 extractedValues.add(currentValue != null ? currentValue : nullValue);
@@ -248,12 +254,12 @@ public class XContentMapValues {
             while (true) {
                 if (map.containsKey(key)) {
                     extractAndInsertValue(pathElements, nextIndex, map.get(key), nullValue, insertNewValue, newValue, extractedValues);
-
-                    // TODO: If no values extracted, use flat path
                     if (insertNewValue && nextIndex == pathElements.length) {
                         if (extractedValues.size() == 1) {
+                            // Replace the first instance of the path with the new value
                             ((Map<String, Object>) map).put(key, newValue);
                         } else if (extractedValues.size() > 1) {
+                            // Remove any following instances of the path
                             map.remove(key);
                         }
                     }

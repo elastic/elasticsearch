@@ -99,7 +99,8 @@ public final class Int3Hash extends AbstractHash {
         keys.set(keyOffset + 2, key3);
     }
 
-    private void reset(long id) {
+    @Override
+    protected void rehash(long id) {
         final IntArray keys = this.keys;
         final long keyOffset = id * 3;
         final int key1 = keys.get(keyOffset);
@@ -127,13 +128,6 @@ public final class Int3Hash extends AbstractHash {
         }
         assert size < maxSize;
         return set(key1, key2, key3, size);
-    }
-
-    @Override
-    protected void removeAndAdd(long index) {
-        final long id = getAndSetId(index, -1);
-        assert id >= 0;
-        reset(id);
     }
 
     @Override

@@ -104,7 +104,8 @@ public final class LongLongHash extends AbstractHash {
         keys.set(keyOffset + 1, key2);
     }
 
-    private void reset(long id) {
+    @Override
+    protected void rehash(long id) {
         final LongArray keys = this.keys;
         final long keyOffset = id * 2;
         final long key1 = keys.get(keyOffset);
@@ -131,13 +132,6 @@ public final class LongLongHash extends AbstractHash {
         }
         assert size < maxSize;
         return set(key1, key2, size);
-    }
-
-    @Override
-    protected void removeAndAdd(long index) {
-        final long id = getAndSetId(index, -1);
-        assert id >= 0;
-        reset(id);
     }
 
     @Override

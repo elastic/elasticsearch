@@ -54,14 +54,14 @@ abstract class AbstractPagedHashMap implements Releasable {
     /**
      * Return the number of allocated slots to store this hash table.
      */
-    public long capacity() {
+    public final long capacity() {
         return mask + 1;
     }
 
     /**
      * Return the number of longs in this hash table.
      */
-    public long size() {
+    public final long size() {
         return size;
     }
 
@@ -73,13 +73,10 @@ abstract class AbstractPagedHashMap implements Releasable {
         return (curSlot + 1) & mask; // linear probing
     }
 
-    /** Resize to the given capacity. */
-    protected abstract void resize(long capacity);
-
-    protected abstract boolean used(long bucket);
-
-    /** Remove the entry at the given index and add it back */
-    protected abstract void removeAndAdd(long index);
+    /**
+     * rehash the current hash table when the capacity have been increased from {@code buckets} to {@code newBuckets}.
+     */
+    protected abstract void rehash(long buckets, long newBuckets);
 
     protected final void grow() {
         // The difference of this implementation of grow() compared to standard hash tables is that we are growing in-place, which makes
@@ -87,31 +84,13 @@ abstract class AbstractPagedHashMap implements Releasable {
         assert size == maxSize;
         final long prevSize = size;
         final long buckets = capacity();
-        // Resize arrays
+        // compute new sizes
         final long newBuckets = buckets << 1;
         assert newBuckets == Long.highestOneBit(newBuckets) : newBuckets; // power of 2
-        resize(newBuckets);
         mask = newBuckets - 1;
-        // First let's remap in-place: most data will be put in its final position directly
-        for (long i = 0; i < buckets; ++i) {
-            if (used(i)) {
-                removeAndAdd(i);
-            }
-        }
-        // The only entries which have not been put in their final position in the previous loop are those that were stored in a slot that
-        // is < slot(key, mask). This only happens when slot(key, mask) returned a slot that was close to the end of the array and collision
-        // resolution has put it back in the first slots. This time, collision resolution will have put them at the beginning of the newly
-        // allocated slots. Let's re-add them to make sure they are in the right slot. This 2nd loop will typically exit very early.
-        for (long i = buckets; i < newBuckets; ++i) {
-            if (used(i)) {
-                removeAndAdd(i); // add it back
-            } else {
-                break;
-            }
-        }
         assert size == prevSize;
         maxSize = (long) (newBuckets * maxLoadFactor);
         assert size < maxSize;
+        rehash(buckets, newBuckets);
     }
-
 }

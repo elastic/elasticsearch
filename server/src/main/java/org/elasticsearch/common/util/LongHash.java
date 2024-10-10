@@ -82,7 +82,8 @@ public final class LongHash extends AbstractHash {
         keys.set(id, key);
     }
 
-    private void reset(long id) {
+    @Override
+    protected void rehash(long id) {
         final long key = keys.get(id);
         final long slot = slot(hash(key), mask);
         for (long index = slot;; index = nextSlot(index, mask)) {
@@ -105,13 +106,6 @@ public final class LongHash extends AbstractHash {
         }
         assert size < maxSize;
         return set(key, size);
-    }
-
-    @Override
-    protected void removeAndAdd(long index) {
-        final long id = getAndSetId(index, -1);
-        assert id >= 0;
-        reset(id);
     }
 
     @Override

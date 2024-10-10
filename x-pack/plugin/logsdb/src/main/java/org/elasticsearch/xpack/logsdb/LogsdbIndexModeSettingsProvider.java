@@ -42,7 +42,7 @@ final class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
     public Settings getAdditionalIndexSettings(
         final String indexName,
         final String dataStreamName,
-        boolean isTimeSeries,
+        IndexMode templateIndexMode,
         final Metadata metadata,
         final Instant resolvedAt,
         final Settings settings,

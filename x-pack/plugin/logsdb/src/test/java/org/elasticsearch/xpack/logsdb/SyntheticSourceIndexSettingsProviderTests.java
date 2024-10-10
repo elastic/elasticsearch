@@ -49,7 +49,7 @@ public class SyntheticSourceIndexSettingsProviderTests extends ESTestCase {
                     }
                 }
                 """;
-            boolean result = provider.newIndexHasSyntheticSourceUsage(indexName, false, settings, List.of(new CompressedXContent(mapping)));
+            boolean result = provider.newIndexHasSyntheticSourceUsage(indexName, null, settings, List.of(new CompressedXContent(mapping)));
             assertTrue(result);
         }
         {
@@ -82,7 +82,7 @@ public class SyntheticSourceIndexSettingsProviderTests extends ESTestCase {
                     }
                     """;
             }
-            boolean result = provider.newIndexHasSyntheticSourceUsage(indexName, false, settings, List.of(new CompressedXContent(mapping)));
+            boolean result = provider.newIndexHasSyntheticSourceUsage(indexName, null, settings, List.of(new CompressedXContent(mapping)));
             assertFalse(result);
         }
     }
@@ -104,7 +104,7 @@ public class SyntheticSourceIndexSettingsProviderTests extends ESTestCase {
             }
             """;
         Settings settings = Settings.EMPTY;
-        boolean result = provider.newIndexHasSyntheticSourceUsage(indexName, false, settings, List.of(new CompressedXContent(mapping)));
+        boolean result = provider.newIndexHasSyntheticSourceUsage(indexName, null, settings, List.of(new CompressedXContent(mapping)));
         assertFalse(result);
     }
 
@@ -124,22 +124,22 @@ public class SyntheticSourceIndexSettingsProviderTests extends ESTestCase {
             """;
         {
             Settings settings = Settings.builder().put("index.mode", "logsdb").build();
-            boolean result = provider.newIndexHasSyntheticSourceUsage(indexName, false, settings, List.of(new CompressedXContent(mapping)));
+            boolean result = provider.newIndexHasSyntheticSourceUsage(indexName, null, settings, List.of(new CompressedXContent(mapping)));
             assertTrue(result);
         }
         {
             Settings settings = Settings.builder().put("index.mode", "logsdb").build();
-            boolean result = provider.newIndexHasSyntheticSourceUsage(indexName, false, settings, List.of());
+            boolean result = provider.newIndexHasSyntheticSourceUsage(indexName, null, settings, List.of());
             assertTrue(result);
         }
         {
-            boolean result = provider.newIndexHasSyntheticSourceUsage(indexName, false, Settings.EMPTY, List.of());
+            boolean result = provider.newIndexHasSyntheticSourceUsage(indexName, null, Settings.EMPTY, List.of());
             assertFalse(result);
         }
         {
             boolean result = provider.newIndexHasSyntheticSourceUsage(
                 indexName,
-                false,
+                null,
                 Settings.EMPTY,
                 List.of(new CompressedXContent(mapping))
             );
@@ -164,22 +164,22 @@ public class SyntheticSourceIndexSettingsProviderTests extends ESTestCase {
             """;
         {
             Settings settings = Settings.builder().put("index.mode", "time_series").put("index.routing_path", "my_field").build();
-            boolean result = provider.newIndexHasSyntheticSourceUsage(indexName, false, settings, List.of(new CompressedXContent(mapping)));
+            boolean result = provider.newIndexHasSyntheticSourceUsage(indexName, null, settings, List.of(new CompressedXContent(mapping)));
             assertTrue(result);
         }
         {
             Settings settings = Settings.builder().put("index.mode", "time_series").put("index.routing_path", "my_field").build();
-            boolean result = provider.newIndexHasSyntheticSourceUsage(indexName, false, settings, List.of());
+            boolean result = provider.newIndexHasSyntheticSourceUsage(indexName, null, settings, List.of());
             assertTrue(result);
         }
         {
-            boolean result = provider.newIndexHasSyntheticSourceUsage(indexName, false, Settings.EMPTY, List.of());
+            boolean result = provider.newIndexHasSyntheticSourceUsage(indexName, null, Settings.EMPTY, List.of());
             assertFalse(result);
         }
         {
             boolean result = provider.newIndexHasSyntheticSourceUsage(
                 indexName,
-                false,
+                null,
                 Settings.EMPTY,
                 List.of(new CompressedXContent(mapping))
             );
@@ -206,7 +206,7 @@ public class SyntheticSourceIndexSettingsProviderTests extends ESTestCase {
                     }
                 }
                 """;
-            boolean result = provider.newIndexHasSyntheticSourceUsage(indexName, false, settings, List.of(new CompressedXContent(mapping)));
+            boolean result = provider.newIndexHasSyntheticSourceUsage(indexName, null, settings, List.of(new CompressedXContent(mapping)));
             assertFalse(result);
         }
         {
@@ -221,7 +221,7 @@ public class SyntheticSourceIndexSettingsProviderTests extends ESTestCase {
                     }
                 }
                 """;
-            boolean result = provider.newIndexHasSyntheticSourceUsage(indexName, false, settings, List.of(new CompressedXContent(mapping)));
+            boolean result = provider.newIndexHasSyntheticSourceUsage(indexName, null, settings, List.of(new CompressedXContent(mapping)));
             assertFalse(result);
         }
     }

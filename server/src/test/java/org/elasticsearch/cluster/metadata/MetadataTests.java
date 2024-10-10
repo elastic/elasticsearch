@@ -35,6 +35,7 @@ import org.elasticsearch.core.Predicates;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
@@ -2412,30 +2413,87 @@ public class MetadataTests extends ESTestCase {
         assertThat(unclassifiedFields, empty());
     }
 
-    public void testIsTimeSeriesTemplate() throws IOException {
-        var template = new Template(Settings.builder().put("index.mode", "time_series").build(), new CompressedXContent("{}"), null);
+    public void testRetrieveIndexModeFromTemplateTsdb() throws IOException {
+        // tsdb:
+        var tsdbTemplate = new Template(Settings.builder().put("index.mode", "time_series").build(), new CompressedXContent("{}"), null);
         // Settings in component template:
         {
-            var componentTemplate = new ComponentTemplate(template, null, null);
+            var componentTemplate = new ComponentTemplate(tsdbTemplate, null, null);
             var indexTemplate = ComposableIndexTemplate.builder()
                 .indexPatterns(List.of("test-*"))
                 .componentTemplates(List.of("component_template_1"))
                 .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
                 .build();
             Metadata m = Metadata.builder().put("component_template_1", componentTemplate).put("index_template_1", indexTemplate).build();
-            assertThat(m.isTimeSeriesTemplate(indexTemplate), is(true));
+            assertThat(m.retrieveIndexModeFromTemplate(indexTemplate), is(IndexMode.TIME_SERIES));
         }
         // Settings in composable index template:
         {
             var componentTemplate = new ComponentTemplate(new Template(null, null, null), null, null);
             var indexTemplate = ComposableIndexTemplate.builder()
                 .indexPatterns(List.of("test-*"))
-                .template(template)
+                .template(tsdbTemplate)
                 .componentTemplates(List.of("component_template_1"))
                 .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
                 .build();
             Metadata m = Metadata.builder().put("component_template_1", componentTemplate).put("index_template_1", indexTemplate).build();
-            assertThat(m.isTimeSeriesTemplate(indexTemplate), is(true));
+            assertThat(m.retrieveIndexModeFromTemplate(indexTemplate), is(IndexMode.TIME_SERIES));
+        }
+    }
+
+    public void testRetrieveIndexModeFromTemplateLogsdb() throws IOException {
+        // logsdb:
+        var logsdbTemplate = new Template(Settings.builder().put("index.mode", "logsdb").build(), new CompressedXContent("{}"), null);
+        // Settings in component template:
+        {
+            var componentTemplate = new ComponentTemplate(logsdbTemplate, null, null);
+            var indexTemplate = ComposableIndexTemplate.builder()
+                .indexPatterns(List.of("test-*"))
+                .componentTemplates(List.of("component_template_1"))
+                .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+                .build();
+            Metadata m = Metadata.builder().put("component_template_1", componentTemplate).put("index_template_1", indexTemplate).build();
+            assertThat(m.retrieveIndexModeFromTemplate(indexTemplate), is(IndexMode.LOGSDB));
+        }
+        // Settings in composable index template:
+        {
+            var componentTemplate = new ComponentTemplate(new Template(null, null, null), null, null);
+            var indexTemplate = ComposableIndexTemplate.builder()
+                .indexPatterns(List.of("test-*"))
+                .template(logsdbTemplate)
+                .componentTemplates(List.of("component_template_1"))
+                .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+                .build();
+            Metadata m = Metadata.builder().put("component_template_1", componentTemplate).put("index_template_1", indexTemplate).build();
+            assertThat(m.retrieveIndexModeFromTemplate(indexTemplate), is(IndexMode.LOGSDB));
+        }
+    }
+
+    public void testRetrieveIndexModeFromTemplateEmpty() throws IOException {
+        // no index mode:
+        var emptyTemplate = new Template(Settings.EMPTY, new CompressedXContent("{}"), null);
+        // Settings in component template:
+        {
+            var componentTemplate = new ComponentTemplate(emptyTemplate, null, null);
+            var indexTemplate = ComposableIndexTemplate.builder()
+                .indexPatterns(List.of("test-*"))
+                .componentTemplates(List.of("component_template_1"))
+                .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+                .build();
+            Metadata m = Metadata.builder().put("component_template_1", componentTemplate).put("index_template_1", indexTemplate).build();
+            assertThat(m.retrieveIndexModeFromTemplate(indexTemplate), nullValue());
+        }
+        // Settings in composable index template:
+        {
+            var componentTemplate = new ComponentTemplate(new Template(null, null, null), null, null);
+            var indexTemplate = ComposableIndexTemplate.builder()
+                .indexPatterns(List.of("test-*"))
+                .template(emptyTemplate)
+                .componentTemplates(List.of("component_template_1"))
+                .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+                .build();
+            Metadata m = Metadata.builder().put("component_template_1", componentTemplate).put("index_template_1", indexTemplate).build();
+            assertThat(m.retrieveIndexModeFromTemplate(indexTemplate), nullValue());
         }
     }
 

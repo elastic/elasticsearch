@@ -29,7 +29,7 @@ def versions = [
   'commonsCodec': '1.16.1',
   'slf4' : '2.0.10',
   'xz' : '1.9',
-  'commonsIo' : '2.15.1',
+  'commonsIo' : '2.16.1',
   //intentionally using the elder "juniversalchardet:juniversalchardet" rather than the newer "com.github.albfernandez:juniversalchardet"
   //since the "com.github.albfernandez" fork has some problems with Chinese.
   'juniversalchardet' : '1.0.3',

@@ -1,6 +1,8 @@
 ---
 create logsdb data stream with host.name as keyword:
   - requires:
+      test_runner_features: [ "allowed_warnings" ]
+  - requires:
       cluster_features: [ "mapper.keyword_normalizer_synthetic_source" ]
       reason: support for normalizer on keyword fields
 
@@ -23,6 +25,8 @@ create logsdb data stream with host.name as keyword:
           index_patterns: ["logsdb"]
           data_stream: {}
           composed_of: ["logsdb-mappings"]
+      allowed_warnings:
+        - "index template [logsdb-index-template] has index patterns [logsdb] matching patterns from existing older templates [global] with patterns (global => [*]); this template [logsdb-index-template] will take precedence during new index creation"
 
   - do:
       indices.create_data_stream:
@@ -32,6 +36,8 @@ create logsdb data stream with host.name as keyword:
 
 ---
 create logsdb data stream with host.name as keyword and timestamp as date:
+  - requires:
+      test_runner_features: [ "allowed_warnings" ]
   - requires:
       cluster_features: [ "mapper.keyword_normalizer_synthetic_source" ]
       reason: support for normalizer on keyword fields
@@ -57,6 +63,8 @@ create logsdb data stream with host.name as keyword and timestamp as date:
           index_patterns: ["logsdb"]
           data_stream: {}
           composed_of: ["logsdb-mappings"]
+      allowed_warnings:
+        - "index template [logsdb-index-template] has index patterns [logsdb] matching patterns from existing older templates [global] with patterns (global => [*]); this template [logsdb-index-template] will take precedence during new index creation"
 
   - do:
       indices.create_data_stream:
@@ -66,6 +74,8 @@ create logsdb data stream with host.name as keyword and timestamp as date:
 
 ---
 create logsdb data stream with host as keyword:
+  - requires:
+      test_runner_features: [ "allowed_warnings" ]
   - requires:
       cluster_features: [ "mapper.keyword_normalizer_synthetic_source" ]
       reason: support for normalizer on keyword fields
@@ -89,6 +99,8 @@ create logsdb data stream with host as keyword:
           index_patterns: ["logsdb"]
           data_stream: {}
           composed_of: ["logsdb-mappings"]
+      allowed_warnings:
+        - "index template [logsdb-index-template] has index patterns [logsdb] matching patterns from existing older templates [global] with patterns (global => [*]); this template [logsdb-index-template] will take precedence during new index creation"
 
   - do:
       catch: bad_request
@@ -100,6 +112,8 @@ create logsdb data stream with host as keyword:
 
 ---
 create logsdb data stream with host as text and multi fields:
+  - requires:
+      test_runner_features: [ "allowed_warnings" ]
   - requires:
       cluster_features: [ "mapper.keyword_normalizer_synthetic_source" ]
       reason: support for normalizer on keyword fields
@@ -130,6 +144,8 @@ create logsdb data stream with host as text and multi fields:
           index_patterns: ["logsdb"]
           data_stream: {}
           composed_of: ["logsdb-mappings"]
+      allowed_warnings:
+        - "index template [logsdb-index-template] has index patterns [logsdb] matching patterns from existing older templates [global] with patterns (global => [*]); this template [logsdb-index-template] will take precedence during new index creation"
 
   - do:
       catch: bad_request
@@ -141,6 +157,8 @@ create logsdb data stream with host as text and multi fields:
 
 ---
 create logsdb data stream with host as text:
+  - requires:
+      test_runner_features: [ "allowed_warnings" ]
   - requires:
       cluster_features: ["mapper.keyword_normalizer_synthetic_source"]
       reason: "Support for normalizer on keyword fields"
@@ -167,6 +185,8 @@ create logsdb data stream with host as text:
           index_patterns: ["logsdb"]
           data_stream: {}
           composed_of: ["logsdb-mappings"]
+      allowed_warnings:
+        - "index template [logsdb-index-template] has index patterns [logsdb] matching patterns from existing older templates [global] with patterns (global => [*]); this template [logsdb-index-template] will take precedence during new index creation"
 
   - do:
       catch: bad_request
@@ -178,6 +198,8 @@ create logsdb data stream with host as text:
 
 ---
 create logsdb data stream with host as text and name as double:
+  - requires:
+      test_runner_features: [ "allowed_warnings" ]
   - requires:
       cluster_features: ["mapper.keyword_normalizer_synthetic_source"]
       reason: "Support for normalizer on keyword fields"
@@ -207,6 +229,8 @@ create logsdb data stream with host as text and name as double:
           index_patterns: ["logsdb"]
           data_stream: {}
           composed_of: ["logsdb-mappings"]
+      allowed_warnings:
+        - "index template [logsdb-index-template] has index patterns [logsdb] matching patterns from existing older templates [global] with patterns (global => [*]); this template [logsdb-index-template] will take precedence during new index creation"
 
   - do:
       catch: bad_request
@@ -218,6 +242,8 @@ create logsdb data stream with host as text and name as double:
 
 ---
 create logsdb data stream with timestamp object mapping:
+  - requires:
+      test_runner_features: [ "allowed_warnings" ]
   - requires:
       cluster_features: ["mapper.keyword_normalizer_synthetic_source"]
       reason: "Support for normalizer on keyword fields"
@@ -249,6 +275,8 @@ create logsdb data stream with timestamp object mapping:
           index_patterns: ["logsdb"]
           data_stream: {}
           composed_of: ["logsdb-mappings"]
+      allowed_warnings:
+        - "index template [logsdb-index-template] has index patterns [logsdb] matching patterns from existing older templates [global] with patterns (global => [*]); this template [logsdb-index-template] will take precedence during new index creation"
 
   - match: { error.type: "illegal_argument_exception" }
   - match: { error.reason: "composable template [logsdb-index-template] template after composition with component templates [logsdb-mappings] is invalid" }

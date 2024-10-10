@@ -149,7 +149,7 @@ public class TransportSearchableSnapshotsNodeCachesStatsAction extends Transport
         }
     }
 
-    public static final class NodesRequest extends BaseNodesRequest<NodesRequest> {
+    public static final class NodesRequest extends BaseNodesRequest {
         public NodesRequest(String[] nodes) {
             super(nodes);
         }

@@ -231,7 +231,7 @@ public class TransportSimulateBulkAction extends TransportAbstractBulkAction {
                 }
                 if (indexTemplateSubstitutions.isEmpty() == false) {
                     Map<String, ComposableIndexTemplate> updatedIndexTemplates = new HashMap<>();
-                    updatedIndexTemplates.putAll(state.metadata().templatesV2());
+                    updatedIndexTemplates.putAll(state.metadata().getProject().templatesV2());
                     updatedIndexTemplates.putAll(indexTemplateSubstitutions);
                     simulatedMetadata.indexTemplates(updatedIndexTemplates);
                 }

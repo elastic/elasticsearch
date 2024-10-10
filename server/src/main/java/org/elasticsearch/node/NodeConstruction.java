@@ -271,8 +271,9 @@ class NodeConstruction {
 
             final SettingsModule settingsModule;
             try (var ignored = threadPool.getThreadContext().newStoredContext()) {
-                // if any deprecated settings are in use then we add warnings to the thread context response headers, but these never end
-                // up in any particular response, so it's best to just drop them now
+                // If any deprecated settings are in use then we add warnings to the thread context response headers, but we're not
+                // computing a response here so these headers aren't relevant and eventually just get dropped after possibly leaking into
+                // places they shouldn't. Best to explicitly drop them now to protect against such leakage.
                 settingsModule = constructor.validateSettings(initialEnvironment.settings(), settings, threadPool);
             }
 

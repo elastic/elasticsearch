@@ -208,8 +208,9 @@ Elasticsearch queues shard allocation retries in batches. If there are long-runn
 recoveries or a high quantity of shard recoveries occurring within the cluster, this
 process may time out for some shards, resulting in `max_retry`. This surfaces infrequently
 but is expected to prevent infinite retries which may impact cluster performance. When
-encountered, run <<cluster-reroute,the cluster reroute API>> to retry allocation.
+encountered, run the <<cluster-reroute,cluster reroute>> API to retry allocation.
 
+[[no-valid-shard-copy]]
 ====== No valid shard copy
 
 The following response contains an allocation explanation for an unassigned

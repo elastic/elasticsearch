@@ -173,3 +173,877 @@ host:keyword | semantic_text_field:semantic_text
 "host2"      | all we have to decide is what to do with the time that is given to us
 "host3"      | be excellent to each other
 ;
+
+convertToBool
+required_capability: semantic_text_type
+
+FROM semantic_text METADATA _id
+| EVAL result = to_bool(st_bool)
+| KEEP _id, result
+| SORT _id
+;
+
+_id:keyword | result:bool
+1           | false
+2           | true
+3           | null
+;
+
+convertToCartesianPoint
+required_capability: semantic_text_type
+
+FROM semantic_text METADATA _id
+| EVAL result = to_cartesianpoint(st_cartesian_point)
+| KEEP _id, result
+| SORT _id
+;
+
+_id:keyword | result:cartesian_point
+1           | "POINT(4297.11 -1475.53)"
+2           | "POINT(7580.93 2272.77)"
+3           | null
+;
+
+convertToCartesianShape
+required_capability: semantic_text_type
+
+FROM semantic_text METADATA _id
+| EVAL result = to_cartesianshape(st_cartesian_shape)
+| KEEP _id, result
+| SORT _id
+;
+
+_id:keyword | result:cartesian_shape
+1           | null
+2           | null
+3           | null
+;
+
+convertToDatetime
+required_capability: semantic_text_type
+
+FROM semantic_text METADATA _id
+| EVAL result = to_datetime(st_datetime)
+| KEEP _id, result
+| SORT _id, result
+;
+
+_id:keyword|result:datetime
+1          | 1953-09-02T00:00:00.000Z
+2          | 2023-09-24T15:57:00.000Z
+3          | null
+;
+
+convertToDouble
+required_capability: semantic_text_type
+
+FROM semantic_text METADATA _id
+| EVAL result = to_double(st_double)
+| KEEP _id, result
+| SORT _id
+;
+
+_id:keyword|result:double
+1          | 5.20128E11
+2          | 4541.11
+3          | null
+;
+
+convertToGeopoint
+required_capability: semantic_text_type
+
+FROM semantic_text METADATA _id
+| EVAL result = to_geopoint(st_geopoint)
+| KEEP _id, result
+| SORT _id
+;
+
+_id:keyword | result:geo_point
+1           | "POINT(42.97109630194 14.7552534413725)"
+2           | "POINT(37.97109630194 21.7552534413725)"
+3           | null
+;
+
+convertToGeoshape
+required_capability: semantic_text_type
+
+FROM semantic_text METADATA _id
+| EVAL result = to_geoshape(st_geoshape)
+| KEEP _id, result
+| SORT _id
+;
+
+_id:keyword | result:geo_shape
+1           | "POLYGON ((30 10, 40 40, 20 40, 10 20, 30 10))"
+2           | "POLYGON ((30 10, 40 40, 20 40, 10 20, 30 10))"
+3           | null
+;
+
+convertToInteger
+required_capability: semantic_text_type
+
+FROM semantic_text METADATA _id
+| EVAL result = to_integer(st_integer)
+| KEEP _id, result
+| SORT _id
+;
+
+_id:keyword | result:integer
+1           | 23
+2           | 122
+3           | null
+;
+
+convertToIp
+required_capability: semantic_text_type
+
+FROM semantic_text METADATA _id
+| EVAL result = to_ip(st_ip)
+| KEEP _id, result
+| SORT _id
+;
+
+_id:keyword | result:ip
+1           | 1.1.1.1
+2           | 1.1.2.1
+3           | null
+;
+
+convertToLong
+required_capability: semantic_text_type
+
+FROM semantic_text METADATA _id
+| EVAL result = to_long(st_long)
+| KEEP _id, result
+| SORT _id
+;
+
+_id:keyword | result:long
+1           | 2147483648
+2           | 123
+3           | null
+;
+
+convertToUnsignedLong
+required_capability: semantic_text_type
+
+FROM semantic_text METADATA _id
+| EVAL result = to_unsigned_long(st_unsigned_long)
+| KEEP _id, result
+| SORT _id
+;
+
+_id:keyword | result:unsigned_long
+1           | 2147483648
+2           | 2147483648.2
+3           | null
+;
+
+convertToVersion
+required_capability: semantic_text_type
+
+FROM semantic_text METADATA _id
+| EVAL result = to_version(st_version)
+| KEEP _id, result
+| SORT _id
+;
+
+_id:keyword | result:version
+1           | 1.2.3
+2           | 9.0.0
+3           | null
+;
+
+concat
+required_capability: semantic_text_type
+
+FROM semantic_text
+| EVAL result = concat("<em>", semantic_text_field, "</em>")
+| KEEP result
+| SORT result
+;
+
+result:keyword
+<em>all we have to decide is what to do with the time that is given to us</em>
+<em>be excellent to each other</em>
+<em>live long and prosper</em>
+;
+
+
+endsWith
+required_capability: semantic_text_type
+
+FROM semantic_text
+| WHERE ends_with(semantic_text_field, "er")
+| KEEP semantic_text_field
+| SORT semantic_text_field
+;
+
+semantic_text_field:semantic_text
+be excellent to each other
+live long and prosper
+;
+
+left
+required_capability: semantic_text_type
+
+FROM semantic_text
+| EVAL result = left(semantic_text_field, 2)
+| SORT result
+| KEEP result
+;
+
+result:keyword
+al
+be
+li
+;
+
+length
+required_capability: semantic_text_type
+
+FROM semantic_text
+| EVAL result = length(st_version)
+| KEEP result
+| SORT result
+;
+
+result:integer
+5
+5
+null
+;
+
+locate
+required_capability: semantic_text_type
+
+FROM semantic_text METADATA _id
+| EVAL result = locate(semantic_text_field, "all")
+| KEEP _id, result
+| SORT _id
+;
+
+_id:keyword | result:integer
+1           | 0
+2           | 1
+3           | 0
+;
+
+ltrim
+required_capability: semantic_text_type
+
+FROM semantic_text
+| EVAL result = ltrim(semantic_text_field)
+| SORT result
+| KEEP result
+;
+
+result:semantic_text
+all we have to decide is what to do with the time that is given to us
+be excellent to each other
+live long and prosper
+;
+
+repeat
+required_capability: semantic_text_type
+
+FROM semantic_text
+| EVAL result = repeat(semantic_text_field, 2)
+| WHERE length(semantic_text_field) < 25
+| KEEP result
+;
+
+result:keyword
+live long and prosperlive long and prosper
+;
+
+replace
+required_capability: semantic_text_type
+
+FROM semantic_text
+| EVAL result = replace(semantic_text_field, "excellent", "good")
+| WHERE length(semantic_text_field) < 30
+| KEEP result
+| SORT result
+;
+
+result:keyword
+be good to each other
+live long and prosper
+;
+
+right
+required_capability: semantic_text_type
+
+FROM semantic_text
+| EVAL result = right(semantic_text_field, 2)
+| KEEP result
+| SORT result
+;
+
+result:keyword
+er
+er
+us
+;
+
+rtrim
+required_capability: semantic_text_type
+
+FROM semantic_text
+| EVAL result = rtrim(semantic_text_field)
+| KEEP result
+| SORT result
+;
+
+result:semantic_text
+all we have to decide is what to do with the time that is given to us
+be excellent to each other
+live long and prosper
+;
+
+split
+required_capability: semantic_text_type
+
+FROM semantic_text METADATA _id
+| EVAL result = split(st_version, ".")
+| SORT _id
+| KEEP result
+;
+
+result:keyword
+["1", "2", "3"]
+["9", "0", "0"]
+null
+;
+
+startsWith
+required_capability: semantic_text_type
+
+FROM semantic_text METADATA _id
+| EVAL result = starts_with(semantic_text_field, "be")
+| KEEP _id, result
+| SORT _id
+;
+
+_id:keyword | result:bool
+1           | false
+2           | false
+3           | true
+;
+
+substring
+required_capability: semantic_text_type
+
+FROM semantic_text METADATA _id
+| EVAL result = substring(semantic_text_field, 2, 1)
+| KEEP _id, result
+| SORT _id
+;
+
+_id:keyword | result:keyword
+1           | i
+2           | l
+3           | e
+;
+
+
+toLower
+required_capability: semantic_text_type
+
+FROM semantic_text METADATA _id
+| EVAL result = to_lower(st_cartesian_point)
+| KEEP _id, result
+| SORT _id
+;
+
+_id:keyword | result:semantic_text
+1           | point(4297.11 -1475.53)
+2           | point(7580.93 2272.77)
+3           | null
+;
+
+toUpper
+required_capability: semantic_text_type
+
+FROM semantic_text METADATA _id
+| EVAL result = to_upper(semantic_text_field)
+| KEEP _id, result
+| SORT _id
+; 
+
+_id:keyword | result:semantic_text
+1           | LIVE LONG AND PROSPER
+2           | ALL WE HAVE TO DECIDE IS WHAT TO DO WITH THE TIME THAT IS GIVEN TO US
+3           | BE EXCELLENT TO EACH OTHER
+;
+
+trim
+required_capability: semantic_text_type
+
+FROM semantic_text
+| EVAL result = trim(semantic_text_field)
+| SORT result
+| KEEP result
+;
+
+result:semantic_text
+all we have to decide is what to do with the time that is given to us
+be excellent to each other
+live long and prosper
+;
+
+mvAppend
+required_capability: semantic_text_type
+
+FROM semantic_text METADATA _id
+| EVAL result = mv_append(st_integer, st_long)
+| KEEP _id, result
+| SORT _id
+;
+
+_id: keyword | result:semantic_text
+1           | ["23", "2147483648"] 
+2           | ["122", "123"]
+3           | null
+;
+
+mvConcat
+required_capability: semantic_text_type
+
+FROM semantic_text METADATA _id
+| EVAL x = mv_append(st_integer, st_long)
+| EVAL result = mv_concat(x, "; ")
+| KEEP _id, result
+| SORT _id
+;
+
+_id: keyword | result:keyword
+1           | 23; 2147483648
+2           | 122; 123
+3           | null
+;
+
+mvCount
+required_capability: semantic_text_type
+
+FROM semantic_text METADATA _id
+| EVAL x = mv_append(st_integer, st_long)
+| EVAL result = mv_count(x)
+| KEEP _id, result
+| SORT _id
+;
+
+_id: keyword | result:integer
+1            | 2
+2            | 2
+3            | null
+;
+
+mvDedupe
+required_capability: semantic_text_type
+
+FROM semantic_text METADATA _id
+| EVAL x = mv_append(st_integer, st_long)
+| EVAL x = mv_append(x, st_integer)
+| EVAL result = mv_dedupe(x)
+| KEEP _id, result
+| SORT _id
+;
+
+_id: keyword | result:semantic_text
+1           | ["23", "2147483648"] 
+2           | ["122", "123"]
+3           | null
+;
+
+mvFirst
+required_capability: semantic_text_type
+
+FROM semantic_text METADATA _id
+| EVAL x = mv_append(st_integer, st_long)
+| EVAL result = mv_first(x)
+| KEEP _id, result
+| SORT _id
+;
+
+_id: keyword | result:semantic_text
+1           | 23
+2           | 122
+3           | null
+;
+
+mvLast
+required_capability: semantic_text_type
+
+FROM semantic_text METADATA _id
+| EVAL x = mv_append(st_integer, st_long)
+| EVAL result = mv_last(x)
+| KEEP _id, result
+| SORT _id
+;
+
+_id: keyword | result:semantic_text
+1           | 2147483648
+2           | 123
+3           | null
+;
+
+mvMax
+required_capability: semantic_text_type
+
+FROM semantic_text METADATA _id
+| EVAL x = mv_append(st_integer, st_long)
+| EVAL result = mv_max(x)
+| KEEP _id, result
+| SORT _id
+;
+
+_id: keyword | result:semantic_text
+1           | 23
+2           | 123
+3           | null
+;
+
+mvMin
+required_capability: semantic_text_type
+
+FROM semantic_text METADATA _id
+| EVAL x = mv_append(st_integer, st_long)
+| EVAL result = mv_min(x)
+| KEEP _id, result
+| SORT _id
+;
+
+_id: keyword | result:semantic_text
+1           | 2147483648
+2           | 122
+3           | null
+;
+
+mvSlice
+required_capability: semantic_text_type
+
+FROM semantic_text METADATA _id
+| EVAL x = mv_append(st_integer, st_long)
+| EVAL x = mv_append(x, st_integer)
+| EVAL result = mv_slice(x, 1, 2)
+| KEEP _id, result
+| SORT _id
+;
+
+_id: keyword | result:semantic_text
+1           | ["2147483648", "23"]
+2           | ["123", "122"]
+3           | null
+;
+
+mvSort
+required_capability: semantic_text_type
+
+FROM semantic_text METADATA _id
+| EVAL x = mv_append(st_integer, st_long)
+| EVAL result = mv_sort(x, "DESC")
+| KEEP _id, result
+| SORT _id
+;
+
+_id: keyword | result:semantic_text
+1           | ["23", "2147483648"]
+2           | ["123", "122"]
+3           | null
+;
+
+
+mvZip
+required_capability: semantic_text_type
+
+FROM semantic_text METADATA _id
+| EVAL x = mv_append(st_integer, st_long)
+| EVAL y = mv_append(st_double, st_integer)
+| EVAL result = mv_zip(x, y, " + ")
+| KEEP _id, result
+| SORT _id
+;
+
+_id: keyword | result:keyword
+1           | ["23 + 5.20128E11", "2147483648 + 23"]
+2           | ["122 + 4541.11", "123 + 122"]
+3           | null
+;
+
+equalityWithConstant
+required_capability: semantic_text_type
+
+FROM semantic_text METADATA _id
+| EVAL result = st_ip == "1.1.1.1"
+| KEEP _id, result
+| SORT _id
+;
+
+_id: keyword | result:bool
+1           | true
+2           | false
+3           | null
+;
+
+equalityBetweenFields
+required_capability: semantic_text_type
+
+FROM semantic_text METADATA _id
+| EVAL result = st_long == st_unsigned_long
+| KEEP _id, result
+| SORT _id
+;
+
+_id: keyword | result:bool
+1           | true
+2           | false
+3           | null
+;
+
+
+inequalityWithConstant
+required_capability: semantic_text_type
+
+FROM semantic_text METADATA _id
+| EVAL result = st_ip != "1.1.1.1"
+| KEEP _id, result
+| SORT _id
+;
+
+_id: keyword | result:bool
+1           | false
+2           | true
+3           | null
+;
+
+inequalityBetweenFields
+required_capability: semantic_text_type
+
+FROM semantic_text METADATA _id
+| EVAL result = st_long != st_unsigned_long
+| KEEP _id, result
+| SORT _id
+;
+
+_id: keyword | result:bool
+1           | false
+2           | true
+3           | null
+;
+
+lessThanWithConstant
+required_capability: semantic_text_type
+
+FROM semantic_text METADATA _id
+| EVAL result = semantic_text_field < "bye!"
+| KEEP _id, result
+| SORT _id
+;
+
+_id: keyword | result:bool
+1           | false
+2           | true
+3           | true
+;
+
+lessThanBetweenFields
+required_capability: semantic_text_type
+
+FROM semantic_text METADATA _id
+| EVAL result = semantic_text_field < st_version
+| KEEP _id, result
+| SORT _id
+;
+
+_id: keyword | result:bool
+1           | false
+2           | false
+3           | null
+;
+
+
+lessThanOrEqualToWithConstant
+required_capability: semantic_text_type
+
+
+FROM semantic_text METADATA _id
+| EVAL result = semantic_text_field <= "be excellent to each other"
+| KEEP _id, result
+| SORT _id
+;
+
+_id: keyword | result:bool
+1           | false
+2           | true
+3           | true
+;
+
+
+lessThanOrEqualToBetweenFields
+required_capability: semantic_text_type
+
+FROM semantic_text METADATA _id
+| EVAL result = st_integer <= st_long
+| KEEP _id, result
+| SORT _id
+;
+
+_id: keyword | result:bool
+1           | false
+2           | true
+3           | null
+;
+
+
+greaterThanWithConstant
+required_capability: semantic_text_type
+
+FROM semantic_text METADATA _id
+| EVAL result = semantic_text_field > "bye!"
+| KEEP _id, result
+| SORT _id
+;
+
+_id: keyword | result:bool
+1           | true
+2           | false
+3           | false
+;
+
+
+greaterThanBetweenFields
+required_capability: semantic_text_type
+
+FROM semantic_text METADATA _id
+| EVAL result = semantic_text_field > st_version
+| KEEP _id, result
+| SORT _id
+;
+
+_id: keyword | result:bool
+1           | true
+2           | true
+3           | null
+;
+
+greaterThanOrEqualToWithConstant
+required_capability: semantic_text_type
+
+FROM semantic_text METADATA _id
+| EVAL result = semantic_text_field >= "be excellent to each other"
+| KEEP _id, result
+| SORT _id
+;
+
+_id: keyword | result:bool
+1           | true
+2           | false
+3           | true
+;
+
+greaterThanOrEqualToBetweenFields
+required_capability: semantic_text_type
+
+FROM semantic_text METADATA _id
+| EVAL result = st_integer >= st_long
+| KEEP _id, result
+| SORT _id
+;
+
+_id: keyword | result:bool
+1           | true
+2           | false
+3           | null
+;
+
+isNull
+required_capability: semantic_text_type
+
+FROM semantic_text METADATA _id
+| EVAL result = st_integer IS NULL
+| KEEP _id, result
+| SORT _id
+;
+
+_id: keyword | result:bool
+1           | false
+2           | false
+3           | true
+;
+
+isNotNull
+required_capability: semantic_text_type
+
+FROM semantic_text METADATA _id
+| EVAL result = st_integer IS NOT NULL
+| KEEP _id, result
+| SORT _id
+;
+
+_id: keyword | result:bool
+1           | true
+2           | true
+3           | false
+;
+
+cast
+required_capability: semantic_text_type
+
+FROM semantic_text METADATA _id
+| EVAL result = st_bool::BOOL
+| KEEP _id, result
+| SORT _id
+;
+
+_id:keyword | result:bool
+1           | false
+2           | true
+3           | null
+;
+
+in
+required_capability: semantic_text_type
+
+FROM semantic_text METADATA _id
+| EVAL result = st_integer IN ("123", "23")
+| KEEP _id, result
+| SORT _id
+;
+
+_id: keyword | result:bool
+1           | true
+2           | false
+3           | null
+;
+
+like
+required_capability: semantic_text_type
+
+FROM semantic_text METADATA _id
+| EVAL result = semantic_text_field LIKE "all*"
+| KEEP _id, result
+| SORT _id
+;
+
+_id: keyword | result:bool
+1           | false
+2           | true
+3           | false
+;
+
+rlike
+required_capability: semantic_text_type
+
+FROM semantic_text METADATA _id
+| EVAL result = st_version RLIKE "[0-9].[0-9].[0-9]"
+| KEEP _id, result
+| SORT _id
+;
+
+_id: keyword | result:bool
+1           | true
+2           | true
+3           | null
+;

@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.analysis;
 
 import org.elasticsearch.common.logging.LoggerMessageFormat;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.core.capabilities.Unresolvable;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
@@ -512,6 +513,9 @@ public class Verifier {
         allowed.add(DataType.GEO_SHAPE);
         allowed.add(DataType.CARTESIAN_POINT);
         allowed.add(DataType.CARTESIAN_SHAPE);
+        if (EsqlCapabilities.Cap.SEMANTIC_TEXT_TYPE.isEnabled()) {
+            allowed.add(DataType.SEMANTIC_TEXT);
+        }
         if (bc instanceof Equals || bc instanceof NotEquals) {
             allowed.add(DataType.BOOLEAN);
         }

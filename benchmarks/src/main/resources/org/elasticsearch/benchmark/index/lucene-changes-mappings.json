@@ -1,0 +1,482 @@
+{
+  "_meta": {
+    "managed_by": "fleet",
+    "managed": true,
+    "package": {
+      "name": "kafka"
+    }
+  },
+  "_data_stream_timestamp": {
+    "enabled": true
+  },
+  "_source": {
+    "mode": "$1"
+  },
+  "date_detection": false,
+  "runtime": {
+    "rally.doc_size": {
+      "type": "long"
+    },
+    "rally.message_size": {
+      "type": "long"
+    }
+  },
+  "properties": {
+    "@timestamp": {
+      "type": "date",
+      "ignore_malformed": false
+    },
+    "agent": {
+      "properties": {
+        "ephemeral_id": {
+          "type": "keyword",
+          "ignore_above": 1024
+        },
+        "hostname": {
+          "type": "keyword",
+          "ignore_above": 1024
+        },
+        "id": {
+          "type": "keyword",
+          "ignore_above": 1024
+        },
+        "name": {
+          "type": "keyword",
+          "fields": {
+            "text": {
+              "type": "text"
+            }
+          }
+        },
+        "type": {
+          "type": "keyword",
+          "ignore_above": 1024
+        },
+        "version": {
+          "type": "keyword",
+          "ignore_above": 1024
+        }
+      }
+    },
+    "cloud": {
+      "properties": {
+        "account": {
+          "properties": {
+            "id": {
+              "type": "keyword",
+              "ignore_above": 1024
+            }
+          }
+        },
+        "availability_zone": {
+          "type": "keyword",
+          "ignore_above": 1024
+        },
+        "image": {
+          "properties": {
+            "id": {
+              "type": "keyword",
+              "ignore_above": 1024
+            }
+          }
+        },
+        "instance": {
+          "properties": {
+            "id": {
+              "type": "keyword",
+              "ignore_above": 1024
+            },
+            "name": {
+              "type": "keyword",
+              "ignore_above": 1024
+            }
+          }
+        },
+        "machine": {
+          "properties": {
+            "type": {
+              "type": "keyword",
+              "ignore_above": 1024
+            }
+          }
+        },
+        "project": {
+          "properties": {
+            "id": {
+              "type": "keyword",
+              "ignore_above": 1024
+            }
+          }
+        },
+        "provider": {
+          "type": "keyword",
+          "ignore_above": 1024
+        },
+        "region": {
+          "type": "keyword",
+          "ignore_above": 1024
+        }
+      }
+    },
+    "container": {
+      "dynamic": "true",
+      "properties": {
+        "id": {
+          "type": "keyword",
+          "ignore_above": 1024
+        },
+        "image": {
+          "properties": {
+            "name": {
+              "type": "keyword",
+              "ignore_above": 1024
+            }
+          }
+        },
+        "labels": {
+          "type": "object",
+          "dynamic": "true"
+        },
+        "name": {
+          "type": "keyword",
+          "ignore_above": 1024
+        }
+      }
+    },
+    "data_stream": {
+      "properties": {
+        "dataset": {
+          "type": "keyword"
+        },
+        "namespace": {
+          "type": "keyword"
+        },
+        "type": {
+          "type": "keyword"
+        }
+      }
+    },
+    "ecs": {
+      "properties": {
+        "version": {
+          "type": "keyword",
+          "ignore_above": 1024
+        }
+      }
+    },
+    "error": {
+      "properties": {
+        "log": {
+          "type": "keyword",
+          "ignore_above": 1024
+        },
+        "message": {
+          "type": "text"
+        }
+      }
+    },
+    "event": {
+      "properties": {
+        "agent_id_status": {
+          "type": "keyword",
+          "ignore_above": 1024
+        },
+        "created": {
+          "type": "date",
+          "format": "strict_date_optional_time"
+        },
+        "dataset": {
+          "type": "keyword"
+        },
+        "end": {
+          "type": "date"
+        },
+        "id": {
+          "type": "keyword",
+          "ignore_above": 1024
+        },
+        "ingested": {
+          "type": "date",
+          "format": "strict_date_optional_time"
+        },
+        "kind": {
+          "type": "keyword",
+          "ignore_above": 1024
+        },
+        "module": {
+          "type": "keyword"
+        },
+        "start": {
+          "type": "date"
+        },
+        "timezone": {
+          "type": "keyword",
+          "ignore_above": 1024
+        },
+        "type": {
+          "type": "keyword",
+          "ignore_above": 1024
+        }
+      }
+    },
+    "fileset": {
+      "properties": {
+        "name": {
+          "type": "keyword",
+          "fields": {
+            "text": {
+              "type": "text"
+            }
+          }
+        }
+      }
+    },
+    "host": {
+      "properties": {
+        "architecture": {
+          "type": "keyword",
+          "ignore_above": 1024
+        },
+        "containerized": {
+          "type": "boolean"
+        },
+        "domain": {
+          "type": "keyword",
+          "ignore_above": 1024
+        },
+        "hostname": {
+          "type": "keyword",
+          "ignore_above": 1024
+        },
+        "id": {
+          "type": "keyword",
+          "ignore_above": 1024
+        },
+        "ip": {
+          "type": "ip"
+        },
+        "mac": {
+          "type": "keyword",
+          "ignore_above": 1024
+        },
+        "name": {
+          "type": "keyword",
+          "ignore_above": 1024
+        },
+        "os": {
+          "properties": {
+            "build": {
+              "type": "keyword",
+              "ignore_above": 1024
+            },
+            "codename": {
+              "type": "keyword",
+              "ignore_above": 1024
+            },
+            "family": {
+              "type": "keyword",
+              "ignore_above": 1024
+            },
+            "kernel": {
+              "type": "keyword",
+              "ignore_above": 1024
+            },
+            "name": {
+              "type": "keyword",
+              "ignore_above": 1024,
+              "fields": {
+                "text": {
+                  "type": "text"
+                }
+              }
+            },
+            "platform": {
+              "type": "keyword",
+              "ignore_above": 1024
+            },
+            "version": {
+              "type": "keyword",
+              "ignore_above": 1024
+            }
+          }
+        },
+        "type": {
+          "type": "keyword",
+          "ignore_above": 1024
+        }
+      }
+    },
+    "input": {
+      "properties": {
+        "type": {
+          "type": "keyword",
+          "ignore_above": 1024
+        }
+      }
+    },
+    "kafka": {
+      "properties": {
+        "log": {
+          "properties": {
+            "class": {
+              "type": "keyword",
+              "ignore_above": 1024
+            },
+            "component": {
+              "type": "keyword",
+              "ignore_above": 1024
+            },
+            "thread": {
+              "type": "keyword",
+              "ignore_above": 1024
+            },
+            "trace": {
+              "properties": {
+                "class": {
+                  "type": "keyword",
+                  "ignore_above": 1024
+                },
+                "message": {
+                  "type": "text"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "kubernetes": {
+      "properties": {
+        "container": {
+          "properties": {
+            "image": {
+              "type": "keyword",
+              "ignore_above": 1024
+            },
+            "name": {
+              "type": "keyword",
+              "fields": {
+                "text": {
+                  "type": "text"
+                }
+              }
+            }
+          }
+        },
+        "labels": {
+          "properties": {
+            "app": {
+              "type": "keyword",
+              "ignore_above": 1024
+            },
+            "controller-revision-hash": {
+              "type": "keyword",
+              "ignore_above": 1024
+            },
+            "release": {
+              "type": "keyword",
+              "ignore_above": 1024
+            },
+            "statefulset_kubernetes_io/pod-name": {
+              "type": "keyword",
+              "ignore_above": 1024
+            }
+          }
+        },
+        "namespace": {
+          "type": "keyword",
+          "ignore_above": 1024
+        },
+        "node": {
+          "properties": {
+            "name": {
+              "type": "keyword",
+              "fields": {
+                "text": {
+                  "type": "text"
+                }
+              }
+            }
+          }
+        },
+        "pod": {
+          "properties": {
+            "name": {
+              "type": "keyword",
+              "fields": {
+                "text": {
+                  "type": "text"
+                }
+              }
+            },
+            "uid": {
+              "type": "keyword",
+              "ignore_above": 1024
+            }
+          }
+        },
+        "statefulset": {
+          "properties": {
+            "name": {
+              "type": "keyword",
+              "fields": {
+                "text": {
+                  "type": "text"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "log": {
+      "properties": {
+        "file": {
+          "properties": {
+            "path": {
+              "type": "keyword",
+              "fields": {
+                "text": {
+                  "type": "text"
+                }
+              }
+            }
+          }
+        },
+        "flags": {
+          "type": "keyword",
+          "ignore_above": 1024
+        },
+        "level": {
+          "type": "keyword",
+          "ignore_above": 1024
+        },
+        "offset": {
+          "type": "long"
+        }
+      }
+    },
+    "message": {
+      "type": "text"
+    },
+    "rally": {
+      "type": "object"
+    },
+    "service": {
+      "properties": {
+        "type": {
+          "type": "keyword",
+          "ignore_above": 1024
+        }
+      }
+    },
+    "stream": {
+      "type": "keyword",
+      "ignore_above": 1024
+    },
+    "tags": {
+      "type": "keyword",
+      "ignore_above": 1024
+    }
+  }
+}

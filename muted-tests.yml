@@ -365,6 +365,9 @@ tests:
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test022InstallPluginsFromLocalArchive
   issue: https://github.com/elastic/elasticsearch/issues/111063
+- class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
+  method: test {yaml=reference/esql/esql-across-clusters/line_196}
+  issue: https://github.com/elastic/elasticsearch/issues/114488
 
 # Examples:
 #

@@ -80,12 +80,46 @@ public class EsqlMediaTypeParserTests extends ESTestCase {
         assertEquals(e.getMessage(), "Invalid use of [columnar] argument: cannot be used in combination with [txt, csv, tsv] formats");
     }
 
+    public void testIncludeCCSMetadataWithAcceptText() {
+        var accept = randomFrom("text/plain", "text/csv", "text/tab-separated-values");
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> getResponseMediaType(reqWithAccept(accept), createTestInstance(false, true))
+        );
+        assertEquals("Invalid use of [include_ccs_metadata] argument: can only be used in combination with [JSON] format", e.getMessage());
+    }
+
     public void testColumnarWithParamText() {
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
             () -> getResponseMediaType(reqWithParams(Map.of("format", randomFrom("txt", "csv", "tsv"))), createTestInstance(true))
         );
         assertEquals(e.getMessage(), "Invalid use of [columnar] argument: cannot be used in combination with [txt, csv, tsv] formats");
+    }
+
+    public void testIncludeCCSMetadataWithNonJSONMediaTypesInParams() {
+        {
+            RestRequest restRequest = reqWithParams(Map.of("format", randomFrom("txt", "csv", "tsv", "SMILE", "YAML", "CBOR")));
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> getResponseMediaType(restRequest, createTestInstance(false, true))
+            );
+            assertEquals(
+                "Invalid use of [include_ccs_metadata] argument: can only be used in combination with [JSON] format",
+                e.getMessage()
+            );
+        }
+        {
+            RestRequest restRequest = reqWithParams(Map.of("format", randomFrom("SMILE", "YAML", "CBOR")));
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> getResponseMediaType(restRequest, createTestInstance(true, true))
+            );
+            assertEquals(
+                "Invalid use of [include_ccs_metadata] argument: can only be used in combination with [JSON] format",
+                e.getMessage()
+            );
+        }
     }
 
     public void testNoFormat() {
@@ -111,6 +145,12 @@ public class EsqlMediaTypeParserTests extends ESTestCase {
     protected EsqlQueryRequest createTestInstance(boolean columnar) {
         var request = new EsqlQueryRequest();
         request.columnar(columnar);
+        return request;
+    }
+
+    protected EsqlQueryRequest createTestInstance(boolean columnar, boolean includeCCSMetadata) {
+        var request = createTestInstance(columnar);
+        request.includeCCSMetadata(includeCCSMetadata);
         return request;
     }
 }

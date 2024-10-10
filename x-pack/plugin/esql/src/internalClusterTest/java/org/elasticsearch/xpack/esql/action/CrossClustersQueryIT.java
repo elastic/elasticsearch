@@ -161,25 +161,6 @@ public class CrossClustersQueryIT extends AbstractMultiClustersTestCase {
         }
     }
 
-    private static void assertClusterMetadataInResponse(EsqlQueryResponse resp, boolean responseExpectMeta) {
-        try {
-            final Map<String, Object> esqlResponseAsMap = XContentTestUtils.convertToMap(resp);
-            final Object clusters = esqlResponseAsMap.get("_clusters");
-            if (responseExpectMeta) {
-                assertNotNull(clusters);
-                // test a few entries to ensure it looks correct (other tests do a full analysis of the metadata in the response)
-                @SuppressWarnings("unchecked")
-                Map<String, Object> inner = (Map<String, Object>) clusters;
-                assertTrue(inner.containsKey("total"));
-                assertTrue(inner.containsKey("details"));
-            } else {
-                assertNull(clusters);
-            }
-        } catch (IOException e) {
-            fail("Could not convert ESQL response to Map: " + e);
-        }
-    }
-
     public void testSearchesWhereMissingIndicesAreSpecified() {
         Map<String, Object> testClusterInfo = setupTwoClusters();
         int localNumShards = (Integer) testClusterInfo.get("local.num_shards");
@@ -725,11 +706,31 @@ public class CrossClustersQueryIT extends AbstractMultiClustersTestCase {
         assertTrue(latch.await(30, TimeUnit.SECONDS));
     }
 
+    private static void assertClusterMetadataInResponse(EsqlQueryResponse resp, boolean responseExpectMeta) {
+        try {
+            final Map<String, Object> esqlResponseAsMap = XContentTestUtils.convertToMap(resp);
+            final Object clusters = esqlResponseAsMap.get("_clusters");
+            if (responseExpectMeta) {
+                assertNotNull(clusters);
+                // test a few entries to ensure it looks correct (other tests do a full analysis of the metadata in the response)
+                @SuppressWarnings("unchecked")
+                Map<String, Object> inner = (Map<String, Object>) clusters;
+                assertTrue(inner.containsKey("total"));
+                assertTrue(inner.containsKey("details"));
+            } else {
+                assertNull(clusters);
+            }
+        } catch (IOException e) {
+            fail("Could not convert ESQL response to Map: " + e);
+        }
+    }
+
     protected EsqlQueryResponse runQuery(String query, Boolean ccsMetadataInResponse) {
         EsqlQueryRequest request = EsqlQueryRequest.syncEsqlQueryRequest();
         request.query(query);
         request.pragmas(AbstractEsqlIntegTestCase.randomPragmas());
         request.profile(randomInt(5) == 2);
+        request.columnar(randomBoolean());
         if (ccsMetadataInResponse != null) {
             request.includeCCSMetadata(ccsMetadataInResponse);
         }

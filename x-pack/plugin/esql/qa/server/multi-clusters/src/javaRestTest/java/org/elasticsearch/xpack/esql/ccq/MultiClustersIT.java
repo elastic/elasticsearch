@@ -19,6 +19,7 @@ import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.TestFeatureService;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase;
 import org.junit.After;
 import org.junit.Before;
@@ -128,8 +129,20 @@ public class MultiClustersIT extends ESRestTestCase {
     }
 
     private Map<String, Object> run(String query, boolean includeCCSMetadata) throws IOException {
+        RestEsqlTestCase.RequestObjectBuilder requestObjectBuilder;
+        if (includeCCSMetadata) {
+            requestObjectBuilder = new RestEsqlTestCase.RequestObjectBuilder(XContentType.JSON);
+        } else {
+            requestObjectBuilder = new RestEsqlTestCase.RequestObjectBuilder(); // random XContent type
+        }
+        Map<String, Object> resp = runEsql(requestObjectBuilder.query(query).includeCCSMetadata(includeCCSMetadata).build());
+        logger.info("--> query {} response {}", query, resp);
+        return resp;
+    }
+
+    private Map<String, Object> runWithColumnarAndIncludeCCSMetadata(String query) throws IOException {
         Map<String, Object> resp = runEsql(
-            new RestEsqlTestCase.RequestObjectBuilder().query(query).includeCCSMetadata(includeCCSMetadata).build()
+            new RestEsqlTestCase.RequestObjectBuilder(XContentType.JSON).query(query).includeCCSMetadata(true).columnar(true).build()
         );
         logger.info("--> query {} response {}", query, resp);
         return resp;
@@ -205,7 +218,6 @@ public class MultiClustersIT extends ESRestTestCase {
             long sum = remoteDocs.stream().mapToLong(d -> d.data).sum();
             var values = List.of(List.of(Math.toIntExact(sum)));
 
-            // check all sections of map except _cluster/details
             MapMatcher mapMatcher = matchesMap();
             if (includeCCSMetadata) {
                 mapMatcher = mapMatcher.entry("_clusters", any(Map.class));
@@ -214,6 +226,22 @@ public class MultiClustersIT extends ESRestTestCase {
             if (includeCCSMetadata) {
                 assertClusterDetailsMap(result, true);
             }
+        }
+        {
+            Map<String, Object> result = runWithColumnarAndIncludeCCSMetadata("FROM *:test-remote-index | STATS total = SUM(data)");
+            var columns = List.of(Map.of("name", "total", "type", "long"));
+            long sum = remoteDocs.stream().mapToLong(d -> d.data).sum();
+            var values = List.of(List.of(Math.toIntExact(sum)));
+
+            MapMatcher mapMatcher = matchesMap();
+            assertMap(
+                result,
+                mapMatcher.entry("columns", columns)
+                    .entry("values", values)
+                    .entry("took", greaterThanOrEqualTo(0))
+                    .entry("_clusters", any(Map.class))
+            );
+            assertClusterDetailsMap(result, true);
         }
     }
 

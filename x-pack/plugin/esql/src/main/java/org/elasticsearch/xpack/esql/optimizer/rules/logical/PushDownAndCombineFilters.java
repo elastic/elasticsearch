@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Function;
 import java.util.function.Predicate;
 
 public final class PushDownAndCombineFilters extends OptimizerRules.OptimizerRule<Filter> {
@@ -46,7 +47,8 @@ public final class PushDownAndCombineFilters extends OptimizerRules.OptimizerRul
                 filter,
                 agg,
                 e -> e instanceof Attribute && agg.output().contains(e) && agg.groupings().contains(e) == false
-                    || e instanceof AggregateFunction
+                    || e instanceof AggregateFunction,
+                NO_OP
             );
         } else if (child instanceof Eval eval) {
             // Don't push if Filter (still) contains references to Eval's fields.
@@ -57,7 +59,7 @@ public final class PushDownAndCombineFilters extends OptimizerRules.OptimizerRul
             }
             AttributeMap<Expression> evalAliases = aliasesBuilder.build();
 
-            Filter filterWithResolvedRenames = (Filter) filter.transformExpressionsOnly(ReferenceAttribute.class, r -> {
+            Function<Expression, Expression> resolveRenames = expr -> expr.transformDown(ReferenceAttribute.class, r -> {
                 Expression resolved = evalAliases.resolve(r, null);
                 // Avoid resolving to an intermediate attribute that only lives inside the Eval - only replace if the attribute existed
                 // before the Eval.
@@ -67,15 +69,15 @@ public final class PushDownAndCombineFilters extends OptimizerRules.OptimizerRul
                 return r;
             });
 
-            plan = maybePushDownPastUnary(filterWithResolvedRenames, eval, evalAliases::containsKey);
+            plan = maybePushDownPastUnary(filter, eval, evalAliases::containsKey, resolveRenames);
         } else if (child instanceof RegexExtract re) {
             // Push down filters that do not rely on attributes created by RegexExtract
             var attributes = new AttributeSet(Expressions.asAttributes(re.extractedFields()));
-            plan = maybePushDownPastUnary(filter, re, attributes::contains);
+            plan = maybePushDownPastUnary(filter, re, attributes::contains, NO_OP);
         } else if (child instanceof Enrich enrich) {
             // Push down filters that do not rely on attributes created by Enrich
             var attributes = new AttributeSet(Expressions.asAttributes(enrich.enrichFields()));
-            plan = maybePushDownPastUnary(filter, enrich, attributes::contains);
+            plan = maybePushDownPastUnary(filter, enrich, attributes::contains, NO_OP);
         } else if (child instanceof Project) {
             return PushDownUtils.pushDownPastProject(filter);
         } else if (child instanceof OrderBy orderBy) {
@@ -86,21 +88,35 @@ public final class PushDownAndCombineFilters extends OptimizerRules.OptimizerRul
         return plan;
     }
 
-    private static LogicalPlan maybePushDownPastUnary(Filter filter, UnaryPlan unary, Predicate<Expression> cannotPush) {
+    private static Function<Expression, Expression> NO_OP = expression -> expression;
+
+    private static LogicalPlan maybePushDownPastUnary(
+        Filter filter,
+        UnaryPlan unary,
+        Predicate<Expression> cannotPush,
+        Function<Expression, Expression> resolveRenames
+    ) {
         LogicalPlan plan;
         List<Expression> pushable = new ArrayList<>();
         List<Expression> nonPushable = new ArrayList<>();
         for (Expression exp : Predicates.splitAnd(filter.condition())) {
-            (exp.anyMatch(cannotPush) ? nonPushable : pushable).add(exp);
+            Expression resolvedExp = resolveRenames.apply(exp);
+            if (resolvedExp.anyMatch(cannotPush)) {
+                // Add the original expression to the non-pushables.
+                nonPushable.add(exp);
+            } else {
+                // When we can push down, we use the resolved expression.
+                pushable.add(resolvedExp);
+            }
         }
         // Push the filter down even if it might not be pushable all the way to ES eventually: eval'ing it closer to the source,
         // potentially still in the Exec Engine, distributes the computation.
-        if (pushable.size() > 0) {
-            if (nonPushable.size() > 0) {
-                Filter pushed = new Filter(filter.source(), unary.child(), Predicates.combineAnd(pushable));
+        if (pushable.isEmpty() == false) {
+            Filter pushed = filter.with(unary.child(), Predicates.combineAnd(pushable));
+            if (nonPushable.isEmpty() == false) {
                 plan = filter.with(unary.replaceChild(pushed), Predicates.combineAnd(nonPushable));
             } else {
-                plan = unary.replaceChild(filter.with(unary.child(), filter.condition()));
+                plan = unary.replaceChild(pushed);
             }
         } else {
             plan = filter;

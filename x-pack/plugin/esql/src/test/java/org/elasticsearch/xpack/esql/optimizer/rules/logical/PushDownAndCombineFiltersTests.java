@@ -116,19 +116,14 @@ public class PushDownAndCombineFiltersTests extends ESTestCase {
             lessThanOf(a.toAttribute(), TWO),
             lessThanOf(a.toAttribute(), b.toAttribute())
         );
-        List<Expression> nonPushableConditionsBefore = List.of(
+        List<Expression> nonPushableConditions = List.of(
             lessThanOf(aSquared.toAttribute(), FOUR),
             greaterThanOf(aRenamedTwice.toAttribute(), aSquared.toAttribute())
-        );
-        // Even when not pushing down, the renames will be resolved.
-        List<Expression> nonPushableConditionsAfter = List.of(
-            lessThanOf(aSquared.toAttribute(), FOUR),
-            greaterThanOf(a.toAttribute(), aSquared.toAttribute())
         );
 
         // Try different combinations of pushable and non-pushable conditions in the filter while also randomizing their order a bit.
         for (int numPushable = 0; numPushable <= pushableConditionsBefore.size(); numPushable++) {
-            for (int numNonPushable = 0; numNonPushable <= nonPushableConditionsBefore.size(); numNonPushable++) {
+            for (int numNonPushable = 0; numNonPushable <= nonPushableConditions.size(); numNonPushable++) {
                 if (numPushable == 0 && numNonPushable == 0) {
                     continue;
                 }
@@ -150,7 +145,7 @@ public class PushDownAndCombineFiltersTests extends ESTestCase {
                     if (addPushable) {
                         conditions.add(pushableConditionsBefore.get(pushableIndex++));
                     } else {
-                        conditions.add(nonPushableConditionsBefore.get(nonPushableIndex++));
+                        conditions.add(nonPushableConditions.get(nonPushableIndex++));
                     }
                 }
 
@@ -160,7 +155,7 @@ public class PushDownAndCombineFiltersTests extends ESTestCase {
 
                 if (numNonPushable > 0) {
                     Filter optimizedFilter = as(plan, Filter.class);
-                    assertEquals(optimizedFilter.condition(), Predicates.combineAnd(nonPushableConditionsAfter.subList(0, numNonPushable)));
+                    assertEquals(optimizedFilter.condition(), Predicates.combineAnd(nonPushableConditions.subList(0, numNonPushable)));
                     plan = optimizedFilter.child();
                 }
                 Eval optimizedEval = as(plan, Eval.class);

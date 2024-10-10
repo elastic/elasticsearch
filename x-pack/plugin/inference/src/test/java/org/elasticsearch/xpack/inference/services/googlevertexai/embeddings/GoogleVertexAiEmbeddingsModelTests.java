@@ -79,8 +79,8 @@ public class GoogleVertexAiEmbeddingsModelTests extends ESTestCase {
                 null
             ),
             new GoogleVertexAiEmbeddingsTaskSettings(autoTruncate),
+            null,
             new GoogleVertexAiSecretSettings(new SecureString(randomAlphaOfLength(8).toCharArray()))
         );
     }
-
 }

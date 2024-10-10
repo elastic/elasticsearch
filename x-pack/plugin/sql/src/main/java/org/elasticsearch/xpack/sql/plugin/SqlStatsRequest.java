@@ -17,7 +17,7 @@ import java.io.IOException;
 /**
  * Request to gather usage statistics
  */
-public class SqlStatsRequest extends BaseNodesRequest<SqlStatsRequest> {
+public class SqlStatsRequest extends BaseNodesRequest {
 
     private boolean includeStats;
 

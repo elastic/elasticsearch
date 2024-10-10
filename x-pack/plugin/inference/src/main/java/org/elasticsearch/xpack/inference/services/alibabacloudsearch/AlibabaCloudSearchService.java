@@ -290,8 +290,8 @@ public class AlibabaCloudSearchService extends SenderService {
 
     private EmbeddingRequestChunker.EmbeddingType getEmbeddingTypeFromTaskType(TaskType taskType) {
         return switch (taskType) {
-            case TaskType.TEXT_EMBEDDING -> EmbeddingRequestChunker.EmbeddingType.FLOAT;
-            case TaskType.SPARSE_EMBEDDING -> EmbeddingRequestChunker.EmbeddingType.SPARSE;
+            case TEXT_EMBEDDING -> EmbeddingRequestChunker.EmbeddingType.FLOAT;
+            case SPARSE_EMBEDDING -> EmbeddingRequestChunker.EmbeddingType.SPARSE;
             default -> throw new IllegalArgumentException("Unsupported task type for chunking: " + taskType);
         };
     }

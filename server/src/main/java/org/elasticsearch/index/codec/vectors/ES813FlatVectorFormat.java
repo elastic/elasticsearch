@@ -32,6 +32,8 @@ import org.apache.lucene.util.hnsw.RandomVectorScorer;
 
 import java.io.IOException;
 
+import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.MAX_DIMS_COUNT;
+
 public class ES813FlatVectorFormat extends KnnVectorsFormat {
 
     static final String NAME = "ES813FlatVectorFormat";
@@ -53,6 +55,11 @@ public class ES813FlatVectorFormat extends KnnVectorsFormat {
     @Override
     public KnnVectorsReader fieldsReader(SegmentReadState state) throws IOException {
         return new ES813FlatVectorReader(format.fieldsReader(state));
+    }
+
+    @Override
+    public int getMaxDimensions(String fieldName) {
+        return MAX_DIMS_COUNT;
     }
 
     static class ES813FlatVectorWriter extends KnnVectorsWriter {

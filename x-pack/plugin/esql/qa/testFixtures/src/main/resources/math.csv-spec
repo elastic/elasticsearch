@@ -1379,6 +1379,20 @@ d:double | c:double
 -0.0     | -0.0
 ;
 
+hypot
+required_capability: fn_hypot
+// tag::hypot[]
+ROW a = 3.0, b = 4.0
+| EVAL c = hypot(a, b)
+// end::hypot[]
+;
+
+// tag::hypot-result[]
+a:double | b:double | c:double
+3.0      | 4.0      | 5.0
+// end::hypot-result[]
+;
+
 least
 // tag::least[]
 ROW a = 10, b = 20

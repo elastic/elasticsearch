@@ -38,6 +38,11 @@ public class EsqlCapabilities {
         FN_CBRT,
 
         /**
+         * Support for function {@code HYPOT}.
+         */
+        FN_HYPOT,
+
+        /**
          * Support for {@code MV_APPEND} function. #107001
          */
         FN_MV_APPEND,

@@ -32,7 +32,8 @@ public class RestClusterStatsAction extends BaseRestHandler {
     private static final Set<String> SUPPORTED_CAPABILITIES = Set.of(
         "human-readable-total-docs-size",
         "verbose-dense-vector-mapping-stats",
-        "ccs-stats"
+        "ccs-stats",
+        "retrievers-usage-stats"
     );
     private static final Set<String> SUPPORTED_QUERY_PARAMETERS = Set.of("include_remotes", "nodeId", REST_TIMEOUT_PARAM);
 

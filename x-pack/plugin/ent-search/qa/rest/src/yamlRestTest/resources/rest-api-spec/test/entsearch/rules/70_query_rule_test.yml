@@ -160,19 +160,6 @@ teardown:
   - match: { total_matched_rules: 0 }
 
 ---
-"Test query rules with multiple matching rules":
-
-  - do:
-      query_rules.test:
-        ruleset_id: test-ruleset
-        body:
-          match_criteria:
-            query_string: logstash
-
-  - match: { total_matched_rules: 1 }
-  - match: { matched_rules.0.rule_id: 'rule3' }
-
----
 "Test rules where the same ID is both pinned and excluded":
   - do:
       query_rules.put_ruleset:

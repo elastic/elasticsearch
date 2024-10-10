@@ -372,8 +372,6 @@ tests:
 - class: org.elasticsearch.search.retriever.RankDocsRetrieverBuilderTests
   method: testRewrite
   issue: https://github.com/elastic/elasticsearch/issues/114467
-- class: org.elasticsearch.xpack.logsdb.LogsdbTestSuiteIT
-  issue: https://github.com/elastic/elasticsearch/issues/114471
 
 # Examples:
 #

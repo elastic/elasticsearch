@@ -1,0 +1,6 @@
+pr: 111104
+summary: Async request in txt mode returns the async parameters as headers
+area: Analysis
+type: bug
+issues:
+ - 110926

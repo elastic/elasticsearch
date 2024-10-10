@@ -80,7 +80,14 @@ public final class EsqlResponseListener extends RestRefCountedChunkedToXContentL
     }
 
     private static final Logger LOGGER = LogManager.getLogger(EsqlResponseListener.class);
-    private static final String HEADER_NAME_TOOK_NANOS = "Took-nanos";
+
+    /**
+     * HTTP header names
+     */
+    public static final String HEADER_NAME_TOOK_NANOS = "Took-nanos";
+    public static final String HEADER_NAME_ASYNC_ID = "Async-ID";
+    public static final String HEADER_NAME_ASYNC_RUNNING = "Async-running";
+
     private final RestChannel channel;
     private final RestRequest restRequest;
     private final MediaType mediaType;
@@ -103,24 +110,23 @@ public final class EsqlResponseListener extends RestRefCountedChunkedToXContentL
         this.channel = channel;
         this.restRequest = restRequest;
         this.esqlQuery = esqlRequest.query();
-        mediaType = EsqlMediaTypeParser.getResponseMediaType(restRequest, esqlRequest);
+        this.mediaType = EsqlMediaTypeParser.getResponseMediaType(restRequest, esqlRequest);
 
-        /*
-         * Special handling for the "delimiter" parameter which should only be
-         * checked for being present or not in the case of CSV format. We cannot
-         * override {@link BaseRestHandler#responseParams()} because this
-         * parameter should only be checked for CSV, not other formats.
-         */
-        if (mediaType != CSV && restRequest.hasParam(URL_PARAM_DELIMITER)) {
-            String message = String.format(
-                Locale.ROOT,
-                "parameter: [%s] can only be used with the format [%s] for request [%s]",
-                URL_PARAM_DELIMITER,
-                CSV.queryParameter(),
-                restRequest.path()
-            );
-            throw new IllegalArgumentException(message);
-        }
+        checkDelimiter();
+    }
+
+    /**
+     * Async query get API does not have an esqlRequest and mediaType defaults to JSON if no "format" in params
+     */
+    public EsqlResponseListener(RestChannel channel, RestRequest restRequest) {
+        super(channel);
+
+        this.channel = channel;
+        this.restRequest = restRequest;
+        this.esqlQuery = null;
+        this.mediaType = EsqlMediaTypeParser.getResponseMediaType(restRequest);
+
+        checkDelimiter();
     }
 
     @Override
@@ -139,6 +145,10 @@ public final class EsqlResponseListener extends RestRefCountedChunkedToXContentL
                     ChunkedRestResponseBodyPart.fromTextChunks(format.contentType(restRequest), format.format(restRequest, esqlResponse)),
                     releasable
                 );
+                if (esqlResponse.asyncExecutionId().isPresent()) {
+                    restResponse.addHeader(HEADER_NAME_ASYNC_ID, esqlResponse.asyncExecutionId().get());
+                    restResponse.addHeader(HEADER_NAME_ASYNC_RUNNING, String.valueOf(esqlResponse.isRunning()));
+                }
             } else if (mediaType == ArrowFormat.INSTANCE) {
                 ArrowResponse arrowResponse = new ArrowResponse(
                     // Map here to avoid cyclic dependencies between the arrow subproject and its parent
@@ -212,5 +222,24 @@ public final class EsqlResponseListener extends RestRefCountedChunkedToXContentL
     static void logOnFailure(Throwable throwable) {
         RestStatus status = ExceptionsHelper.status(throwable);
         LOGGER.log(status.getStatus() >= 500 ? Level.WARN : Level.DEBUG, () -> "Request failed with status [" + status + "]: ", throwable);
+    }
+
+    /*
+     * Special handling for the "delimiter" parameter which should only be
+     * checked for being present or not in the case of CSV format. We cannot
+     * override {@link BaseRestHandler#responseParams()} because this
+     * parameter should only be checked for CSV, not other formats.
+     */
+    private void checkDelimiter() {
+        if (mediaType != CSV && restRequest.hasParam(URL_PARAM_DELIMITER)) {
+            String message = String.format(
+                Locale.ROOT,
+                "parameter: [%s] can only be used with the format [%s] for request [%s]",
+                URL_PARAM_DELIMITER,
+                CSV.queryParameter(),
+                restRequest.path()
+            );
+            throw new IllegalArgumentException(message);
+        }
     }
 }

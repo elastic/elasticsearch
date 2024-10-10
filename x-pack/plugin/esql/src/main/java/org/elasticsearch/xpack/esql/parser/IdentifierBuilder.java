@@ -46,6 +46,10 @@ abstract class IdentifierBuilder extends AbstractBuilder {
         return quotedString.substring(1, quotedString.length() - 1).replace("``", "`");
     }
 
+    protected static String quoteIdString(String unquotedString) {
+        return "`" + unquotedString.replace("`", "``") + "`";
+    }
+
     @Override
     public String visitIndexString(IndexStringContext ctx) {
         TerminalNode n = ctx.UNQUOTED_SOURCE();

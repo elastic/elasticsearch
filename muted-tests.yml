@@ -328,8 +328,6 @@ tests:
 - class: org.elasticsearch.action.bulk.IncrementalBulkIT
   method: testIncrementalBulkLowWatermarkBackOff
   issue: https://github.com/elastic/elasticsearch/issues/114182
-- class: org.elasticsearch.xpack.esql.action.EsqlActionBreakerIT
-  issue: https://github.com/elastic/elasticsearch/issues/114194
 - class: org.elasticsearch.xpack.ilm.ExplainLifecycleIT
   method: testStepInfoPreservedOnAutoRetry
   issue: https://github.com/elastic/elasticsearch/issues/114220

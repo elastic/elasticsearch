@@ -1,0 +1,6 @@
+pr: 114303
+summary: Fix TDigestState.read CB leaks
+area: ES|QL
+type: bug
+issues:
+ - 114194

@@ -50,14 +50,16 @@ public final class QueryRoleIT extends SecurityInBasicRestTestCase {
     private static final String READ_SECURITY_USER_AUTH_HEADER = "Basic cmVhZF9zZWN1cml0eV91c2VyOnJlYWQtc2VjdXJpdHktcGFzc3dvcmQ=";
 
     public void testSimpleQueryAllRoles() throws IOException {
+        // the index does not exist
         assertQuery("", 0, roles -> assertThat(roles, emptyIterable()));
-        RoleDescriptor createdRole = createRandomRole();
-        assertQuery("", 1, roles -> {
-            assertThat(roles, iterableWithSize(1));
-            assertRoleMap(roles.get(0), createdRole);
+        createRandomRole();
+        // 32 built-in reserved roles
+        assertQuery("", 1 + 32, roles -> {
+            // default size is 10
+            assertThat(roles, iterableWithSize(10));
         });
         assertQuery("""
-            {"query":{"match_all":{}},"from":1}""", 1, roles -> assertThat(roles, emptyIterable()));
+            {"query":{"match_all":{}},"from":33}""", 1 + 32, roles -> assertThat(roles, emptyIterable()));
     }
 
     public void testDisallowedFields() throws Exception {

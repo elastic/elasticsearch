@@ -1167,12 +1167,12 @@ count:long | country:k
 1          | Poland
 ;
 
-airportsWithinEvalDistanceBandCopenhagenTrainStationCountNonPushableWhere
+airportsWithinEvalDistanceBandCopenhagenTrainStationCountNonPushableWhereConjunctive
 required_capability: st_distance
 
 FROM airports
 | EVAL distance = ST_DISTANCE(location, TO_GEOPOINT("POINT(12.565 55.673)"))
-| WHERE distance < 500000 AND 0*distance < 400000
+| WHERE distance < 500000 AND 0.5*distance < 300000
 | STATS count=COUNT() BY country
 | SORT count DESC, country ASC
 ;
@@ -1181,6 +1181,25 @@ count:long | country:k
 3          | Germany
 3          | Sweden
 1          | Denmark
+1          | Poland
+;
+
+airportsWithinEvalDistanceBandCopenhagenTrainStationCountNonPushableWhereDisjunctive
+required_capability: st_distance
+
+FROM airports
+| EVAL distance = ST_DISTANCE(location, TO_GEOPOINT("POINT(12.565 55.673)"))
+| WHERE distance < 500000 OR 0.5*distance < 300000
+| STATS count=COUNT() BY country
+| SORT count DESC, country ASC
+;
+
+count:long | country:k
+5          | Sweden
+4          | Germany
+2          | Norway
+1          | Denmark
+1          | Lithuania
 1          | Poland
 ;
 

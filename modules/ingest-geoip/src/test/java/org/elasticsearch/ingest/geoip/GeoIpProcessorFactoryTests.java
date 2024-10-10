@@ -196,7 +196,8 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
             equalTo(
                 "[properties] illegal property value ["
                     + asnProperty
-                    + "]. valid values are [IP, COUNTRY_IN_EUROPEAN_UNION, COUNTRY_ISO_CODE, COUNTRY_NAME, CONTINENT_CODE, CONTINENT_NAME]"
+                    + "]. valid values are [IP, COUNTRY_IN_EUROPEAN_UNION, COUNTRY_ISO_CODE, COUNTRY_NAME, CONTINENT_CODE, "
+                    + "CONTINENT_NAME, REGISTERED_COUNTRY_IN_EUROPEAN_UNION, REGISTERED_COUNTRY_ISO_CODE, REGISTERED_COUNTRY_NAME]"
             )
         );
     }
@@ -276,7 +277,8 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
             equalTo(
                 "[properties] illegal property value [invalid]. valid values are [IP, COUNTRY_IN_EUROPEAN_UNION, COUNTRY_ISO_CODE, "
                     + "COUNTRY_NAME, CONTINENT_CODE, CONTINENT_NAME, REGION_ISO_CODE, REGION_NAME, CITY_NAME, TIMEZONE, "
-                    + "LOCATION, POSTAL_CODE, ACCURACY_RADIUS]"
+                    + "LOCATION, POSTAL_CODE, ACCURACY_RADIUS, REGISTERED_COUNTRY_IN_EUROPEAN_UNION, REGISTERED_COUNTRY_ISO_CODE, "
+                    + "REGISTERED_COUNTRY_NAME]"
             )
         );
 

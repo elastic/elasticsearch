@@ -79,6 +79,10 @@ public class IpinfoIpDataLookupsTests extends ESTestCase {
         // the second City variant database is like a version of the ordinary City database but lacking many fields
         assertThat(Sets.difference(Database.CityV2.properties(), Database.City.properties()), is(empty()));
         assertThat(Sets.difference(Database.CityV2.defaultProperties(), Database.City.defaultProperties()), is(empty()));
+
+        // the second Country variant database is like a version of the ordinary Country database but lacking come fields
+        assertThat(Sets.difference(Database.CountryV2.properties(), Database.CountryV2.properties()), is(empty()));
+        assertThat(Database.CountryV2.defaultProperties(), equalTo(Database.Country.defaultProperties()));
     }
 
     public void testParseAsn() {
@@ -219,7 +223,7 @@ public class IpinfoIpDataLookupsTests extends ESTestCase {
 
         // this is the 'free' Country database (sample)
         try (DatabaseReaderLazyLoader loader = configDatabases.getDatabase("ip_country_sample.mmdb")) {
-            IpDataLookup lookup = new IpinfoIpDataLookups.Country(Database.Country.properties());
+            IpDataLookup lookup = new IpinfoIpDataLookups.Country(Database.CountryV2.properties());
             Map<String, Object> data = lookup.getData(loader, "4.221.143.168");
             assertThat(
                 data,

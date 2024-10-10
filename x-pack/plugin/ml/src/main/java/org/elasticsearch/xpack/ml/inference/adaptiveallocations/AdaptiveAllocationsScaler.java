@@ -9,11 +9,7 @@ package org.elasticsearch.xpack.ml.inference.adaptiveallocations;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.core.TimeValue;
-
-import static org.elasticsearch.xpack.ml.MachineLearning.ADAPTIVE_ALLOCATIONS_SCALE_TO_ZERO_TIME;
 
 /**
  * Processes measured requests counts and inference times and decides whether

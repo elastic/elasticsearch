@@ -1,0 +1,168 @@
+[[migrating-9.0]]
+== Migrating to 9.0
+++++
+<titleabbrev>9.0</titleabbrev>
+++++
+
+This section discusses the changes that you need to be aware of when migrating
+your application to {es} 9.0.
+
+See also <<release-highlights>> and <<es-release-notes>>.
+
+coming::[9.0.0]
+
+
+[discrete]
+[[breaking-changes-9.0]]
+=== Breaking changes
+
+The following changes in {es} 9.0 might affect your applications
+and prevent them from operating normally.
+Before upgrading to 9.0, review these changes and take the described steps
+to mitigate the impact.
+
+[discrete]
+[[breaking_90_analysis_changes]]
+==== Analysis changes
+
+[[set_lenient_to_true_by_default_when_using_updateable_synonyms]]
+.Set lenient to true by default when using updateable synonyms
+[%collapsible]
+====
+*Details* +
+When a `synonym` or `synonym_graph` token filter is configured with `updateable: true`, the default `lenient`
+value will now be `true`.
+
+*Impact* +
+`synonym` or `synonym_graph` token filters configured with `updateable: true` will ignore invalid synonyms by
+default. This prevents shard initialization errors on invalid synonyms.
+====
+
+[discrete]
+[[breaking_90_cluster_and_node_setting_changes]]
+==== Cluster and node setting changes
+
+[[remove_unsupported_legacy_value_for_discovery_type]]
+.Remove unsupported legacy value for `discovery.type`
+[%collapsible]
+====
+*Details* +
+Earlier versions of {es} had a `discovery.type` setting which permitted values that referred to legacy discovery types. From v9.0.0 onwards, the only supported values for this setting are `multi-node` (the default) and `single-node`.
+
+*Impact* +
+Remove any value for `discovery.type` from your `elasticsearch.yml` configuration file.
+====
+
+[discrete]
+[[breaking_90_rest_api_changes]]
+==== REST API changes
+
+[[update_data_stream_lifecycle_telemetry_to_track_global_retention]]
+.Update data stream lifecycle telemetry to track global retention
+[%collapsible]
+====
+*Details* +
+In this release we introduced global retention settings that fulfil the following criteria:
+
+- a data stream managed by the data stream lifecycle,
+- a data stream that is not an internal data stream.
+
+As a result, we defined different types of retention:
+
+- **data retention**: the retention configured on data stream level by the data stream user or owner
+- **default global retention:** the retention configured by an admin on a cluster level and applied to any
+data stream that doesn't have data retention and fulfils the criteria.
+- **max global retention:** the retention configured by an admin to guard against having long retention periods.
+Any data stream that fulfills the criteria will adhere to the data retention unless it exceeds the max retention,
+in which case the max global retention applies.
+- **effective retention:** the retention that applies on the data stream that fulfill the criteria at a given moment
+in time. It takes into consideration all the retention above and resolves it to the retention that will take effect.
+
+Considering the above changes, having a field named `retention` in the usage API was confusing. For this reason, we
+renamed it to `data_retention` and added telemetry about the other configurations too.
+
+*Impact* +
+Users that use the field `data_lifecycle.retention` should use the `data_lifecycle.data_retention`
+====
+
+
+[discrete]
+[[deprecated-9.0]]
+=== Deprecations
+
+The following functionality has been deprecated in {es} 9.0
+and will be removed in a future version.
+While this won't have an immediate impact on your applications,
+we strongly encourage you to take the described steps to update your code
+after upgrading to 9.0.
+
+To find out if you are using any deprecated functionality,
+enable <<deprecation-logging, deprecation logging>>.
+
+[discrete]
+[[deprecations_90_analysis]]
+==== Analysis deprecations
+
+[[deprecate_dutch_kp_lovins_stemmer_as_they_are_removed_in_lucene_10]]
+.Deprecate dutch_kp and lovins stemmer as they are removed in Lucene 10
+[%collapsible]
+====
+*Details* +
+kp, dutch_kp, dutchKp and lovins stemmers are deprecated and will be removed.
+
+*Impact* +
+These stemmers will be removed and will be no longer supported.
+====
+
+[[deprecate_edge_ngram_side_parameter]]
+.deprecate `edge_ngram` side parameter
+[%collapsible]
+====
+*Details* +
+edge_ngram will no longer accept the side parameter.
+
+*Impact* +
+Users will need to update any usage of edge_ngram token filter that utilizes `side`. If the `back` value was used, they can achieve the same behavior by using the `reverse` token filter.
+====
+
+[discrete]
+[[deprecations_90_crud]]
+==== CRUD deprecations
+
+[[deprecate_dot_prefixed_indices_composable_template_index_patterns]]
+.Deprecate dot-prefixed indices and composable template index patterns
+[%collapsible]
+====
+*Details* +
+Indices beginning with a dot '.' are reserved for system and internal indices, and should not be used by and end-user. Additionally, composable index templates that contain patterns for dot-prefixed indices should also be avoided, as these patterns are meant for internal use only. In a future Elasticsearch version, creation of these dot-prefixed indices will no longer be allowed.
+
+*Impact* +
+Requests performing an action that would create an index beginning with a dot (indexing a document, manual creation, reindex), or creating an index template with index patterns beginning with a dot, will contain a deprecation header warning about dot-prefixed indices in the response.
+====
+
+[discrete]
+[[deprecations_90_rest_api]]
+==== REST API deprecations
+
+[[deprecate_legacy_params_from_range_query]]
+.Deprecate legacy params from range query
+[%collapsible]
+====
+*Details* +
+Range query will not longer accept `to`, `from`, `include_lower`, and `include_upper` parameters.
+
+*Impact* +
+Instead use `gt`, `gte`, `lt` and `lte` parameters.
+====
+
+[[inference_api_deprecate_elser_service]]
+.[Inference API] Deprecate elser service
+[%collapsible]
+====
+*Details* +
+The `elser` service of the inference API will be removed in an upcoming release. Please use the elasticsearch service instead.
+
+*Impact* +
+In the current version there is no impact. In a future version, users of the `elser` service will no longer be able to use it, and will be required to use the `elasticsearch` service to access elser through the inference API.
+====
+

@@ -1,0 +1,417 @@
+[[release-notes-9.0.0]]
+== {es} version 9.0.0
+
+coming[9.0.0]
+
+Also see <<breaking-changes-9.0,Breaking changes in 9.0>>.
+
+[[breaking-9.0.0]]
+[float]
+=== Breaking changes
+
+Analysis::
+* Set lenient to true by default when using updateable synonyms {es-pull}110901[#110901]
+
+Cluster Coordination::
+* Remove unsupported legacy value for `discovery.type` {es-pull}112903[#112903]
+
+Data streams::
+* Update data stream lifecycle telemetry to track global retention {es-pull}112451[#112451]
+
+[[bug-9.0.0]]
+[float]
+=== Bug fixes
+
+Aggregations::
+* Don't validate internal stats if they are empty {es-pull}113846[#113846] (issue: {es-issue}113811[#113811])
+* Fix `needsScore` computation in `GlobalOrdCardinalityAggregator` {es-pull}113129[#113129] (issue: {es-issue}112975[#112975])
+* Force using the last centroid during merging {es-pull}111644[#111644] (issue: {es-issue}111065[#111065])
+
+Authentication::
+* Check for disabling own user in Put User API {es-pull}112262[#112262] (issue: {es-issue}90205[#90205])
+
+Authorization::
+* Fix DLS & FLS sometimes being enforced when it is disabled {es-pull}111915[#111915] (issue: {es-issue}94709[#94709])
+* Fix DLS using runtime fields and synthetic source {es-pull}112341[#112341]
+
+CRUD::
+* Don't fail retention lease sync actions due to capacity constraints {es-pull}109414[#109414] (issue: {es-issue}105926[#105926])
+
+Data streams::
+* Adding support for data streams with a match-all template {es-pull}111311[#111311] (issue: {es-issue}111204[#111204])
+* Exclude internal data streams from global retention {es-pull}112100[#112100]
+* Fix verbose get data stream API not requiring extra privileges {es-pull}112973[#112973]
+* logs-apm.error-*: define log.level field as keyword {es-pull}112440[#112440]
+
+EQL::
+* Fix validation of TEXT fields with case insensitive comparison {es-pull}111238[#111238] (issue: {es-issue}111235[#111235])
+
+ES|QL::
+* ESQL: Add Values aggregation tests, fix `ConstantBytesRefBlock` memory handling {es-pull}111367[#111367]
+* ESQL: Align year diffing to the rest of the units in DATE_DIFF: chronological {es-pull}113103[#113103] (issue: {es-issue}112482[#112482])
+* ESQL: Fix CASE when conditions are multivalued {es-pull}112401[#112401] (issue: {es-issue}112359[#112359])
+* ESQL: Fix Double operations returning infinite {es-pull}111064[#111064] (issue: {es-issue}111026[#111026])
+* ESQL: Fix a bug in `MV_PERCENTILE` {es-pull}112218[#112218] (issues: {es-issue}112193[#112193], {es-issue}112180[#112180], {es-issue}112187[#112187], {es-issue}112188[#112188])
+* ESQL: Fix serialization during `can_match` {es-pull}111779[#111779] (issues: {es-issue}111701[#111701], {es-issue}111726[#111726])
+* ESQL: Fix synthetic attribute pruning {es-pull}111413[#111413] (issue: {es-issue}105821[#105821])
+* ESQL: don't lose the original casting error message {es-pull}111968[#111968] (issue: {es-issue}111967[#111967])
+* ESQL: fix for missing indices error message {es-pull}111797[#111797] (issue: {es-issue}111712[#111712])
+* ES|QL: Ensure minimum capacity for `PlanStreamInput` caches {es-pull}114116[#114116]
+* ES|QL: Skip CASE function from `InferIsNotNull` rule checks {es-pull}113123[#113123] (issue: {es-issue}112704[#112704])
+* ES|QL: better validation for GROK patterns {es-pull}110574[#110574] (issue: {es-issue}110533[#110533])
+* ES|QL: better validation for RLIKE patterns {es-pull}112489[#112489] (issue: {es-issue}112485[#112485])
+* ES|QL: better validation of GROK patterns {es-pull}112200[#112200] (issue: {es-issue}112111[#112111])
+* Spatial search functions support multi-valued fields in compute engine {es-pull}112063[#112063] (issues: {es-issue}112102[#112102], {es-issue}112505[#112505], {es-issue}110830[#110830])
+* [ESQL] Fix init value in max float aggregation {es-pull}113699[#113699]
+* [ESQL] Support datetime data type in Least and Greatest functions {es-pull}113961[#113961]
+* [ES|QL] Check expression resolved before checking its data type in `ImplicitCasting` {es-pull}113314[#113314] (issue: {es-issue}113242[#113242])
+* [ES|QL] Simplify patterns for subfields {es-pull}111118[#111118]
+* [ES|QL] Use `RangeQuery` and String in `BinaryComparison` on datetime fields {es-pull}110669[#110669] (issue: {es-issue}107900[#107900])
+* [ES|QL] add tests for stats by constant {es-pull}110593[#110593] (issue: {es-issue}105383[#105383])
+* [ES|QL] validate `mv_sort` order {es-pull}110021[#110021] (issue: {es-issue}109910[#109910])
+
+Geo::
+* Fix cases of collections with one point {es-pull}111193[#111193] (issue: {es-issue}110982[#110982])
+
+Health::
+* Set `replica_unassigned_buffer_time` in constructor {es-pull}112612[#112612]
+
+ILM+SLM::
+* Make `SnapshotLifecycleStats` immutable so `SnapshotLifecycleMetadata.EMPTY` isn't changed as side-effect {es-pull}111215[#111215]
+
+Infra/Core::
+* Fix max file size check to use `getMaxFileSize` {es-pull}113723[#113723] (issue: {es-issue}113705[#113705])
+* Handle `BigInteger` in xcontent copy {es-pull}111937[#111937] (issue: {es-issue}111812[#111812])
+* `ByteArrayStreamInput:` Return -1 when there are no more bytes to read {es-pull}112214[#112214]
+
+Infra/Logging::
+* Only emit product origin in deprecation log if present {es-pull}111683[#111683] (issue: {es-issue}81757[#81757])
+
+Infra/REST API::
+* Fixed a `NullPointerException` in `_capabilities` API when the `path` parameter is null. {es-pull}113413[#113413] (issue: {es-issue}113413[#113413])
+
+Infra/Settings::
+* GET _cluster/settings with include_defaults returns the expected fallback value if defined in elasticsearch.yml {es-pull}110816[#110816] (issue: {es-issue}110815[#110815])
+
+Ingest Node::
+* Fix `getDatabaseType` for unusual MMDBs {es-pull}112888[#112888]
+
+License::
+* Fix Start Trial API output acknowledgement header for features {es-pull}111740[#111740] (issue: {es-issue}111739[#111739])
+* Fix `TokenService` always appearing used in Feature Usage {es-pull}112263[#112263] (issue: {es-issue}61956[#61956])
+
+Logs::
+* Do not expand dots when storing objects in ignored source {es-pull}113910[#113910]
+* Fix `ignore_above` handling in synthetic source when index level setting is used {es-pull}113570[#113570] (issue: {es-issue}113538[#113538])
+* Fix synthetic source for flattened field when used with `ignore_above` {es-pull}113499[#113499] (issue: {es-issue}112044[#112044])
+
+Machine Learning::
+* Avoid `ModelAssignment` deadlock {es-pull}109684[#109684]
+* Fix bug in ML serverless autoscaling which prevented trained model updates from triggering a scale up {es-pull}110734[#110734]
+* Fix check on E5 model platform compatibility {es-pull}113437[#113437] (issue: {es-issue}113577[#113577])
+* Handle parsing ingest processors where definition is not a object {es-pull}113697[#113697] (issue: {es-issue}113615[#113615])
+* Temporarily return both `modelId` and `inferenceId` for GET /_inference until we migrate clients to only `inferenceId` {es-pull}111490[#111490]
+* Warn for model load failures if they have a status code <500 {es-pull}113280[#113280]
+* [Inference API] Remove unused Cohere rerank service settings fields in a BWC way {es-pull}110427[#110427]
+* [ML] Create Inference API will no longer return model_id and now only return inference_id {es-pull}112508[#112508]
+* [M] Fix error message formatting {es-pull}113266[#113266]
+
+Mapping::
+* Fix `MapperBuilderContext#isDataStream` when used in dynamic mappers {es-pull}110554[#110554]
+* Fix synthetic source field names for multi-fields {es-pull}112850[#112850]
+* Retrieve the source for objects and arrays in a separate parsing phase {es-pull}113027[#113027] (issue: {es-issue}112374[#112374])
+* Two empty mappings now are created equally {es-pull}107936[#107936] (issue: {es-issue}107031[#107031])
+
+Ranking::
+* Fix MLTQuery handling of custom term frequencies {es-pull}110846[#110846]
+* Fix RRF validation for `rank_constant` < 1 {es-pull}112058[#112058]
+* Fix score count validation in reranker response {es-pull}111212[#111212] (issue: {es-issue}111202[#111202])
+
+Search::
+* Allow out of range term queries for numeric types {es-pull}112916[#112916]
+* Fix collapse interaction with stored fields {es-pull}112761[#112761] (issue: {es-issue}112646[#112646])
+* Improve DateTime error handling and add some bad date tests {es-pull}112723[#112723] (issue: {es-issue}112190[#112190])
+* Improve date expression/remote handling in index names {es-pull}112405[#112405] (issue: {es-issue}112243[#112243])
+* Make "too many clauses" throw IllegalArgumentException to avoid 500s {es-pull}112678[#112678] (issue: {es-issue}112177[#112177])
+* Make empty string searches be consistent with case (in)sensitivity {es-pull}110833[#110833]
+* Remove needless forking to GENERIC in `TransportMultiSearchAction` {es-pull}110796[#110796]
+* Search/Mapping: KnnVectorQueryBuilder  support for allowUnmappedFields {es-pull}107047[#107047] (issue: {es-issue}106846[#106846])
+* Speedup `CanMatchPreFilterSearchPhase` constructor {es-pull}110860[#110860]
+* Updated Date Range to Follow Documentation When Assuming Missing Values {es-pull}112258[#112258] (issue: {es-issue}111484[#111484])
+
+Security::
+* Updated the transport CA name in Security Auto-Configuration. {es-pull}106520[#106520] (issue: {es-issue}106455[#106455])
+
+TSDB::
+* Implement `parseBytesRef` for `TimeSeriesRoutingHashFieldType` {es-pull}113373[#113373] (issue: {es-issue}112399[#112399])
+
+Transform::
+* Allow task canceling of validate API calls {es-pull}110951[#110951]
+* Include reason when no nodes are found {es-pull}112409[#112409] (issue: {es-issue}112404[#112404])
+
+Watcher::
+* Truncating watcher history if it is too large {es-pull}111245[#111245] (issue: {es-issue}94745[#94745])
+
+[[deprecation-9.0.0]]
+[float]
+=== Deprecations
+
+Analysis::
+* Deprecate dutch_kp and lovins stemmer as they are removed in Lucene 10 {es-pull}113143[#113143]
+* deprecate `edge_ngram` side parameter {es-pull}110829[#110829]
+
+CRUD::
+* Deprecate dot-prefixed indices and composable template index patterns {es-pull}112571[#112571]
+
+Machine Learning::
+* [Inference API] Deprecate elser service {es-pull}113216[#113216]
+
+Search::
+* Deprecate legacy params from range query {es-pull}113286[#113286]
+
+[[enhancement-9.0.0]]
+[float]
+=== Enhancements
+
+Aggregations::
+* Account for `DelayedBucket` before reduction {es-pull}113013[#113013]
+* Add protection for OOM during aggregations partial reduction {es-pull}110520[#110520]
+* Deduplicate `BucketOrder` when deserializing {es-pull}112707[#112707]
+* Lower the memory footprint when creating `DelayedBucket` {es-pull}112519[#112519]
+* Reduce heap usage for `AggregatorsReducer` {es-pull}112874[#112874]
+* Remove reduce and `reduceContext` from `DelayedBucket` {es-pull}112547[#112547]
+
+Allocation::
+* Add link to flood-stage watermark exception message {es-pull}111315[#111315]
+* Always allow rebalancing by default {es-pull}111015[#111015]
+
+Application::
+* [Profiling] add `container.id` field to event index template {es-pull}111969[#111969]
+
+Authorization::
+* Add manage roles privilege {es-pull}110633[#110633]
+* Add privileges required for CDR misconfiguration features to work on AWS SecurityHub integration {es-pull}112574[#112574]
+
+CRUD::
+* Suppress merge-on-recovery for older indices {es-pull}113462[#113462]
+
+Codec::
+* Remove zstd feature flag for index codec best compression {es-pull}112665[#112665]
+
+Data streams::
+* Add 'verbose' flag retrieving `maximum_timestamp` for get data stream API {es-pull}112303[#112303]
+* Display effective retention in the relevant data stream APIs {es-pull}112019[#112019]
+* Expose global retention settings via data stream lifecycle API {es-pull}112210[#112210]
+* Make ecs@mappings work with OTel attributes {es-pull}111600[#111600]
+
+Distributed::
+* Add link to Max Shards Per Node exception message {es-pull}110993[#110993]
+
+ES|QL::
+* Add EXP ES|QL function {es-pull}110879[#110879]
+* Add `CircuitBreaker` to TDigest, Step 3: Connect with ESQL CB {es-pull}113387[#113387]
+* Add `CircuitBreaker` to TDigest, Step 4: Take into account shallow classes size {es-pull}113613[#113613] (issue: {es-issue}113916[#113916])
+* Collect and display execution metadata for ES|QL cross cluster searches {es-pull}112595[#112595] (issue: {es-issue}112402[#112402])
+* ESQL: BUCKET: allow numerical spans as whole numbers {es-pull}111874[#111874] (issues: {es-issue}104646[#104646], {es-issue}109340[#109340], {es-issue}105375[#105375])
+* ESQL: Have BUCKET generate friendlier intervals {es-pull}111879[#111879] (issue: {es-issue}110916[#110916])
+* ESQL: Profile more timing information {es-pull}111855[#111855]
+* ESQL: Speed up CASE for some parameters {es-pull}112295[#112295]
+* ESQL: Support INLINESTATS grouped on expressions {es-pull}111690[#111690]
+* ES|QL: add Telemetry API and track top functions {es-pull}111226[#111226]
+* Siem ea 9521 improve test {es-pull}111552[#111552]
+* [ESQL] Add `SPACE` function {es-pull}112350[#112350]
+* [ESQL] Add finish() elapsed time to aggregation profiling times {es-pull}113172[#113172] (issue: {es-issue}112950[#112950])
+* [ESQL] Make query wrapped by `SingleValueQuery` cacheable {es-pull}110116[#110116]
+* [ES|QL] Cast mixed numeric types to a common numeric type for Coalesce and In at Analyzer {es-pull}111917[#111917] (issue: {es-issue}111486[#111486])
+* [ES|QL] Combine Disjunctive CIDRMatch {es-pull}111501[#111501] (issue: {es-issue}105143[#105143])
+* [ES|QL] Create `Range` in `PushFiltersToSource` for qualified pushable filters on the same field {es-pull}111437[#111437]
+* [ES|QL] Name parameter with leading underscore {es-pull}111950[#111950] (issue: {es-issue}111821[#111821])
+* [ES|QL] Validate index name in parser {es-pull}112081[#112081]
+* [ES|QL] explicit cast a string literal to `date_period` and `time_duration` in arithmetic operations {es-pull}109193[#109193]
+
+Experiences::
+* Integrate IBM watsonx to Inference API for text embeddings {es-pull}111770[#111770]
+
+Geo::
+* Add support for spatial relationships in point field mapper {es-pull}112126[#112126]
+* Small performance improvement in h3 library {es-pull}113385[#113385]
+* Support docvalues only query in shape field {es-pull}112199[#112199]
+
+Health::
+* (API) Cluster Health report `unassigned_primary_shards` {es-pull}112024[#112024]
+* Do not treat replica as unassigned if primary recently created and unassigned time is below a threshold {es-pull}112066[#112066]
+* Increase `replica_unassigned_buffer_time` default from 3s to 5s {es-pull}112834[#112834]
+
+ILM+SLM::
+* ILM: Add `total_shards_per_node` setting to searchable snapshot {es-pull}112972[#112972] (issue: {es-issue}112261[#112261])
+* PUT slm policy should only increase version if actually changed {es-pull}111079[#111079]
+* Preserve Step Info Across ILM Auto Retries {es-pull}113187[#113187]
+* Register SLM run before snapshotting to save stats {es-pull}110216[#110216]
+* SLM interval schedule followup - add back `getFieldName` style getters {es-pull}112123[#112123]
+
+Infra/Circuit Breakers::
+* Add link to Circuit Breaker "Data too large" exception message {es-pull}113561[#113561]
+
+Infra/Core::
+* Add nanos support to `ZonedDateTime` serialization {es-pull}111689[#111689] (issue: {es-issue}68292[#68292])
+* Extend logging for dropped warning headers {es-pull}111624[#111624] (issue: {es-issue}90527[#90527])
+
+Infra/Metrics::
+* Add `TaskManager` to `pluginServices` {es-pull}112687[#112687]
+* Add `ensureGreen` test method for use with `adminClient` {es-pull}113425[#113425]
+
+Infra/REST API::
+* Optimize the loop processing of URL decoding {es-pull}110237[#110237] (issue: {es-issue}110235[#110235])
+
+Infra/Scripting::
+* Expose `HexFormat` in Painless {es-pull}112412[#112412]
+
+Ingest Node::
+* Add `size_in_bytes` to enrich cache stats {es-pull}110578[#110578]
+* Add support for templates when validating mappings in the simulate ingest API {es-pull}111161[#111161]
+* Adding component template substitutions to the simulate ingest API {es-pull}113276[#113276]
+* Adding mapping validation to the simulate ingest API {es-pull}110606[#110606]
+* Adds example plugin for custom ingest processor {es-pull}112282[#112282] (issue: {es-issue}111539[#111539])
+* Fix unnecessary mustache template evaluation {es-pull}110986[#110986] (issue: {es-issue}110191[#110191])
+* Listing all available databases in the _ingest/geoip/database API {es-pull}113498[#113498]
+* Make enrich cache based on memory usage {es-pull}111412[#111412] (issue: {es-issue}106081[#106081])
+* Tag redacted document in ingest metadata {es-pull}113552[#113552]
+
+Logs::
+* Add validation for synthetic source mode in logs mode indices {es-pull}110677[#110677]
+* Store original source for keywords using a normalizer {es-pull}112151[#112151]
+
+Machine Learning::
+* Add Completion Inference API for Alibaba Cloud AI Search Model {es-pull}112512[#112512]
+* Add DeBERTa-V2/V3 tokenizer {es-pull}111852[#111852]
+* Add custom rule parameters to force time shift {es-pull}110974[#110974]
+* Adding chunking settings to `MistralService,` `GoogleAiStudioService,` and `HuggingFaceService` {es-pull}113623[#113623]
+* Adds a new Inference API for streaming responses back to the user. {es-pull}113158[#113158]
+* Create `StreamingHttpResultPublisher` {es-pull}112026[#112026]
+* Default inference endpoint for ELSER {es-pull}113873[#113873]
+* Enable OpenAI Streaming {es-pull}113911[#113911]
+* Migrate Inference to `ChunkedToXContent` {es-pull}111655[#111655]
+* Register Task while Streaming {es-pull}112369[#112369]
+* Server-Sent Events for Inference response {es-pull}112565[#112565]
+* Stream OpenAI Completion {es-pull}112677[#112677]
+* Support sparse embedding models in the elasticsearch inference service {es-pull}112270[#112270]
+* Validate streaming HTTP Response {es-pull}112481[#112481]
+* Write downloaded model parts async {es-pull}111684[#111684]
+* [Inference API] Add Alibaba Cloud AI Search Model support to Inference API {es-pull}111181[#111181]
+* [Inference API] Add Docs for AlibabaCloud AI Search Support for the Inference API {es-pull}111181[#111181]
+* [Inference API] Prevent inference endpoints from being deleted if they are referenced by semantic text {es-pull}110399[#110399]
+* [Inference API] alibabacloud ai search service support chunk infer to support semantic_text field {es-pull}110399[#110399]
+
+Mapping::
+* Add Field caps support for Semantic Text {es-pull}111809[#111809]
+* Add Lucene segment-level fields stats {es-pull}111123[#111123]
+* Add Search Inference ID To Semantic Text Mapping {es-pull}113051[#113051]
+* Add object param for keeping synthetic source {es-pull}113690[#113690]
+* Add support for multi-value dimensions {es-pull}112645[#112645] (issue: {es-issue}110387[#110387])
+* Allow dimension fields to have multiple values in standard and logsdb index mode {es-pull}112345[#112345] (issues: {es-issue}112232[#112232], {es-issue}112239[#112239])
+* Allow fields with dots in sparse vector field mapper {es-pull}111981[#111981] (issue: {es-issue}109118[#109118])
+* Allow querying `index_mode` {es-pull}110676[#110676]
+* Configure keeping source in `FieldMapper` {es-pull}112706[#112706]
+* Control storing array source with index setting {es-pull}112397[#112397]
+* Introduce mode `subobjects=auto` for objects {es-pull}110524[#110524]
+* Update `semantic_text` field to support indexing numeric and boolean data types {es-pull}111284[#111284]
+* Use fallback synthetic source for `copy_to` and doc_values: false cases {es-pull}112294[#112294] (issues: {es-issue}110753[#110753], {es-issue}110038[#110038], {es-issue}109546[#109546])
+
+Network::
+* Add links to network disconnect troubleshooting {es-pull}112330[#112330]
+
+Recovery::
+* Trigger merges after recovery {es-pull}113102[#113102]
+
+Search::
+* Add more `dense_vector` details for cluster stats field stats {es-pull}113607[#113607]
+* Add range and regexp Intervals {es-pull}111465[#111465]
+* Adding support for `allow_partial_search_results` in PIT {es-pull}111516[#111516]
+* Avoid using concurrent collector manager in `LuceneChangesSnapshot` {es-pull}113816[#113816]
+* Deduplicate Kuromoji User Dictionary {es-pull}112768[#112768]
+* Multi term intervals: increase max_expansions {es-pull}112826[#112826] (issue: {es-issue}110491[#110491])
+* Search coordinator uses `event.ingested` in cluster state to do rewrites {es-pull}111523[#111523]
+
+Security::
+* (logger) change from error to warn for short circuiting user {es-pull}112895[#112895]
+* Add asset criticality indices for `kibana_system_user` {es-pull}113588[#113588]
+* Add tier preference to security index settings allowlist {es-pull}111818[#111818]
+* [Service Account] Add `AutoOps` account {es-pull}111316[#111316]
+
+Snapshot/Restore::
+* Add `max_multipart_parts` setting to S3 repository {es-pull}113989[#113989]
+* Add support for Azure Managed Identity {es-pull}111344[#111344]
+* Add telemetry for repository usage {es-pull}112133[#112133]
+* Add workaround for missing shard gen blob {es-pull}112337[#112337]
+* Clean up dangling S3 multipart uploads {es-pull}111955[#111955] (issues: {es-issue}101169[#101169], {es-issue}44971[#44971])
+* Execute shard snapshot tasks in shard-id order {es-pull}111576[#111576] (issue: {es-issue}108739[#108739])
+* Include account name in Azure settings exceptions {es-pull}111274[#111274]
+* Introduce repository integrity verification API {es-pull}112348[#112348] (issue: {es-issue}52622[#52622])
+
+Stats::
+* Track search and fetch failure stats {es-pull}113988[#113988]
+
+TSDB::
+* Add support for boolean dimensions {es-pull}111457[#111457] (issue: {es-issue}111338[#111338])
+* Stop iterating over all fields to extract @timestamp value {es-pull}110603[#110603] (issue: {es-issue}92297[#92297])
+* Support booleans in routing path {es-pull}111445[#111445]
+
+Vector Search::
+* Dense vector field types updatable for int4 {es-pull}110928[#110928]
+* Use native scalar scorer for int8_flat index {es-pull}111071[#111071]
+
+[[feature-9.0.0]]
+[float]
+=== New features
+
+Data streams::
+* Introduce global retention in data stream lifecycle. {es-pull}111972[#111972]
+* X-pack/plugin/otel: introduce x-pack-otel plugin {es-pull}111091[#111091]
+
+ES|QL::
+* ESQL: Add `MV_PSERIES_WEIGHTED_SUM` for score calculations used by security solution {es-pull}109017[#109017]
+* ESQL: Add async ID and `is_running` headers to ESQL async query {es-pull}111840[#111840]
+* ESQL: Add boolean support to Max and Min aggs {es-pull}110527[#110527]
+* ESQL: Add boolean support to TOP aggregation {es-pull}110718[#110718]
+* ESQL: Added `mv_percentile` function {es-pull}111749[#111749] (issue: {es-issue}111591[#111591])
+* ESQL: INLINESTATS {es-pull}109583[#109583] (issue: {es-issue}107589[#107589])
+* ESQL: Strings support for MAX and MIN aggregations {es-pull}111544[#111544]
+* ESQL: Support IP fields in MAX and MIN aggregations {es-pull}110921[#110921]
+* ESQL: TOP aggregation IP support {es-pull}111105[#111105]
+* ESQL: TOP support for strings {es-pull}113183[#113183] (issue: {es-issue}109849[#109849])
+* ESQL: `mv_median_absolute_deviation` function {es-pull}112055[#112055] (issue: {es-issue}111590[#111590])
+* Search in ES|QL: Add MATCH operator {es-pull}110971[#110971]
+
+ILM+SLM::
+* SLM Interval based scheduling {es-pull}110847[#110847]
+
+Inference::
+* EIS integration {es-pull}111154[#111154]
+
+Machine Learning::
+* Inference autoscaling {es-pull}109667[#109667]
+* Telemetry for inference adaptive allocations {es-pull}110630[#110630]
+
+Relevance::
+* [Query rules] Add `exclude` query rule type {es-pull}111420[#111420]
+
+Search::
+* Async search: Add ID and "is running" http headers {es-pull}112431[#112431] (issue: {es-issue}109576[#109576])
+
+[[upgrade-9.0.0]]
+[float]
+=== Upgrades
+
+Infra/Core::
+* Upgrade xcontent to Jackson 2.17.0 {es-pull}111948[#111948]
+* Upgrade xcontent to Jackson 2.17.2 {es-pull}112320[#112320]
+
+Search::
+* Upgrade to Lucene 9.12 {es-pull}113333[#113333]
+
+Snapshot/Restore::
+* Upgrade Azure SDK {es-pull}111225[#111225]
+* Upgrade `repository-azure` dependencies {es-pull}112277[#112277]
+* Upgrade protobufer to 3.25.5 {es-pull}113869[#113869]
+
+

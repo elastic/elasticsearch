@@ -128,3 +128,5 @@ PUT /_cluster/settings
   }
 }
 --------------------------------------------------
+
+include::transient-settings-migration-guide.asciidoc[]

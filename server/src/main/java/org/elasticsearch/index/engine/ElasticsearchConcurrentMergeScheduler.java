@@ -32,7 +32,7 @@ import java.util.concurrent.Executor;
  * An extension to the {@link ConcurrentMergeScheduler} that provides tracking on merge times, total
  * and current merges.
  */
-public class ElasticsearchConcurrentMergeScheduler extends ConcurrentMergeScheduler {
+public class ElasticsearchConcurrentMergeScheduler extends ConcurrentMergeScheduler implements ElasticsearchMergeScheduler {
 
     protected final Logger logger;
     private final Settings indexSettings;
@@ -47,10 +47,13 @@ public class ElasticsearchConcurrentMergeScheduler extends ConcurrentMergeSchedu
         this.shardId = shardId;
         this.indexSettings = indexSettings.getSettings();
         this.logger = Loggers.getLogger(getClass(), shardId);
-        this.mergeTracking = new MergeTracking(logger, () -> config.isAutoThrottle() ? getIORateLimitMBPerSec() : Double.POSITIVE_INFINITY);
+        this.mergeTracking = new MergeTracking(
+            logger,
+            () -> indexSettings.getMergeSchedulerConfig().isAutoThrottle() ? getIORateLimitMBPerSec() : Double.POSITIVE_INFINITY);
         refreshConfig();
     }
 
+    @Override
     public Set<OnGoingMerge> onGoingMerges() {
         return mergeTracking.onGoingMerges();
     }
@@ -137,11 +140,13 @@ public class ElasticsearchConcurrentMergeScheduler extends ConcurrentMergeSchedu
         return thread;
     }
 
-    MergeStats stats() {
+    @Override
+    public MergeStats stats() {
         return mergeTracking.stats();
     }
 
-    void refreshConfig() {
+    @Override
+    public void refreshConfig() {
         if (this.getMaxMergeCount() != config.getMaxMergeCount() || this.getMaxThreadCount() != config.getMaxThreadCount()) {
             this.setMaxMergesAndThreads(config.getMaxMergeCount(), config.getMaxThreadCount());
         }

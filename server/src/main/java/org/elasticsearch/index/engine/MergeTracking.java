@@ -53,7 +53,6 @@ public class MergeTracking {
     public OnGoingMerge mergeStarted(MergePolicy.OneMerge merge) {
         int totalNumDocs = merge.totalNumDocs();
         long totalSizeInBytes = merge.totalBytesSize();
-        long timeNS = System.nanoTime();
         currentMerges.inc();
         currentMergesNumDocs.inc(totalNumDocs);
         currentMergesSizeInBytes.inc(totalSizeInBytes);
@@ -115,7 +114,7 @@ public class MergeTracking {
         }
     }
 
-    MergeStats stats() {
+    public MergeStats stats() {
         final MergeStats mergeStats = new MergeStats();
         mergeStats.add(
             totalMerges.count(),

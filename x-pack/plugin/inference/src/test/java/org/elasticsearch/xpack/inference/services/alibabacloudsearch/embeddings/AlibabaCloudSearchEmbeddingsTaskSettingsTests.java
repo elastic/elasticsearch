@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference.services.alibabacloudsearch.embeddings;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.InputType;
@@ -43,6 +44,12 @@ public class AlibabaCloudSearchEmbeddingsTaskSettingsTests extends AbstractWireS
             AlibabaCloudSearchEmbeddingsTaskSettings.fromMap(new HashMap<>(Map.of())),
             is(new AlibabaCloudSearchEmbeddingsTaskSettings(inputType))
         );
+    }
+
+    public void testIsEmpty() {
+        var randomSettings = createRandom();
+        var stringRep = Strings.toString(randomSettings);
+        assertEquals(stringRep, randomSettings.isEmpty(), stringRep.equals("{}"));
     }
 
     @Override

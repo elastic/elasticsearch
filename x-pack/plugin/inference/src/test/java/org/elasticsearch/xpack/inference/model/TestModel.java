@@ -194,6 +194,11 @@ public class TestModel extends Model {
         }
 
         @Override
+        public boolean isEmpty() {
+            return temperature == null;
+        }
+
+        @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             if (temperature != null) {

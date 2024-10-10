@@ -10,7 +10,7 @@ template:
       metrics:
         type: passthrough
         dynamic: true
-        priority: 1
+        priority: 10
       unit:
         type: keyword
         time_series_dimension: true

@@ -5,7 +5,7 @@
 <titleabbrev>Get job statistics</titleabbrev>
 ++++
 
-Retrieves usage information for {anomaly-jobs}.
+Retrieves usage information for {ml-docs}/ml-ad-overview.html[{anomaly-jobs}].
 
 [[ml-get-job-stats-request]]
 == {api-request-title}

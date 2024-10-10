@@ -11,7 +11,7 @@ console. They are _not_ intended for use by applications. For application
 consumption, use the <<cluster-nodes-info,nodes info API>>.
 ====
 
-Returns information about custom node attributes.
+Returns information about <<shard-allocation-filtering,custom node attributes>>.
 
 [[cat-nodeattrs-api-request]]
 ==== {api-request-title}

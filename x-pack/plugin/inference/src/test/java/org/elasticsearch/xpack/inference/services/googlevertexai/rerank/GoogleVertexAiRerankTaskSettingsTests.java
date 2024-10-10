@@ -27,6 +27,12 @@ import static org.hamcrest.Matchers.is;
 
 public class GoogleVertexAiRerankTaskSettingsTests extends AbstractBWCWireSerializationTestCase<GoogleVertexAiRerankTaskSettings> {
 
+    public void testIsEmpty() {
+        var randomSettings = createRandom();
+        var stringRep = Strings.toString(randomSettings);
+        assertEquals(stringRep, randomSettings.isEmpty(), stringRep.equals("{}"));
+    }
+
     public void testFromMap_TopNIsSet() {
         var topN = 1;
         var taskSettingsMap = getTaskSettingsMap(topN);

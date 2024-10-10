@@ -127,6 +127,11 @@ public class AnthropicChatCompletionTaskSettings implements TaskSettings {
     }
 
     @Override
+    public boolean isEmpty() {
+        return false; // maxTokens is non-optional
+    }
+
+    @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
 

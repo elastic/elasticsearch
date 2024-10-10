@@ -15,16 +15,16 @@ import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.expression.function.Warnings;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link SpatialWithin}.
  * This class is generated. Do not edit it.
  */
 public final class SpatialWithinCartesianSourceAndConstantEvaluator implements EvalOperator.ExpressionEvaluator {
-  private final Warnings warnings;
+  private final Source source;
 
   private final EvalOperator.ExpressionEvaluator left;
 
@@ -32,12 +32,14 @@ public final class SpatialWithinCartesianSourceAndConstantEvaluator implements E
 
   private final DriverContext driverContext;
 
+  private Warnings warnings;
+
   public SpatialWithinCartesianSourceAndConstantEvaluator(Source source,
       EvalOperator.ExpressionEvaluator left, Component2D right, DriverContext driverContext) {
+    this.source = source;
     this.left = left;
     this.right = right;
     this.driverContext = driverContext;
-    this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
   }
 
   @Override
@@ -61,7 +63,7 @@ public final class SpatialWithinCartesianSourceAndConstantEvaluator implements E
         try {
           SpatialWithin.processCartesianSourceAndConstant(result, p, leftBlock, this.right);
         } catch (IllegalArgumentException | IOException e) {
-          warnings.registerException(e);
+          warnings().registerException(e);
           result.appendNull();
         }
       }
@@ -77,6 +79,18 @@ public final class SpatialWithinCartesianSourceAndConstantEvaluator implements E
   @Override
   public void close() {
     Releasables.closeExpectNoException(left);
+  }
+
+  private Warnings warnings() {
+    if (warnings == null) {
+      this.warnings = Warnings.createWarnings(
+              driverContext.warningsMode(),
+              source.source().getLineNumber(),
+              source.source().getColumnNumber(),
+              source.text()
+          );
+    }
+    return warnings;
   }
 
   static class Factory implements EvalOperator.ExpressionEvaluator.Factory {

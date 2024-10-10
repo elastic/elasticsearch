@@ -59,6 +59,31 @@ final class IpinfoIpDataLookups {
     }
 
     /**
+     * Lax-ly parses a string that contains a boolean into a Boolean (or null, if such parsing isn't possible).
+     * @param bool a potentially empty (or null) string that is expected to contain a parsable boolean
+     * @return the parsed boolean
+     */
+    static Boolean parseBoolean(final String bool) {
+        if (bool == null) {
+            return null;
+        } else {
+            String trimmed = bool.toLowerCase(Locale.ROOT).trim();
+            if ("true".equals(trimmed)) {
+                return true;
+            } else if ("false".equals(trimmed)) {
+                // "false" can represent false -- this an expected future enhancement in how the database represents booleans
+                return false;
+            } else if (trimmed.isEmpty()) {
+                // empty string can represent false -- this is how the database currently represents 'false' values
+                return false;
+            } else {
+                logger.trace("Unable to parse non-compliant boolean string [{}]", bool);
+                return null;
+            }
+        }
+    }
+
+    /**
      * Lax-ly parses a string that contains a double into a Double (or null, if such parsing isn't possible).
      * @param latlon a potentially empty (or null) string that is expected to contain a parsable double
      * @return the parsed double
@@ -129,6 +154,22 @@ final class IpinfoIpDataLookups {
             @MaxMindDbParameter(name = "timezone") String timezone
         ) {
             this(city, country, parseLocationDouble(latitude), parseLocationDouble(longitude), postalCode, region, timezone);
+        }
+    }
+
+    public record PrivacyDetectionResult(Boolean hosting, Boolean proxy, Boolean relay, String service, Boolean tor, Boolean vpn) {
+        @SuppressWarnings("checkstyle:RedundantModifier")
+        @MaxMindDbConstructor
+        public PrivacyDetectionResult(
+            @MaxMindDbParameter(name = "hosting") String hosting,
+            // @MaxMindDbParameter(name = "network") String network, // for now we're not exposing this
+            @MaxMindDbParameter(name = "proxy") String proxy,
+            @MaxMindDbParameter(name = "relay") String relay,
+            @MaxMindDbParameter(name = "service") String service, // n.b. this remains a string, the rest are parsed as booleans
+            @MaxMindDbParameter(name = "tor") String tor,
+            @MaxMindDbParameter(name = "vpn") String vpn
+        ) {
+            this(parseBoolean(hosting), parseBoolean(proxy), parseBoolean(relay), service, parseBoolean(tor), parseBoolean(vpn));
         }
     }
 
@@ -278,6 +319,55 @@ final class IpinfoIpDataLookups {
                             locationObject.put("lat", latitude);
                             locationObject.put("lon", longitude);
                             data.put("location", locationObject);
+                        }
+                    }
+                }
+            }
+            return data;
+        }
+    }
+
+    static class PrivacyDetection extends AbstractBase<PrivacyDetectionResult> {
+        PrivacyDetection(Set<Database.Property> properties) {
+            super(properties, PrivacyDetectionResult.class);
+        }
+
+        @Override
+        protected Map<String, Object> transform(final Result<PrivacyDetectionResult> result) {
+            PrivacyDetectionResult response = result.result;
+
+            Map<String, Object> data = new HashMap<>();
+            for (Database.Property property : this.properties) {
+                switch (property) {
+                    case IP -> data.put("ip", result.ip);
+                    case HOSTING -> {
+                        if (response.hosting != null) {
+                            data.put("hosting", response.hosting);
+                        }
+                    }
+                    case TOR -> {
+                        if (response.tor != null) {
+                            data.put("tor", response.tor);
+                        }
+                    }
+                    case PROXY -> {
+                        if (response.proxy != null) {
+                            data.put("proxy", response.proxy);
+                        }
+                    }
+                    case RELAY -> {
+                        if (response.relay != null) {
+                            data.put("relay", response.relay);
+                        }
+                    }
+                    case VPN -> {
+                        if (response.vpn != null) {
+                            data.put("vpn", response.vpn);
+                        }
+                    }
+                    case SERVICE -> {
+                        if (Strings.hasText(response.service)) {
+                            data.put("service", response.service);
                         }
                     }
                 }

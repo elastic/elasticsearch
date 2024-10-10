@@ -11,8 +11,6 @@ package org.elasticsearch.rest.action.admin.cluster;
 
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsRequest;
 import org.elasticsearch.client.internal.node.NodeClient;
-import org.elasticsearch.common.util.FeatureFlag;
-import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
@@ -33,10 +31,10 @@ public class RestClusterStatsAction extends BaseRestHandler {
 
     private static final Set<String> SUPPORTED_CAPABILITIES = Set.of(
         "human-readable-total-docs-size",
-        "verbose-dense-vector-mapping-stats"
+        "verbose-dense-vector-mapping-stats",
+        "ccs-stats",
+        "retrievers-usage-stats"
     );
-    private static final Set<String> SUPPORTED_CAPABILITIES_CCS_STATS = Set.copyOf(Sets.union(SUPPORTED_CAPABILITIES, Set.of("ccs-stats")));
-    public static final FeatureFlag CCS_TELEMETRY_FEATURE_FLAG = new FeatureFlag("ccs_telemetry");
     private static final Set<String> SUPPORTED_QUERY_PARAMETERS = Set.of("include_remotes", "nodeId", REST_TIMEOUT_PARAM);
 
     @Override
@@ -60,7 +58,7 @@ public class RestClusterStatsAction extends BaseRestHandler {
             request.paramAsBoolean("include_remotes", false),
             request.paramAsStringArray("nodeId", null)
         );
-        clusterStatsRequest.timeout(getTimeout(request));
+        clusterStatsRequest.setTimeout(getTimeout(request));
         return channel -> new RestCancellableNodeClient(client, request.getHttpChannel()).admin()
             .cluster()
             .clusterStats(clusterStatsRequest, new NodesResponseRestListener<>(channel));
@@ -73,6 +71,6 @@ public class RestClusterStatsAction extends BaseRestHandler {
 
     @Override
     public Set<String> supportedCapabilities() {
-        return CCS_TELEMETRY_FEATURE_FLAG.isEnabled() ? SUPPORTED_CAPABILITIES_CCS_STATS : SUPPORTED_CAPABILITIES;
+        return SUPPORTED_CAPABILITIES;
     }
 }

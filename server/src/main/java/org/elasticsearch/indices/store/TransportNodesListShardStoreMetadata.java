@@ -278,7 +278,7 @@ public class TransportNodesListShardStoreMetadata extends TransportNodesAction<
         }
     }
 
-    public static class Request extends BaseNodesRequest<Request> {
+    public static class Request extends BaseNodesRequest {
 
         private final ShardId shardId;
         @Nullable

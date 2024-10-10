@@ -592,6 +592,11 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
             public void writeTo(StreamOutput out) throws IOException {
 
             }
+
+            @Override
+            public boolean isEmpty() {
+                return true;
+            }
         }
 
         record TestSecretSettings(String key) implements SecretSettings {

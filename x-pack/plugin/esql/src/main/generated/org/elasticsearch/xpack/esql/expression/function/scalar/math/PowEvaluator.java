@@ -14,16 +14,16 @@ import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.expression.function.Warnings;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link Pow}.
  * This class is generated. Do not edit it.
  */
 public final class PowEvaluator implements EvalOperator.ExpressionEvaluator {
-  private final Warnings warnings;
+  private final Source source;
 
   private final EvalOperator.ExpressionEvaluator base;
 
@@ -31,12 +31,14 @@ public final class PowEvaluator implements EvalOperator.ExpressionEvaluator {
 
   private final DriverContext driverContext;
 
+  private Warnings warnings;
+
   public PowEvaluator(Source source, EvalOperator.ExpressionEvaluator base,
       EvalOperator.ExpressionEvaluator exponent, DriverContext driverContext) {
+    this.source = source;
     this.base = base;
     this.exponent = exponent;
     this.driverContext = driverContext;
-    this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
   }
 
   @Override
@@ -65,7 +67,7 @@ public final class PowEvaluator implements EvalOperator.ExpressionEvaluator {
         }
         if (baseBlock.getValueCount(p) != 1) {
           if (baseBlock.getValueCount(p) > 1) {
-            warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+            warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
           }
           result.appendNull();
           continue position;
@@ -76,7 +78,7 @@ public final class PowEvaluator implements EvalOperator.ExpressionEvaluator {
         }
         if (exponentBlock.getValueCount(p) != 1) {
           if (exponentBlock.getValueCount(p) > 1) {
-            warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+            warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
           }
           result.appendNull();
           continue position;
@@ -84,7 +86,7 @@ public final class PowEvaluator implements EvalOperator.ExpressionEvaluator {
         try {
           result.appendDouble(Pow.process(baseBlock.getDouble(baseBlock.getFirstValueIndex(p)), exponentBlock.getDouble(exponentBlock.getFirstValueIndex(p))));
         } catch (ArithmeticException e) {
-          warnings.registerException(e);
+          warnings().registerException(e);
           result.appendNull();
         }
       }
@@ -98,7 +100,7 @@ public final class PowEvaluator implements EvalOperator.ExpressionEvaluator {
         try {
           result.appendDouble(Pow.process(baseVector.getDouble(p), exponentVector.getDouble(p)));
         } catch (ArithmeticException e) {
-          warnings.registerException(e);
+          warnings().registerException(e);
           result.appendNull();
         }
       }
@@ -114,6 +116,18 @@ public final class PowEvaluator implements EvalOperator.ExpressionEvaluator {
   @Override
   public void close() {
     Releasables.closeExpectNoException(base, exponent);
+  }
+
+  private Warnings warnings() {
+    if (warnings == null) {
+      this.warnings = Warnings.createWarnings(
+              driverContext.warningsMode(),
+              source.source().getLineNumber(),
+              source.source().getColumnNumber(),
+              source.text()
+          );
+    }
+    return warnings;
   }
 
   static class Factory implements EvalOperator.ExpressionEvaluator.Factory {

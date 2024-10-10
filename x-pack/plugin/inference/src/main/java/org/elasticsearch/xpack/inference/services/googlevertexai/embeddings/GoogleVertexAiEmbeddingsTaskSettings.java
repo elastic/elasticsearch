@@ -61,6 +61,11 @@ public class GoogleVertexAiEmbeddingsTaskSettings implements TaskSettings {
         this.autoTruncate = in.readOptionalBoolean();
     }
 
+    @Override
+    public boolean isEmpty() {
+        return autoTruncate == null;
+    }
+
     public Boolean autoTruncate() {
         return autoTruncate;
     }

@@ -32,6 +32,12 @@ import static org.hamcrest.Matchers.is;
 public class AzureAiStudioChatCompletionTaskSettingsTests extends AbstractBWCWireSerializationTestCase<
     AzureAiStudioChatCompletionTaskSettings> {
 
+    public void testIsEmpty() {
+        var randomSettings = createRandom();
+        var stringRep = Strings.toString(randomSettings);
+        assertEquals(stringRep, randomSettings.isEmpty(), stringRep.equals("{}"));
+    }
+
     public void testFromMap_AllValues() {
         var taskMap = getTaskSettingsMap(1.0, 2.0, true, 512);
         assertEquals(

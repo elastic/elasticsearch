@@ -23,6 +23,12 @@ base {
   archivesName = 'x-pack-logsdb'
 }
 
+restResources {
+  restApi {
+    include 'bulk', 'search', '_common', 'indices', 'index', 'cluster', 'data_stream', 'ingest', 'cat', 'capabilities'
+  }
+}
+
 dependencies {
   compileOnly project(path: xpackModule('core'))
   testImplementation(testArtifact(project(xpackModule('core'))))

@@ -125,7 +125,7 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
         this(fieldName, VectorData.fromFloats(queryVector), null, null, k, numCands, vectorSimilarity);
     }
 
-    protected KnnVectorQueryBuilder(
+    public KnnVectorQueryBuilder(
         String fieldName,
         QueryVectorBuilder queryVectorBuilder,
         Integer k,

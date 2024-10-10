@@ -91,6 +91,11 @@ public class CustomElandRerankTaskSettings implements TaskSettings {
     }
 
     @Override
+    public boolean isEmpty() {
+        return returnDocuments == null;
+    }
+
+    @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         if (returnDocuments != null) {

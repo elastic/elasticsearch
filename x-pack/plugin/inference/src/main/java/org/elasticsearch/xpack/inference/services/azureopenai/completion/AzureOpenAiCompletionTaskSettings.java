@@ -60,6 +60,11 @@ public class AzureOpenAiCompletionTaskSettings implements TaskSettings {
     }
 
     @Override
+    public boolean isEmpty() {
+        return user == null;
+    }
+
+    @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         {

@@ -50,6 +50,11 @@ public class OpenAiChatCompletionTaskSettings implements TaskSettings {
         this.user = in.readOptionalString();
     }
 
+    @Override
+    public boolean isEmpty() {
+        return user == null;
+    }
+
     public static OpenAiChatCompletionTaskSettings of(
         OpenAiChatCompletionTaskSettings originalSettings,
         OpenAiChatCompletionRequestTaskSettings requestSettings

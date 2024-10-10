@@ -25,7 +25,7 @@ import java.util.Set;
 /**
  * A request to get node (cluster) level stats.
  */
-public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
+public class NodesStatsRequest extends BaseNodesRequest {
 
     private final NodesStatsRequestParameters nodesStatsRequestParameters;
 

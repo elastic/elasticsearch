@@ -17,16 +17,16 @@ import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.expression.function.Warnings;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link AutomataMatch}.
  * This class is generated. Do not edit it.
  */
 public final class AutomataMatchEvaluator implements EvalOperator.ExpressionEvaluator {
-  private final Warnings warnings;
+  private final Source source;
 
   private final EvalOperator.ExpressionEvaluator input;
 
@@ -36,13 +36,15 @@ public final class AutomataMatchEvaluator implements EvalOperator.ExpressionEval
 
   private final DriverContext driverContext;
 
+  private Warnings warnings;
+
   public AutomataMatchEvaluator(Source source, EvalOperator.ExpressionEvaluator input,
       ByteRunAutomaton automaton, String pattern, DriverContext driverContext) {
+    this.source = source;
     this.input = input;
     this.automaton = automaton;
     this.pattern = pattern;
     this.driverContext = driverContext;
-    this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
   }
 
   @Override
@@ -66,7 +68,7 @@ public final class AutomataMatchEvaluator implements EvalOperator.ExpressionEval
         }
         if (inputBlock.getValueCount(p) != 1) {
           if (inputBlock.getValueCount(p) > 1) {
-            warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+            warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
           }
           result.appendNull();
           continue position;
@@ -95,6 +97,18 @@ public final class AutomataMatchEvaluator implements EvalOperator.ExpressionEval
   @Override
   public void close() {
     Releasables.closeExpectNoException(input);
+  }
+
+  private Warnings warnings() {
+    if (warnings == null) {
+      this.warnings = Warnings.createWarnings(
+              driverContext.warningsMode(),
+              source.source().getLineNumber(),
+              source.source().getColumnNumber(),
+              source.text()
+          );
+    }
+    return warnings;
   }
 
   static class Factory implements EvalOperator.ExpressionEvaluator.Factory {

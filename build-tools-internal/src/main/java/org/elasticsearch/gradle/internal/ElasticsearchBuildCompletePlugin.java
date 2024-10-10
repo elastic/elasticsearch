@@ -163,7 +163,13 @@ public abstract class ElasticsearchBuildCompletePlugin implements Plugin<Project
                     // So, if you change this such that the artifact will have a slash/directory in it, you'll need to update the logic
                     // below as well
                     pb.directory(uploadFileDir);
-                    pb.start().waitFor();
+                    try {
+                        // we are very generious here, as the upload can take
+                        // a long time depending on its size
+                        pb.start().waitFor(30, java.util.concurrent.TimeUnit.MINUTES);
+                    } catch (InterruptedException e) {
+                        System.out.println("Failed to upload buildkite artifact " + e.getMessage());
+                    }
 
                     System.out.println("Generating buildscan link for artifact...");
 

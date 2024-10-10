@@ -260,6 +260,13 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         Property.NodeScope
     );
 
+    public static final Setting<Boolean> CCS_COLLECT_TELEMETRY = Setting.boolSetting(
+        "search.ccs.collect_telemetry",
+        true,
+        Property.Dynamic,
+        Property.NodeScope
+    );
+
     public static final int DEFAULT_SIZE = 10;
     public static final int DEFAULT_FROM = 0;
 

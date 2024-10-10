@@ -14,26 +14,28 @@ import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.expression.function.Warnings;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link Cbrt}.
  * This class is generated. Do not edit it.
  */
 public final class CbrtDoubleEvaluator implements EvalOperator.ExpressionEvaluator {
-  private final Warnings warnings;
+  private final Source source;
 
   private final EvalOperator.ExpressionEvaluator val;
 
   private final DriverContext driverContext;
 
+  private Warnings warnings;
+
   public CbrtDoubleEvaluator(Source source, EvalOperator.ExpressionEvaluator val,
       DriverContext driverContext) {
+    this.source = source;
     this.val = val;
     this.driverContext = driverContext;
-    this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
   }
 
   @Override
@@ -56,7 +58,7 @@ public final class CbrtDoubleEvaluator implements EvalOperator.ExpressionEvaluat
         }
         if (valBlock.getValueCount(p) != 1) {
           if (valBlock.getValueCount(p) > 1) {
-            warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+            warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
           }
           result.appendNull();
           continue position;
@@ -64,7 +66,7 @@ public final class CbrtDoubleEvaluator implements EvalOperator.ExpressionEvaluat
         try {
           result.appendDouble(Cbrt.process(valBlock.getDouble(valBlock.getFirstValueIndex(p))));
         } catch (ArithmeticException e) {
-          warnings.registerException(e);
+          warnings().registerException(e);
           result.appendNull();
         }
       }
@@ -78,7 +80,7 @@ public final class CbrtDoubleEvaluator implements EvalOperator.ExpressionEvaluat
         try {
           result.appendDouble(Cbrt.process(valVector.getDouble(p)));
         } catch (ArithmeticException e) {
-          warnings.registerException(e);
+          warnings().registerException(e);
           result.appendNull();
         }
       }
@@ -94,6 +96,18 @@ public final class CbrtDoubleEvaluator implements EvalOperator.ExpressionEvaluat
   @Override
   public void close() {
     Releasables.closeExpectNoException(val);
+  }
+
+  private Warnings warnings() {
+    if (warnings == null) {
+      this.warnings = Warnings.createWarnings(
+              driverContext.warningsMode(),
+              source.source().getLineNumber(),
+              source.source().getColumnNumber(),
+              source.text()
+          );
+    }
+    return warnings;
   }
 
   static class Factory implements EvalOperator.ExpressionEvaluator.Factory {

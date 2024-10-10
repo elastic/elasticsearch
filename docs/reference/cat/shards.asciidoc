@@ -9,13 +9,16 @@
 ====
 cat APIs are only intended for human consumption using the command line or {kib}
 console.
-They are _not_ intended for use by applications.
+They are _not_ intended for use by applications. For application 
+consumption, use the <<cluster-state,cluster state API>>.
 ====
 
-The `shards` command is the detailed view of what nodes contain which shards.
-It will tell you if it's a primary or replica, the number of docs, the bytes it takes on disk, and the node where it's located.
+The `shards` command is the detailed view of all nodes' shard <<shard-allocation-relocation-recovery,allocation>>.
+It will tell you if the shard is a primary or replica, the number of docs, the 
+bytes it takes on disk, the node where it's located, and if the shard is 
+currently <<shard-allocation-relocation-recovery,recovering>>.
 
-For data streams, the API returns information about the stream's backing indices.
+For <<data-streams,data streams>>, the API returns information about the stream's backing indices.
 
 [[cat-shards-api-request]]
 ==== {api-request-title}

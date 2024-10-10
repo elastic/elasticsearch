@@ -11,7 +11,7 @@ console. They are _not_ intended for use by applications. For application
 consumption, use the <<cluster-nodes-info,nodes info API>>.
 ====
 
-Returns information about the master node, including the ID, bound IP address,
+Returns information about the <<cluster-state-publishing,master node>>, including the ID, bound IP address,
 and name.
 
 

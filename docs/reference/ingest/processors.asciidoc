@@ -185,6 +185,9 @@ Executes another pipeline.
 <<reroute-processor, `reroute` processor>>::
 Reroutes documents to another target index or data stream.
 
+<<terminate-processor, `terminate` processor>>::
+Terminates the current ingest pipeline, causing no further processors to be run.
+
 [discrete]
 [[ingest-process-category-array-json-handling]]
 === Array/JSON handling processors
@@ -258,6 +261,7 @@ include::processors/set.asciidoc[]
 include::processors/set-security-user.asciidoc[]
 include::processors/sort.asciidoc[]
 include::processors/split.asciidoc[]
+include::processors/terminate.asciidoc[]
 include::processors/trim.asciidoc[]
 include::processors/uppercase.asciidoc[]
 include::processors/url-decode.asciidoc[]

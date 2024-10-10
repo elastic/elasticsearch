@@ -66,7 +66,7 @@ public final class RestReloadSecureSettingsAction extends BaseRestHandler implem
         final NodesReloadSecureSettingsRequest reloadSecureSettingsRequest = new NodesReloadSecureSettingsRequest(
             Strings.splitStringByCommaToArray(request.param("nodeId"))
         );
-        reloadSecureSettingsRequest.timeout(getTimeout(request));
+        reloadSecureSettingsRequest.setTimeout(getTimeout(request));
         request.withContentOrSourceParamParserOrNull(parser -> {
             if (parser != null) {
                 final ParsedRequestBody parsedRequestBody = PARSER.parse(parser, null);

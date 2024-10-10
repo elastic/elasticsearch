@@ -44,7 +44,6 @@ import org.elasticsearch.cluster.coordination.Coordinator;
 import org.elasticsearch.cluster.coordination.MasterHistoryService;
 import org.elasticsearch.cluster.coordination.StableMasterHealthIndicatorService;
 import org.elasticsearch.cluster.features.NodeFeaturesFixupListener;
-import org.elasticsearch.cluster.metadata.DataStreamFactoryRetention;
 import org.elasticsearch.cluster.metadata.DataStreamGlobalRetentionSettings;
 import org.elasticsearch.cluster.metadata.IndexMetadataVerifier;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -621,8 +620,7 @@ class NodeConstruction {
         MetadataCreateIndexService metadataCreateIndexService
     ) {
         DataStreamGlobalRetentionSettings dataStreamGlobalRetentionSettings = DataStreamGlobalRetentionSettings.create(
-            clusterService.getClusterSettings(),
-            DataStreamFactoryRetention.load(pluginsService, clusterService.getClusterSettings())
+            clusterService.getClusterSettings()
         );
         modules.bindToInstance(DataStreamGlobalRetentionSettings.class, dataStreamGlobalRetentionSettings);
         modules.bindToInstance(

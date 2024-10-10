@@ -185,8 +185,8 @@ public abstract class ElasticsearchTestBasePlugin implements Plugin<Project> {
             });
 
             if (OS.current().equals(OS.WINDOWS) && System.getProperty("tests.timeoutSuite") == null) {
-                // override the suite timeout to 30 mins for windows, because it has the most inefficient filesystem known to man
-                test.systemProperty("tests.timeoutSuite", "2400000!");
+                // override the suite timeout to 60 mins for windows, because it has the most inefficient filesystem known to man
+                test.systemProperty("tests.timeoutSuite", "3600000!");
             }
 
             /*

@@ -409,9 +409,6 @@ public class HeapAttackIT extends ESRestTestCase {
                     TimeValue elapsed = TimeValue.timeValueNanos(System.nanoTime() - startedTimeInNanos);
                     logger.info("--> test {} triggering OOM after {}", getTestName(), elapsed);
                     Request triggerOOM = new Request("POST", "/_trigger_out_of_memory");
-                    RequestConfig requestConfig = RequestConfig.custom()
-                        .setSocketTimeout(Math.toIntExact(TimeValue.timeValueMinutes(2).millis()))
-                        .build();
                     client().performRequest(triggerOOM);
                 }
             }, TimeValue.timeValueMinutes(5), testThreadPool.executor(ThreadPool.Names.GENERIC));

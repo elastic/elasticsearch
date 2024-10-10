@@ -402,10 +402,7 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
         MetadataDataStreamsService service = new MetadataDataStreamsService(
             mock(ClusterService.class),
             mock(IndicesService.class),
-            DataStreamGlobalRetentionSettings.create(
-                ClusterSettings.createBuiltInClusterSettings(),
-                DataStreamFactoryRetention.emptyFactoryRetention()
-            )
+            DataStreamGlobalRetentionSettings.create(ClusterSettings.createBuiltInClusterSettings())
         );
         {
             // Remove lifecycle

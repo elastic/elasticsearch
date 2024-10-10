@@ -12,7 +12,7 @@ console. They are _not_ intended for use by applications. For application
 consumption, use the <<get-transform,get transforms API>>.
 ====
 
-Returns configuration and usage information about {transforms}.
+Returns configuration and usage information about <<transforms,{transforms}>>.
 
 [[cat-transforms-api-request]]
 ==== {api-request-title}

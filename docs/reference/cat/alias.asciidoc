@@ -12,7 +12,7 @@ consumption, use the <<aliases,aliases API>>.
 ====
 
 Retrieves the cluster's <<aliases,index aliases>>, including filter and routing
-information. The API does not return data stream aliases.
+information. The API does not return <<data-streams,data stream>> aliases.
 
 [[cat-alias-api-request]]
 ==== {api-request-title}

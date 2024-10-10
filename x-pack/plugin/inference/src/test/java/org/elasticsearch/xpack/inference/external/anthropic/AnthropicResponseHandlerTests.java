@@ -160,7 +160,7 @@ public class AnthropicResponseHandlerTests extends ESTestCase {
         var mockRequest = mock(Request.class);
         when(mockRequest.getInferenceEntityId()).thenReturn(inferenceEntityId);
         var httpResult = new HttpResult(httpResponse, new byte[] {});
-        var handler = new AnthropicResponseHandler("", (request, result) -> null);
+        var handler = new AnthropicResponseHandler("", (request, result) -> null, false);
 
         handler.checkForFailureStatusCode(mockRequest, httpResult);
     }

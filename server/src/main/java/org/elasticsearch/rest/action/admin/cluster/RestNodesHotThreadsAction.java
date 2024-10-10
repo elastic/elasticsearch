@@ -115,7 +115,7 @@ public class RestNodesHotThreadsAction extends BaseRestHandler {
                 request.paramAsBoolean("ignore_idle_threads", HotThreads.RequestOptions.DEFAULT.ignoreIdleThreads())
             )
         );
-        nodesHotThreadsRequest.timeout(getTimeout(request));
+        nodesHotThreadsRequest.setTimeout(getTimeout(request));
         return channel -> client.execute(TransportNodesHotThreadsAction.TYPE, nodesHotThreadsRequest, new RestResponseListener<>(channel) {
             @Override
             public RestResponse buildResponse(NodesHotThreadsResponse response) {

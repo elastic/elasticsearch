@@ -276,6 +276,33 @@ public abstract class AbstractChallengeRestTest extends ESRestTestCase {
         return client.performRequest(request);
     }
 
+    public Response esqlBaseline(final String query) throws IOException {
+        return esql(query, this::getBaselineDataStreamName);
+    }
+
+    public Response esqlContender(final String query) throws IOException {
+        return esql(query, this::getContenderDataStreamName);
+    }
+
+    private Response esql(final String query, final Supplier<String> dataStreamNameSupplier) throws IOException {
+        final Request request = new Request("POST", "/_query");
+        request.setJsonEntity("{\"query\": \"" + query.replace("$index", dataStreamNameSupplier.get()) + "\"}");
+        return client.performRequest(request);
+    }
+
+    public Response fieldCapsBaseline() throws IOException {
+        return fieldCaps(this::getBaselineDataStreamName);
+    }
+
+    public Response fieldCapsContender() throws IOException {
+        return fieldCaps(this::getContenderDataStreamName);
+    }
+
+    private Response fieldCaps(final Supplier<String> dataStreamNameSupplier) throws IOException {
+        final Request request = new Request("GET", "/" + dataStreamNameSupplier.get() + "/_field_caps?fields=*");
+        return client.performRequest(request);
+    }
+
     public String getBaselineDataStreamName() {
         return baselineDataStreamName;
     }

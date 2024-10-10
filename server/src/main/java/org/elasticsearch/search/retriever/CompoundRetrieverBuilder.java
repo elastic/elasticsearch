@@ -87,7 +87,7 @@ public abstract class CompoundRetrieverBuilder<T extends CompoundRetrieverBuilde
         }
         final SearchCoordinatorProfiler profiler = ctx.profiler();
         Timer rewriteTimer = null;
-        if (profiler != null) {
+        if (profiler != null && profiler.getRetriever() == null) {
             profiler.retriever(new RetrieverProfileResult(this.getName(), -1, null, null));
             rewriteTimer = profiler.getNewTimer(SearchCoordinatorTimingType.RETRIEVER_REWRITE);
             rewriteTimer.start();
@@ -146,7 +146,7 @@ public abstract class CompoundRetrieverBuilder<T extends CompoundRetrieverBuilde
                                 if (profiler != null) {
                                     if (item.getResponse().getCoordinatorProfileResults() == null) {
                                         // should we throw or just ignore? we know we asked for profiling so this is unexpected
-                                        listener.onFailure(new IllegalStateException("Coordinator profile results are missing"));
+                                        throw new IllegalStateException("Coordinator profile results are missing");
                                     }
                                     RetrieverProfileResult profileResult = new RetrieverProfileResult(
                                         innerRetrievers.get(i).retriever().getName(),
@@ -164,7 +164,7 @@ public abstract class CompoundRetrieverBuilder<T extends CompoundRetrieverBuilde
                         if (false == failures.isEmpty()) {
                             IllegalStateException ex = new IllegalStateException("Search failed - some nested retrievers returned errors.");
                             failures.forEach(ex::addSuppressed);
-                            listener.onFailure(ex);
+                            throw ex;
                         } else {
                             results.set(combineInnerRetrieverResults(topDocs));
                             listener.onResponse(null);

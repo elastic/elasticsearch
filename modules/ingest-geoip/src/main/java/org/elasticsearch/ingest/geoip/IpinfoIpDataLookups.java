@@ -39,6 +39,10 @@ final class IpinfoIpDataLookups {
 
     private static final Logger logger = LogManager.getLogger(IpinfoIpDataLookups.class);
 
+    // the actual prefix from the metadata is cased like the literal string, and
+    // prefix dispatch and checks case-insensitive, so that works out nicely
+    static final String IPINFO_PREFIX = "ipinfo";
+
     /**
      * Lax-ly parses a string that (ideally) looks like 'AS123' into a Long like 123L (or null, if such parsing isn't possible).
      * @param asn a potentially empty (or null) ASN string that is expected to contain 'AS' and then a parsable long

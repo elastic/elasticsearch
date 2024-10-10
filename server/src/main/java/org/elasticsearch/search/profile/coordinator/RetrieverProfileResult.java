@@ -37,7 +37,7 @@ public class RetrieverProfileResult implements ToXContentObject, Writeable {
         name = in.readString();
         tookInMillis = in.readLong();
         breakdownMap = in.readMap(StreamInput::readString, StreamInput::readLong);
-        children = in.readCollectionAsList(RetrieverProfileResult::new);
+        children = in.readOptionalCollectionAsList(RetrieverProfileResult::new);
     }
 
     @Override
@@ -45,7 +45,7 @@ public class RetrieverProfileResult implements ToXContentObject, Writeable {
         out.writeString(name);
         out.writeLong(tookInMillis);
         out.writeMap(breakdownMap, StreamOutput::writeString, StreamOutput::writeLong);
-        out.writeCollection(children);
+        out.writeOptionalCollection(children);
     }
 
     @Override
@@ -55,10 +55,10 @@ public class RetrieverProfileResult implements ToXContentObject, Writeable {
         if (tookInMillis != -1) {
             builder.field("took_in_millis", tookInMillis);
         }
-        if (breakdownMap != null) {
+        if (breakdownMap != null && false == breakdownMap.isEmpty()) {
             builder.field("breakdown", breakdownMap);
         }
-        if (children != null) {
+        if (children != null && false == children.isEmpty()) {
             builder.startArray("children");
             for (RetrieverProfileResult child : children) {
                 child.toXContent(builder, params);

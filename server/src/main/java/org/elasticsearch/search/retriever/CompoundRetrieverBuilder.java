@@ -36,7 +36,9 @@ import org.elasticsearch.search.sort.SortBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
@@ -148,11 +150,14 @@ public abstract class CompoundRetrieverBuilder<T extends CompoundRetrieverBuilde
                                         // should we throw or just ignore? we know we asked for profiling so this is unexpected
                                         throw new IllegalStateException("Coordinator profile results are missing");
                                     }
+                                    RetrieverProfileResult nestedResult = item.getResponse()
+                                        .getCoordinatorProfileResults()
+                                        .getRetrieverProfileResult();
                                     RetrieverProfileResult profileResult = new RetrieverProfileResult(
                                         innerRetrievers.get(i).retriever().getName(),
                                         item.getResponse().getTookInMillis(),
-                                        item.getResponse().getCoordinatorProfileResults().getRetrieverProfileResult().getBreakdownMap(),
-                                        item.getResponse().getCoordinatorProfileResults().getRetrieverProfileResult().getChildren()
+                                        nestedResult == null ? Map.of() : nestedResult.getBreakdownMap(),
+                                        nestedResult == null ? Collections.emptyList() : nestedResult.getChildren()
                                     );
                                     profiler.captureInnerRetrieverResult(profileResult);
                                 }

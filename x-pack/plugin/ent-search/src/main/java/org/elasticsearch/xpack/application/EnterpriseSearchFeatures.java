@@ -16,9 +16,9 @@ import org.elasticsearch.xpack.application.connector.ConnectorTemplateRegistry;
 import java.util.Map;
 import java.util.Set;
 
-public class EnterpriseSearchFeatures implements FeatureSpecification {
+import static org.elasticsearch.xpack.application.rules.action.TestQueryRulesetAction.QUERY_RULES_TEST_API;
 
-    public static final NodeFeature QUERY_RULES_TEST_API = new NodeFeature("query_rules.test");
+public class EnterpriseSearchFeatures implements FeatureSpecification {
 
     @Override
     public Set<NodeFeature> getFeatures() {

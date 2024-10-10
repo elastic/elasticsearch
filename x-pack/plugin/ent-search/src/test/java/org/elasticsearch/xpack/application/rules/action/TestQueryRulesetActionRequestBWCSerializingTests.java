@@ -22,7 +22,7 @@ import static org.elasticsearch.test.BWCVersions.getAllBWCVersions;
 
 public class TestQueryRulesetActionRequestBWCSerializingTests extends AbstractBWCSerializationTestCase<TestQueryRulesetAction.Request> {
 
-    private final String NAME = "my-ruleset";
+    private final String RULESET_NAME = "my-ruleset";
 
     @Override
     protected Writeable.Reader<TestQueryRulesetAction.Request> instanceReader() {
@@ -31,7 +31,7 @@ public class TestQueryRulesetActionRequestBWCSerializingTests extends AbstractBW
 
     @Override
     protected TestQueryRulesetAction.Request createTestInstance() {
-        return new TestQueryRulesetAction.Request(NAME, EnterpriseSearchModuleTestUtils.randomMatchCriteria());
+        return new TestQueryRulesetAction.Request(RULESET_NAME, EnterpriseSearchModuleTestUtils.randomMatchCriteria());
     }
 
     @Override
@@ -41,7 +41,7 @@ public class TestQueryRulesetActionRequestBWCSerializingTests extends AbstractBW
 
     @Override
     protected TestQueryRulesetAction.Request doParseInstance(XContentParser parser) throws IOException {
-        return TestQueryRulesetAction.Request.parse(parser, NAME);
+        return TestQueryRulesetAction.Request.parse(parser, RULESET_NAME);
     }
 
     @Override

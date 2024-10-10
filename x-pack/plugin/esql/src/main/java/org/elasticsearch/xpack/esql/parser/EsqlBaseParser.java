@@ -45,7 +45,7 @@ public class EsqlBaseParser extends ParserConfig {
     CAST_OP=32, COMMA=33, DESC=34, DOT=35, FALSE=36, FIRST=37, IN=38, IS=39,
     LAST=40, LIKE=41, LP=42, NOT=43, NULL=44, NULLS=45, OR=46, PARAM=47, RLIKE=48,
     RP=49, TRUE=50, EQ=51, CIEQ=52, NEQ=53, LT=54, LTE=55, GT=56, GTE=57,
-    PLUS=58, MINUS=59, ASTERISK=60, SLASH=61, PERCENT=62, DEV_MATCH=63, NAMED_OR_POSITIONAL_PARAM=64,
+    PLUS=58, MINUS=59, ASTERISK=60, SLASH=61, PERCENT=62, MATCH=63, NAMED_OR_POSITIONAL_PARAM=64,
     OPENING_BRACKET=65, CLOSING_BRACKET=66, UNQUOTED_IDENTIFIER=67, QUOTED_IDENTIFIER=68,
     EXPR_LINE_COMMENT=69, EXPR_MULTILINE_COMMENT=70, EXPR_WS=71, EXPLAIN_WS=72,
     EXPLAIN_LINE_COMMENT=73, EXPLAIN_MULTILINE_COMMENT=74, METADATA=75, UNQUOTED_SOURCE=76,
@@ -111,11 +111,11 @@ public class EsqlBaseParser extends ParserConfig {
       "'desc'", "'.'", "'false'", "'first'", "'in'", "'is'", "'last'", "'like'",
       "'('", "'not'", "'null'", "'nulls'", "'or'", "'?'", "'rlike'", "')'",
       "'true'", "'=='", "'=~'", "'!='", "'<'", "'<='", "'>'", "'>='", "'+'",
-      "'-'", "'*'", "'/'", "'%'", null, null, null, "']'", null, null, null,
-      null, null, null, null, null, "'metadata'", null, null, null, null, null,
-      null, null, null, "'as'", null, null, null, "'on'", "'with'", null, null,
-      null, null, null, null, null, null, null, null, "'info'", null, null,
-      null, "':'"
+      "'-'", "'*'", "'/'", "'%'", "'match'", null, null, "']'", null, null,
+      null, null, null, null, null, null, "'metadata'", null, null, null, null,
+      null, null, null, null, "'as'", null, null, null, "'on'", "'with'", null,
+      null, null, null, null, null, null, null, null, null, "'info'", null,
+      null, null, "':'"
     };
   }
   private static final String[] _LITERAL_NAMES = makeLiteralNames();
@@ -129,14 +129,14 @@ public class EsqlBaseParser extends ParserConfig {
       "DESC", "DOT", "FALSE", "FIRST", "IN", "IS", "LAST", "LIKE", "LP", "NOT",
       "NULL", "NULLS", "OR", "PARAM", "RLIKE", "RP", "TRUE", "EQ", "CIEQ",
       "NEQ", "LT", "LTE", "GT", "GTE", "PLUS", "MINUS", "ASTERISK", "SLASH",
-      "PERCENT", "DEV_MATCH", "NAMED_OR_POSITIONAL_PARAM", "OPENING_BRACKET",
-      "CLOSING_BRACKET", "UNQUOTED_IDENTIFIER", "QUOTED_IDENTIFIER", "EXPR_LINE_COMMENT",
-      "EXPR_MULTILINE_COMMENT", "EXPR_WS", "EXPLAIN_WS", "EXPLAIN_LINE_COMMENT",
-      "EXPLAIN_MULTILINE_COMMENT", "METADATA", "UNQUOTED_SOURCE", "FROM_LINE_COMMENT",
-      "FROM_MULTILINE_COMMENT", "FROM_WS", "ID_PATTERN", "PROJECT_LINE_COMMENT",
-      "PROJECT_MULTILINE_COMMENT", "PROJECT_WS", "AS", "RENAME_LINE_COMMENT",
-      "RENAME_MULTILINE_COMMENT", "RENAME_WS", "ON", "WITH", "ENRICH_POLICY_NAME",
-      "ENRICH_LINE_COMMENT", "ENRICH_MULTILINE_COMMENT", "ENRICH_WS", "ENRICH_FIELD_LINE_COMMENT",
+      "PERCENT", "MATCH", "NAMED_OR_POSITIONAL_PARAM", "OPENING_BRACKET", "CLOSING_BRACKET",
+      "UNQUOTED_IDENTIFIER", "QUOTED_IDENTIFIER", "EXPR_LINE_COMMENT", "EXPR_MULTILINE_COMMENT",
+      "EXPR_WS", "EXPLAIN_WS", "EXPLAIN_LINE_COMMENT", "EXPLAIN_MULTILINE_COMMENT",
+      "METADATA", "UNQUOTED_SOURCE", "FROM_LINE_COMMENT", "FROM_MULTILINE_COMMENT",
+      "FROM_WS", "ID_PATTERN", "PROJECT_LINE_COMMENT", "PROJECT_MULTILINE_COMMENT",
+      "PROJECT_WS", "AS", "RENAME_LINE_COMMENT", "RENAME_MULTILINE_COMMENT",
+      "RENAME_WS", "ON", "WITH", "ENRICH_POLICY_NAME", "ENRICH_LINE_COMMENT",
+      "ENRICH_MULTILINE_COMMENT", "ENRICH_WS", "ENRICH_FIELD_LINE_COMMENT",
       "ENRICH_FIELD_MULTILINE_COMMENT", "ENRICH_FIELD_WS", "MVEXPAND_LINE_COMMENT",
       "MVEXPAND_MULTILINE_COMMENT", "MVEXPAND_WS", "INFO", "SHOW_LINE_COMMENT",
       "SHOW_MULTILINE_COMMENT", "SHOW_WS", "COLON", "SETTING", "SETTING_LINE_COMMENT",
@@ -1171,7 +1171,7 @@ public class EsqlBaseParser extends ParserConfig {
     public ValueExpressionContext valueExpression() {
       return getRuleContext(ValueExpressionContext.class,0);
     }
-    public TerminalNode DEV_MATCH() { return getToken(EsqlBaseParser.DEV_MATCH, 0); }
+    public TerminalNode MATCH() { return getToken(EsqlBaseParser.MATCH, 0); }
     public StringContext string() {
       return getRuleContext(StringContext.class,0);
     }
@@ -1204,7 +1204,7 @@ public class EsqlBaseParser extends ParserConfig {
       setState(220);
       valueExpression();
       setState(221);
-      match(DEV_MATCH);
+      match(MATCH);
       setState(222);
       ((MatchBooleanExpressionContext)_localctx).queryString = string();
       }
@@ -1867,7 +1867,7 @@ public class EsqlBaseParser extends ParserConfig {
 
   @SuppressWarnings("CheckReturnValue")
   public static class FunctionNameContext extends ParserRuleContext {
-    public TerminalNode DEV_MATCH() { return getToken(EsqlBaseParser.DEV_MATCH, 0); }
+    public TerminalNode MATCH() { return getToken(EsqlBaseParser.MATCH, 0); }
     public IdentifierContext identifier() {
       return getRuleContext(IdentifierContext.class,0);
     }
@@ -1904,7 +1904,7 @@ public class EsqlBaseParser extends ParserConfig {
         setState(281);
         if (!(this.isDevVersion())) throw new FailedPredicateException(this, "this.isDevVersion()");
         setState(282);
-        match(DEV_MATCH);
+        match(MATCH);
         }
         break;
       case 2:

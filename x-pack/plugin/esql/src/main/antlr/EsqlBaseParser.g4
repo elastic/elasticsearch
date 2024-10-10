@@ -77,7 +77,7 @@ regexBooleanExpression
     ;
 
 matchBooleanExpression
-    : valueExpression DEV_MATCH queryString=string
+    : valueExpression MATCH queryString=string
     ;
 
 valueExpression
@@ -106,7 +106,7 @@ functionExpression
 
 functionName
     // Additional function identifiers that are already a reserved word in the language
-    : {this.isDevVersion()}? DEV_MATCH
+    : {this.isDevVersion()}? MATCH
     | identifier
     ;
 

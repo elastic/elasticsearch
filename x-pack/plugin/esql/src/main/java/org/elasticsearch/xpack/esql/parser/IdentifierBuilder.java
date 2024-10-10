@@ -34,8 +34,8 @@ abstract class IdentifierBuilder extends AbstractBuilder {
 
     @Override
     public String visitFunctionName(EsqlBaseParser.FunctionNameContext ctx) {
-        if (ctx.DEV_MATCH() != null) {
-            return ctx.DEV_MATCH().getText();
+        if (ctx.MATCH() != null) {
+            return ctx.MATCH().getText();
         }
         return visitIdentifier(ctx.identifier());
     }

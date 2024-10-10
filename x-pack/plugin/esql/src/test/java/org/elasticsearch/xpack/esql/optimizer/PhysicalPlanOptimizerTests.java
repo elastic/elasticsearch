@@ -5084,7 +5084,6 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             | LIMIT 5
             | KEEP abbrev, name, location, country, city, scalerank
             """, airports));
-        System.out.println(optimized);
         var project = as(optimized, ProjectExec.class);
         var topN = as(project.child(), TopNExec.class);
         var exchange = asRemoteExchange(topN.child());

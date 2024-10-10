@@ -1463,19 +1463,26 @@ public abstract class FieldMapper extends Mapper {
                 }
             }
             String type = (String) fieldNode.remove("type");
-            for (Iterator<Map.Entry<String, Object>> iterator = fieldNode.entrySet().iterator(); iterator.hasNext();) {
+
+            List<String> order = Arrays.stream(params).map(p -> p.name).toList();
+            Iterator<Map.Entry<String, Object>> iterator = fieldNode.entrySet().stream().sorted((e1, e2) -> {
+                int i1 = order.indexOf(e1.getKey());
+                int i2 = order.indexOf(e2.getKey());
+                return Integer.compare(i1, i2);
+            }).iterator();
+            while (iterator.hasNext()) {
                 Map.Entry<String, Object> entry = iterator.next();
                 final String propName = entry.getKey();
                 final Object propNode = entry.getValue();
                 switch (propName) {
                     case "fields" -> {
                         TypeParsers.parseMultiField(multiFieldsBuilder::add, name, parserContext, propName, propNode);
-                        iterator.remove();
+                        fieldNode.remove(propName);
                         continue;
                     }
                     case "copy_to" -> {
                         copyTo = copyTo.withAddedFields(TypeParsers.parseCopyFields(propNode));
-                        iterator.remove();
+                        fieldNode.remove(propName);
                         continue;
                     }
                     case "boost" -> {
@@ -1488,12 +1495,12 @@ public abstract class FieldMapper extends Mapper {
                             "Parameter [boost] on field [{}] is deprecated and has no effect",
                             name
                         );
-                        iterator.remove();
+                        fieldNode.remove(propName);
                         continue;
                     }
                     case SYNTHETIC_SOURCE_KEEP_PARAM -> {
                         sourceKeepMode = Optional.of(SourceKeepMode.from(XContentMapValues.nodeStringValue(propNode)));
-                        iterator.remove();
+                        fieldNode.remove(propName);
                         continue;
                     }
                 }
@@ -1514,7 +1521,7 @@ public abstract class FieldMapper extends Mapper {
                     if (parserContext.indexVersionCreated().isLegacyIndexVersion()) {
                         // ignore unknown parameters on legacy indices
                         handleUnknownParamOnLegacyIndex(propName, propNode);
-                        iterator.remove();
+                        fieldNode.remove(propName);
                         continue;
                     }
                     if (isDeprecatedParameter(propName, parserContext.indexVersionCreated())) {
@@ -1525,7 +1532,7 @@ public abstract class FieldMapper extends Mapper {
                             propName,
                             type
                         );
-                        iterator.remove();
+                        fieldNode.remove(propName);
                         continue;
                     }
                     if (parserContext.isFromDynamicTemplate() && parserContext.indexVersionCreated().before(IndexVersions.V_8_0_0)) {
@@ -1539,7 +1546,7 @@ public abstract class FieldMapper extends Mapper {
                             propName,
                             type
                         );
-                        iterator.remove();
+                        fieldNode.remove(propName);
                         continue;
                     }
                     throw new MapperParsingException(
@@ -1560,7 +1567,7 @@ public abstract class FieldMapper extends Mapper {
                     );
                 }
                 parameter.parse(name, parserContext, propNode);
-                iterator.remove();
+                fieldNode.remove(propName);
             }
             validate();
         }

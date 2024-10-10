@@ -412,6 +412,13 @@ public class TokenListCategorizer implements Accountable {
         }
     }
 
+    public List<SerializableTokenListCategory> toCategories(int size) {
+        return categoriesByNumMatches.stream()
+            .limit(size)
+            .map(category -> new SerializableTokenListCategory(category, bytesRefHash))
+            .toList();
+    }
+
     public InternalCategorizationAggregation.Bucket[] toOrderedBuckets(int size) {
         return categoriesByNumMatches.stream()
             .limit(size)

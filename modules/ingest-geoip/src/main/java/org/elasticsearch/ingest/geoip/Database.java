@@ -191,6 +191,10 @@ enum Database {
         ),
         Set.of(Property.COUNTRY_ISO_CODE, Property.REGION_NAME, Property.CITY_NAME, Property.LOCATION)
     ),
+    CountryV2(
+        Set.of(Property.IP, Property.CONTINENT_CODE, Property.CONTINENT_NAME, Property.COUNTRY_NAME, Property.COUNTRY_ISO_CODE),
+        Set.of(Property.CONTINENT_NAME, Property.COUNTRY_NAME, Property.COUNTRY_ISO_CODE)
+    ),
     PrivacyDetection(
         Set.of(Property.IP, Property.HOSTING, Property.PROXY, Property.RELAY, Property.TOR, Property.VPN, Property.SERVICE),
         Set.of(Property.HOSTING, Property.PROXY, Property.RELAY, Property.TOR, Property.VPN, Property.SERVICE)

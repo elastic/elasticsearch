@@ -202,9 +202,11 @@ public final class GeoIpProcessor extends AbstractProcessor {
 
     public static final class Factory implements Processor.Factory {
 
+        private final String type; // currently always just "geoip"
         private final IpDatabaseProvider ipDatabaseProvider;
 
-        public Factory(IpDatabaseProvider ipDatabaseProvider) {
+        public Factory(String type, IpDatabaseProvider ipDatabaseProvider) {
+            this.type = type;
             this.ipDatabaseProvider = ipDatabaseProvider;
         }
 
@@ -215,12 +217,12 @@ public final class GeoIpProcessor extends AbstractProcessor {
             final String description,
             final Map<String, Object> config
         ) throws IOException {
-            String ipField = readStringProperty(GEOIP_TYPE, processorTag, config, "field");
-            String targetField = readStringProperty(GEOIP_TYPE, processorTag, config, "target_field", "geoip");
-            String databaseFile = readStringProperty(GEOIP_TYPE, processorTag, config, "database_file", "GeoLite2-City.mmdb");
-            List<String> propertyNames = readOptionalList(GEOIP_TYPE, processorTag, config, "properties");
-            boolean ignoreMissing = readBooleanProperty(GEOIP_TYPE, processorTag, config, "ignore_missing", false);
-            boolean firstOnly = readBooleanProperty(GEOIP_TYPE, processorTag, config, "first_only", true);
+            String ipField = readStringProperty(type, processorTag, config, "field");
+            String targetField = readStringProperty(type, processorTag, config, "target_field", "geoip");
+            String databaseFile = readStringProperty(type, processorTag, config, "database_file", "GeoLite2-City.mmdb");
+            List<String> propertyNames = readOptionalList(type, processorTag, config, "properties");
+            boolean ignoreMissing = readBooleanProperty(type, processorTag, config, "ignore_missing", false);
+            boolean firstOnly = readBooleanProperty(type, processorTag, config, "first_only", true);
 
             // Validating the download_database_on_pipeline_creation even if the result
             // is not used directly by the factory.
@@ -248,14 +250,14 @@ public final class GeoIpProcessor extends AbstractProcessor {
             try {
                 factory = IpDataLookupFactories.get(databaseType, databaseFile);
             } catch (IllegalArgumentException e) {
-                throw newConfigurationException(GEOIP_TYPE, processorTag, "database_file", e.getMessage());
+                throw newConfigurationException(type, processorTag, "database_file", e.getMessage());
             }
 
             final IpDataLookup ipDataLookup;
             try {
                 ipDataLookup = factory.create(propertyNames);
             } catch (IllegalArgumentException e) {
-                throw newConfigurationException(GEOIP_TYPE, processorTag, "properties", e.getMessage());
+                throw newConfigurationException(type, processorTag, "properties", e.getMessage());
             }
 
             return new GeoIpProcessor(

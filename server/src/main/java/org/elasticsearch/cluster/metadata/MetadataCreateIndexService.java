@@ -1039,11 +1039,13 @@ public class MetadataCreateIndexService {
 
             // Finally, we actually add the explicit defaults prior to the template settings and the
             // request settings, so that the precedence goes:
-            // Explicit Defaults -> Template -> Request -> Necessary Settings (# of shards, uuid, etc)
+            // Explicit Defaults -> Template -> Request -> Filter out failure store settings -> Necessary Settings (# of shards, uuid, etc)
             indexSettingsBuilder.put(additionalIndexSettings.build());
             indexSettingsBuilder.put(templateSettings.build());
         }
-
+        if (request.isFailureIndex()) {
+            DataStreamFailureStoreDefinition.filterUserDefinedSettings(indexSettingsBuilder);
+        }
         // now, put the request settings, so they override templates
         indexSettingsBuilder.put(requestSettings.build());
 
@@ -1100,9 +1102,6 @@ public class MetadataCreateIndexService {
             );
         }
 
-        if (request.isFailureIndex()) {
-            DataStreamFailureStoreDefinition.removeUnsupportedSettings(indexSettingsBuilder);
-        }
         Settings indexSettings = indexSettingsBuilder.build();
         /*
          * We can not validate settings until we have applied templates, otherwise we do not know the actual settings

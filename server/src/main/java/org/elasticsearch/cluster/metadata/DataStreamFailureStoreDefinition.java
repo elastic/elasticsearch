@@ -9,6 +9,7 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -27,27 +28,23 @@ import java.util.Set;
 public class DataStreamFailureStoreDefinition {
 
     public static final String FAILURE_STORE_REFRESH_INTERVAL_SETTING_NAME = "data_streams.failure_store.refresh_interval";
+    public static final String INDEX_FAILURE_STORE_VERSION_SETTING_NAME = "index.failure_store.version";
     public static final Settings DATA_STREAM_FAILURE_STORE_SETTINGS;
-    // Settings for removal, we do not use the `DATA_STREAM_FAILURE_STORE_SETTINGS` because
-    // some internal index settings cannot be set to null effectively.
-    public static final Set<String> UNSUPPORTED_SETTINGS = Set.of(
-        // Override any pipeline settings on the failure store to not use any
-        // specified by the data stream template. Default pipelines are very much
-        // meant for the backing indices only.
-        IndexSettings.DEFAULT_PIPELINE.getKey(),
-        IndexSettings.FINAL_PIPELINE.getKey(),
-        // Override any time series settings on the failure store to not use any
-        // specified by the data stream template. Time series are supported only by backing indices.
-        IndexSettings.TIME_SERIES_START_TIME.getKey(),
-        IndexSettings.TIME_SERIES_END_TIME.getKey(),
-        IndexMetadata.INDEX_ROUTING_PATH.getKey(),
-        IndexSettings.MODE.getKey()
+    // Only a subset of user configurable settings is applicable for a failure index. Here we have an
+    // allowlist that will filter all other settings out.
+    public static final Set<String> SUPPORTED_USER_SETTINGS = Set.of(
+        DataTier.TIER_PREFERENCE,
+        IndexMetadata.SETTING_INDEX_HIDDEN,
+        INDEX_FAILURE_STORE_VERSION_SETTING_NAME,
+        IndexMetadata.SETTING_NUMBER_OF_SHARDS,
+        IndexMetadata.SETTING_NUMBER_OF_REPLICAS,
+        IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS
     );
     public static final CompressedXContent DATA_STREAM_FAILURE_STORE_MAPPING;
 
     public static final int FAILURE_STORE_DEFINITION_VERSION = 1;
     public static final Setting<Integer> FAILURE_STORE_DEFINITION_VERSION_SETTING = Setting.intSetting(
-        "index.failure_store.version",
+        INDEX_FAILURE_STORE_VERSION_SETTING_NAME,
         0,
         Setting.Property.IndexScope
     );
@@ -212,13 +209,16 @@ public class DataStreamFailureStoreDefinition {
     }
 
     /**
-     * Removes any settings that are not supported by a data stream's failure store.
-     * @param builder to capture failure store specific index settings
+     * Removes the unsupported by the failure store settings from the settings provided.
+     * ATTENTION: This method should be applied BEFORE we set the default and internal settings for an index
+     * @param builder the settings builder that is going to be updated
      * @return the original settings builder, with the unsupported settings removed.
      */
-    public static Settings.Builder removeUnsupportedSettings(Settings.Builder builder) {
-        for (String setting : UNSUPPORTED_SETTINGS) {
-            builder.remove(setting);
+    public static Settings.Builder filterUserDefinedSettings(Settings.Builder builder) {
+        for (String setting : builder.keys()) {
+            if (SUPPORTED_USER_SETTINGS.contains(setting) == false) {
+                builder.remove(setting);
+            }
         }
         return builder;
     }

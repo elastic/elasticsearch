@@ -22,7 +22,7 @@ import java.util.NoSuchElementException;
  *  Note that this class does not track either the actual keys or values. It is responsibility of
  *  the caller to release those objects if necessary.
  */
-public final class ObjectObjectPagedHashMap<K, V> extends AbstractPagedHashMap implements Iterable<ObjectObjectPagedHashMap.Cursor<K, V>> {
+public final class ObjectObjectPagedHashMap<K, V> extends AbstractObjectHash implements Iterable<ObjectObjectPagedHashMap.Cursor<K, V>> {
 
     private ObjectArray<K> keys;
     private ObjectArray<V> values;

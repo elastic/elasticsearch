@@ -222,9 +222,7 @@ public final class BytesRefHash extends AbstractHash implements Accountable {
     }
 
     @Override
-    protected void removeAndAdd(long index) {
-        final long id = getAndSetId(index, -1);
-        assert id >= 0;
+    protected void rehash(long id) {
         final int code = hashes.get(id);
         reset(code, id);
     }

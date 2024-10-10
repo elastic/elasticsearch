@@ -18,7 +18,7 @@ import java.util.NoSuchElementException;
  * A hash table from native longs to objects. This implementation resolves collisions
  * using open-addressing and does not support null values. This class is not thread-safe.
  */
-public final class LongObjectPagedHashMap<T> extends AbstractPagedHashMap implements Iterable<LongObjectPagedHashMap.Cursor<T>> {
+public final class LongObjectPagedHashMap<T> extends AbstractObjectHash implements Iterable<LongObjectPagedHashMap.Cursor<T>> {
 
     private LongArray keys;
     private ObjectArray<T> values;

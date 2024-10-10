@@ -252,6 +252,17 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
         this.reservedStateMetadata = reservedStateMetadata;
     }
 
+    /**
+     * Temporary exception indicating a call to {@link #getSingleProject} when there are multiple projects.
+     * This can be used to filter out exceptions due to code not converted over yet.
+     * To be removed when {@link #getSingleProject} is removed.
+     */
+    public static class MultiProjectPendingException extends UnsupportedOperationException {
+        public MultiProjectPendingException(String message) {
+            super(message);
+        }
+    }
+
     private boolean isSingleProject() {
         return projectMetadata.size() == 1 && projectMetadata.containsKey(DEFAULT_PROJECT_ID);
     }
@@ -260,7 +271,7 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
         if (projectMetadata.isEmpty()) {
             throw new UnsupportedOperationException("There are no projects");
         } else if (projectMetadata.size() != 1) {
-            throw new UnsupportedOperationException("There are multiple projects " + projectMetadata.keySet());
+            throw new MultiProjectPendingException("There are multiple projects " + projectMetadata.keySet());
         }
         final ProjectMetadata defaultProject = projectMetadata.get(DEFAULT_PROJECT_ID);
         if (defaultProject == null) {

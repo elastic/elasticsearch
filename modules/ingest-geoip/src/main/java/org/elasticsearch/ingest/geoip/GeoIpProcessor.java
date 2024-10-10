@@ -13,6 +13,7 @@ import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.core.Assertions;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
@@ -22,6 +23,7 @@ import org.elasticsearch.ingest.geoip.IpDataLookupFactories.IpDataLookupFactory;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Supplier;
@@ -36,6 +38,8 @@ public final class GeoIpProcessor extends AbstractProcessor {
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(GeoIpProcessor.class);
     static final String DEFAULT_DATABASES_DEPRECATION_MESSAGE = "the [fallback_to_default_databases] has been deprecated, because "
         + "Elasticsearch no longer includes the default Maxmind geoip databases. This setting will be removed in Elasticsearch 9.0";
+    static final String UNSUPPORTED_DATABASE_DEPRECATION_MESSAGE = "the geoip processor will no longer support database type [{}] "
+        + "in a future version of Elasticsearch"; // TODO add a message about migration?
 
     public static final String GEOIP_TYPE = "geoip";
 
@@ -254,6 +258,36 @@ public final class GeoIpProcessor extends AbstractProcessor {
                 factory = IpDataLookupFactories.get(databaseType, databaseFile);
             } catch (IllegalArgumentException e) {
                 throw newConfigurationException(type, processorTag, "database_file", e.getMessage());
+            }
+
+            // the "geoip" processor type does additional validation of the database_type
+            if (GEOIP_TYPE.equals(type)) {
+                // type sniffing is done with the lowercased type
+                final String lowerCaseDatabaseType = databaseType.toLowerCase(Locale.ROOT);
+
+                // start with a strict positive rejection check -- as we support addition database providers,
+                // we should expand these checks when possible
+                if (lowerCaseDatabaseType.startsWith(IpinfoIpDataLookups.IPINFO_PREFIX)) {
+                    throw newConfigurationException(
+                        type,
+                        processorTag,
+                        "database_file",
+                        Strings.format("Unsupported database type [%s] for file [%s]", databaseType, databaseFile)
+                    );
+                }
+
+                // end with a lax negative rejection check -- if we aren't *certain* it's a maxmind database, then we'll warn --
+                // it's possible for example that somebody cooked up a custom database of their own that happened to work with
+                // our preexisting code, they should migrate to the new processor, but we're not going to break them right now
+                if (lowerCaseDatabaseType.startsWith(MaxmindIpDataLookups.GEOIP2_PREFIX) == false
+                    && lowerCaseDatabaseType.startsWith(MaxmindIpDataLookups.GEOLITE2_PREFIX) == false) {
+                    deprecationLogger.warn(
+                        DeprecationCategory.OTHER,
+                        "unsupported_database_type",
+                        UNSUPPORTED_DATABASE_DEPRECATION_MESSAGE,
+                        databaseType
+                    );
+                }
             }
 
             final IpDataLookup ipDataLookup;

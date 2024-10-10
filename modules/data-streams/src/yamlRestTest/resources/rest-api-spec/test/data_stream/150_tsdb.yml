@@ -183,6 +183,107 @@ index without timestamp:
           - '{"metricset": "pod", "k8s": {"pod": {"name": "cat", "uid":"947e4ced-1786-4e53-9e0c-5c447e959507", "ip": "10.10.55.1", "network": {"tx": 2001818691, "rx": 802133794}}}}'
 
 ---
+TSDB failures go to failure store:
+  - requires:
+      cluster_features: ["data_stream.failure_store.tsdb_fix"]
+      reason: "tests tsdb failure store fixes in 8.16.0 that catch timestamp errors that happen earlier in the process and redirect them to the failure store."
+
+  - do:
+      allowed_warnings:
+        - "index template [my-template2] has index patterns [fs-k8s*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-template2] will take precedence during new index creation"
+      indices.put_index_template:
+        name: my-template2
+        body:
+          index_patterns: [ "fs-k8s*" ]
+          data_stream:
+            failure_store: true
+          template:
+            settings:
+              index:
+                mode: time_series
+                number_of_replicas: 1
+                number_of_shards: 2
+                routing_path: [ metricset, time_series_dimension ]
+                time_series:
+                  start_time: 2021-04-28T00:00:00Z
+                  end_time: 2021-04-29T00:00:00Z
+            mappings:
+              properties:
+                "@timestamp":
+                  type: date
+                metricset:
+                  type: keyword
+                  time_series_dimension: true
+                k8s:
+                  properties:
+                    pod:
+                      properties:
+                        uid:
+                          type: keyword
+                          time_series_dimension: true
+                        name:
+                          type: keyword
+                        ip:
+                          type: ip
+                        network:
+                          properties:
+                            tx:
+                              type: long
+                            rx:
+                              type: long
+  - do:
+      index:
+        index: fs-k8s
+        body:
+          - '{"metricset": "pod", "k8s": {"pod": {"name": "cat", "uid":"947e4ced-1786-4e53-9e0c-5c447e959507", "ip": "10.10.55.1", "network": {"tx": 2001818691, "rx": 802133794}}}}'
+  - match: { result : "created"}
+  - match: { failure_store : "used"}
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - '{ "create": { "_index": "fs-k8s"} }'
+          - '{"@timestamp":"2021-04-28T01:00:00ZZ", "metricset": "pod", "k8s": {"pod": {"name": "cat", "uid":"947e4ced-1786-4e53-9e0c-5c447e959507", "ip": "10.10.55.1", "network": {"tx": 2001818691, "rx": 802133794}}}}'
+          - '{ "create": { "_index": "k8s"} }'
+          - '{ "@timestamp": "2021-04-28T01:00:00ZZ", "metricset": "pod", "k8s": {"pod": {"name": "cat", "uid":"947e4ced-1786-4e53-9e0c-5c447e959507", "ip": "10.10.55.1", "network": {"tx": 2001818691, "rx": 802133794}}}}'
+          - '{ "create": { "_index": "fs-k8s"} }'
+          - '{ "metricset": "pod", "k8s": {"pod": {"name": "cat", "uid":"947e4ced-1786-4e53-9e0c-5c447e959507", "ip": "10.10.55.1", "network": {"tx": 2001818691, "rx": 802133794}}}}'
+          - '{ "create": { "_index": "fs-k8s"} }'
+          - '{ "@timestamp":"2000-04-28T01:00:00ZZ", "metricset": "pod", "k8s": {"pod": {"name": "cat", "uid":"947e4ced-1786-4e53-9e0c-5c447e959507", "ip": "10.10.55.1", "network": {"tx": 2001818691, "rx": 802133794}}}}'
+          - '{ "create": { "_index": "k8s"} }'
+          - '{"metricset": "pod", "k8s": {"pod": {"name": "cat", "uid":"947e4ced-1786-4e53-9e0c-5c447e959507", "ip": "10.10.55.1", "network": {"tx": 2001818691, "rx": 802133794}}}}'
+          - '{ "create": { "_index": "k8s"} }'
+          - '{ "@timestamp":"2000-04-28T01:00:00ZZ", "metricset": "pod", "k8s": {"pod": {"name": "cat", "uid":"947e4ced-1786-4e53-9e0c-5c447e959507", "ip": "10.10.55.1", "network": {"tx": 2001818691, "rx": 802133794}}}}'
+  - is_true: errors
+
+  # Successfully indexed to backing index
+  - match: { items.0.create._index: '/\.ds-fs-k8s-(\d{4}\.\d{2}\.\d{2}-)?000001/' }
+  - match: { items.0.create.status: 201 }
+  - is_false: items.0.create.failure_store
+  - match: { items.1.create._index: '/\.ds-k8s-(\d{4}\.\d{2}\.\d{2}-)?000001/' }
+  - match: { items.1.create.status: 201 }
+  - is_false: items.1.create.failure_store
+
+  # Successfully indexed to failure store
+  - match: { items.2.create._index: '/\.fs-fs-k8s-(\d{4}\.\d{2}\.\d{2}-)?000002/' }
+  - match: { items.2.create.status: 201 }
+  - match: { items.2.create.failure_store: used }
+  - match: { items.3.create._index: '/\.fs-fs-k8s-(\d{4}\.\d{2}\.\d{2}-)?000002/' }
+  - match: { items.3.create.status: 201 }
+  - match: { items.3.create.failure_store: used }
+
+  # Rejected, eligible to go to failure store, but failure store not enabled
+  - match: { items.4.create._index: 'k8s' }
+  - match: { items.4.create.status: 400 }
+  - match: { items.4.create.error.type: timestamp_error }
+  - match: { items.4.create.failure_store: not_enabled }
+  - match: { items.4.create._index: 'k8s' }
+  - match: { items.4.create.status: 400 }
+  - match: { items.4.create.error.type: timestamp_error }
+  - match: { items.4.create.failure_store: not_enabled }
+
+---
 index without timestamp with pipeline:
   - do:
       catch: /Error extracting data stream timestamp field\:\ failed to parse date field \[wrong_format\] with format \[strict_date_optional_time_nanos||strict_date_optional_time||epoch_millis\]/

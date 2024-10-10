@@ -425,7 +425,8 @@ public class MetadataCreateDataStreamService {
             .nameResolvedInstant(nameResolvedInstant)
             .performReroute(false)
             .setMatchingTemplate(template)
-            .settings(indexSettings);
+            .settings(indexSettings)
+            .isFailureIndex(true);
 
         try {
             currentState = metadataCreateIndexService.applyCreateIndexRequest(

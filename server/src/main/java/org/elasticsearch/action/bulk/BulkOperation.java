@@ -320,6 +320,12 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
                     shard -> new ArrayList<>()
                 );
                 shardRequests.add(bulkItemRequest);
+            } catch (DataStream.TimestampError timestampError) {
+                IndexDocFailureStoreStatus failureStoreStatus = processFailure(bulkItemRequest, clusterState, timestampError);
+                if (IndexDocFailureStoreStatus.USED.equals(failureStoreStatus) == false) {
+                    String name = ia != null ? ia.getName() : docWriteRequest.index();
+                    addFailureAndDiscardRequest(docWriteRequest, bulkItemRequest.id(), name, timestampError, failureStoreStatus);
+                }
             } catch (ElasticsearchParseException | IllegalArgumentException | RoutingMissingException | ResourceNotFoundException e) {
                 String name = ia != null ? ia.getName() : docWriteRequest.index();
                 var failureStoreStatus = isFailureStoreRequest(docWriteRequest)
@@ -545,6 +551,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
                 boolean added = addDocumentToRedirectRequests(bulkItemRequest, cause, failureStoreCandidate.getName());
                 if (added) {
                     failureStoreMetrics.incrementFailureStore(bulkItemRequest.index(), errorType, FailureStoreMetrics.ErrorLocation.SHARD);
+                    return IndexDocFailureStoreStatus.USED;
                 } else {
                     failureStoreMetrics.incrementRejected(
                         bulkItemRequest.index(),

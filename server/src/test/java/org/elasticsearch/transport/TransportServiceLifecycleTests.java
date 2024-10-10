@@ -149,8 +149,13 @@ public class TransportServiceLifecycleTests extends ESTestCase {
         }
     }
 
-    public void testInternalSendExceptionForksToGenericIfHandlerDoesNotFork() {
-        try (var nodeA = new TestNode("node-A")) {
+    public void testInternalSendExceptionForksToGenericIfHandlerDoesNotForkAndStackOverflowProtectionEnabled() {
+        try (
+            var nodeA = new TestNode(
+                "node-A",
+                Settings.builder().put(TransportService.ENABLE_STACK_OVERFLOW_AVOIDANCE.getKey(), true).build()
+            )
+        ) {
             final var future = new PlainActionFuture<TransportResponse.Empty>();
             nodeA.transportService.sendRequest(
                 nodeA.getThrowingConnection(),
@@ -164,6 +169,31 @@ public class TransportServiceLifecycleTests extends ESTestCase {
             );
 
             assertEquals("simulated exception in sendRequest", getSendRequestException(future, IOException.class).getMessage());
+        }
+        assertWarnings(
+            "[transport.enable_stack_protection] setting was deprecated in Elasticsearch and will be removed in a future release."
+        );
+    }
+
+    public void testInternalSendExceptionWithNonForkingResponseHandlerCanCompleteFutureWaiterFromGenericThread() throws Exception {
+        try (var nodeA = new TestNode("node-A")) {
+            final var future = new PlainActionFuture<TransportResponse.Empty>();
+            final var latch = new CountDownLatch(1);
+            nodeA.transportService.getThreadPool().generic().execute(() -> {
+                assertEquals("simulated exception in sendRequest", getSendRequestException(future, IOException.class).getMessage());
+                latch.countDown();
+            });
+            nodeA.transportService.sendRequest(
+                nodeA.getThrowingConnection(),
+                TestNode.randomActionName(random()),
+                new EmptyRequest(),
+                TransportRequestOptions.EMPTY,
+                new ActionListenerResponseHandler<>(future.delegateResponse((l, e) -> {
+                    assertThat(Thread.currentThread().getName(), startsWith("TEST-"));
+                    l.onFailure(e);
+                }), unusedReader(), EsExecutors.DIRECT_EXECUTOR_SERVICE)
+            );
+            assertBusy(() -> assertTrue(future.isDone()));
         }
     }
 

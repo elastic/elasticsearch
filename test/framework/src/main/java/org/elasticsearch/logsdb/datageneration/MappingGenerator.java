@@ -14,7 +14,6 @@ import org.elasticsearch.logsdb.datageneration.datasource.DataSourceRequest;
 import org.elasticsearch.logsdb.datageneration.datasource.DataSourceResponse;
 import org.elasticsearch.logsdb.datageneration.fields.DynamicMapping;
 
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;

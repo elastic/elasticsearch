@@ -10,7 +10,6 @@
 package org.elasticsearch.logsdb.datageneration;
 
 import org.elasticsearch.logsdb.datageneration.datasource.DataSource;
-import org.elasticsearch.logsdb.datageneration.datasource.DataSourceResponse;
 import org.elasticsearch.logsdb.datageneration.fields.leaf.ByteFieldDataGenerator;
 import org.elasticsearch.logsdb.datageneration.fields.leaf.DoubleFieldDataGenerator;
 import org.elasticsearch.logsdb.datageneration.fields.leaf.FloatFieldDataGenerator;
@@ -43,10 +42,7 @@ public enum FieldType {
         this.name = name;
     }
 
-    public FieldDataGenerator generator(
-        String fieldName,
-        DataSource dataSource
-    ) {
+    public FieldDataGenerator generator(String fieldName, DataSource dataSource) {
         return switch (this) {
             case KEYWORD -> new KeywordFieldDataGenerator(fieldName, dataSource);
             case LONG -> new LongFieldDataGenerator(fieldName, dataSource);

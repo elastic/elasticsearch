@@ -9,11 +9,6 @@
 
 package org.elasticsearch.logsdb.datageneration;
 
-import org.elasticsearch.core.CheckedConsumer;
-import org.elasticsearch.xcontent.XContentBuilder;
-
-import java.io.IOException;
-
 /**
  * Entity responsible for generating a valid value for a field.
  *

@@ -11,13 +11,10 @@ package org.elasticsearch.logsdb.datageneration;
 
 import org.elasticsearch.logsdb.datageneration.datasource.DataSourceRequest;
 import org.elasticsearch.logsdb.datageneration.datasource.DataSourceResponse;
-import org.elasticsearch.logsdb.datageneration.fields.DynamicMapping;
 
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 import java.util.TreeMap;
 
 public class DocumentGenerator {

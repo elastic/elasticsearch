@@ -9,24 +9,16 @@
 
 package org.elasticsearch.logsdb.datageneration.fields.leaf;
 
-import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.logsdb.datageneration.FieldDataGenerator;
 import org.elasticsearch.logsdb.datageneration.datasource.DataSource;
 import org.elasticsearch.logsdb.datageneration.datasource.DataSourceRequest;
-import org.elasticsearch.logsdb.datageneration.datasource.DataSourceResponse;
-import org.elasticsearch.xcontent.XContentBuilder;
 
-import java.io.IOException;
-import java.util.Map;
 import java.util.function.Supplier;
 
 public class ByteFieldDataGenerator implements FieldDataGenerator {
     private final Supplier<Object> valueGenerator;
 
-    public ByteFieldDataGenerator(
-        String fieldName,
-        DataSource dataSource
-    ) {
+    public ByteFieldDataGenerator(String fieldName, DataSource dataSource) {
         var bytes = dataSource.get(new DataSourceRequest.ByteGenerator());
         var nulls = dataSource.get(new DataSourceRequest.NullWrapper());
         var arrays = dataSource.get(new DataSourceRequest.ArrayWrapper());

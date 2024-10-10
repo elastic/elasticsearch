@@ -94,9 +94,14 @@ public class AlibabaCloudSearchCompletionTaskSettings implements TaskSettings {
     }
 
     @Override
+    public boolean isEmpty() {
+        return parameters == null || parameters.isEmpty();
+    }
+
+    @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        if (parameters != null) {
+        if (parameters != null && parameters.isEmpty() == false) {
             builder.field(PARAMETERS, parameters);
         }
         builder.endObject();

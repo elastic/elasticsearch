@@ -8,13 +8,14 @@
 
 package org.elasticsearch.search.lookup;
 
-import org.apache.lucene.index.IndexReaderContext;
 import org.apache.lucene.index.LeafReaderContext;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.index.fieldvisitor.LeafStoredFieldLoader;
 import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
 import org.elasticsearch.index.mapper.SourceLoader;
 
 import java.io.IOException;
+import java.util.Map;
 
 // NB This is written under the assumption that individual segments are accessed by a single
 // thread, even if separate segments may be searched concurrently.  If we ever implement
@@ -22,7 +23,7 @@ import java.io.IOException;
 class SyntheticSourceProvider implements SourceProvider {
 
     private final SourceLoader sourceLoader;
-    private volatile SyntheticSourceLeafLoader[] leafLoaders;
+    private final Map<Object, SyntheticSourceLeafLoader> leaves = ConcurrentCollections.newConcurrentMap();
 
     SyntheticSourceProvider(SourceLoader sourceLoader) {
         this.sourceLoader = sourceLoader;
@@ -30,31 +31,14 @@ class SyntheticSourceProvider implements SourceProvider {
 
     @Override
     public Source getSource(LeafReaderContext ctx, int doc) throws IOException {
-        maybeInit(ctx);
-        if (leafLoaders[ctx.ord] == null) {
-            // individual segments are currently only accessed on one thread so there's no need
-            // for locking here.
-            leafLoaders[ctx.ord] = new SyntheticSourceLeafLoader(ctx);
+        final Object id = ctx.id();
+        var provider = leaves.get(id);
+        if (provider == null) {
+            provider = new SyntheticSourceLeafLoader(ctx);
+            var existing = leaves.put(id, provider);
+            assert existing == null : "unexpected source provider [" + existing + "]";
         }
-        return leafLoaders[ctx.ord].getSource(doc);
-    }
-
-    private void maybeInit(LeafReaderContext ctx) {
-        if (leafLoaders == null) {
-            synchronized (this) {
-                if (leafLoaders == null) {
-                    leafLoaders = new SyntheticSourceLeafLoader[findParentContext(ctx).leaves().size()];
-                }
-            }
-        }
-    }
-
-    private IndexReaderContext findParentContext(LeafReaderContext ctx) {
-        if (ctx.parent != null) {
-            return ctx.parent;
-        }
-        assert ctx.isTopLevel;
-        return ctx;
+        return provider.getSource(doc);
     }
 
     private class SyntheticSourceLeafLoader {

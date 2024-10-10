@@ -163,7 +163,7 @@ public class FileSettingsServiceTests extends ESTestCase {
             } finally {
                 latch.countDown();
             }
-        }).when(fileSettingsService).processFileChanges();
+        }).when(fileSettingsService).processInitialFileFound();
 
         Files.createDirectories(fileSettingsService.watchedFileDir());
         // contents of the JSON don't matter, we just need a file to exist
@@ -175,7 +175,7 @@ public class FileSettingsServiceTests extends ESTestCase {
         // wait until the watcher thread has started, and it has discovered the file
         assertTrue(latch.await(20, TimeUnit.SECONDS));
 
-        verify(fileSettingsService, times(1)).processFileChanges();
+        verify(fileSettingsService, times(1)).processInitialFileFound();
         // assert we never notified any listeners of successful application of file based settings
         assertFalse(settingsChanged.get());
     }
@@ -196,13 +196,21 @@ public class FileSettingsServiceTests extends ESTestCase {
         // contents of the JSON don't matter, we just need a file to exist
         writeTestFile(fileSettingsService.watchedFile(), "{}");
 
+        doAnswer((Answer<?>) invocation -> {
+            try {
+                return invocation.callRealMethod();
+            } finally {
+                latch.countDown();
+            }
+        }).when(fileSettingsService).processInitialFileFound();
+
         fileSettingsService.start();
         fileSettingsService.clusterChanged(new ClusterChangedEvent("test", clusterService.state(), ClusterState.EMPTY_STATE));
 
         // wait for listener to be called
         assertTrue(latch.await(20, TimeUnit.SECONDS));
 
-        verify(fileSettingsService, times(1)).processFileChanges();
+        verify(fileSettingsService, times(1)).processInitialFileFound();
     }
 
     @SuppressWarnings("unchecked")

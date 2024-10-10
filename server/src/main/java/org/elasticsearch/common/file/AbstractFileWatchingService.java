@@ -77,6 +77,11 @@ public abstract class AbstractFileWatchingService extends AbstractLifecycleCompo
 
     protected abstract void processInitialFileMissing() throws InterruptedException, ExecutionException, IOException;
 
+    protected void processInitialFileFound() throws IOException, ExecutionException, InterruptedException {
+        // by default apply same logic as a regular file changes run
+        processFileChanges();
+    }
+
     public final void addFileChangedListener(FileChangedListener listener) {
         eventListeners.add(listener);
     }
@@ -174,7 +179,7 @@ public abstract class AbstractFileWatchingService extends AbstractLifecycleCompo
 
             if (Files.exists(path)) {
                 logger.debug("found initial operator settings file [{}], applying...", path);
-                processSettingsAndNotifyListeners();
+                processInitialFileFoundAndNotifyListeners();
             } else {
                 processInitialFileMissing();
                 // Notify everyone we don't have any initial file settings
@@ -288,6 +293,17 @@ public abstract class AbstractFileWatchingService extends AbstractLifecycleCompo
                 retryCount++;
             }
         } while (true);
+    }
+
+    void processInitialFileFoundAndNotifyListeners() throws InterruptedException {
+        try {
+            processInitialFileFound();
+            for (var listener : eventListeners) {
+                listener.watchedFileChanged();
+            }
+        } catch (IOException | ExecutionException e) {
+            logger.error(() -> "Error processing watched file: " + watchedFile(), e);
+        }
     }
 
     void processSettingsAndNotifyListeners() throws InterruptedException {

@@ -28,21 +28,19 @@ import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnparsedModel;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.xpack.core.inference.results.ErrorChunkedInferenceResults;
-import org.elasticsearch.xpack.core.inference.results.InferenceChunkedSparseEmbeddingResults;
-import org.elasticsearch.xpack.core.inference.results.InferenceChunkedTextEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.inference.results.InferenceTextEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.inference.results.RankedDocsResults;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
 import org.elasticsearch.xpack.core.ml.action.InferModelAction;
 import org.elasticsearch.xpack.core.ml.inference.results.ErrorInferenceResults;
-import org.elasticsearch.xpack.core.ml.inference.results.MlChunkedTextEmbeddingFloatResults;
-import org.elasticsearch.xpack.core.ml.inference.results.MlChunkedTextExpansionResults;
+import org.elasticsearch.xpack.core.ml.inference.results.MlTextEmbeddingResults;
+import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.EmptyConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextEmbeddingConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextExpansionConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextSimilarityConfigUpdate;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TokenizationConfigUpdate;
+import org.elasticsearch.xpack.inference.chunking.EmbeddingRequestChunker;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
 
@@ -74,6 +72,7 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
         MULTILINGUAL_E5_SMALL_MODEL_ID_LINUX_X86
     );
 
+    public static final int EMBEDDING_MAX_BATCH_SIZE = 10;
     public static final String DEFAULT_ELSER_ID = ".elser-2";
 
     private static final Logger logger = LogManager.getLogger(ElasticsearchInternalService.class);
@@ -501,8 +500,7 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
             TextEmbeddingConfigUpdate.EMPTY_INSTANCE,
             inputs,
             inputType,
-            timeout,
-            false
+            timeout
         );
 
         ActionListener<InferModelAction.Response> mlResultsListener = listener.delegateFailureAndWrap(
@@ -528,8 +526,7 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
             TextExpansionConfigUpdate.EMPTY_UPDATE,
             inputs,
             inputType,
-            timeout,
-            false
+            timeout
         );
 
         ActionListener<InferModelAction.Response> mlResultsListener = listener.delegateFailureAndWrap(
@@ -557,8 +554,7 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
             new TextSimilarityConfigUpdate(query),
             inputs,
             inputType,
-            timeout,
-            false
+            timeout
         );
 
         var modelSettings = (CustomElandRerankTaskSettings) model.getTaskSettings();
@@ -610,52 +606,80 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
 
         if (model instanceof ElasticsearchInternalModel esModel) {
 
-            var configUpdate = chunkingOptions != null
-                ? new TokenizationConfigUpdate(chunkingOptions.windowSize(), chunkingOptions.span())
-                : new TokenizationConfigUpdate(null, null);
-
-            var request = buildInferenceRequest(
-                model.getConfigurations().getInferenceEntityId(),
-                configUpdate,
+            var batchedRequests = new EmbeddingRequestChunker(
                 input,
-                inputType,
-                timeout,
-                true
-            );
+                EMBEDDING_MAX_BATCH_SIZE,
+                embeddingTypeFromTaskTypeAndSettings(model.getTaskType(), esModel.internalServiceSettings)
+            ).batchRequestsWithListeners(listener);
 
-            ActionListener<InferModelAction.Response> mlResultsListener = listener.delegateFailureAndWrap(
-                (l, inferenceResult) -> l.onResponse(translateToChunkedResults(inferenceResult.getInferenceResults()))
-            );
+            for (var batch : batchedRequests) {
+                var inferenceRequest = buildInferenceRequest(
+                    model.getConfigurations().getInferenceEntityId(),
+                    EmptyConfigUpdate.INSTANCE,
+                    batch.batch().inputs(),
+                    inputType,
+                    timeout
+                );
 
-            var maybeDeployListener = mlResultsListener.delegateResponse(
-                (l, exception) -> maybeStartDeployment(esModel, exception, request, mlResultsListener)
-            );
+                ActionListener<InferModelAction.Response> mlResultsListener = batch.listener()
+                    .delegateFailureAndWrap(
+                        (l, inferenceResult) -> translateToChunkedResult(model.getTaskType(), inferenceResult.getInferenceResults(), l)
+                    );
 
-            client.execute(InferModelAction.INSTANCE, request, maybeDeployListener);
+                var maybeDeployListener = mlResultsListener.delegateResponse(
+                    (l, exception) -> maybeStartDeployment(esModel, exception, inferenceRequest, mlResultsListener)
+                );
+
+                client.execute(InferModelAction.INSTANCE, inferenceRequest, maybeDeployListener);
+            }
         } else {
             listener.onFailure(notElasticsearchModelException(model));
         }
     }
 
-    private static List<ChunkedInferenceServiceResults> translateToChunkedResults(List<InferenceResults> inferenceResults) {
-        var translated = new ArrayList<ChunkedInferenceServiceResults>();
+    private static void translateToChunkedResult(
+        TaskType taskType,
+        List<InferenceResults> inferenceResults,
+        ActionListener<InferenceServiceResults> chunkPartListener
+    ) {
+        if (taskType == TaskType.TEXT_EMBEDDING) {
+            var translated = new ArrayList<InferenceTextEmbeddingFloatResults.InferenceFloatEmbedding>();
 
-        for (var inferenceResult : inferenceResults) {
-            translated.add(translateToChunkedResult(inferenceResult));
-        }
+            for (var inferenceResult : inferenceResults) {
+                if (inferenceResult instanceof MlTextEmbeddingResults mlTextEmbeddingResult) {
+                    translated.add(
+                        new InferenceTextEmbeddingFloatResults.InferenceFloatEmbedding(mlTextEmbeddingResult.getInferenceAsFloat())
+                    );
+                } else if (inferenceResult instanceof ErrorInferenceResults error) {
+                    chunkPartListener.onFailure(error.getException());
+                    return;
+                } else {
+                    chunkPartListener.onFailure(
+                        createInvalidChunkedResultException(MlTextEmbeddingResults.NAME, inferenceResult.getWriteableName())
+                    );
+                    return;
+                }
+            }
+            chunkPartListener.onResponse(new InferenceTextEmbeddingFloatResults(translated));
+        } else { // sparse
+            var translated = new ArrayList<SparseEmbeddingResults.Embedding>();
 
-        return translated;
-    }
-
-    private static ChunkedInferenceServiceResults translateToChunkedResult(InferenceResults inferenceResult) {
-        if (inferenceResult instanceof MlChunkedTextEmbeddingFloatResults mlChunkedResult) {
-            return InferenceChunkedTextEmbeddingFloatResults.ofMlResults(mlChunkedResult);
-        } else if (inferenceResult instanceof MlChunkedTextExpansionResults mlChunkedResult) {
-            return InferenceChunkedSparseEmbeddingResults.ofMlResult(mlChunkedResult);
-        } else if (inferenceResult instanceof ErrorInferenceResults error) {
-            return new ErrorChunkedInferenceResults(error.getException());
-        } else {
-            throw createInvalidChunkedResultException(MlChunkedTextEmbeddingFloatResults.NAME, inferenceResult.getWriteableName());
+            for (var inferenceResult : inferenceResults) {
+                if (inferenceResult instanceof TextExpansionResults textExpansionResult) {
+                    translated.add(
+                        new SparseEmbeddingResults.Embedding(textExpansionResult.getWeightedTokens(), textExpansionResult.isTruncated())
+                    );
+                } else if (inferenceResult instanceof ErrorInferenceResults error) {
+                    chunkPartListener.onFailure(error.getException());
+                    return;
+                } else {
+                    chunkPartListener.onFailure(
+                        createInvalidChunkedResultException(TextExpansionResults.NAME, inferenceResult.getWriteableName())
+                    );
+                    return;
+                }
+            }
+            chunkPartListener.onResponse(new SparseEmbeddingResults(translated));
         }
     }
 
@@ -737,5 +761,22 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
     @Override
     protected boolean isDefaultId(String inferenceId) {
         return DEFAULT_ELSER_ID.equals(inferenceId);
+    }
+
+    static EmbeddingRequestChunker.EmbeddingType embeddingTypeFromTaskTypeAndSettings(
+        TaskType taskType,
+        ElasticsearchInternalServiceSettings serviceSettings
+    ) {
+        return switch (taskType) {
+            case SPARSE_EMBEDDING -> EmbeddingRequestChunker.EmbeddingType.SPARSE;
+            case TEXT_EMBEDDING -> serviceSettings.elementType() == null
+                ? EmbeddingRequestChunker.EmbeddingType.FLOAT
+                : EmbeddingRequestChunker.EmbeddingType.fromDenseVectorElementType(serviceSettings.elementType());
+            default -> throw new ElasticsearchStatusException(
+                "Chunking is not supported for task type [{}]",
+                RestStatus.BAD_REQUEST,
+                taskType
+            );
+        };
     }
 }

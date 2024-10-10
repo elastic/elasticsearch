@@ -20,13 +20,13 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
+import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.expression.function.Warnings;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -74,7 +74,7 @@ public class SingleValueMathQueryTests extends MapperServiceTestCase {
                 SearchExecutionContext ctx = createSearchExecutionContext(mapper, new IndexSearcher(reader));
                 Query query = new SingleValueMatchQuery(
                     ctx.getForField(mapper.fieldType("foo"), MappedFieldType.FielddataOperation.SEARCH),
-                    new Warnings(Source.EMPTY)
+                    Warnings.createWarnings(DriverContext.WarningsMode.COLLECT, 1, 1, "test")
                 );
                 runCase(fieldValues, ctx.searcher().count(query));
                 setup.assertRewrite(ctx.searcher(), query);
@@ -89,7 +89,7 @@ public class SingleValueMathQueryTests extends MapperServiceTestCase {
                 SearchExecutionContext ctx = createSearchExecutionContext(mapper, new IndexSearcher(reader));
                 Query query = new SingleValueMatchQuery(
                     ctx.getForField(mapper.fieldType("foo"), MappedFieldType.FielddataOperation.SEARCH),
-                    new Warnings(Source.EMPTY)
+                    Warnings.createWarnings(DriverContext.WarningsMode.COLLECT, 1, 1, "test")
                 );
                 runCase(List.of(), ctx.searcher().count(query));
             }
@@ -112,8 +112,8 @@ public class SingleValueMathQueryTests extends MapperServiceTestCase {
         // inner query matches none, so warn if MVs have been encountered within given range, OR if a full scan is required
         if (mvCountInRange > 0) {
             assertWarnings(
-                "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
-                "Line -1:-1: java.lang.IllegalArgumentException: single-value function encountered multi-value"
+                "Line 1:1: evaluation of [test] failed, treating result as null. Only first 20 failures recorded.",
+                "Line 1:1: java.lang.IllegalArgumentException: single-value function encountered multi-value"
             );
         }
     }

@@ -44,7 +44,8 @@ enum Database {
             Property.LOCATION,
             Property.POSTAL_CODE,
             Property.ACCURACY_RADIUS,
-            Property.REGISTERED_COUNTRY_ISO_CODE
+            Property.REGISTERED_COUNTRY_ISO_CODE,
+            Property.REGISTERED_COUNTRY_NAME
         ),
         Set.of(
             Property.COUNTRY_ISO_CODE,
@@ -64,7 +65,8 @@ enum Database {
             Property.COUNTRY_NAME,
             Property.COUNTRY_IN_EUROPEAN_UNION,
             Property.COUNTRY_ISO_CODE,
-            Property.REGISTERED_COUNTRY_ISO_CODE
+            Property.REGISTERED_COUNTRY_ISO_CODE,
+            Property.REGISTERED_COUNTRY_NAME
         ),
         Set.of(Property.CONTINENT_NAME, Property.COUNTRY_NAME, Property.COUNTRY_ISO_CODE)
     ),
@@ -127,7 +129,8 @@ enum Database {
             Property.POSTAL_CODE,
             Property.POSTAL_CONFIDENCE,
             Property.ACCURACY_RADIUS,
-            Property.REGISTERED_COUNTRY_ISO_CODE
+            Property.REGISTERED_COUNTRY_ISO_CODE,
+            Property.REGISTERED_COUNTRY_NAME
         ),
         Set.of(
             Property.COUNTRY_ISO_CODE,
@@ -276,7 +279,8 @@ enum Database {
         RELAY,
         VPN,
         SERVICE,
-        REGISTERED_COUNTRY_ISO_CODE;
+        REGISTERED_COUNTRY_ISO_CODE,
+        REGISTERED_COUNTRY_NAME;
 
         /**
          * Parses a string representation of a property into an actual Property instance. Not all properties that exist are

@@ -231,6 +231,11 @@ final class MaxmindIpDataLookups {
                             data.put("registered_country_iso_code", registeredCountry.getIsoCode());
                         }
                     }
+                    case REGISTERED_COUNTRY_NAME -> {
+                        if (registeredCountry.getName() != null) {
+                            data.put("registered_country_name", registeredCountry.getName());
+                        }
+                    }
                 }
             }
             return data;
@@ -313,6 +318,11 @@ final class MaxmindIpDataLookups {
                     case REGISTERED_COUNTRY_ISO_CODE -> {
                         if (registeredCountry.getIsoCode() != null) {
                             data.put("registered_country_iso_code", registeredCountry.getIsoCode());
+                        }
+                    }
+                    case REGISTERED_COUNTRY_NAME -> {
+                        if (registeredCountry.getName() != null) {
+                            data.put("registered_country_name", registeredCountry.getName());
                         }
                     }
                 }
@@ -558,6 +568,11 @@ final class MaxmindIpDataLookups {
                     case REGISTERED_COUNTRY_ISO_CODE -> {
                         if (registeredCountry.getIsoCode() != null) {
                             data.put("registered_country_iso_code", registeredCountry.getIsoCode());
+                        }
+                    }
+                    case REGISTERED_COUNTRY_NAME -> {
+                        if (registeredCountry.getName() != null) {
+                            data.put("registered_country_name", registeredCountry.getName());
                         }
                     }
                 }

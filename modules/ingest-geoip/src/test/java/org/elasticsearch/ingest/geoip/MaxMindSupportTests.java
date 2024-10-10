@@ -88,7 +88,8 @@ public class MaxMindSupportTests extends ESTestCase {
         "mostSpecificSubdivision.isoCode",
         "mostSpecificSubdivision.name",
         "postal.code",
-        "registeredCountry.isoCode"
+        "registeredCountry.isoCode",
+        "registeredCountry.name"
     );
     private static final Set<String> CITY_UNSUPPORTED_FIELDS = Set.of(
         "city.confidence",
@@ -115,7 +116,6 @@ public class MaxMindSupportTests extends ESTestCase {
         "registeredCountry.confidence",
         "registeredCountry.geoNameId",
         "registeredCountry.inEuropeanUnion",
-        "registeredCountry.name",
         "registeredCountry.names",
         "representedCountry.confidence",
         "representedCountry.geoNameId",
@@ -163,7 +163,8 @@ public class MaxMindSupportTests extends ESTestCase {
         "country.isoCode",
         "continent.code",
         "country.name",
-        "registeredCountry.isoCode"
+        "registeredCountry.isoCode",
+        "registeredCountry.name"
     );
     private static final Set<String> COUNTRY_UNSUPPORTED_FIELDS = Set.of(
         "continent.geoNameId",
@@ -175,7 +176,6 @@ public class MaxMindSupportTests extends ESTestCase {
         "registeredCountry.confidence",
         "registeredCountry.geoNameId",
         "registeredCountry.inEuropeanUnion",
-        "registeredCountry.name",
         "registeredCountry.names",
         "representedCountry.confidence",
         "representedCountry.geoNameId",
@@ -230,6 +230,7 @@ public class MaxMindSupportTests extends ESTestCase {
         "postal.code",
         "postal.confidence",
         "registeredCountry.isoCode",
+        "registeredCountry.name",
         "traits.anonymous",
         "traits.anonymousVpn",
         "traits.autonomousSystemNumber",
@@ -269,7 +270,6 @@ public class MaxMindSupportTests extends ESTestCase {
         "registeredCountry.confidence",
         "registeredCountry.geoNameId",
         "registeredCountry.inEuropeanUnion",
-        "registeredCountry.name",
         "registeredCountry.names",
         "representedCountry.confidence",
         "representedCountry.geoNameId",

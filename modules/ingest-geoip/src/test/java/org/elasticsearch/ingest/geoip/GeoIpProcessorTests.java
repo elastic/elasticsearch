@@ -106,7 +106,7 @@ public class GeoIpProcessorTests extends ESTestCase {
         @SuppressWarnings("unchecked")
         Map<String, Object> geoData = (Map<String, Object>) ingestDocument.getSourceAndMetadata().get("target_field");
         assertThat(geoData, notNullValue());
-        assertThat(geoData.size(), equalTo(10));
+        assertThat(geoData.size(), equalTo(11));
         assertThat(geoData.get("ip"), equalTo(ip));
         assertThat(geoData.get("country_in_european_union"), equalTo(false));
         assertThat(geoData.get("country_iso_code"), equalTo("US"));
@@ -116,6 +116,7 @@ public class GeoIpProcessorTests extends ESTestCase {
         assertThat(geoData.get("timezone"), equalTo("America/Chicago"));
         assertThat(geoData.get("location"), equalTo(Map.of("lat", 37.751d, "lon", -97.822d)));
         assertThat(geoData.get("registered_country_iso_code"), equalTo("US"));
+        assertThat(geoData.get("registered_country_name"), equalTo("United States"));
     }
 
     public void testNullValueWithIgnoreMissing() throws Exception {
@@ -224,7 +225,7 @@ public class GeoIpProcessorTests extends ESTestCase {
         @SuppressWarnings("unchecked")
         Map<String, Object> geoData = (Map<String, Object>) ingestDocument.getSourceAndMetadata().get("target_field");
         assertThat(geoData, notNullValue());
-        assertThat(geoData.size(), equalTo(14));
+        assertThat(geoData.size(), equalTo(15));
         assertThat(geoData.get("ip"), equalTo(ip));
         assertThat(geoData.get("country_in_european_union"), equalTo(false));
         assertThat(geoData.get("country_iso_code"), equalTo("US"));
@@ -239,6 +240,7 @@ public class GeoIpProcessorTests extends ESTestCase {
         assertThat(geoData.get("accuracy_radius"), equalTo(50));
         assertThat(geoData.get("postal_code"), equalTo("33035"));
         assertThat(geoData.get("registered_country_iso_code"), equalTo("US"));
+        assertThat(geoData.get("registered_country_name"), equalTo("United States"));
     }
 
     public void testCityWithMissingLocation() throws Exception {
@@ -293,7 +295,7 @@ public class GeoIpProcessorTests extends ESTestCase {
         @SuppressWarnings("unchecked")
         Map<String, Object> geoData = (Map<String, Object>) ingestDocument.getSourceAndMetadata().get("target_field");
         assertThat(geoData, notNullValue());
-        assertThat(geoData.size(), equalTo(7));
+        assertThat(geoData.size(), equalTo(8));
         assertThat(geoData.get("ip"), equalTo(ip));
         assertThat(geoData.get("country_in_european_union"), equalTo(true));
         assertThat(geoData.get("country_iso_code"), equalTo("NL"));
@@ -301,6 +303,7 @@ public class GeoIpProcessorTests extends ESTestCase {
         assertThat(geoData.get("continent_code"), equalTo("EU"));
         assertThat(geoData.get("continent_name"), equalTo("Europe"));
         assertThat(geoData.get("registered_country_iso_code"), equalTo("NL"));
+        assertThat(geoData.get("registered_country_name"), equalTo("Netherlands"));
     }
 
     public void testCountryWithMissingLocation() throws Exception {
@@ -478,7 +481,7 @@ public class GeoIpProcessorTests extends ESTestCase {
         @SuppressWarnings("unchecked")
         Map<String, Object> geoData = (Map<String, Object>) ingestDocument.getSourceAndMetadata().get("target_field");
         assertThat(geoData, notNullValue());
-        assertThat(geoData.size(), equalTo(31));
+        assertThat(geoData.size(), equalTo(32));
         assertThat(geoData.get("ip"), equalTo(ip));
         assertThat(geoData.get("country_confidence"), equalTo(99));
         assertThat(geoData.get("country_in_european_union"), equalTo(false));
@@ -510,6 +513,7 @@ public class GeoIpProcessorTests extends ESTestCase {
         assertThat(geoData.get("user_type"), equalTo("residential"));
         assertThat(geoData.get("connection_type"), equalTo("Cable/DSL"));
         assertThat(geoData.get("registered_country_iso_code"), equalTo("US"));
+        assertThat(geoData.get("registered_country_name"), equalTo("United States"));
     }
 
     public void testIsp() throws Exception {

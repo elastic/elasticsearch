@@ -43,9 +43,13 @@ import java.util.Collections;
 import java.util.Map;
 
 public class MapperServiceFactory {
-
     public static MapperService create(String mappings) {
+        return create(Settings.EMPTY, mappings);
+    }
+
+    public static MapperService create(Settings userSettings, String mappings) {
         Settings settings = Settings.builder()
+            .put(userSettings)
             .put("index.number_of_replicas", 0)
             .put("index.number_of_shards", 1)
             .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())

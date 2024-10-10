@@ -22,6 +22,7 @@ import org.elasticsearch.benchmark.index.mapper.MapperServiceFactory;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.logging.LogConfigurator;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.IndexVersion;
@@ -66,8 +67,8 @@ import java.util.zip.GZIPInputStream;
 @OutputTimeUnit(TimeUnit.MILLISECONDS)
 @State(Scope.Thread)
 public class LuceneChangesSnapshotBenchmark {
-    @Param({ "synthetic", "stored" })
-    String sourceMode;
+    @Param({ "default", "logsdb" })
+    String indexMode;
 
     @Param({ "true", "false" })
     boolean sequential;
@@ -88,7 +89,8 @@ public class LuceneChangesSnapshotBenchmark {
     public void setup() throws IOException {
         this.path = Files.createTempDirectory("snapshot_changes");
 
-        this.mapperService = MapperServiceFactory.create(readMappings(sourceMode));
+        Settings settings = indexMode.equals("logsdb") ? Settings.builder().put("index.mode", "logsdb").build() : Settings.EMPTY;
+        this.mapperService = MapperServiceFactory.create(settings, readMappings());
         IndexWriterConfig config = new IndexWriterConfig();
         config.setCodec(
             new PerFieldMapperCodec(Zstd814StoredFieldsFormat.Mode.BEST_COMPRESSION, mapperService, BigArrays.NON_RECYCLING_INSTANCE)
@@ -186,10 +188,8 @@ public class LuceneChangesSnapshotBenchmark {
         return totalSize;
     }
 
-    private String readMappings(String mode) throws IOException {
-        return Streams.readFully(LuceneChangesSnapshotBenchmark.class.getResourceAsStream("lucene-changes-mappings.json"))
-            .utf8ToString()
-            .replace("$1", mode);
+    private String readMappings() throws IOException {
+        return Streams.readFully(LuceneChangesSnapshotBenchmark.class.getResourceAsStream("lucene-changes-mappings.json")).utf8ToString();
     }
 
     private InputStream readSampleDocs() throws IOException {

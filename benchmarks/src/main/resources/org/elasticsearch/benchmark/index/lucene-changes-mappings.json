@@ -9,9 +9,6 @@
   "_data_stream_timestamp": {
     "enabled": true
   },
-  "_source": {
-    "mode": "$1"
-  },
   "date_detection": false,
   "runtime": {
     "rally.doc_size": {

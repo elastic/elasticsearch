@@ -48,7 +48,7 @@ public class LicensingPlugin implements Plugin<Project> {
                 providerFactory.provider(() -> Map.of(
                         "Server Side Public License, v 1", "https://www.mongodb.com/licensing/server-side-public-license",
                         "Elastic License 2.0", elasticLicenseURL.get(),
-                        "The OSI-approved Open Source license Version 3.0", agplLicenseURL.get())
+                        "GNU Affero General Public License Version 3", agplLicenseURL.get())
                 )
         );
 

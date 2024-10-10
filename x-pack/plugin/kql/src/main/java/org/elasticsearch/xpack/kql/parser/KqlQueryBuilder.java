@@ -128,7 +128,8 @@ public class KqlQueryBuilder extends KqlBaseBaseVisitor<QueryBuilder> {
         Map.Entry<String, MappedFieldType> fieldDefinition,
         String queryText,
         boolean isPhraseQuery,
-        boolean isWildcardQuery) {
+        boolean isWildcardQuery
+    ) {
 
         String fieldName = fieldDefinition.getKey();
         MappedFieldType fieldType = fieldDefinition.getValue();
@@ -166,11 +167,7 @@ public class KqlQueryBuilder extends KqlBaseBaseVisitor<QueryBuilder> {
         return (ctx.fieldName() == null || isAllFieldsQuery) && isExistsQuery;
     }
 
-    private void addRuntimeFieldQuery(
-        BoolQueryBuilder boolQueryBuilder,
-        String fieldName,
-        String queryText,
-        boolean isWildcardQuery) {
+    private void addRuntimeFieldQuery(BoolQueryBuilder boolQueryBuilder, String fieldName, String queryText, boolean isWildcardQuery) {
         if (isWildcardQuery == false) {
             // TODO: Implement runtime field query
             log.debug("Runtime field queries not yet implemented for field: {}", fieldName);
@@ -183,19 +180,11 @@ public class KqlQueryBuilder extends KqlBaseBaseVisitor<QueryBuilder> {
         log.debug("Date field queries not yet implemented for field: {}", fieldName);
     }
 
-    private void addKeywordFieldQuery(
-        BoolQueryBuilder boolQueryBuilder,
-        String fieldName,
-        String queryText,
-        boolean isWildcardQuery) {
+    private void addKeywordFieldQuery(BoolQueryBuilder boolQueryBuilder, String fieldName, String queryText, boolean isWildcardQuery) {
         if (isWildcardQuery) {
-            boolQueryBuilder.should(
-                QueryBuilders.wildcardQuery(fieldName, queryText).caseInsensitive(true)
-            );
+            boolQueryBuilder.should(QueryBuilders.wildcardQuery(fieldName, queryText).caseInsensitive(true));
         } else {
-            boolQueryBuilder.should(
-                QueryBuilders.termQuery(fieldName, queryText).caseInsensitive(true)
-            );
+            boolQueryBuilder.should(QueryBuilders.termQuery(fieldName, queryText).caseInsensitive(true));
         }
     }
 
@@ -221,7 +210,7 @@ public class KqlQueryBuilder extends KqlBaseBaseVisitor<QueryBuilder> {
             if (searchExecutionContext.isFieldMapped(fieldName)) {
                 fields = List.of(Map.entry(fieldName, searchExecutionContext.getFieldType(fieldName)));
             }
-        }  else {
+        } else {
             String fieldPattern = fieldNameContext.accept(stringBuilder);
             log.trace("Unquoted field name : {}", fieldPattern);
             fields = searchExecutionContext.getMatchingFieldNames(fieldPattern)

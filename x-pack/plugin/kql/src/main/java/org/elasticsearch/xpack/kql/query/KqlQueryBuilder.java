@@ -29,9 +29,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
-
 public class KqlQueryBuilder extends AbstractQueryBuilder<KqlQueryBuilder> {
-
 
     private static final Logger log = LogManager.getLogger(KqlQueryBuilder.class);
 
@@ -64,6 +62,7 @@ public class KqlQueryBuilder extends AbstractQueryBuilder<KqlQueryBuilder> {
         super(in);
         query = in.readString();
     }
+
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(NAME);

@@ -18,6 +18,8 @@ import java.util.stream.Collectors;
 public class KqlStringBuilder extends KqlBaseBaseVisitor<String> {
 
     private static final String UNQUOTED_LITERAL_TERM_DELIMITER = " ";
+    private static final char ESCAPE_CHAR = '\\';
+    private static final char QUOTE_CHAR = '"';
 
     public String toString(ParserRuleContext ctx) {
         return ParserUtils.typedParsing(this, ctx, String.class);
@@ -26,13 +28,22 @@ public class KqlStringBuilder extends KqlBaseBaseVisitor<String> {
     @Override
     public String visitQuotedStringExpression(KqlBaseParser.QuotedStringExpressionContext ctx) {
         String inputText = ctx.getText();
+        assert inputText.length() > 2 && inputText.charAt(0) == QUOTE_CHAR && inputText.charAt(inputText.length() - 1) == QUOTE_CHAR;
 
-        assert inputText.length() > 2 && inputText.charAt(0) == '\"' && inputText.charAt(inputText.length() -1) == '\"' ;
+        return unescapeQuotedString(ctx, inputText.substring(1, inputText.length() - 1));
+    }
+
+    public String visitUnquotedLiteralExpression(KqlBaseParser.UnquotedLiteralExpressionContext ctx) {
+        return ctx.UNQUOTED_LITERAL()
+            .stream()
+            .map(token -> unescapeUnquotedLiteral(ctx, token))
+            .collect(Collectors.joining(UNQUOTED_LITERAL_TERM_DELIMITER));
+    }
+
+    private String unescapeQuotedString(ParserRuleContext ctx, String inputText) {
         StringBuilder sb = new StringBuilder();
-
-        for (int i = 1; i < inputText.length() - 1;) {
-            if (inputText.charAt(i) == '\\') {
-                // ANTLR4 Grammar guarantees there is always a character after the `\`
+        for (int i = 0; i < inputText.length();) {
+            if (inputText.charAt(i) == ESCAPE_CHAR && i + 1 < inputText.length()) {
                 switch (inputText.charAt(++i)) {
                     case 't' -> sb.append('\t');
                     case 'b' -> sb.append('\b');
@@ -43,13 +54,51 @@ public class KqlStringBuilder extends KqlBaseBaseVisitor<String> {
                     case '\'' -> sb.append('\'');
                     case 'u' -> i = handleUnicodePoints(ctx, sb, inputText, ++i);
                     case '\\' -> sb.append('\\');
-
-                    // will be interpreted as regex, so we have to escape it
-                    default ->
-                        // unknown escape sequence, pass through as-is, e.g: `...\w...`
-                        sb.append('\\').append(inputText.charAt(i));
+                    default -> {
+                        // For quoted strings, unknown escape sequences are passed through as-is
+                        sb.append(ESCAPE_CHAR).append(inputText.charAt(i++));
+                    }
                 }
-                i++;
+            } else {
+                sb.append(inputText.charAt(i++));
+            }
+        }
+        return sb.toString();
+    }
+
+    private String unescapeUnquotedLiteral(ParserRuleContext ctx, TerminalNode unquotedLiteralToken) {
+        String inputText = unquotedLiteralToken.getText();
+
+        if (inputText == null || inputText.isEmpty()) {
+            return inputText;
+        }
+        StringBuilder sb = new StringBuilder(inputText.length());
+
+        for (int i = 0; i < inputText.length();) {
+            char currentChar = inputText.charAt(i);
+
+            if (currentChar == '\\' && i + 1 < inputText.length()) {
+                switch (inputText.charAt(++i)) {
+                    case 't' -> sb.append('\t');
+                    case 'b' -> sb.append('\b');
+                    case 'f' -> sb.append('\f');
+                    case 'n' -> sb.append('\n');
+                    case 'r' -> sb.append('\r');
+                    case '"' -> sb.append('\"');
+                    case '\'' -> sb.append('\'');
+                    case 'u' -> i = handleUnicodePoints(ctx, sb, inputText, ++i);
+                    case '\\' -> sb.append('\\');
+                    case '(', ')', ':', '<', '>', '*', '{', '}' -> sb.append(inputText.charAt(i++));
+                    default -> {
+                        if (isEscapedKeywordSequence(inputText, i)) {
+                            String sequence = handleKeywordSequence(inputText, i);
+                            sb.append(sequence);
+                            i += sequence.length();
+                        } else {
+                            sb.append('\\').append(inputText.charAt(i++));
+                        }
+                    }
+                }
             } else {
                 sb.append(inputText.charAt(i++));
             }
@@ -58,18 +107,20 @@ public class KqlStringBuilder extends KqlBaseBaseVisitor<String> {
         return sb.toString();
     }
 
-    @Override
-    public String visitUnquotedLiteralExpression(KqlBaseParser.UnquotedLiteralExpressionContext ctx) {
-        return ctx.UNQUOTED_LITERAL().stream().map(TerminalNode::getText).collect(Collectors.joining(UNQUOTED_LITERAL_TERM_DELIMITER));
+    private boolean isEscapedKeywordSequence(String input, int startIndex) {
+        if (startIndex + 1 >= input.length()) {
+            return false;
+        }
+        String remaining = input.substring(startIndex).toLowerCase();
+        return remaining.startsWith("and") || remaining.startsWith("or") || remaining.startsWith("not");
     }
 
-    private String getText(TerminalNode unquotedLiteralToken) {
-        return unescapeToken(unquotedLiteralToken.getText());
-    }
-
-    private String unescapeToken(String tokenText) {
-        // TODO implement
-        return tokenText;
+    private String handleKeywordSequence(String input, int startIndex) {
+        String remaining = input.substring(startIndex);
+        if (remaining.toLowerCase().startsWith("and")) return remaining.substring(0, 2);
+        if (remaining.toLowerCase().startsWith("or")) return remaining.substring(0, 1);
+        if (remaining.toLowerCase().startsWith("not")) return remaining.substring(0, 2);
+        return "";
     }
 
     private int handleUnicodePoints(ParserRuleContext ctx, StringBuilder sb, String text, int startIdx) {
@@ -83,21 +134,22 @@ public class KqlStringBuilder extends KqlBaseBaseVisitor<String> {
             int code = Integer.parseInt(hex, 16);
             // U+D800—U+DFFF can only be used as surrogate pairs and therefore are not valid character codes
             if (code >= 0xD800 && code <= 0xDFFF) {
-                throw new ParsingException(
-                    ctx.start.getLine(),
-                    ctx.start.getCharPositionInLine(),
-                    LoggerMessageFormat.format("Invalid unicode character code, [{}] is a surrogate code", hex),
-                    null
-                );
+                throw createParsingException(ctx, "Invalid unicode character code, [{}] is a surrogate code", hex);
             }
             return String.valueOf(Character.toChars(code));
         } catch (IllegalArgumentException e) {
-            throw new ParsingException(
-                ctx.start.getLine(),
-                ctx.start.getCharPositionInLine(),
-                LoggerMessageFormat.format("Invalid unicode character code [{}]", hex),
-                null
-            );
+            throw createParsingException(ctx, "Invalid unicode character code [{}]", hex);
         }
+    }
+
+    private void validateUnicodePoint(ParserRuleContext ctx, int code, String hex) {
+        // U+D800—U+DFFF can only be used as surrogate pairs and therefore are not valid character codes
+        if (code >= 0xD800 && code <= 0xDFFF) {
+            throw createParsingException(ctx, "Invalid unicode character code, [{}] is a surrogate code", hex);
+        }
+    }
+
+    private ParsingException createParsingException(ParserRuleContext ctx, String message, String arg) {
+        return new ParsingException(ctx.start.getLine(), ctx.start.getCharPositionInLine(), LoggerMessageFormat.format(message, arg), null);
     }
 }

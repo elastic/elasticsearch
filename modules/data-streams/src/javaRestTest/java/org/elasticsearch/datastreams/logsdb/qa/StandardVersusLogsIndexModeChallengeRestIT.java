@@ -377,11 +377,11 @@ public class StandardVersusLogsIndexModeChallengeRestIT extends AbstractChalleng
     }
 
     @SuppressWarnings("unchecked")
-    private static List<Map<String, Object>> getFields(final Response response) throws IOException {
+    private static Map<String, Object> getFields(final Response response) throws IOException {
         final Map<String, Object> map = XContentHelper.convertToMap(XContentType.JSON.xContent(), response.getEntity().getContent(), true);
         final Map<String, Object> fields = (Map<String, Object>) map.get("fields");
         assertThat(fields.size(), greaterThan(0));
-        return List.of(new TreeMap<>(fields));
+        return new TreeMap<>(fields);
     }
 
     @SuppressWarnings("unchecked")

@@ -1,0 +1,5 @@
+pr: 112141
+summary: Use internal reader when building `SecurityIndexReaderWrapper` filter query
+area: Security
+type: bug
+issues: []

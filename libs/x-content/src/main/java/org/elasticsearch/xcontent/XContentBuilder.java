@@ -819,6 +819,13 @@ public final class XContentBuilder implements Closeable, Flushable {
     }
 
     /**
+     * Writes a field containing a formatted representation of this value using the UNIX_EPOCH_MILLIS_FORMATTER.
+     */
+    public XContentBuilder unixEpochMillisField(String name, long unixEpochMillis) throws IOException {
+        return field(name, UNIX_EPOCH_MILLIS_FORMATTER.apply(unixEpochMillis));
+    }
+
+    /**
      * @deprecated use {@link #unixEpochMillisField} instead.
      */
     @Deprecated(forRemoval = true)

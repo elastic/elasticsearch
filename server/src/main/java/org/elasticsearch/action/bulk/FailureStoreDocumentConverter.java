@@ -84,7 +84,7 @@ public class FailureStoreDocumentConverter {
         XContentBuilder builder = JsonXContent.contentBuilder();
         builder.startObject();
         {
-            builder.timeField("@timestamp", timeSupplier.get());
+            builder.unixEpochMillisField("@timestamp", timeSupplier.get());
             builder.startObject("document");
             {
                 if (source.id() != null) {

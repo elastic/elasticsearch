@@ -122,7 +122,7 @@ public class SingleNodeShutdownStatus implements Writeable, ChunkedToXContentObj
                         metadata.getAllocationDelay().getStringRep()
                     );
                 }
-                builder.timeField(
+                builder.unixEpochMillisField(
                     SingleNodeShutdownMetadata.STARTED_AT_MILLIS_FIELD.getPreferredName(),
                     SingleNodeShutdownMetadata.STARTED_AT_READABLE_FIELD,
                     metadata.getStartedAtMillis()

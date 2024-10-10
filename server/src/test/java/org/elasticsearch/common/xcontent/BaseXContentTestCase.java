@@ -402,16 +402,16 @@ public abstract class BaseXContentTestCase extends ESTestCase {
         assertResult("{'d2':'2016-12-25T07:59:42.213Z'}", () -> builder().startObject().field("d2").timeValue(d2).endObject());
     }
 
-    public void testDateField() throws Exception {
+    public void testUnixEpochMillisField() throws Exception {
         final Date d = Date.from(ZonedDateTime.of(2016, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC).toInstant());
 
         assertResult(
             "{'date_in_millis':1451606400000}",
-            () -> builder().startObject().timeField("date_in_millis", "date", d.getTime()).endObject()
+            () -> builder().startObject().unixEpochMillisField("date_in_millis", "date", d.getTime()).endObject()
         );
         assertResult(
             "{'date':'2016-01-01T00:00:00.000Z','date_in_millis':1451606400000}",
-            () -> builder().humanReadable(true).startObject().timeField("date_in_millis", "date", d.getTime()).endObject()
+            () -> builder().humanReadable(true).startObject().unixEpochMillisField("date_in_millis", "date", d.getTime()).endObject()
         );
     }
 

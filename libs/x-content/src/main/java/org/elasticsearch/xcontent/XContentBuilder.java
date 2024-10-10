@@ -40,6 +40,7 @@ import java.util.Objects;
 import java.util.ServiceLoader;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.function.LongFunction;
 
 /**
  * A utility to build XContent (ie json).
@@ -107,6 +108,8 @@ public final class XContentBuilder implements Closeable, Flushable {
     private static final Map<Class<?>, Writer> WRITERS;
     private static final Map<Class<?>, HumanReadableTransformer> HUMAN_READABLE_TRANSFORMERS;
     private static final Map<Class<?>, Function<Object, Object>> DATE_TRANSFORMERS;
+    private static final LongFunction<String> UNIX_EPOCH_MILLIS_FORMATTER;
+
     static {
         Map<Class<?>, Writer> writers = new HashMap<>();
         writers.put(Boolean.class, (b, v) -> b.value((Boolean) v));
@@ -140,6 +143,8 @@ public final class XContentBuilder implements Closeable, Flushable {
         // treat strings as already converted
         dateTransformers.put(String.class, Function.identity());
 
+        LongFunction<String> unixEpochMillisFormatter = Long::toString;
+
         // Load pluggable extensions
         for (XContentBuilderExtension service : ServiceLoader.load(XContentBuilderExtension.class)) {
             Map<Class<?>, Writer> addlWriters = service.getXContentWriters();
@@ -157,11 +162,14 @@ public final class XContentBuilder implements Closeable, Flushable {
             writers.putAll(addlWriters);
             humanReadableTransformer.putAll(addlTransformers);
             dateTransformers.putAll(addlDateTransformers);
+
+            unixEpochMillisFormatter = service::formatUnixEpochMillis;
         }
 
         WRITERS = Map.copyOf(writers);
         HUMAN_READABLE_TRANSFORMERS = Map.copyOf(humanReadableTransformer);
         DATE_TRANSFORMERS = Map.copyOf(dateTransformers);
+        UNIX_EPOCH_MILLIS_FORMATTER = unixEpochMillisFormatter;
     }
 
     @FunctionalInterface
@@ -811,20 +819,23 @@ public final class XContentBuilder implements Closeable, Flushable {
     }
 
     /**
-     * If the {@code humanReadable} flag is set, writes both a formatted and
-     * unformatted version of the time value using the date transformer for the
-     * {@link Long} class.
+     * @deprecated use {@link #unixEpochMillisField} instead.
      */
-    public XContentBuilder timeField(String name, String readableName, long value) throws IOException {
+    @Deprecated(forRemoval = true)
+    public XContentBuilder timeField(String name, String readableName, long unixEpochMillis) throws IOException {
+        return unixEpochMillisField(name, readableName, unixEpochMillis);
+    }
+
+    /**
+     * Writes a field containing the raw number of milliseconds since the unix epoch, and also if the {@code humanReadable} flag is set,
+     * writes a formatted representation of this value using the UNIX_EPOCH_MILLIS_FORMATTER.
+     */
+    public XContentBuilder unixEpochMillisField(String name, String readableName, long unixEpochMillis) throws IOException {
         assert name.equals(readableName) == false : "expected raw and readable field names to differ, but they were both: " + name;
         if (humanReadable) {
-            Function<Object, Object> longTransformer = DATE_TRANSFORMERS.get(Long.class);
-            if (longTransformer == null) {
-                throw new IllegalArgumentException("cannot write time value xcontent for unknown value of type Long");
-            }
-            field(readableName).value(longTransformer.apply(value));
+            field(readableName, UNIX_EPOCH_MILLIS_FORMATTER.apply(unixEpochMillis));
         }
-        field(name, value);
+        field(name, unixEpochMillis);
         return this;
     }
 
@@ -840,7 +851,11 @@ public final class XContentBuilder implements Closeable, Flushable {
         } else {
             Function<Object, Object> transformer = DATE_TRANSFORMERS.get(timeValue.getClass());
             if (transformer == null) {
-                throw new IllegalArgumentException("cannot write time value xcontent for unknown value of type " + timeValue.getClass());
+                final var exception = new IllegalArgumentException(
+                    "cannot write time value xcontent for unknown value of type " + timeValue.getClass()
+                );
+                assert false : exception;
+                throw exception;
             }
             return value(transformer.apply(timeValue));
         }

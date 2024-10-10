@@ -103,10 +103,8 @@ public class XContentElasticsearchExtension implements XContentBuilderExtension 
     public Map<Class<?>, Function<Object, Object>> getDateTransformers() {
         Map<Class<?>, Function<Object, Object>> transformers = new HashMap<>();
         transformers.put(Date.class, d -> DEFAULT_FORMATTER.format(((Date) d).toInstant()));
-        transformers.put(Long.class, d -> DEFAULT_FORMATTER.format(Instant.ofEpochMilli((long) d)));
         transformers.put(Calendar.class, d -> DEFAULT_FORMATTER.format(((Calendar) d).toInstant()));
         transformers.put(GregorianCalendar.class, d -> DEFAULT_FORMATTER.format(((Calendar) d).toInstant()));
-        transformers.put(Instant.class, d -> DEFAULT_FORMATTER.format((Instant) d));
         transformers.put(ZonedDateTime.class, d -> DEFAULT_FORMATTER.format((ZonedDateTime) d));
         transformers.put(OffsetDateTime.class, d -> DEFAULT_FORMATTER.format((OffsetDateTime) d));
         transformers.put(OffsetTime.class, d -> OFFSET_TIME_FORMATTER.format((OffsetTime) d));
@@ -118,5 +116,10 @@ public class XContentElasticsearchExtension implements XContentBuilderExtension 
         transformers.put(LocalDate.class, d -> ((LocalDate) d).toString());
         transformers.put(LocalTime.class, d -> LOCAL_TIME_FORMATTER.format((LocalTime) d));
         return transformers;
+    }
+
+    @Override
+    public String formatUnixEpochMillis(long unixEpochMillis) {
+        return DEFAULT_FORMATTER.format(Instant.ofEpochMilli(unixEpochMillis));
     }
 }

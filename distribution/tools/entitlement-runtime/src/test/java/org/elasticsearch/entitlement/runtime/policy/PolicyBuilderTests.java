@@ -7,14 +7,13 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-module org.elasticsearch.entitlement.runtime {
-    requires org.elasticsearch.entitlement.bridge;
-    requires org.elasticsearch.xcontent;
-    requires org.elasticsearch.server;
+package org.elasticsearch.entitlement.runtime.policy;
 
-    exports org.elasticsearch.entitlement.runtime.api;
+import org.elasticsearch.test.ESTestCase;
 
-    provides org.elasticsearch.entitlement.api.EntitlementChecks
-        with
-            org.elasticsearch.entitlement.runtime.api.ElasticsearchEntitlementManager;
+public class PolicyBuilderTests extends ESTestCase {
+
+    public void testPolicyBuilder() {
+        new PolicyBuilder("test-policy.yaml", PolicyBuilderTests.class.getResourceAsStream("test-policy.yaml")).buildPolicy();
+    }
 }

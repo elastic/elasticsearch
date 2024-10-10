@@ -11,14 +11,10 @@ apply plugin: 'elasticsearch.publish'
 
 dependencies {
   compileOnly project(':libs:elasticsearch-core') // For @SuppressForbidden
+  compileOnly project(":libs:elasticsearch-x-content") // for parsing policy files
   compileOnly project(':server') // To access the main server module for special permission checks
   compileOnly project(':distribution:tools:entitlement-bridge')
-
   testImplementation project(":test:framework")
-}
-
-tasks.named('forbiddenApisMain').configure {
-  replaceSignatureFiles 'jdk-signatures'
 }
 
 tasks.named('forbiddenApisMain').configure {

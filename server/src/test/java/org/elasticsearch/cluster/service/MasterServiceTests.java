@@ -1352,7 +1352,6 @@ public class MasterServiceTests extends ESTestCase {
             .build();
         final var deterministicTaskQueue = new DeterministicTaskQueue();
         final var threadPool = deterministicTaskQueue.getThreadPool();
-        threadPool.getThreadContext().markAsSystemContext();
         try (
             var masterService = createMasterService(
                 true,
@@ -1361,6 +1360,7 @@ public class MasterServiceTests extends ESTestCase {
                 new StoppableExecutorServiceWrapper(threadPool.generic())
             )
         ) {
+            threadPool.getThreadContext().markAsSystemContext();
 
             final var responseHeaderName = "test-response-header";
 

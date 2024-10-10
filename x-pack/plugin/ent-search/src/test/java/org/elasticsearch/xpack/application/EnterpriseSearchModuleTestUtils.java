@@ -115,4 +115,8 @@ public final class EnterpriseSearchModuleTestUtils {
         return new QueryRuleset(id, rules);
     }
 
+    public static Map<String, Object> randomMatchCriteria() {
+        return randomMap(1, 3, () -> Tuple.tuple(randomIdentifier(), randomAlphaOfLengthBetween(0, 10)));
+    }
+
 }

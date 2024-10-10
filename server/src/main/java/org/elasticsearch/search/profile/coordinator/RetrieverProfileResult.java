@@ -18,6 +18,8 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 public class RetrieverProfileResult implements ToXContentObject, Writeable {
 
@@ -25,6 +27,11 @@ public class RetrieverProfileResult implements ToXContentObject, Writeable {
     private long tookInMillis;
     private final Map<String, Long> breakdownMap;
     private final List<RetrieverProfileResult> children;
+
+    private final Set<String> timings = Set.of(
+        SearchCoordinatorTimingType.INFERENCE_RERANK_TIME.name(),
+        SearchCoordinatorTimingType.RETRIEVER_REWRITE.name()
+    );
 
     public RetrieverProfileResult(String name, long tookInMillis, Map<String, Long> breakdownMap, List<RetrieverProfileResult> children) {
         this.name = name;
@@ -85,5 +92,14 @@ public class RetrieverProfileResult implements ToXContentObject, Writeable {
 
     public void setTookInMillis(long tookInMillis) {
         this.tookInMillis = tookInMillis;
+    }
+
+    public void setBreakDownMap(Map<String, Long> breakdownMap) {
+        this.breakdownMap.putAll(
+            breakdownMap.entrySet()
+                .stream()
+                .filter(entry -> timings.contains(entry.getKey()))
+                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue))
+        );
     }
 }

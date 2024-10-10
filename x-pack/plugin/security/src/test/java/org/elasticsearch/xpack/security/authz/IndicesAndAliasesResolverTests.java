@@ -47,6 +47,7 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
@@ -242,6 +243,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
                 mock(ServiceAccountService.class),
                 new DocumentSubsetBitsetCache(Settings.EMPTY, mock(ThreadPool.class)),
                 RESTRICTED_INDICES,
+                EsExecutors.DIRECT_EXECUTOR_SERVICE,
                 rds -> {}
             )
         );

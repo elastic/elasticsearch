@@ -152,6 +152,11 @@ public class AmazonBedrockChatCompletionTaskSettings implements TaskSettings {
     }
 
     @Override
+    public boolean isEmpty() {
+        return temperature == null && topP == null && topK == null && maxNewTokens == null;
+    }
+
+    @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         {

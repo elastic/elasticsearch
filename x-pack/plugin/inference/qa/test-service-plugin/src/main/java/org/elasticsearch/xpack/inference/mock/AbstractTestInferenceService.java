@@ -23,6 +23,7 @@ import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.Map;
 
 public abstract class AbstractTestInferenceService implements InferenceService {
@@ -47,7 +48,7 @@ public abstract class AbstractTestInferenceService implements InferenceService {
         if (settings.containsKey(ModelConfigurations.TASK_SETTINGS)) {
             taskSettingsMap = (Map<String, Object>) settings.remove(ModelConfigurations.TASK_SETTINGS);
         } else {
-            taskSettingsMap = Map.of();
+            taskSettingsMap = new HashMap<>();
         }
 
         return taskSettingsMap;
@@ -131,6 +132,11 @@ public abstract class AbstractTestInferenceService implements InferenceService {
 
         public TestTaskSettings(StreamInput in) throws IOException {
             this(in.readOptionalVInt());
+        }
+
+        @Override
+        public boolean isEmpty() {
+            return temperature == null;
         }
 
         @Override

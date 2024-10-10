@@ -27,6 +27,12 @@ public class AzureOpenAiEmbeddingsTaskSettingsTests extends AbstractWireSerializ
         return new AzureOpenAiEmbeddingsTaskSettings(randomAlphaOfLength(15));
     }
 
+    public void testIsEmpty() {
+        var randomSettings = createRandom();
+        var stringRep = Strings.toString(randomSettings);
+        assertEquals(stringRep, randomSettings.isEmpty(), stringRep.equals("{}"));
+    }
+
     /**
      * The created settings can have the user set to null.
      */

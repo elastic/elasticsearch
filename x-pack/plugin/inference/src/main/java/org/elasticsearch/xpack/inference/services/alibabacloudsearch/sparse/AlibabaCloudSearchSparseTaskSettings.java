@@ -131,6 +131,11 @@ public class AlibabaCloudSearchSparseTaskSettings implements TaskSettings {
     }
 
     @Override
+    public boolean isEmpty() {
+        return inputType == null && returnToken == null;
+    }
+
+    @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         if (inputType != null) {

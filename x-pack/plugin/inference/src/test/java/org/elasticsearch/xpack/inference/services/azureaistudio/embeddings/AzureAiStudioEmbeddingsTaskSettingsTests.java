@@ -26,6 +26,11 @@ import java.util.Map;
 import static org.hamcrest.Matchers.is;
 
 public class AzureAiStudioEmbeddingsTaskSettingsTests extends AbstractBWCWireSerializationTestCase<AzureAiStudioEmbeddingsTaskSettings> {
+    public void testIsEmpty() {
+        var randomSettings = createRandom();
+        var stringRep = Strings.toString(randomSettings);
+        assertEquals(stringRep, randomSettings.isEmpty(), stringRep.equals("{}"));
+    }
 
     public void testFromMap_WithUser() {
         assertEquals(

@@ -146,6 +146,11 @@ public class CohereEmbeddingsTaskSettings implements TaskSettings {
     }
 
     @Override
+    public boolean isEmpty() {
+        return inputType == null && truncation == null;
+    }
+
+    @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         if (inputType != null) {

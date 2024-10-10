@@ -364,6 +364,7 @@ public class MaxMindSupportTests extends ESTestCase {
     private static final Set<Database> KNOWN_UNSUPPORTED_DATABASE_VARIANTS = Set.of(
         Database.AsnV2,
         Database.CityV2,
+        Database.CountryV2,
         Database.PrivacyDetection
     );
 

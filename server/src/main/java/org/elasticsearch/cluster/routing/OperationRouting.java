@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.routing;
@@ -31,6 +32,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.TransportVersions.FAST_REFRESH_RCO;
 import static org.elasticsearch.index.IndexSettings.INDEX_FAST_REFRESH_SETTING;
 
 public class OperationRouting {
@@ -304,8 +306,14 @@ public class OperationRouting {
     }
 
     public static boolean canSearchShard(ShardRouting shardRouting, ClusterState clusterState) {
+        // TODO: remove if and always return isSearchable (ES-9563)
         if (INDEX_FAST_REFRESH_SETTING.get(clusterState.metadata().index(shardRouting.index()).getSettings())) {
-            return shardRouting.isPromotableToPrimary();
+            // Until all the cluster is upgraded, we send searches/gets to the primary (even if it has been upgraded) to execute locally.
+            if (clusterState.getMinTransportVersion().onOrAfter(FAST_REFRESH_RCO)) {
+                return shardRouting.isSearchable();
+            } else {
+                return shardRouting.isPromotableToPrimary();
+            }
         } else {
             return shardRouting.isSearchable();
         }

@@ -21,65 +21,123 @@
 
 package org.elasticsearch.tdigest;
 
+import org.apache.lucene.util.Accountable;
+import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
+import org.elasticsearch.tdigest.arrays.TDigestArrays;
+import org.elasticsearch.tdigest.arrays.TDigestDoubleArray;
+import org.elasticsearch.tdigest.arrays.TDigestLongArray;
+
 import java.util.AbstractCollection;
-import java.util.Arrays;
 import java.util.Iterator;
 
 /**
  * A tree of t-digest centroids.
  */
-final class AVLGroupTree extends AbstractCollection<Centroid> {
+final class AVLGroupTree extends AbstractCollection<Centroid> implements Releasable, Accountable {
+    private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(AVLGroupTree.class);
+
+    private final TDigestArrays arrays;
+    private boolean closed = false;
+
     /* For insertions into the tree */
     private double centroid;
     private long count;
-    private double[] centroids;
-    private long[] counts;
-    private long[] aggregatedCounts;
+    private final TDigestDoubleArray centroids;
+    private final TDigestLongArray counts;
+    private final TDigestLongArray aggregatedCounts;
     private final IntAVLTree tree;
 
-    AVLGroupTree() {
-        tree = new IntAVLTree() {
+    static AVLGroupTree create(TDigestArrays arrays) {
+        arrays.adjustBreaker(SHALLOW_SIZE);
+        try {
+            return new AVLGroupTree(arrays);
+        } catch (Exception e) {
+            arrays.adjustBreaker(-SHALLOW_SIZE);
+            throw e;
+        }
+    }
 
-            @Override
-            protected void resize(int newCapacity) {
-                super.resize(newCapacity);
-                centroids = Arrays.copyOf(centroids, newCapacity);
-                counts = Arrays.copyOf(counts, newCapacity);
-                aggregatedCounts = Arrays.copyOf(aggregatedCounts, newCapacity);
+    private AVLGroupTree(TDigestArrays arrays) {
+        this.arrays = arrays;
+
+        IntAVLTree tree = null;
+        TDigestDoubleArray centroids = null;
+        TDigestLongArray counts = null;
+        TDigestLongArray aggregatedCounts = null;
+
+        try {
+            this.tree = tree = createIntAvlTree(arrays);
+            this.centroids = centroids = arrays.newDoubleArray(tree.capacity());
+            this.counts = counts = arrays.newLongArray(tree.capacity());
+            this.aggregatedCounts = aggregatedCounts = arrays.newLongArray(tree.capacity());
+
+            tree = null;
+            centroids = null;
+            counts = null;
+            aggregatedCounts = null;
+        } finally {
+            Releasables.close(tree, centroids, counts, aggregatedCounts);
+        }
+    }
+
+    private IntAVLTree createIntAvlTree(TDigestArrays arrays) {
+        arrays.adjustBreaker(IntAVLTree.SHALLOW_SIZE);
+        try {
+            return new InternalIntAvlTree(arrays);
+        } catch (Exception e) {
+            arrays.adjustBreaker(-IntAVLTree.SHALLOW_SIZE);
+            throw e;
+        }
+    }
+
+    private class InternalIntAvlTree extends IntAVLTree {
+        private InternalIntAvlTree(TDigestArrays arrays) {
+            super(arrays);
+        }
+
+        @Override
+        protected void resize(int newCapacity) {
+            super.resize(newCapacity);
+            centroids.resize(newCapacity);
+            counts.resize(newCapacity);
+            aggregatedCounts.resize(newCapacity);
+        }
+
+        @Override
+        protected void merge(int node) {
+            // two nodes are never considered equal
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        protected void copy(int node) {
+            centroids.set(node, centroid);
+            counts.set(node, count);
+        }
+
+        @Override
+        protected int compare(int node) {
+            if (centroid < centroids.get(node)) {
+                return -1;
+            } else {
+                // upon equality, the newly added node is considered greater
+                return 1;
             }
+        }
 
-            @Override
-            protected void merge(int node) {
-                // two nodes are never considered equal
-                throw new UnsupportedOperationException();
-            }
+        @Override
+        protected void fixAggregates(int node) {
+            super.fixAggregates(node);
+            aggregatedCounts.set(node, counts.get(node) + aggregatedCounts.get(left(node)) + aggregatedCounts.get(right(node)));
+        }
 
-            @Override
-            protected void copy(int node) {
-                centroids[node] = centroid;
-                counts[node] = count;
-            }
+    }
 
-            @Override
-            protected int compare(int node) {
-                if (centroid < centroids[node]) {
-                    return -1;
-                } else {
-                    // upon equality, the newly added node is considered greater
-                    return 1;
-                }
-            }
-
-            @Override
-            protected void fixAggregates(int node) {
-                super.fixAggregates(node);
-                aggregatedCounts[node] = counts[node] + aggregatedCounts[left(node)] + aggregatedCounts[right(node)];
-            }
-
-        };
-        centroids = new double[tree.capacity()];
-        counts = new long[tree.capacity()];
-        aggregatedCounts = new long[tree.capacity()];
+    @Override
+    public long ramBytesUsed() {
+        return SHALLOW_SIZE + centroids.ramBytesUsed() + counts.ramBytesUsed() + aggregatedCounts.ramBytesUsed() + tree.ramBytesUsed();
     }
 
     /**
@@ -107,14 +165,14 @@ final class AVLGroupTree extends AbstractCollection<Centroid> {
      * Return the mean for the provided node.
      */
     public double mean(int node) {
-        return centroids[node];
+        return centroids.get(node);
     }
 
     /**
      * Return the count for the provided node.
      */
     public long count(int node) {
-        return counts[node];
+        return counts.get(node);
     }
 
     /**
@@ -167,7 +225,7 @@ final class AVLGroupTree extends AbstractCollection<Centroid> {
         int floor = IntAVLTree.NIL;
         for (int node = tree.root(); node != IntAVLTree.NIL;) {
             final int left = tree.left(node);
-            final long leftCount = aggregatedCounts[left];
+            final long leftCount = aggregatedCounts.get(left);
             if (leftCount <= sum) {
                 floor = node;
                 sum -= leftCount + count(node);
@@ -199,11 +257,11 @@ final class AVLGroupTree extends AbstractCollection<Centroid> {
      */
     public long headSum(int node) {
         final int left = tree.left(node);
-        long sum = aggregatedCounts[left];
+        long sum = aggregatedCounts.get(left);
         for (int n = node, p = tree.parent(node); p != IntAVLTree.NIL; n = p, p = tree.parent(n)) {
             if (n == tree.right(p)) {
                 final int leftP = tree.left(p);
-                sum += counts[p] + aggregatedCounts[leftP];
+                sum += counts.get(p) + aggregatedCounts.get(leftP);
             }
         }
         return sum;
@@ -243,7 +301,7 @@ final class AVLGroupTree extends AbstractCollection<Centroid> {
      * Return the total count of points that have been added to the tree.
      */
     public long sum() {
-        return aggregatedCounts[tree.root()];
+        return aggregatedCounts.get(tree.root());
     }
 
     void checkBalance() {
@@ -255,11 +313,21 @@ final class AVLGroupTree extends AbstractCollection<Centroid> {
     }
 
     private void checkAggregates(int node) {
-        assert aggregatedCounts[node] == counts[node] + aggregatedCounts[tree.left(node)] + aggregatedCounts[tree.right(node)];
+        assert aggregatedCounts.get(node) == counts.get(node) + aggregatedCounts.get(tree.left(node)) + aggregatedCounts.get(
+            tree.right(node)
+        );
         if (node != IntAVLTree.NIL) {
             checkAggregates(tree.left(node));
             checkAggregates(tree.right(node));
         }
     }
 
+    @Override
+    public void close() {
+        if (closed == false) {
+            closed = true;
+            arrays.adjustBreaker(-SHALLOW_SIZE);
+            Releasables.close(centroids, counts, aggregatedCounts, tree);
+        }
+    }
 }

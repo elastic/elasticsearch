@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.env;
@@ -41,7 +42,7 @@ public final class NodeMetadata {
 
     private final IndexVersion oldestIndexVersion;
 
-    @UpdateForV9 // version should be non-null in the node metadata from v9 onwards
+    @UpdateForV9(owner = UpdateForV9.Owner.CORE_INFRA) // version should be non-null in the node metadata from v9 onwards
     private NodeMetadata(
         final String nodeId,
         final BuildVersion buildVersion,
@@ -111,7 +112,7 @@ public final class NodeMetadata {
         return oldestIndexVersion;
     }
 
-    @UpdateForV9
+    @UpdateForV9(owner = UpdateForV9.Owner.CORE_INFRA)
     public void verifyUpgradeToCurrentVersion() {
         // Enable the following assertion for V9:
         // assert (nodeVersion.equals(BuildVersion.empty()) == false) : "version is required in the node metadata from v9 onwards";
@@ -162,7 +163,7 @@ public final class NodeMetadata {
             this.oldestIndexVersion = IndexVersion.fromId(oldestIndexVersion);
         }
 
-        @UpdateForV9 // version is required in the node metadata from v9 onwards
+        @UpdateForV9(owner = UpdateForV9.Owner.CORE_INFRA) // version is required in the node metadata from v9 onwards
         public NodeMetadata build() {
             final IndexVersion oldestIndexVersion;
 

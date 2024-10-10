@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.esql.spatial;
 import org.elasticsearch.geo.ShapeTestUtils;
 import org.elasticsearch.geometry.Geometry;
 
-public class SpatialPushDownCartesianPointIT extends SpatialPushDownTestCase {
+public class SpatialPushDownCartesianPointIT extends SpatialPushDownPointsTestCase {
 
     @Override
     protected String fieldType() {

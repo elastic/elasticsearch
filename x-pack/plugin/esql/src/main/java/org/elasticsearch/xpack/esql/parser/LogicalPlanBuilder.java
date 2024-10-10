@@ -27,7 +27,6 @@ import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedStar;
-import org.elasticsearch.xpack.esql.core.expression.predicate.fulltext.StringQueryPredicate;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Holder;
@@ -54,7 +53,6 @@ import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
-import org.elasticsearch.xpack.esql.plan.logical.meta.MetaFunctions;
 import org.elasticsearch.xpack.esql.plan.logical.show.ShowInfo;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.joni.exception.SyntaxException;
@@ -355,23 +353,6 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     }
 
     @Override
-    public PlanFactory visitMatchCommand(EsqlBaseParser.MatchCommandContext ctx) {
-        if (Build.current().isSnapshot() == false) {
-            throw new ParsingException(source(ctx), "MATCH command currently requires a snapshot build");
-        }
-
-        StringQueryPredicate stringQueryPredicate = visitMatchQuery(ctx.matchQuery());
-        return input -> new Filter(source(ctx), input, stringQueryPredicate);
-    }
-
-    @Override
-    public StringQueryPredicate visitMatchQuery(EsqlBaseParser.MatchQueryContext ctx) {
-        Source source = source(ctx);
-        String queryString = unquote(ctx.QUOTED_STRING().getText());
-        return new StringQueryPredicate(source, queryString, null);
-    }
-
-    @Override
     public PlanFactory visitLimitCommand(EsqlBaseParser.LimitCommandContext ctx) {
         Source source = source(ctx);
         int limit = stringToInt(ctx.INTEGER_LITERAL().getText());
@@ -428,11 +409,6 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     @Override
     public LogicalPlan visitShowInfo(EsqlBaseParser.ShowInfoContext ctx) {
         return new ShowInfo(source(ctx));
-    }
-
-    @Override
-    public LogicalPlan visitMetaFunctions(EsqlBaseParser.MetaFunctionsContext ctx) {
-        return new MetaFunctions(source(ctx));
     }
 
     @Override

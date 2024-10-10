@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.bootstrap;
@@ -15,6 +16,7 @@ import java.io.FilePermission;
 import java.io.IOException;
 import java.net.SocketPermission;
 import java.net.URL;
+import java.security.AllPermission;
 import java.security.CodeSource;
 import java.security.Permission;
 import java.security.PermissionCollection;
@@ -38,6 +40,7 @@ final class ESPolicy extends Policy {
     static final String UNTRUSTED_RESOURCE = "untrusted.policy";
 
     private static final String ALL_FILE_MASK = "read,readlink,write,delete,execute";
+    private static final AllPermission ALL_PERMISSION = new AllPermission();
 
     final Policy template;
     final Policy untrusted;
@@ -123,7 +126,7 @@ final class ESPolicy extends Policy {
              * It's helpful to use the infrastructure around FilePermission here to do the directory structure check with implies
              * so we use ALL_FILE_MASK mask to check if we can do something with this file, whatever the actual operation we're requesting
              */
-            return canAccessSecuredFile(location, new FilePermission(permission.getName(), ALL_FILE_MASK));
+            return canAccessSecuredFile(domain, new FilePermission(permission.getName(), ALL_FILE_MASK));
         }
 
         if (location != null) {
@@ -156,15 +159,24 @@ final class ESPolicy extends Policy {
     }
 
     @SuppressForbidden(reason = "We get given an URL by the security infrastructure")
-    private boolean canAccessSecuredFile(URL location, FilePermission permission) {
-        if (location == null) {
+    private boolean canAccessSecuredFile(ProtectionDomain domain, FilePermission permission) {
+        if (domain == null || domain.getCodeSource() == null || domain.getCodeSource().getLocation() == null) {
             return false;
         }
+
+        // If the domain in question has AllPermission - only true of sources built into the JDK, as we prevent AllPermission from being
+        // configured in Elasticsearch - then it has access to this file.
+
+        if (system.implies(domain, ALL_PERMISSION)) {
+            return true;
+        }
+        URL location = domain.getCodeSource().getLocation();
 
         // check the source
         Set<URL> accessibleSources = securedFiles.get(permission);
         if (accessibleSources != null) {
             // simple case - single-file referenced directly
+
             return accessibleSources.contains(location);
         } else {
             // there's a directory reference in there somewhere

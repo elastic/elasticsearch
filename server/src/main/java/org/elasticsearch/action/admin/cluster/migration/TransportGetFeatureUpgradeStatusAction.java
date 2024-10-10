@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.cluster.migration;
@@ -55,7 +56,7 @@ public class TransportGetFeatureUpgradeStatusAction extends TransportMasterNodeA
     /**
      * Once all feature migrations for 8.x -> 9.x have been tested, we can bump this to Version.V_8_0_0
      */
-    @UpdateForV9
+    @UpdateForV9(owner = UpdateForV9.Owner.CORE_INFRA)
     public static final Version NO_UPGRADE_REQUIRED_VERSION = Version.V_7_0_0;
     public static final IndexVersion NO_UPGRADE_REQUIRED_INDEX_VERSION = IndexVersions.V_7_0_0;
 
@@ -63,7 +64,7 @@ public class TransportGetFeatureUpgradeStatusAction extends TransportMasterNodeA
     PersistentTasksService persistentTasksService;
 
     @Inject
-    @UpdateForV9 // Once we begin working on 9.x, we need to update our migration classes
+    @UpdateForV9(owner = UpdateForV9.Owner.CORE_INFRA) // Once we begin working on 9.x, we need to update our migration classes
     public TransportGetFeatureUpgradeStatusAction(
         TransportService transportService,
         ThreadPool threadPool,

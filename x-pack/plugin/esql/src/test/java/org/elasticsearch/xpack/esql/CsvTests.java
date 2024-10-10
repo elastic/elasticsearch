@@ -48,12 +48,15 @@ import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.esql.CsvTestUtils.ActualResults;
 import org.elasticsearch.xpack.esql.CsvTestUtils.Type;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
 import org.elasticsearch.xpack.esql.analysis.PreAnalyzer;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
 import org.elasticsearch.xpack.esql.enrich.ResolvedEnrichPolicy;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
@@ -246,8 +249,8 @@ public class CsvTests extends ESTestCase {
                 testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.UNION_TYPES.capabilityName())
             );
             assumeFalse(
-                "can't use match command in csv tests",
-                testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.MATCH_COMMAND.capabilityName())
+                "can't use QSTR function in csv tests",
+                testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.QSTR_FUNCTION.capabilityName())
             );
 
             if (Build.current().isSnapshot()) {
@@ -308,8 +311,18 @@ public class CsvTests extends ESTestCase {
         // CsvTestUtils.logData(actual.values(), LOGGER);
     }
 
-    private static IndexResolution loadIndexResolution(String mappingName, String indexName) {
+    private static IndexResolution loadIndexResolution(String mappingName, String indexName, Map<String, String> typeMapping) {
         var mapping = new TreeMap<>(loadMapping(mappingName));
+        if ((typeMapping == null || typeMapping.isEmpty()) == false) {
+            for (var entry : typeMapping.entrySet()) {
+                if (mapping.containsKey(entry.getKey())) {
+                    DataType dataType = DataType.fromTypeName(entry.getValue());
+                    EsField field = mapping.get(entry.getKey());
+                    EsField editedField = new EsField(field.getName(), dataType, field.getProperties(), field.isAggregatable());
+                    mapping.put(entry.getKey(), editedField);
+                }
+            }
+        }
         return IndexResolution.valid(new EsIndex(indexName, mapping, Map.of(indexName, IndexMode.STANDARD)));
     }
 
@@ -320,7 +333,7 @@ public class CsvTests extends ESTestCase {
             CsvTestsDataLoader.TestsDataset sourceIndex = CSV_DATASET_MAP.get(policy.getIndices().get(0));
             // this could practically work, but it's wrong:
             // EnrichPolicyResolution should contain the policy (system) index, not the source index
-            EsIndex esIndex = loadIndexResolution(sourceIndex.mappingFileName(), sourceIndex.indexName()).get();
+            EsIndex esIndex = loadIndexResolution(sourceIndex.mappingFileName(), sourceIndex.indexName(), null).get();
             var concreteIndices = Map.of(RemoteClusterService.LOCAL_CLUSTER_GROUP_KEY, Iterables.get(esIndex.concreteIndices(), 0));
             enrichResolution.addResolvedPolicy(
                 policyConfig.policyName(),
@@ -349,7 +362,7 @@ public class CsvTests extends ESTestCase {
     }
 
     private LogicalPlan analyzedPlan(LogicalPlan parsed, CsvTestsDataLoader.TestsDataset dataset) {
-        var indexResolution = loadIndexResolution(dataset.mappingFileName(), dataset.indexName());
+        var indexResolution = loadIndexResolution(dataset.mappingFileName(), dataset.indexName(), dataset.typeMapping());
         var enrichPolicies = loadEnrichPolicies();
         var analyzer = new Analyzer(new AnalyzerContext(configuration, functionRegistry, indexResolution, enrichPolicies), TEST_VERIFIER);
         LogicalPlan plan = analyzer.analyze(parsed);
@@ -392,7 +405,7 @@ public class CsvTests extends ESTestCase {
     }
 
     private static TestPhysicalOperationProviders testOperationProviders(CsvTestsDataLoader.TestsDataset dataset) throws Exception {
-        var testData = loadPageFromCsv(CsvTests.class.getResource("/" + dataset.dataFileName()));
+        var testData = loadPageFromCsv(CsvTests.class.getResource("/" + dataset.dataFileName()), dataset.typeMapping());
         return new TestPhysicalOperationProviders(testData.v1(), testData.v2());
     }
 
@@ -411,7 +424,8 @@ public class CsvTests extends ESTestCase {
             new LogicalPlanOptimizer(new LogicalOptimizerContext(configuration)),
             mapper,
             TEST_VERIFIER,
-            new PlanningMetrics()
+            new PlanningMetrics(),
+            null
         );
         TestPhysicalOperationProviders physicalOperationProviders = testOperationProviders(testDataset);
 
@@ -419,6 +433,7 @@ public class CsvTests extends ESTestCase {
 
         session.executeOptimizedPlan(
             new EsqlQueryRequest(),
+            new EsqlExecutionInfo(),
             runPhase(bigArrays, physicalOperationProviders),
             session.optimizedPlan(analyzed),
             listener.delegateFailureAndWrap(
@@ -555,6 +570,6 @@ public class CsvTests extends ESTestCase {
             }
         };
         listener = ActionListener.releaseAfter(listener, () -> Releasables.close(drivers));
-        runner.runToCompletion(drivers, listener.map(ignore -> new Result(physicalPlan.output(), collectedPages, List.of())));
+        runner.runToCompletion(drivers, listener.map(ignore -> new Result(physicalPlan.output(), collectedPages, List.of(), null)));
     }
 }

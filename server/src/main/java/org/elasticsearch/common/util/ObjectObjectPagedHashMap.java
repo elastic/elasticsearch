@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.util;
@@ -81,7 +82,7 @@ public final class ObjectObjectPagedHashMap<K, V> extends AbstractPagedHashMap i
     public V remove(K key) {
         final long slot = slot(key.hashCode(), mask);
         for (long index = slot;; index = nextSlot(index, mask)) {
-            final V previous = values.set(index, null);
+            final V previous = values.getAndSet(index, null);
             if (previous == null) {
                 return null;
             } else if (keys.get(index).equals(key)) {
@@ -103,7 +104,7 @@ public final class ObjectObjectPagedHashMap<K, V> extends AbstractPagedHashMap i
         assert size < maxSize;
         final long slot = slot(code, mask);
         for (long index = slot;; index = nextSlot(index, mask)) {
-            final V previous = values.set(index, value);
+            final V previous = values.getAndSet(index, value);
             if (previous == null) {
                 // slot was free
                 keys.set(index, key);
@@ -185,7 +186,7 @@ public final class ObjectObjectPagedHashMap<K, V> extends AbstractPagedHashMap i
     @Override
     protected void removeAndAdd(long index) {
         final K key = keys.get(index);
-        final V value = values.set(index, null);
+        final V value = values.getAndSet(index, null);
         --size;
         final V removed = set(key, key.hashCode(), value);
         assert removed == null;

@@ -45,7 +45,6 @@ import static org.elasticsearch.compute.gen.Types.BOOLEAN_VECTOR;
 import static org.elasticsearch.compute.gen.Types.BYTES_REF;
 import static org.elasticsearch.compute.gen.Types.BYTES_REF_BLOCK;
 import static org.elasticsearch.compute.gen.Types.BYTES_REF_VECTOR;
-import static org.elasticsearch.compute.gen.Types.COMPUTE_WARNINGS;
 import static org.elasticsearch.compute.gen.Types.DOUBLE_BLOCK;
 import static org.elasticsearch.compute.gen.Types.DOUBLE_VECTOR;
 import static org.elasticsearch.compute.gen.Types.DRIVER_CONTEXT;
@@ -60,6 +59,7 @@ import static org.elasticsearch.compute.gen.Types.LIST_INTEGER;
 import static org.elasticsearch.compute.gen.Types.LONG_BLOCK;
 import static org.elasticsearch.compute.gen.Types.LONG_VECTOR;
 import static org.elasticsearch.compute.gen.Types.PAGE;
+import static org.elasticsearch.compute.gen.Types.WARNINGS;
 import static org.elasticsearch.compute.gen.Types.blockType;
 import static org.elasticsearch.compute.gen.Types.vectorType;
 
@@ -224,7 +224,7 @@ public class AggregatorImplementer {
         );
 
         if (warnExceptions.isEmpty() == false) {
-            builder.addField(COMPUTE_WARNINGS, "warnings", Modifier.PRIVATE, Modifier.FINAL);
+            builder.addField(WARNINGS, "warnings", Modifier.PRIVATE, Modifier.FINAL);
         }
 
         builder.addField(DRIVER_CONTEXT, "driverContext", Modifier.PRIVATE, Modifier.FINAL);
@@ -240,8 +240,10 @@ public class AggregatorImplementer {
         builder.addMethod(intermediateStateDesc());
         builder.addMethod(intermediateBlockCount());
         builder.addMethod(addRawInput());
-        builder.addMethod(addRawVector());
-        builder.addMethod(addRawBlock());
+        builder.addMethod(addRawVector(false));
+        builder.addMethod(addRawVector(true));
+        builder.addMethod(addRawBlock(false));
+        builder.addMethod(addRawBlock(true));
         builder.addMethod(addIntermediateInput());
         builder.addMethod(evaluateIntermediate());
         builder.addMethod(evaluateFinal());
@@ -254,7 +256,7 @@ public class AggregatorImplementer {
         MethodSpec.Builder builder = MethodSpec.methodBuilder("create");
         builder.addModifiers(Modifier.PUBLIC, Modifier.STATIC).returns(implementation);
         if (warnExceptions.isEmpty() == false) {
-            builder.addParameter(COMPUTE_WARNINGS, "warnings");
+            builder.addParameter(WARNINGS, "warnings");
         }
         builder.addParameter(DRIVER_CONTEXT, "driverContext");
         builder.addParameter(LIST_INTEGER, "channels");
@@ -310,7 +312,7 @@ public class AggregatorImplementer {
     private MethodSpec ctor() {
         MethodSpec.Builder builder = MethodSpec.constructorBuilder().addModifiers(Modifier.PUBLIC);
         if (warnExceptions.isEmpty() == false) {
-            builder.addParameter(COMPUTE_WARNINGS, "warnings");
+            builder.addParameter(WARNINGS, "warnings");
         }
         builder.addParameter(DRIVER_CONTEXT, "driverContext");
         builder.addParameter(LIST_INTEGER, "channels");
@@ -345,22 +347,49 @@ public class AggregatorImplementer {
 
     private MethodSpec addRawInput() {
         MethodSpec.Builder builder = MethodSpec.methodBuilder("addRawInput");
-        builder.addAnnotation(Override.class).addModifiers(Modifier.PUBLIC).addParameter(PAGE, "page");
+        builder.addAnnotation(Override.class).addModifiers(Modifier.PUBLIC).addParameter(PAGE, "page").addParameter(BOOLEAN_VECTOR, "mask");
         if (stateTypeHasFailed) {
             builder.beginControlFlow("if (state.failed())");
             builder.addStatement("return");
             builder.endControlFlow();
         }
+        builder.beginControlFlow("if (mask.allFalse())");
+        {
+            builder.addComment("Entire page masked away");
+            builder.addStatement("return");
+        }
+        builder.endControlFlow();
+        builder.beginControlFlow("if (mask.allTrue())");
+        {
+            builder.addComment("No masking");
+            builder.addStatement("$T block = page.getBlock(channels.get(0))", valueBlockType(init, combine));
+            builder.addStatement("$T vector = block.asVector()", valueVectorType(init, combine));
+            builder.beginControlFlow("if (vector != null)");
+            builder.addStatement("addRawVector(vector)");
+            builder.nextControlFlow("else");
+            builder.addStatement("addRawBlock(block)");
+            builder.endControlFlow();
+            builder.addStatement("return");
+        }
+        builder.endControlFlow();
+
+        builder.addComment("Some positions masked away, others kept");
         builder.addStatement("$T block = page.getBlock(channels.get(0))", valueBlockType(init, combine));
         builder.addStatement("$T vector = block.asVector()", valueVectorType(init, combine));
-        builder.beginControlFlow("if (vector != null)").addStatement("addRawVector(vector)");
-        builder.nextControlFlow("else").addStatement("addRawBlock(block)").endControlFlow();
+        builder.beginControlFlow("if (vector != null)");
+        builder.addStatement("addRawVector(vector, mask)");
+        builder.nextControlFlow("else");
+        builder.addStatement("addRawBlock(block, mask)");
+        builder.endControlFlow();
         return builder.build();
     }
 
-    private MethodSpec addRawVector() {
+    private MethodSpec addRawVector(boolean masked) {
         MethodSpec.Builder builder = MethodSpec.methodBuilder("addRawVector");
         builder.addModifiers(Modifier.PRIVATE).addParameter(valueVectorType(init, combine), "vector");
+        if (masked) {
+            builder.addParameter(BOOLEAN_VECTOR, "mask");
+        }
 
         if (stateTypeHasSeen) {
             builder.addStatement("state.seen(true)");
@@ -372,6 +401,9 @@ public class AggregatorImplementer {
 
         builder.beginControlFlow("for (int i = 0; i < vector.getPositionCount(); i++)");
         {
+            if (masked) {
+                builder.beginControlFlow("if (mask.getBoolean(i) == false)").addStatement("continue").endControlFlow();
+            }
             combineRawInput(builder, "vector");
         }
         builder.endControlFlow();
@@ -381,9 +413,12 @@ public class AggregatorImplementer {
         return builder.build();
     }
 
-    private MethodSpec addRawBlock() {
+    private MethodSpec addRawBlock(boolean masked) {
         MethodSpec.Builder builder = MethodSpec.methodBuilder("addRawBlock");
         builder.addModifiers(Modifier.PRIVATE).addParameter(valueBlockType(init, combine), "block");
+        if (masked) {
+            builder.addParameter(BOOLEAN_VECTOR, "mask");
+        }
 
         if (valuesIsBytesRef) {
             // Add bytes_ref scratch var that will only be used for bytes_ref blocks/vectors
@@ -391,6 +426,9 @@ public class AggregatorImplementer {
         }
         builder.beginControlFlow("for (int p = 0; p < block.getPositionCount(); p++)");
         {
+            if (masked) {
+                builder.beginControlFlow("if (mask.getBoolean(p) == false)").addStatement("continue").endControlFlow();
+            }
             builder.beginControlFlow("if (block.isNull(p))");
             builder.addStatement("continue");
             builder.endControlFlow();

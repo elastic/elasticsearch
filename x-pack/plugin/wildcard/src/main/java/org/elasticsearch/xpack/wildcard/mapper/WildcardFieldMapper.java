@@ -68,7 +68,6 @@ import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
-import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
@@ -87,6 +86,8 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+
+import static org.elasticsearch.index.IndexSettings.IGNORE_ABOVE_SETTING;
 
 /**
  * A {@link FieldMapper} for indexing fields with ngrams for efficient wildcard matching
@@ -192,7 +193,6 @@ public class WildcardFieldMapper extends FieldMapper {
             Lucene.KEYWORD_ANALYZER,
             Lucene.KEYWORD_ANALYZER
         );
-        public static final int IGNORE_ABOVE = Integer.MAX_VALUE;
     }
 
     private static WildcardFieldMapper toType(FieldMapper in) {
@@ -201,21 +201,28 @@ public class WildcardFieldMapper extends FieldMapper {
 
     public static class Builder extends FieldMapper.Builder {
 
-        final Parameter<Integer> ignoreAbove = Parameter.intParam("ignore_above", true, m -> toType(m).ignoreAbove, Defaults.IGNORE_ABOVE)
-            .addValidator(v -> {
-                if (v < 0) {
-                    throw new IllegalArgumentException("[ignore_above] must be positive, got [" + v + "]");
-                }
-            });
+        final Parameter<Integer> ignoreAbove;
         final Parameter<String> nullValue = Parameter.stringParam("null_value", false, m -> toType(m).nullValue, null).acceptsNull();
 
         final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
         final IndexVersion indexVersionCreated;
 
-        public Builder(String name, IndexVersion indexVersionCreated) {
+        final int ignoreAboveDefault;
+
+        public Builder(final String name, IndexVersion indexVersionCreated) {
+            this(name, Integer.MAX_VALUE, indexVersionCreated);
+        }
+
+        private Builder(String name, int ignoreAboveDefault, IndexVersion indexVersionCreated) {
             super(name);
             this.indexVersionCreated = indexVersionCreated;
+            this.ignoreAboveDefault = ignoreAboveDefault;
+            this.ignoreAbove = Parameter.intParam("ignore_above", true, m -> toType(m).ignoreAbove, ignoreAboveDefault).addValidator(v -> {
+                if (v < 0) {
+                    throw new IllegalArgumentException("[ignore_above] must be positive, got [" + v + "]");
+                }
+            });
         }
 
         @Override
@@ -237,24 +244,18 @@ public class WildcardFieldMapper extends FieldMapper {
         public WildcardFieldMapper build(MapperBuilderContext context) {
             return new WildcardFieldMapper(
                 leafName(),
-                new WildcardFieldType(
-                    context.buildFullName(leafName()),
-                    nullValue.get(),
-                    ignoreAbove.get(),
-                    indexVersionCreated,
-                    meta.get()
-                ),
-                ignoreAbove.get(),
+                new WildcardFieldType(context.buildFullName(leafName()), indexVersionCreated, meta.get(), this),
                 context.isSourceSynthetic(),
-                multiFieldsBuilder.build(this, context),
-                copyTo,
-                nullValue.get(),
-                indexVersionCreated
+                builderParams(this, context),
+                indexVersionCreated,
+                this
             );
         }
     }
 
-    public static TypeParser PARSER = new TypeParser((n, c) -> new Builder(n, c.indexVersionCreated()));
+    public static TypeParser PARSER = new TypeParser(
+        (n, c) -> new Builder(n, IGNORE_ABOVE_SETTING.get(c.getSettings()), c.indexVersionCreated())
+    );
 
     public static final char TOKEN_START_OR_END_CHAR = 0;
     public static final String TOKEN_START_STRING = Character.toString(TOKEN_START_OR_END_CHAR);
@@ -265,18 +266,18 @@ public class WildcardFieldMapper extends FieldMapper {
         static Analyzer lowercaseNormalizer = new LowercaseNormalizer();
 
         private final String nullValue;
-        private final int ignoreAbove;
         private final NamedAnalyzer analyzer;
+        private final int ignoreAbove;
 
-        private WildcardFieldType(String name, String nullValue, int ignoreAbove, IndexVersion version, Map<String, String> meta) {
+        private WildcardFieldType(String name, IndexVersion version, Map<String, String> meta, Builder builder) {
             super(name, true, false, true, Defaults.TEXT_SEARCH_INFO, meta);
             if (version.onOrAfter(IndexVersions.V_7_10_0)) {
                 this.analyzer = WILDCARD_ANALYZER_7_10;
             } else {
                 this.analyzer = WILDCARD_ANALYZER_7_9;
             }
-            this.nullValue = nullValue;
-            this.ignoreAbove = ignoreAbove;
+            this.nullValue = builder.nullValue.getValue();
+            this.ignoreAbove = builder.ignoreAbove.getValue();
         }
 
         @Override
@@ -891,27 +892,27 @@ public class WildcardFieldMapper extends FieldMapper {
         NGRAM_FIELD_TYPE = freezeAndDeduplicateFieldType(ft);
         assert NGRAM_FIELD_TYPE.indexOptions() == IndexOptions.DOCS;
     }
-
-    private final int ignoreAbove;
     private final String nullValue;
     private final IndexVersion indexVersionCreated;
+
+    private final int ignoreAbove;
+    private final int ignoreAboveDefault;
     private final boolean storeIgnored;
 
     private WildcardFieldMapper(
         String simpleName,
         WildcardFieldType mappedFieldType,
-        int ignoreAbove,
         boolean storeIgnored,
-        MultiFields multiFields,
-        CopyTo copyTo,
-        String nullValue,
-        IndexVersion indexVersionCreated
+        BuilderParams builderParams,
+        IndexVersion indexVersionCreated,
+        Builder builder
     ) {
-        super(simpleName, mappedFieldType, multiFields, copyTo);
-        this.nullValue = nullValue;
-        this.ignoreAbove = ignoreAbove;
+        super(simpleName, mappedFieldType, builderParams);
+        this.nullValue = builder.nullValue.getValue();
         this.storeIgnored = storeIgnored;
         this.indexVersionCreated = indexVersionCreated;
+        this.ignoreAbove = builder.ignoreAbove.getValue();
+        this.ignoreAboveDefault = builder.ignoreAboveDefault;
     }
 
     @Override
@@ -986,39 +987,25 @@ public class WildcardFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(leafName(), indexVersionCreated).init(this);
+        return new Builder(leafName(), ignoreAboveDefault, indexVersionCreated).init(this);
     }
 
     @Override
-    protected SyntheticSourceMode syntheticSourceMode() {
-        return SyntheticSourceMode.NATIVE;
-    }
-
-    @Override
-    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
-        if (copyTo.copyToFields().isEmpty() != true) {
-            throw new IllegalArgumentException(
-                "field [" + fullPath() + "] of type [" + typeName() + "] doesn't support synthetic source because it declares copy_to"
-            );
-        }
-
-        var loader = new WildcardSyntheticFieldLoader();
-        if (ignoreAbove != Defaults.IGNORE_ABOVE) {
-            return new CompositeSyntheticFieldLoader(
-                leafName(),
-                fullPath(),
-                loader,
-                new CompositeSyntheticFieldLoader.StoredFieldLayer(originalName()) {
-                    @Override
-                    protected void writeValue(Object value, XContentBuilder b) throws IOException {
-                        BytesRef r = (BytesRef) value;
-                        b.utf8Value(r.bytes, r.offset, r.length);
-                    }
+    protected SyntheticSourceSupport syntheticSourceSupport() {
+        var layers = new ArrayList<CompositeSyntheticFieldLoader.Layer>();
+        layers.add(new WildcardSyntheticFieldLoader());
+        if (ignoreAbove != Integer.MAX_VALUE) {
+            layers.add(new CompositeSyntheticFieldLoader.StoredFieldLayer(originalName()) {
+                @Override
+                protected void writeValue(Object value, XContentBuilder b) throws IOException {
+                    BytesRef r = (BytesRef) value;
+                    b.utf8Value(r.bytes, r.offset, r.length);
                 }
-            );
+            });
         }
 
-        return new CompositeSyntheticFieldLoader(leafName(), fullPath(), loader);
+        var loader = new CompositeSyntheticFieldLoader(leafName(), fullPath(), layers);
+        return new SyntheticSourceSupport.Native(loader);
     }
 
     private class WildcardSyntheticFieldLoader implements CompositeSyntheticFieldLoader.DocValuesLayer {

@@ -1,16 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.ingest.geoip;
 
 import com.maxmind.geoip2.model.CityResponse;
 
-import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
@@ -126,7 +126,7 @@ public class ConfigDatabasesTests extends ESTestCase {
 
             DatabaseReaderLazyLoader loader = configDatabases.getDatabase("GeoLite2-City.mmdb");
             assertThat(loader.getDatabaseType(), equalTo("GeoLite2-City"));
-            CityResponse cityResponse = loader.getCity(InetAddresses.forString("89.160.20.128"));
+            CityResponse cityResponse = loader.getResponse("89.160.20.128", GeoIpTestUtils::getCity);
             assertThat(cityResponse.getCity().getName(), equalTo("Tumba"));
             assertThat(cache.count(), equalTo(1));
         }
@@ -138,7 +138,7 @@ public class ConfigDatabasesTests extends ESTestCase {
 
             DatabaseReaderLazyLoader loader = configDatabases.getDatabase("GeoLite2-City.mmdb");
             assertThat(loader.getDatabaseType(), equalTo("GeoLite2-City"));
-            CityResponse cityResponse = loader.getCity(InetAddresses.forString("89.160.20.128"));
+            CityResponse cityResponse = loader.getResponse("89.160.20.128", GeoIpTestUtils::getCity);
             assertThat(cityResponse.getCity().getName(), equalTo("Linköping"));
             assertThat(cache.count(), equalTo(1));
         });

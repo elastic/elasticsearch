@@ -85,9 +85,9 @@ public class RestGetBuiltinPrivilegesAction extends SecurityBaseRestHandler {
 
     @Override
     protected Exception innerCheckFeatureAvailable(RestRequest request) {
-        final boolean restrictPath = request.hasParam(RestRequest.PATH_RESTRICTED);
-        assert false == restrictPath || DiscoveryNode.isStateless(settings);
-        if (false == restrictPath) {
+        final boolean shouldRestrictForServerless = shouldRestrictForServerless(request);
+        assert false == shouldRestrictForServerless || DiscoveryNode.isStateless(settings);
+        if (false == shouldRestrictForServerless) {
             return super.innerCheckFeatureAvailable(request);
         }
         // This is a temporary hack: we are re-using the native roles setting as an overall feature flag for custom roles.
@@ -106,4 +106,7 @@ public class RestGetBuiltinPrivilegesAction extends SecurityBaseRestHandler {
         }
     }
 
+    private boolean shouldRestrictForServerless(RestRequest request) {
+        return request.isServerlessRequest() && false == request.isOperatorRequest();
+    }
 }

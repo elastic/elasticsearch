@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.fielddata;
@@ -19,7 +20,6 @@ import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.Closeable;
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
@@ -89,7 +89,6 @@ public class IndexFieldDataService extends AbstractIndexComponent implements Clo
      * Returns fielddata for the provided field type, given the provided fully qualified index name, while also making
      * a {@link SearchLookup} supplier available that is required for runtime fields.
      */
-    @SuppressWarnings("unchecked")
     public <IFD extends IndexFieldData<?>> IFD getForField(MappedFieldType fieldType, FieldDataContext fieldDataContext) {
         return getFromBuilder(fieldType, fieldType.fielddataBuilder(fieldDataContext));
     }
@@ -133,7 +132,7 @@ public class IndexFieldDataService extends AbstractIndexComponent implements Clo
     }
 
     @Override
-    public void close() throws IOException {
+    public void close() {
         clear();
     }
 }

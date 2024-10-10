@@ -19,7 +19,6 @@ import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
-import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 
 import java.io.IOException;
@@ -71,7 +70,7 @@ public class AggregateExec extends UnaryExec implements EstimatesRowSize {
         // So, we do not have to consider previous transport versions here, because old nodes will not send AggregateExecs to new nodes.
         this(
             Source.readFrom((PlanStreamInput) in),
-            ((PlanStreamInput) in).readPhysicalPlanNode(),
+            in.readNamedWriteable(PhysicalPlan.class),
             in.readNamedWriteableCollectionAsList(Expression.class),
             in.readNamedWriteableCollectionAsList(NamedExpression.class),
             in.readEnum(AggregatorMode.class),
@@ -83,7 +82,7 @@ public class AggregateExec extends UnaryExec implements EstimatesRowSize {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         Source.EMPTY.writeTo(out);
-        ((PlanStreamOutput) out).writePhysicalPlanNode(child());
+        out.writeNamedWriteable(child());
         out.writeNamedWriteableCollection(groupings());
         out.writeNamedWriteableCollection(aggregates());
         if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_AGGREGATE_EXEC_TRACKS_INTERMEDIATE_ATTRS)) {

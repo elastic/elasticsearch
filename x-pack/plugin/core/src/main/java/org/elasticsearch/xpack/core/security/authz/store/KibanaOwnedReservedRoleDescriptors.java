@@ -65,6 +65,8 @@ class KibanaOwnedReservedRoleDescriptors {
             new String[] {
                 "monitor",
                 "manage_index_templates",
+                // manage_inference required for Kibana's inference plugin to setup an ELSER endpoint.
+                "manage_inference",
                 MonitoringBulkAction.NAME,
                 "manage_saml",
                 "manage_token",
@@ -394,12 +396,14 @@ class KibanaOwnedReservedRoleDescriptors {
                         TransportUpdateSettingsAction.TYPE.name()
                     )
                     .build(),
-                // For src/dest indices of the Cloud Security Posture packages that ships a
+                // For source indices of the Cloud Security Posture packages that ships a
                 // transform
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices("logs-cloud_security_posture.findings-*", "logs-cloud_security_posture.vulnerabilities-*")
                     .privileges("read", "view_index_metadata")
                     .build(),
+                // For destination indices of the Cloud Security Posture packages that ships a
+                // transform
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices(
                         "logs-cloud_security_posture.findings_latest-default*",
@@ -415,17 +419,35 @@ class KibanaOwnedReservedRoleDescriptors {
                         TransportUpdateSettingsAction.TYPE.name()
                     )
                     .build(),
+                // For source indices of the Cloud Detection & Response (CDR) packages that ships a
+                // transform
                 RoleDescriptor.IndicesPrivileges.builder()
-                    .indices("logs-wiz.vulnerability-*")
+                    .indices(
+                        "logs-wiz.vulnerability-*",
+                        "logs-wiz.cloud_configuration_finding-*",
+                        "logs-google_scc.finding-*",
+                        "logs-aws.securityhub_findings-*",
+                        "logs-aws.inspector-*",
+                        "logs-amazon_security_lake.findings-*",
+                        "logs-qualys_vmdr.asset_host_detection-*",
+                        "logs-tenable_sc.vulnerability-*",
+                        "logs-tenable_io.vulnerability-*",
+                        "logs-rapid7_insightvm.vulnerability-*",
+                        "logs-carbon_black_cloud.asset_vulnerability_summary-*"
+                    )
                     .privileges("read", "view_index_metadata")
                     .build(),
+                // For alias indices of the Cloud Detection & Response (CDR) packages that ships a
+                // transform
                 RoleDescriptor.IndicesPrivileges.builder()
                     // manage privilege required by the index alias
-                    .indices("security_solution-*.vulnerability_latest")
+                    .indices("security_solution-*.vulnerability_latest", "security_solution-*.misconfiguration_latest")
                     .privileges("manage", TransportIndicesAliasesAction.NAME, TransportUpdateSettingsAction.TYPE.name())
                     .build(),
+                // For destination indices of the Cloud Detection & Response (CDR) packages that ships a
+                // transform
                 RoleDescriptor.IndicesPrivileges.builder()
-                    .indices("security_solution-*.vulnerability_latest-*")
+                    .indices("security_solution-*.vulnerability_latest-*", "security_solution-*.misconfiguration_latest-*")
                     .privileges(
                         "create_index",
                         "index",
@@ -436,11 +458,13 @@ class KibanaOwnedReservedRoleDescriptors {
                         TransportUpdateSettingsAction.TYPE.name()
                     )
                     .build(),
+
                 RoleDescriptor.IndicesPrivileges.builder().indices("risk-score.risk-*").privileges("all").build(),
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices(".asset-criticality.asset-criticality-*")
-                    .privileges("create_index", "manage", "read")
+                    .privileges("create_index", "manage", "read", "write")
                     .build(),
+
                 // For cloud_defend usageCollection
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices("logs-cloud_defend.*", "metrics-cloud_defend.*")

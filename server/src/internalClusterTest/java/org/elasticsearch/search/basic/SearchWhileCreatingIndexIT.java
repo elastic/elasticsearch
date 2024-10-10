@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.basic;
@@ -61,7 +62,7 @@ public class SearchWhileCreatingIndexIT extends ESIntegTestCase {
 
         logger.info("using preference {}", preference);
         // we want to make sure that while recovery happens, and a replica gets recovered, its properly refreshed
-        ClusterHealthStatus status = clusterAdmin().prepareHealth("test").get().getStatus();
+        ClusterHealthStatus status = clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT, "test").get().getStatus();
         while (status != ClusterHealthStatus.GREEN) {
             // first, verify that search normal search works
             assertHitCount(prepareSearch("test").setQuery(QueryBuilders.termQuery("field", "test")), 1);
@@ -97,7 +98,7 @@ public class SearchWhileCreatingIndexIT extends ESIntegTestCase {
                     assertHitCount(searchResponse, 1);
                 }
             );
-            status = clusterAdmin().prepareHealth("test").get().getStatus();
+            status = clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT, "test").get().getStatus();
             internalCluster().ensureAtLeastNumDataNodes(numberOfReplicas + 1);
         }
         cluster().wipeIndices("test");

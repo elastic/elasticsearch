@@ -84,7 +84,7 @@ public class TDigestState implements Releasable, Accountable {
         }
     }
 
-    static TDigestState create(CircuitBreaker breaker, Type type, double compression) {
+    static TDigestState createOfType(CircuitBreaker breaker, Type type, double compression) {
         breaker.addEstimateBytesAndMaybeBreak(SHALLOW_SIZE, "tdigest-state-create-with-type");
         try {
             return new TDigestState(breaker, type, compression);
@@ -210,14 +210,19 @@ public class TDigestState implements Releasable, Accountable {
             breaker.addWithoutBreaking(-SHALLOW_SIZE);
             throw e;
         }
-        int n = in.readVInt();
-        if (size > 0) {
-            state.tdigest.reserve(size);
+        try {
+            int n = in.readVInt();
+            if (size > 0) {
+                state.tdigest.reserve(size);
+            }
+            for (int i = 0; i < n; i++) {
+                state.add(in.readDouble(), in.readVLong());
+            }
+            return state;
+        } catch (Exception e) {
+            Releasables.close(state);
+            throw e;
         }
-        for (int i = 0; i < n; i++) {
-            state.add(in.readDouble(), in.readVLong());
-        }
-        return state;
     }
 
     @Override

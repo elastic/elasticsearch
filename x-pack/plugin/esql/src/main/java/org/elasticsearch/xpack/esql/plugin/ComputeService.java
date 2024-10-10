@@ -60,6 +60,7 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
 import org.elasticsearch.xpack.esql.action.EsqlSearchShardsAction;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSourceExec;
@@ -171,17 +172,21 @@ public class ComputeService {
                 null,
                 null
             );
+            String local = RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
             try (
                 var computeListener = ComputeListener.create(
-                    RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY,
+                    local,
                     transportService,
                     rootTask,
                     execInfo,
                     configuration.getQueryStartTimeNanos(),
-                    listener.map(r -> new Result(physicalPlan.output(), collectedPages, r.getProfiles(), execInfo))
+                    listener.map(r -> {
+                        updateExecutionInfoAfterCoordinatorOnlyQuery(configuration.getQueryStartTimeNanos(), execInfo);
+                        return new Result(physicalPlan.output(), collectedPages, r.getProfiles(), execInfo);
+                    })
                 )
             ) {
-                runCompute(rootTask, computeContext, coordinatorPlan, computeListener.acquireCompute());
+                runCompute(rootTask, computeContext, coordinatorPlan, computeListener.acquireCompute(local));
                 return;
             }
         } else {
@@ -202,13 +207,19 @@ public class ComputeService {
         );
         long start = configuration.getQueryStartTimeNanos();
         String local = RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
+        /*
+         * Grab the output attributes here, so we can pass them to
+         * the listener without holding on to a reference to the
+         * entire plan.
+         */
+        List<Attribute> outputAttributes = physicalPlan.output();
         try (
             Releasable ignored = exchangeSource.addEmptySink();
             // this is the top level ComputeListener called once at the end (e.g., once all clusters have finished for a CCS)
             var computeListener = ComputeListener.create(local, transportService, rootTask, execInfo, start, listener.map(r -> {
                 long tookTimeNanos = System.nanoTime() - configuration.getQueryStartTimeNanos();
                 execInfo.overallTook(new TimeValue(tookTimeNanos, TimeUnit.NANOSECONDS));
-                return new Result(physicalPlan.output(), collectedPages, r.getProfiles(), execInfo);
+                return new Result(outputAttributes, collectedPages, r.getProfiles(), execInfo);
             }))
         ) {
             // run compute on the coordinator
@@ -244,6 +255,27 @@ public class ComputeService {
                 getRemoteClusters(clusterToConcreteIndices, clusterToOriginalIndices),
                 computeListener
             );
+        }
+    }
+
+    private static void updateExecutionInfoAfterCoordinatorOnlyQuery(long queryStartNanos, EsqlExecutionInfo execInfo) {
+        long tookTimeNanos = System.nanoTime() - queryStartNanos;
+        execInfo.overallTook(new TimeValue(tookTimeNanos, TimeUnit.NANOSECONDS));
+        if (execInfo.isCrossClusterSearch()) {
+            for (String clusterAlias : execInfo.clusterAliases()) {
+                // The local cluster 'took' time gets updated as part of the acquireCompute(local) call in the coordinator, so
+                // here we only need to update status for remote clusters since there are no remote ComputeListeners in this case.
+                // This happens in cross cluster searches that use LIMIT 0, e.g, FROM logs*,remote*:logs* | LIMIT 0.
+                if (clusterAlias.equals(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY) == false) {
+                    execInfo.swapCluster(clusterAlias, (k, v) -> {
+                        if (v.getStatus() == EsqlExecutionInfo.Cluster.Status.RUNNING) {
+                            return new EsqlExecutionInfo.Cluster.Builder(v).setStatus(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL).build();
+                        } else {
+                            return v;
+                        }
+                    });
+                }
+            }
         }
     }
 

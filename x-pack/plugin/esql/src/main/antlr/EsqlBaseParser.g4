@@ -106,7 +106,7 @@ functionExpression
 
 functionName
     // Additional function identifiers that are already a reserved word in the language
-    : {this.isDevVersion()}? MATCH
+    : MATCH
     | identifier
     ;
 

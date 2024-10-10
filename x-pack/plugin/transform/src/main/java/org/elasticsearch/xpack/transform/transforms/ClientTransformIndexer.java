@@ -122,7 +122,8 @@ class ClientTransformIndexer extends TransformIndexer {
             transformProgress,
             lastCheckpoint,
             nextCheckpoint,
-            context
+            context,
+            client
         );
         this.client = ExceptionsHelper.requireNonNull(client, "client");
         this.clusterService = clusterService;

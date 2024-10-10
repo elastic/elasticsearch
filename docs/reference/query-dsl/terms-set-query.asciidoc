@@ -159,12 +159,22 @@ GET /job-candidates/_search
 `terms`::
 +
 --
-(Required, array of strings) Array of terms you wish to find in the provided
+(Required, array) Array of terms you wish to find in the provided
 `<field>`. To return a document, a required number of terms must exactly match
 the field values, including whitespace and capitalization.
 
-The required number of matching terms is defined in the
-`minimum_should_match_field` or `minimum_should_match_script` parameter.
+The required number of matching terms is defined in the `minimum_should_match`,
+`minimum_should_match_field` or `minimum_should_match_script` parameters. Exactly
+one of these parameters must be provided.
+--
+
+`minimum_should_match`::
++
+--
+(Optional) Specification for the number of matching terms required to return
+a document.
+
+For valid values, see <<query-dsl-minimum-should-match, `minimum_should_match` parameter>>.
 --
 
 `minimum_should_match_field`::

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.services.elasticsearch;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.TaskSettings;
@@ -21,6 +22,17 @@ import static org.elasticsearch.xpack.core.ml.inference.assignment.AllocationSta
 public abstract class ElasticsearchInternalModel extends Model {
 
     protected final ElasticsearchInternalServiceSettings internalServiceSettings;
+
+    public ElasticsearchInternalModel(
+        String inferenceEntityId,
+        TaskType taskType,
+        String service,
+        ElasticsearchInternalServiceSettings internalServiceSettings,
+        ChunkingSettings chunkingSettings
+    ) {
+        super(new ModelConfigurations(inferenceEntityId, taskType, service, internalServiceSettings, chunkingSettings));
+        this.internalServiceSettings = internalServiceSettings;
+    }
 
     public ElasticsearchInternalModel(
         String inferenceEntityId,
@@ -40,6 +52,18 @@ public abstract class ElasticsearchInternalModel extends Model {
         TaskSettings taskSettings
     ) {
         super(new ModelConfigurations(inferenceEntityId, taskType, service, internalServiceSettings, taskSettings));
+        this.internalServiceSettings = internalServiceSettings;
+    }
+
+    public ElasticsearchInternalModel(
+        String inferenceEntityId,
+        TaskType taskType,
+        String service,
+        ElasticsearchInternalServiceSettings internalServiceSettings,
+        TaskSettings taskSettings,
+        ChunkingSettings chunkingSettings
+    ) {
+        super(new ModelConfigurations(inferenceEntityId, taskType, service, internalServiceSettings, taskSettings, chunkingSettings));
         this.internalServiceSettings = internalServiceSettings;
     }
 

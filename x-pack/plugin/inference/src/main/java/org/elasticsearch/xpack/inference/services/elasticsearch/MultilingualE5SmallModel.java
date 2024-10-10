@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.services.elasticsearch;
 
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.core.ml.action.CreateTrainedModelAssignmentAction;
@@ -20,9 +21,10 @@ public class MultilingualE5SmallModel extends ElasticsearchInternalModel {
         String inferenceEntityId,
         TaskType taskType,
         String service,
-        MultilingualE5SmallInternalServiceSettings serviceSettings
+        MultilingualE5SmallInternalServiceSettings serviceSettings,
+        ChunkingSettings chunkingSettings
     ) {
-        super(inferenceEntityId, taskType, service, serviceSettings);
+        super(inferenceEntityId, taskType, service, serviceSettings, chunkingSettings);
     }
 
     @Override

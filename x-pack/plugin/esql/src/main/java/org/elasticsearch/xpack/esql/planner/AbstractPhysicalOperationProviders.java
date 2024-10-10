@@ -284,8 +284,7 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
                     List<Integer> inputChannels = sourceAttr.stream().map(attr -> layout.get(attr.id()).channel()).toList();
                     assert inputChannels.stream().allMatch(i -> i >= 0) : inputChannels;
 
-                    AggregatorFunctionSupplier aggSupplier = null;
-                    aggSupplier = supplier(aggregateFunction, inputChannels);
+                    AggregatorFunctionSupplier aggSupplier = supplier(aggregateFunction, inputChannels);
 
                     // apply the filter only in the initial phase - as the rest of the data is already filtered
                     if (aggregateFunction.hasFilter() && mode.isInputPartial() == false) {

@@ -358,13 +358,36 @@ public class VerifierTests extends ESTestCase {
 
     public void testAggFilterOnNonAggregates() {
         assertEquals(
-            "1:36: WHERE clause allowed only for aggregate functions, none found in [emp_no + 1]",
+            "1:36: WHERE clause allowed only for aggregate functions, none found in [emp_no + 1 where languages > 1]",
             error("from test | stats emp_no + 1 where languages > 1 by emp_no")
         );
         assertEquals(
-            "1:53: WHERE clause allowed only for aggregate functions, none found in [abs(emp_no + languages) % 2]",
+            "1:53: WHERE clause allowed only for aggregate functions, none found in [abs(emp_no + languages) % 2 WHERE languages > 1]",
             error("from test | stats abs(emp_no + languages) % 2 WHERE languages > 1 by emp_no, languages")
         );
+    }
+
+    public void testAggFilterOnBucketingOrAggFunctions() {
+        // query passes when the bucket function is part of the BY clause
+        query("from test | stats max(languages) WHERE bucket(salary, 10) > 1 by bucket(salary, 10)");
+
+        // but fails if it's different
+        assertEquals(
+            "1:40: can only use grouping function [bucket(salary, 10)] part of the BY clause",
+            error("from test | stats max(languages) WHERE bucket(salary, 10) > 1 by emp_no")
+        );
+
+        assertEquals(
+            "1:40: cannot use aggregate function [max(salary)] in aggregate WHERE clause [max(languages) WHERE max(salary) > 1]",
+            error("from test | stats max(languages) WHERE max(salary) > 1 by emp_no")
+        );
+
+        assertEquals(
+            "1:40: cannot use aggregate function [max(salary)] in aggregate WHERE clause [max(languages) WHERE max(salary) + 2 > 1]",
+            error("from test | stats max(languages) WHERE max(salary) + 2 > 1 by emp_no")
+        );
+
+        assertEquals("1:60: Unknown column [m]", error("from test | stats m = max(languages), min(languages) WHERE m + 2 > 1 by emp_no"));
     }
 
     public void testGroupingInsideAggsAsAgg() {
@@ -1369,6 +1392,10 @@ public class VerifierTests extends ESTestCase {
             "1:59: argument of [to_timeduration(x)] must be [time_duration or string], found value [x] type [ip]",
             error("from types  | EVAL x = \"2024-09-08\"::ip, y = birth_date - to_timeduration(x)")
         );
+    }
+
+    private void query(String query) {
+        defaultAnalyzer.analyze(parser.createStatement(query));
     }
 
     private String error(String query) {

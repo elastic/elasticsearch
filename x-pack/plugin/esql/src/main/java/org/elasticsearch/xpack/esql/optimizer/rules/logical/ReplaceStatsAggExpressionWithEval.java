@@ -71,7 +71,6 @@ public final class ReplaceStatsAggExpressionWithEval extends OptimizerRules.Opti
                 // use intermediate variable to mark child as final for lambda use
                 Expression child = as.child();
 
-                //
                 // common case - handle duplicates
                 if (child instanceof AggregateFunction af) {
                     // canonical representation, with resolved aliases

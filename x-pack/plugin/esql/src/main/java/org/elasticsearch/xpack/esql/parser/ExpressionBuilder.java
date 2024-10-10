@@ -688,12 +688,15 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
             Expression child = field.child();
             // basic check as the filter can be specified only on a function (should be an aggregate but we can't determine that yet)
             if (field.child().anyMatch(Function.class::isInstance)) {
-                field = field.replaceChild(new FilteredExpression(source, child, condition));
+                field = field.replaceChild(new FilteredExpression(field.source(), child, condition));
             }
             // allow condition only per aggregated function
             else {
-                source = source(filterExpression);
-                throw new ParsingException(source, "WHERE clause allowed only for aggregate functions [{}]", source.text());
+                throw new ParsingException(
+                    condition.source(),
+                    "WHERE clause allowed only for aggregate functions [{}]",
+                    field.sourceText()
+                );
             }
         }
         return field;

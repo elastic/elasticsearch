@@ -42,7 +42,6 @@ public class DeprecationChecks {
                 NodeDeprecationChecks::checkDataPathsList,
                 NodeDeprecationChecks::checkSharedDataPathSetting,
                 NodeDeprecationChecks::checkReservedPrefixedRealmNames,
-                NodeDeprecationChecks::checkSingleDataNodeWatermarkSetting,
                 NodeDeprecationChecks::checkExporterUseIngestPipelineSettings,
                 NodeDeprecationChecks::checkExporterPipelineMasterTimeoutSetting,
                 NodeDeprecationChecks::checkExporterCreateLegacyTemplateSetting,

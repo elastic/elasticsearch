@@ -39,7 +39,7 @@ public class ToLower extends EsqlConfigurationFunction {
     private final Expression field;
 
     @FunctionInfo(
-        returnType = { "keyword", "text" },
+        returnType = { "keyword" },
         description = "Returns a new string representing the input string converted to lower case.",
         examples = @Example(file = "string", tag = "to_lower")
     )
@@ -72,7 +72,7 @@ public class ToLower extends EsqlConfigurationFunction {
 
     @Override
     public DataType dataType() {
-        return field.dataType();
+        return DataType.KEYWORD;
     }
 
     @Override

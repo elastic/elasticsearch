@@ -196,6 +196,18 @@ public abstract class AbstractMultivalueFunctionTestCase extends AbstractScalarF
                 )
             )
         );
+        cases.add(
+            new TestCaseSupplier(
+                name + "(-0.0)",
+                List.of(DataType.DOUBLE),
+                () -> new TestCaseSupplier.TestCase(
+                    List.of(new TestCaseSupplier.TypedData(List.of(-0.0), DataType.DOUBLE, "field")),
+                    evaluatorName + "[field=Attribute[channel=0]]",
+                    expectedDataType,
+                    matcher.apply(1, DoubleStream.of(-0.0))
+                )
+            )
+        );
         cases.add(new TestCaseSupplier(name + "(double)", List.of(DataType.DOUBLE), () -> {
             double mvData = randomDouble();
             return new TestCaseSupplier.TestCase(

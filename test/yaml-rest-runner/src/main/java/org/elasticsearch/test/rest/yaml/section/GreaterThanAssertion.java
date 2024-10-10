@@ -61,6 +61,9 @@ public class GreaterThanAssertion extends Assertion {
         if (actualValue instanceof Long && expectedValue instanceof Integer) {
             expectedValue = (long) (int) expectedValue;
         }
+        if (actualValue instanceof Float && expectedValue instanceof Double) {
+            expectedValue = (float) (double) expectedValue;
+        }
         try {
             assertThat(errorMessage(), (Comparable) actualValue, greaterThan((Comparable) expectedValue));
         } catch (ClassCastException e) {

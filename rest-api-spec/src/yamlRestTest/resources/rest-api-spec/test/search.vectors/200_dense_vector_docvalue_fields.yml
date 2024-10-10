@@ -1,0 +1,111 @@
+setup:
+  - requires:
+      cluster_features: "search.vectors.docvalues_fields_supported"
+      reason: 'docvalue_fields parameter for dense_vector fields is required'
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            properties:
+              name:
+                type: keyword
+              vector1:
+                type: dense_vector
+                element_type: float
+                dims: 5
+                index: true
+              vector2:
+                type: dense_vector
+                element_type: float
+                dims: 5
+                index: false
+              vector3:
+                type: dense_vector
+                element_type: byte
+                dims: 5
+                index: true
+              vector4:
+                type: dense_vector
+                element_type: byte
+                dims: 5
+                index: false
+              vector5:
+                type: dense_vector
+                element_type: bit
+                dims: 40
+                index: true
+              vector6:
+                type: dense_vector
+                element_type: bit
+                dims: 40
+                index: false
+  - do:
+      index:
+        index: test
+        id: "1"
+        body:
+          name: cow.jpg
+          vector1: [230.0, 300.33, -34.8988, 15.555, -200.0]
+          vector2: [130.0, 115.0, -1.02, 15.555, -100.0]
+          vector3: [-1, 100, -13, 15, -128]
+          vector4: [-1, 50, -1, 1, 120]
+          vector5: [1, 111, -13, 15, -128]
+          vector6: [-1, 11, 0, 12, 111]
+
+  - do:
+      indices.refresh: {}
+
+---
+"Enable docvalue_fields parameter for dense_vector fields":
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_search
+          capabilities: [ dense_vector_docvalue_fields ]
+      test_runner_features: capabilities
+      reason: "Support for dense vector doc value fields capability required"
+  - do:
+      search:
+        _source: false
+        index: test
+        body:
+          docvalue_fields: [name, vector1, vector2, vector3, vector4, vector5, vector6]
+
+
+  - match: {hits.hits.0._id: "1"}
+  - match: {hits.hits.0.fields.name.0: "cow.jpg"}
+
+  - length: {hits.hits.0.fields.vector1: 5}
+  - length: {hits.hits.0.fields.vector2: 5}
+  - length: {hits.hits.0.fields.vector3: 5}
+  - length: {hits.hits.0.fields.vector4: 5}
+  - length: {hits.hits.0.fields.vector5: 5}
+  - length: {hits.hits.0.fields.vector6: 5}
+
+  - lt: { hits.hits.0.fields.vector1.0: 230.01}
+  - gt: { hits.hits.0.fields.vector1.0: 229.99}
+  - lt: { hits.hits.0.fields.vector1.1: 300.331}
+  - gt: { hits.hits.0.fields.vector1.1: 300.329}
+  - lt: { hits.hits.0.fields.vector1.2: -34.8987}
+  - gt: { hits.hits.0.fields.vector1.2: -34.8989}
+  - lt: { hits.hits.0.fields.vector1.3: 15.5551}
+  - gt: { hits.hits.0.fields.vector1.3: 15.5549}
+  - lt: { hits.hits.0.fields.vector1.4: -199.99}
+  - gt: { hits.hits.0.fields.vector1.4: -200.01}
+
+  - lt: { hits.hits.0.fields.vector2.0: 130.01}
+  - gt: { hits.hits.0.fields.vector2.0: 129.99}
+  - lt: { hits.hits.0.fields.vector2.1: 115.01}
+  - gt: { hits.hits.0.fields.vector2.1: 114.99}
+  - lt: { hits.hits.0.fields.vector2.2: -1.019}
+  - gt: { hits.hits.0.fields.vector2.2: -1.021}
+  - lt: { hits.hits.0.fields.vector2.3: 15.5551}
+  - gt: { hits.hits.0.fields.vector2.3: 15.5549}
+  - lt: { hits.hits.0.fields.vector2.4: -99.99}
+  - gt: { hits.hits.0.fields.vector2.4: -100.01}
+
+  - match: {hits.hits.0.fields.vector3: [-1, 100, -13, 15, -128]}
+  - match: {hits.hits.0.fields.vector4: [-1, 50, -1, 1, 120]}
+  - match: {hits.hits.0.fields.vector5: [1, 111, -13, 15, -128]}
+  - match: {hits.hits.0.fields.vector6: [-1, 11, 0, 12, 111]}

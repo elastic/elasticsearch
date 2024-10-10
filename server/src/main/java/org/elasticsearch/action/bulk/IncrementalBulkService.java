@@ -217,6 +217,15 @@ public class IncrementalBulkService {
             }
         }
 
+        public Releasable loadRequestContext() {
+            ThreadContext.StoredContext toRestore = threadContext.newStoredContext();
+            requestContext.restore();
+            return () -> {
+                requestContext = threadContext.newStoredContext();
+                toRestore.restore();
+            };
+        }
+
         @Override
         public void close() {
             closed = true;

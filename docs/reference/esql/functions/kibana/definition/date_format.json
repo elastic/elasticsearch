@@ -44,5 +44,6 @@
   "examples" : [
     "FROM employees\n| KEEP first_name, last_name, hire_date\n| EVAL hired = DATE_FORMAT(\"yyyy-MM-dd\", hire_date)"
   ],
-  "preview" : false
+  "preview" : false,
+  "snapshot_only" : false
 }

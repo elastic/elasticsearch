@@ -33,7 +33,7 @@ public class DateRangeFieldMapperTests extends RangeFieldMapperTests {
 
     @Override
     protected String storedValue() {
-        return "1477872000000";
+        return "1477958399999";
     }
 
     @Override

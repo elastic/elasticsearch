@@ -32,5 +32,6 @@
   "examples" : [
     "ROW message = \"   some text  \",  color = \" red \"\n| EVAL message = RTRIM(message)\n| EVAL color = RTRIM(color)\n| EVAL message = CONCAT(\"'\", message, \"'\")\n| EVAL color = CONCAT(\"'\", color, \"'\")"
   ],
-  "preview" : false
+  "preview" : false,
+  "snapshot_only" : false
 }

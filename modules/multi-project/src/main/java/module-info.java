@@ -16,4 +16,5 @@ module org.elasticsearch.multiproject {
     exports org.elasticsearch.multiproject.action to org.elasticsearch.server;
 
     provides org.elasticsearch.cluster.project.ProjectResolver with org.elasticsearch.multiproject.MultiProjectResolver;
+    provides org.elasticsearch.features.FeatureSpecification with org.elasticsearch.multiproject.MultiProjectFeatureSpecification;
 }

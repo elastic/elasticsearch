@@ -28,7 +28,7 @@ public class CohereEmbeddingsRequestManager extends CohereRequestManager {
     private static final ResponseHandler HANDLER = createEmbeddingsHandler();
 
     private static ResponseHandler createEmbeddingsHandler() {
-        return new CohereResponseHandler("cohere text embedding", CohereEmbeddingsResponseEntity::fromResponse);
+        return new CohereResponseHandler("cohere text embedding", CohereEmbeddingsResponseEntity::fromResponse, false);
     }
 
     public static CohereEmbeddingsRequestManager of(CohereEmbeddingsModel model, ThreadPool threadPool) {

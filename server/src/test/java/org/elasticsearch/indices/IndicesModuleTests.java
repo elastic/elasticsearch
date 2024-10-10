@@ -98,7 +98,7 @@ public class IndicesModuleTests extends ESTestCase {
         DataStreamTimestampFieldMapper.NAME,
         FieldNamesFieldMapper.NAME };
 
-    @UpdateForV9
+    @UpdateForV9(owner = UpdateForV9.Owner.SEARCH_FOUNDATIONS)
     @AwaitsFix(bugUrl = "test is referencing 7.x index versions so needs to be updated for 9.0 bump")
     public void testBuiltinMappers() {
         IndicesModule module = new IndicesModule(Collections.emptyList());

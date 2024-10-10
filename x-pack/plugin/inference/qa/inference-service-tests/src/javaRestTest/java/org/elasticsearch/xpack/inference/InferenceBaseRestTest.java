@@ -53,7 +53,10 @@ public class InferenceBaseRestTest extends ESRestTestCase {
     @Override
     protected Settings restClientSettings() {
         String token = basicAuthHeaderValue("x_pack_rest_user", new SecureString("x-pack-test-password".toCharArray()));
-        return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
+        return Settings.builder()
+            .put(ThreadContext.PREFIX + ".Authorization", token)
+            .put(CLIENT_SOCKET_TIMEOUT, "120s")  // Long timeout for model download
+            .build();
     }
 
     static String mockSparseServiceModelConfig() {
@@ -168,6 +171,26 @@ public class InferenceBaseRestTest extends ESRestTestCase {
         assertOkOrCreated(response);
     }
 
+    protected void putSemanticText(String endpointId, String searchEndpointId, String indexName) throws IOException {
+        var request = new Request("PUT", Strings.format("%s", indexName));
+        String body = Strings.format("""
+            {
+                "mappings": {
+                "properties": {
+                    "inference_field": {
+                        "type": "semantic_text",
+                            "inference_id": "%s",
+                            "search_inference_id": "%s"
+                    }
+                }
+                }
+            }
+            """, endpointId, searchEndpointId);
+        request.setJsonEntity(body);
+        var response = client().performRequest(request);
+        assertOkOrCreated(response);
+    }
+
     protected Map<String, Object> putModel(String modelId, String modelConfig, TaskType taskType) throws IOException {
         String endpoint = Strings.format("_inference/%s/%s", taskType, modelId);
         return putRequest(endpoint, modelConfig);
@@ -247,7 +270,7 @@ public class InferenceBaseRestTest extends ESRestTestCase {
 
     @SuppressWarnings("unchecked")
     protected Map<String, Object> getModel(String modelId) throws IOException {
-        var endpoint = Strings.format("_inference/%s", modelId);
+        var endpoint = Strings.format("_inference/%s?error_trace", modelId);
         return ((List<Map<String, Object>>) getInternal(endpoint).get("endpoints")).get(0);
     }
 
@@ -270,9 +293,9 @@ public class InferenceBaseRestTest extends ESRestTestCase {
         return entityAsMap(response);
     }
 
-    protected Map<String, Object> inferOnMockService(String modelId, List<String> input) throws IOException {
+    protected Map<String, Object> infer(String modelId, List<String> input) throws IOException {
         var endpoint = Strings.format("_inference/%s", modelId);
-        return inferOnMockServiceInternal(endpoint, input);
+        return inferInternal(endpoint, input, Map.of());
     }
 
     protected Deque<ServerSentEvent> streamInferOnMockService(String modelId, TaskType taskType, List<String> input) throws Exception {
@@ -301,14 +324,23 @@ public class InferenceBaseRestTest extends ESRestTestCase {
         return responseConsumer.events();
     }
 
-    protected Map<String, Object> inferOnMockService(String modelId, TaskType taskType, List<String> input) throws IOException {
+    protected Map<String, Object> infer(String modelId, TaskType taskType, List<String> input) throws IOException {
         var endpoint = Strings.format("_inference/%s/%s", taskType, modelId);
-        return inferOnMockServiceInternal(endpoint, input);
+        return inferInternal(endpoint, input, Map.of());
     }
 
-    private Map<String, Object> inferOnMockServiceInternal(String endpoint, List<String> input) throws IOException {
+    protected Map<String, Object> infer(String modelId, TaskType taskType, List<String> input, Map<String, String> queryParameters)
+        throws IOException {
+        var endpoint = Strings.format("_inference/%s/%s?error_trace", taskType, modelId);
+        return inferInternal(endpoint, input, queryParameters);
+    }
+
+    private Map<String, Object> inferInternal(String endpoint, List<String> input, Map<String, String> queryParameters) throws IOException {
         var request = new Request("POST", endpoint);
         request.setJsonEntity(jsonBody(input));
+        if (queryParameters.isEmpty() == false) {
+            request.addParameters(queryParameters);
+        }
         var response = client().performRequest(request);
         assertOkOrCreated(response);
         return entityAsMap(response);

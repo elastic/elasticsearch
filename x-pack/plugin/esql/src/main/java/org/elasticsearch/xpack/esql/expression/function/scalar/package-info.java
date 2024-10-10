@@ -151,6 +151,8 @@
  *              <li>{@code docs/reference/esql/functions/parameters/myfunction.asciidoc}</li>
  *              <li>{@code docs/reference/esql/functions/signature/myfunction.svg}</li>
  *              <li>{@code docs/reference/esql/functions/types/myfunction.asciidoc}</li>
+ *              <li>{@code docs/reference/esql/functions/kibana/definition/myfunction.json}</li>
+ *              <li>{@code docs/reference/esql/functions/kibana/docs/myfunction.asciidoc}</li>
  *         </ul>
  *
  *         Make sure to commit them. Add a reference to the
@@ -194,6 +196,9 @@
  *         for your function. Now add something like {@code required_capability: my_function}
  *         to all of your csv-spec tests. Run those csv-spec tests as integration tests to double
  *         check that they run on the main branch.
+ *         <br><br>
+ *         **Note:** you may notice tests gated based on Elasticsearch version. This was the old way
+ *         of doing things. Now, we use specific capabilities for each function.
  *     </li>
  *     <li>
  *         Open the PR. The subject and description of the PR are important because those'll turn
@@ -201,7 +206,7 @@
  *         happy. But functions don't need an essay.
  *     </li>
  *     <li>
- *         Add the {@code >enhancement} and {@code :Query Languages/ES|QL} tags if you are able.
+ *         Add the {@code >enhancement} and {@code :Analytics/ES|QL} tags if you are able.
  *         Request a review if you can, probably from one of the folks that github proposes to you.
  *     </li>
  *     <li>

@@ -8,6 +8,7 @@
 package org.elasticsearch.compute.aggregation;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.compute.ConstantBooleanExpressionEvaluator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockTestUtils;
@@ -34,6 +35,7 @@ import org.hamcrest.Matcher;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Function;
 import java.util.stream.DoubleStream;
 import java.util.stream.IntStream;
 import java.util.stream.LongStream;
@@ -58,8 +60,17 @@ public abstract class AggregatorFunctionTestCase extends ForkingOperatorTestCase
 
     @Override
     protected Operator.OperatorFactory simpleWithMode(AggregatorMode mode) {
+        return simpleWithMode(mode, Function.identity());
+    }
+
+    private Operator.OperatorFactory simpleWithMode(
+        AggregatorMode mode,
+        Function<AggregatorFunctionSupplier, AggregatorFunctionSupplier> wrap
+    ) {
         List<Integer> channels = mode.isInputPartial() ? range(0, aggregatorIntermediateBlockCount()).boxed().toList() : List.of(0);
-        return new AggregationOperator.AggregationOperatorFactory(List.of(aggregatorFunction(channels).aggregatorFactory(mode)), mode);
+        AggregatorFunctionSupplier supplier = aggregatorFunction(channels);
+        Aggregator.Factory factory = wrap.apply(supplier).aggregatorFactory(mode);
+        return new AggregationOperator.AggregationOperatorFactory(List.of(factory), mode);
     }
 
     @Override
@@ -141,6 +152,7 @@ public abstract class AggregatorFunctionTestCase extends ForkingOperatorTestCase
         List<Page> results = drive(simple().get(driverContext), List.<Page>of().iterator(), driverContext);
 
         assertThat(results, hasSize(1));
+        assertOutputFromEmpty(results.get(0).getBlock(0));
     }
 
     public final void testEmptyInputInitialFinal() {
@@ -164,6 +176,31 @@ public abstract class AggregatorFunctionTestCase extends ForkingOperatorTestCase
 
         assertThat(results, hasSize(1));
         assertOutputFromEmpty(results.get(0).getBlock(0));
+    }
+
+    public void testAllFiltered() {
+        Operator.OperatorFactory factory = simpleWithMode(
+            AggregatorMode.SINGLE,
+            agg -> new FilteredAggregatorFunctionSupplier(agg, ConstantBooleanExpressionEvaluator.factory(false))
+        );
+        DriverContext driverContext = driverContext();
+        List<Page> input = CannedSourceOperator.collectPages(simpleInput(driverContext.blockFactory(), 10));
+        List<Page> results = drive(factory.get(driverContext), input.iterator(), driverContext);
+        assertThat(results, hasSize(1));
+        assertOutputFromEmpty(results.get(0).getBlock(0));
+    }
+
+    public void testNoneFiltered() {
+        Operator.OperatorFactory factory = simpleWithMode(
+            AggregatorMode.SINGLE,
+            agg -> new FilteredAggregatorFunctionSupplier(agg, ConstantBooleanExpressionEvaluator.factory(true))
+        );
+        DriverContext driverContext = driverContext();
+        List<Page> input = CannedSourceOperator.collectPages(simpleInput(driverContext.blockFactory(), 10));
+        List<Page> origInput = BlockTestUtils.deepCopyOf(input, TestBlockFactory.getNonBreakingInstance());
+        List<Page> results = drive(factory.get(driverContext), input.iterator(), driverContext);
+        assertThat(results, hasSize(1));
+        assertSimpleOutput(origInput, results);
     }
 
     // Returns an intermediate state that is equivalent to what the local execution planner will emit

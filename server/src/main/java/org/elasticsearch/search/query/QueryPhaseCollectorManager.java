@@ -346,7 +346,7 @@ abstract class QueryPhaseCollectorManager implements CollectorManager<Collector,
             );
             final TopDocs topDocs;
             if (sortAndFormats != null) {
-                topDocs = new TopFieldDocs(totalHits, Lucene.EMPTY_SCORE_DOCS, sortAndFormats.sort.getSort());
+                topDocs = new TopFieldDocs(totalHits, Lucene.EMPTY_SCORE_DOCS, sortAndFormats.sort().getSort());
             } else {
                 topDocs = new TopDocs(totalHits, Lucene.EMPTY_SCORE_DOCS);
             }
@@ -393,7 +393,7 @@ abstract class QueryPhaseCollectorManager implements CollectorManager<Collector,
             this.trackMaxScore = trackMaxScore;
 
             final int hitCountThreshold;
-            if ((sortAndFormats == null || SortField.FIELD_SCORE.equals(sortAndFormats.sort.getSort()[0])) && hasInfMaxScore(query)) {
+            if ((sortAndFormats == null || SortField.FIELD_SCORE.equals(sortAndFormats.sort().getSort()[0])) && hasInfMaxScore(query)) {
                 // disable max score optimization since we have a mandatory clause
                 // that doesn't track the maximum score
                 hitCountThreshold = Integer.MAX_VALUE;
@@ -417,7 +417,12 @@ abstract class QueryPhaseCollectorManager implements CollectorManager<Collector,
             if (sortAndFormats == null) {
                 this.topDocsManager = new TopScoreDocCollectorManager(numHits, searchAfter, hitCountThreshold);
             } else {
-                this.topDocsManager = new TopFieldCollectorManager(sortAndFormats.sort, numHits, (FieldDoc) searchAfter, hitCountThreshold);
+                this.topDocsManager = new TopFieldCollectorManager(
+                    sortAndFormats.sort(),
+                    numHits,
+                    (FieldDoc) searchAfter,
+                    hitCountThreshold
+                );
             }
         }
 
@@ -465,7 +470,7 @@ abstract class QueryPhaseCollectorManager implements CollectorManager<Collector,
 
         @Override
         protected final DocValueFormat[] getSortValueFormats() {
-            return sortAndFormats == null ? null : sortAndFormats.formats;
+            return sortAndFormats == null ? null : sortAndFormats.formats();
         }
     }
 
@@ -547,7 +552,7 @@ abstract class QueryPhaseCollectorManager implements CollectorManager<Collector,
     ) {
         assert numHits > 0;
         assert collapseContext != null;
-        Sort sort = sortAndFormats == null ? Sort.RELEVANCE : sortAndFormats.sort;
+        Sort sort = sortAndFormats == null ? Sort.RELEVANCE : sortAndFormats.sort();
         final SinglePassGroupingCollector<?> topDocsCollector = collapseContext.createTopDocs(sort, numHits, after);
         MaxScoreCollector maxScoreCollector = trackMaxScore ? new MaxScoreCollector() : null;
         return new QueryPhaseCollectorManager(postFilterWeight, terminateAfterChecker, aggsCollectorManager, minScore, profile) {
@@ -570,7 +575,7 @@ abstract class QueryPhaseCollectorManager implements CollectorManager<Collector,
 
             @Override
             protected DocValueFormat[] getSortValueFormats() {
-                return sortAndFormats == null ? new DocValueFormat[] { DocValueFormat.RAW } : sortAndFormats.formats;
+                return sortAndFormats == null ? new DocValueFormat[] { DocValueFormat.RAW } : sortAndFormats.formats();
             }
         };
     }

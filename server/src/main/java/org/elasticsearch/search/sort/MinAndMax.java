@@ -21,39 +21,22 @@ import java.util.Objects;
 /**
  * A class that encapsulates a minimum and a maximum, that are of the same type and {@link Comparable}.
  */
-public class MinAndMax<T extends Comparable<? super T>> implements Writeable {
-    private final T minValue;
-    private final T maxValue;
+public record MinAndMax<T extends Comparable<? super T>>(T min, T max) implements Writeable {
 
-    public MinAndMax(T minValue, T maxValue) {
-        this.minValue = Objects.requireNonNull(minValue);
-        this.maxValue = Objects.requireNonNull(maxValue);
+    public MinAndMax(T min, T max) {
+        this.min = Objects.requireNonNull(min);
+        this.max = Objects.requireNonNull(max);
     }
 
     @SuppressWarnings("unchecked")
-    public MinAndMax(StreamInput in) throws IOException {
-        this.minValue = (T) Lucene.readSortValue(in);
-        this.maxValue = (T) Lucene.readSortValue(in);
+    public static <T extends Comparable<? super T>> MinAndMax<T> readFrom(StreamInput in) throws IOException {
+        return new MinAndMax<>((T) Lucene.readSortValue(in), (T) Lucene.readSortValue(in));
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        Lucene.writeSortValue(out, minValue);
-        Lucene.writeSortValue(out, maxValue);
-    }
-
-    /**
-     * Return the minimum value.
-     */
-    public T getMin() {
-        return minValue;
-    }
-
-    /**
-     * Return the maximum value.
-     */
-    public T getMax() {
-        return maxValue;
+        Lucene.writeSortValue(out, min);
+        Lucene.writeSortValue(out, max);
     }
 
     @SuppressWarnings({ "unchecked", "rawtypes" })
@@ -61,7 +44,7 @@ public class MinAndMax<T extends Comparable<? super T>> implements Writeable {
         if (left == null) {
             return right == null ? 0 : -1; // nulls last
         }
-        return right == null ? 1 : left.getMin().compareTo(right.getMin());
+        return right == null ? 1 : left.min.compareTo(right.min);
     };
 
     @SuppressWarnings({ "unchecked", "rawtypes" })
@@ -69,7 +52,7 @@ public class MinAndMax<T extends Comparable<? super T>> implements Writeable {
         if (left == null) {
             return right == null ? 0 : 1; // nulls first
         }
-        return right == null ? -1 : right.getMax().compareTo(left.getMax());
+        return right == null ? -1 : right.max.compareTo(left.max);
     };
 
     /**

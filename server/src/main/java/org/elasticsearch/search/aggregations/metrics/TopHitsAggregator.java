@@ -90,7 +90,7 @@ class TopHitsAggregator extends MetricsAggregator {
     public ScoreMode scoreMode() {
         SortAndFormats sort = subSearchContext.sort();
         if (sort != null) {
-            return sort.sort.needsScores() || subSearchContext.trackScores() ? ScoreMode.COMPLETE : ScoreMode.COMPLETE_NO_SCORES;
+            return sort.sort().needsScores() || subSearchContext.trackScores() ? ScoreMode.COMPLETE : ScoreMode.COMPLETE_NO_SCORES;
         } else {
             // sort by score
             return ScoreMode.COMPLETE;
@@ -141,7 +141,7 @@ class TopHitsAggregator extends MetricsAggregator {
                         // TODO: can we pass trackTotalHits=subSearchContext.trackTotalHits(){
                         // Note that this would require to catch CollectionTerminatedException
                         collectors = new Collectors(
-                            TopFieldCollector.create(sort.sort, topN, Integer.MAX_VALUE),
+                            TopFieldCollector.create(sort.sort(), topN, Integer.MAX_VALUE),
                             subSearchContext.trackScores() ? new MaxScoreCollector() : null
                         );
                     }
@@ -187,7 +187,7 @@ class TopHitsAggregator extends MetricsAggregator {
         }
         final TopDocsAndMaxScore topDocsAndMaxScore = new TopDocsAndMaxScore(topDocs, maxScore);
         subSearchContext.queryResult()
-            .topDocs(topDocsAndMaxScore, subSearchContext.sort() == null ? null : subSearchContext.sort().formats);
+            .topDocs(topDocsAndMaxScore, subSearchContext.sort() == null ? null : subSearchContext.sort().formats());
         int[] docIdsToLoad = new int[topDocs.scoreDocs.length];
         for (int i = 0; i < topDocs.scoreDocs.length; i++) {
             docIdsToLoad[i] = topDocs.scoreDocs[i].doc;
@@ -203,7 +203,7 @@ class TopHitsAggregator extends MetricsAggregator {
             searchHitFields.shard(subSearchContext.shardTarget());
             searchHitFields.score(scoreDoc.score);
             if (scoreDoc instanceof FieldDoc fieldDoc) {
-                searchHitFields.sortValues(fieldDoc.fields, subSearchContext.sort().formats);
+                searchHitFields.sortValues(fieldDoc.fields, subSearchContext.sort().formats());
             }
         }
         return new InternalTopHits(
@@ -233,7 +233,7 @@ class TopHitsAggregator extends MetricsAggregator {
     public InternalTopHits buildEmptyAggregation() {
         TopDocs topDocs;
         if (subSearchContext.sort() != null) {
-            topDocs = new TopFieldDocs(Lucene.TOTAL_HITS_EQUAL_TO_ZERO, new FieldDoc[0], subSearchContext.sort().sort.getSort());
+            topDocs = new TopFieldDocs(Lucene.TOTAL_HITS_EQUAL_TO_ZERO, new FieldDoc[0], subSearchContext.sort().sort().getSort());
         } else {
             topDocs = Lucene.EMPTY_TOP_DOCS;
         }

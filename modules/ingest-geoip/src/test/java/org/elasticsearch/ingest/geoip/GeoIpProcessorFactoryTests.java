@@ -322,6 +322,28 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
         assertThat(e.getMessage(), equalTo("[database_file] Unsupported database type [null] for file [GeoLite2-City.mmdb]"));
     }
 
+    public void testStrictMaxmindSupport() throws Exception {
+        IpDatabase database = mock(IpDatabase.class);
+        when(database.getDatabaseType()).thenReturn("ipinfo some_ipinfo_database.mmdb-City");
+        IpDatabaseProvider provider = mock(IpDatabaseProvider.class);
+        when(provider.getDatabase(anyString())).thenReturn(database);
+
+        GeoIpProcessor.Factory factory = new GeoIpProcessor.Factory(GEOIP_TYPE, provider);
+
+        Map<String, Object> config1 = new HashMap<>();
+        config1.put("database_file", "some-ipinfo-database.mmdb");
+        config1.put("field", "_field");
+        config1.put("properties", List.of("ip"));
+        Exception e = expectThrows(ElasticsearchParseException.class, () -> factory.create(null, null, null, config1));
+        assertThat(
+            e.getMessage(),
+            equalTo(
+                "[database_file] Unsupported database type [ipinfo some_ipinfo_database.mmdb-City] "
+                    + "for file [some-ipinfo-database.mmdb]"
+            )
+        );
+    }
+
     public void testLazyLoading() throws Exception {
         final Path configDir = createTempDir();
         final Path geoIpConfigDir = configDir.resolve("ingest-geoip");

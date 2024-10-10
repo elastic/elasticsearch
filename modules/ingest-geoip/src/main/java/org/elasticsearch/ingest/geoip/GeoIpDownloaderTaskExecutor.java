@@ -54,6 +54,7 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.ingest.geoip.GeoIpDownloader.DATABASES_INDEX;
 import static org.elasticsearch.ingest.geoip.GeoIpDownloader.GEOIP_DOWNLOADER;
 import static org.elasticsearch.ingest.geoip.GeoIpProcessor.Factory.downloadDatabaseOnPipelineCreation;
+import static org.elasticsearch.ingest.geoip.GeoIpProcessor.GEOIP_TYPE;
 
 /**
  * Persistent task executor that is responsible for starting {@link GeoIpDownloader} after task is allocated by master node.
@@ -296,9 +297,9 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
             return false;
         }
 
-        if (processor.containsKey(GeoIpProcessor.GEOIP_TYPE)) {
-            Map<String, Object> processorConfig = (Map<String, Object>) processor.get(GeoIpProcessor.GEOIP_TYPE);
-            return downloadDatabaseOnPipelineCreation(processorConfig) == downloadDatabaseOnPipelineCreation;
+        if (processor.containsKey(GEOIP_TYPE)) {
+            Map<String, Object> processorConfig = (Map<String, Object>) processor.get(GEOIP_TYPE);
+            return downloadDatabaseOnPipelineCreation(GEOIP_TYPE, processorConfig, null) == downloadDatabaseOnPipelineCreation;
         }
 
         return isProcessorWithOnFailureGeoIpProcessor(processor, downloadDatabaseOnPipelineCreation)

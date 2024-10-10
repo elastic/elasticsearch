@@ -233,7 +233,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
 
             // Validating the download_database_on_pipeline_creation even if the result
             // is not used directly by the factory.
-            downloadDatabaseOnPipelineCreation(config, processorTag);
+            downloadDatabaseOnPipelineCreation(type, config, processorTag);
 
             // noop, should be removed in 9.0
             Object value = config.remove("fallback_to_default_databases");
@@ -312,13 +312,8 @@ public final class GeoIpProcessor extends AbstractProcessor {
             );
         }
 
-        public static boolean downloadDatabaseOnPipelineCreation(Map<String, Object> config) {
-            return downloadDatabaseOnPipelineCreation(config, null);
-        }
-
-        public static boolean downloadDatabaseOnPipelineCreation(Map<String, Object> config, String processorTag) {
-            // note: we're relying on the "geoip" TYPE here, ideally that would be abstracted away
-            return readBooleanProperty(GEOIP_TYPE, processorTag, config, "download_database_on_pipeline_creation", true);
+        public static boolean downloadDatabaseOnPipelineCreation(String type, Map<String, Object> config, String processorTag) {
+            return readBooleanProperty(type, processorTag, config, "download_database_on_pipeline_creation", true);
         }
     }
 

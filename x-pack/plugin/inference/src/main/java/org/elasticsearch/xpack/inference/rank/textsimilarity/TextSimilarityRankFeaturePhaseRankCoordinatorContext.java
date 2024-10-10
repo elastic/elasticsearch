@@ -12,6 +12,9 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.search.profile.Timer;
+import org.elasticsearch.search.profile.coordinator.SearchCoordinatorProfiler;
+import org.elasticsearch.search.profile.coordinator.SearchCoordinatorTimingType;
 import org.elasticsearch.search.rank.context.RankFeaturePhaseRankCoordinatorContext;
 import org.elasticsearch.search.rank.feature.RankFeatureDoc;
 import org.elasticsearch.xpack.core.inference.action.GetInferenceModelAction;
@@ -43,9 +46,10 @@ public class TextSimilarityRankFeaturePhaseRankCoordinatorContext extends RankFe
         Client client,
         String inferenceId,
         String inferenceText,
-        Float minScore
+        Float minScore,
+        SearchCoordinatorProfiler profiler
     ) {
-        super(size, from, rankWindowSize);
+        super(size, from, rankWindowSize, profiler);
         this.client = client;
         this.inferenceId = inferenceId;
         this.inferenceText = inferenceText;
@@ -56,8 +60,15 @@ public class TextSimilarityRankFeaturePhaseRankCoordinatorContext extends RankFe
     protected void computeScores(RankFeatureDoc[] featureDocs, ActionListener<float[]> scoreListener) {
         // Wrap the provided rankListener to an ActionListener that would handle the response from the inference service
         // and then pass the results
+        final Timer inferenceTimer = profiler == null ? null : profiler.getNewTimer(SearchCoordinatorTimingType.INFERENCE_RERANK_TIME);
+        if (inferenceTimer != null) {
+            inferenceTimer.start();
+        }
         final ActionListener<InferenceAction.Response> inferenceListener = scoreListener.delegateFailureAndWrap((l, r) -> {
             InferenceServiceResults results = r.getResults();
+            if (inferenceTimer != null) {
+                inferenceTimer.stop();
+            }
             assert results instanceof RankedDocsResults;
 
             // Ensure we get exactly as many scores as the number of docs we passed, otherwise we may return incorrect results

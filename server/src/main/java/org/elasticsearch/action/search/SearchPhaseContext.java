@@ -16,6 +16,7 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.ShardSearchContextId;
+import org.elasticsearch.search.profile.coordinator.SearchCoordinatorProfiler;
 import org.elasticsearch.transport.Transport;
 
 import java.util.concurrent.Executor;
@@ -56,6 +57,8 @@ interface SearchPhaseContext extends Executor {
      * We should not release search contexts that belong to the point in time during or after searches.
      */
     boolean isPartOfPointInTime(ShardSearchContextId contextId);
+
+    SearchCoordinatorProfiler profiler();
 
     /**
      * Builds and sends the final search response back to the user.

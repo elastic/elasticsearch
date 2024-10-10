@@ -108,6 +108,7 @@ import org.elasticsearch.search.internal.ReaderContext;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
+import org.elasticsearch.search.profile.coordinator.SearchCoordinatorProfiler;
 import org.elasticsearch.search.query.NonCountingTermQuery;
 import org.elasticsearch.search.query.QuerySearchRequest;
 import org.elasticsearch.search.query.QuerySearchResult;
@@ -688,7 +689,8 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                                 public RankFeaturePhaseRankCoordinatorContext buildRankFeaturePhaseCoordinatorContext(
                                     int size,
                                     int from,
-                                    Client client
+                                    Client client,
+                                    SearchCoordinatorProfiler profiler
                                 ) {
                                     return new RankFeaturePhaseRankCoordinatorContext(size, from, DEFAULT_RANK_WINDOW_SIZE) {
                                         @Override
@@ -832,7 +834,8 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                             public RankFeaturePhaseRankCoordinatorContext buildRankFeaturePhaseCoordinatorContext(
                                 int size,
                                 int from,
-                                Client client
+                                Client client,
+                                SearchCoordinatorProfiler profiler
                             ) {
                                 return new RankFeaturePhaseRankCoordinatorContext(size, from, DEFAULT_RANK_WINDOW_SIZE) {
                                     @Override
@@ -948,7 +951,8 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                                 public RankFeaturePhaseRankCoordinatorContext buildRankFeaturePhaseCoordinatorContext(
                                     int size,
                                     int from,
-                                    Client client
+                                    Client client,
+                                    SearchCoordinatorProfiler profiler
                                 ) {
                                     return new RankFeaturePhaseRankCoordinatorContext(size, from, DEFAULT_RANK_WINDOW_SIZE) {
                                         @Override
@@ -1076,7 +1080,8 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                                 public RankFeaturePhaseRankCoordinatorContext buildRankFeaturePhaseCoordinatorContext(
                                     int size,
                                     int from,
-                                    Client client
+                                    Client client,
+                                    SearchCoordinatorProfiler profiler
                                 ) {
                                     return new RankFeaturePhaseRankCoordinatorContext(size, from, DEFAULT_RANK_WINDOW_SIZE) {
                                         @Override

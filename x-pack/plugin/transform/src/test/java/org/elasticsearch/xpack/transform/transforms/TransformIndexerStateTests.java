@@ -94,7 +94,7 @@ public class TransformIndexerStateTests extends ESTestCase {
         new Suggest(Collections.emptyList()),
         false,
         false,
-        new SearchProfileResults(Collections.emptyMap()),
+        new SearchProfileResults(Collections.emptyMap(), null),
         1,
         "",
         1,

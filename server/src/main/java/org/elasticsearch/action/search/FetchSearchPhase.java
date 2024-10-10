@@ -116,6 +116,7 @@ final class FetchSearchPhase extends SearchPhase {
         // still use DFS_QUERY_THEN_FETCH, which does not perform the "query and fetch" optimization during the query phase.
         final boolean queryAndFetchOptimization = searchPhaseShardResults.length() == 1
             && context.getRequest().hasKnnSearch() == false
+            && (context.getRequest().source() == null || context.getRequest().source().rankBuilder() == null)
             && reducedQueryPhase.queryPhaseRankCoordinatorContext() == null;
         if (queryAndFetchOptimization) {
             assert assertConsistentWithQueryAndFetchOptimization();
@@ -254,7 +255,12 @@ final class FetchSearchPhase extends SearchPhase {
         AtomicArray<? extends SearchPhaseResult> fetchResultsArr,
         SearchPhaseController.ReducedQueryPhase reducedQueryPhase
     ) {
-        var resp = SearchPhaseController.merge(context.getRequest().scroll() != null, reducedQueryPhase, fetchResultsArr);
+        var resp = SearchPhaseController.merge(
+            context.getRequest().scroll() != null,
+            reducedQueryPhase,
+            fetchResultsArr,
+            context.profiler()
+        );
         context.addReleasable(resp::decRef);
         fetchResults.close();
         context.executeNextPhase(this, nextPhaseFactory.apply(resp, searchPhaseShardResults));

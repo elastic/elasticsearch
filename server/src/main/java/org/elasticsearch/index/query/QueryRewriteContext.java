@@ -27,6 +27,7 @@ import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
+import org.elasticsearch.search.profile.coordinator.SearchCoordinatorProfiler;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 
@@ -66,6 +67,7 @@ public class QueryRewriteContext {
     protected Predicate<String> allowedFields;
     private final ResolvedIndices resolvedIndices;
     private final PointInTimeBuilder pit;
+    protected SearchCoordinatorProfiler profiler;
 
     public QueryRewriteContext(
         final XContentParserConfiguration parserConfiguration,
@@ -82,7 +84,8 @@ public class QueryRewriteContext {
         final BooleanSupplier allowExpensiveQueries,
         final ScriptCompiler scriptService,
         final ResolvedIndices resolvedIndices,
-        final PointInTimeBuilder pit
+        final PointInTimeBuilder pit,
+        final SearchCoordinatorProfiler profiler
     ) {
 
         this.parserConfiguration = parserConfiguration;
@@ -101,6 +104,7 @@ public class QueryRewriteContext {
         this.scriptService = scriptService;
         this.resolvedIndices = resolvedIndices;
         this.pit = pit;
+        this.profiler = profiler;
     }
 
     public QueryRewriteContext(final XContentParserConfiguration parserConfiguration, final Client client, final LongSupplier nowInMillis) {
@@ -119,6 +123,7 @@ public class QueryRewriteContext {
             null,
             null,
             null,
+            null,
             null
         );
     }
@@ -128,7 +133,8 @@ public class QueryRewriteContext {
         final Client client,
         final LongSupplier nowInMillis,
         final ResolvedIndices resolvedIndices,
-        final PointInTimeBuilder pit
+        final PointInTimeBuilder pit,
+        final SearchCoordinatorProfiler profiler
     ) {
         this(
             parserConfiguration,
@@ -145,7 +151,8 @@ public class QueryRewriteContext {
             null,
             null,
             resolvedIndices,
-            pit
+            pit,
+            profiler
         );
     }
 
@@ -241,6 +248,11 @@ public class QueryRewriteContext {
         } else {
             throw new QueryShardException(this, "No field mapping can be found for the field with name [{}]", name);
         }
+    }
+
+    @Nullable
+    public SearchCoordinatorProfiler profiler() {
+        return this.profiler;
     }
 
     public void setAllowUnmappedFields(boolean allowUnmappedFields) {

@@ -30,6 +30,7 @@ import org.elasticsearch.search.fetch.StoredFieldsContext;
 import org.elasticsearch.search.fetch.subphase.FetchFieldsContext;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchRequest;
+import org.elasticsearch.search.profile.coordinator.SearchCoordinatorProfiler;
 import org.elasticsearch.search.rank.context.QueryPhaseRankCoordinatorContext;
 import org.elasticsearch.search.rank.context.QueryPhaseRankShardContext;
 import org.elasticsearch.search.rank.context.RankFeaturePhaseRankCoordinatorContext;
@@ -170,7 +171,12 @@ public class RankFeatureShardPhaseTests extends ESTestCase {
 
             // no work to be done on the coordinator node for the rank feature phase
             @Override
-            public RankFeaturePhaseRankCoordinatorContext buildRankFeaturePhaseCoordinatorContext(int size, int from, Client client) {
+            public RankFeaturePhaseRankCoordinatorContext buildRankFeaturePhaseCoordinatorContext(
+                int size,
+                int from,
+                Client client,
+                SearchCoordinatorProfiler profiler
+            ) {
                 return new RankFeaturePhaseRankCoordinatorContext(size, from, DEFAULT_RANK_WINDOW_SIZE) {
                     @Override
                     protected void computeScores(RankFeatureDoc[] featureDocs, ActionListener<float[]> scoreListener) {

@@ -246,7 +246,7 @@ abstract class SearchScrollAsyncAction<T extends SearchPhaseResult> implements R
             if (request.scroll() != null) {
                 scrollId = request.scrollId();
             }
-            var sections = SearchPhaseController.merge(true, queryPhase, fetchResults);
+            var sections = SearchPhaseController.merge(true, queryPhase, fetchResults, null);
             try {
                 ActionListener.respondAndRelease(
                     listener,

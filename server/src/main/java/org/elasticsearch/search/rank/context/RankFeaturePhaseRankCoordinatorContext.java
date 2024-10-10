@@ -11,6 +11,7 @@ package org.elasticsearch.search.rank.context;
 
 import org.apache.lucene.search.ScoreDoc;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.search.profile.coordinator.SearchCoordinatorProfiler;
 import org.elasticsearch.search.rank.feature.RankFeatureDoc;
 import org.elasticsearch.search.rank.feature.RankFeatureResult;
 import org.elasticsearch.search.rank.feature.RankFeatureShardResult;
@@ -33,11 +34,17 @@ public abstract class RankFeaturePhaseRankCoordinatorContext {
     protected final int size;
     protected final int from;
     protected final int rankWindowSize;
+    protected final SearchCoordinatorProfiler profiler;
 
     public RankFeaturePhaseRankCoordinatorContext(int size, int from, int rankWindowSize) {
+        this(size, from, rankWindowSize, null);
+    }
+
+    public RankFeaturePhaseRankCoordinatorContext(int size, int from, int rankWindowSize, SearchCoordinatorProfiler profiler) {
         this.size = size < 0 ? DEFAULT_SIZE : size;
         this.from = from < 0 ? DEFAULT_FROM : from;
         this.rankWindowSize = rankWindowSize;
+        this.profiler = profiler;
     }
 
     /**

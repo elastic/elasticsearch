@@ -213,7 +213,7 @@ public final class SearchResponseMerger implements Releasable {
                 ? InternalAggregations.EMPTY
                 : InternalAggregations.topLevelReduce(aggs, aggReduceContextBuilder.forFinalReduction());
             ShardSearchFailure[] shardFailures = failures.toArray(ShardSearchFailure.EMPTY_ARRAY);
-            SearchProfileResults profileShardResults = profileResults.isEmpty() ? null : new SearchProfileResults(profileResults);
+            SearchProfileResults profileShardResults = profileResults.isEmpty() ? null : new SearchProfileResults(profileResults, null);
             // make failures ordering consistent between ordinary search and CCS by looking at the shard they come from
             Arrays.sort(shardFailures, FAILURES_COMPARATOR);
             long tookInMillis = searchTimeProvider.buildTookInMillis();

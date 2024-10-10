@@ -292,7 +292,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
                     reducedQueryPhase.suggest(),
                     profile
                 );
-                final SearchResponseSections mergedResponse = SearchPhaseController.merge(false, reducedQueryPhase, fetchResults);
+                final SearchResponseSections mergedResponse = SearchPhaseController.merge(false, reducedQueryPhase, fetchResults, null);
                 try {
                     if (trackTotalHits == SearchContext.TRACK_TOTAL_HITS_DISABLED) {
                         assertNull(mergedResponse.hits.getTotalHits());
@@ -410,7 +410,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
                     reducedQueryPhase.suggest(),
                     false
                 );
-                SearchResponseSections mergedResponse = SearchPhaseController.merge(false, reducedQueryPhase, fetchResults);
+                SearchResponseSections mergedResponse = SearchPhaseController.merge(false, reducedQueryPhase, fetchResults, null);
                 try {
                     if (trackTotalHits == SearchContext.TRACK_TOTAL_HITS_DISABLED) {
                         assertNull(mergedResponse.hits.getTotalHits());

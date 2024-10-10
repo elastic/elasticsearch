@@ -16,6 +16,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicensedFeature;
+import org.elasticsearch.search.profile.coordinator.SearchCoordinatorProfiler;
 import org.elasticsearch.search.rank.RankBuilder;
 import org.elasticsearch.search.rank.RankDoc;
 import org.elasticsearch.search.rank.context.QueryPhaseRankCoordinatorContext;
@@ -23,8 +24,6 @@ import org.elasticsearch.search.rank.context.QueryPhaseRankShardContext;
 import org.elasticsearch.search.rank.context.RankFeaturePhaseRankCoordinatorContext;
 import org.elasticsearch.search.rank.context.RankFeaturePhaseRankShardContext;
 import org.elasticsearch.search.rank.feature.RankFeatureDoc;
-import org.elasticsearch.search.rank.rerank.RerankingQueryPhaseRankCoordinatorContext;
-import org.elasticsearch.search.rank.rerank.RerankingQueryPhaseRankShardContext;
 import org.elasticsearch.search.rank.rerank.RerankingRankFeaturePhaseRankShardContext;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -157,12 +156,14 @@ public class TextSimilarityRankBuilder extends RankBuilder {
 
     @Override
     public QueryPhaseRankShardContext buildQueryPhaseShardContext(List<Query> queries, int from) {
-        return new RerankingQueryPhaseRankShardContext(queries, rankWindowSize());
+        return null;
+        // return new RerankingQueryPhaseRankShardContext(queries, rankWindowSize());
     }
 
     @Override
     public QueryPhaseRankCoordinatorContext buildQueryPhaseCoordinatorContext(int size, int from) {
-        return new RerankingQueryPhaseRankCoordinatorContext(rankWindowSize());
+        return null;
+        // return new RerankingQueryPhaseRankCoordinatorContext(rankWindowSize());
     }
 
     @Override
@@ -171,7 +172,12 @@ public class TextSimilarityRankBuilder extends RankBuilder {
     }
 
     @Override
-    public RankFeaturePhaseRankCoordinatorContext buildRankFeaturePhaseCoordinatorContext(int size, int from, Client client) {
+    public RankFeaturePhaseRankCoordinatorContext buildRankFeaturePhaseCoordinatorContext(
+        int size,
+        int from,
+        Client client,
+        SearchCoordinatorProfiler profiler
+    ) {
         return new TextSimilarityRankFeaturePhaseRankCoordinatorContext(
             size,
             from,
@@ -179,7 +185,8 @@ public class TextSimilarityRankBuilder extends RankBuilder {
             client,
             inferenceId,
             inferenceText,
-            minScore
+            minScore,
+            profiler
         );
     }
 

@@ -33,6 +33,7 @@ import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.search.profile.coordinator.SearchCoordinatorProfiler;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.rank.context.QueryPhaseRankCoordinatorContext;
 import org.elasticsearch.search.rank.context.QueryPhaseRankShardContext;
@@ -394,7 +395,12 @@ public class MockedRequestActionBasedRerankerIT extends AbstractRerankerIT {
         }
 
         @Override
-        public RankFeaturePhaseRankCoordinatorContext buildRankFeaturePhaseCoordinatorContext(int size, int from, Client client) {
+        public RankFeaturePhaseRankCoordinatorContext buildRankFeaturePhaseCoordinatorContext(
+            int size,
+            int from,
+            Client client,
+            SearchCoordinatorProfiler profiler
+        ) {
             return new TestRerankingRankFeaturePhaseRankCoordinatorContext(
                 size,
                 from,
@@ -546,7 +552,12 @@ public class MockedRequestActionBasedRerankerIT extends AbstractRerankerIT {
         }
 
         @Override
-        public RankFeaturePhaseRankCoordinatorContext buildRankFeaturePhaseCoordinatorContext(int size, int from, Client client) {
+        public RankFeaturePhaseRankCoordinatorContext buildRankFeaturePhaseCoordinatorContext(
+            int size,
+            int from,
+            Client client,
+            SearchCoordinatorProfiler profiler
+        ) {
             if (this.throwingRankBuilderType == ThrowingRankBuilderType.THROWING_RANK_FEATURE_PHASE_COORDINATOR_CONTEXT)
                 return new TestRerankingRankFeaturePhaseRankCoordinatorContext(
                     size,
@@ -563,7 +574,7 @@ public class MockedRequestActionBasedRerankerIT extends AbstractRerankerIT {
                     }
                 };
             else {
-                return super.buildRankFeaturePhaseCoordinatorContext(size, from, client);
+                return super.buildRankFeaturePhaseCoordinatorContext(size, from, client, profiler);
             }
         }
 

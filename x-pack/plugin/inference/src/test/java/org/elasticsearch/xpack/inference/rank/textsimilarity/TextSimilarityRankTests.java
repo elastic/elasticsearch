@@ -15,6 +15,7 @@ import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.profile.coordinator.SearchCoordinatorProfiler;
 import org.elasticsearch.search.rank.context.RankFeaturePhaseRankCoordinatorContext;
 import org.elasticsearch.search.rank.rerank.AbstractRerankerIT;
 import org.elasticsearch.test.ESSingleNodeTestCase;
@@ -73,7 +74,12 @@ public class TextSimilarityRankTests extends ESSingleNodeTestCase {
         }
 
         @Override
-        public RankFeaturePhaseRankCoordinatorContext buildRankFeaturePhaseCoordinatorContext(int size, int from, Client client) {
+        public RankFeaturePhaseRankCoordinatorContext buildRankFeaturePhaseCoordinatorContext(
+            int size,
+            int from,
+            Client client,
+            SearchCoordinatorProfiler profiler
+        ) {
             return new TextSimilarityRankFeaturePhaseRankCoordinatorContext(
                 size,
                 from,
@@ -81,7 +87,8 @@ public class TextSimilarityRankTests extends ESSingleNodeTestCase {
                 client,
                 inferenceId,
                 inferenceText,
-                minScore
+                minScore,
+                profiler
             ) {
                 @Override
                 protected InferenceAction.Request generateRequest(List<String> docFeatures) {

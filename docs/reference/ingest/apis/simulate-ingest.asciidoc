@@ -102,12 +102,20 @@ POST /_ingest/_simulate
         }
       }
     }
+  },
+  "index_template_substitutions": { <3>
+    "my-index-template": {
+      "index_patterns": ["my-index-*"],
+      "composed_of": ["component_template_1", "component_template_2"]
+    }
   }
 }
 ----
 
 <1> This replaces the existing `my-pipeline` pipeline with the contents given here for the duration of this request.
 <2> This replaces the existing `my-component-template` component template with the contents given here for the duration of this request.
+These templates can be used to change the pipeline(s) used, or to modify the mapping that will be used to validate the result.
+<3> This replaces the existing `my-index-template` index template with the contents given here for the duration of this request.
 These templates can be used to change the pipeline(s) used, or to modify the mapping that will be used to validate the result.
 
 [[simulate-ingest-api-request]]
@@ -222,6 +230,19 @@ Map of component template names to substitute component template definition obje
 ====
 
 include::{es-ref-dir}/indices/put-component-template.asciidoc[tag=template]
+
+====
+
+`index_template_substitutions`::
+(Optional, map of strings to objects)
+Map of index template names to substitute index template definition objects.
++
+.Properties of index template definition objects
+[%collapsible%open]
+
+====
+
+include::{es-ref-dir}/indices/put-index-template.asciidoc[tag=request-body]
 
 ====
 

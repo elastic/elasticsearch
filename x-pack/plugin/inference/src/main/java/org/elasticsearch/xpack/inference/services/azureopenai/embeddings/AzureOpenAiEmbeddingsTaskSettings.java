@@ -71,6 +71,11 @@ public class AzureOpenAiEmbeddingsTaskSettings implements TaskSettings {
     }
 
     @Override
+    public boolean isEmpty() {
+        return user == null || user.isEmpty();
+    }
+
+    @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         if (user != null) {

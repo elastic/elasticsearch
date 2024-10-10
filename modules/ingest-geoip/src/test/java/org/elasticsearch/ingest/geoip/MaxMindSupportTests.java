@@ -361,7 +361,11 @@ public class MaxMindSupportTests extends ESTestCase {
 
     private static final Set<Class<? extends AbstractResponse>> KNOWN_UNSUPPORTED_RESPONSE_CLASSES = Set.of(IpRiskResponse.class);
 
-    private static final Set<Database> KNOWN_UNSUPPORTED_DATABASE_VARIANTS = Set.of(Database.AsnV2, Database.CityV2);
+    private static final Set<Database> KNOWN_UNSUPPORTED_DATABASE_VARIANTS = Set.of(
+        Database.AsnV2,
+        Database.CityV2,
+        Database.PrivacyDetection
+    );
 
     public void testMaxMindSupport() {
         for (Database databaseType : Database.values()) {

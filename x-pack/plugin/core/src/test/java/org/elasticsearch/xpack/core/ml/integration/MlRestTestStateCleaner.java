@@ -30,6 +30,7 @@ public class MlRestTestStateCleaner {
     }
 
     public void resetFeatures() throws IOException {
+        waitForMlStatsIndexToInitialize();
         deleteAllTrainedModelIngestPipelines();
         // This resets all features, not just ML, but they should have been getting reset between tests anyway so it shouldn't matter
         adminClient.performRequest(new Request("POST", "/_features/_reset"));
@@ -53,5 +54,13 @@ public class MlRestTestStateCleaner {
                 logger.warn(() -> "failed to delete pipeline [" + pipelineId + "]", ex);
             }
         }
+    }
+
+    private void waitForMlStatsIndexToInitialize() throws IOException {
+        ESRestTestCase.ensureHealth(adminClient, ".ml-stats-*", (request) -> {
+            request.addParameter("wait_for_no_initializing_shards", "true");
+            request.addParameter("level", "shards");
+            request.addParameter("timeout", "30s");
+        });
     }
 }

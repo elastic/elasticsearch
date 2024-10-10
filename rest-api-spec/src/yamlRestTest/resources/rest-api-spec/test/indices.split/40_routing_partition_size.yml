@@ -5,9 +5,9 @@ more than 1:
         wait_for_active_shards: 1
         body:
           settings:
-            index.number_of_shards: 2
+            index.number_of_shards: 3
             index.number_of_replicas: 0
-            index.number_of_routing_shards: 4
+            index.number_of_routing_shards: 6
             index.routing_partition_size: 2
           mappings:
             _routing:
@@ -57,7 +57,7 @@ more than 1:
         body:
           settings:
             index.number_of_replicas: 0
-            index.number_of_shards: 4
+            index.number_of_shards: 6
 
   - do:
       cluster.health:
@@ -207,9 +207,9 @@ nested:
         wait_for_active_shards: 1
         body:
           settings:
-            index.number_of_shards: 2
+            index.number_of_shards: 3
             index.number_of_replicas: 0
-            index.number_of_routing_shards: 4
+            index.number_of_routing_shards: 6
             index.routing_partition_size: 2
           mappings:
             _routing:
@@ -262,7 +262,7 @@ nested:
         body:
           settings:
             index.number_of_replicas: 0
-            index.number_of_shards: 4
+            index.number_of_shards: 6
 
   - do:
       cluster.health:

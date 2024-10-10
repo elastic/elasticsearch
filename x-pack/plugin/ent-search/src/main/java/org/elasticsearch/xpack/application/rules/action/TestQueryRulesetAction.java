@@ -35,7 +35,9 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
 public class TestQueryRulesetAction {
 
     // TODO - We'd like to transition this to require less stringent permissions
-    public static final String NAME = "cluster:admin/xpack/query_rules/test";
+    public static final ActionType<TestQueryRulesetAction.Response> TYPE = new ActionType<>("cluster:admin/xpack/query_rules/test");
+
+    public static final String NAME = TYPE.name();
     public static final ActionType<TestQueryRulesetAction.Response> INSTANCE = new ActionType<>(NAME);
 
     private TestQueryRulesetAction() {/* no instances */}

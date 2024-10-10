@@ -34,7 +34,6 @@ import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata.Assignment;
 import org.elasticsearch.tasks.TaskId;
-import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -593,8 +592,8 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
             new ClusterService(
                 Settings.EMPTY,
                 new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-                null,
-                (TaskManager) null
+                threadPool,
+                null
             ),
             configManager,
             mockAuditor

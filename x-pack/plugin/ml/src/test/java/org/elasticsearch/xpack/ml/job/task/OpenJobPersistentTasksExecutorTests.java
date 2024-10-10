@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
@@ -90,6 +91,7 @@ public class OpenJobPersistentTasksExecutorTests extends ESTestCase {
     public void setUpMocks() {
         ThreadPool tp = mock(ThreadPool.class);
         when(tp.generic()).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        when(tp.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
         Settings settings = Settings.builder().put("node.name", "OpenJobPersistentTasksExecutorTests").build();
         ClusterSettings clusterSettings = new ClusterSettings(
             settings,

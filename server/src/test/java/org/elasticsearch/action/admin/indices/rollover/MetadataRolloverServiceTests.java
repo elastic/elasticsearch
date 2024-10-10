@@ -34,6 +34,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
@@ -63,6 +64,7 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class MetadataRolloverServiceTests extends ESTestCase {
 
@@ -833,6 +835,7 @@ public class MetadataRolloverServiceTests extends ESTestCase {
         final TestTelemetryPlugin telemetryPlugin = new TestTelemetryPlugin();
 
         ThreadPool testThreadPool = mock(ThreadPool.class);
+        when(testThreadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
         MetadataRolloverService rolloverService = DataStreamTestHelper.getMetadataRolloverService(
             dataStream,
             testThreadPool,

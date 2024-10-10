@@ -14,9 +14,6 @@ import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.AbstractEsqlIntegTestCase;
 import org.elasticsearch.xpack.esql.action.ColumnInfoImpl;
-import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
-import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
-import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.junit.Before;
 
@@ -29,17 +26,11 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
-public class QueryStringFunctionIT extends AbstractEsqlIntegTestCase {
+public class QueryStringIT extends AbstractEsqlIntegTestCase {
 
     @Before
     public void setupIndex() {
         createAndPopulateIndex();
-    }
-
-    @Override
-    protected EsqlQueryResponse run(EsqlQueryRequest request) {
-        assumeTrue("qstr function available in snapshot builds only", EsqlCapabilities.Cap.QSTR_FUNCTION.isEnabled());
-        return super.run(request);
     }
 
     public void testSimpleQueryString() {

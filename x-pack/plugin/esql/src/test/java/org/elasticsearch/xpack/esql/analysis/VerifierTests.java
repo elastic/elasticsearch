@@ -1098,8 +1098,6 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testQueryStringFunctionsNotAllowedAfterCommands() throws Exception {
-        assumeTrue("skipping because QSTR is not enabled", EsqlCapabilities.Cap.QSTR_FUNCTION.isEnabled());
-
         // Source commands
         assertEquals("1:13: [QSTR] function cannot be used after SHOW", error("show info | where qstr(\"8.16.0\")"));
         assertEquals("1:17: [QSTR] function cannot be used after ROW", error("row a= \"Anna\" | where qstr(\"Anna\")"));
@@ -1158,15 +1156,11 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testQueryStringFunctionOnlyAllowedInWhere() throws Exception {
-        assumeTrue("skipping because QSTR is not enabled", EsqlCapabilities.Cap.QSTR_FUNCTION.isEnabled());
-
         assertEquals("1:9: [QSTR] function is only supported in WHERE commands", error("row a = qstr(\"Anna\")"));
         checkFullTextFunctionsOnlyAllowedInWhere("QSTR", "qstr(\"Anna\")");
     }
 
     public void testMatchFunctionOnlyAllowedInWhere() throws Exception {
-        assumeTrue("skipping because MATCH is not enabled", EsqlCapabilities.Cap.MATCH_FUNCTION.isEnabled());
-
         checkFullTextFunctionsOnlyAllowedInWhere("MATCH", "match(first_name, \"Anna\")");
     }
 
@@ -1186,8 +1180,6 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testQueryStringFunctionArgNotNullOrConstant() throws Exception {
-        assumeTrue("skipping because QSTR is not enabled", EsqlCapabilities.Cap.QSTR_FUNCTION.isEnabled());
-
         assertEquals(
             "1:19: argument of [qstr(first_name)] must be a constant, received [first_name]",
             error("from test | where qstr(first_name)")
@@ -1197,8 +1189,6 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testQueryStringWithDisjunctions() {
-        assumeTrue("skipping because QSTR is not enabled", EsqlCapabilities.Cap.QSTR_FUNCTION.isEnabled());
-
         checkWithDisjunctions("QSTR", "qstr(\"first_name: Anna\")");
     }
 
@@ -1245,8 +1235,6 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testQueryStringFunctionWithNonBooleanFunctions() {
-        assumeTrue("skipping because QSTR is not enabled", EsqlCapabilities.Cap.QSTR_FUNCTION.isEnabled());
-
         checkFullTextFunctionsWithNonBooleanFunctions("QSTR", "qstr(\"first_name: Anna\")");
     }
 

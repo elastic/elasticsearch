@@ -384,7 +384,6 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
      *       \_EsQueryExec[test], indexMode[standard], query[{"query_string":{"query":"last_name: Smith","fields":[]}}]
      */
     public void testQueryStringFunction() {
-        assumeTrue("skipping because QSTR_FUNCTION is not enabled", EsqlCapabilities.Cap.QSTR_FUNCTION.isEnabled());
         var plan = plannerOptimizer.plan("""
             from test
             | where qstr("last_name: Smith")
@@ -413,7 +412,6 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
      *        "boost":1.0}}][_doc{f}#1423], limit[1000], sort[] estimatedRowSize[324]
      */
     public void testQueryStringFunctionConjunctionWhereOperands() {
-        assumeTrue("skipping because QSTR_FUNCTION is not enabled", EsqlCapabilities.Cap.QSTR_FUNCTION.isEnabled());
         String queryText = """
             from test
             | where qstr("last_name: Smith") and emp_no > 10010
@@ -448,7 +446,6 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
      *       "source":"cidr_match(ip, \"127.0.0.1/32\")@2:38"}}],"boost":1.0}}][_doc{f}#21], limit[1000], sort[] estimatedRowSize[354]
      */
     public void testQueryStringFunctionWithFunctionsPushedToLucene() {
-        assumeTrue("skipping because QSTR_FUNCTION is not enabled", EsqlCapabilities.Cap.QSTR_FUNCTION.isEnabled());
         String queryText = """
             from test
             | where qstr("last_name: Smith") and cidr_match(ip, "127.0.0.1/32")
@@ -484,7 +481,6 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
      *       "boost":1.0}}][_doc{f}#1167], limit[1000], sort[] estimatedRowSize[324]
      */
     public void testQueryStringFunctionMultipleWhereClauses() {
-        assumeTrue("skipping because QSTR_FUNCTION is not enabled", EsqlCapabilities.Cap.QSTR_FUNCTION.isEnabled());
         String queryText = """
             from test
             | where qstr("last_name: Smith")
@@ -519,7 +515,6 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
      *       {"query_string":{"query":"emp_no: [10010 TO *]","fields":[]}}],"boost":1.0}}]
      */
     public void testQueryStringFunctionMultipleQstrClauses() {
-        assumeTrue("skipping because QSTR_FUNCTION is not enabled", EsqlCapabilities.Cap.QSTR_FUNCTION.isEnabled());
         String queryText = """
             from test
             | where qstr("last_name: Smith") and qstr("emp_no: [10010 TO *]")

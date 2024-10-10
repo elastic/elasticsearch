@@ -90,7 +90,7 @@ public abstract class CompoundRetrieverBuilder<T extends CompoundRetrieverBuilde
         final SearchCoordinatorProfiler profiler = ctx.profiler();
         Timer rewriteTimer = null;
         if (profiler != null && profiler.getRetriever() == null) {
-            profiler.retriever(new RetrieverProfileResult(this.getName(), -1, null, null));
+            profiler.retriever(new RetrieverProfileResult(this.getName(), -1, Map.of(), new ArrayList<>(innerRetrievers.size())));
             rewriteTimer = profiler.getNewTimer(SearchCoordinatorTimingType.RETRIEVER_REWRITE);
             rewriteTimer.start();
         }

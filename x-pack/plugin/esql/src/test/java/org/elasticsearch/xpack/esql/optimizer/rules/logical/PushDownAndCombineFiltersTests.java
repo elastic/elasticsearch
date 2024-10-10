@@ -11,6 +11,7 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.predicate.Predicates;
 import org.elasticsearch.xpack.esql.core.expression.predicate.logical.And;
@@ -29,6 +30,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject;
 
+import java.util.ArrayList;
 import java.util.List;
 
 import static java.util.Collections.emptyList;
@@ -85,41 +87,94 @@ public class PushDownAndCombineFiltersTests extends ESTestCase {
         assertEquals(new EsqlProject(EMPTY, combinedFilter, projections), new PushDownAndCombineFilters().apply(fb));
     }
 
-    // ... | eval a_renamed = a, a_renamed_twice = a_renamed, non_pushable = pow(a, 2)
-    // | where a_renamed > 1 and a_renamed_twice < 2 and non_pushable < 4
+    // ... | eval a_renamed = a, a_renamed_twice = a_renamed, a_squared = pow(a, 2)
+    // | where a_renamed > 1 and a_renamed_twice < 2 and a_squared < 4
     // ->
-    // ... | where a > 1 and a < 2 | eval a_renamed = a, a_renamed_twice = a_renamed, non_pushable = pow(a, 2) | where non_pushable < 4
-    // TODO: More test cases. Also add cases for pushing down past RENAME (Project) while we're at it.
+    // ... | where a > 1 and a < 2 | eval a_renamed = a, a_renamed_twice = a_renamed, non_pushable = pow(a, 2) | where a_squared < 4
+    // TODO: Add cases for pushing down past RENAME (Project) while we're at it.
     public void testPushDownFilterOnAliasInEval() {
         FieldAttribute a = getFieldAttribute("a");
-        EsRelation relation = relation(List.of(a));
+        FieldAttribute b = getFieldAttribute("b");
+        EsRelation relation = relation(List.of(a, b));
 
         Alias aRenamed = new Alias(EMPTY, "a_renamed", a);
         Alias aRenamedTwice = new Alias(EMPTY, "a_renamed_twice", aRenamed.toAttribute());
-        Alias nonPushable = new Alias(EMPTY, "non_pushable", new Pow(EMPTY, a, TWO));
-        Eval eval = new Eval(EMPTY, relation, List.of(aRenamed, aRenamedTwice, nonPushable));
+        Alias bRenamed = new Alias(EMPTY, "b_renamed", b);
+        Alias aSquared = new Alias(EMPTY, "a_squared", new Pow(EMPTY, a, TWO));
+        Eval eval = new Eval(EMPTY, relation, List.of(aRenamed, aRenamedTwice, aSquared, bRenamed));
 
-        GreaterThan aRenamedGreaterThanOne = greaterThanOf(aRenamed.toAttribute(), ONE);
-        LessThan aRenamedTwiceLessThanTwo = lessThanOf(aRenamedTwice.toAttribute(), TWO);
-        LessThan nonPushableLessThanFour = lessThanOf(nonPushable, FOUR);
-        Filter filter = new Filter(
-            EMPTY,
-            eval,
-            Predicates.combineAnd(List.of(aRenamedGreaterThanOne, aRenamedTwiceLessThanTwo, nonPushableLessThanFour))
+        // We'll construct a Filter after the Eval that has conditions that can or cannot be pushed before the Eval.
+        List<Expression> pushableConditionsBefore = List.of(
+            greaterThanOf(a.toAttribute(), TWO),
+            greaterThanOf(aRenamed.toAttribute(), ONE),
+            lessThanOf(aRenamedTwice.toAttribute(), TWO),
+            lessThanOf(aRenamedTwice.toAttribute(), bRenamed.toAttribute())
+        );
+        List<Expression> pushableConditionsAfter = List.of(
+            greaterThanOf(a.toAttribute(), TWO),
+            greaterThanOf(a.toAttribute(), ONE),
+            lessThanOf(a.toAttribute(), TWO),
+            lessThanOf(a.toAttribute(), b.toAttribute())
+        );
+        List<Expression> nonPushableConditionsBefore = List.of(
+            lessThanOf(aSquared.toAttribute(), FOUR),
+            greaterThanOf(aRenamedTwice.toAttribute(), aSquared.toAttribute())
+        );
+        // Even when not pushing down, the renames will be resolved.
+        List<Expression> nonPushableConditionsAfter = List.of(
+            lessThanOf(aSquared.toAttribute(), FOUR),
+            greaterThanOf(a.toAttribute(), aSquared.toAttribute())
         );
 
-        LogicalPlan optimized = new PushDownAndCombineFilters().apply(filter);
+        // Try different combinations of pushable and non-pushable conditions in the filter while also randomizing their order a bit.
+        for (int numPushable = 0; numPushable <= pushableConditionsBefore.size(); numPushable++) {
+            for (int numNonPushable = 0; numNonPushable <= nonPushableConditionsBefore.size(); numNonPushable++) {
+                if (numPushable == 0 && numNonPushable == 0) {
+                    continue;
+                }
 
-        Filter optimizedFilter = as(optimized, Filter.class);
-        assertEquals(optimizedFilter.condition(), nonPushableLessThanFour);
-        Eval optimizedEval = as(optimizedFilter.child(), Eval.class);
-        assertEquals(optimizedEval.fields(), eval.fields());
-        Filter pushedFilter = as(optimizedEval.child(), Filter.class);
-        GreaterThan aGreaterThanOne = greaterThanOf(a, ONE);
-        LessThan aLessThanTwo = lessThanOf(a, TWO);
-        assertEquals(pushedFilter.condition(), Predicates.combineAnd(List.of(aGreaterThanOne, aLessThanTwo)));
-        EsRelation optimizedRelation = as(pushedFilter.child(), EsRelation.class);
-        assertEquals(optimizedRelation, relation);
+                List<Expression> conditions = new ArrayList<>();
+
+                int pushableIndex = 0, nonPushableIndex = 0;
+                // Loop and add either a pushable or non-pushable condition to the filter.
+                boolean addPushable;
+                while (pushableIndex < numPushable || nonPushableIndex < numNonPushable) {
+                    if (pushableIndex == numPushable) {
+                        addPushable = false;
+                    } else if (nonPushableIndex == numNonPushable) {
+                        addPushable = true;
+                    } else {
+                        addPushable = randomBoolean();
+                    }
+
+                    if (addPushable) {
+                        conditions.add(pushableConditionsBefore.get(pushableIndex++));
+                    } else {
+                        conditions.add(nonPushableConditionsBefore.get(nonPushableIndex++));
+                    }
+                }
+
+                Filter filter = new Filter(EMPTY, eval, Predicates.combineAnd(conditions));
+
+                LogicalPlan plan = new PushDownAndCombineFilters().apply(filter);
+
+                if (numNonPushable > 0) {
+                    Filter optimizedFilter = as(plan, Filter.class);
+                    assertEquals(optimizedFilter.condition(), Predicates.combineAnd(nonPushableConditionsAfter.subList(0, numNonPushable)));
+                    plan = optimizedFilter.child();
+                }
+                Eval optimizedEval = as(plan, Eval.class);
+                assertEquals(optimizedEval.fields(), eval.fields());
+                plan = optimizedEval.child();
+                if (numPushable > 0) {
+                    Filter pushedFilter = as(plan, Filter.class);
+                    assertEquals(pushedFilter.condition(), Predicates.combineAnd(pushableConditionsAfter.subList(0, numPushable)));
+                    plan = pushedFilter.child();
+                }
+                EsRelation optimizedRelation = as(plan, EsRelation.class);
+                assertEquals(optimizedRelation, relation);
+            }
+        }
     }
 
     public void testPushDownLikeRlikeFilter() {

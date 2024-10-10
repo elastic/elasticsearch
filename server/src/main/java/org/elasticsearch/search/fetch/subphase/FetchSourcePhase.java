@@ -29,7 +29,7 @@ public final class FetchSourcePhase implements FetchSubPhase {
         }
         assert fetchSourceContext.fetchSource();
         SourceFilter sourceFilter = fetchSourceContext.filter();
-        final boolean filterExcludesAll = sourceFilter.excludesAll();
+        final boolean filterExcludesAll = sourceFilter != null && sourceFilter.excludesAll();
         return new FetchSubPhaseProcessor() {
             private int fastPath;
 
@@ -47,22 +47,22 @@ public final class FetchSourcePhase implements FetchSubPhase {
             public void process(HitContext hitContext) {
                 String index = fetchContext.getIndexName();
                 if (fetchContext.getSearchExecutionContext().isSourceEnabled() == false) {
-                    if (fetchSourceContext.hasFilter()) {
+                    if (sourceFilter != null) {
                         throw new IllegalArgumentException(
                             "unable to fetch fields from _source field: _source is disabled in the mappings for index [" + index + "]"
                         );
                     }
                     return;
                 }
-                hitExecute(fetchSourceContext, hitContext);
+                hitExecute(hitContext);
             }
 
-            private void hitExecute(FetchSourceContext fetchSourceContext, HitContext hitContext) {
+            private void hitExecute(HitContext hitContext) {
                 final boolean nestedHit = hitContext.hit().getNestedIdentity() != null;
                 Source source = hitContext.source();
 
                 // If this is a parent document and there are no source filters, then add the source as-is.
-                if (nestedHit == false && fetchSourceContext.hasFilter() == false) {
+                if (nestedHit == false && sourceFilter == null) {
                     hitContext.hit().sourceRef(source.internalSourceRef());
                     fastPath++;
                     return;
@@ -73,7 +73,7 @@ public final class FetchSourcePhase implements FetchSubPhase {
                     source = Source.empty(source.sourceContentType());
                 } else {
                     // Otherwise, filter the source and add it to the hit.
-                    source = source.filter(sourceFilter);
+                    source = sourceFilter != null ? source.filter(sourceFilter) : source;
                 }
                 if (nestedHit) {
                     source = extractNested(source, hitContext.hit().getNestedIdentity());

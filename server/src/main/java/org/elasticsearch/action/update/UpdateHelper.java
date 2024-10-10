@@ -36,6 +36,7 @@ import org.elasticsearch.script.UpdateCtxMap;
 import org.elasticsearch.script.UpdateScript;
 import org.elasticsearch.script.UpsertCtxMap;
 import org.elasticsearch.search.lookup.Source;
+import org.elasticsearch.search.lookup.SourceFilter;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
@@ -347,8 +348,9 @@ public class UpdateHelper {
             return null;
         }
         BytesReference sourceFilteredAsBytes = sourceAsBytes;
-        if (request.fetchSource().hasFilter()) {
-            sourceFilteredAsBytes = Source.fromMap(source, sourceContentType).filter(request.fetchSource().filter()).internalSourceRef();
+        SourceFilter sourceFilter = request.fetchSource().filter();
+        if (sourceFilter != null) {
+            sourceFilteredAsBytes = Source.fromMap(source, sourceContentType).filter(sourceFilter).internalSourceRef();
         }
 
         // TODO when using delete/none, we can still return the source as bytes by generating it (using the sourceContentType)

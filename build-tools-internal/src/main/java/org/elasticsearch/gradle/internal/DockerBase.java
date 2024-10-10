@@ -24,10 +24,6 @@ public enum DockerBase {
     // Base image with extras for Cloud
     CLOUD("ubuntu:20.04", "-cloud", "apt-get"),
 
-    // Based on CLOUD above, with more extras. We don't set a base image because
-    // we programmatically extend from the Cloud image.
-    CLOUD_ESS(null, "-cloud-ess", "apt-get"),
-
     // Chainguard based wolfi image with latest jdk
     // This is usually updated via renovatebot
     // spotless:off
@@ -36,10 +32,9 @@ public enum DockerBase {
         "apk"
     ),
     // spotless:on
-
     // Based on WOLFI above, with more extras. We don't set a base image because
-    // we programmatically extend from the Wolfi image.
-    WOLFI_ESS(null, "-wolfi-ess", "apk");
+    // we programmatically extend from the wolfi image.
+    CLOUD_ESS(null, "-cloud-ess", "apk");
 
     private final String image;
     private final String suffix;

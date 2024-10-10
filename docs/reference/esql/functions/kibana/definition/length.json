@@ -32,5 +32,6 @@
   "examples" : [
     "FROM employees\n| KEEP first_name, last_name\n| EVAL fn_length = LENGTH(first_name)"
   ],
-  "preview" : false
+  "preview" : false,
+  "snapshot_only" : false
 }

@@ -60,6 +60,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.repositories.RepositoriesMetrics;
 import org.elasticsearch.repositories.azure.AzureRepository.Repository;
 import org.elasticsearch.repositories.blobstore.ChunkedBlobOutputStream;
 import org.elasticsearch.rest.RestStatus;
@@ -86,11 +87,11 @@ import java.util.Objects;
 import java.util.Spliterator;
 import java.util.Spliterators;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.LongAdder;
 import java.util.function.BiPredicate;
-import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
@@ -102,59 +103,54 @@ public class AzureBlobStore implements BlobStore {
     private static final int DEFAULT_UPLOAD_BUFFERS_SIZE = (int) new ByteSizeValue(64, ByteSizeUnit.KB).getBytes();
 
     private final AzureStorageService service;
-
     private final BigArrays bigArrays;
+    private final RepositoryMetadata repositoryMetadata;
 
     private final String clientName;
     private final String container;
     private final LocationMode locationMode;
     private final ByteSizeValue maxSinglePartUploadSize;
 
-    private final StatsCollectors statsCollectors = new StatsCollectors();
-    private final AzureClientProvider.SuccessfulRequestHandler statsConsumer;
+    private final RequestMetricsRecorder requestMetricsRecorder;
+    private final AzureClientProvider.RequestMetricsHandler requestMetricsHandler;
 
-    public AzureBlobStore(RepositoryMetadata metadata, AzureStorageService service, BigArrays bigArrays) {
+    public AzureBlobStore(
+        RepositoryMetadata metadata,
+        AzureStorageService service,
+        BigArrays bigArrays,
+        RepositoriesMetrics repositoriesMetrics
+    ) {
         this.container = Repository.CONTAINER_SETTING.get(metadata.settings());
         this.clientName = Repository.CLIENT_NAME.get(metadata.settings());
         this.service = service;
         this.bigArrays = bigArrays;
+        this.requestMetricsRecorder = new RequestMetricsRecorder(repositoriesMetrics);
+        this.repositoryMetadata = metadata;
         // locationMode is set per repository, not per client
         this.locationMode = Repository.LOCATION_MODE_SETTING.get(metadata.settings());
         this.maxSinglePartUploadSize = Repository.MAX_SINGLE_PART_UPLOAD_SIZE_SETTING.get(metadata.settings());
 
-        List<RequestStatsCollector> requestStatsCollectors = List.of(
-            RequestStatsCollector.create(
-                (httpMethod, url) -> httpMethod == HttpMethod.HEAD,
-                purpose -> statsCollectors.onSuccessfulRequest(Operation.GET_BLOB_PROPERTIES, purpose)
-            ),
-            RequestStatsCollector.create(
+        List<RequestMatcher> requestMatchers = List.of(
+            new RequestMatcher((httpMethod, url) -> httpMethod == HttpMethod.HEAD, Operation.GET_BLOB_PROPERTIES),
+            new RequestMatcher(
                 (httpMethod, url) -> httpMethod == HttpMethod.GET && isListRequest(httpMethod, url) == false,
-                purpose -> statsCollectors.onSuccessfulRequest(Operation.GET_BLOB, purpose)
+                Operation.GET_BLOB
             ),
-            RequestStatsCollector.create(
-                AzureBlobStore::isListRequest,
-                purpose -> statsCollectors.onSuccessfulRequest(Operation.LIST_BLOBS, purpose)
-            ),
-            RequestStatsCollector.create(
-                AzureBlobStore::isPutBlockRequest,
-                purpose -> statsCollectors.onSuccessfulRequest(Operation.PUT_BLOCK, purpose)
-            ),
-            RequestStatsCollector.create(
-                AzureBlobStore::isPutBlockListRequest,
-                purpose -> statsCollectors.onSuccessfulRequest(Operation.PUT_BLOCK_LIST, purpose)
-            ),
-            RequestStatsCollector.create(
+            new RequestMatcher(AzureBlobStore::isListRequest, Operation.LIST_BLOBS),
+            new RequestMatcher(AzureBlobStore::isPutBlockRequest, Operation.PUT_BLOCK),
+            new RequestMatcher(AzureBlobStore::isPutBlockListRequest, Operation.PUT_BLOCK_LIST),
+            new RequestMatcher(
                 // https://docs.microsoft.com/en-us/rest/api/storageservices/put-blob#uri-parameters
                 // The only URI parameter allowed for put-blob operation is "timeout", but if a sas token is used,
                 // it's possible that the URI parameters contain additional parameters unrelated to the upload type.
                 (httpMethod, url) -> httpMethod == HttpMethod.PUT
                     && isPutBlockRequest(httpMethod, url) == false
                     && isPutBlockListRequest(httpMethod, url) == false,
-                purpose -> statsCollectors.onSuccessfulRequest(Operation.PUT_BLOB, purpose)
+                Operation.PUT_BLOB
             )
         );
 
-        this.statsConsumer = (purpose, httpMethod, url) -> {
+        this.requestMetricsHandler = (purpose, method, url, metrics) -> {
             try {
                 URI uri = url.toURI();
                 String path = uri.getPath() == null ? "" : uri.getPath();
@@ -167,9 +163,9 @@ public class AzureBlobStore implements BlobStore {
                 return;
             }
 
-            for (RequestStatsCollector requestStatsCollector : requestStatsCollectors) {
-                if (requestStatsCollector.shouldConsumeRequestInfo(httpMethod, url)) {
-                    requestStatsCollector.consumeHttpRequestInfo(purpose);
+            for (RequestMatcher requestMatcher : requestMatchers) {
+                if (requestMatcher.matches(method, url)) {
+                    requestMetricsRecorder.onRequestComplete(requestMatcher.operation, purpose, metrics);
                     return;
                 }
             }
@@ -665,12 +661,12 @@ public class AzureBlobStore implements BlobStore {
     }
 
     private AzureBlobServiceClient getAzureBlobServiceClientClient(OperationPurpose purpose) {
-        return service.client(clientName, locationMode, purpose, statsConsumer);
+        return service.client(clientName, locationMode, purpose, requestMetricsHandler);
     }
 
     @Override
     public Map<String, Long> stats() {
-        return statsCollectors.statsMap(service.isStateless());
+        return requestMetricsRecorder.statsMap(service.isStateless());
     }
 
     // visible for testing
@@ -691,26 +687,43 @@ public class AzureBlobStore implements BlobStore {
         Operation(String key) {
             this.key = key;
         }
+
+        public static Operation fromKey(String key) {
+            for (Operation operation : Operation.values()) {
+                if (operation.key.equals(key)) {
+                    return operation;
+                }
+            }
+            throw new IllegalArgumentException("No matching key: " + key);
+        }
     }
 
-    private record StatsKey(Operation operation, OperationPurpose purpose) {
+    // visible for testing
+    record StatsKey(Operation operation, OperationPurpose purpose) {
         @Override
         public String toString() {
             return purpose.getKey() + "_" + operation.getKey();
         }
     }
 
-    private static class StatsCollectors {
-        final Map<StatsKey, LongAdder> collectors = new ConcurrentHashMap<>();
+    // visible for testing
+    class RequestMetricsRecorder {
+        private final RepositoriesMetrics repositoriesMetrics;
+        final Map<StatsKey, LongAdder> opsCounters = new ConcurrentHashMap<>();
+        final Map<StatsKey, Map<String, Object>> opsAttributes = new ConcurrentHashMap<>();
+
+        RequestMetricsRecorder(RepositoriesMetrics repositoriesMetrics) {
+            this.repositoriesMetrics = repositoriesMetrics;
+        }
 
         Map<String, Long> statsMap(boolean stateless) {
             if (stateless) {
-                return collectors.entrySet()
+                return opsCounters.entrySet()
                     .stream()
                     .collect(Collectors.toUnmodifiableMap(e -> e.getKey().toString(), e -> e.getValue().sum()));
             } else {
                 Map<String, Long> normalisedStats = Arrays.stream(Operation.values()).collect(Collectors.toMap(Operation::getKey, o -> 0L));
-                collectors.forEach(
+                opsCounters.forEach(
                     (key, value) -> normalisedStats.compute(
                         key.operation.getKey(),
                         (k, current) -> Objects.requireNonNull(current) + value.sum()
@@ -720,9 +733,48 @@ public class AzureBlobStore implements BlobStore {
             }
         }
 
-        public void onSuccessfulRequest(Operation operation, OperationPurpose purpose) {
-            collectors.computeIfAbsent(new StatsKey(operation, purpose), k -> new LongAdder()).increment();
+        public void onRequestComplete(Operation operation, OperationPurpose purpose, AzureClientProvider.RequestMetrics requestMetrics) {
+            final StatsKey statsKey = new StatsKey(operation, purpose);
+            final LongAdder counter = opsCounters.computeIfAbsent(statsKey, k -> new LongAdder());
+            final Map<String, Object> attributes = opsAttributes.computeIfAbsent(
+                statsKey,
+                k -> RepositoriesMetrics.createAttributesMap(repositoryMetadata, purpose, operation.getKey())
+            );
+
+            counter.add(1);
+
+            // range not satisfied is not retried, so we count them by checking the final response
+            if (requestMetrics.getStatusCode() == RestStatus.REQUESTED_RANGE_NOT_SATISFIED.getStatus()) {
+                repositoriesMetrics.requestRangeNotSatisfiedExceptionCounter().incrementBy(1, attributes);
+            }
+
+            repositoriesMetrics.operationCounter().incrementBy(1, attributes);
+            if (RestStatus.isSuccessful(requestMetrics.getStatusCode()) == false) {
+                repositoriesMetrics.unsuccessfulOperationCounter().incrementBy(1, attributes);
+            }
+
+            repositoriesMetrics.requestCounter().incrementBy(requestMetrics.getRequestCount(), attributes);
+            if (requestMetrics.getErrorCount() > 0) {
+                repositoriesMetrics.exceptionCounter().incrementBy(requestMetrics.getErrorCount(), attributes);
+                repositoriesMetrics.exceptionHistogram().record(requestMetrics.getErrorCount(), attributes);
+            }
+
+            if (requestMetrics.getThrottleCount() > 0) {
+                repositoriesMetrics.throttleCounter().incrementBy(requestMetrics.getThrottleCount(), attributes);
+                repositoriesMetrics.throttleHistogram().record(requestMetrics.getThrottleCount(), attributes);
+            }
+
+            // We use nanosecond precision, so a zero value indicates that no requests were executed
+            if (requestMetrics.getTotalRequestTimeNanos() > 0) {
+                repositoriesMetrics.httpRequestTimeInMillisHistogram()
+                    .record(TimeUnit.NANOSECONDS.toMillis(requestMetrics.getTotalRequestTimeNanos()), attributes);
+            }
         }
+    }
+
+    // visible for testing
+    RequestMetricsRecorder getMetricsRecorder() {
+        return requestMetricsRecorder;
     }
 
     private static class AzureInputStream extends InputStream {
@@ -846,25 +898,10 @@ public class AzureBlobStore implements BlobStore {
         }
     }
 
-    private static class RequestStatsCollector {
-        private final BiPredicate<HttpMethod, URL> filter;
-        private final Consumer<OperationPurpose> onHttpRequest;
+    private record RequestMatcher(BiPredicate<HttpMethod, URL> filter, Operation operation) {
 
-        private RequestStatsCollector(BiPredicate<HttpMethod, URL> filter, Consumer<OperationPurpose> onHttpRequest) {
-            this.filter = filter;
-            this.onHttpRequest = onHttpRequest;
-        }
-
-        static RequestStatsCollector create(BiPredicate<HttpMethod, URL> filter, Consumer<OperationPurpose> consumer) {
-            return new RequestStatsCollector(filter, consumer);
-        }
-
-        private boolean shouldConsumeRequestInfo(HttpMethod httpMethod, URL url) {
+        private boolean matches(HttpMethod httpMethod, URL url) {
             return filter.test(httpMethod, url);
-        }
-
-        private void consumeHttpRequestInfo(OperationPurpose operationPurpose) {
-            onHttpRequest.accept(operationPurpose);
         }
     }
 

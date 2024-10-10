@@ -14,6 +14,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkedInferenceServiceResults;
 import org.elasticsearch.inference.ChunkingOptions;
+import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
@@ -22,6 +23,8 @@ import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xpack.core.inference.ChunkingSettingsFeatureFlag;
+import org.elasticsearch.xpack.inference.chunking.ChunkingSettingsBuilder;
 import org.elasticsearch.xpack.inference.chunking.EmbeddingRequestChunker;
 import org.elasticsearch.xpack.inference.external.action.mistral.MistralActionCreator;
 import org.elasticsearch.xpack.inference.external.http.sender.DocumentsOnlyInput;
@@ -37,7 +40,6 @@ import org.elasticsearch.xpack.inference.services.validation.ModelValidatorBuild
 
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 import static org.elasticsearch.TransportVersions.ADD_MISTRAL_EMBEDDINGS_INFERENCE;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInvalidModelException;
@@ -85,11 +87,21 @@ public class MistralService extends SenderService {
         var actionCreator = new MistralActionCreator(getSender(), getServiceComponents());
 
         if (model instanceof MistralEmbeddingsModel mistralEmbeddingsModel) {
-            var batchedRequests = new EmbeddingRequestChunker(
-                inputs.getInputs(),
-                MistralConstants.MAX_BATCH_SIZE,
-                EmbeddingRequestChunker.EmbeddingType.FLOAT
-            ).batchRequestsWithListeners(listener);
+            List<EmbeddingRequestChunker.BatchRequestAndListener> batchedRequests;
+            if (ChunkingSettingsFeatureFlag.isEnabled()) {
+                batchedRequests = new EmbeddingRequestChunker(
+                    inputs.getInputs(),
+                    MistralConstants.MAX_BATCH_SIZE,
+                    EmbeddingRequestChunker.EmbeddingType.FLOAT,
+                    mistralEmbeddingsModel.getConfigurations().getChunkingSettings()
+                ).batchRequestsWithListeners(listener);
+            } else {
+                batchedRequests = new EmbeddingRequestChunker(
+                    inputs.getInputs(),
+                    MistralConstants.MAX_BATCH_SIZE,
+                    EmbeddingRequestChunker.EmbeddingType.FLOAT
+                ).batchRequestsWithListeners(listener);
+            }
 
             for (var request : batchedRequests) {
                 var action = mistralEmbeddingsModel.accept(actionCreator, taskSettings);
@@ -110,18 +122,25 @@ public class MistralService extends SenderService {
         String modelId,
         TaskType taskType,
         Map<String, Object> config,
-        Set<String> platfromArchitectures,
         ActionListener<Model> parsedModelListener
     ) {
         try {
             Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
             Map<String, Object> taskSettingsMap = removeFromMapOrDefaultEmpty(config, ModelConfigurations.TASK_SETTINGS);
 
+            ChunkingSettings chunkingSettings = null;
+            if (ChunkingSettingsFeatureFlag.isEnabled() && TaskType.TEXT_EMBEDDING.equals(taskType)) {
+                chunkingSettings = ChunkingSettingsBuilder.fromMap(
+                    removeFromMapOrDefaultEmpty(config, ModelConfigurations.CHUNKING_SETTINGS)
+                );
+            }
+
             MistralEmbeddingsModel model = createModel(
                 modelId,
                 taskType,
                 serviceSettingsMap,
                 taskSettingsMap,
+                chunkingSettings,
                 serviceSettingsMap,
                 TaskType.unsupportedTaskTypeErrorMsg(taskType, NAME),
                 ConfigurationParseContext.REQUEST
@@ -148,11 +167,17 @@ public class MistralService extends SenderService {
         Map<String, Object> taskSettingsMap = removeFromMapOrDefaultEmpty(config, ModelConfigurations.TASK_SETTINGS);
         Map<String, Object> secretSettingsMap = removeFromMapOrDefaultEmpty(secrets, ModelSecrets.SECRET_SETTINGS);
 
+        ChunkingSettings chunkingSettings = null;
+        if (ChunkingSettingsFeatureFlag.isEnabled() && TaskType.TEXT_EMBEDDING.equals(taskType)) {
+            chunkingSettings = ChunkingSettingsBuilder.fromMap(removeFromMapOrDefaultEmpty(config, ModelConfigurations.CHUNKING_SETTINGS));
+        }
+
         return createModelFromPersistent(
             modelId,
             taskType,
             serviceSettingsMap,
             taskSettingsMap,
+            chunkingSettings,
             secretSettingsMap,
             parsePersistedConfigErrorMsg(modelId, NAME)
         );
@@ -163,11 +188,17 @@ public class MistralService extends SenderService {
         Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
         Map<String, Object> taskSettingsMap = removeFromMapOrDefaultEmpty(config, ModelConfigurations.TASK_SETTINGS);
 
+        ChunkingSettings chunkingSettings = null;
+        if (ChunkingSettingsFeatureFlag.isEnabled() && TaskType.TEXT_EMBEDDING.equals(taskType)) {
+            chunkingSettings = ChunkingSettingsBuilder.fromMap(removeFromMapOrDefaultEmpty(config, ModelConfigurations.CHUNKING_SETTINGS));
+        }
+
         return createModelFromPersistent(
             modelId,
             taskType,
             serviceSettingsMap,
             taskSettingsMap,
+            chunkingSettings,
             null,
             parsePersistedConfigErrorMsg(modelId, NAME)
         );
@@ -183,12 +214,22 @@ public class MistralService extends SenderService {
         TaskType taskType,
         Map<String, Object> serviceSettings,
         Map<String, Object> taskSettings,
+        ChunkingSettings chunkingSettings,
         @Nullable Map<String, Object> secretSettings,
         String failureMessage,
         ConfigurationParseContext context
     ) {
         if (taskType == TaskType.TEXT_EMBEDDING) {
-            return new MistralEmbeddingsModel(modelId, taskType, NAME, serviceSettings, taskSettings, secretSettings, context);
+            return new MistralEmbeddingsModel(
+                modelId,
+                taskType,
+                NAME,
+                serviceSettings,
+                taskSettings,
+                chunkingSettings,
+                secretSettings,
+                context
+            );
         }
 
         throw new ElasticsearchStatusException(failureMessage, RestStatus.BAD_REQUEST);
@@ -199,6 +240,7 @@ public class MistralService extends SenderService {
         TaskType taskType,
         Map<String, Object> serviceSettings,
         Map<String, Object> taskSettings,
+        ChunkingSettings chunkingSettings,
         Map<String, Object> secretSettings,
         String failureMessage
     ) {
@@ -207,6 +249,7 @@ public class MistralService extends SenderService {
             taskType,
             serviceSettings,
             taskSettings,
+            chunkingSettings,
             secretSettings,
             failureMessage,
             ConfigurationParseContext.PERSISTENT

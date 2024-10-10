@@ -2039,10 +2039,10 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
 
         private void mapping(XContentBuilder b) throws IOException {
             b.field("type", "dense_vector");
-            b.field("dims", elementType == ElementType.BIT ? dims * Byte.SIZE : dims);
             if (elementType == ElementType.BYTE || elementType == ElementType.BIT || randomBoolean()) {
                 b.field("element_type", elementType.toString());
             }
+            b.field("dims", elementType == ElementType.BIT ? dims * Byte.SIZE : dims);
             if (indexed) {
                 b.field("index", true);
                 b.field("similarity", "l2_norm");

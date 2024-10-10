@@ -133,7 +133,15 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
                     );
                     platformArch.accept(
                         modelListener.delegateFailureAndWrap(
-                            (delegate, arch) -> elserCase(inferenceEntityId, taskType, config, arch, serviceSettingsMap, modelListener)
+                            (delegate, arch) -> elserCase(
+                                inferenceEntityId,
+                                taskType,
+                                config,
+                                arch,
+                                serviceSettingsMap,
+                                modelListener,
+                                true
+                            )
                         )
                     );
                 } else {
@@ -148,7 +156,15 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
             } else if (ElserModels.isValidModel(modelId)) {
                 platformArch.accept(
                     modelListener.delegateFailureAndWrap(
-                        (delegate, arch) -> elserCase(inferenceEntityId, taskType, config, arch, serviceSettingsMap, modelListener)
+                        (delegate, arch) -> elserCase(
+                            inferenceEntityId,
+                            taskType,
+                            config,
+                            arch,
+                            serviceSettingsMap,
+                            modelListener,
+                            OLD_ELSER_SERVICE_NAME.equals(serviceName)
+                        )
                     )
                 );
             } else {
@@ -298,7 +314,8 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
         Map<String, Object> config,
         Set<String> platformArchitectures,
         Map<String, Object> serviceSettingsMap,
-        ActionListener<Model> modelListener
+        ActionListener<Model> modelListener,
+        boolean isElserService
     ) {
         var esServiceSettingsBuilder = ElasticsearchInternalServiceSettings.fromRequestMap(serviceSettingsMap);
         final String defaultModelId = selectDefaultModelVariantBasedOnClusterArchitecture(
@@ -327,15 +344,17 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
             }
         }
 
-        DEPRECATION_LOGGER.warn(
-            DeprecationCategory.API,
-            "inference_api_elser_service",
-            "The [{}] service is deprecated and will be removed in a future release. Use the [{}] service instead, with"
-                + " [model_id] set to [{}] in the [service_settings]",
-            OLD_ELSER_SERVICE_NAME,
-            ElasticsearchInternalService.NAME,
-            defaultModelId
-        );
+        if (isElserService) {
+            DEPRECATION_LOGGER.warn(
+                DeprecationCategory.API,
+                "inference_api_elser_service",
+                "The [{}] service is deprecated and will be removed in a future release. Use the [{}] service instead, with"
+                    + " [model_id] set to [{}] in the [service_settings]",
+                OLD_ELSER_SERVICE_NAME,
+                ElasticsearchInternalService.NAME,
+                defaultModelId
+            );
+        }
 
         if (modelVariantDoesNotMatchArchitecturesAndIsNotPlatformAgnostic(platformArchitectures, esServiceSettingsBuilder.getModelId())) {
             throw new IllegalArgumentException(

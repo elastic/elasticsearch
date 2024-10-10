@@ -22,7 +22,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.SuppressForbidden;
-import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.gateway.WriteStateException;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersions;
@@ -468,13 +467,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
         synchronized (retentionLeasePersistenceLock) {
             retentionLeases = RetentionLeases.FORMAT.loadLatestState(logger, NamedXContentRegistry.EMPTY, path);
         }
-        return emptyIfNull(retentionLeases);
-    }
-
-    @UpdateForV9(owner = UpdateForV9.Owner.DISTRIBUTED_INDEXING)
-    private static RetentionLeases emptyIfNull(RetentionLeases retentionLeases) {
-        // we expect never to see a null in 8.x, so adjust this to throw an exception from v9 onwards.
-        return retentionLeases == null ? RetentionLeases.EMPTY : retentionLeases;
+        return Objects.requireNonNull(retentionLeases, "Unable to load retention leases from the state file " + path);
     }
 
     private final Object retentionLeasePersistenceLock = new Object();

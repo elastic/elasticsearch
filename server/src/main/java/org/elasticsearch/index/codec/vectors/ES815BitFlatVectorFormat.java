@@ -45,4 +45,5 @@ public class ES815BitFlatVectorFormat extends KnnVectorsFormat {
     public String toString() {
         return NAME;
     }
+
 }

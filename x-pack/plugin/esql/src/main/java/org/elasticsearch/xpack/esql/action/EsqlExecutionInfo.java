@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.action;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -63,24 +64,29 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
     private final transient Predicate<String> skipUnavailablePredicate;
     private TimeValue overallTook;
 
-    public EsqlExecutionInfo() {
-        this(Predicates.always());  // default all clusters to skip_unavailable=true
+    // whether the user has asked for CCS metadata to be in the JSON response (the overall took will always be present)
+    private final boolean includeCCSMetadata;
+
+    public EsqlExecutionInfo(boolean includeCCSMetadata) {
+        this(Predicates.always(), includeCCSMetadata);  // default all clusters to skip_unavailable=true
     }
 
     /**
      * @param skipUnavailablePredicate provide lookup for whether a given cluster has skip_unavailable set to true or false
      */
-    public EsqlExecutionInfo(Predicate<String> skipUnavailablePredicate) {
+    public EsqlExecutionInfo(Predicate<String> skipUnavailablePredicate, boolean includeCCSMetadata) {
         this.clusterInfo = ConcurrentCollections.newConcurrentMap();
         this.skipUnavailablePredicate = skipUnavailablePredicate;
+        this.includeCCSMetadata = includeCCSMetadata;
     }
 
     /**
      * For testing use with fromXContent parsing only
      * @param clusterInfo
      */
-    EsqlExecutionInfo(ConcurrentMap<String, Cluster> clusterInfo) {
+    EsqlExecutionInfo(ConcurrentMap<String, Cluster> clusterInfo, boolean includeCCSMetadata) {
         this.clusterInfo = clusterInfo;
+        this.includeCCSMetadata = includeCCSMetadata;
         this.skipUnavailablePredicate = Predicates.always();
     }
 
@@ -94,6 +100,11 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
             clusterList.forEach(c -> m.put(c.getClusterAlias(), c));
             this.clusterInfo = m;
         }
+        if (in.getTransportVersion().onOrAfter(TransportVersions.OPT_IN_ESQL_CCS_EXECUTION_INFO)) {
+            this.includeCCSMetadata = in.readBoolean();
+        } else {
+            this.includeCCSMetadata = false;
+        }
         this.skipUnavailablePredicate = Predicates.always();
     }
 
@@ -105,6 +116,13 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
         } else {
             out.writeCollection(Collections.emptyList());
         }
+        if (out.getTransportVersion().onOrAfter(TransportVersions.OPT_IN_ESQL_CCS_EXECUTION_INFO)) {
+            out.writeBoolean(includeCCSMetadata);
+        }
+    }
+
+    public boolean includeCCSMetadata() {
+        return includeCCSMetadata;
     }
 
     public void overallTook(TimeValue took) {

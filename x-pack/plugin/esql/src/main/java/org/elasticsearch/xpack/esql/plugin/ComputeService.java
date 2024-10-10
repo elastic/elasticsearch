@@ -834,7 +834,7 @@ public class ComputeService {
              * execution metadata for ES|QL processing local to this cluster. The execution info will be copied into the
              * ComputeResponse that is sent back to the primary coordinating cluster.
              */
-            EsqlExecutionInfo execInfo = new EsqlExecutionInfo();
+            EsqlExecutionInfo execInfo = new EsqlExecutionInfo(true);
             execInfo.swapCluster(clusterAlias, (k, v) -> new EsqlExecutionInfo.Cluster(clusterAlias, Arrays.toString(request.indices())));
             CancellableTask cancellable = (CancellableTask) task;
             long start = request.configuration().getQueryStartTimeNanos();

@@ -14,6 +14,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.ingest.common.IngestCommonPlugin;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.license.LicenseService;
@@ -220,7 +221,7 @@ public class CrossClustersEnrichIT extends AbstractMultiClustersTestCase {
     public void testWithHostsPolicy() {
         for (var mode : Enrich.Mode.values()) {
             String query = "FROM events | eval ip= TO_STR(host) | " + enrichHosts(mode) + " | stats c = COUNT(*) by os | SORT os";
-            try (EsqlQueryResponse resp = runQuery(query)) {
+            try (EsqlQueryResponse resp = runQuery(query, null)) {
                 List<List<Object>> rows = getValuesList(resp);
                 assertThat(
                     rows,
@@ -237,9 +238,14 @@ public class CrossClustersEnrichIT extends AbstractMultiClustersTestCase {
                 assertFalse(resp.getExecutionInfo().isCrossClusterSearch());
             }
         }
+
+        Tuple<Boolean, Boolean> includeCCSMetadata = randomIncludeCCSMetadata();
+        Boolean requestIncludeMeta = includeCCSMetadata.v1();
+        boolean responseExpectMeta = includeCCSMetadata.v2();
+
         for (var mode : Enrich.Mode.values()) {
             String query = "FROM *:events | eval ip= TO_STR(host) | " + enrichHosts(mode) + " | stats c = COUNT(*) by os | SORT os";
-            try (EsqlQueryResponse resp = runQuery(query)) {
+            try (EsqlQueryResponse resp = runQuery(query, requestIncludeMeta)) {
                 List<List<Object>> rows = getValuesList(resp);
                 assertThat(
                     rows,
@@ -255,6 +261,7 @@ public class CrossClustersEnrichIT extends AbstractMultiClustersTestCase {
                     )
                 );
                 EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
+                assertThat(executionInfo.includeCCSMetadata(), equalTo(responseExpectMeta));
                 assertThat(executionInfo.clusterAliases(), equalTo(Set.of("c1", "c2")));
                 assertCCSExecutionInfoDetails(executionInfo);
             }
@@ -262,7 +269,7 @@ public class CrossClustersEnrichIT extends AbstractMultiClustersTestCase {
 
         for (var mode : Enrich.Mode.values()) {
             String query = "FROM *:events,events | eval ip= TO_STR(host) | " + enrichHosts(mode) + " | stats c = COUNT(*) by os | SORT os";
-            try (EsqlQueryResponse resp = runQuery(query)) {
+            try (EsqlQueryResponse resp = runQuery(query, requestIncludeMeta)) {
                 List<List<Object>> rows = getValuesList(resp);
                 assertThat(
                     rows,
@@ -278,6 +285,7 @@ public class CrossClustersEnrichIT extends AbstractMultiClustersTestCase {
                     )
                 );
                 EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
+                assertThat(executionInfo.includeCCSMetadata(), equalTo(responseExpectMeta));
                 assertThat(executionInfo.clusterAliases(), equalTo(Set.of("", "c1", "c2")));
                 assertCCSExecutionInfoDetails(executionInfo);
             }
@@ -285,6 +293,10 @@ public class CrossClustersEnrichIT extends AbstractMultiClustersTestCase {
     }
 
     public void testEnrichHostsAggThenEnrichVendorCoordinator() {
+        Tuple<Boolean, Boolean> includeCCSMetadata = randomIncludeCCSMetadata();
+        Boolean requestIncludeMeta = includeCCSMetadata.v1();
+        boolean responseExpectMeta = includeCCSMetadata.v2();
+
         for (var hostMode : Enrich.Mode.values()) {
             String query = String.format(Locale.ROOT, """
                 FROM *:events,events
@@ -295,7 +307,7 @@ public class CrossClustersEnrichIT extends AbstractMultiClustersTestCase {
                 | stats c = SUM(c) by vendor
                 | sort vendor
                 """, enrichHosts(hostMode), enrichVendors(Enrich.Mode.COORDINATOR));
-            try (EsqlQueryResponse resp = runQuery(query)) {
+            try (EsqlQueryResponse resp = runQuery(query, requestIncludeMeta)) {
                 assertThat(
                     getValuesList(resp),
                     equalTo(
@@ -309,6 +321,7 @@ public class CrossClustersEnrichIT extends AbstractMultiClustersTestCase {
                     )
                 );
                 EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
+                assertThat(executionInfo.includeCCSMetadata(), equalTo(responseExpectMeta));
                 assertThat(executionInfo.clusterAliases(), equalTo(Set.of("", "c1", "c2")));
                 assertCCSExecutionInfoDetails(executionInfo);
             }
@@ -316,6 +329,10 @@ public class CrossClustersEnrichIT extends AbstractMultiClustersTestCase {
     }
 
     public void testEnrichTwiceThenAggs() {
+        Tuple<Boolean, Boolean> includeCCSMetadata = randomIncludeCCSMetadata();
+        Boolean requestIncludeMeta = includeCCSMetadata.v1();
+        boolean responseExpectMeta = includeCCSMetadata.v2();
+
         for (var hostMode : Enrich.Mode.values()) {
             String query = String.format(Locale.ROOT, """
                 FROM *:events,events
@@ -325,7 +342,7 @@ public class CrossClustersEnrichIT extends AbstractMultiClustersTestCase {
                 | stats c = COUNT(*) by vendor
                 | sort vendor
                 """, enrichHosts(hostMode), enrichVendors(Enrich.Mode.COORDINATOR));
-            try (EsqlQueryResponse resp = runQuery(query)) {
+            try (EsqlQueryResponse resp = runQuery(query, requestIncludeMeta)) {
                 assertThat(
                     getValuesList(resp),
                     equalTo(
@@ -339,6 +356,7 @@ public class CrossClustersEnrichIT extends AbstractMultiClustersTestCase {
                     )
                 );
                 EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
+                assertThat(executionInfo.includeCCSMetadata(), equalTo(responseExpectMeta));
                 assertThat(executionInfo.clusterAliases(), equalTo(Set.of("", "c1", "c2")));
                 assertCCSExecutionInfoDetails(executionInfo);
             }
@@ -346,6 +364,10 @@ public class CrossClustersEnrichIT extends AbstractMultiClustersTestCase {
     }
 
     public void testEnrichCoordinatorThenAny() {
+        Tuple<Boolean, Boolean> includeCCSMetadata = randomIncludeCCSMetadata();
+        Boolean requestIncludeMeta = includeCCSMetadata.v1();
+        boolean responseExpectMeta = includeCCSMetadata.v2();
+
         String query = String.format(Locale.ROOT, """
             FROM *:events,events
             | eval ip= TO_STR(host)
@@ -354,7 +376,7 @@ public class CrossClustersEnrichIT extends AbstractMultiClustersTestCase {
             | stats c = COUNT(*) by vendor
             | sort vendor
             """, enrichHosts(Enrich.Mode.COORDINATOR), enrichVendors(Enrich.Mode.ANY));
-        try (EsqlQueryResponse resp = runQuery(query)) {
+        try (EsqlQueryResponse resp = runQuery(query, requestIncludeMeta)) {
             assertThat(
                 getValuesList(resp),
                 equalTo(
@@ -368,12 +390,17 @@ public class CrossClustersEnrichIT extends AbstractMultiClustersTestCase {
                 )
             );
             EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
+            assertThat(executionInfo.includeCCSMetadata(), equalTo(responseExpectMeta));
             assertThat(executionInfo.clusterAliases(), equalTo(Set.of("", "c1", "c2")));
             assertCCSExecutionInfoDetails(executionInfo);
         }
     }
 
     public void testEnrichCoordinatorWithVendor() {
+        Tuple<Boolean, Boolean> includeCCSMetadata = randomIncludeCCSMetadata();
+        Boolean requestIncludeMeta = includeCCSMetadata.v1();
+        boolean responseExpectMeta = includeCCSMetadata.v2();
+
         for (Enrich.Mode hostMode : Enrich.Mode.values()) {
             String query = String.format(Locale.ROOT, """
                 FROM *:events,events
@@ -383,7 +410,7 @@ public class CrossClustersEnrichIT extends AbstractMultiClustersTestCase {
                 | stats c = COUNT(*) by vendor
                 | sort vendor
                 """, enrichHosts(hostMode), enrichVendors(Enrich.Mode.COORDINATOR));
-            try (EsqlQueryResponse resp = runQuery(query)) {
+            try (EsqlQueryResponse resp = runQuery(query, requestIncludeMeta)) {
                 assertThat(
                     getValuesList(resp),
                     equalTo(
@@ -397,6 +424,7 @@ public class CrossClustersEnrichIT extends AbstractMultiClustersTestCase {
                     )
                 );
                 EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
+                assertThat(executionInfo.includeCCSMetadata(), equalTo(responseExpectMeta));
                 assertThat(executionInfo.clusterAliases(), equalTo(Set.of("", "c1", "c2")));
                 assertCCSExecutionInfoDetails(executionInfo);
             }
@@ -405,6 +433,10 @@ public class CrossClustersEnrichIT extends AbstractMultiClustersTestCase {
     }
 
     public void testEnrichRemoteWithVendor() {
+        Tuple<Boolean, Boolean> includeCCSMetadata = randomIncludeCCSMetadata();
+        Boolean requestIncludeMeta = includeCCSMetadata.v1();
+        boolean responseExpectMeta = includeCCSMetadata.v2();
+
         for (Enrich.Mode hostMode : List.of(Enrich.Mode.ANY, Enrich.Mode.REMOTE)) {
             var query = String.format(Locale.ROOT, """
                 FROM *:events,events
@@ -414,7 +446,7 @@ public class CrossClustersEnrichIT extends AbstractMultiClustersTestCase {
                 | stats c = COUNT(*) by vendor
                 | sort vendor
                 """, enrichHosts(hostMode), enrichVendors(Enrich.Mode.REMOTE));
-            try (EsqlQueryResponse resp = runQuery(query)) {
+            try (EsqlQueryResponse resp = runQuery(query, requestIncludeMeta)) {
                 assertThat(
                     getValuesList(resp),
                     equalTo(
@@ -430,6 +462,7 @@ public class CrossClustersEnrichIT extends AbstractMultiClustersTestCase {
                     )
                 );
                 EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
+                assertThat(executionInfo.includeCCSMetadata(), equalTo(responseExpectMeta));
                 assertThat(executionInfo.clusterAliases(), equalTo(Set.of("", "c1", "c2")));
                 assertCCSExecutionInfoDetails(executionInfo);
             }
@@ -444,7 +477,7 @@ public class CrossClustersEnrichIT extends AbstractMultiClustersTestCase {
             | LIMIT 5
             | %s
             """, enrichHosts(Enrich.Mode.REMOTE));
-        var error = expectThrows(VerificationException.class, () -> runQuery(query).close());
+        var error = expectThrows(VerificationException.class, () -> runQuery(query, randomBoolean()).close());
         assertThat(error.getMessage(), containsString("ENRICH with remote policy can't be executed after LIMIT"));
     }
 
@@ -455,7 +488,7 @@ public class CrossClustersEnrichIT extends AbstractMultiClustersTestCase {
             | eval ip= TO_STR(host)
             | %s
             """, enrichHosts(Enrich.Mode.REMOTE));
-        var error = expectThrows(VerificationException.class, () -> runQuery(query).close());
+        var error = expectThrows(VerificationException.class, () -> runQuery(query, randomBoolean()).close());
         assertThat(error.getMessage(), containsString("ENRICH with remote policy can't be executed after LIMIT"));
     }
 
@@ -468,7 +501,7 @@ public class CrossClustersEnrichIT extends AbstractMultiClustersTestCase {
             | %s
             | sort vendor
             """, enrichHosts(Enrich.Mode.ANY), enrichVendors(Enrich.Mode.REMOTE));
-        var error = expectThrows(VerificationException.class, () -> runQuery(query).close());
+        var error = expectThrows(VerificationException.class, () -> runQuery(query, randomBoolean()).close());
         assertThat(error.getMessage(), containsString("ENRICH with remote policy can't be executed after STATS"));
     }
 
@@ -480,19 +513,22 @@ public class CrossClustersEnrichIT extends AbstractMultiClustersTestCase {
             | %s
             | sort vendor
             """, enrichHosts(Enrich.Mode.COORDINATOR), enrichVendors(Enrich.Mode.REMOTE));
-        var error = expectThrows(VerificationException.class, () -> runQuery(query).close());
+        var error = expectThrows(VerificationException.class, () -> runQuery(query, randomBoolean()).close());
         assertThat(
             error.getMessage(),
             containsString("ENRICH with remote policy can't be executed after another ENRICH with coordinator policy")
         );
     }
 
-    protected EsqlQueryResponse runQuery(String query) {
+    protected EsqlQueryResponse runQuery(String query, Boolean ccsMetadataInResponse) {
         EsqlQueryRequest request = EsqlQueryRequest.syncEsqlQueryRequest();
         request.query(query);
         request.pragmas(AbstractEsqlIntegTestCase.randomPragmas());
         if (randomBoolean()) {
             request.profile(true);
+        }
+        if (ccsMetadataInResponse != null) {
+            request.includeCCSMetadata(ccsMetadataInResponse);
         }
         return client(LOCAL_CLUSTER).execute(EsqlQueryAction.INSTANCE, request).actionGet(30, TimeUnit.SECONDS);
     }
@@ -514,6 +550,15 @@ public class CrossClustersEnrichIT extends AbstractMultiClustersTestCase {
             assertThat(cluster.getSkippedShards(), equalTo(0));
             assertThat(cluster.getFailedShards(), equalTo(0));
         }
+    }
+
+    public static Tuple<Boolean, Boolean> randomIncludeCCSMetadata() {
+        return switch (randomIntBetween(1, 3)) {
+            case 1 -> new Tuple<>(Boolean.TRUE, Boolean.TRUE);
+            case 2 -> new Tuple<>(Boolean.FALSE, Boolean.FALSE);
+            case 3 -> new Tuple<>(null, Boolean.FALSE);
+            default -> throw new AssertionError("should not get here");
+        };
     }
 
     public static class LocalStateEnrich extends LocalStateCompositeXPackPlugin {

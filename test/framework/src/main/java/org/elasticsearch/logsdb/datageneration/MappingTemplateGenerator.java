@@ -34,7 +34,6 @@ public class MappingTemplateGenerator {
             .generator();
     }
 
-    // TODO enforce nested fields limit (easy)
     public MappingTemplate generate() {
         var map = new HashMap<String, MappingTemplate.Entry>();
 

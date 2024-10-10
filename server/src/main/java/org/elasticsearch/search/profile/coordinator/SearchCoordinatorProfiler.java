@@ -52,7 +52,9 @@ public class SearchCoordinatorProfiler extends AbstractProfileBreakdown<SearchCo
     }
 
     public SearchProfileCoordinatorResult build() {
-        retriever.setBreakDownMap(toBreakdownMap());
+        if (retriever != null) {
+            retriever.setBreakDownMap(toBreakdownMap());
+        }
         return new SearchProfileCoordinatorResult(nodeId, retriever);
     }
 }

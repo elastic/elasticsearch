@@ -18,6 +18,7 @@ import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.TransportMultiSearchAction;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
@@ -90,7 +91,14 @@ public abstract class CompoundRetrieverBuilder<T extends CompoundRetrieverBuilde
         final SearchCoordinatorProfiler profiler = ctx.profiler();
         Timer rewriteTimer = null;
         if (profiler != null && profiler.getRetriever() == null) {
-            profiler.retriever(new RetrieverProfileResult(this.getName(), -1, Map.of(), new ArrayList<>(innerRetrievers.size())));
+            profiler.retriever(
+                new RetrieverProfileResult(
+                    this.getName(),
+                    -1,
+                    Maps.newMapWithExpectedSize(SearchCoordinatorTimingType.values().length),
+                    new ArrayList<>(innerRetrievers.size())
+                )
+            );
             rewriteTimer = profiler.getNewTimer(SearchCoordinatorTimingType.RETRIEVER_REWRITE);
             rewriteTimer.start();
         }

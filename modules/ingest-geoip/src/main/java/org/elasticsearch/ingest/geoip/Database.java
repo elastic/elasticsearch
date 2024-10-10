@@ -44,6 +44,7 @@ enum Database {
             Property.LOCATION,
             Property.POSTAL_CODE,
             Property.ACCURACY_RADIUS,
+            Property.REGISTERED_COUNTRY_IN_EUROPEAN_UNION,
             Property.REGISTERED_COUNTRY_ISO_CODE,
             Property.REGISTERED_COUNTRY_NAME
         ),
@@ -65,6 +66,7 @@ enum Database {
             Property.COUNTRY_NAME,
             Property.COUNTRY_IN_EUROPEAN_UNION,
             Property.COUNTRY_ISO_CODE,
+            Property.REGISTERED_COUNTRY_IN_EUROPEAN_UNION,
             Property.REGISTERED_COUNTRY_ISO_CODE,
             Property.REGISTERED_COUNTRY_NAME
         ),
@@ -129,6 +131,7 @@ enum Database {
             Property.POSTAL_CODE,
             Property.POSTAL_CONFIDENCE,
             Property.ACCURACY_RADIUS,
+            Property.REGISTERED_COUNTRY_IN_EUROPEAN_UNION,
             Property.REGISTERED_COUNTRY_ISO_CODE,
             Property.REGISTERED_COUNTRY_NAME
         ),
@@ -279,6 +282,7 @@ enum Database {
         RELAY,
         VPN,
         SERVICE,
+        REGISTERED_COUNTRY_IN_EUROPEAN_UNION,
         REGISTERED_COUNTRY_ISO_CODE,
         REGISTERED_COUNTRY_NAME;
 

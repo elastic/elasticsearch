@@ -88,6 +88,7 @@ public class MaxMindSupportTests extends ESTestCase {
         "mostSpecificSubdivision.isoCode",
         "mostSpecificSubdivision.name",
         "postal.code",
+        "registeredCountry.inEuropeanUnion",
         "registeredCountry.isoCode",
         "registeredCountry.name"
     );
@@ -115,7 +116,6 @@ public class MaxMindSupportTests extends ESTestCase {
         "postal.confidence",
         "registeredCountry.confidence",
         "registeredCountry.geoNameId",
-        "registeredCountry.inEuropeanUnion",
         "registeredCountry.names",
         "representedCountry.confidence",
         "representedCountry.geoNameId",
@@ -163,6 +163,7 @@ public class MaxMindSupportTests extends ESTestCase {
         "country.isoCode",
         "continent.code",
         "country.name",
+        "registeredCountry.inEuropeanUnion",
         "registeredCountry.isoCode",
         "registeredCountry.name"
     );
@@ -175,7 +176,6 @@ public class MaxMindSupportTests extends ESTestCase {
         "maxMind",
         "registeredCountry.confidence",
         "registeredCountry.geoNameId",
-        "registeredCountry.inEuropeanUnion",
         "registeredCountry.names",
         "representedCountry.confidence",
         "representedCountry.geoNameId",
@@ -229,6 +229,7 @@ public class MaxMindSupportTests extends ESTestCase {
         "mostSpecificSubdivision.name",
         "postal.code",
         "postal.confidence",
+        "registeredCountry.inEuropeanUnion",
         "registeredCountry.isoCode",
         "registeredCountry.name",
         "traits.anonymous",
@@ -269,7 +270,6 @@ public class MaxMindSupportTests extends ESTestCase {
         "mostSpecificSubdivision.names",
         "registeredCountry.confidence",
         "registeredCountry.geoNameId",
-        "registeredCountry.inEuropeanUnion",
         "registeredCountry.names",
         "representedCountry.confidence",
         "representedCountry.geoNameId",

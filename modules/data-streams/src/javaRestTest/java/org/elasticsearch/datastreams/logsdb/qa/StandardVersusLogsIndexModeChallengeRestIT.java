@@ -278,9 +278,7 @@ public class StandardVersusLogsIndexModeChallengeRestIT extends AbstractChalleng
 
         indexDocuments(documents);
 
-        // Excludes the FROM prefix.
         final String query = "FROM $index METADATA _source, _id | KEEP _source, _id | LIMIT " + numberOfDocuments;
-
         final MatchResult matchResult = Matcher.matchSource()
             .mappings(getContenderMappings(), getBaselineMappings())
             .settings(getContenderSettings(), getBaselineSettings())
@@ -312,8 +310,7 @@ public class StandardVersusLogsIndexModeChallengeRestIT extends AbstractChalleng
 
         indexDocuments(documents);
 
-        final MatchResult matchResult = Matcher.matchSource()
-            .mappings(getContenderMappings(), getBaselineMappings())
+        final MatchResult matchResult = Matcher.mappings(getContenderMappings(), getBaselineMappings())
             .settings(getContenderSettings(), getBaselineSettings())
             .expected(getFields(fieldCapsBaseline()))
             .ignoringSort(true)

@@ -108,6 +108,7 @@ public class MasterService extends AbstractLifecycleComponent {
 
     protected final ThreadPool threadPool;
     private final TaskManager taskManager;
+    private final ThreadContext.StoredContext clusterStateUpdateContext;
 
     private volatile ExecutorService threadPoolExecutor;
     private final AtomicInteger totalQueueSize = new AtomicInteger();
@@ -128,6 +129,14 @@ public class MasterService extends AbstractLifecycleComponent {
 
         this.threadPool = threadPool;
         this.taskManager = taskManager;
+
+        final var threadContext = threadPool.getThreadContext();
+        try (var ignored = threadContext.newStoredContext()) {
+            // capture the context in which to run all cluster state updates here where we know it to be very clean
+            assert threadContext.isDefaultContext();
+            threadContext.markAsSystemContext();
+            clusterStateUpdateContext = threadContext.newStoredContext();
+        }
 
         final var queuesByPriorityBuilder = new EnumMap<Priority, PerPriorityQueue>(Priority.class);
         for (final var priority : Priority.values()) {
@@ -1325,7 +1334,7 @@ public class MasterService extends AbstractLifecycleComponent {
         assert totalQueueSize.get() > 0;
         final var threadContext = threadPool.getThreadContext();
         try (var ignored = threadContext.stashContext()) {
-            threadContext.markAsSystemContext();
+            clusterStateUpdateContext.restore();
             threadPoolExecutor.execute(queuesProcessor);
         }
     }

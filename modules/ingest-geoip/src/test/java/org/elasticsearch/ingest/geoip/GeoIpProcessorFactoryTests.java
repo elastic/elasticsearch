@@ -344,6 +344,22 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
         );
     }
 
+    public void testLaxMaxmindSupport() throws Exception {
+        IpDatabase database = mock(IpDatabase.class);
+        when(database.getDatabaseType()).thenReturn("some_custom_database.mmdb-City");
+        IpDatabaseProvider provider = mock(IpDatabaseProvider.class);
+        when(provider.getDatabase(anyString())).thenReturn(database);
+
+        GeoIpProcessor.Factory factory = new GeoIpProcessor.Factory(GEOIP_TYPE, provider);
+
+        Map<String, Object> config1 = new HashMap<>();
+        config1.put("database_file", "some-custom-database.mmdb");
+        config1.put("field", "_field");
+        config1.put("properties", List.of("ip"));
+        factory.create(null, null, null, config1);
+        assertWarnings(GeoIpProcessor.UNSUPPORTED_DATABASE_DEPRECATION_MESSAGE.replaceAll("\\{}", "some_custom_database.mmdb-City"));
+    }
+
     public void testLazyLoading() throws Exception {
         final Path configDir = createTempDir();
         final Path geoIpConfigDir = configDir.resolve("ingest-geoip");

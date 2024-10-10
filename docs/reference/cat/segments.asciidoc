@@ -12,10 +12,9 @@ consumption, use the <<indices-segments,index segments API>>.
 ====
 
 Returns low-level information about the https://lucene.apache.org/core/[Lucene]
-segments in index shards, similar to the <<indices-segments, indices segments>>
-API.
+segments in index shards.
 
-For data streams, the API returns information about the stream's backing
+For <<data-streams,data streams>>, the API returns information about the stream's backing
 indices.
 
 [[cat-segments-api-request]]

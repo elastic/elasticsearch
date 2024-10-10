@@ -17,6 +17,7 @@ import org.elasticsearch.action.ingest.SimulateIndexResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
+import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
@@ -73,6 +74,7 @@ public class TransportSimulateBulkAction extends TransportAbstractBulkAction {
     public static final NodeFeature SIMULATE_COMPONENT_TEMPLATE_SUBSTITUTIONS = new NodeFeature(
         "simulate.component.template.substitutions"
     );
+    public static final NodeFeature SIMULATE_INDEX_TEMPLATE_SUBSTITUTIONS = new NodeFeature("simulate.index.template.substitutions");
     private final IndicesService indicesService;
     private final NamedXContentRegistry xContentRegistry;
     private final Set<IndexSettingProvider> indexSettingProviders;
@@ -119,11 +121,12 @@ public class TransportSimulateBulkAction extends TransportAbstractBulkAction {
             : "TransportSimulateBulkAction should only ever be called with a SimulateBulkRequest but got a " + bulkRequest.getClass();
         final AtomicArray<BulkItemResponse> responses = new AtomicArray<>(bulkRequest.requests.size());
         Map<String, ComponentTemplate> componentTemplateSubstitutions = bulkRequest.getComponentTemplateSubstitutions();
+        Map<String, ComposableIndexTemplate> indexTemplateSubstitutions = bulkRequest.getIndexTemplateSubstitutions();
         for (int i = 0; i < bulkRequest.requests.size(); i++) {
             DocWriteRequest<?> docRequest = bulkRequest.requests.get(i);
             assert docRequest instanceof IndexRequest : "TransportSimulateBulkAction should only ever be called with IndexRequests";
             IndexRequest request = (IndexRequest) docRequest;
-            Exception mappingValidationException = validateMappings(componentTemplateSubstitutions, request);
+            Exception mappingValidationException = validateMappings(componentTemplateSubstitutions, indexTemplateSubstitutions, request);
             responses.set(
                 i,
                 BulkItemResponse.success(
@@ -153,7 +156,11 @@ public class TransportSimulateBulkAction extends TransportAbstractBulkAction {
      * @param request The IndexRequest whose source will be validated against the mapping (if it exists) of its index
      * @return a mapping exception if the source does not match the mappings, otherwise null
      */
-    private Exception validateMappings(Map<String, ComponentTemplate> componentTemplateSubstitutions, IndexRequest request) {
+    private Exception validateMappings(
+        Map<String, ComponentTemplate> componentTemplateSubstitutions,
+        Map<String, ComposableIndexTemplate> indexTemplateSubstitutions,
+        IndexRequest request
+    ) {
         final SourceToParse sourceToParse = new SourceToParse(
             request.id(),
             request.source(),
@@ -167,7 +174,7 @@ public class TransportSimulateBulkAction extends TransportAbstractBulkAction {
         Exception mappingValidationException = null;
         IndexAbstraction indexAbstraction = state.metadata().getIndicesLookup().get(request.index());
         try {
-            if (indexAbstraction != null && componentTemplateSubstitutions.isEmpty()) {
+            if (indexAbstraction != null && componentTemplateSubstitutions.isEmpty() && indexTemplateSubstitutions.isEmpty()) {
                 /*
                  * In this case the index exists and we don't have any component template overrides. So we can just use withTempIndexService
                  * to do the mapping validation, using all the existing logic for validation.
@@ -221,6 +228,12 @@ public class TransportSimulateBulkAction extends TransportAbstractBulkAction {
                     updatedComponentTemplates.putAll(state.metadata().componentTemplates());
                     updatedComponentTemplates.putAll(componentTemplateSubstitutions);
                     simulatedMetadata.componentTemplates(updatedComponentTemplates);
+                }
+                if (indexTemplateSubstitutions.isEmpty() == false) {
+                    Map<String, ComposableIndexTemplate> updatedIndexTemplates = new HashMap<>();
+                    updatedIndexTemplates.putAll(state.metadata().templatesV2());
+                    updatedIndexTemplates.putAll(indexTemplateSubstitutions);
+                    simulatedMetadata.indexTemplates(updatedIndexTemplates);
                 }
                 ClusterState simulatedState = simulatedClusterStateBuilder.metadata(simulatedMetadata).build();
 

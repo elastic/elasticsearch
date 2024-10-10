@@ -1,0 +1,5 @@
+pr: 114234
+summary: Prevent flattening of ordered and unordered interval sources
+area: Search
+type: bug
+issues: []

@@ -1203,7 +1203,7 @@ public class Security extends Plugin
             new SecurityUsageServices(realms, allRolesStore, nativeRoleMappingStore, ipFilter.get(), profileService, apiKeyService)
         );
 
-        reservedRoleMappingAction.set(new ReservedRoleMappingAction());
+        reservedRoleMappingAction.set(new ReservedRoleMappingAction(featureService));
 
         cacheInvalidatorRegistry.validate();
 

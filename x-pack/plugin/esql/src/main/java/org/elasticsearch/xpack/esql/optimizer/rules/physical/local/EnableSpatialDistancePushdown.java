@@ -43,6 +43,7 @@ import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.core.expression.predicate.Predicates.splitAnd;
 import static org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushFiltersToSource.canPushSpatialFunctionToSource;
+import static org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushFiltersToSource.getAliasReplacedBy;
 
 /**
  * When a spatial distance predicate can be pushed down to lucene, this is done by capturing the distance within the same function.
@@ -127,13 +128,7 @@ public class EnableSpatialDistancePushdown extends PhysicalOptimizerRules.Parame
         }
 
         // Process the EVAL to get all aliases that might be needed in the filter rewrite
-        AttributeMap.Builder<Attribute> aliasReplacedByBuilder = AttributeMap.builder();
-        evalExec.fields().forEach(alias -> {
-            if (alias.child() instanceof Attribute attr) {
-                aliasReplacedByBuilder.put(alias.toAttribute(), attr);
-            }
-        });
-        AttributeMap<Attribute> aliasReplacedBy = aliasReplacedByBuilder.build();
+        AttributeMap<Attribute> aliasReplacedBy = getAliasReplacedBy(evalExec);
 
         // First we split the filter into multiple AND'd expressions, and then we evaluate each individually for distance rewrites
         List<Expression> pushable = new ArrayList<>();

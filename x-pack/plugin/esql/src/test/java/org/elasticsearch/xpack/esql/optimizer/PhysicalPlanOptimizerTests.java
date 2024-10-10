@@ -21,6 +21,7 @@ import org.elasticsearch.geometry.Polygon;
 import org.elasticsearch.geometry.ShapeType;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.query.BoolQueryBuilder;
+import org.elasticsearch.index.query.ExistsQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.query.RegexpQueryBuilder;
@@ -160,6 +161,7 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
@@ -1769,6 +1771,124 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     }
 
     /**
+     * <code>
+     * TopNExec[[Order[name{r}#4,ASC,LAST]],1000[INTEGER],0]
+     * \_ExchangeExec[[_meta_field{f}#20, emp_no{f}#14, gender{f}#16, job{f}#21, job.raw{f}#22, languages{f}#17,
+     *     long_noidx{f}#23, salary{f}#19, name{r}#4, first_name{r}#7, last_name{r}#10
+     *   ],false]
+     *   \_ProjectExec[[_meta_field{f}#20, emp_no{f}#14, gender{f}#16, job{f}#21, job.raw{f}#22, languages{f}#17,
+     *       long_noidx{f}#23, salary{f}#19, name{r}#4, first_name{r}#7, last_name{r}#10
+     *     ]]
+     *     \_FieldExtractExec[_meta_field{f}#20, emp_no{f}#14, gender{f}#16, job{..][]
+     *       \_EvalExec[[first_name{f}#15 AS name, last_name{f}#18 AS first_name, name{r}#4 AS last_name]]
+     *         \_FieldExtractExec[first_name{f}#15, last_name{f}#18][]
+     *           \_EsQueryExec[test], indexMode[standard], query[{
+     *             "bool":{"must":[
+     *               {"esql_single_value":{"field":"last_name","next":{"term":{"last_name":{"value":"foo"}}},"source":...}},
+     *               {"esql_single_value":{"field":"first_name","next":{"term":{"first_name":{"value":"bar"}}},"source":...}}
+     *             ],"boost":1.0}}][_doc{f}#37], limit[1000], sort[[
+     *               FieldSort[field=first_name{f}#15, direction=ASC, nulls=LAST]
+     *             ]] estimatedRowSize[486]
+     * </code>
+     */
+    public void testPushDownEvalFilter() {
+        var plan = physicalPlan("""
+            FROM test
+            | EVAL name = first_name, first_name = last_name, last_name = name
+            | WHERE first_name == "foo" AND last_name == "bar"
+            | SORT name
+            """);
+        var optimized = optimizedPlan(plan);
+
+        var topN = as(optimized, TopNExec.class);
+        var exchange = asRemoteExchange(topN.child());
+        var project = as(exchange.child(), ProjectExec.class);
+        var extract = as(project.child(), FieldExtractExec.class);
+        assertThat(extract.attributesToExtract().size(), greaterThan(5));
+        var eval = as(extract.child(), EvalExec.class);
+        extract = as(eval.child(), FieldExtractExec.class);
+        assertThat(
+            extract.attributesToExtract().stream().map(Attribute::name).collect(Collectors.toList()),
+            contains("first_name", "last_name")
+        );
+
+        // Now verify the correct Lucene push-down of both the filter and the sort
+        var source = source(extract.child());
+        QueryBuilder query = source.query();
+        assertNotNull(query);
+        assertThat(query, instanceOf(BoolQueryBuilder.class));
+        var boolQuery = (BoolQueryBuilder) query;
+        var must = boolQuery.must();
+        assertThat(must.size(), is(2));
+        var range1 = (TermQueryBuilder) ((SingleValueQuery.Builder) must.get(0)).next();
+        assertThat(range1.fieldName(), is("last_name"));
+        var range2 = (TermQueryBuilder) ((SingleValueQuery.Builder) must.get(1)).next();
+        assertThat(range2.fieldName(), is("first_name"));
+        var sort = source.sorts();
+        assertThat(sort.size(), is(1));
+        assertThat(sort.get(0).field().fieldName(), is("first_name"));
+    }
+
+    /**
+     * <code>
+     * ProjectExec[[last_name{f}#21 AS name, first_name{f}#18 AS last_name, last_name{f}#21 AS first_name]]
+     * \_TopNExec[[Order[last_name{f}#21,ASC,LAST]],10[INTEGER],0]
+     *   \_ExchangeExec[[last_name{f}#21, first_name{f}#18],false]
+     *     \_ProjectExec[[last_name{f}#21, first_name{f}#18]]
+     *       \_FieldExtractExec[last_name{f}#21, first_name{f}#18][]
+     *         \_EsQueryExec[test], indexMode[standard], query[{
+     *           "bool":{"must":[
+     *             {"esql_single_value":{
+     *               "field":"last_name",
+     *               "next":{"range":{"last_name":{"gt":"B","boost":1.0}}},
+     *               "source":"first_name &gt; \"B\"@3:9"
+     *             }},
+     *             {"exists":{"field":"first_name","boost":1.0}}
+     *           ],"boost":1.0}}][_doc{f}#40], limit[10], sort[[
+     *             FieldSort[field=last_name{f}#21, direction=ASC, nulls=LAST]
+     *           ]] estimatedRowSize[116]
+     * </code>
+     */
+    public void testPushDownEvalSwapFilter() {
+        var plan = physicalPlan("""
+            FROM test
+            | EVAL name = last_name, last_name = first_name, first_name = name
+            | WHERE first_name > "B" AND last_name IS NOT NULL
+            | SORT name
+            | LIMIT 10
+            | KEEP name, last_name, first_name
+            """);
+        var optimized = optimizedPlan(plan);
+
+        var topProject = as(optimized, ProjectExec.class);
+        var topN = as(topProject.child(), TopNExec.class);
+        var exchange = asRemoteExchange(topN.child());
+        var project = as(exchange.child(), ProjectExec.class);
+        var extract = as(project.child(), FieldExtractExec.class);
+        assertThat(
+            extract.attributesToExtract().stream().map(Attribute::name).collect(Collectors.toList()),
+            contains("last_name", "first_name")
+        );
+
+        // Now verify the correct Lucene push-down of both the filter and the sort
+        var source = source(extract.child());
+        QueryBuilder query = source.query();
+        assertNotNull(query);
+        assertThat(query, instanceOf(BoolQueryBuilder.class));
+        var boolQuery = (BoolQueryBuilder) query;
+        var must = boolQuery.must();
+        assertThat(must.size(), is(2));
+        var svq = (SingleValueQuery.Builder) must.get(0);
+        var range = (RangeQueryBuilder) svq.next();
+        assertThat(range.fieldName(), is("last_name"));
+        var exists = (ExistsQueryBuilder) must.get(1);
+        assertThat(exists.fieldName(), is("first_name"));
+        var sort = source.sorts();
+        assertThat(sort.size(), is(1));
+        assertThat(sort.get(0).field().fieldName(), is("last_name"));
+    }
+
+    /**
      * EnrichExec[first_name{f}#3,foo,fld,idx,[a{r}#11, b{r}#12]]
      *  \_LimitExec[10000[INTEGER]]
      *    \_ExchangeExec[]
@@ -3107,9 +3227,12 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      *   \_ProjectExec[[abbrev{f}#6, city{f}#12, city_location{f}#13, country{f}#11, location{f}#10, name{f}#7, scalerank{f}#8,
      *       type{f}#9, rank{r}#4]]
      *     \_FieldExtractExec[abbrev{f}#6, city{f}#12, city_location{f}#13, count..][]
-     *       \_EsQueryExec[airports], indexMode[standard], query[{
-     *           "esql_single_value":{"field":"scalerank","next":{"range":{"scalerank":{"lt":4,"boost":1.0}}},"source":"rank lt 4@3:9"}
-     *         }][_doc{f}#23], limit[1000], sort[] estimatedRowSize[300]
+     *       \_LimitExec[1000[INTEGER]]
+     *         \_EvalExec[[scalerank{f}#8 AS rank]]
+     *           \_FieldExtractExec[scalerank{f}#8][]
+     *             \_EsQueryExec[airports], indexMode[standard], query[{"
+     *               esql_single_value":{"field":"scalerank","next":{"range":{"scalerank":{"lt":4,"boost":1.0}}},"source":"rank &lt; 4@3:9"}
+     *             }][_doc{f}#23], limit[], sort[] estimatedRowSize[304]
      * </code>
      */
     public void testPushWhereEvalToSource() {
@@ -3132,6 +3255,11 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         exchange = as(topLimit.child(), ExchangeExec.class);
         var project = as(exchange.child(), ProjectExec.class);
         var fieldExtract = as(project.child(), FieldExtractExec.class);
+        assertThat(fieldExtract.attributesToExtract().size(), greaterThan(5));
+        limit = as(fieldExtract.child(), LimitExec.class);
+        var eval = as(limit.child(), EvalExec.class);
+        fieldExtract = as(eval.child(), FieldExtractExec.class);
+        assertThat(fieldExtract.attributesToExtract().stream().map(Attribute::name).collect(Collectors.toList()), contains("scalerank"));
         var source = source(fieldExtract.child());
         var condition = as(source.query(), SingleValueQuery.Builder.class);
         assertThat("Expected predicate to be passed to Lucene query", condition.source().text(), equalTo("rank < 4"));
@@ -3165,6 +3293,11 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             exchange = as(topLimit.child(), ExchangeExec.class);
             var project = as(exchange.child(), ProjectExec.class);
             var fieldExtract = as(project.child(), FieldExtractExec.class);
+            assertThat(fieldExtract.attributesToExtract().size(), greaterThan(5));
+            limit = as(fieldExtract.child(), LimitExec.class);
+            var eval = as(limit.child(), EvalExec.class);
+            fieldExtract = as(eval.child(), FieldExtractExec.class);
+            assertThat(fieldExtract.attributesToExtract().stream().map(Attribute::name).collect(Collectors.toList()), contains("location"));
             var source = source(fieldExtract.child());
             var condition = as(source.query(), SpatialRelatesQuery.ShapeQueryBuilder.class);
             assertThat("Geometry field name", condition.fieldName(), equalTo("location"));
@@ -4844,33 +4977,36 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      * This test shows that with an additional EVAL used in the filter, we can no longer push down the SORT distance.
      * TODO: This could be optimized in future work. Consider moving much of EnableSpatialDistancePushdown into logical planning.
      * <code>
-     * ProjectExec[[abbrev{f}#17, name{f}#18, location{f}#21, country{f}#22, city{f}#23]]
-     * \_TopNExec[[Order[distance{r}#4,ASC,LAST]],5[INTEGER],0]
-     *   \_ExchangeExec[[abbrev{f}#17, name{f}#18, location{f}#21, country{f}#22, city{f}#23, distance{r}#4],false]
-     *     \_ProjectExec[[abbrev{f}#17, name{f}#18, location{f}#21, country{f}#22, city{f}#23, distance{r}#4]]
-     *       \_FieldExtractExec[abbrev{f}#17, name{f}#18, country{f}#22, city{f}#23][]
-     *         \_TopNExec[[Order[distance{r}#4,ASC,LAST]],5[INTEGER],208]
-     *           \_FilterExec[SUBSTRING(position{r}#7,1[INTEGER],5[INTEGER]) == [50 4f 49 4e 54][KEYWORD]]
-     *             \_EvalExec[[
-     *                 STDISTANCE(location{f}#21,[1 1 0 0 0 e1 7a 14 ae 47 21 29 40 a0 1a 2f dd 24 d6 4b 40][GEO_POINT]) AS distance,
-     *                 TOSTRING(location{f}#21) AS position
-     *               ]]
-     *               \_FieldExtractExec[location{f}#21][]
-     *                 \_EsQueryExec[airports], indexMode[standard], query[{
-     *                   "bool":{"must":[
-     *                     {"geo_shape":{"location":{"relation":"INTERSECTS","shape":{...}}}},
-     *                     {"geo_shape":{"location":{"relation":"DISJOINT","shape":{...}}}}
-     *                   ],"boost":1.0}}][_doc{f}#35], limit[], sort[] estimatedRowSize[83]
+     * ProjectExec[[abbrev{f}#23, name{f}#24, location{f}#27, country{f}#28, city{f}#29, scalerank{f}#25 AS scale]]
+     * \_TopNExec[[Order[distance{r}#4,ASC,LAST], Order[scalerank{f}#25,ASC,LAST]],5[INTEGER],0]
+     *   \_ExchangeExec[[abbrev{f}#23, name{f}#24, location{f}#27, country{f}#28, city{f}#29, scalerank{f}#25, distance{r}#4],false]
+     *     \_ProjectExec[[abbrev{f}#23, name{f}#24, location{f}#27, country{f}#28, city{f}#29, scalerank{f}#25, distance{r}#4]]
+     *       \_FieldExtractExec[abbrev{f}#23, name{f}#24, country{f}#28, city{f}#29][]
+     *         \_TopNExec[[Order[distance{r}#4,ASC,LAST], Order[scalerank{f}#25,ASC,LAST]],5[INTEGER],208]
+     *           \_FieldExtractExec[scalerank{f}#25][]
+     *             \_FilterExec[SUBSTRING(position{r}#7,1[INTEGER],5[INTEGER]) == [50 4f 49 4e 54][KEYWORD]]
+     *               \_EvalExec[[
+     *                   STDISTANCE(location{f}#27,[1 1 0 0 0 e1 7a 14 ae 47 21 29 40 a0 1a 2f dd 24 d6 4b 40][GEO_POINT]) AS distance,
+     *                   TOSTRING(location{f}#27) AS position
+     *                 ]]
+     *                 \_FieldExtractExec[location{f}#27][]
+     *                   \_EsQueryExec[airports], indexMode[standard], query[{
+     *                     "bool":{"filter":[
+     *                       {"esql_single_value":{"field":"scalerank","next":{"range":{"scalerank":{"lt":6,"boost":1.0}}},"source":...}},
+     *                       {"bool":{"must":[
+     *                         {"geo_shape":{"location":{"relation":"INTERSECTS","shape":{...}}}},
+     *                         {"geo_shape":{"location":{"relation":"DISJOINT","shape":{...}}}}
+     *                       ],"boost":1.0}}],"boost":1.0}}][_doc{f}#42], limit[], sort[] estimatedRowSize[87]
      * </code>
      */
     public void testPushTopNDistanceAndNonPushableEvalWithCompoundFilterToSource() {
         var optimized = optimizedPlan(physicalPlan("""
             FROM airports
-            | EVAL distance = ST_DISTANCE(location, TO_GEOPOINT("POINT(12.565 55.673)")), position = location::keyword
-            | WHERE distance < 500000 AND SUBSTRING(position, 1, 5) == "POINT" AND distance > 10000
-            | SORT distance ASC
+            | EVAL distance = ST_DISTANCE(location, TO_GEOPOINT("POINT(12.565 55.673)")), position = location::keyword, scale = scalerank
+            | WHERE distance < 500000 AND SUBSTRING(position, 1, 5) == "POINT" AND distance > 10000 AND scale < 6
+            | SORT distance ASC, scale ASC
             | LIMIT 5
-            | KEEP abbrev, name, location, country, city
+            | KEEP abbrev, name, location, country, city, scale
             """, airports));
 
         var project = as(optimized, ProjectExec.class);
@@ -4878,11 +5014,13 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var exchange = asRemoteExchange(topN.child());
 
         project = as(exchange.child(), ProjectExec.class);
-        assertThat(names(project.projections()), contains("abbrev", "name", "location", "country", "city", "distance"));
+        assertThat(names(project.projections()), contains("abbrev", "name", "location", "country", "city", "scalerank", "distance"));
         var extract = as(project.child(), FieldExtractExec.class);
         assertThat(names(extract.attributesToExtract()), contains("abbrev", "name", "country", "city"));
         var topNChild = as(extract.child(), TopNExec.class);
-        var filter = as(topNChild.child(), FilterExec.class);
+        extract = as(topNChild.child(), FieldExtractExec.class);
+        assertThat(names(extract.attributesToExtract()), contains("scalerank"));
+        var filter = as(extract.child(), FilterExec.class);
         var evalExec = as(filter.child(), EvalExec.class);
         assertThat(evalExec.fields().size(), is(2));
         var aliasDistance = as(evalExec.fields().get(0), Alias.class);
@@ -4901,7 +5039,12 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
         // Fine-grained checks on the pushed down query
         var bool = as(source.query(), BoolQueryBuilder.class);
-        var shapeQueryBuilders = bool.must().stream().filter(p -> p instanceof SpatialRelatesQuery.ShapeQueryBuilder).toList();
+        var rangeQueryBuilders = bool.filter().stream().filter(p -> p instanceof SingleValueQuery.Builder).toList();
+        assertThat("Expected one range query builder", rangeQueryBuilders.size(), equalTo(1));
+        assertThat(((SingleValueQuery.Builder) rangeQueryBuilders.get(0)).field(), equalTo("scalerank"));
+        var filterBool = bool.filter().stream().filter(p -> p instanceof BoolQueryBuilder).toList();
+        var fb = as(filterBool.get(0), BoolQueryBuilder.class);
+        var shapeQueryBuilders = fb.must().stream().filter(p -> p instanceof SpatialRelatesQuery.ShapeQueryBuilder).toList();
         assertShapeQueryRange(shapeQueryBuilders, 10000.0, 500000.0);
     }
 

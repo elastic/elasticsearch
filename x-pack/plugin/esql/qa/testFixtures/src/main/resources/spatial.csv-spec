@@ -1134,6 +1134,21 @@ count:long | country:k
 1          | Poland
 ;
 
+airportsWithinEvalDistanceBandCopenhagenTrainStationKeepDistance
+required_capability: st_distance
+
+FROM airports
+| EVAL distance = ST_DISTANCE(location, TO_GEOPOINT("POINT(12.565 55.673)")), importance = 10 - scalerank
+| WHERE distance < 500000 AND distance > 400000
+| STATS count=COUNT() BY distance, importance
+| SORT distance ASC, importance DESC, count DESC
+;
+
+count:long | distance:double   | importance:integer
+1          | 402611.1308019835 | 4
+1          | 433987.3301951482 | 3
+;
+
 airportsWithinEvalDistanceBandCopenhagenTrainStationCountNonPushableEval
 required_capability: st_distance
 

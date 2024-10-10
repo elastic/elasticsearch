@@ -89,17 +89,7 @@ public class PushFiltersToSource extends PhysicalOptimizerRules.ParameterizedOpt
         EsQueryExec queryExec,
         LocalPhysicalOptimizerContext ctx
     ) {
-        AttributeMap.Builder<Attribute> aliasReplacedByBuilder = AttributeMap.builder();
-        List<Alias> others = new ArrayList<>();
-        evalExec.fields().forEach(alias -> {
-            if (alias.child() instanceof Attribute attr) {
-                aliasReplacedByBuilder.put(alias.toAttribute(), attr);
-            } else {
-                // Remember all non-attribute aliases (these must be kept in the plan as an EVAL)
-                others.add(alias);
-            }
-        });
-        AttributeMap<Attribute> aliasReplacedBy = aliasReplacedByBuilder.build();
+        AttributeMap<Attribute> aliasReplacedBy = getAliasReplacedBy(evalExec);
         List<Expression> pushable = new ArrayList<>();
         List<Expression> nonPushable = new ArrayList<>();
         for (Expression exp : splitAnd(filterExec.condition())) {
@@ -110,7 +100,17 @@ public class PushFiltersToSource extends PhysicalOptimizerRules.ParameterizedOpt
         }
         // Replace field references with their actual field attributes
         pushable.replaceAll(e -> e.transformDown(ReferenceAttribute.class, r -> aliasReplacedBy.resolve(r, r)));
-        return rewrite(filterExec, queryExec, pushable, nonPushable, others);
+        return rewrite(filterExec, queryExec, pushable, nonPushable, evalExec.fields());
+    }
+
+    static AttributeMap<Attribute> getAliasReplacedBy(EvalExec evalExec) {
+        AttributeMap.Builder<Attribute> aliasReplacedByBuilder = AttributeMap.builder();
+        evalExec.fields().forEach(alias -> {
+            if (alias.child() instanceof Attribute attr) {
+                aliasReplacedByBuilder.put(alias.toAttribute(), attr);
+            }
+        });
+        return aliasReplacedByBuilder.build();
     }
 
     private static PhysicalPlan rewrite(

@@ -176,8 +176,9 @@ public class PushTopNToSource extends PhysicalOptimizerRules.ParameterizedOptimi
                         )
                     );
                 } else if (order.child() instanceof ReferenceAttribute referenceAttribute) {
-                    if (distances.containsKey(referenceAttribute.id())) {
-                        StDistance distance = distances.get(referenceAttribute.id());
+                    Attribute resolvedAttribute = aliasReplacedBy.resolve(referenceAttribute, referenceAttribute);
+                    if (distances.containsKey(resolvedAttribute.id())) {
+                        StDistance distance = distances.get(resolvedAttribute.id());
                         StDistance d = (StDistance) distance.transformDown(ReferenceAttribute.class, r -> aliasReplacedBy.resolve(r, r));
                         PushableGeoDistance pushableGeoDistance = PushableGeoDistance.from(d, order);
                         if (pushableGeoDistance != null) {

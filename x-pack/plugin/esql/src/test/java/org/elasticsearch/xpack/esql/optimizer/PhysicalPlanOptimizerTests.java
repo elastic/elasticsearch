@@ -5237,7 +5237,8 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             | EVAL poi2 = poi, poi3 = poi2
             | EVAL loc2 = location
             | EVAL loc3 = loc2
-            | EVAL distance = ST_DISTANCE(loc3, poi3)
+            | EVAL dist = ST_DISTANCE(loc3, poi3)
+            | EVAL distance = dist
             | SORT scalerank, distance
             | LIMIT 15
             """, airports));
@@ -5262,6 +5263,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                 "poi3",
                 "loc2",
                 "loc3",
+                "dist",
                 "distance"
             )
         );
@@ -5271,7 +5273,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             containsInAnyOrder("abbrev", "name", "type", "country", "city", "city_location", "scalerank")
         );
         var evalExec = as(extract.child(), EvalExec.class);
-        assertThat(evalExec.fields().size(), is(6));
+        assertThat(evalExec.fields().size(), is(7));
         var alias1 = as(evalExec.fields().get(0), Alias.class);
         assertThat(alias1.name(), is("poi"));
         var poi = as(alias1.child(), Literal.class);
@@ -5283,13 +5285,16 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertThat(alias5.name(), is("loc3"));
         as(alias5.child(), ReferenceAttribute.class);
         var alias6 = as(evalExec.fields().get(5), Alias.class);
-        assertThat(alias6.name(), is("distance"));
+        assertThat(alias6.name(), is("dist"));
         var stDistance = as(alias6.child(), StDistance.class);
         var refLocation = as(stDistance.left(), ReferenceAttribute.class);
         assertThat(refLocation.name(), is("loc3"));
         var poiRef = as(stDistance.right(), Literal.class);
         assertThat(poiRef.fold(), instanceOf(BytesRef.class));
         assertThat(poiRef.fold().toString(), is(poi.fold().toString()));
+        var alias7 = as(evalExec.fields().get(6), Alias.class);
+        assertThat(alias7.name(), is("distance"));
+        as(alias7.child(), ReferenceAttribute.class);
         extract = as(evalExec.child(), FieldExtractExec.class);
         assertThat(names(extract.attributesToExtract()), contains("location"));
         var source = source(extract.child());

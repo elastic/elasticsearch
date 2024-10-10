@@ -49,32 +49,32 @@ you might expect otherwise.
 ==== {api-query-parms-title}
 
 `include_disk_info`::
-(Optional, Boolean) If `true`, returns information about disk usage and
-shard sizes. Defaults to `false`.
+    (Optional, Boolean) If `true`, returns information about disk usage and
+    shard sizes. Defaults to `false`.
 
 `include_yes_decisions`::
-(Optional, Boolean) If `true`, returns 'YES' decisions in explanation.
-Defaults to `false`.
+    (Optional, Boolean) If `true`, returns 'YES' decisions in explanation.
+    Defaults to `false`.
 
 [[cluster-allocation-explain-api-request-body]]
 ==== {api-request-body-title}
 
 `current_node`::
-(Optional, string) Specifies the node ID or the name of the node currently
-holding the shard to explain. To explain an unassigned shard, omit this
-parameter.
+    (Optional, string) Specifies the node ID or the name of the node currently
+    holding the shard to explain. To explain an unassigned shard, omit this
+    parameter.
 
 `index`::
-(Optional, string) Specifies the name of the index that you would like an
-explanation for.
+    (Optional, string) Specifies the name of the index that you would like an
+    explanation for.
 
 `primary`::
-(Optional, Boolean) If `true`, returns explanation for the primary shard
-for the given shard ID.
+    (Optional, Boolean) If `true`, returns explanation for the primary shard
+    for the given shard ID.
 
 `shard`::
-(Optional, integer) Specifies the ID of the shard that you would like an
-explanation for.
+    (Optional, integer) Specifies the ID of the shard that you would like an
+    explanation for.
 
 [[cluster-allocation-explain-api-examples]]
 ==== {api-examples-title}

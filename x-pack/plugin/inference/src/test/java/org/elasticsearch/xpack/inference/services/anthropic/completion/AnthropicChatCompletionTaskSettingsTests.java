@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.inference.services.anthropic.completion;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
@@ -52,6 +53,12 @@ public class AnthropicChatCompletionTaskSettingsTests extends AbstractBWCWireSer
 
     public static AnthropicChatCompletionTaskSettings createRandom() {
         return new AnthropicChatCompletionTaskSettings(randomNonNegativeInt(), randomDouble(), randomDouble(), randomInt());
+    }
+
+    public void testIsEmpty() {
+        var randomSettings = createRandom();
+        var stringRep = Strings.toString(randomSettings);
+        assertEquals(stringRep, randomSettings.isEmpty(), stringRep.equals("{}"));
     }
 
     public void testFromMap_WithMaxTokens() {

@@ -12,7 +12,7 @@ package org.elasticsearch.action.admin.indices.dangling.list;
 import org.elasticsearch.action.support.nodes.BaseNodesRequest;
 import org.elasticsearch.common.Strings;
 
-public class ListDanglingIndicesRequest extends BaseNodesRequest<ListDanglingIndicesRequest> {
+public class ListDanglingIndicesRequest extends BaseNodesRequest {
     /**
      * Filter the response by index UUID. Leave as null to find all indices.
      */

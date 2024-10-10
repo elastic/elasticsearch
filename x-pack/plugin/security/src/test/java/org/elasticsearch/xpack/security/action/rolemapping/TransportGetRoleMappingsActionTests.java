@@ -19,7 +19,6 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.action.rolemapping.GetRoleMappingsRequest;
 import org.elasticsearch.xpack.core.security.action.rolemapping.GetRoleMappingsResponse;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.ExpressionRoleMapping;
-import org.elasticsearch.xpack.security.authc.support.mapper.ClusterStateRoleMapper;
 import org.elasticsearch.xpack.security.authc.support.mapper.NativeRoleMappingStore;
 import org.hamcrest.Matchers;
 import org.junit.Before;
@@ -35,16 +34,13 @@ import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anySet;
 import static org.mockito.ArgumentMatchers.nullable;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 public class TransportGetRoleMappingsActionTests extends ESTestCase {
 
     private NativeRoleMappingStore store;
-    private ClusterStateRoleMapper clusterStateRoleMapper;
     private TransportGetRoleMappingsAction action;
     private AtomicReference<Set<String>> namesRef;
     private List<ExpressionRoleMapping> result;
@@ -53,8 +49,6 @@ public class TransportGetRoleMappingsActionTests extends ESTestCase {
     @Before
     public void setupMocks() {
         store = mock(NativeRoleMappingStore.class);
-        clusterStateRoleMapper = mock(ClusterStateRoleMapper.class);
-        when(clusterStateRoleMapper.getMappings(anySet())).thenReturn(Set.of());
         TransportService transportService = new TransportService(
             Settings.EMPTY,
             mock(Transport.class),
@@ -64,7 +58,7 @@ public class TransportGetRoleMappingsActionTests extends ESTestCase {
             null,
             Collections.emptySet()
         );
-        action = new TransportGetRoleMappingsAction(mock(ActionFilters.class), transportService, store, clusterStateRoleMapper);
+        action = new TransportGetRoleMappingsAction(mock(ActionFilters.class), transportService, store);
 
         namesRef = new AtomicReference<>(null);
         result = Collections.emptyList();

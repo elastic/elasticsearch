@@ -118,16 +118,6 @@ public class UpgradeWithOldIndexSettingsIT extends AbstractRollingUpgradeTestCas
     public static void updateIndexSettingsPermittingSlowlogDeprecationWarning(String index, Settings.Builder settings) throws IOException {
         Request request = new Request("PUT", "/" + index + "/_settings");
         request.setJsonEntity(org.elasticsearch.common.Strings.toString(settings.build()));
-        if (oldClusterHasFeature(RestTestLegacyFeatures.DEPRECATION_WARNINGS_LEAK_FIXED) == false) {
-            // There is a bug (fixed in 7.17.9 and 8.7.0 where deprecation warnings could leak into ClusterApplierService#applyChanges)
-            // Below warnings are set (and leaking) from an index in this test case
-            request.setOptions(expectVersionSpecificWarnings(v -> {
-                v.compatible(
-                    "[index.indexing.slowlog.level] setting was deprecated in Elasticsearch and will be removed in a future release! "
-                        + "See the breaking changes documentation for the next major version."
-                );
-            }));
-        }
         client().performRequest(request);
     }
 }

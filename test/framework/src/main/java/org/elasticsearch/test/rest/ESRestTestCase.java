@@ -898,50 +898,50 @@ public abstract class ESRestTestCase extends ESTestCase {
                  * slows down the test because xpack will just recreate
                  * them.
                  */
-                // In case of bwc testing, we need to delete component and composable
-                // index templates only for clusters that support this historical feature
-                if (clusterHasFeature(RestTestLegacyFeatures.COMPONENT_TEMPLATE_SUPPORTED)) {
-                    try {
-                        Request getTemplatesRequest = new Request("GET", "_index_template");
-                        Map<String, Object> composableIndexTemplates = XContentHelper.convertToMap(
-                            JsonXContent.jsonXContent,
-                            EntityUtils.toString(adminClient().performRequest(getTemplatesRequest).getEntity()),
-                            false
-                        );
-                        List<String> names = ((List<?>) composableIndexTemplates.get("index_templates")).stream()
-                            .map(ct -> (String) ((Map<?, ?>) ct).get("name"))
-                            .filter(name -> isXPackTemplate(name) == false)
-                            .collect(Collectors.toList());
-                        if (names.isEmpty() == false) {
-                            try {
-                                adminClient().performRequest(new Request("DELETE", "_index_template/" + String.join(",", names)));
-                            } catch (ResponseException e) {
-                                logger.warn(() -> format("unable to remove multiple composable index templates %s", names), e);
-                            }
+                try {
+                    Request getTemplatesRequest = new Request("GET", "_index_template");
+                    Map<String, Object> composableIndexTemplates = XContentHelper.convertToMap(
+                        JsonXContent.jsonXContent,
+                        EntityUtils.toString(adminClient().performRequest(getTemplatesRequest).getEntity()),
+                        false
+                    );
+                    List<String> names = ((List<?>) composableIndexTemplates.get("index_templates")).stream()
+                        .map(ct -> (String) ((Map<?, ?>) ct).get("name"))
+                        .filter(name -> isXPackTemplate(name) == false)
+                        .collect(Collectors.toList());
+                    if (names.isEmpty() == false) {
+
+                        try {
+                            adminClient().performRequest(new Request("DELETE", "_index_template/" + String.join(",", names)));
+                        } catch (ResponseException e) {
+                            logger.warn(() -> format("unable to remove multiple composable index templates %s", names), e);
+
                         }
-                    } catch (Exception e) {
-                        logger.debug("ignoring exception removing all composable index templates", e);
-                        // We hit a version of ES that doesn't support index templates v2 yet, so it's safe to ignore
                     }
-                    try {
-                        Request compReq = new Request("GET", "_component_template");
-                        String componentTemplates = EntityUtils.toString(adminClient().performRequest(compReq).getEntity());
-                        Map<String, Object> cTemplates = XContentHelper.convertToMap(JsonXContent.jsonXContent, componentTemplates, false);
-                        List<String> names = ((List<?>) cTemplates.get("component_templates")).stream()
-                            .map(ct -> (String) ((Map<?, ?>) ct).get("name"))
-                            .filter(name -> isXPackTemplate(name) == false)
-                            .collect(Collectors.toList());
-                        if (names.isEmpty() == false) {
-                            try {
-                                adminClient().performRequest(new Request("DELETE", "_component_template/" + String.join(",", names)));
-                            } catch (ResponseException e) {
-                                logger.warn(() -> format("unable to remove multiple component templates %s", names), e);
-                            }
+                } catch (Exception e) {
+                    logger.debug("ignoring exception removing all composable index templates", e);
+                    // We hit a version of ES that doesn't support index templates v2 yet, so it's safe to ignore
+                }
+                try {
+                    Request compReq = new Request("GET", "_component_template");
+                    String componentTemplates = EntityUtils.toString(adminClient().performRequest(compReq).getEntity());
+                    Map<String, Object> cTemplates = XContentHelper.convertToMap(JsonXContent.jsonXContent, componentTemplates, false);
+                    List<String> names = ((List<?>) cTemplates.get("component_templates")).stream()
+                        .map(ct -> (String) ((Map<?, ?>) ct).get("name"))
+                        .filter(name -> isXPackTemplate(name) == false)
+                        .collect(Collectors.toList());
+                    if (names.isEmpty() == false) {
+
+                        try {
+                            adminClient().performRequest(new Request("DELETE", "_component_template/" + String.join(",", names)));
+                        } catch (ResponseException e) {
+                            logger.warn(() -> format("unable to remove multiple component templates %s", names), e);
+
                         }
-                    } catch (Exception e) {
-                        logger.debug("ignoring exception removing all component templates", e);
-                        // We hit a version of ES that doesn't support index templates v2 yet, so it's safe to ignore
                     }
+                } catch (Exception e) {
+                    logger.debug("ignoring exception removing all component templates", e);
+                    // We hit a version of ES that doesn't support index templates v2 yet, so it's safe to ignore
                 }
 
                 if (has(ProductFeature.LEGACY_TEMPLATES)) {
@@ -1039,29 +1039,25 @@ public abstract class ESRestTestCase extends ESTestCase {
         Set<String> unexpectedTemplates = new HashSet<>();
         if (preserveDataStreamsUponCompletion() == false && preserveTemplatesUponCompletion() == false) {
             if (has(ProductFeature.XPACK)) {
-                // In case of bwc testing, we need to delete component and composable
-                // index templates only for clusters that support this historical feature
-                if (clusterHasFeature(RestTestLegacyFeatures.COMPONENT_TEMPLATE_SUPPORTED)) {
-                    Request getTemplatesRequest = new Request("GET", "_index_template");
-                    Map<String, Object> composableIndexTemplates = XContentHelper.convertToMap(
-                        JsonXContent.jsonXContent,
-                        EntityUtils.toString(adminClient().performRequest(getTemplatesRequest).getEntity()),
-                        false
-                    );
-                    unexpectedTemplates.addAll(
-                        ((List<?>) composableIndexTemplates.get("index_templates")).stream()
-                            .map(ct -> (String) ((Map<?, ?>) ct).get("name"))
-                            .filter(name -> isXPackTemplate(name) == false)
-                            .collect(Collectors.toSet())
-                    );
-                    Request compReq = new Request("GET", "_component_template");
-                    String componentTemplates = EntityUtils.toString(adminClient().performRequest(compReq).getEntity());
-                    Map<String, Object> cTemplates = XContentHelper.convertToMap(JsonXContent.jsonXContent, componentTemplates, false);
-                    ((List<?>) cTemplates.get("component_templates")).stream()
+                Request getTemplatesRequest = new Request("GET", "_index_template");
+                Map<String, Object> composableIndexTemplates = XContentHelper.convertToMap(
+                    JsonXContent.jsonXContent,
+                    EntityUtils.toString(adminClient().performRequest(getTemplatesRequest).getEntity()),
+                    false
+                );
+                unexpectedTemplates.addAll(
+                    ((List<?>) composableIndexTemplates.get("index_templates")).stream()
                         .map(ct -> (String) ((Map<?, ?>) ct).get("name"))
                         .filter(name -> isXPackTemplate(name) == false)
-                        .forEach(unexpectedTemplates::add);
-                }
+                        .collect(Collectors.toSet())
+                );
+                Request compReq = new Request("GET", "_component_template");
+                String componentTemplates = EntityUtils.toString(adminClient().performRequest(compReq).getEntity());
+                Map<String, Object> cTemplates = XContentHelper.convertToMap(JsonXContent.jsonXContent, componentTemplates, false);
+                ((List<?>) cTemplates.get("component_templates")).stream()
+                    .map(ct -> (String) ((Map<?, ?>) ct).get("name"))
+                    .filter(name -> isXPackTemplate(name) == false)
+                    .forEach(unexpectedTemplates::add);
 
                 if (has(ProductFeature.LEGACY_TEMPLATES)) {
                     Request getLegacyTemplatesRequest = new Request("GET", "_template");

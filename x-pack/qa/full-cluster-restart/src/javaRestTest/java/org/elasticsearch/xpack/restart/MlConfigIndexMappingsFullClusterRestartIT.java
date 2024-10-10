@@ -14,7 +14,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Strings;
-import org.elasticsearch.test.rest.RestTestLegacyFeatures;
 import org.elasticsearch.upgrades.FullClusterRestartUpgradeStatus;
 import org.elasticsearch.xpack.test.rest.IndexMappingTemplateAsserter;
 import org.elasticsearch.xpack.test.rest.XPackRestTestConstants;
@@ -48,11 +47,7 @@ public class MlConfigIndexMappingsFullClusterRestartIT extends AbstractXpackFull
     public void waitForMlTemplates() throws Exception {
         // We shouldn't wait for ML templates during the upgrade - production won't
         if (isRunningAgainstOldCluster()) {
-            XPackRestTestHelper.waitForTemplates(
-                client(),
-                XPackRestTestConstants.ML_POST_V7120_TEMPLATES,
-                clusterHasFeature(RestTestLegacyFeatures.COMPONENT_TEMPLATE_SUPPORTED)
-            );
+            XPackRestTestHelper.waitForTemplates(client(), XPackRestTestConstants.ML_POST_V7120_TEMPLATES);
         }
     }
 

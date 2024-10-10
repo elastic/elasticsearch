@@ -1,0 +1,5 @@
+pr: 114021
+summary: "ESQL: Speed up grouping by bytes"
+area: ES|QL
+type: enhancement
+issues: []

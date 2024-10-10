@@ -421,7 +421,6 @@ module org.elasticsearch.server {
     uses CompletionsPostingsFormatExtension;
     uses org.elasticsearch.features.FeatureSpecification;
     uses org.elasticsearch.plugins.internal.LoggingDataProvider;
-    uses org.elasticsearch.cluster.metadata.DataStreamFactoryRetention;
 
     provides org.elasticsearch.features.FeatureSpecification
         with

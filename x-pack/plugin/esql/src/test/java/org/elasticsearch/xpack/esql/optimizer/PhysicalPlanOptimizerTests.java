@@ -5049,6 +5049,81 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     }
 
     /**
+     * This test further shows that with a non-aliasing function, less gets pushed down.
+     * <code>
+     * ProjectExec[[abbrev{f}#23, name{f}#24, location{f}#27, country{f}#28, city{f}#29, scale{r}#10]]
+     * \_TopNExec[[Order[distance{r}#4,ASC,LAST], Order[scale{r}#10,ASC,LAST]],5[INTEGER],0]
+     *   \_ExchangeExec[[abbrev{f}#23, name{f}#24, location{f}#27, country{f}#28, city{f}#29, scale{r}#10, distance{r}#4],false]
+     *     \_ProjectExec[[abbrev{f}#23, name{f}#24, location{f}#27, country{f}#28, city{f}#29, scale{r}#10, distance{r}#4]]
+     *       \_FieldExtractExec[abbrev{f}#23, name{f}#24, country{f}#28, city{f}#29][]
+     *         \_TopNExec[[Order[distance{r}#4,ASC,LAST], Order[scale{r}#10,ASC,LAST]],5[INTEGER],208]
+     *           \_FilterExec[
+     *               SUBSTRING(position{r}#7,1[INTEGER],5[INTEGER]) == [50 4f 49 4e 54][KEYWORD]
+     *               AND scale{r}#10 &gt; 3[INTEGER]
+     *             ]
+     *             \_EvalExec[[
+     *                 STDISTANCE(location{f}#27,[1 1 0 0 0 e1 7a 14 ae 47 21 29 40 a0 1a 2f dd 24 d6 4b 40][GEO_POINT]) AS distance,
+     *                 TOSTRING(location{f}#27) AS position,
+     *                 10[INTEGER] - scalerank{f}#25 AS scale
+     *               ]]
+     *               \_FieldExtractExec[location{f}#27, scalerank{f}#25][]
+     *                 \_EsQueryExec[airports], indexMode[standard], query[{
+     *                   "bool":{"must":[
+     *                     {"geo_shape":{"location":{"relation":"INTERSECTS","shape":{...}}}},
+     *                     {"geo_shape":{"location":{"relation":"DISJOINT","shape":{...}}}}
+     *                   ],"boost":1.0}}][_doc{f}#42], limit[], sort[] estimatedRowSize[91]
+     * </code>
+     */
+    public void testPushTopNDistanceAndNonPushableEvalsWithCompoundFilterToSource() {
+        var optimized = optimizedPlan(physicalPlan("""
+            FROM airports
+            | EVAL distance = ST_DISTANCE(location, TO_GEOPOINT("POINT(12.565 55.673)")),
+                   position = location::keyword, scale = 10 - scalerank
+            | WHERE distance < 500000 AND SUBSTRING(position, 1, 5) == "POINT" AND distance > 10000 AND scale > 3
+            | SORT distance ASC, scale ASC
+            | LIMIT 5
+            | KEEP abbrev, name, location, country, city, scale
+            """, airports));
+        System.out.println(optimized);
+        var project = as(optimized, ProjectExec.class);
+        var topN = as(project.child(), TopNExec.class);
+        var exchange = asRemoteExchange(topN.child());
+
+        project = as(exchange.child(), ProjectExec.class);
+        assertThat(names(project.projections()), contains("abbrev", "name", "location", "country", "city", "scale", "distance"));
+        var extract = as(project.child(), FieldExtractExec.class);
+        assertThat(names(extract.attributesToExtract()), contains("abbrev", "name", "country", "city"));
+        var topNChild = as(extract.child(), TopNExec.class);
+        var filter = as(topNChild.child(), FilterExec.class);
+        assertThat(filter.condition(), isA(And.class));
+        var and = (And) filter.condition();
+        assertThat(and.left(), isA(Equals.class));
+        assertThat(and.right(), isA(GreaterThan.class));
+        var evalExec = as(filter.child(), EvalExec.class);
+        assertThat(evalExec.fields().size(), is(3));
+        var aliasDistance = as(evalExec.fields().get(0), Alias.class);
+        assertThat(aliasDistance.name(), is("distance"));
+        var stDistance = as(aliasDistance.child(), StDistance.class);
+        assertThat(stDistance.left().toString(), startsWith("location"));
+        var aliasPosition = as(evalExec.fields().get(1), Alias.class);
+        assertThat(aliasPosition.name(), is("position"));
+        var aliasScale = as(evalExec.fields().get(2), Alias.class);
+        assertThat(aliasScale.name(), is("scale"));
+        extract = as(evalExec.child(), FieldExtractExec.class);
+        assertThat(names(extract.attributesToExtract()), contains("location", "scalerank"));
+        var source = source(extract.child());
+
+        // In this example TopN is not pushed down (we can optimize that in later work)
+        assertThat(source.limit(), nullValue());
+        assertThat(source.sorts(), nullValue());
+
+        // Fine-grained checks on the pushed down query, only the spatial distance gets pushed down, not the scale filter
+        var bool = as(source.query(), BoolQueryBuilder.class);
+        var shapeQueryBuilders = bool.must().stream().filter(p -> p instanceof SpatialRelatesQuery.ShapeQueryBuilder).toList();
+        assertShapeQueryRange(shapeQueryBuilders, 10000.0, 500000.0);
+    }
+
+    /**
      * This test shows that with if the top level AND'd predicate contains a non-pushable component, we should not push anything.
      * <code>
      * ProjectExec[[abbrev{f}#8612, name{f}#8613, location{f}#8616, country{f}#8617, city{f}#8618, scalerank{f}#8614 AS scale]]

@@ -17,6 +17,7 @@ import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
+import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
@@ -50,6 +51,7 @@ import static java.util.Collections.emptySet;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.startsWith;
 
 public class TransportServiceLifecycleTests extends ESTestCase {
@@ -178,18 +180,17 @@ public class TransportServiceLifecycleTests extends ESTestCase {
     public void testInternalSendExceptionWithNonForkingResponseHandlerCanCompleteFutureWaiterFromGenericThread() throws Exception {
         try (var nodeA = new TestNode("node-A")) {
             final var future = new PlainActionFuture<TransportResponse.Empty>();
-            final var latch = new CountDownLatch(1);
             nodeA.transportService.getThreadPool().generic().execute(() -> {
                 assertEquals("simulated exception in sendRequest", getSendRequestException(future, IOException.class).getMessage());
-                latch.countDown();
             });
+            final Thread callingThread = Thread.currentThread();
             nodeA.transportService.sendRequest(
                 nodeA.getThrowingConnection(),
                 TestNode.randomActionName(random()),
                 new EmptyRequest(),
                 TransportRequestOptions.EMPTY,
                 new ActionListenerResponseHandler<>(future.delegateResponse((l, e) -> {
-                    assertThat(Thread.currentThread().getName(), startsWith("TEST-"));
+                    assertThat(Thread.currentThread(), is(callingThread));
                     l.onFailure(e);
                 }), unusedReader(), EsExecutors.DIRECT_EXECUTOR_SERVICE)
             );

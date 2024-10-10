@@ -1335,7 +1335,7 @@ public class MasterService extends AbstractLifecycleComponent {
 
         assert totalQueueSize.get() > 0;
         final var threadContext = threadPool.getThreadContext();
-        try (var ignored = threadContext.stashContext()) {
+        try (var ignored = threadContext.newStoredContext()) {
             clusterStateUpdateContext.restore();
             threadPoolExecutor.execute(queuesProcessor);
         }

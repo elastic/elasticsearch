@@ -288,12 +288,12 @@ mv_avg        |Converts a multivalued field into a single valued field containin
 mv_concat     |Converts a multivalued string expression into a single valued column containing the concatenation of all values separated by a delimiter.
 mv_count      |Converts a multivalued expression into a single valued column containing a count of the number of values.
 mv_dedupe     |Remove duplicate values from a multivalued field.
-mv_first      |Converts a multivalued expression into a single valued column containing the first value. This is most useful when reading from a function that emits multivalued columns in a known order like <<esql-split>>.  The order that <<esql-multivalued-fields, multivalued fields>> are read from underlying storage is not guaranteed. It is *frequently* ascending, but don't rely on that. If you need the minimum value use <<esql-mv_min>> instead of `MV_FIRST`. `MV_MIN` has optimizations for sorted values so there isn't a performance benefit to `MV_FIRST`.
-mv_last       |Converts a multivalue expression into a single valued column containing the last value. This is most useful when reading from a function that emits multivalued columns in a known order like <<esql-split>>.  The order that <<esql-multivalued-fields, multivalued fields>> are read from underlying storage is not guaranteed. It is *frequently* ascending, but don't rely on that. If you need the maximum value use <<esql-mv_max>> instead of `MV_LAST`. `MV_MAX` has optimizations for sorted values so there isn't a performance benefit to `MV_LAST`.
+mv_first      |Converts a multivalued expression into a single valued column containing the first value. This is most useful when reading from a function that emits multivalued columns in a known order like <<esql-split>>.
+mv_last       |Converts a multivalue expression into a single valued column containing the last value. This is most useful when reading from a function that emits multivalued columns in a known order like <<esql-split>>.
 mv_max        |Converts a multivalued expression into a single valued column containing the maximum value.
 mv_median     |Converts a multivalued field into a single valued field containing the median value.
 mv_min        |Converts a multivalued expression into a single valued column containing the minimum value.
-mv_slice      |Returns a subset of the multivalued field using the start and end index values.
+mv_slice      |Returns a subset of the multivalued field using the start and end index values. This is most useful when reading from a function that emits multivalued columns in a known order like <<esql-split>> or <<esql-mv_sort>>.
 mv_sort       |Sorts a multivalued field in lexicographical order.
 mv_sum        |Converts a multivalued field into a single valued field containing the sum of all of the values.
 mv_zip        |Combines the values from two multivalued fields with a delimiter that joins them together.

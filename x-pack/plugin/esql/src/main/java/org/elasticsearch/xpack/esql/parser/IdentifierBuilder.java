@@ -32,6 +32,14 @@ abstract class IdentifierBuilder extends AbstractBuilder {
         return ctx == null ? null : unquoteIdentifier(ctx.QUOTED_IDENTIFIER(), ctx.UNQUOTED_IDENTIFIER());
     }
 
+    @Override
+    public String visitFunctionName(EsqlBaseParser.FunctionNameContext ctx) {
+        if (ctx.DEV_MATCH() != null) {
+            return ctx.DEV_MATCH().getText();
+        }
+        return visitIdentifier(ctx.identifier());
+    }
+
     protected static String unquoteIdentifier(TerminalNode quotedNode, TerminalNode unquotedNode) {
         String result;
         if (quotedNode != null) {

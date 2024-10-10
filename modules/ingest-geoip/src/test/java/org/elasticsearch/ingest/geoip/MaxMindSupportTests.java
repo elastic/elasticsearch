@@ -87,7 +87,8 @@ public class MaxMindSupportTests extends ESTestCase {
         "location.timeZone",
         "mostSpecificSubdivision.isoCode",
         "mostSpecificSubdivision.name",
-        "postal.code"
+        "postal.code",
+        "registeredCountry.isoCode"
     );
     private static final Set<String> CITY_UNSUPPORTED_FIELDS = Set.of(
         "city.confidence",
@@ -114,7 +115,6 @@ public class MaxMindSupportTests extends ESTestCase {
         "registeredCountry.confidence",
         "registeredCountry.geoNameId",
         "registeredCountry.inEuropeanUnion",
-        "registeredCountry.isoCode",
         "registeredCountry.name",
         "registeredCountry.names",
         "representedCountry.confidence",
@@ -162,7 +162,8 @@ public class MaxMindSupportTests extends ESTestCase {
         "country.inEuropeanUnion",
         "country.isoCode",
         "continent.code",
-        "country.name"
+        "country.name",
+        "registeredCountry.isoCode"
     );
     private static final Set<String> COUNTRY_UNSUPPORTED_FIELDS = Set.of(
         "continent.geoNameId",
@@ -174,7 +175,6 @@ public class MaxMindSupportTests extends ESTestCase {
         "registeredCountry.confidence",
         "registeredCountry.geoNameId",
         "registeredCountry.inEuropeanUnion",
-        "registeredCountry.isoCode",
         "registeredCountry.name",
         "registeredCountry.names",
         "representedCountry.confidence",
@@ -229,6 +229,7 @@ public class MaxMindSupportTests extends ESTestCase {
         "mostSpecificSubdivision.name",
         "postal.code",
         "postal.confidence",
+        "registeredCountry.isoCode",
         "traits.anonymous",
         "traits.anonymousVpn",
         "traits.autonomousSystemNumber",
@@ -268,7 +269,6 @@ public class MaxMindSupportTests extends ESTestCase {
         "registeredCountry.confidence",
         "registeredCountry.geoNameId",
         "registeredCountry.inEuropeanUnion",
-        "registeredCountry.isoCode",
         "registeredCountry.name",
         "registeredCountry.names",
         "representedCountry.confidence",

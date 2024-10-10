@@ -34,6 +34,7 @@ import java.io.IOException;
 import java.net.InetAddress;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
@@ -45,6 +46,11 @@ final class MaxmindIpDataLookups {
     private MaxmindIpDataLookups() {
         // utility class
     }
+
+    // the actual prefixes from the metadata are cased like the literal strings, but
+    // prefix dispatch and checks case-insensitive, so the actual constants are lowercase
+    static final String GEOIP2_PREFIX = "GeoIP2".toLowerCase(Locale.ROOT);
+    static final String GEOLITE2_PREFIX = "GeoLite2".toLowerCase(Locale.ROOT);
 
     static class AnonymousIp extends AbstractBase<AnonymousIpResponse> {
         AnonymousIp(final Set<Database.Property> properties) {
@@ -136,6 +142,7 @@ final class MaxmindIpDataLookups {
         @Override
         protected Map<String, Object> transform(final CityResponse response) {
             com.maxmind.geoip2.record.Country country = response.getCountry();
+            com.maxmind.geoip2.record.Country registeredCountry = response.getRegisteredCountry();
             com.maxmind.geoip2.record.City city = response.getCity();
             Location location = response.getLocation();
             Continent continent = response.getContinent();
@@ -225,6 +232,22 @@ final class MaxmindIpDataLookups {
                             data.put("postal_code", postal.getCode());
                         }
                     }
+                    case REGISTERED_COUNTRY_IN_EUROPEAN_UNION -> {
+                        if (registeredCountry.getIsoCode() != null) {
+                            // isInEuropeanUnion is a boolean so it can't be null. But it really only makes sense if we have a country
+                            data.put("registered_country_in_european_union", registeredCountry.isInEuropeanUnion());
+                        }
+                    }
+                    case REGISTERED_COUNTRY_ISO_CODE -> {
+                        if (registeredCountry.getIsoCode() != null) {
+                            data.put("registered_country_iso_code", registeredCountry.getIsoCode());
+                        }
+                    }
+                    case REGISTERED_COUNTRY_NAME -> {
+                        if (registeredCountry.getName() != null) {
+                            data.put("registered_country_name", registeredCountry.getName());
+                        }
+                    }
                 }
             }
             return data;
@@ -267,6 +290,7 @@ final class MaxmindIpDataLookups {
         @Override
         protected Map<String, Object> transform(final CountryResponse response) {
             com.maxmind.geoip2.record.Country country = response.getCountry();
+            com.maxmind.geoip2.record.Country registeredCountry = response.getRegisteredCountry();
             Continent continent = response.getContinent();
 
             Map<String, Object> data = new HashMap<>();
@@ -301,6 +325,22 @@ final class MaxmindIpDataLookups {
                         String continentName = continent.getName();
                         if (continentName != null) {
                             data.put("continent_name", continentName);
+                        }
+                    }
+                    case REGISTERED_COUNTRY_IN_EUROPEAN_UNION -> {
+                        if (registeredCountry.getIsoCode() != null) {
+                            // isInEuropeanUnion is a boolean so it can't be null. But it really only makes sense if we have a country
+                            data.put("registered_country_in_european_union", registeredCountry.isInEuropeanUnion());
+                        }
+                    }
+                    case REGISTERED_COUNTRY_ISO_CODE -> {
+                        if (registeredCountry.getIsoCode() != null) {
+                            data.put("registered_country_iso_code", registeredCountry.getIsoCode());
+                        }
+                    }
+                    case REGISTERED_COUNTRY_NAME -> {
+                        if (registeredCountry.getName() != null) {
+                            data.put("registered_country_name", registeredCountry.getName());
                         }
                     }
                 }
@@ -345,6 +385,7 @@ final class MaxmindIpDataLookups {
         @Override
         protected Map<String, Object> transform(final EnterpriseResponse response) {
             com.maxmind.geoip2.record.Country country = response.getCountry();
+            com.maxmind.geoip2.record.Country registeredCountry = response.getRegisteredCountry();
             com.maxmind.geoip2.record.City city = response.getCity();
             Location location = response.getLocation();
             Continent continent = response.getContinent();
@@ -540,6 +581,22 @@ final class MaxmindIpDataLookups {
                     case CONNECTION_TYPE -> {
                         if (connectionType != null) {
                             data.put("connection_type", connectionType.toString());
+                        }
+                    }
+                    case REGISTERED_COUNTRY_IN_EUROPEAN_UNION -> {
+                        if (registeredCountry.getIsoCode() != null) {
+                            // isInEuropeanUnion is a boolean so it can't be null. But it really only makes sense if we have a country
+                            data.put("registered_country_in_european_union", registeredCountry.isInEuropeanUnion());
+                        }
+                    }
+                    case REGISTERED_COUNTRY_ISO_CODE -> {
+                        if (registeredCountry.getIsoCode() != null) {
+                            data.put("registered_country_iso_code", registeredCountry.getIsoCode());
+                        }
+                    }
+                    case REGISTERED_COUNTRY_NAME -> {
+                        if (registeredCountry.getName() != null) {
+                            data.put("registered_country_name", registeredCountry.getName());
                         }
                     }
                 }

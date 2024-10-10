@@ -25,7 +25,7 @@ public class ChunkingSettingsTests extends ESTestCase {
                 return new WordBoundaryChunkingSettings(maxChunkSize, randomIntBetween(1, maxChunkSize / 2));
             }
             case SENTENCE -> {
-                return new SentenceBoundaryChunkingSettings(randomNonNegativeInt());
+                return new SentenceBoundaryChunkingSettings(randomNonNegativeInt(), randomBoolean() ? 0 : 1);
             }
             default -> throw new IllegalArgumentException("Unsupported random strategy [" + randomStrategy + "]");
         }

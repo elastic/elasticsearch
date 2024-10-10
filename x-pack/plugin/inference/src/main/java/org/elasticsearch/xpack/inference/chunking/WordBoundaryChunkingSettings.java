@@ -52,7 +52,7 @@ public class WordBoundaryChunkingSettings implements ChunkingSettings {
         var invalidSettings = map.keySet().stream().filter(key -> VALID_KEYS.contains(key) == false).toArray();
         if (invalidSettings.length > 0) {
             validationException.addValidationError(
-                Strings.format("Sentence based chunking settings can not have the following settings: %s", Arrays.toString(invalidSettings))
+                Strings.format("Word based chunking settings can not have the following settings: %s", Arrays.toString(invalidSettings))
             );
         }
 

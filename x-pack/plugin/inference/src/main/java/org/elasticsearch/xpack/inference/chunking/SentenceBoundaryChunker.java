@@ -46,7 +46,7 @@ public class SentenceBoundaryChunker implements Chunker {
     @Override
     public List<String> chunk(String input, ChunkingSettings chunkingSettings) {
         if (chunkingSettings instanceof SentenceBoundaryChunkingSettings sentenceBoundaryChunkingSettings) {
-            return chunk(input, sentenceBoundaryChunkingSettings.maxChunkSize);
+            return chunk(input, sentenceBoundaryChunkingSettings.maxChunkSize, sentenceBoundaryChunkingSettings.sentenceOverlap > 0);
         } else {
             throw new IllegalArgumentException(
                 Strings.format(
@@ -64,7 +64,7 @@ public class SentenceBoundaryChunker implements Chunker {
      * @param maxNumberWordsPerChunk Maximum size of the chunk
      * @return The input text chunked
      */
-    public List<String> chunk(String input, int maxNumberWordsPerChunk) {
+    public List<String> chunk(String input, int maxNumberWordsPerChunk, boolean includePrecedingSentence) {
         var chunks = new ArrayList<String>();
 
         sentenceIterator.setText(input);
@@ -74,6 +74,9 @@ public class SentenceBoundaryChunker implements Chunker {
         int chunkEnd = 0;
         int sentenceStart = 0;
         int chunkWordCount = 0;
+
+        int countWordsInPreceedingSentence = 0;
+        int previousSentenceStart = 0;
 
         int boundary = sentenceIterator.next();
 
@@ -87,8 +90,14 @@ public class SentenceBoundaryChunker implements Chunker {
                 if (chunkWordCount > 0) {
                     // add a new chunk containing all the input up to this sentence
                     chunks.add(input.substring(chunkStart, chunkEnd));
-                    chunkStart = chunkEnd;
-                    chunkWordCount = countWordsInSentence; // the next chunk will contain this sentence
+
+                    if (includePrecedingSentence) {
+                        chunkStart = previousSentenceStart;
+                        chunkWordCount = countWordsInPreceedingSentence + countWordsInSentence;
+                    } else {
+                        chunkStart = chunkEnd;
+                        chunkWordCount = countWordsInSentence; // the next chunk will contain this sentence
+                    }
                 }
 
                 if (countWordsInSentence > maxNumberWordsPerChunk) {
@@ -116,8 +125,14 @@ public class SentenceBoundaryChunker implements Chunker {
                 chunkWordCount += countWordsInSentence;
             }
 
+            previousSentenceStart = sentenceStart;
+
             sentenceStart = sentenceEnd;
             chunkEnd = sentenceEnd;
+
+            if (includePrecedingSentence) {
+                countWordsInPreceedingSentence = countWordsInSentence;
+            }
 
             boundary = sentenceIterator.next();
         }

@@ -10,6 +10,7 @@
 package org.elasticsearch.logsdb.datageneration.fields;
 
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.logsdb.datageneration.FieldDataGenerator;
 import org.elasticsearch.logsdb.datageneration.FieldType;
 import org.elasticsearch.logsdb.datageneration.datasource.DataSourceRequest;
@@ -31,7 +32,7 @@ public class GenericSubObjectFieldDataGenerator {
         this.context = context;
     }
 
-    List<ChildField> generateChildFields(DynamicMapping dynamicMapping) {
+    List<ChildField> generateChildFields(DynamicMapping dynamicMapping, ObjectMapper.Subobjects subobjects) {
         var existingFieldNames = new HashSet<String>();
         // no child fields is legal
         var childFieldsCount = context.childFieldGenerator().generateChildFieldCount();
@@ -42,12 +43,24 @@ public class GenericSubObjectFieldDataGenerator {
 
             if (context.shouldAddDynamicObjectField(dynamicMapping)) {
                 result.add(
-                    new ChildField(fieldName, new ObjectFieldDataGenerator(context.subObject(fieldName, DynamicMapping.FORCED)), true)
+                    new ChildField(
+                        fieldName,
+                        new ObjectFieldDataGenerator(context.subObject(fieldName, DynamicMapping.FORCED, subobjects)),
+                        true
+                    )
                 );
             } else if (context.shouldAddObjectField()) {
-                result.add(new ChildField(fieldName, new ObjectFieldDataGenerator(context.subObject(fieldName, dynamicMapping)), false));
-            } else if (context.shouldAddNestedField()) {
-                result.add(new ChildField(fieldName, new NestedFieldDataGenerator(context.nestedObject(fieldName, dynamicMapping)), false));
+                result.add(
+                    new ChildField(fieldName, new ObjectFieldDataGenerator(context.subObject(fieldName, dynamicMapping, subobjects)), false)
+                );
+            } else if (context.shouldAddNestedField(subobjects)) {
+                result.add(
+                    new ChildField(
+                        fieldName,
+                        new NestedFieldDataGenerator(context.nestedObject(fieldName, dynamicMapping, subobjects)),
+                        false
+                    )
+                );
             } else {
                 var fieldTypeInfo = context.fieldTypeGenerator(dynamicMapping).generator().get();
 

@@ -30,8 +30,10 @@ import static java.lang.Math.toRadians;
  * Defines the public API of the H3 library.
  */
 public final class H3 {
-
-    public static int MAX_H3_RES = Constants.MAX_H3_RES;
+    /**
+     * max H3 resolution; H3 version 1 has 16 resolutions, numbered 0 through 15
+     */
+    public static int MAX_H3_RES = 15;
 
     private static final long[] NORTH = new long[MAX_H3_RES + 1];
     private static final long[] SOUTH = new long[MAX_H3_RES + 1];
@@ -97,7 +99,7 @@ public final class H3 {
         }
 
         int res = H3Index.H3_get_resolution(h3);
-        if (res < 0 || res > Constants.MAX_H3_RES) {  // LCOV_EXCL_BR_LINE
+        if (res < 0 || res > MAX_H3_RES) {  // LCOV_EXCL_BR_LINE
             // Resolutions less than zero can not be represented in an index
             return false;
         }
@@ -118,7 +120,7 @@ public final class H3 {
             }
         }
 
-        for (int r = res + 1; r <= Constants.MAX_H3_RES; r++) {
+        for (int r = res + 1; r <= MAX_H3_RES; r++) {
             int digit = H3Index.H3_get_index_digit(h3, r);
             if (digit != CoordIJK.Direction.INVALID_DIGIT.digit()) {
                 return false;
@@ -601,7 +603,7 @@ public final class H3 {
      * @throws IllegalArgumentException <code>res</code> is not a valid H3 resolution.
      */
     private static void checkResolution(int res) {
-        if (res < 0 || res > Constants.MAX_H3_RES) {
+        if (res < 0 || res > MAX_H3_RES) {
             throw new IllegalArgumentException("resolution [" + res + "]  is out of range (must be 0 <= res <= 15)");
         }
     }

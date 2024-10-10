@@ -50,9 +50,9 @@ public final class InnerHitBuilder implements Writeable, ToXContentObject {
     public static final ParseField COLLAPSE_FIELD = new ParseField("collapse");
     public static final ParseField FIELD_FIELD = new ParseField("field");
 
+    public static final int DEFAULT_FROM = 0;
+    public static final int DEFAULT_SIZE = 3;
     private static final boolean DEFAULT_IGNORE_UNAMPPED = false;
-    private static final int DEFAULT_FROM = 0;
-    private static final int DEFAULT_SIZE = 3;
     private static final boolean DEFAULT_VERSION = false;
     private static final boolean DEFAULT_SEQ_NO_AND_PRIMARY_TERM = false;
     private static final boolean DEFAULT_EXPLAIN = false;

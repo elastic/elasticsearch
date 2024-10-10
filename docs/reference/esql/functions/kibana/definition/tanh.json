@@ -56,5 +56,6 @@
   "examples" : [
     "ROW a=1.8 \n| EVAL tanh=TANH(a)"
   ],
-  "preview" : false
+  "preview" : false,
+  "snapshot_only" : false
 }

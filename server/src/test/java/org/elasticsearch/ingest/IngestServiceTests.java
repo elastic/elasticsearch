@@ -32,20 +32,16 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
-import org.elasticsearch.cluster.metadata.ComponentTemplate;
-import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.ClusterStateTaskExecutorUtils;
 import org.elasticsearch.common.TriConsumer;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.util.Maps;
@@ -77,7 +73,6 @@ import org.junit.Before;
 import org.mockito.ArgumentMatcher;
 import org.mockito.invocation.InvocationOnMock;
 
-import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
@@ -2493,7 +2488,7 @@ public class IngestServiceTests extends ESTestCase {
 
         // index name matches with IDM:
         IndexRequest indexRequest = new IndexRequest("<idx-{now/d}>");
-        IngestService.resolvePipelinesAndUpdateIndexRequest(indexRequest, indexRequest, metadata, epochMillis, Map.of());
+        IngestService.resolvePipelinesAndUpdateIndexRequest(indexRequest, indexRequest, metadata, epochMillis);
         assertTrue(hasPipeline(indexRequest));
         assertTrue(indexRequest.isPipelineResolved());
         assertThat(indexRequest.getPipeline(), equalTo("_none"));
@@ -2855,83 +2850,6 @@ public class IngestServiceTests extends ESTestCase {
             assertTrue(indexRequest.isPipelineResolved());
             assertThat(indexRequest.getPipeline(), equalTo("pipeline1"));
             assertThat(indexRequest.getFinalPipeline(), equalTo(NOOP_PIPELINE_NAME));
-        }
-    }
-
-    public void testResolvePipelinesAndUpdateIndexRequestWithComponentTemplateSubstitutions() throws IOException {
-        final String componentTemplateName = "test-component-template";
-        final String indexName = "my-index-1";
-        final String indexPipeline = "index-pipeline";
-        final String realTemplatePipeline = "template-pipeline";
-        final String substitutePipeline = "substitute-pipeline";
-
-        Metadata metadata;
-        {
-            // Build up cluster state metadata
-            IndexMetadata.Builder builder = IndexMetadata.builder(indexName)
-                .settings(settings(IndexVersion.current()))
-                .numberOfShards(1)
-                .numberOfReplicas(0);
-            ComponentTemplate realComponentTemplate = new ComponentTemplate(
-                new Template(
-                    Settings.builder().put("index.default_pipeline", realTemplatePipeline).build(),
-                    CompressedXContent.fromJSON("{}"),
-                    null
-                ),
-                null,
-                null
-            );
-            ComposableIndexTemplate composableIndexTemplate = ComposableIndexTemplate.builder()
-                .indexPatterns(List.of("my-index-*"))
-                .componentTemplates(List.of(componentTemplateName))
-                .build();
-            metadata = Metadata.builder()
-                .put(builder)
-                .indexTemplates(Map.of("my-index-template", composableIndexTemplate))
-                .componentTemplates(Map.of("test-component-template", realComponentTemplate))
-                .build();
-        }
-
-        Map<String, ComponentTemplate> componentTemplateSubstitutions;
-        {
-            ComponentTemplate simulatedComponentTemplate = new ComponentTemplate(
-                new Template(
-                    Settings.builder().put("index.default_pipeline", substitutePipeline).build(),
-                    CompressedXContent.fromJSON("{}"),
-                    null
-                ),
-                null,
-                null
-            );
-            componentTemplateSubstitutions = Map.of(componentTemplateName, simulatedComponentTemplate);
-        }
-
-        {
-            /*
-             * Here there is a pipeline in the request. This takes precedence over anything in the index or templates or component template
-             * substitutions.
-             */
-            IndexRequest indexRequest = new IndexRequest(indexName).setPipeline(indexPipeline);
-            IngestService.resolvePipelinesAndUpdateIndexRequest(indexRequest, indexRequest, metadata, 0, componentTemplateSubstitutions);
-            assertThat(indexRequest.getPipeline(), equalTo(indexPipeline));
-        }
-        {
-            /*
-             * Here there is no pipeline in the request, but there is one in the substitute component template. So it takes precedence.
-             */
-            IndexRequest indexRequest = new IndexRequest(indexName);
-            IngestService.resolvePipelinesAndUpdateIndexRequest(indexRequest, indexRequest, metadata, 0, componentTemplateSubstitutions);
-            assertThat(indexRequest.getPipeline(), equalTo(substitutePipeline));
-        }
-        {
-            /*
-             * This one is tricky. Since the index exists and there are no component template substitutions, we're going to use the actual
-             * index in this case rather than its template. The index does not have a default pipeline set, so it's "_none" instead of
-             * realTemplatePipeline.
-             */
-            IndexRequest indexRequest = new IndexRequest(indexName);
-            IngestService.resolvePipelinesAndUpdateIndexRequest(indexRequest, indexRequest, metadata, 0, Map.of());
-            assertThat(indexRequest.getPipeline(), equalTo("_none"));
         }
     }
 

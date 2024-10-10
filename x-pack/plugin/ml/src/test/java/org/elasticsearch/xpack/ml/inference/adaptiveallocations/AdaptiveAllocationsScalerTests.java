@@ -178,8 +178,6 @@ public class AdaptiveAllocationsScalerTests extends ESTestCase {
     }
 
     public void testAutoscaling_dontScaleDownToZeroAllocationsWhenMinAllocationsIsSet() {
-        assumeTrue("Should only run if adaptive allocations feature flag is enabled", ScaleToZeroFeatureFlag.isEnabled());
-
         AdaptiveAllocationsScaler adaptiveAllocationsScaler = new AdaptiveAllocationsScaler("test-deployment", 1);
         adaptiveAllocationsScaler.setMinMaxNumberOfAllocations(1, null);
 

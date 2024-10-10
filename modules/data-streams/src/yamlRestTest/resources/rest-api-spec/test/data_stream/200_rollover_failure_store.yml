@@ -1,10 +1,12 @@
 ---
 setup:
   - requires:
-      cluster_features: ["gte_v8.15.0"]
-      reason: "data stream failure stores REST structure changed in 8.15+"
-      test_runner_features: [allowed_warnings, contains, capabilities]
-
+      reason: "Data stream failure stores config in templates was added in 8.16+"
+      test_runner_features: [ capabilities, allowed_warnings ]
+      capabilities:
+        - method: POST
+          path: /_index_template/{template}
+          capabilities: [ 'failure_store_in_template' ]
   - do:
       allowed_warnings:
         - "index template [my-template] has index patterns [data-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-template] will take precedence during new index creation"
@@ -12,8 +14,7 @@ setup:
         name: my-template
         body:
           index_patterns: [data-*]
-          data_stream:
-            failure_store: true
+          data_stream: {}
           template:
             mappings:
               properties:
@@ -21,6 +22,9 @@ setup:
                   type: date
                 count:
                   type: long
+            data_stream_options:
+              failure_store:
+                enabled: true
 
   - do:
       indices.create_data_stream:
@@ -246,12 +250,14 @@ teardown:
         name: my-template
         body:
           index_patterns: [data-*]
-          data_stream:
-            failure_store: true
+          data_stream: {}
           template:
             settings:
               index:
                 default_pipeline: "failing_pipeline"
+            data_stream_options:
+              failure_store:
+                enabled: true
 
   - do:
       indices.create_data_stream:

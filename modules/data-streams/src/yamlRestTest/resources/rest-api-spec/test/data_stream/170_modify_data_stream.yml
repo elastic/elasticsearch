@@ -92,9 +92,12 @@
 ---
 "Modify a data stream's failure store":
   - requires:
-      cluster_features: ["gte_v8.15.0"]
-      reason: "data stream failure stores REST structure changed in 8.15+"
-      test_runner_features: [ "allowed_warnings" ]
+      reason: "Data stream failure stores config in templates was added in 8.16+"
+      test_runner_features: [ capabilities, allowed_warnings ]
+      capabilities:
+        - method: POST
+          path: /_index_template/{template}
+          capabilities: [ 'failure_store_in_template' ]
 
   - do:
       allowed_warnings:
@@ -103,9 +106,11 @@
         name: my-template
         body:
           index_patterns: [data-*]
-          data_stream:
-            failure_store: true
+          data_stream: {}
           template:
+            data_stream_options:
+              failure_store:
+                enabled: true
             mappings:
               properties:
                 '@timestamp':

@@ -234,7 +234,7 @@ public record DatabaseConfiguration(String id, String name, Provider provider) i
 
         private static final ParseField ACCOUNT_ID = new ParseField("account_id");
 
-        private static final ConstructingObjectParser<Maxmind, Void> PARSER = new ConstructingObjectParser<>("database", false, (a, id) -> {
+        private static final ConstructingObjectParser<Maxmind, Void> PARSER = new ConstructingObjectParser<>("maxmind", false, (a, id) -> {
             String accountId = (String) a[0];
             return new Maxmind(accountId);
         });

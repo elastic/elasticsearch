@@ -18,6 +18,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.rank.RankDoc;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -52,6 +53,22 @@ public class RankDocsQueryBuilder extends AbstractQueryBuilder<RankDocsQueryBuil
             this.queryBuilders = null;
             this.onlyRankDocs = false;
         }
+    }
+
+    @Override
+    protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
+        if (queryBuilders != null) {
+            QueryBuilder[] newQueryBuilders = new QueryBuilder[queryBuilders.length];
+            boolean changed = false;
+            for (int i = 0; i < newQueryBuilders.length; i++) {
+                newQueryBuilders[i] = queryBuilders[i].rewrite(queryRewriteContext);
+                changed |= newQueryBuilders[i] != queryBuilders[i];
+            }
+            if (changed) {
+                return new RankDocsQueryBuilder(rankDocs, newQueryBuilders, onlyRankDocs);
+            }
+        }
+        return super.doRewrite(queryRewriteContext);
     }
 
     RankDoc[] rankDocs() {

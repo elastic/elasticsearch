@@ -45,6 +45,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.startsWith;
@@ -331,14 +332,13 @@ public class RestEsqlIT extends RestEsqlTestCase {
     }
 
     public void testProfileOrdinalsGroupingOperator() throws IOException {
+        assumeTrue("requires pragmas", Build.current().isSnapshot());
         indexTimestampData(1);
 
         RequestObjectBuilder builder = requestObjectBuilder().query(fromIndex() + " | STATS AVG(value) BY test.keyword");
         builder.profile(true);
-        if (Build.current().isSnapshot()) {
-            // Lock to shard level partitioning, so we get consistent profile output
-            builder.pragmas(Settings.builder().put("data_partitioning", "shard").build());
-        }
+        // Lock to shard level partitioning, so we get consistent profile output
+        builder.pragmas(Settings.builder().put("data_partitioning", "shard").build());
         Map<String, Object> result = runEsql(builder);
 
         List<List<String>> signatures = new ArrayList<>();
@@ -356,7 +356,7 @@ public class RestEsqlIT extends RestEsqlTestCase {
             signatures.add(sig);
         }
 
-        assertThat(signatures.get(0).get(2), equalTo("OrdinalsGroupingOperator[aggregators=[\"sum of longs\", \"count\"]]"));
+        assertThat(signatures, hasItem(hasItem("OrdinalsGroupingOperator[aggregators=[\"sum of longs\", \"count\"]]")));
     }
 
     public void testInlineStatsProfile() throws IOException {
@@ -423,10 +423,8 @@ public class RestEsqlIT extends RestEsqlTestCase {
                     .item("ProjectOperator")
                     .item("OutputOperator"),
                 // Second pass read and join via eval
-                matchesList().item("LuceneSourceOperator")
+                matchesList().item("LuceneTopNSourceOperator")
                     .item("EvalOperator")
-                    .item("ValuesSourceReaderOperator")
-                    .item("TopNOperator")
                     .item("ValuesSourceReaderOperator")
                     .item("ProjectOperator")
                     .item("ExchangeSinkOperator"),
@@ -591,6 +589,16 @@ public class RestEsqlIT extends RestEsqlTestCase {
             case "TopNOperator" -> matchesMap().entry("occupied_rows", 0)
                 .entry("ram_used", instanceOf(String.class))
                 .entry("ram_bytes_used", greaterThan(0));
+            case "LuceneTopNSourceOperator" -> matchesMap().entry("pages_emitted", greaterThan(0))
+                .entry("current", greaterThan(0))
+                .entry("processed_slices", greaterThan(0))
+                .entry("processed_shards", List.of("rest-esql-test:0"))
+                .entry("total_slices", greaterThan(0))
+                .entry("slice_max", 0)
+                .entry("slice_min", 0)
+                .entry("processing_nanos", greaterThan(0))
+                .entry("processed_queries", List.of("*:*"))
+                .entry("slice_index", 0);
             default -> throw new AssertionError("unexpected status: " + o);
         };
         MapMatcher expectedOp = matchesMap().entry("operator", startsWith(name));

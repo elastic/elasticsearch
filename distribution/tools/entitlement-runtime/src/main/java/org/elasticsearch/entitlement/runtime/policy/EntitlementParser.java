@@ -9,26 +9,21 @@
 
 package org.elasticsearch.entitlement.runtime.policy;
 
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
 
-public class ModuleScopeBuilder extends ScopeBuilder {
+import java.io.IOException;
 
-    public static ParseField MODULE_PARSEFIELD = new ParseField("module");
+public abstract class EntitlementParser {
 
-    protected String moduleScopeName;
+    protected final String policyName;
+    protected final String scopeName;
+    protected final XContentParser policyParser;
 
-    public ModuleScopeBuilder(String policyName, XContentParser policyParser) {
-        super(policyName, policyParser);
+    protected EntitlementParser(String policyName, String scopeName, XContentParser policyParser) {
+        this.policyName = policyName;
+        this.scopeName = scopeName;
+        this.policyParser = policyParser;
     }
 
-    @Override
-    protected void setScopeName(String scopeName) {
-        this.moduleScopeName = scopeName;
-    }
-
-    @Override
-    protected String getScopeName() {
-        return moduleScopeName;
-    }
+    protected abstract void parseEntitlement() throws IOException;
 }

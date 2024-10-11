@@ -18,7 +18,7 @@ import java.util.List;
 
 import static org.elasticsearch.entitlement.runtime.policy.PolicyParserException.newPolicyParserException;
 
-public abstract class ScopeBuilder {
+public abstract class ScopeParser {
 
     public static ParseField NAME_PARSEFIELD = new ParseField("name");
     public static ParseField ENTITLEMENTS_PARSEFIELD = new ParseField("entitlements");
@@ -26,9 +26,9 @@ public abstract class ScopeBuilder {
     protected final String policyName;
     protected final XContentParser policyParser;
 
-    protected final List<FileEntitlementBuilder> fileEntitlementBuilders = new ArrayList<>();
+    protected final List<FileEntitlementParser> fileEntitlementParsers = new ArrayList<>();
 
-    protected ScopeBuilder(String policyName, XContentParser policyParser) {
+    protected ScopeParser(String policyName, XContentParser policyParser) {
         this.policyName = policyName;
         this.policyParser = policyParser;
     }
@@ -39,7 +39,7 @@ public abstract class ScopeBuilder {
                 throw newPolicyParserException(
                     policyParser.getTokenLocation(),
                     policyName,
-                    "expected object [" + ModuleScopeBuilder.MODULE_PARSEFIELD.getPreferredName() + "]"
+                    "expected object [" + ModuleScopeParser.MODULE_PARSEFIELD.getPreferredName() + "]"
                 );
             }
             String currentFieldName = policyParser.currentName();
@@ -107,10 +107,10 @@ public abstract class ScopeBuilder {
                 );
             }
             String currentFieldName = policyParser.currentName();
-            if (currentFieldName.equals(FileEntitlementBuilder.FILE_PARSEFIELD.getPreferredName())) {
-                FileEntitlementBuilder fileEntitlementBuilder = new FileEntitlementBuilder(policyName, getScopeName(), policyParser);
-                fileEntitlementBuilder.parseEntitlement();
-                fileEntitlementBuilders.add(fileEntitlementBuilder);
+            if (currentFieldName.equals(FileEntitlementParser.FILE_PARSEFIELD.getPreferredName())) {
+                FileEntitlementParser fileEntitlementParser = new FileEntitlementParser(policyName, getScopeName(), policyParser);
+                fileEntitlementParser.parseEntitlement();
+                fileEntitlementParsers.add(fileEntitlementParser);
             } else {
                 throw newPolicyParserException(
                     policyParser.getTokenLocation(),

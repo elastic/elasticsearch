@@ -18,7 +18,7 @@ import java.util.List;
 
 import static org.elasticsearch.entitlement.runtime.policy.PolicyParserException.newPolicyParserException;
 
-public class FileEntitlementBuilder extends EntitlementBuilder {
+public class FileEntitlementParser extends EntitlementParser {
 
     public static ParseField FILE_PARSEFIELD = new ParseField("file");
     public static ParseField PATH_PARSEFIELD = new ParseField("path");
@@ -27,7 +27,7 @@ public class FileEntitlementBuilder extends EntitlementBuilder {
     protected String path;
     protected final List<String> actions = new ArrayList<>();
 
-    protected FileEntitlementBuilder(String policyName, String scopeName, XContentParser policyParser) {
+    protected FileEntitlementParser(String policyName, String scopeName, XContentParser policyParser) {
         super(policyName, scopeName, policyParser);
     }
 

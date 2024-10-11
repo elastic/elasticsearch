@@ -23,29 +23,24 @@ import java.util.Objects;
 
 import static org.elasticsearch.entitlement.runtime.policy.PolicyParserException.newPolicyParserException;
 
-public class PolicyBuilder {
+public class PolicyParser {
 
     public static ParseField POLICY_PARSEFIELD = new ParseField("policy");
 
     public final String policyName;
     public final XContentParser policyParser;
 
-    public final List<ModuleScopeBuilder> policyModules = new ArrayList<>();
+    public final List<ModuleScopeParser> policyModuleParsers = new ArrayList<>();
 
-    public PolicyBuilder(String policyName, InputStream inputStream) {
+    public PolicyParser(String policyName, InputStream inputStream) throws IOException {
         this.policyName = policyName;
-
-        try {
-            this.policyParser = YamlXContent.yamlXContent.createParser(
-                XContentParserConfiguration.EMPTY,
-                Objects.requireNonNull(inputStream)
-            );
-        } catch (IOException ioe) {
-            throw new UncheckedIOException(ioe);
-        }
+        this.policyParser = YamlXContent.yamlXContent.createParser(
+            XContentParserConfiguration.EMPTY,
+            Objects.requireNonNull(inputStream)
+        );
     }
 
-    public void buildPolicy() {
+    public void parsePolicy() {
         try {
             if (policyParser.nextToken() != XContentParser.Token.START_OBJECT) {
                 throw newPolicyParserException(
@@ -66,7 +61,7 @@ public class PolicyBuilder {
                 throw newPolicyParserException(
                     policyParser.getTokenLocation(),
                     policyName,
-                    "expected array of [" + ModuleScopeBuilder.MODULE_PARSEFIELD.getPreferredName() + "]"
+                    "expected array of [" + ModuleScopeParser.MODULE_PARSEFIELD.getPreferredName() + "]"
                 );
             }
             while (policyParser.nextToken() != XContentParser.Token.END_ARRAY) {
@@ -74,27 +69,27 @@ public class PolicyBuilder {
                     throw newPolicyParserException(
                         policyParser.getTokenLocation(),
                         policyName,
-                        "expected object [" + ModuleScopeBuilder.MODULE_PARSEFIELD.getPreferredName() + "]"
+                        "expected object [" + ModuleScopeParser.MODULE_PARSEFIELD.getPreferredName() + "]"
                     );
                 }
                 if (policyParser.nextToken() != XContentParser.Token.FIELD_NAME
-                    || policyParser.currentName().equals(ModuleScopeBuilder.MODULE_PARSEFIELD.getPreferredName()) == false) {
+                    || policyParser.currentName().equals(ModuleScopeParser.MODULE_PARSEFIELD.getPreferredName()) == false) {
                     throw newPolicyParserException(
                         policyParser.getTokenLocation(),
                         policyName,
-                        "expected object [" + ModuleScopeBuilder.MODULE_PARSEFIELD.getPreferredName() + "]"
+                        "expected object [" + ModuleScopeParser.MODULE_PARSEFIELD.getPreferredName() + "]"
                     );
                 }
                 if (policyParser.nextToken() != XContentParser.Token.START_OBJECT) {
                     throw newPolicyParserException(
                         policyParser.getTokenLocation(),
                         policyName,
-                        "expected object [" + ModuleScopeBuilder.MODULE_PARSEFIELD.getPreferredName() + "]"
+                        "expected object [" + ModuleScopeParser.MODULE_PARSEFIELD.getPreferredName() + "]"
                     );
                 }
-                ModuleScopeBuilder moduleScopeBuilder = new ModuleScopeBuilder(policyName, policyParser);
-                moduleScopeBuilder.parseScope();
-                policyModules.add(moduleScopeBuilder);
+                ModuleScopeParser moduleScopeParser = new ModuleScopeParser(policyName, policyParser);
+                moduleScopeParser.parseScope();
+                policyModuleParsers.add(moduleScopeParser);
                 if (policyParser.nextToken() != XContentParser.Token.END_OBJECT) {
                     throw newPolicyParserException(policyParser.getTokenLocation(), policyName, "expected closing object");
                 }

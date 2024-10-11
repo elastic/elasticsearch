@@ -11,9 +11,11 @@ package org.elasticsearch.entitlement.runtime.policy;
 
 import org.elasticsearch.test.ESTestCase;
 
-public class PolicyBuilderTests extends ESTestCase {
+import java.io.IOException;
 
-    public void testPolicyBuilder() {
-        new PolicyBuilder("test-policy.yaml", PolicyBuilderTests.class.getResourceAsStream("test-policy.yaml")).buildPolicy();
+public class PolicyParserTests extends ESTestCase {
+
+    public void testPolicyBuilder() throws IOException {
+        new PolicyParser("test-policy.yaml", PolicyParserTests.class.getResourceAsStream("test-policy.yaml")).parsePolicy();
     }
 }

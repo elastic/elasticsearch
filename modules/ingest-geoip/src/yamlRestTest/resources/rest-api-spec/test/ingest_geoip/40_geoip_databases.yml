@@ -1,10 +1,23 @@
+---
 setup:
   - requires:
-      cluster_features:
-        - "geoip.downloader.database.configuration"
-        - "get_database_configuration_action.multi_node"
-        - "put_database_configuration_action.ipinfo"
-      reason: "geoip downloader database configuration APIs added in 8.15, and updated in 8.16 to support more types"
+      cluster_features: ["geoip.downloader.database.configuration", "get_database_configuration_action.multi_node"]
+      reason: "geoip downloader database configuration APIs added in 8.15, and updated in 8.16 to return more results"
+
+---
+teardown:
+  - do:
+      ingest.delete_ip_location_database:
+        id: "my_database_1"
+        ignore: 404
+  - do:
+      ingest.delete_ip_location_database:
+        id: "my_database_2"
+        ignore: 404
+  - do:
+      ingest.delete_ip_location_database:
+        id: "my_database_3"
+        ignore: 404
 
 ---
 "Test adding, getting, and removing geoip databases":
@@ -56,17 +69,6 @@ setup:
           }
 
   - do:
-      ingest.put_geoip_database:
-        id: "my_database_3"
-        body:  >
-          {
-            "name": "standard_privacy",
-            "ipinfo": {
-            }
-          }
-  - match: { acknowledged: true }
-
-  - do:
       ingest.get_geoip_database:
         id: "my_database_1"
   - length: { databases: 1 }
@@ -77,7 +79,7 @@ setup:
 
   - do:
       ingest.get_geoip_database: {}
-  - length: { databases: 7 }
+  - length: { databases: 6 }
 
   - do:
       ingest.get_geoip_database:
@@ -103,7 +105,7 @@ setup:
 
   - do:
       ingest.get_geoip_database: {}
-  - length: { databases: 6 }
+  - length: { databases: 5 }
 
   - do:
       ingest.get_geoip_database:
@@ -113,11 +115,3 @@ setup:
   - gte: { databases.0.modified_date_millis: 0 }
   - match: { databases.0.database.name: "GeoIP2-City" }
   - match: { databases.0.database.maxmind.account_id: "1234" }
-
-  - do:
-      ingest.get_geoip_database:
-        id: "my_database_3"
-  - length: { databases: 1 }
-  - match: { databases.0.id: "my_database_3" }
-  - gte: { databases.0.modified_date_millis: 0 }
-  - match: { databases.0.database.name: "standard_privacy" }

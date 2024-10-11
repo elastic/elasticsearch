@@ -209,7 +209,7 @@ public class DockerTests extends PackagingTestCase {
 
         listPluginArchive().forEach(System.out::println);
         assertThat("Expected " + plugin + " to not be installed", listPlugins(), not(hasItems(plugin)));
-        assertThat("Expected " + plugin + " available in archive", listPluginArchive(), hasSize(15));
+        assertThat("Expected " + plugin + " available in archive", listPluginArchive(), hasSize(12));
 
         // Stuff the proxy settings with garbage, so any attempt to go out to the internet would fail
         sh.getEnv()
@@ -1223,7 +1223,7 @@ public class DockerTests extends PackagingTestCase {
     }
 
     private List<String> listPluginArchive() {
-        return sh.run("ls -lh").stdout().lines().collect(Collectors.toList());
+        return sh.run("ls -lh /opt/plugins/archive").stdout().lines().collect(Collectors.toList());
     }
 
     /**

@@ -99,6 +99,7 @@ import static org.junit.Assume.assumeTrue;
  *     <li>The default image with a custom, small base image</li>
  *     <li>A UBI-based image</li>
  *     <li>Another UBI image for Iron Bank</li>
+ *     <li>A WOLFI-based image</li>
  *     <li>Images for Cloud</li>
  * </ul>
  */
@@ -206,7 +207,9 @@ public class DockerTests extends PackagingTestCase {
         final String plugin = "analysis-icu";
         final Installation.Executables bin = installation.executables();
 
+        listPluginArchive().forEach(System.out::println);
         assertThat("Expected " + plugin + " to not be installed", listPlugins(), not(hasItems(plugin)));
+        assertThat("Expected " + plugin + " available in archive", listPluginArchive(), hasSize(15));
 
         // Stuff the proxy settings with garbage, so any attempt to go out to the internet would fail
         sh.getEnv()
@@ -1217,6 +1220,10 @@ public class DockerTests extends PackagingTestCase {
     private List<String> listPlugins() {
         final Installation.Executables bin = installation.executables();
         return sh.run(bin.pluginTool + " list").stdout().lines().collect(Collectors.toList());
+    }
+
+    private List<String> listPluginArchive() {
+        return sh.run("ls -lh").stdout().lines().collect(Collectors.toList());
     }
 
     /**

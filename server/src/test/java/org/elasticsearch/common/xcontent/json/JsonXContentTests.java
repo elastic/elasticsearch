@@ -9,9 +9,7 @@
 
 package org.elasticsearch.common.xcontent.json;
 
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.BaseXContentTestCase;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.xcontent.XContentGenerator;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;

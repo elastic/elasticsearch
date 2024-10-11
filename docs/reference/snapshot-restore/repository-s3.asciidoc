@@ -335,7 +335,7 @@ include::repository-shared-settings.asciidoc[]
 
 `throttled_delete_retry.maximum_delay`::
 
-    (integer) This is the upper bound on how long the delays between retries will grow to. Default is 5s, minimum is 0ms.
+    (<<time-units,time value>>) This is the upper bound on how long the delays between retries will grow to. Default is 5s, minimum is 0ms.
 
 `throttled_delete_retry.maximum_number_of_retries`::
 

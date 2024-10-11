@@ -3233,18 +3233,6 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      *         \_EsQueryExec[airports], indexMode[standard], query[{
      *           "esql_single_value":{"field":"scalerank","next":{"range":{"scalerank":{"lt":4,"boost":1.0}}},"source":"rank &lt; 4@3:9"}
      *          ][_doc{f}#23], limit[1000], sort[] estimatedRowSize[304]
-     * LimitExec[1000[INTEGER]]
-     * \_ExchangeExec[[abbrev{f}#6, city{f}#12, city_location{f}#13, country{f}#11, location{f}#10, name{f}#7, scalerank{f}#8,
-     *     type{f}#9, rank{r}#4],false]
-     *   \_ProjectExec[[abbrev{f}#6, city{f}#12, city_location{f}#13, country{f}#11, location{f}#10, name{f}#7, scalerank{f}#8,
-     *       type{f}#9, rank{r}#4]]
-     *     \_FieldExtractExec[abbrev{f}#6, city{f}#12, city_location{f}#13, count..][]
-     *       \_LimitExec[1000[INTEGER]]
-     *         \_EvalExec[[scalerank{f}#8 AS rank]]
-     *           \_FieldExtractExec[scalerank{f}#8][]
-     *             \_EsQueryExec[airports], indexMode[standard], query[{"
-     *               esql_single_value":{"field":"scalerank","next":{"range":{"scalerank":{"lt":4,"boost":1.0}}},"source":"rank &lt; 4@3:9"}
-     *             }][_doc{f}#23], limit[], sort[] estimatedRowSize[304]
      * </code>
      */
     public void testPushWhereEvalToSource() {

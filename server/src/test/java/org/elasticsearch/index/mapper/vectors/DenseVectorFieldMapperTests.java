@@ -955,6 +955,14 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
         );
     }
 
+    public void testLargeDimsBit() throws IOException {
+        createMapperService(fieldMapping(b -> {
+            b.field("type", "dense_vector");
+            b.field("dims", 1024 * Byte.SIZE);
+            b.field("element_type", ElementType.BIT.toString());
+        }));
+    }
+
     public void testDefaults() throws Exception {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "dense_vector").field("dims", 3)));
 
@@ -2021,8 +2029,8 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
     }
 
     private static class DenseVectorSyntheticSourceSupport implements SyntheticSourceSupport {
-        private final int dims = between(512, 1000);
-        private final ElementType elementType = randomFrom(ElementType.BIT);
+        private final int dims = between(5, 1000);
+        private final ElementType elementType = randomFrom(ElementType.BYTE, ElementType.BIT, ElementType.FLOAT);
         private final boolean indexed = randomBoolean();
         private final boolean indexOptionsSet = indexed && randomBoolean();
 
@@ -2039,10 +2047,10 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
 
         private void mapping(XContentBuilder b) throws IOException {
             b.field("type", "dense_vector");
+            b.field("dims", elementType == ElementType.BIT ? dims * Byte.SIZE : dims);
             if (elementType == ElementType.BYTE || elementType == ElementType.BIT || randomBoolean()) {
                 b.field("element_type", elementType.toString());
             }
-            b.field("dims", elementType == ElementType.BIT ? dims * Byte.SIZE : dims);
             if (indexed) {
                 b.field("index", true);
                 b.field("similarity", "l2_norm");

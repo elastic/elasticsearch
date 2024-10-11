@@ -61,7 +61,7 @@ public class Rate extends AggregateFunction implements OptionalArgument, ToAggre
 
     // compatibility constructor used when reading from the stream
     private Rate(Source source, Expression field, Expression filter, List<Expression> children) {
-        this(source, field, filter, children.get(0), children.get(1));
+        this(source, field, filter, children.get(0), children.size() > 1 ? children.get(1) : null);
     }
 
     private Rate(Source source, Expression field, Expression filter, Expression timestamp, Expression unit) {

@@ -27,6 +27,7 @@ import java.util.Objects;
 public class SearchProfileCoordinatorResult implements Writeable, ToXContentFragment {
 
     private final String nodeId;
+    private long tookInMillis;
     private final RetrieverProfileResult retrieverProfileResult;
     private final Map<String, Long> breakdownMap;
 
@@ -38,6 +39,7 @@ public class SearchProfileCoordinatorResult implements Writeable, ToXContentFrag
 
     public SearchProfileCoordinatorResult(StreamInput in) throws IOException {
         nodeId = in.readString();
+        tookInMillis = in.readLong();
         retrieverProfileResult = in.readOptionalWriteable(RetrieverProfileResult::new);
         breakdownMap = in.readMap(StreamInput::readString, StreamInput::readLong);
     }
@@ -45,6 +47,7 @@ public class SearchProfileCoordinatorResult implements Writeable, ToXContentFrag
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(nodeId);
+        out.writeLong(tookInMillis);
         out.writeOptionalWriteable(retrieverProfileResult);
         out.writeMap(breakdownMap, StreamOutput::writeString, StreamOutput::writeLong);
     }
@@ -53,13 +56,16 @@ public class SearchProfileCoordinatorResult implements Writeable, ToXContentFrag
         return this.nodeId;
     }
 
-    public RetrieverProfileResult getRetrieverProfileResult() {
-        return this.retrieverProfileResult;
+    public void setTookInMillis(long tookInMillis) {
+        this.tookInMillis = tookInMillis;
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.field("node_id", nodeId);
+        if (tookInMillis != -1) {
+            builder.field("took_in_millis", tookInMillis);
+        }
         if (retrieverProfileResult != null) {
             builder.field("retriever", retrieverProfileResult);
         }
@@ -75,13 +81,14 @@ public class SearchProfileCoordinatorResult implements Writeable, ToXContentFrag
         if (o == null || getClass() != o.getClass()) return false;
         SearchProfileCoordinatorResult that = (SearchProfileCoordinatorResult) o;
         return nodeId.equals(that.nodeId)
+            && tookInMillis == that.tookInMillis
             && Objects.equals(retrieverProfileResult, that.retrieverProfileResult)
             && Objects.equals(breakdownMap, that.breakdownMap);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(nodeId, retrieverProfileResult, breakdownMap);
+        return Objects.hash(nodeId, tookInMillis, retrieverProfileResult, breakdownMap);
     }
 
     @Override

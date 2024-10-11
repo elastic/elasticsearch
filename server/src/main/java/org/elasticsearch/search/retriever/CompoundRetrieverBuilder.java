@@ -153,7 +153,7 @@ public abstract class CompoundRetrieverBuilder<T extends CompoundRetrieverBuilde
                                         listener.onFailure(new IllegalStateException("Coordinator profile results are missing"));
                                     }
                                     SearchProfileCoordinatorResult nestedResult = item.getResponse().getCoordinatorProfileResults();
-                                    nestedResult.getRetrieverProfileResult().setTookInMillis(item.getResponse().getTookInMillis());
+                                    nestedResult.setTookInMillis(item.getResponse().getTookInMillis());
                                     profiler.captureInnerRetrieverResult(innerRetrievers.get(i).retriever().getName(), nestedResult);
                                 }
                             }

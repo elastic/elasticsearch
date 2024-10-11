@@ -900,7 +900,8 @@ public class RankFeaturePhaseTests extends ESTestCase {
             ) {
                 List<ScoreDoc> docScores = new ArrayList<>();
                 for (QuerySearchResult phaseResults : rankSearchResults) {
-                    docScores.addAll(Arrays.asList(phaseResults.topDocs().topDocs.scoreDocs));
+                    assert phaseResults.getRankShardResult() != null;
+                    docScores.addAll(Arrays.asList(((RankFeatureShardResult) phaseResults.getRankShardResult()).rankFeatureDocs));
                 }
                 ScoreDoc[] sortedDocs = docScores.toArray(new ScoreDoc[0]);
                 // negating scores

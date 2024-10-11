@@ -735,6 +735,9 @@ public final class SearchPhaseController {
         }
         SearchSourceBuilder source = request.source();
         if (source.rankBuilder() != null) {
+            // if we have a RankBuilder defined, it needs to have access to all the documents in order to rerank them
+            // so we override size here and keep all `rank_window_size` docs.
+            // Pagination is taking place later through RankFeaturePhaseRankCoordinatorContext#rankAndPaginate
             return source.rankBuilder().rankWindowSize();
         }
         return (source.size() == -1 ? DEFAULT_SIZE : source.size()) + (source.from() == -1 ? SearchService.DEFAULT_FROM : source.from());

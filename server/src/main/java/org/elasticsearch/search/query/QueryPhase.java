@@ -61,8 +61,9 @@ public class QueryPhase {
     public static void execute(SearchContext searchContext) throws QueryPhaseExecutionException {
         if (searchContext.queryPhaseRankShardContext() == null) {
             if (searchContext.request().source() != null && searchContext.request().source().rankBuilder() != null) {
-                // if we have a custom Ranker (i.e. RankBuilder) provided, we want to fetch all
-                // rankWindowSize results. Pagination will take place later once they're all (re)ranked.
+                // if we have a RankBuilder provided, we want to fetch all rankWindowSize results
+                // and rerank the documents as per the RankBuilder's instructions.
+                // Pagination will take place later once they're all (re)ranked.
                 searchContext.size(searchContext.request().source().rankBuilder().rankWindowSize());
                 searchContext.from(0);
             }

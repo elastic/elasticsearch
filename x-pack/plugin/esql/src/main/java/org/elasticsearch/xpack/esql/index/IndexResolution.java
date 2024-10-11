@@ -8,17 +8,25 @@ package org.elasticsearch.xpack.esql.index;
 
 import org.elasticsearch.core.Nullable;
 
+import java.util.Collections;
 import java.util.Objects;
+import java.util.Set;
 
 public final class IndexResolution {
-    public static IndexResolution valid(EsIndex index) {
+
+    public static IndexResolution valid(EsIndex index, Set<String> unavailableClusters) {
         Objects.requireNonNull(index, "index must not be null if it was found");
-        return new IndexResolution(index, null);
+        Objects.requireNonNull(unavailableClusters, "unavailableClusters must not be null");
+        return new IndexResolution(index, null, unavailableClusters);
+    }
+
+    public static IndexResolution valid(EsIndex index) {
+        return valid(index, Collections.emptySet());
     }
 
     public static IndexResolution invalid(String invalid) {
         Objects.requireNonNull(invalid, "invalid must not be null to signal that the index is invalid");
-        return new IndexResolution(null, invalid);
+        return new IndexResolution(null, invalid, Collections.emptySet());
     }
 
     public static IndexResolution notFound(String name) {
@@ -30,9 +38,13 @@ public final class IndexResolution {
     @Nullable
     private final String invalid;
 
-    private IndexResolution(EsIndex index, @Nullable String invalid) {
+    // remote clusters included in the user's index expression that could not be connected to
+    private final Set<String> unavailableClusters;
+
+    private IndexResolution(EsIndex index, @Nullable String invalid, Set<String> unavailableClusters) {
         this.index = index;
         this.invalid = invalid;
+        this.unavailableClusters = unavailableClusters;
     }
 
     public boolean matches(String indexName) {
@@ -58,18 +70,24 @@ public final class IndexResolution {
         return invalid == null;
     }
 
+    public Set<String> getUnavailableClusters() {
+        return unavailableClusters;
+    }
+
     @Override
     public boolean equals(Object obj) {
         if (obj == null || obj.getClass() != getClass()) {
             return false;
         }
         IndexResolution other = (IndexResolution) obj;
-        return Objects.equals(index, other.index) && Objects.equals(invalid, other.invalid);
+        return Objects.equals(index, other.index)
+            && Objects.equals(invalid, other.invalid)
+            && Objects.equals(unavailableClusters, other.unavailableClusters);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(index, invalid);
+        return Objects.hash(index, invalid, unavailableClusters);
     }
 
     @Override

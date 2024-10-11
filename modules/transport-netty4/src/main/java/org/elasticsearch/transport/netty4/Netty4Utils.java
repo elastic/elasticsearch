@@ -13,6 +13,9 @@ import io.netty.buffer.ByteBuf;
 import io.netty.buffer.CompositeByteBuf;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.Channel;
+import io.netty.channel.ChannelFuture;
+import io.netty.channel.ChannelFutureListener;
+import io.netty.channel.ChannelPromise;
 import io.netty.channel.DefaultChannelPromise;
 import io.netty.util.NettyRuntime;
 import io.netty.util.concurrent.Future;
@@ -24,10 +27,13 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Booleans;
+import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.http.HttpBody;
 import org.elasticsearch.transport.TransportException;
 
 import java.io.IOException;
@@ -124,6 +130,14 @@ public class Netty4Utils {
         }
     }
 
+    public static ReleasableBytesReference toReleasableBytesReference(final ByteBuf buffer) {
+        return new ReleasableBytesReference(toBytesReference(buffer), buffer::release);
+    }
+
+    public static HttpBody.Full fullHttpBodyFrom(final ByteBuf buf) {
+        return new HttpBody.ByteRefHttpBody(toBytesReference(buf));
+    }
+
     public static Recycler<BytesRef> createRecycler(Settings settings) {
         // If this method is called by super ctor the processors will not be set. Accessing NettyAllocator initializes netty's internals
         // setting the processors. We must do it ourselves first just in case.
@@ -141,7 +155,7 @@ public class Netty4Utils {
         // can only be completed by some network event from this point on. However...
         final var promise = new DefaultChannelPromise(channel, ImmediateEventExecutor.INSTANCE);
         addListener(promise, listener);
-        assert assertCorrectPromiseListenerThreading(channel, promise);
+        assert assertCorrectPromiseListenerThreading(promise);
         channel.writeAndFlush(message, promise);
         if (channel.eventLoop().isShuttingDown()) {
             // ... if we get here then the event loop may already have terminated, and https://github.com/netty/netty/issues/8007 means that
@@ -156,10 +170,10 @@ public class Netty4Utils {
         }
     }
 
-    private static boolean assertCorrectPromiseListenerThreading(Channel channel, Future<?> promise) {
-        final var eventLoop = channel.eventLoop();
-        promise.addListener(future -> {
-            assert eventLoop.inEventLoop() || future.cause() instanceof RejectedExecutionException || channel.eventLoop().isTerminated()
+    private static boolean assertCorrectPromiseListenerThreading(ChannelPromise promise) {
+        addListener(promise, future -> {
+            var eventLoop = future.channel().eventLoop();
+            assert eventLoop.inEventLoop() || future.cause() instanceof RejectedExecutionException || eventLoop.isTerminated()
                 : future.cause();
         });
         return true;
@@ -182,5 +196,10 @@ public class Netty4Utils {
                 }
             }
         });
+    }
+
+    @SuppressForbidden(reason = "single point for adding listeners that enforces use of ChannelFutureListener")
+    public static void addListener(ChannelFuture channelFuture, ChannelFutureListener listener) {
+        channelFuture.addListener(listener);
     }
 }

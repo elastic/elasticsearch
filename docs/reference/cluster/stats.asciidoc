@@ -40,6 +40,10 @@ If a node does not respond before its timeout expires, the response does not inc
 However, timed out nodes are included in the response's `_nodes.failed` property.
 Defaults to no timeout.
 
+`include_remotes`::
+(Optional, Boolean) If `true`, includes remote cluster information in the response.
+Defaults to `false`, so no remote cluster information is returned.
+
 [role="child_attributes"]
 [[cluster-stats-api-response-body]]
 ==== {api-response-body-title}
@@ -183,12 +187,11 @@ This number is based on documents in Lucene segments and may include documents f
 This number is based on documents in Lucene segments. {es} reclaims the disk space of deleted Lucene documents when a segment is merged.
 
 `total_size_in_bytes`::
-(integer)
-Total size in bytes across all primary shards assigned to selected nodes.
+(integer) Total size in bytes across all primary shards assigned to selected nodes.
 
 `total_size`::
-(string)
-Total size across all primary shards assigned to selected nodes, as a human-readable string.
+(string) Total size across all primary shards assigned to selected nodes, as a human-readable string.
+
 =====
 
 `store`::
@@ -428,6 +431,15 @@ To get information on segment files, use the <<cluster-nodes-stats,node stats AP
 
 `indexed_vector_dim_max`::
 (integer) For dense_vector field types, the maximum dimension of all indexed vector types in selected nodes.
+
+`vector_index_type_count`::
+(object) For dense_vector field types, the number of indexed vector types by index type in selected nodes.
+
+`vector_similarity_type_count`::
+(object) For dense_vector field types, the number of vector types by similarity type in selected nodes.
+
+`vector_element_type_count`::
+(object) For dense_vector field types, the number of vector types by element type in selected nodes.
 
 `script_count`::
 (integer) Number of fields that declare a script.
@@ -749,6 +761,10 @@ Queries are counted once per search request, meaning that if the same query type
 `sections`::
 (object) Search sections used in selected nodes.
 For each section, name and number of times it's been used is reported.
+
+`retrievers`::
+(object) Retriever types that were used in selected nodes.
+For each retriever, name and number of times it's been used is reported.
 
 =====
 
@@ -1285,8 +1301,7 @@ They are included here for expert users, but should otherwise be ignored.
 ====
 
 `repositories`::
-(object) Contains statistics about the <<snapshot-restore,snapshot>> repositories defined in the cluster, broken down
-by repository type.
+(object) Contains statistics about the <<snapshot-restore,snapshot>> repositories defined in the cluster, broken down by repository type.
 +
 .Properties of `repositories`
 [%collapsible%open]
@@ -1314,13 +1329,74 @@ Each repository type may also include other statistics about the repositories of
 [%collapsible%open]
 =====
 
+`clusters`:::
+(object) Contains remote cluster settings and metrics collected from them.
+The keys are cluster names, and the values are per-cluster data.
+Only present if `include_remotes` option is set to `true`.
+
++
+.Properties of `clusters`
+[%collapsible%open]
+======
+
+`cluster_uuid`:::
+(string) The UUID of the remote cluster.
+
+`mode`:::
+(string) The <<sniff-proxy-modes, connection mode>> used to communicate with the remote cluster.
+
+`skip_unavailable`:::
+(Boolean) The `skip_unavailable` <<skip-unavailable-clusters, setting>> used for this remote cluster.
+
+`transport.compress`:::
+(string) Transport compression setting used for this remote cluster.
+
+`version`:::
+(array of strings) The list of {es} versions used by the nodes on the remote cluster.
+
+`status`:::
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=cluster-health-status]
++
+See <<cluster-health>>.
+
+`nodes_count`:::
+(integer) The total count of nodes in the remote cluster.
+
+`shards_count`:::
+(integer) The total number of shards in the remote cluster.
+
+`indices_count`:::
+(integer) The total number of indices in the remote cluster.
+
+`indices_total_size_in_bytes`:::
+(integer) Total data set size, in bytes, of all shards assigned to selected nodes.
+
+`indices_total_size`:::
+(string) Total data set size, in bytes, of all shards assigned to selected nodes, as a human-readable string.
+
+`max_heap_in_bytes`:::
+(integer) Maximum amount of memory, in bytes, available for use by the heap across the nodes of the remote cluster.
+
+`max_heap`:::
+(string) Maximum amount of memory, in bytes, available for use by the heap across the nodes of the remote cluster,
+as a human-readable string.
+
+`mem_total_in_bytes`:::
+(integer) Total amount, in bytes, of physical memory across the nodes of the remote cluster.
+
+`mem_total`:::
+(string) Total amount, in bytes, of physical memory across the nodes of the remote cluster, as a human-readable string.
+
+======
+
 
 `_search`:::
-(object) Contains the telemetry information about the <<modules-cross-cluster-search, {ccs}>> usage in the cluster.
+(object) Contains the information about the <<modules-cross-cluster-search, {ccs}>> usage in the cluster.
 +
 .Properties of `_search`
 [%collapsible%open]
 ======
+
 `total`:::
 (integer) The total number of {ccs} requests that have been executed by the cluster.
 
@@ -1336,6 +1412,7 @@ Each repository type may also include other statistics about the repositories of
 .Properties of `took`
 [%collapsible%open]
 =======
+
 `max`:::
 (integer) The maximum time taken to execute a {ccs} request, in milliseconds.
 
@@ -1344,6 +1421,7 @@ Each repository type may also include other statistics about the repositories of
 
 `p90`:::
 (integer) The 90th percentile of the time taken to execute {ccs} requests, in milliseconds.
+
 =======
 
 `took_mrt_true`::
@@ -1361,6 +1439,7 @@ Each repository type may also include other statistics about the repositories of
 
 `p90`:::
 (integer) The 90th percentile of the time taken to execute {ccs} requests, in milliseconds.
+
 =======
 
 `took_mrt_false`::
@@ -1378,6 +1457,7 @@ Each repository type may also include other statistics about the repositories of
 
 `p90`:::
 (integer) The 90th percentile of the time taken to execute {ccs} requests, in milliseconds.
+
 =======
 
 `remotes_per_search_max`::
@@ -1391,9 +1471,10 @@ Each repository type may also include other statistics about the repositories of
 The keys are the failure reason names and the values are the number of requests that failed for that reason.
 
 `features`::
-(object) Contains statistics about the features used in {ccs} requests. The keys are the names of the search feature,
-and the values are the number of requests that used that feature. Single request can use more than one feature
-(e.g. both `async` and `wildcard`). Known features are:
+(object) Contains statistics about the features used in {ccs} requests.
+The keys are the names of the search feature, and the values are the number of requests that used that feature.
+Single request can use more than one feature (e.g. both `async` and `wildcard`).
+Known features are:
 
 * `async` - <<async-search, Async search>>
 
@@ -1427,6 +1508,7 @@ This may include requests where partial results were returned, but not requests 
 .Properties of `took`
 [%collapsible%open]
 ========
+
 `max`:::
 (integer) The maximum time taken to execute a {ccs} request, in milliseconds.
 
@@ -1435,6 +1517,7 @@ This may include requests where partial results were returned, but not requests 
 
 `p90`:::
 (integer) The 90th percentile of the time taken to execute {ccs} requests, in milliseconds.
+
 ========
 
 =======
@@ -1812,3 +1895,37 @@ This API can be restricted to a subset of the nodes using <<cluster-nodes,node f
 --------------------------------------------------
 GET /_cluster/stats/nodes/node1,node*,master:false
 --------------------------------------------------
+
+This API call will return data about the remote clusters if any are configured:
+
+[source,console]
+--------------------------------------------------
+GET /_cluster/stats?include_remotes=true
+--------------------------------------------------
+
+The resulting response will contain the `ccs` object with information about the remote clusters:
+
+[source,js]
+--------------------------------------------------
+{
+  "ccs": {
+    "clusters": {
+      "remote_cluster": {
+        "cluster_uuid": "YjAvIhsCQ9CbjWZb2qJw3Q",
+        "mode": "sniff",
+        "skip_unavailable": false,
+        "transport.compress": "true",
+        "version": ["8.16.0"],
+        "status": "green",
+        "nodes_count": 10,
+        "shards_count": 420,
+        "indices_count": 10,
+        "indices_total_size_in_bytes": 6232658362,
+        "max_heap_in_bytes": 1037959168,
+        "mem_total_in_bytes": 137438953472
+      }
+    }
+  }
+}
+--------------------------------------------------
+// TESTRESPONSE[skip:TODO]

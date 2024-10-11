@@ -46,7 +46,7 @@ public final class PercentileLongAggregatorFunction implements AggregatorFunctio
 
   public static PercentileLongAggregatorFunction create(DriverContext driverContext,
       List<Integer> channels, double percentile) {
-    return new PercentileLongAggregatorFunction(driverContext, channels, PercentileLongAggregator.initSingle(percentile), percentile);
+    return new PercentileLongAggregatorFunction(driverContext, channels, PercentileLongAggregator.initSingle(driverContext, percentile), percentile);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -60,11 +60,11 @@ public final class PercentileLongAggregatorFunction implements AggregatorFunctio
 
   @Override
   public void addRawInput(Page page, BooleanVector mask) {
-    if (mask.isConstant()) {
-      if (mask.getBoolean(0) == false) {
-        // Entire page masked away
-        return;
-      }
+    if (mask.allFalse()) {
+      // Entire page masked away
+      return;
+    }
+    if (mask.allTrue()) {
       // No masking
       LongBlock block = page.getBlock(channels.get(0));
       LongVector vector = block.asVector();

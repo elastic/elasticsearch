@@ -37,6 +37,8 @@ module org.elasticsearch.ml {
 
     exports org.elasticsearch.xpack.ml;
     exports org.elasticsearch.xpack.ml.action;
+    exports org.elasticsearch.xpack.ml.aggs.categorization;
     exports org.elasticsearch.xpack.ml.autoscaling;
+    exports org.elasticsearch.xpack.ml.job.categorization;
     exports org.elasticsearch.xpack.ml.notifications;
 }

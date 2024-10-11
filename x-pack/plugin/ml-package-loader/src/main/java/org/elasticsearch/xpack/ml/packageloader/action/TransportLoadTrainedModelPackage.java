@@ -23,6 +23,7 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
@@ -55,6 +56,7 @@ public class TransportLoadTrainedModelPackage extends TransportMasterNodeAction<
     private static final Logger logger = LogManager.getLogger(TransportLoadTrainedModelPackage.class);
 
     private final Client client;
+    private final CircuitBreakerService circuitBreakerService;
 
     @Inject
     public TransportLoadTrainedModelPackage(
@@ -63,7 +65,8 @@ public class TransportLoadTrainedModelPackage extends TransportMasterNodeAction<
         ThreadPool threadPool,
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
-        Client client
+        Client client,
+        CircuitBreakerService circuitBreakerService
     ) {
         super(
             LoadTrainedModelPackageAction.NAME,
@@ -77,6 +80,7 @@ public class TransportLoadTrainedModelPackage extends TransportMasterNodeAction<
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.client = new OriginSettingClient(client, ML_ORIGIN);
+        this.circuitBreakerService = circuitBreakerService;
     }
 
     @Override
@@ -97,7 +101,8 @@ public class TransportLoadTrainedModelPackage extends TransportMasterNodeAction<
                 request.getModelId(),
                 request.getModelPackageConfig(),
                 downloadTask,
-                threadPool
+                threadPool,
+                circuitBreakerService
             );
 
             var downloadCompleteListener = request.isWaitForCompletion() ? listener : ActionListener.<AcknowledgedResponse>noop();

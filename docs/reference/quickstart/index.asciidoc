@@ -1,10 +1,29 @@
 [[quickstart]]
-= Quickstart
+= Quick starts
 
-Get started quickly with {es}.
+Use these quick starts to get hands-on experience with the {es} APIs.
+Unless otherwise noted, these examples will use queries written in <<query-dsl,Query DSL>> syntax.
 
-* Learn how to run {es} (and {kib}) for <<run-elasticsearch-locally,local development>>.
-* Follow our <<getting-started,Quickstart guide>> to add data to {es} and query it.
+[discrete]
+[[quickstart-requirements]]
+== Requirements
 
-include::run-elasticsearch-locally.asciidoc[]
+You'll need a running {es} cluster, together with {kib} to use the Dev Tools API Console.
+Get started <<run-elasticsearch-locally,locally in Docker>> , or see our <<elasticsearch-intro-deploy,other deployment options>>.
+
+[discrete]
+[[quickstart-list]]
+== Hands-on quick starts
+
+* <<getting-started,Basics: Index and search data using {es} APIs>>. Learn about indices, documents, and mappings, and perform a basic search.
+
+[discrete]
+[[quickstart-python-links]]
+== Working in Python
+
+If you're interested in using {es} with Python, check out Elastic Search Labs:
+
+* https://github.com/elastic/elasticsearch-labs[`elasticsearch-labs` repository]: Contains a range of Python https://github.com/elastic/elasticsearch-labs/tree/main/notebooks[notebooks] and https://github.com/elastic/elasticsearch-labs/tree/main/example-apps[example apps].
+* https://www.elastic.co/search-labs/tutorials/search-tutorial/welcome[Tutorial]: This walks you through building a complete search solution with {es} from the ground up using Flask.
+
 include::getting-started.asciidoc[]

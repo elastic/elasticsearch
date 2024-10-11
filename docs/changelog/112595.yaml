@@ -1,0 +1,6 @@
+pr: 112595
+summary: Collect and display execution metadata for ES|QL cross cluster searches
+area: ES|QL
+type: enhancement
+issues:
+ - 112402

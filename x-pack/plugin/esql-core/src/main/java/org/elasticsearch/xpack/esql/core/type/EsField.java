@@ -59,8 +59,8 @@ public class EsField implements Writeable {
         this.isAlias = isAlias;
     }
 
-    protected EsField(StreamInput in) throws IOException {
-        this.name = in.readString();
+    public EsField(StreamInput in) throws IOException {
+        this.name = ((PlanStreamInput) in).readCachedString();
         this.esDataType = readDataType(in);
         this.properties = in.readImmutableMap(EsField::readFrom);
         this.aggregatable = in.readBoolean();
@@ -68,7 +68,7 @@ public class EsField implements Writeable {
     }
 
     private DataType readDataType(StreamInput in) throws IOException {
-        String name = in.readString();
+        String name = ((PlanStreamInput) in).readCachedString();
         if (in.getTransportVersion().before(TransportVersions.ESQL_NESTED_UNSUPPORTED) && name.equalsIgnoreCase("NESTED")) {
             /*
              * The "nested" data type existed in older versions of ESQL but was
@@ -97,8 +97,8 @@ public class EsField implements Writeable {
     /**
      * This needs to be overridden by subclasses for specific serialization
      */
-    protected void writeContent(StreamOutput out) throws IOException {
-        out.writeString(name);
+    public void writeContent(StreamOutput out) throws IOException {
+        ((PlanStreamOutput) out).writeCachedString(name);
         esDataType.writeTo(out);
         out.writeMap(properties, (o, x) -> x.writeTo(out));
         out.writeBoolean(aggregatable);

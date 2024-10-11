@@ -18,7 +18,6 @@ import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
-import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.parser.QueryParam;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
 
@@ -29,10 +28,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.paramAsConstant;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.loadMapping;
-import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
-import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -284,6 +282,17 @@ public class VerifierTests extends ESTestCase {
             "1:42: Cannot convert string [a] to [DOUBLE], error [Cannot parse number [a]]",
             error("ROW a=[3, 5, 1, 6] | EVAL avg_a = MV_AVG(\"a\")")
         );
+        assertEquals(
+            "1:19: Unknown column [languages.*], did you mean any of [languages, languages.byte, languages.long, languages.short]?",
+            error("from test | where `languages.*` in (1, 2)")
+        );
+        assertEquals("1:22: Unknown function [func]", error("from test | eval x = func(languages) | where x in (1, 2)"));
+        assertEquals(
+            "1:32: Unknown column [languages.*], did you mean any of [languages, languages.byte, languages.long, languages.short]?",
+            error("from test | eval x = coalesce( `languages.*`, languages, 0 )")
+        );
+        String error = error("from test | eval x = func(languages) | eval y = coalesce(x, languages, 0 )");
+        assertThat(error, containsString("function [func]"));
     }
 
     public void testAggsExpressionsInStatsAggs() {
@@ -1077,34 +1086,84 @@ public class VerifierTests extends ESTestCase {
         );
     }
 
-    public void testMatchCommand() {
-        assertMatchCommand("1:24:", "LIMIT", "from test | limit 10 | match \"Anna\"");
-        assertMatchCommand("1:13:", "SHOW", "show info | match \"8.16.0\"");
-        assertMatchCommand("1:17:", "ROW", "row a= \"Anna\" | match \"Anna\"");
-        assertMatchCommand("1:26:", "EVAL", "from test | eval z = 2 | match \"Anna\"");
-        assertMatchCommand("1:43:", "DISSECT", "from test | dissect first_name \"%{foo}\" | match \"Connection\"");
-        assertMatchCommand("1:27:", "DROP", "from test | drop emp_no | match \"Anna\"");
-        assertMatchCommand("1:35:", "EVAL", "from test | eval n = emp_no * 3 | match \"Anna\"");
-        assertMatchCommand("1:44:", "GROK", "from test | grok last_name \"%{WORD:foo}\" | match \"Anna\"");
-        assertMatchCommand("1:27:", "KEEP", "from test | keep emp_no | match \"Anna\"");
+    public void testQueryStringFunctionsNotAllowedAfterCommands() throws Exception {
+        assumeTrue("skipping because QSTR is not enabled", EsqlCapabilities.Cap.QSTR_FUNCTION.isEnabled());
 
-        // TODO Keep adding tests for all unsupported commands
+        // Source commands
+        assertEquals("1:13: [QSTR] function cannot be used after SHOW", error("show info | where qstr(\"8.16.0\")"));
+        assertEquals("1:17: [QSTR] function cannot be used after ROW", error("row a= \"Anna\" | where qstr(\"Anna\")"));
+
+        // Processing commands
+        assertEquals(
+            "1:43: [QSTR] function cannot be used after DISSECT",
+            error("from test | dissect first_name \"%{foo}\" | where qstr(\"Connection\")")
+        );
+        assertEquals("1:27: [QSTR] function cannot be used after DROP", error("from test | drop emp_no | where qstr(\"Anna\")"));
+        assertEquals(
+            "1:71: [QSTR] function cannot be used after ENRICH",
+            error("from test | enrich languages on languages with lang = language_name | where qstr(\"Anna\")")
+        );
+        assertEquals("1:26: [QSTR] function cannot be used after EVAL", error("from test | eval z = 2 | where qstr(\"Anna\")"));
+        assertEquals(
+            "1:44: [QSTR] function cannot be used after GROK",
+            error("from test | grok last_name \"%{WORD:foo}\" | where qstr(\"Anna\")")
+        );
+        assertEquals("1:27: [QSTR] function cannot be used after KEEP", error("from test | keep emp_no | where qstr(\"Anna\")"));
+        assertEquals("1:24: [QSTR] function cannot be used after LIMIT", error("from test | limit 10 | where qstr(\"Anna\")"));
+        assertEquals(
+            "1:35: [QSTR] function cannot be used after MV_EXPAND",
+            error("from test | mv_expand last_name | where qstr(\"Anna\")")
+        );
+        assertEquals(
+            "1:45: [QSTR] function cannot be used after RENAME",
+            error("from test | rename last_name as full_name | where qstr(\"Anna\")")
+        );
+        assertEquals(
+            "1:52: [QSTR] function cannot be used after STATS",
+            error("from test | STATS c = COUNT(emp_no) BY languages | where qstr(\"Anna\")")
+        );
+
+        // Some combination of processing commands
+        assertEquals(
+            "1:38: [QSTR] function cannot be used after LIMIT",
+            error("from test | keep emp_no | limit 10 | where qstr(\"Anna\")")
+        );
+        assertEquals(
+            "1:46: [QSTR] function cannot be used after MV_EXPAND",
+            error("from test | limit 10 | mv_expand last_name | where qstr(\"Anna\")")
+        );
+        assertEquals(
+            "1:52: [QSTR] function cannot be used after KEEP",
+            error("from test | mv_expand last_name | keep last_name | where qstr(\"Anna\")")
+        );
+        assertEquals(
+            "1:77: [QSTR] function cannot be used after RENAME",
+            error("from test | STATS c = COUNT(emp_no) BY languages | rename c as total_emps | where qstr(\"Anna\")")
+        );
+        assertEquals(
+            "1:54: [QSTR] function cannot be used after KEEP",
+            error("from test | rename last_name as name | keep emp_no | where qstr(\"Anna\")")
+        );
     }
 
-    private void assertMatchCommand(String lineAndColumn, String command, String query) {
-        String message;
-        Class<? extends Exception> exception;
-        var isSnapshot = Build.current().isSnapshot();
-        if (isSnapshot) {
-            message = " MATCH cannot be used after ";
-            exception = VerificationException.class;
-        } else {
-            message = " mismatched input 'match' expecting ";
-            exception = ParsingException.class;
-        }
+    public void testQueryStringFunctionsOnlyAllowedInWhere() throws Exception {
+        assumeTrue("skipping because QSTR is not enabled", EsqlCapabilities.Cap.QSTR_FUNCTION.isEnabled());
 
-        var expectedErrorMessage = lineAndColumn + message + (isSnapshot ? command : "");
-        assertThat(error(query, defaultAnalyzer, exception), containsString(expectedErrorMessage));
+        assertEquals("1:22: [QSTR] function is only supported in WHERE commands", error("from test | eval y = qstr(\"Anna\")"));
+        assertEquals("1:18: [QSTR] function is only supported in WHERE commands", error("from test | sort qstr(\"Connection\") asc"));
+        assertEquals("1:5: [QSTR] function is only supported in WHERE commands", error("row qstr(\"Connection\")"));
+        assertEquals(
+            "1:23: [QSTR] function is only supported in WHERE commands",
+            error("from test | STATS c = qstr(\"foo\") BY languages")
+        );
+    }
+
+    public void testQueryStringFunctionArgNotNullOrConstant() throws Exception {
+        assumeTrue("skipping because QSTR is not enabled", EsqlCapabilities.Cap.QSTR_FUNCTION.isEnabled());
+
+        assertEquals("1:19: argument of [QSTR] must be a constant, received [first_name]", error("from test | where qstr(first_name)"));
+        assertEquals("1:19: argument of [QSTR] cannot be null, received [null]", error("from test | where qstr(null)"));
+        // Other value types are tested in QueryStringFunctionTests
     }
 
     public void testCoalesceWithMixedNumericTypes() {
@@ -1316,11 +1375,11 @@ public class VerifierTests extends ESTestCase {
         List<QueryParam> parameters = new ArrayList<>();
         for (Object param : params) {
             if (param == null) {
-                parameters.add(new QueryParam(null, null, NULL));
+                parameters.add(paramAsConstant(null, null));
             } else if (param instanceof String) {
-                parameters.add(new QueryParam(null, param, KEYWORD));
+                parameters.add(paramAsConstant(null, param));
             } else if (param instanceof Number) {
-                parameters.add(new QueryParam(null, param, DataType.fromJava(param)));
+                parameters.add(paramAsConstant(null, param));
             } else {
                 throw new IllegalArgumentException("VerifierTests don't support params of type " + param.getClass());
             }

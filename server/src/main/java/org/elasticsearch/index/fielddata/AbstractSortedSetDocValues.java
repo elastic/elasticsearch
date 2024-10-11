@@ -28,12 +28,12 @@ public abstract class AbstractSortedSetDocValues extends SortedSetDocValues {
     }
 
     @Override
-    public int nextDoc() throws IOException {
+    public int nextDoc() {
         throw new UnsupportedOperationException();
     }
 
     @Override
-    public int advance(int target) throws IOException {
+    public int advance(int target) {
         throw new UnsupportedOperationException();
     }
 

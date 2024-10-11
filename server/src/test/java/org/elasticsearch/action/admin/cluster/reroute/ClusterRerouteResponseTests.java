@@ -313,11 +313,15 @@ public class ClusterRerouteResponseTests extends ESTestCase {
             fail(e);
         }
 
-        final var expectedChunks = Objects.equals(params.param("metric"), "none")
-            ? 2
-            : 4 + ClusterStateTests.expectedChunkCount(params, response.getState());
+        int[] expectedChunks = new int[] { 3 };
+        if (Objects.equals(params.param("metric"), "none") == false) {
+            expectedChunks[0] += 2 + ClusterStateTests.expectedChunkCount(params, response.getState());
+        }
+        if (params.paramAsBoolean("explain", false)) {
+            expectedChunks[0]++;
+        }
 
-        AbstractChunkedSerializingTestCase.assertChunkCount(response, params, ignored -> expectedChunks);
+        AbstractChunkedSerializingTestCase.assertChunkCount(response, params, o -> expectedChunks[0]);
         assertCriticalWarnings(criticalDeprecationWarnings);
 
         // check the v7 API too
@@ -331,7 +335,7 @@ public class ClusterRerouteResponseTests extends ESTestCase {
             public boolean isFragment() {
                 return response.isFragment();
             }
-        }, params, ignored -> expectedChunks);
+        }, params, o -> expectedChunks[0]++);
         // the v7 API should not emit any deprecation warnings
         assertCriticalWarnings();
     }

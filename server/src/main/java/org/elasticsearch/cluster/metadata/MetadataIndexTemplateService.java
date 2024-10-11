@@ -693,42 +693,35 @@ public class MetadataIndexTemplateService {
     private void validateIndexTemplateV2(String name, ComposableIndexTemplate indexTemplate, ClusterState currentState) {
         // Workaround for the fact that start_time and end_time are injected by the MetadataCreateDataStreamService upon creation,
         // but when validating templates that create data streams the MetadataCreateDataStreamService isn't used.
-        var finalTemplate = Optional.ofNullable(indexTemplate.template());
-        var finalSettings = Settings.builder();
+        var finalTemplate = indexTemplate.template();
         final var now = Instant.now();
         final var metadata = currentState.getMetadata();
 
         final var combinedMappings = collectMappings(indexTemplate, metadata.componentTemplates(), "tmp_idx");
         final var combinedSettings = resolveSettings(indexTemplate, metadata.componentTemplates());
         // First apply settings sourced from index setting providers:
+        var finalSettings = Settings.builder();
         for (var provider : indexSettingProviders) {
-            finalSettings.put(
-                provider.getAdditionalIndexSettings(
-                    "validate-index-name",
-                    indexTemplate.getDataStreamTemplate() != null ? "validate-data-stream-name" : null,
-                    indexTemplate.getDataStreamTemplate() != null && metadata.isTimeSeriesTemplate(indexTemplate),
-                    currentState.getMetadata(),
-                    now,
-                    combinedSettings,
-                    combinedMappings
-                )
+            var newAdditionalSettings = provider.getAdditionalIndexSettings(
+                "validate-index-name",
+                indexTemplate.getDataStreamTemplate() != null ? "validate-data-stream-name" : null,
+                indexTemplate.getDataStreamTemplate() != null && metadata.isTimeSeriesTemplate(indexTemplate),
+                currentState.getMetadata(),
+                now,
+                combinedSettings,
+                combinedMappings
             );
+            MetadataCreateIndexService.validateAdditionalSettings(provider, newAdditionalSettings, finalSettings);
+            finalSettings.put(newAdditionalSettings);
         }
         // Then apply setting from component templates:
         finalSettings.put(combinedSettings);
         // Then finally apply settings resolved from index template:
-        finalSettings.put(finalTemplate.map(Template::settings).orElse(Settings.EMPTY));
+        if (finalTemplate != null && finalTemplate.settings() != null) {
+            finalSettings.put(finalTemplate.settings());
+        }
 
-        var templateToValidate = indexTemplate.toBuilder()
-            .template(
-                new Template(
-                    finalSettings.build(),
-                    finalTemplate.map(Template::mappings).orElse(null),
-                    finalTemplate.map(Template::aliases).orElse(null),
-                    finalTemplate.map(Template::lifecycle).orElse(null)
-                )
-            )
-            .build();
+        var templateToValidate = indexTemplate.toBuilder().template(Template.builder(finalTemplate).settings(finalSettings)).build();
 
         validate(name, templateToValidate);
         validateDataStreamsStillReferenced(currentState, name, templateToValidate);

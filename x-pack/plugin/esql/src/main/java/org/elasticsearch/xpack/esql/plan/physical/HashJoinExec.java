@@ -16,7 +16,6 @@ import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
-import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 
 import java.io.IOException;
 import java.util.List;
@@ -55,7 +54,7 @@ public class HashJoinExec extends UnaryExec implements EstimatesRowSize {
     }
 
     private HashJoinExec(StreamInput in) throws IOException {
-        super(Source.readFrom((PlanStreamInput) in), ((PlanStreamInput) in).readPhysicalPlanNode());
+        super(Source.readFrom((PlanStreamInput) in), in.readNamedWriteable(PhysicalPlan.class));
         this.joinData = new LocalSourceExec(in);
         this.matchFields = in.readNamedWriteableCollectionAsList(Attribute.class);
         this.leftFields = in.readNamedWriteableCollectionAsList(Attribute.class);
@@ -66,7 +65,7 @@ public class HashJoinExec extends UnaryExec implements EstimatesRowSize {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         source().writeTo(out);
-        ((PlanStreamOutput) out).writePhysicalPlanNode(child());
+        out.writeNamedWriteable(child());
         joinData.writeTo(out);
         out.writeNamedWriteableCollection(matchFields);
         out.writeNamedWriteableCollection(leftFields);

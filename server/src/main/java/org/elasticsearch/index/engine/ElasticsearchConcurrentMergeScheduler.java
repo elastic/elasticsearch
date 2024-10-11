@@ -49,7 +49,8 @@ public class ElasticsearchConcurrentMergeScheduler extends ConcurrentMergeSchedu
         this.logger = Loggers.getLogger(getClass(), shardId);
         this.mergeTracking = new MergeTracking(
             logger,
-            () -> indexSettings.getMergeSchedulerConfig().isAutoThrottle() ? getIORateLimitMBPerSec() : Double.POSITIVE_INFINITY);
+            () -> indexSettings.getMergeSchedulerConfig().isAutoThrottle() ? getIORateLimitMBPerSec() : Double.POSITIVE_INFINITY
+        );
         refreshConfig();
     }
 

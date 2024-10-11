@@ -328,8 +328,6 @@ tests:
 - class: org.elasticsearch.action.bulk.IncrementalBulkIT
   method: testIncrementalBulkLowWatermarkBackOff
   issue: https://github.com/elastic/elasticsearch/issues/114182
-- class: org.elasticsearch.xpack.esql.action.EsqlActionBreakerIT
-  issue: https://github.com/elastic/elasticsearch/issues/114194
 - class: org.elasticsearch.xpack.ilm.ExplainLifecycleIT
   method: testStepInfoPreservedOnAutoRetry
   issue: https://github.com/elastic/elasticsearch/issues/114220
@@ -357,8 +355,9 @@ tests:
 - class: org.elasticsearch.xpack.inference.InferenceRestIT
   method: test {p0=inference/40_semantic_text_query/Query a field that uses the default ELSER 2 endpoint}
   issue: https://github.com/elastic/elasticsearch/issues/114376
-- class: org.elasticsearch.xpack.logsdb.LogsdbTestSuiteIT
-  issue: https://github.com/elastic/elasticsearch/issues/114471
+- class: org.elasticsearch.search.retriever.RankDocsRetrieverBuilderTests
+  method: testRewrite
+  issue: https://github.com/elastic/elasticsearch/issues/114467
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test022InstallPluginsFromLocalArchive
   issue: https://github.com/elastic/elasticsearch/issues/111063

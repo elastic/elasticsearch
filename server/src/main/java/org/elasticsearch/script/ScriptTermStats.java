@@ -38,10 +38,11 @@ public class ScriptTermStats {
     private final LeafReaderContext leafReaderContext;
     private final StatsSummary statsSummary = new StatsSummary();
     private final Supplier<TermStates[]> termContextsSupplier;
+    private final Supplier<PostingsEnum[]> postingsSupplier;
     private final Supplier<StatsSummary> docFreqSupplier;
     private final Supplier<StatsSummary> totalTermFreqSupplier;
 
-    private volatile PostingsEnum[] postings;
+    // private volatile PostingsEnum[] postings;
 
     public ScriptTermStats(IndexSearcher searcher, LeafReaderContext leafReaderContext, IntSupplier docIdSupplier, Set<Term> terms) {
         this.searcher = searcher;
@@ -51,6 +52,7 @@ public class ScriptTermStats {
         this.termContextsSupplier = CachedSupplier.wrap(this::loadTermContexts);
         this.docFreqSupplier = CachedSupplier.wrap(this::loadDocFreq);
         this.totalTermFreqSupplier = CachedSupplier.wrap(this::loadTotalTermFreq);
+        this.postingsSupplier = CachedSupplier.wrap(this::loadPostings);
     }
 
     /**
@@ -72,7 +74,8 @@ public class ScriptTermStats {
         int matchedTerms = 0;
 
         try {
-            for (PostingsEnum postingsEnum : loadPostings(docId)) {
+            advancePostings(docId);
+            for (PostingsEnum postingsEnum : postingsSupplier.get()) {
                 if (postingsEnum != null && postingsEnum.docID() == docId && postingsEnum.freq() > 0) {
                     matchedTerms++;
                 }
@@ -149,7 +152,8 @@ public class ScriptTermStats {
         final int docId = docIdSupplier.getAsInt();
 
         try {
-            for (PostingsEnum postingsEnum : loadPostings(docId)) {
+            advancePostings(docId);
+            for (PostingsEnum postingsEnum : postingsSupplier.get()) {
                 if (postingsEnum == null || postingsEnum.docID() != docId) {
                     statsSummary.accept(0);
                 } else {
@@ -169,11 +173,13 @@ public class ScriptTermStats {
      * @return statistics on termPositions for the terms of the query in the current dac
      */
     public StatsSummary termPositions() {
-        try {
-            statsSummary.reset();
-            int docId = docIdSupplier.getAsInt();
+        statsSummary.reset();
+        int docId = docIdSupplier.getAsInt();
 
-            for (PostingsEnum postingsEnum : loadPostings(docId)) {
+        try {
+            advancePostings(docId);
+
+            for (PostingsEnum postingsEnum : postingsSupplier.get()) {
                 if (postingsEnum == null || postingsEnum.docID() != docId) {
                     continue;
                 }
@@ -202,29 +208,27 @@ public class ScriptTermStats {
         }
     }
 
-    private PostingsEnum[] loadPostings(int targetDocId) {
+    private PostingsEnum[] loadPostings() {
         try {
-            if (postings == null) {
-                postings = new PostingsEnum[terms.length];
-
-                for (int i = 0; i < terms.length; i++) {
-                    postings[i] = leafReaderContext.reader().postings(terms[i], PostingsEnum.POSITIONS);
-                }
-            }
+            PostingsEnum[] postings = new PostingsEnum[terms.length];
 
             for (int i = 0; i < terms.length; i++) {
-                if (postings[i] != null) {
-                    if (postings[i].docID() > targetDocId) {
-                        postings[i] = leafReaderContext.reader().postings(terms[i], PostingsEnum.POSITIONS);
-                    }
-
-                    if (postings[i].docID() < targetDocId && postings[i].docID() != DocIdSetIterator.NO_MORE_DOCS) {
-                        postings[i].advance(targetDocId);
-                    }
-                }
+                postings[i] = leafReaderContext.reader().postings(terms[i], PostingsEnum.POSITIONS);
             }
 
             return postings;
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
+    private void advancePostings(int targetDocId) {
+        try {
+            for (PostingsEnum posting : postingsSupplier.get()) {
+                if (posting != null && posting.docID() < targetDocId && posting.docID() != DocIdSetIterator.NO_MORE_DOCS) {
+                    posting.advance(targetDocId);
+                }
+            }
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }

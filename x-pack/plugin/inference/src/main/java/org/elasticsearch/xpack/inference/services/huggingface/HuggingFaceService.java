@@ -21,7 +21,6 @@ import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.xpack.core.inference.ChunkingSettingsFeatureFlag;
 import org.elasticsearch.xpack.inference.chunking.EmbeddingRequestChunker;
 import org.elasticsearch.xpack.inference.external.action.huggingface.HuggingFaceActionCreator;
 import org.elasticsearch.xpack.inference.external.http.sender.DocumentsOnlyInput;
@@ -115,21 +114,12 @@ public class HuggingFaceService extends HuggingFaceBaseService {
         var huggingFaceModel = (HuggingFaceModel) model;
         var actionCreator = new HuggingFaceActionCreator(getSender(), getServiceComponents());
 
-        List<EmbeddingRequestChunker.BatchRequestAndListener> batchedRequests;
-        if (ChunkingSettingsFeatureFlag.isEnabled()) {
-            batchedRequests = new EmbeddingRequestChunker(
-                inputs.getInputs(),
-                EMBEDDING_MAX_BATCH_SIZE,
-                EmbeddingRequestChunker.EmbeddingType.FLOAT,
-                huggingFaceModel.getConfigurations().getChunkingSettings()
-            ).batchRequestsWithListeners(listener);
-        } else {
-            batchedRequests = new EmbeddingRequestChunker(
-                inputs.getInputs(),
-                EMBEDDING_MAX_BATCH_SIZE,
-                EmbeddingRequestChunker.EmbeddingType.FLOAT
-            ).batchRequestsWithListeners(listener);
-        }
+        List<EmbeddingRequestChunker.BatchRequestAndListener> batchedRequests = new EmbeddingRequestChunker(
+            inputs.getInputs(),
+            EMBEDDING_MAX_BATCH_SIZE,
+            EmbeddingRequestChunker.EmbeddingType.FLOAT,
+            huggingFaceModel.getConfigurations().getChunkingSettings()
+        ).batchRequestsWithListeners(listener);
 
         for (var request : batchedRequests) {
             var action = huggingFaceModel.accept(actionCreator);

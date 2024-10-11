@@ -28,6 +28,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.BiFunction;
 
 import static org.elasticsearch.common.xcontent.XContentHelper.convertToMap;
@@ -746,6 +747,7 @@ public class XContentMapValuesTests extends AbstractFilteringTestCase {
                     List<?> values = nextList.stream()
                         .filter(v -> v instanceof Map<?, ?>)
                         .map(v -> ((Map<?, ?>) v).get(pathElement))
+                        .filter(Objects::nonNull)
                         .toList();
                     if (values.isEmpty()) {
                         return null;
@@ -827,6 +829,61 @@ public class XContentMapValuesTests extends AbstractFilteringTestCase {
 
             XContentMapValues.insertValue("path1.test", map, List.of("value3", "value4", "value5"));
             assertThat(getMapValue.apply(map, "path1.test"), equalTo(List.of("value3", "value4", "value5")));
+        }
+        {
+            XContentBuilder builder = XContentFactory.jsonBuilder().startObject();
+            {
+                builder.startObject("path1");
+                {
+                    builder.startArray("path2");
+                    builder.startObject().field("test1", "value1").endObject();
+                    builder.startObject().field("test2", "value2").endObject();
+                    builder.startObject().field("test2", "value3").endObject();
+                    builder.endArray();
+                }
+                builder.endObject();
+                builder.startObject("path1.path2");
+                {
+                    builder.array("test2", "value3", "value4");
+                }
+                builder.endObject();
+            }
+            builder.endObject();
+            Map<String, Object> map = toSourceMap(Strings.toString(builder));
+
+            XContentMapValues.insertValue("path1.path2.test1", map,"new_value");
+            assertThat(getMapValue.apply(map, "path1.path2.test1"), equalTo("new_value"));
+
+            IllegalArgumentException ex = assertThrows(
+                IllegalArgumentException.class,
+                () -> XContentMapValues.insertValue("path1.path2.test2", map, "new_value_2")
+            );
+            assertThat(ex.getMessage(), equalTo("Path [path1.path2.test2] matches 3 values, it is ambiguous which value to replace"));
+        }
+        {
+            XContentBuilder builder = XContentFactory.jsonBuilder().startObject();
+            {
+                builder.startObject("path1");
+                {
+                    builder.startArray("path2");
+                    builder.startObject().field("test1", "value1").endObject();
+                    builder.startObject().field("test2", "value2").endObject();
+                    builder.value("value3");
+                    builder.endArray();
+                }
+                builder.endObject();
+            }
+            builder.endObject();
+            Map<String, Object> map = toSourceMap(Strings.toString(builder));
+
+            IllegalArgumentException ex = assertThrows(
+                IllegalArgumentException.class,
+                () -> XContentMapValues.insertValue("path1.path2.test1", map, "new_value")
+            );
+            assertThat(
+                ex.getMessage(),
+                equalTo("Path [path1.path2] has value [value3] of type [String], which cannot be traversed into further")
+            );
         }
     }
 

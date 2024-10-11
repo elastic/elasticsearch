@@ -23,7 +23,6 @@ import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopFieldCollectorManager;
 import org.apache.lucene.util.ArrayUtil;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.core.IOUtils;
@@ -42,15 +41,18 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.stream.Collectors;
+
+import static org.elasticsearch.index.engine.LuceneChangesSnapshot.getLeafDocIDs;
+import static org.elasticsearch.index.engine.LuceneChangesSnapshot.loadFromStoredFields;
+import static org.elasticsearch.index.engine.LuceneChangesSnapshot.loadFromSourceLoader;
 
 /**
- * A {@link Translog.Snapshot} from changes in a Lucene index
+ * A {@link Translog.Snapshot} implementation that retrieves changes from a Lucene index in batches.
+ * All operations within a batch are held in memory, with the batch size configurable to control
+ * memory usage.
  */
 public final class LuceneBatchChangesSnapshot implements Translog.Snapshot {
-    static final int DEFAULT_BATCH_SIZE = 1024;
-
-    private final int searchBatchSize;
+    private final int batchSize;
     private final long fromSeqNo, toSeqNo;
     private long lastSeenSeqNo;
     private int skippedOperations;
@@ -73,7 +75,7 @@ public final class LuceneBatchChangesSnapshot implements Translog.Snapshot {
      * Creates a new "translog" snapshot from Lucene for reading operations whose seq# in the specified range.
      *
      * @param engineSearcher    the internal engine searcher which will be taken over if the snapshot is opened successfully
-     * @param searchBatchSize   the number of documents should be returned by each search
+     * @param batchSize   the number of documents to load per batch
      * @param fromSeqNo         the min requesting seq# - inclusive
      * @param toSeqNo           the maximum requesting seq# - inclusive
      * @param requiredFullRange if true, the snapshot will strictly check for the existence of operations between fromSeqNo and toSeqNo
@@ -83,7 +85,7 @@ public final class LuceneBatchChangesSnapshot implements Translog.Snapshot {
     public LuceneBatchChangesSnapshot(
         MappingLookup mappingLookup,
         Engine.Searcher engineSearcher,
-        int searchBatchSize,
+        int batchSize,
         long fromSeqNo,
         long toSeqNo,
         boolean requiredFullRange,
@@ -93,8 +95,8 @@ public final class LuceneBatchChangesSnapshot implements Translog.Snapshot {
         if (fromSeqNo < 0 || toSeqNo < 0 || fromSeqNo > toSeqNo) {
             throw new IllegalArgumentException("Invalid range; from_seqno [" + fromSeqNo + "], to_seqno [" + toSeqNo + "]");
         }
-        if (searchBatchSize <= 0) {
-            throw new IllegalArgumentException("Search_batch_size must be positive [" + searchBatchSize + "]");
+        if (batchSize <= 0) {
+            throw new IllegalArgumentException("batch_size must be positive [" + batchSize + "]");
         }
         final AtomicBoolean closed = new AtomicBoolean();
         this.onClose = () -> {
@@ -103,7 +105,7 @@ public final class LuceneBatchChangesSnapshot implements Translog.Snapshot {
             }
         };
         final long requestingSize = (toSeqNo - fromSeqNo) == Long.MAX_VALUE ? Long.MAX_VALUE : (toSeqNo - fromSeqNo + 1L);
-        this.searchBatchSize = requestingSize < searchBatchSize ? Math.toIntExact(requestingSize) : searchBatchSize;
+        this.batchSize = requestingSize < batchSize ? Math.toIntExact(requestingSize) : batchSize;
         this.fromSeqNo = fromSeqNo;
         this.toSeqNo = toSeqNo;
         this.lastSeenSeqNo = fromSeqNo - 1;
@@ -111,19 +113,15 @@ public final class LuceneBatchChangesSnapshot implements Translog.Snapshot {
         this.indexSearcher = newIndexSearcher(engineSearcher);
         this.indexSearcher.setQueryCache(null);
         this.accessStats = accessStats;
-        this.ops = new Translog.Operation[this.searchBatchSize];
+        this.ops = new Translog.Operation[this.batchSize];
         this.indexVersionCreated = indexVersionCreated;
         final TopDocs topDocs = searchOperations(null, accessStats);
         this.totalHits = Math.toIntExact(topDocs.totalHits.value);
         this.scoreDocs = topDocs.scoreDocs;
-        if (mappingLookup != null && mappingLookup.isSourceSynthetic()) {
-            Set<String> storedFields = mappingLookup.getMapping()
-                .syntheticFieldLoader()
-                .storedFieldLoaders()
-                .map(s -> s.getKey())
-                .collect(Collectors.toSet());
-            this.storedFieldLoader = StoredFieldLoader.create(false, storedFields);
-            this.sourceLoader = new SourceLoader.Synthetic(mappingLookup.getMapping()::syntheticFieldLoader, SourceFieldMetrics.NOOP);
+        if (mappingLookup != null) {
+            this.sourceLoader = mappingLookup.newSourceLoader(SourceFieldMetrics.NOOP);
+            Set<String> storedFields = sourceLoader.requiredStoredFields();
+            this.storedFieldLoader = StoredFieldLoader.create(mappingLookup.isSourceSynthetic(), storedFields);
         } else {
             this.storedFieldLoader = StoredFieldLoader.create(true, Set.of());
             this.sourceLoader = null;
@@ -155,6 +153,11 @@ public final class LuceneBatchChangesSnapshot implements Translog.Snapshot {
         for (int idx = nextDocIndex(); idx != -1; idx = nextDocIndex()) {
             op = ops[idx];
             if (op != null) {
+                // Only pick the first seen seq#
+                if (op.seqNo() == lastSeenSeqNo) {
+                    skippedOperations++;
+                    continue;
+                }
                 break;
             }
         }
@@ -162,6 +165,17 @@ public final class LuceneBatchChangesSnapshot implements Translog.Snapshot {
             rangeCheck(op);
         }
         if (op != null) {
+            assert fromSeqNo <= op.seqNo() && op.seqNo() <= toSeqNo && lastSeenSeqNo < op.seqNo()
+                    : "Unexpected operation; "
+                    + "last_seen_seqno ["
+                    + lastSeenSeqNo
+                    + "], from_seqno ["
+                    + fromSeqNo
+                    + "], to_seqno ["
+                    + toSeqNo
+                    + "], op ["
+                    + op
+                    + "]";
             lastSeenSeqNo = op.seqNo();
         }
         return op;
@@ -227,59 +241,49 @@ public final class LuceneBatchChangesSnapshot implements Translog.Snapshot {
         int maxDoc = 0;
         List<LeafReaderContext> leaves = indexSearcher.getIndexReader().leaves();
         int readerIndex = 0;
-        LeafReaderContext leaf = null;
+        LeafReaderContext leafReader = null;
         CombinedDocValues combinedDocValues = null;
-        LeafStoredFieldLoader leafStoredFieldLoader = null;
-        SourceLoader.Leaf leafSourceLoader = null;
-        for (ScoreDoc scoreDoc : scoreDocs) {
+        LeafStoredFieldLoader leafFields = null;
+        SourceLoader.Leaf leafSource = null;
+        for (int i = 0; i < scoreDocs.length; i++) {
+            var scoreDoc = scoreDocs[i];
             if (scoreDoc.doc >= docBase + maxDoc) {
                 do {
-                    leaf = leaves.get(readerIndex++);
-                    docBase = leaf.docBase;
-                    maxDoc = leaf.reader().maxDoc();
-                    leafStoredFieldLoader = storedFieldLoader.getLoader(leaf, null);
-                    if (sourceLoader != null) {
-                        leafSourceLoader = sourceLoader.leaf(leaf.reader(), null);
-                    } else {
-                        leafSourceLoader = null;
-                    }
+                    leafReader = leaves.get(readerIndex++);
+                    docBase = leafReader.docBase;
+                    maxDoc = leafReader.reader().maxDoc();
                 } while (scoreDoc.doc >= docBase + maxDoc);
-                combinedDocValues = new CombinedDocValues(leaf.reader());
+
+                combinedDocValues = new CombinedDocValues(leafReader.reader());
+                var docIds = getLeafDocIDs(scoreDocs, i, docBase, maxDoc);
+                leafFields = storedFieldLoader.getLoader(leafReader, docIds);
+                leafSource = sourceLoader != null ? sourceLoader.leaf(leafReader.reader(), docIds) : null;
             }
             final int segmentDocID = scoreDoc.doc - docBase;
             final int index = scoreDoc.shardIndex;
 
-            leafStoredFieldLoader.advanceTo(segmentDocID);
-            final BytesReference source;
-            if (sourceLoader != null) {
-                source = leafSourceLoader.source(leafStoredFieldLoader, segmentDocID).internalSourceRef();
-            } else {
-                source = leafStoredFieldLoader.source();
-            }
-
             final long primaryTerm = combinedDocValues.docPrimaryTerm(segmentDocID);
             assert primaryTerm > 0 : "nested child document must be excluded";
             final long seqNo = combinedDocValues.docSeqNo(segmentDocID);
-            // Only pick the first seen seq#
-            if (seqNo == lastSeenSeqNo) {
-                skippedOperations++;
-                ops[index] = null;
-                continue;
-            }
             final long version = combinedDocValues.docVersion(segmentDocID);
+            final boolean hasRecoverySource = combinedDocValues.hasRecoverySource(segmentDocID);
+            final var doc = (hasRecoverySource || leafSource == null)
+                ? loadFromStoredFields(segmentDocID, leafFields.reader(), hasRecoverySource)
+                : loadFromSourceLoader(segmentDocID, leafFields, leafSource);
+
             final Translog.Operation op;
             final boolean isTombstone = combinedDocValues.isTombstone(segmentDocID);
-            if (isTombstone && leafStoredFieldLoader.id() == null) {
-                op = new Translog.NoOp(seqNo, primaryTerm, source.utf8ToString());
+            if (isTombstone && doc.id() == null) {
+                op = new Translog.NoOp(seqNo, primaryTerm, doc.source().utf8ToString());
                 assert version == 1L : "Noop tombstone should have version 1L; actual version [" + version + "]";
-                assert assertDocSoftDeleted(leaf.reader(), segmentDocID) : "Noop but soft_deletes field is not set [" + op + "]";
+                assert assertDocSoftDeleted(leafReader.reader(), segmentDocID) : "Noop but soft_deletes field is not set [" + op + "]";
             } else {
-                final String id = leafStoredFieldLoader.id();
                 if (isTombstone) {
-                    op = new Translog.Delete(id, seqNo, primaryTerm, version);
-                    assert assertDocSoftDeleted(leaf.reader(), segmentDocID) : "Delete op but soft_deletes field is not set [" + op + "]";
+                    op = new Translog.Delete(doc.id(), seqNo, primaryTerm, version);
+                    assert assertDocSoftDeleted(leafReader.reader(), segmentDocID)
+                        : "Delete op but soft_deletes field is not set [" + op + "]";
                 } else {
-                    if (source == null) {
+                    if (doc.source() == null) {
                         // TODO: Callers should ask for the range that source should be retained. Thus we should always
                         // check for the existence source once we make peer-recovery to send ops after the local checkpoint.
                         if (requiredFullRange) {
@@ -294,30 +298,12 @@ public final class LuceneBatchChangesSnapshot implements Translog.Snapshot {
                     }
                     // TODO: pass the latest timestamp from engine.
                     final long autoGeneratedIdTimestamp = -1;
-                    op = new Translog.Index(
-                        id,
-                        seqNo,
-                        primaryTerm,
-                        version,
-                        source,
-                        leafStoredFieldLoader.routing(),
-                        autoGeneratedIdTimestamp
-                    );
+                    op = new Translog.Index(doc.id(), seqNo, primaryTerm, version, doc.source(), doc.routing(), autoGeneratedIdTimestamp);
                 }
             }
-            assert fromSeqNo <= op.seqNo() && op.seqNo() <= toSeqNo && lastSeenSeqNo < op.seqNo()
-                : "Unexpected operation; "
-                    + "last_seen_seqno ["
-                    + lastSeenSeqNo
-                    + "], from_seqno ["
-                    + fromSeqNo
-                    + "], to_seqno ["
-                    + toSeqNo
-                    + "], op ["
-                    + op
-                    + "]";
             ops[index] = op;
         }
+        ArrayUtil.introSort(scoreDocs, Comparator.comparingInt(i -> i.shardIndex));
     }
 
     private static IndexSearcher newIndexSearcher(Engine.Searcher engineSearcher) throws IOException {
@@ -344,7 +330,7 @@ public final class LuceneBatchChangesSnapshot implements Translog.Snapshot {
         final SortField sortBySeqNo = new SortField(SeqNoFieldMapper.NAME, SortField.Type.LONG);
         TopFieldCollectorManager topFieldCollectorManager = new TopFieldCollectorManager(
             new Sort(sortBySeqNo),
-            searchBatchSize,
+            batchSize,
             after,
             accurateTotalHits ? Integer.MAX_VALUE : 0
         );

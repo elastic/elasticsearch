@@ -10,7 +10,9 @@
 package org.elasticsearch.search.fetch;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.index.fieldvisitor.FieldsVisitor;
 import org.elasticsearch.index.fieldvisitor.LeafStoredFieldLoader;
 import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
 import org.elasticsearch.search.fetch.FetchSubPhase.HitContext;
@@ -97,6 +99,11 @@ public class FetchProfiler implements FetchPhase.Profiler {
                     @Override
                     public Map<String, List<Object>> storedFields() {
                         return in.storedFields();
+                    }
+
+                    @Override
+                    public CheckedBiConsumer<Integer, FieldsVisitor, IOException> reader() {
+                        return in.reader();
                     }
                 };
             }

@@ -185,6 +185,12 @@ public abstract class StoredFieldLoader {
         public Map<String, List<Object>> storedFields() {
             return Collections.emptyMap();
         }
+
+        @Override
+        public CheckedBiConsumer<Integer, FieldsVisitor, IOException> reader() {
+            // do nothing
+            return (a, b) -> {};
+        }
     }
 
     private static class ReaderStoredFieldLoader implements LeafStoredFieldLoader {
@@ -225,6 +231,11 @@ public abstract class StoredFieldLoader {
         @Override
         public Map<String, List<Object>> storedFields() {
             return visitor.fields();
+        }
+
+        @Override
+        public CheckedBiConsumer<Integer, FieldsVisitor, IOException> reader() {
+            return reader;
         }
     }
 

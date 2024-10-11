@@ -9,6 +9,7 @@
 
 package org.elasticsearch.index.fieldvisitor;
 
+import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.bytes.BytesReference;
 
 import java.io.IOException;
@@ -48,4 +49,5 @@ public interface LeafStoredFieldLoader {
      */
     Map<String, List<Object>> storedFields();
 
+    CheckedBiConsumer<Integer, FieldsVisitor, IOException> reader();
 }

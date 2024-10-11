@@ -108,15 +108,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         Strings.EMPTY_ARRAY,
         Strings.EMPTY_ARRAY,
         IndexMode.LOGSDB,
-        true
-    );
-
-    private static final SourceFieldMapper LOGSDB_DEFAULT_NO_RECOVERY_SOURCE = new SourceFieldMapper(
-        Mode.SYNTHETIC,
-        Explicit.IMPLICIT_TRUE,
-        Strings.EMPTY_ARRAY,
-        Strings.EMPTY_ARRAY,
-        IndexMode.LOGSDB,
+        // recovery source is always disabled for logsdb
         false
     );
 
@@ -210,7 +202,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
             this.indexMode = indexMode;
             this.supportsNonDefaultParameterValues = supportsCheckForNonDefaultParams == false
                 || settings.getAsBoolean(LOSSY_PARAMETERS_ALLOWED_SETTING_NAME, true);
-            this.enableRecoverySource = enableRecoverySource;
+            this.enableRecoverySource =  indexMode == IndexMode.LOGSDB ? false : enableRecoverySource;
         }
 
         public Builder setSynthetic() {
@@ -245,7 +237,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
             if (isDefault()) {
                 return switch (indexMode) {
                     case TIME_SERIES -> enableRecoverySource ? TSDB_DEFAULT : TSDB_DEFAULT_NO_RECOVERY_SOURCE;
-                    case LOGSDB -> enableRecoverySource ? LOGSDB_DEFAULT : LOGSDB_DEFAULT_NO_RECOVERY_SOURCE;
+                    case LOGSDB -> LOGSDB_DEFAULT;
                     default -> enableRecoverySource ? DEFAULT : DEFAULT_NO_RECOVERY_SOURCE;
                 };
             }
@@ -298,7 +290,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
                     return enableRecoverySource ? TSDB_LEGACY_DEFAULT : TSDB_LEGACY_DEFAULT_NO_RECOVERY_SOURCE;
                 }
             } else if (indexMode == IndexMode.LOGSDB) {
-                return enableRecoverySource ? LOGSDB_DEFAULT : LOGSDB_DEFAULT_NO_RECOVERY_SOURCE;
+                return LOGSDB_DEFAULT;
             }
         }
         return enableRecoverySource ? DEFAULT : DEFAULT_NO_RECOVERY_SOURCE;

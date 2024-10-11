@@ -7,10 +7,11 @@ This article outlines the architecture for deploying Elasticsearch to handle 22 
 
 === Use Case
 
-This architecture is intended for organizations that need to: 
-Monitor the performance and health of their applications in real-time
-Provide insights and alerts to ensure optimal performance and quick issue resolution.
-Additional reasons…
+This architecture is intended for organizations that need to:
+
+* Monitor the performance and health of their applications in real-time
+* Provide insights and alerts to ensure optimal performance and quick issue resolution.
+* Additional reasons…
 
 === Architecture
 
@@ -27,7 +28,7 @@ The following list are important conderations for this architecture:
 
 === Resources and references
 
-* <<shard-size-best-practices,Size your shards>>Size your shards
+* <<shard-size-best-practices,Size your shards>>
 * https://www.elastic.co/guide/en/elasticsearch/reference/current/index.html[Elasticsearch Documentation]
-* https://www.elastic.co/guide/en/kibana/reference/current/index.html[Kibana Documentation]
+* https://www.elastic.co/guide/en/kibana/current/index.html[Kibana Documentation]
 * https://www.elastic.co/guide/en/observability/current/apm.html[Application Performance monitoring (APM)]

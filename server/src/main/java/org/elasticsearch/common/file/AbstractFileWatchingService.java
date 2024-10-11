@@ -78,7 +78,7 @@ public abstract class AbstractFileWatchingService extends AbstractLifecycleCompo
     protected abstract void processInitialFileMissing() throws InterruptedException, ExecutionException, IOException;
 
     /**
-     * Defaults to generic {@link  #processFileChanges()} behavior.
+     * Defaults to generic {@link #processFileChanges()} behavior.
      * An implementation can override this to define different file handling when the file is processed during
      * initial service start.
      */

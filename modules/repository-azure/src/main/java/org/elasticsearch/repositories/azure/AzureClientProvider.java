@@ -331,7 +331,7 @@ class AzureClientProvider extends AbstractLifecycleComponent {
                 metrics.errorCount++;
             }).doOnSuccess(response -> {
                 metrics.totalRequestTimeNanos += System.nanoTime() - requestStartTimeNanos;
-                if (RestStatus.isSuccessful(response.getStatusCode()) == false) {
+                if (response != null && RestStatus.isSuccessful(response.getStatusCode()) == false) {
                     metrics.errorCount++;
                     // Azure always throttles with a 429 response, see
                     // https://learn.microsoft.com/en-us/azure/azure-resource-manager/management/request-limits-and-throttling#error-code
@@ -364,8 +364,10 @@ class AzureClientProvider extends AbstractLifecycleComponent {
             final RequestMetrics requestMetrics = new RequestMetrics();
             context.setData(ES_REQUEST_METRICS_CONTEXT_KEY, requestMetrics);
             return next.process().doOnSuccess((httpResponse) -> {
-                requestMetrics.statusCode = httpResponse.getStatusCode();
-                trackCompletedRequest(context.getHttpRequest(), requestMetrics);
+                if (httpResponse != null) {
+                    requestMetrics.statusCode = httpResponse.getStatusCode();
+                    trackCompletedRequest(context.getHttpRequest(), requestMetrics);
+                }
             }).doOnError(throwable -> {
                 logger.debug("Detected error in RequestMetricsTracker", throwable);
                 trackCompletedRequest(context.getHttpRequest(), requestMetrics);

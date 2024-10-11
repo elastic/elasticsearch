@@ -336,6 +336,9 @@ tests:
 - class: org.elasticsearch.action.search.SearchQueryThenFetchAsyncActionTests
   method: testMinimumVersionSameAsNewVersion
   issue: https://github.com/elastic/elasticsearch/issues/114593
+- class: org.elasticsearch.smoketest.SmokeTestIngestWithAllDepsClientYamlTestSuiteIT
+  method: test {yaml=ingest/80_ingest_simulate/Test ingest simulate with template substitutions for component templates}
+  issue: https://github.com/elastic/elasticsearch/issues/114602
 
 # Examples:
 #

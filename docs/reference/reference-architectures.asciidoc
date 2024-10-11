@@ -3,7 +3,9 @@
 
 [partintro]
 --
-This section provides a series of reference architectures.
+Elasticsearch Reference Architectures serve as essential blueprints for deploying, managing, and optimizing Elasticsearch clusters tailored to different use cases. These architectures provide standardized, proven solutions that guide users through best practices for infrastructure setup, data ingestion, indexing, search performance, and high availability. Whether you're handling logs, metrics, or sophisticated search applications, these reference architectures ensure scalability, reliability, and efficient resource utilization. By leveraging these guidelines, organizations can confidently deploy Elasticsearch, achieving optimal performance while minimizing risks and complexities.
+
+TIP: You can host {es} on your own hardware or send your data to {es} on {ecloud} or serverless. 
 
 [discrete]
 [[reference-architectures-general]]
@@ -13,7 +15,42 @@ This section provides a series of reference architectures.
 * Three Availability Zone with ... Architecture
 === Cloud Architectures
 * <<elastic-cloud-architecture,Elastic Cloud Hot-Frozen Architecture>>
+
+=== Time Series - Option 2
+[cols="50, 50"]
+|===
+| *Architecture* | *Use when*
+
+| <<multi-region-two-datacenter-architecture>>
+
+image:reference-architectures/multi-region-two-datacenter.png[Image showing a multi-region two datacenter architecture]
+
+a| 
+You want to:
+
+* Monitor the performance and health of their applications in real-time
+* Provide insights and alerts to ensure optimal performance and quick issue resolution.
+
+| <<elastic-cloud-architecture>>
+
+image:reference-architectures/images/elastic-cloud-architecture.png[Image showing a Elastic Cloud Hot-Frozen Architecture]
+
+a| 
+You want to:
+
+* Ipsum lorem 
+* Lorem ipsum
+
+|===
+
+=== Ingest Architectures
+
+Additionally, we have architectures specifically tailored to the ingestion portion of your architecture and these can be found at, https://www.elastic.co/guide/en/ingest/current/use-case-arch.html[Ingest Architectures]
 --
+
+
+
+
 
 include::reference-architectures/multi-region-two-datacenter-architecture.asciidoc[]
 include::reference-architectures/elastic-cloud-architecture.asciidoc[]

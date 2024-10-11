@@ -143,8 +143,10 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     protected static Iterable<Object[]> parameterSuppliersFromTypedData(List<TestCaseSupplier> suppliers) {
         // TODO rename this method to something more descriptive. Javadoc. And make sure all parameters are "representable" types.
         List<Object[]> parameters = new ArrayList<>(suppliers.size());
+        HashSet<String> names = new HashSet<>(suppliers.size());
         for (TestCaseSupplier supplier : suppliers) {
             parameters.add(new Object[] { supplier });
+            assertTrue("Duplicate test name: " + supplier.name(), names.add(supplier.name()));
         }
         return parameters;
     }

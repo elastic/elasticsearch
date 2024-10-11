@@ -284,7 +284,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
                 return switch (indexMode) {
                     case TIME_SERIES -> enableRecoverySource ? TSDB_DEFAULT : TSDB_DEFAULT_NO_RECOVERY_SOURCE;
                     case LOGSDB -> enableRecoverySource ? LOGSDB_DEFAULT : LOGSDB_DEFAULT_NO_RECOVERY_SOURCE;
-                    default -> getDefaultSourceMode(enableRecoverySource, mode.get());
+                    default -> getDefaultSourceMode(enableRecoverySource, resolveEffectiveSourceMode(settings, mode.get()));
                 };
             }
             if (supportsNonDefaultParameterValues == false) {

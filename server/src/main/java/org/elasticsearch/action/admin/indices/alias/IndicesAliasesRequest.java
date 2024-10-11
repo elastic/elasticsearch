@@ -74,7 +74,7 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
                 .allowAliasToMultipleIndices(true)
                 .allowClosedIndices(true)
                 .ignoreThrottled(false)
-                .allowFailureIndices(false)
+                .allowFailureIndices(true)
                 .build()
         )
         .build();

@@ -63,7 +63,7 @@ public class GetDataStreamLifecycleAction {
                     .allowAliasToMultipleIndices(false)
                     .allowClosedIndices(true)
                     .ignoreThrottled(false)
-                    .allowFailureIndices(false)
+                    .allowFailureIndices(true)
                     .build()
             )
             .build();

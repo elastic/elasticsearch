@@ -61,7 +61,7 @@ public class DeleteDataStreamAction extends ActionType<AcknowledgedResponse> {
                     .allowAliasToMultipleIndices(false)
                     .allowClosedIndices(true)
                     .ignoreThrottled(false)
-                    .allowFailureIndices(false)
+                    .allowFailureIndices(true)
                     .build()
             )
             .build();

@@ -41,6 +41,7 @@ import static org.elasticsearch.node.Node.INITIAL_STATE_TIMEOUT_SETTING;
 import static org.elasticsearch.test.NodeRoles.dataOnlyNode;
 import static org.elasticsearch.test.NodeRoles.masterNode;
 import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -115,7 +116,7 @@ public class FileSettingsServiceIT extends ESIntegTestCase {
                  "compatibility": "8.4.0"
              },
              "state": {
-                 "still_not_cluster_settings": {
+                 "bad_cluster_settings": {
                      "search.allow_expensive_queries": "false"
                  }
              }
@@ -393,7 +394,7 @@ public class FileSettingsServiceIT extends ESIntegTestCase {
         AtomicLong metadataVersion = savedClusterState.v2();
         assertClusterStateNotSaved(savedClusterState.v1(), metadataVersion);
         logger.info("returned version: [{}] version counter: [{}]", metadataVersion, versionCounter);
-        assertHasErrors(versionCounter.get());
+        assertHasErrors(versionCounter.get(), "not_cluster_settings");
 
         // write valid json without version increment to simulate ES being able to process settings after a restart (usually, this would be
         // due to a code change)
@@ -404,6 +405,42 @@ public class FileSettingsServiceIT extends ESIntegTestCase {
         assertBusy(() -> assertExpectedRecoveryBytesSettingAndVersion(versionCounter, "50mb"));
         // ensure error got cleared
         assertNoErrors(versionCounter.get());
+    }
+
+    public void testNewErrorOnRestartReprocessing() throws Exception {
+        internalCluster().setBootstrapMasterNodeIndex(0);
+        logger.info("--> start data node / non master node");
+        String dataNode = internalCluster().startNode(Settings.builder().put(dataOnlyNode()).put("discovery.initial_state_timeout", "1s"));
+        FileSettingsService dataFileSettingsService = internalCluster().getInstance(FileSettingsService.class, dataNode);
+
+        assertFalse(dataFileSettingsService.watching());
+
+        logger.info("--> start master node");
+        final String masterNode = internalCluster().startMasterOnlyNode(
+            Settings.builder().put(INITIAL_STATE_TIMEOUT_SETTING.getKey(), "0s").build()
+        );
+        assertMasterNode(internalCluster().nonMasterClient(), masterNode);
+        var savedClusterState = setupClusterStateListenerForError(masterNode);
+
+        FileSettingsService masterFileSettingsService = internalCluster().getInstance(FileSettingsService.class, masterNode);
+
+        assertTrue(masterFileSettingsService.watching());
+        assertFalse(dataFileSettingsService.watching());
+
+        writeJSONFile(masterNode, testErrorJSON, versionCounter, logger);
+        AtomicLong metadataVersion = savedClusterState.v2();
+        assertClusterStateNotSaved(savedClusterState.v1(), metadataVersion);
+        logger.info("returned version: [{}] version counter: [{}]", metadataVersion, versionCounter);
+        assertHasErrors(versionCounter.get(), "not_cluster_settings");
+
+        // write json with new error without version increment to simulate ES failing to process settings after a restart for a new reason
+        // (usually, this would be due to a code change)
+        writeJSONFileWithoutVersionIncrement(masterNode, testOtherErrorJSON, versionCounter, logger);
+        assertHasErrors(versionCounter.get(), "not_cluster_settings");
+        internalCluster().restartNode(masterNode);
+        ensureGreen();
+
+        assertHasErrors(versionCounter.get(), "bad_cluster_settings");
     }
 
     public void testSettingsAppliedOnMasterReElection() throws Exception {
@@ -452,9 +489,10 @@ public class FileSettingsServiceIT extends ESIntegTestCase {
         assertClusterStateSaveOK(savedClusterState.v1(), savedClusterState.v2(), "43mb");
     }
 
-    private void assertHasErrors(long waitForMetadataVersion) {
+    private void assertHasErrors(long waitForMetadataVersion, String expectedError) {
         var errorMetadata = getErrorMetadata(waitForMetadataVersion);
         assertThat(errorMetadata, is(notNullValue()));
+        assertThat(errorMetadata.errors(), containsInAnyOrder(containsString(expectedError)));
     }
 
     private void assertNoErrors(long waitForMetadataVersion) {

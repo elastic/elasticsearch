@@ -39,8 +39,10 @@ import org.elasticsearch.health.HealthIndicatorService;
 import org.elasticsearch.health.HealthStatus;
 import org.elasticsearch.health.ImpactArea;
 import org.elasticsearch.health.node.HealthInfo;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.Closeable;
+import java.io.IOException;
 import java.time.Clock;
 import java.util.List;
 import java.util.Objects;
@@ -192,23 +194,11 @@ public class BlobStoreHealthIndicator implements HealthIndicatorService, Closeab
         }
         return ((builder, params) -> {
             builder.startObject();
-            builder.timeField(
-                "time_since_last_check_started_millis",
-                "time_since_last_check_started",
-                currentTimeMillis - lastCheckStartedTimeMillis
-            );
+            durationMillisField(builder, "time_since_last_check_started", currentTimeMillis - lastCheckStartedTimeMillis);
             if (result != null) {
                 if (result.finishedAtMillis() != null) {
-                    builder.timeField(
-                        "time_since_last_update_millis",
-                        "time_since_last_update",
-                        currentTimeMillis - result.finishedAtMillis()
-                    );
-                    builder.timeField(
-                        "last_check_duration_millis",
-                        "last_check_duration",
-                        result.finishedAtMillis() - result.startedAtMillis()
-                    );
+                    durationMillisField(builder, "time_since_last_update", currentTimeMillis - result.finishedAtMillis());
+                    durationMillisField(builder, "last_check_duration", result.finishedAtMillis() - result.startedAtMillis());
                 }
                 if (result.isSuccessful() == false) {
                     builder.field("error_message", result.error().getMessage());
@@ -216,6 +206,14 @@ public class BlobStoreHealthIndicator implements HealthIndicatorService, Closeab
             }
             return builder.endObject();
         });
+    }
+
+    private static void durationMillisField(XContentBuilder builder, String fieldNamePrefix, long durationMillis) throws IOException {
+        if (durationMillis < 0) {
+            builder.field(fieldNamePrefix + "_millis", durationMillis);
+        } else {
+            builder.humanReadableField(fieldNamePrefix + "_millis", fieldNamePrefix, TimeValue.timeValueMillis(durationMillis));
+        }
     }
 
     private List<HealthIndicatorImpact> getImpacts(HealthCheckResult result) {

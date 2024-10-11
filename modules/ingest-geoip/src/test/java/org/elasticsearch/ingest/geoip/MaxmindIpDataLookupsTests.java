@@ -40,7 +40,7 @@ public class MaxmindIpDataLookupsTests extends ESTestCase {
         IOUtils.rm(tmpDir);
     }
 
-    public void testCity() throws Exception {
+    public void testCity() {
         assumeFalse("https://github.com/elastic/elasticsearch/issues/114266", Constants.WINDOWS);
         String databaseName = "GeoLite2-City.mmdb";
         String ip = "8.8.8.8";
@@ -65,7 +65,7 @@ public class MaxmindIpDataLookupsTests extends ESTestCase {
         );
     }
 
-    public void testCity_withIpV6() throws Exception {
+    public void testCity_withIpV6() {
         assumeFalse("https://github.com/elastic/elasticsearch/issues/114266", Constants.WINDOWS);
         String databaseName = "GeoLite2-City.mmdb";
         String ip = "2602:306:33d3:8000::3257:9652";
@@ -94,7 +94,7 @@ public class MaxmindIpDataLookupsTests extends ESTestCase {
         );
     }
 
-    public void testCityWithMissingLocation() throws Exception {
+    public void testCityWithMissingLocation() {
         assumeFalse("https://github.com/elastic/elasticsearch/issues/114266", Constants.WINDOWS);
         String databaseName = "GeoLite2-City.mmdb";
         String ip = "80.231.5.0";
@@ -106,7 +106,7 @@ public class MaxmindIpDataLookupsTests extends ESTestCase {
         );
     }
 
-    public void testCountry() throws Exception {
+    public void testCountry() {
         assumeFalse("https://github.com/elastic/elasticsearch/issues/114266", Constants.WINDOWS);
         String databaseName = "GeoLite2-Country.mmdb";
         String ip = "82.170.213.79";
@@ -142,7 +142,7 @@ public class MaxmindIpDataLookupsTests extends ESTestCase {
         }
     }
 
-    public void testCountryWithMissingLocation() throws Exception {
+    public void testCountryWithMissingLocation() {
         assumeFalse("https://github.com/elastic/elasticsearch/issues/114266", Constants.WINDOWS);
         String databaseName = "GeoLite2-Country.mmdb";
         String ip = "80.231.5.0";
@@ -166,7 +166,7 @@ public class MaxmindIpDataLookupsTests extends ESTestCase {
         );
     }
 
-    public void testAnonymousIp() throws Exception {
+    public void testAnonymousIp() {
         assumeFalse("https://github.com/elastic/elasticsearch/issues/114266", Constants.WINDOWS);
         String databaseName = "GeoIP2-Anonymous-IP-Test.mmdb";
         String ip = "81.2.69.1";
@@ -186,7 +186,7 @@ public class MaxmindIpDataLookupsTests extends ESTestCase {
         );
     }
 
-    public void testConnectionType() throws Exception {
+    public void testConnectionType() {
         assumeFalse("https://github.com/elastic/elasticsearch/issues/114266", Constants.WINDOWS);
         String databaseName = "GeoIP2-Connection-Type-Test.mmdb";
         String ip = "214.78.120.5";
@@ -198,7 +198,7 @@ public class MaxmindIpDataLookupsTests extends ESTestCase {
         );
     }
 
-    public void testDomain() throws Exception {
+    public void testDomain() {
         String databaseName = "GeoIP2-Domain-Test.mmdb";
         String ip = "69.219.64.2";
         assertExpectedLookupResults(
@@ -209,7 +209,7 @@ public class MaxmindIpDataLookupsTests extends ESTestCase {
         );
     }
 
-    public void testEnterprise() throws Exception {
+    public void testEnterprise() {
         assumeFalse("https://github.com/elastic/elasticsearch/issues/114266", Constants.WINDOWS);
         String databaseName = "GeoIP2-Enterprise-Test.mmdb";
         String ip = "74.209.24.4";
@@ -255,7 +255,7 @@ public class MaxmindIpDataLookupsTests extends ESTestCase {
         );
     }
 
-    public void testIsp() throws Exception {
+    public void testIsp() {
         assumeFalse("https://github.com/elastic/elasticsearch/issues/114266", Constants.WINDOWS);
         String databaseName = "GeoIP2-ISP-Test.mmdb";
         String ip = "149.101.100.1";
@@ -276,18 +276,21 @@ public class MaxmindIpDataLookupsTests extends ESTestCase {
         );
     }
 
-    private void assertExpectedLookupResults(String databaseName, String ip, IpDataLookup lookup, Map<String, Object> expected)
-        throws IOException {
+    private void assertExpectedLookupResults(String databaseName, String ip, IpDataLookup lookup, Map<String, Object> expected) {
         try (DatabaseReaderLazyLoader loader = loader(databaseName)) {
-            Map<String, Object> data = lookup.getData(loader, ip);
+            Map<String, Object> actual = lookup.getData(loader, ip);
             assertThat(
-                "The set of keys in the results are not the same as the set of expected keys",
-                data.keySet(),
+                "The set of keys in the result are not the same as the set of expected keys",
+                actual.keySet(),
                 containsInAnyOrder(expected.keySet().toArray(new String[0]))
             );
             for (Map.Entry<String, Object> entry : expected.entrySet()) {
-                assertThat("Unexpected value returned for key " + entry.getKey(), data.get(entry.getKey()), equalTo(entry.getValue()));
+                assertThat("Unexpected value for key [" + entry.getKey() + "]", actual.get(entry.getKey()), equalTo(entry.getValue()));
             }
+        } catch (AssertionError e) {
+            fail(e, "Assert failed for database [%s] with address [%s]", databaseName, ip);
+        } catch (Exception e) {
+            fail(e, "Exception for database [%s] with address [%s]", databaseName, ip);
         }
     }
 

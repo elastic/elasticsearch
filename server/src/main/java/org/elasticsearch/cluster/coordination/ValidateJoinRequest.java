@@ -9,7 +9,6 @@
 package org.elasticsearch.cluster.coordination;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -29,19 +28,12 @@ public class ValidateJoinRequest extends TransportRequest {
 
     public ValidateJoinRequest(StreamInput in) throws IOException {
         super(in);
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_3_0)) {
-            // recent versions send a BytesTransportRequest containing a compressed representation of the state
-            final var bytes = in.readReleasableBytesReference();
-            final var version = in.getTransportVersion();
-            final var namedWriteableRegistry = in.namedWriteableRegistry();
-            this.stateSupplier = () -> readCompressed(version, bytes, namedWriteableRegistry);
-            this.refCounted = bytes;
-        } else {
-            // older versions just contain the bare state
-            final var state = ClusterState.readFrom(in, null);
-            this.stateSupplier = () -> state;
-            this.refCounted = null;
-        }
+        // recent versions send a BytesTransportRequest containing a compressed representation of the state
+        final var bytes = in.readReleasableBytesReference();
+        final var version = in.getTransportVersion();
+        final var namedWriteableRegistry = in.namedWriteableRegistry();
+        this.stateSupplier = () -> readCompressed(version, bytes, namedWriteableRegistry);
+        this.refCounted = bytes;
     }
 
     private static ClusterState readCompressed(
@@ -68,7 +60,6 @@ public class ValidateJoinRequest extends TransportRequest {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        assert out.getTransportVersion().before(TransportVersions.V_8_3_0);
         super.writeTo(out);
         stateSupplier.get().writeTo(out);
     }

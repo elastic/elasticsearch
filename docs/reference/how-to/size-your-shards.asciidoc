@@ -571,6 +571,8 @@ PUT _cluster/settings
 }
 ----
 
+For more information, see <troubleshooting-shards-capacity-issues>>.
+
 [discrete]
 [[troubleshooting-max-docs-limit]]
 ==== Number of documents in the shard cannot exceed [2147483519]

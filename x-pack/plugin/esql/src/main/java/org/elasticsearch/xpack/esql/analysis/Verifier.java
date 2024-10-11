@@ -183,7 +183,7 @@ public class Verifier {
 
             checkOperationsOnUnsignedLong(p, failures);
             checkBinaryComparison(p, failures);
-            checkForSortOnSpatialTypes(p, failures);
+            checkForSortableDataTypes(p, failures);
 
             checkFilterMatchConditions(p, failures);
             checkFullTextQueryFunctions(p, failures);
@@ -548,12 +548,12 @@ public class Verifier {
     }
 
     /**
-     * Makes sure that spatial types do not appear in sorting contexts.
+     * Some datatypes care not sortable
      */
-    private static void checkForSortOnSpatialTypes(LogicalPlan p, Set<Failure> localFailures) {
+    private static void checkForSortableDataTypes(LogicalPlan p, Set<Failure> localFailures) {
         if (p instanceof OrderBy ob) {
             ob.order().forEach(order -> {
-                if (DataType.isSpatial(order.dataType())) {
+                if (DataType.isSortable(order.dataType()) == false) {
                     localFailures.add(fail(order, "cannot sort on " + order.dataType().typeName()));
                 }
             });

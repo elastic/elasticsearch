@@ -179,10 +179,10 @@ cast counter then filter:
 ---
 sort on counter without cast:
   - do:
-      catch: bad_request
+      catch: /cannot sort on counter_long/
       esql.query:
         body:
-          query: 'from test |  KEEP k8s.pod.network.tx | sort @k8s.pod.network.tx | limit 1'
+          query: 'from test |  KEEP k8s.pod.network.tx | sort k8s.pod.network.tx | limit 1'
 
 ---
 cast then sort on counter:

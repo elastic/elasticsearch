@@ -851,7 +851,7 @@ public class XContentMapValuesTests extends AbstractFilteringTestCase {
             builder.endObject();
             Map<String, Object> map = toSourceMap(Strings.toString(builder));
 
-            XContentMapValues.insertValue("path1.path2.test1", map,"new_value");
+            XContentMapValues.insertValue("path1.path2.test1", map, "new_value");
             assertThat(getMapValue.apply(map, "path1.path2.test1"), equalTo("new_value"));
 
             IllegalArgumentException ex = assertThrows(

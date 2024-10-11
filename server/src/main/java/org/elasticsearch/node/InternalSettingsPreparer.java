@@ -58,7 +58,7 @@ public class InternalSettingsPreparer {
             output.replacePropertyPlaceholders();
         } catch (Exception e) {
             throw new SettingsException(
-                "Failed to replace property place holders from '" + configFile.getFileName() + "' " + "caused by: " + e.getMessage(),
+                "Failed to replace property placeholders from [" + configFile.getFileName() + "]",
                 e
             );
         }

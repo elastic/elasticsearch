@@ -96,7 +96,8 @@ public class ElasticsearchConcurrentMergeScheduler extends ConcurrentMergeSchedu
     @Override
     protected void doMerge(MergeSource mergeSource, MergePolicy.OneMerge merge) throws IOException {
         long timeNS = System.nanoTime();
-        OnGoingMerge onGoingMerge = mergeTracking.mergeStarted(merge);
+        OnGoingMerge onGoingMerge = new OnGoingMerge(merge);
+        mergeTracking.mergeStarted(onGoingMerge);
         try {
             beforeMerge(onGoingMerge);
             super.doMerge(mergeSource, merge);
@@ -157,5 +158,10 @@ public class ElasticsearchConcurrentMergeScheduler extends ConcurrentMergeSchedu
         } else if (config.isAutoThrottle() == false && isEnabled) {
             disableAutoIOThrottle();
         }
+    }
+
+    @Override
+    public MergeScheduler getMergeScheduler() {
+        return this;
     }
 }

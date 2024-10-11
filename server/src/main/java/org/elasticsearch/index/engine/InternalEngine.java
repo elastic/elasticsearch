@@ -254,7 +254,7 @@ public class InternalEngine extends Engine {
         try {
             this.lastDeleteVersionPruneTimeMSec = engineConfig.getThreadPool().relativeTimeInMillis();
             mergeScheduler = createMergeScheduler(engineConfig.getShardId(), engineConfig.getIndexSettings());
-            scheduler = (MergeScheduler) mergeScheduler;
+            scheduler = mergeScheduler.getMergeScheduler();
             throttle = new IndexThrottle();
             try {
                 store.trimUnsafeCommits(config().getTranslogConfig().getTranslogPath());
@@ -2702,7 +2702,7 @@ public class InternalEngine extends Engine {
         iwc.setOpenMode(IndexWriterConfig.OpenMode.APPEND);
         iwc.setIndexDeletionPolicy(combinedDeletionPolicy);
         iwc.setInfoStream(TESTS_VERBOSE ? InfoStream.getDefault() : new LoggerInfoStream(logger));
-        iwc.setMergeScheduler((MergeScheduler) mergeScheduler);
+        iwc.setMergeScheduler(mergeScheduler.getMergeScheduler());
         // Give us the opportunity to upgrade old segments while performing
         // background merges
         MergePolicy mergePolicy = config().getMergePolicy();

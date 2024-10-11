@@ -9,6 +9,7 @@
 
 package org.elasticsearch.index.engine;
 
+import org.apache.lucene.index.MergeScheduler;
 import org.elasticsearch.index.merge.MergeStats;
 import org.elasticsearch.index.merge.OnGoingMerge;
 
@@ -21,4 +22,6 @@ public interface ElasticsearchMergeScheduler {
     MergeStats stats();
 
     void refreshConfig();
+
+    MergeScheduler getMergeScheduler();
 }

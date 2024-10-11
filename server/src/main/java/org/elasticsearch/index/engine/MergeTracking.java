@@ -50,28 +50,25 @@ public class MergeTracking {
         return readOnlyOnGoingMerges;
     }
 
-    public OnGoingMerge mergeStarted(MergePolicy.OneMerge merge) {
+    public void mergeStarted(OnGoingMerge onGoingMerge) {
+        MergePolicy.OneMerge merge = onGoingMerge.getMerge();
         int totalNumDocs = merge.totalNumDocs();
         long totalSizeInBytes = merge.totalBytesSize();
         currentMerges.inc();
         currentMergesNumDocs.inc(totalNumDocs);
         currentMergesSizeInBytes.inc(totalSizeInBytes);
-
-        OnGoingMerge onGoingMerge = new OnGoingMerge(merge);
         onGoingMerges.add(onGoingMerge);
 
         if (logger.isTraceEnabled()) {
             logger.trace(
-                "merge [{}] starting..., merging [{}] segments, [{}] docs, [{}] size, into [{}] estimated_size",
-                getSegmentName(merge),
+                "merge [{}] starting: merging [{}] segments, [{}] docs, [{}] size, into [{}] estimated_size",
+                onGoingMerge.getId(),
                 merge.segments.size(),
                 totalNumDocs,
                 ByteSizeValue.ofBytes(totalSizeInBytes),
                 ByteSizeValue.ofBytes(merge.estimatedMergeBytes)
             );
         }
-
-        return onGoingMerge;
     }
 
     public void mergeFinished(final MergePolicy.OneMerge merge, final OnGoingMerge onGoingMerge, long tookMS) {
@@ -98,7 +95,8 @@ public class MergeTracking {
 
         String message = String.format(
             Locale.ROOT,
-            "merge segment [%s] done: took [%s], [%s], [%,d docs], [%s stopped], [%s throttled]",
+            "merge [%s] segment [%s] done: took [%s], [%s], [%,d] docs, [%s] stopped, [%s] throttled",
+            onGoingMerge.getId(),
             getSegmentName(merge),
             TimeValue.timeValueMillis(tookMS),
             ByteSizeValue.ofBytes(totalSizeInBytes),

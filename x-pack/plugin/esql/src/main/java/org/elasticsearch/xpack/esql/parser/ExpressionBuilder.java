@@ -682,9 +682,10 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
         Source source = source(ctx);
         Alias field = visitField(ctx.field(), source);
         var filterExpression = ctx.booleanExpression();
-        Expression condition = filterExpression != null ? expression(filterExpression) : null;
 
-        if (condition != null) {
+
+        if (filterExpression != null) {
+            Expression condition = expression(filterExpression);
             Expression child = field.child();
             // basic check as the filter can be specified only on a function (should be an aggregate but we can't determine that yet)
             if (field.child().anyMatch(Function.class::isInstance)) {

@@ -371,7 +371,7 @@ public abstract class DocumentParserContext {
      * Applies to synthetic source only.
      */
     public final DocumentParserContext maybeCloneForArray(Mapper mapper) throws IOException {
-        if (canAddIgnoredField() && mapper instanceof ObjectMapper) {
+        if (canAddIgnoredField() && mapper instanceof ObjectMapper && indexSettings().isSyntheticSourceSecondDocParsingPassEnabled()) {
             boolean isNested = mapper instanceof NestedObjectMapper;
             if ((inArrayScope == false && isNested == false) || (inArrayScope && isNested)) {
                 DocumentParserContext subcontext = switchParser(parser());

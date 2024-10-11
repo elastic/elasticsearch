@@ -245,6 +245,11 @@ public class IngestGeoIpPlugin extends Plugin
             ),
             new NamedWriteableRegistry.Entry(
                 DatabaseConfiguration.Provider.class,
+                DatabaseConfiguration.Ipinfo.NAME,
+                DatabaseConfiguration.Ipinfo::new
+            ),
+            new NamedWriteableRegistry.Entry(
+                DatabaseConfiguration.Provider.class,
                 DatabaseConfiguration.Local.NAME,
                 DatabaseConfiguration.Local::new
             ),

@@ -340,9 +340,6 @@ tests:
 - class: org.elasticsearch.xpack.security.CoreWithSecurityClientYamlTestSuiteIT
   method: test {yaml=cluster.stats/30_ccs_stats/cross-cluster search stats search}
   issue: https://github.com/elastic/elasticsearch/issues/114371
-- class: org.elasticsearch.xpack.esql.qa.single_node.RestEsqlIT
-  method: testProfileOrdinalsGroupingOperator {SYNC}
-  issue: https://github.com/elastic/elasticsearch/issues/114380
 - class: org.elasticsearch.xpack.inference.services.cohere.CohereServiceTests
   method: testInfer_StreamRequest
   issue: https://github.com/elastic/elasticsearch/issues/114385
@@ -384,6 +381,12 @@ tests:
 - class: org.elasticsearch.datastreams.logsdb.qa.LogsDbVersusLogsDbReindexedIntoStandardModeChallengeRestIT
   method: testMatchAllQuery
   issue: https://github.com/elastic/elasticsearch/issues/114607
+- class: org.elasticsearch.xpack.esql.optimizer.PhysicalPlanOptimizerTests
+  method: testPushSpatialIntersectsEvalToSource {default}
+  issue: https://github.com/elastic/elasticsearch/issues/114627
+- class: org.elasticsearch.xpack.esql.optimizer.PhysicalPlanOptimizerTests
+  method: testPushWhereEvalToSource {default}
+  issue: https://github.com/elastic/elasticsearch/issues/114628
 
 # Examples:
 #

@@ -69,6 +69,15 @@ The API returns the following result:
     "hits": [...] <1>
   },
   "profile": {
+    "coordinator": {
+        "node_id": "q2aE02wS1R8qQFnYu6vDVQ",
+        "breakdown": {
+            "retriever_rewrite_count" : 0,
+            "inference_rerank_time_count" : 0,
+            "inference_rerank_time" : 0,
+            "retriever_rewrite" : 0
+        }
+    },
     "shards": [
       {
         "id": "[q2aE02wS1R8qQFnYu6vDVQ][my-index-000001][0]",
@@ -245,6 +254,7 @@ The API returns the following result:
 // TESTRESPONSE[s/(?<=[" ])\d+(\.\d+)?/$body.$_path/]
 // TESTRESPONSE[s/"id": "\[q2aE02wS1R8qQFnYu6vDVQ\]\[my-index-000001\]\[0\]"/"id": $body.profile.shards.0.id/]
 // TESTRESPONSE[s/"node_id": "q2aE02wS1R8qQFnYu6vDVQ",/"node_id": "$body.profile.shards.0.node_id",/]
+// TESTRESPONSE[s/"node_id": "q2aE02wS1R8qQFnYu6vDVQ",/"node_id": "$body.profile.coordinator.node_id",/]
 
 <1> Search results are returned, but were omitted here for brevity.
 
@@ -258,6 +268,15 @@ The overall structure of the profile response is as follows:
 --------------------------------------------------
 {
    "profile": {
+        "coordinator": {
+            "node_id": "q2aE02wS1R8qQFnYu6vDVQ",
+            "breakdown": {
+                "retriever_rewrite_count" : 0,
+                "inference_rerank_time_count" : 0,
+                "inference_rerank_time" : 0,
+                "retriever_rewrite" : 0
+            }
+        },
         "shards": [
            {
               "id": "[q2aE02wS1R8qQFnYu6vDVQ][my-index-000001][0]",  <1>
@@ -279,6 +298,7 @@ The overall structure of the profile response is as follows:
      }
 }
 --------------------------------------------------
+// TESTRESPONSE[s/"node_id": "q2aE02wS1R8qQFnYu6vDVQ",/"node_id": "$body.profile.coordinator.node_id",/]
 // TESTRESPONSE[s/"profile": /"took": $body.took, "timed_out": $body.timed_out, "_shards": $body._shards, "hits": $body.hits, "profile": /]
 // TESTRESPONSE[s/(?<=[" ])\d+(\.\d+)?/$body.$_path/]
 // TESTRESPONSE[s/"id": "\[q2aE02wS1R8qQFnYu6vDVQ\]\[my-index-000001\]\[0\]"/"id": $body.profile.shards.0.id/]
@@ -378,7 +398,7 @@ Using our previous `match` query example, let's analyze the `query` section:
     }
 ]
 --------------------------------------------------
-// TESTRESPONSE[s/^/{\n"took": $body.took,\n"timed_out": $body.timed_out,\n"_shards": $body._shards,\n"hits": $body.hits,\n"profile": {\n"shards": [ {\n"id": "$body.profile.shards.0.id",\n"node_id": "$body.profile.shards.0.node_id",\n"shard_id": $body.profile.shards.0.shard_id,\n"index": "$body.profile.shards.0.index",\n"cluster": "(local)",\n"searches": [{\n/]
+// TESTRESPONSE[s/^/{\n"took": $body.took,\n"timed_out": $body.timed_out,\n"_shards": $body._shards,\n"hits": $body.hits,\n"profile": {\n"coordinator": $body.$_path,\n"shards": [ {\n"id": "$body.profile.shards.0.id",\n"node_id": "$body.profile.shards.0.node_id",\n"shard_id": $body.profile.shards.0.shard_id,\n"index": "$body.profile.shards.0.index",\n"cluster": "(local)",\n"searches": [{\n/]
 // TESTRESPONSE[s/]$/],"rewrite_time": $body.$_path, "collector": $body.$_path}], "aggregations": [], "fetch": $body.$_path}]}}/]
 // TESTRESPONSE[s/(?<=[" ])\d+(\.\d+)?/$body.$_path/]
 // TESTRESPONSE[s/"breakdown": \{...\}/"breakdown": $body.$_path/]
@@ -432,7 +452,7 @@ Lucene execution:
   "count_weight_count": 0
 }
 --------------------------------------------------
-// TESTRESPONSE[s/^/{\n"took": $body.took,\n"timed_out": $body.timed_out,\n"_shards": $body._shards,\n"hits": $body.hits,\n"profile": {\n"shards": [ {\n"id": "$body.profile.shards.0.id",\n"node_id": "$body.profile.shards.0.node_id",\n"shard_id": $body.profile.shards.0.shard_id,\n"index": "$body.profile.shards.0.index",\n"cluster": "(local)",\n"searches": [{\n"query": [{\n"type": "BooleanQuery",\n"description": "message:get message:search",\n"time_in_nanos": $body.$_path,/]
+// TESTRESPONSE[s/^/{\n"took": $body.took,\n"timed_out": $body.timed_out,\n"_shards": $body._shards,\n"hits": $body.hits,\n"profile": {\n"coordinator": $body.$_path,\n"shards": [ {\n"id": "$body.profile.shards.0.id",\n"node_id": "$body.profile.shards.0.node_id",\n"shard_id": $body.profile.shards.0.shard_id,\n"index": "$body.profile.shards.0.index",\n"cluster": "(local)",\n"searches": [{\n"query": [{\n"type": "BooleanQuery",\n"description": "message:get message:search",\n"time_in_nanos": $body.$_path,/]
 // TESTRESPONSE[s/}$/},\n"children": $body.$_path}],\n"rewrite_time": $body.$_path, "collector": $body.$_path}], "aggregations": [], "fetch": $body.$_path}]}}/]
 // TESTRESPONSE[s/(?<=[" ])\d+(\.\d+)?/$body.$_path/]
 
@@ -540,7 +560,7 @@ Looking at the previous example:
   }
 ]
 --------------------------------------------------
-// TESTRESPONSE[s/^/{\n"took": $body.took,\n"timed_out": $body.timed_out,\n"_shards": $body._shards,\n"hits": $body.hits,\n"profile": {\n"shards": [ {\n"id": "$body.profile.shards.0.id",\n"node_id": "$body.profile.shards.0.node_id",\n"shard_id": $body.profile.shards.0.shard_id,\n"index": "$body.profile.shards.0.index",\n"cluster": "(local)",\n"searches": [{\n"query": $body.$_path,\n"rewrite_time": $body.$_path,/]
+// TESTRESPONSE[s/^/{\n"took": $body.took,\n"timed_out": $body.timed_out,\n"_shards": $body._shards,\n"hits": $body.hits,\n"profile": {\n"coordinator": $body.$_path,\n"shards": [ {\n"id": "$body.profile.shards.0.id",\n"node_id": "$body.profile.shards.0.node_id",\n"shard_id": $body.profile.shards.0.shard_id,\n"index": "$body.profile.shards.0.index",\n"cluster": "(local)",\n"searches": [{\n"query": $body.$_path,\n"rewrite_time": $body.$_path,/]
 // TESTRESPONSE[s/]$/]}], "aggregations": [], "fetch": $body.$_path}]}}/]
 // TESTRESPONSE[s/(?<=[" ])\d+(\.\d+)?/$body.$_path/]
 
@@ -673,6 +693,15 @@ The API returns the following result:
 {
   ...
   "profile": {
+    "coordinator": {
+        "node_id": "P6xvulHtQRWuD4YnubWb7A",
+        "breakdown": {
+            "retriever_rewrite_count" : 0,
+            "inference_rerank_time_count" : 0,
+            "inference_rerank_time" : 0,
+            "retriever_rewrite" : 0
+        }
+    },
     "shards": [
       {
         "id": "[P6xvulHtQRWuD4YnubWb7A][my-index-000001][0]",
@@ -773,6 +802,7 @@ The API returns the following result:
 // TESTRESPONSE[s/(?<=[" ])\d+(\.\d+)?/$body.$_path/]
 // TESTRESPONSE[s/"id": "\[P6xvulHtQRWuD4YnubWb7A\]\[my-index-000001\]\[0\]"/"id": $body.profile.shards.0.id/]
 // TESTRESPONSE[s/"node_id": "P6xvulHtQRWuD4YnubWb7A",/"node_id": "$body.profile.shards.0.node_id",/]
+// TESTRESPONSE[s/"node_id": "P6xvulHtQRWuD4YnubWb7A",/"node_id": "$body.profile.coordinator.node_id",/]
 <1> The `"aggregations"` portion has been omitted because it will be covered in
 the next section.
 
@@ -872,6 +902,7 @@ This yields the following aggregation profile output:
 --------------------------------------------------
 {
   "profile": {
+    "coordinator": ...,
     "shards": [
       {
         "aggregations": [
@@ -955,6 +986,7 @@ This yields the following aggregation profile output:
 --------------------------------------------------
 // TESTRESPONSE[s/\.\.\.//]
 // TESTRESPONSE[s/(?<=[" ])\d+(\.\d+)?/$body.$_path/]
+// TESTRESPONSE[s/"id": "\[P6-vulHtQRWuD4YnubWb7A\]\[my-index-000001\]\[0\]"/"id": $body.profile.shards.0.id/]
 // TESTRESPONSE[s/"id": "\[P6-vulHtQRWuD4YnubWb7A\]\[my-index-000001\]\[0\]"/"id": $body.profile.shards.0.id/]
 
 From the profile structure we can see that the `my_scoped_agg` is internally
@@ -1220,7 +1252,7 @@ One of the `dfs` sections for a shard looks like the following:
     }
 }
 --------------------------------------------------
-// TESTRESPONSE[s/^/{\n"took": $body.took,\n"timed_out": $body.timed_out,\n"_shards": $body._shards,\n"hits": $body.hits,\n"profile": {\n"shards": [ "$body.$_path", {\n"id": "$body.$_path",\n"node_id": "$body.$_path",\n"shard_id": "$body.$_path",\n"index": "$body.$_path",\n"cluster": "$body.$_path",\n/]
+// TESTRESPONSE[s/^/{\n"took": $body.took,\n"timed_out": $body.timed_out,\n"_shards": $body._shards,\n"hits": $body.hits,\n"profile": {\n"coordinator": $body.$_path,\n"shards": [ "$body.$_path", {\n"id": "$body.$_path",\n"node_id": "$body.$_path",\n"shard_id": "$body.$_path",\n"index": "$body.$_path",\n"cluster": "$body.$_path",\n/]
 // TESTRESPONSE[s/}$/}, "aggregations": [], "searches": $body.$_path}]}}/]
 // TESTRESPONSE[s/(\-)?[0-9]+/ $body.$_path/]
 
@@ -1335,7 +1367,7 @@ One of the `dfs.knn` sections for a shard looks like the following:
     }   ]
 }
 --------------------------------------------------
-// TESTRESPONSE[s/^/{\n"took": $body.took,\n"timed_out": $body.timed_out,\n"_shards": $body._shards,\n"hits": $body.hits,\n"profile": {\n"shards": [ {\n"id": "$body.$_path",\n"node_id": "$body.$_path",\n"shard_id": "$body.$_path",\n"index": "$body.$_path",\n"cluster": "$body.$_path",\n/]
+// TESTRESPONSE[s/^/{\n"took": $body.took,\n"timed_out": $body.timed_out,\n"_shards": $body._shards,\n"hits": $body.hits,\n"profile": {\n"coordinator": $body.$_path,\n"shards": [ {\n"id": "$body.$_path",\n"node_id": "$body.$_path",\n"shard_id": "$body.$_path",\n"index": "$body.$_path",\n"cluster": "$body.$_path",\n/]
 // TESTRESPONSE[s/}$/}, "aggregations": [], "searches": $body.$_path, "fetch": $body.$_path}]}}/]
 // TESTRESPONSE[s/ (\-)?[0-9]+/ $body.$_path/]
 // TESTRESPONSE[s/"dfs" : \{/"dfs" : {"statistics": $body.$_path,/]

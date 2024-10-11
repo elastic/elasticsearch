@@ -64,6 +64,7 @@ public class QueryPhase {
                 // if we have a custom Ranker (i.e. RankBuilder) provided, we want to fetch all
                 // rankWindowSize results. Pagination will take place later once they're all (re)ranked.
                 searchContext.size(searchContext.request().source().rankBuilder().rankWindowSize());
+                searchContext.from(0);
             }
             executeQuery(searchContext);
         } else {

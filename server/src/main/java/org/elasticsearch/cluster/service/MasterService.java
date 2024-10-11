@@ -32,7 +32,6 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
-import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -56,11 +55,7 @@ import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
-import java.util.Base64;
 import java.util.Collections;
 import java.util.EnumMap;
 import java.util.HashMap;
@@ -147,25 +142,9 @@ public class MasterService extends AbstractLifecycleComponent {
     private static ThreadContext.StoredContext getClusterStateUpdateContext(ThreadContext threadContext) {
         try (var ignored = threadContext.newStoredContext()) {
             // capture the context in which to run all cluster state updates here where we know it to be very clean
-            assert threadContext.isDefaultContext()
-                : "must create MasterService in a clean ThreadContext, but got " + renderThreadContext(threadContext);
+            assert threadContext.isDefaultContext() : "must only create MasterService in a clean ThreadContext";
             threadContext.markAsSystemContext();
             return threadContext.newStoredContext();
-        }
-    }
-
-    // temporary util for debugging
-    private static String renderThreadContext(ThreadContext threadContext) {
-        try (
-            var baos = new ByteArrayOutputStream();
-            var b64 = Base64.getEncoder().wrap(baos);
-            var str = new OutputStreamStreamOutput(b64)
-        ) {
-            threadContext.writeTo(str);
-            str.flush();
-            return baos.toString(StandardCharsets.ISO_8859_1);
-        } catch (IOException e) {
-            throw new AssertionError(e);
         }
     }
 

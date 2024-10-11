@@ -56,7 +56,7 @@ public class ChunkingSettingsBuilderTests extends ESTestCase {
                 ChunkingSettingsOptions.MAX_CHUNK_SIZE.toString(),
                 maxChunkSize
             ),
-            new SentenceBoundaryChunkingSettings(maxChunkSize)
+            new SentenceBoundaryChunkingSettings(maxChunkSize, 1)
         );
     }
 }

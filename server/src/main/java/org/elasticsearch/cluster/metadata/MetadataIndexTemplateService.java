@@ -694,25 +694,25 @@ public class MetadataIndexTemplateService {
         // Workaround for the fact that start_time and end_time are injected by the MetadataCreateDataStreamService upon creation,
         // but when validating templates that create data streams the MetadataCreateDataStreamService isn't used.
         var finalTemplate = indexTemplate.template();
-        var finalSettings = Settings.builder();
         final var now = Instant.now();
         final var metadata = currentState.getMetadata();
 
         final var combinedMappings = collectMappings(indexTemplate, metadata.componentTemplates(), "tmp_idx");
         final var combinedSettings = resolveSettings(indexTemplate, metadata.componentTemplates());
         // First apply settings sourced from index setting providers:
+        var finalSettings = Settings.builder();
         for (var provider : indexSettingProviders) {
-            finalSettings.put(
-                provider.getAdditionalIndexSettings(
-                    "validate-index-name",
-                    indexTemplate.getDataStreamTemplate() != null ? "validate-data-stream-name" : null,
-                    indexTemplate.getDataStreamTemplate() != null && metadata.isTimeSeriesTemplate(indexTemplate),
-                    currentState.getMetadata(),
-                    now,
-                    combinedSettings,
-                    combinedMappings
-                )
+            var newAdditionalSettings = provider.getAdditionalIndexSettings(
+                "validate-index-name",
+                indexTemplate.getDataStreamTemplate() != null ? "validate-data-stream-name" : null,
+                indexTemplate.getDataStreamTemplate() != null && metadata.isTimeSeriesTemplate(indexTemplate),
+                currentState.getMetadata(),
+                now,
+                combinedSettings,
+                combinedMappings
             );
+            MetadataCreateIndexService.validateAdditionalSettings(provider, newAdditionalSettings, finalSettings);
+            finalSettings.put(newAdditionalSettings);
         }
         // Then apply setting from component templates:
         finalSettings.put(combinedSettings);
@@ -1421,44 +1421,24 @@ public class MetadataIndexTemplateService {
      * Resolve the given v2 template into a collected {@link Settings} object
      */
     public static Settings resolveSettings(final Metadata metadata, final String templateName) {
-        return resolveSettings(metadata, templateName, Map.of());
-    }
-
-    public static Settings resolveSettings(
-        final Metadata metadata,
-        final String templateName,
-        Map<String, ComponentTemplate> templateSubstitutions
-    ) {
         final ComposableIndexTemplate template = metadata.templatesV2().get(templateName);
         assert template != null
             : "attempted to resolve settings for a template [" + templateName + "] that did not exist in the cluster state";
         if (template == null) {
             return Settings.EMPTY;
         }
-        return resolveSettings(template, metadata.componentTemplates(), templateSubstitutions);
+        return resolveSettings(template, metadata.componentTemplates());
     }
 
     /**
      * Resolve the provided v2 template and component templates into a collected {@link Settings} object
      */
     public static Settings resolveSettings(ComposableIndexTemplate template, Map<String, ComponentTemplate> componentTemplates) {
-        return resolveSettings(template, componentTemplates, Map.of());
-    }
-
-    public static Settings resolveSettings(
-        ComposableIndexTemplate template,
-        Map<String, ComponentTemplate> componentTemplates,
-        Map<String, ComponentTemplate> templateSubstitutions
-    ) {
         Objects.requireNonNull(template, "attempted to resolve settings for a null template");
         Objects.requireNonNull(componentTemplates, "attempted to resolve settings with null component templates");
-        Map<String, ComponentTemplate> combinedComponentTemplates = new HashMap<>();
-        combinedComponentTemplates.putAll(componentTemplates);
-        // We want any substitutions to take precedence:
-        combinedComponentTemplates.putAll(templateSubstitutions);
         List<Settings> componentSettings = template.composedOf()
             .stream()
-            .map(combinedComponentTemplates::get)
+            .map(componentTemplates::get)
             .filter(Objects::nonNull)
             .map(ComponentTemplate::template)
             .map(Template::settings)

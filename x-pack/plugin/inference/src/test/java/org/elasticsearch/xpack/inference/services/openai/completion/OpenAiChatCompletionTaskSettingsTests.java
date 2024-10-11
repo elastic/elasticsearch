@@ -25,6 +25,12 @@ public class OpenAiChatCompletionTaskSettingsTests extends AbstractWireSerializi
         return new OpenAiChatCompletionTaskSettings(randomAlphaOfLength(15));
     }
 
+    public void testIsEmpty() {
+        var randomSettings = new OpenAiChatCompletionTaskSettings(randomBoolean() ? null : "username");
+        var stringRep = Strings.toString(randomSettings);
+        assertEquals(stringRep, randomSettings.isEmpty(), stringRep.equals("{}"));
+    }
+
     public void testFromMap_WithUser() {
         assertEquals(
             new OpenAiChatCompletionTaskSettings("user"),

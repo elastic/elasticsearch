@@ -28,6 +28,7 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.ingest.IngestDocumentMatcher.assertIngestDocument;
+import static org.elasticsearch.ingest.geoip.GeoIpProcessor.GEOIP_TYPE;
 import static org.elasticsearch.ingest.geoip.GeoIpTestUtils.copyDatabase;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
@@ -85,6 +86,7 @@ public class GeoIpProcessorTests extends ESTestCase {
     public void testCity() throws Exception {
         String ip = "8.8.8.8";
         GeoIpProcessor processor = new GeoIpProcessor(
+            GEOIP_TYPE,
             randomAlphaOfLength(10),
             null,
             "source_field",
@@ -106,7 +108,7 @@ public class GeoIpProcessorTests extends ESTestCase {
         @SuppressWarnings("unchecked")
         Map<String, Object> geoData = (Map<String, Object>) ingestDocument.getSourceAndMetadata().get("target_field");
         assertThat(geoData, notNullValue());
-        assertThat(geoData.size(), equalTo(9));
+        assertThat(geoData.size(), equalTo(12));
         assertThat(geoData.get("ip"), equalTo(ip));
         assertThat(geoData.get("country_in_european_union"), equalTo(false));
         assertThat(geoData.get("country_iso_code"), equalTo("US"));
@@ -115,10 +117,14 @@ public class GeoIpProcessorTests extends ESTestCase {
         assertThat(geoData.get("continent_name"), equalTo("North America"));
         assertThat(geoData.get("timezone"), equalTo("America/Chicago"));
         assertThat(geoData.get("location"), equalTo(Map.of("lat", 37.751d, "lon", -97.822d)));
+        assertThat(geoData.get("registered_country_in_european_union"), equalTo(false));
+        assertThat(geoData.get("registered_country_iso_code"), equalTo("US"));
+        assertThat(geoData.get("registered_country_name"), equalTo("United States"));
     }
 
     public void testNullValueWithIgnoreMissing() throws Exception {
         GeoIpProcessor processor = new GeoIpProcessor(
+            GEOIP_TYPE,
             randomAlphaOfLength(10),
             null,
             "source_field",
@@ -141,6 +147,7 @@ public class GeoIpProcessorTests extends ESTestCase {
 
     public void testNonExistentWithIgnoreMissing() throws Exception {
         GeoIpProcessor processor = new GeoIpProcessor(
+            GEOIP_TYPE,
             randomAlphaOfLength(10),
             null,
             "source_field",
@@ -160,6 +167,7 @@ public class GeoIpProcessorTests extends ESTestCase {
 
     public void testNullWithoutIgnoreMissing() {
         GeoIpProcessor processor = new GeoIpProcessor(
+            GEOIP_TYPE,
             randomAlphaOfLength(10),
             null,
             "source_field",
@@ -182,6 +190,7 @@ public class GeoIpProcessorTests extends ESTestCase {
 
     public void testNonExistentWithoutIgnoreMissing() {
         GeoIpProcessor processor = new GeoIpProcessor(
+            GEOIP_TYPE,
             randomAlphaOfLength(10),
             null,
             "source_field",
@@ -202,6 +211,7 @@ public class GeoIpProcessorTests extends ESTestCase {
     public void testCity_withIpV6() throws Exception {
         String ip = "2602:306:33d3:8000::3257:9652";
         GeoIpProcessor processor = new GeoIpProcessor(
+            GEOIP_TYPE,
             randomAlphaOfLength(10),
             null,
             "source_field",
@@ -223,7 +233,7 @@ public class GeoIpProcessorTests extends ESTestCase {
         @SuppressWarnings("unchecked")
         Map<String, Object> geoData = (Map<String, Object>) ingestDocument.getSourceAndMetadata().get("target_field");
         assertThat(geoData, notNullValue());
-        assertThat(geoData.size(), equalTo(13));
+        assertThat(geoData.size(), equalTo(16));
         assertThat(geoData.get("ip"), equalTo(ip));
         assertThat(geoData.get("country_in_european_union"), equalTo(false));
         assertThat(geoData.get("country_iso_code"), equalTo("US"));
@@ -237,11 +247,15 @@ public class GeoIpProcessorTests extends ESTestCase {
         assertThat(geoData.get("location"), equalTo(Map.of("lat", 25.4573d, "lon", -80.4572d)));
         assertThat(geoData.get("accuracy_radius"), equalTo(50));
         assertThat(geoData.get("postal_code"), equalTo("33035"));
+        assertThat(geoData.get("registered_country_in_european_union"), equalTo(false));
+        assertThat(geoData.get("registered_country_iso_code"), equalTo("US"));
+        assertThat(geoData.get("registered_country_name"), equalTo("United States"));
     }
 
     public void testCityWithMissingLocation() throws Exception {
         String ip = "80.231.5.0";
         GeoIpProcessor processor = new GeoIpProcessor(
+            GEOIP_TYPE,
             randomAlphaOfLength(10),
             null,
             "source_field",
@@ -270,6 +284,7 @@ public class GeoIpProcessorTests extends ESTestCase {
     public void testCountry() throws Exception {
         String ip = "82.170.213.79";
         GeoIpProcessor processor = new GeoIpProcessor(
+            GEOIP_TYPE,
             randomAlphaOfLength(10),
             null,
             "source_field",
@@ -291,18 +306,22 @@ public class GeoIpProcessorTests extends ESTestCase {
         @SuppressWarnings("unchecked")
         Map<String, Object> geoData = (Map<String, Object>) ingestDocument.getSourceAndMetadata().get("target_field");
         assertThat(geoData, notNullValue());
-        assertThat(geoData.size(), equalTo(6));
+        assertThat(geoData.size(), equalTo(9));
         assertThat(geoData.get("ip"), equalTo(ip));
         assertThat(geoData.get("country_in_european_union"), equalTo(true));
         assertThat(geoData.get("country_iso_code"), equalTo("NL"));
         assertThat(geoData.get("country_name"), equalTo("Netherlands"));
         assertThat(geoData.get("continent_code"), equalTo("EU"));
         assertThat(geoData.get("continent_name"), equalTo("Europe"));
+        assertThat(geoData.get("registered_country_in_european_union"), equalTo(true));
+        assertThat(geoData.get("registered_country_iso_code"), equalTo("NL"));
+        assertThat(geoData.get("registered_country_name"), equalTo("Netherlands"));
     }
 
     public void testCountryWithMissingLocation() throws Exception {
         String ip = "80.231.5.0";
         GeoIpProcessor processor = new GeoIpProcessor(
+            GEOIP_TYPE,
             randomAlphaOfLength(10),
             null,
             "source_field",
@@ -331,6 +350,7 @@ public class GeoIpProcessorTests extends ESTestCase {
     public void testAsn() throws Exception {
         String ip = "82.171.64.0";
         GeoIpProcessor processor = new GeoIpProcessor(
+            GEOIP_TYPE,
             randomAlphaOfLength(10),
             null,
             "source_field",
@@ -362,6 +382,7 @@ public class GeoIpProcessorTests extends ESTestCase {
     public void testAnonymmousIp() throws Exception {
         String ip = "81.2.69.1";
         GeoIpProcessor processor = new GeoIpProcessor(
+            GEOIP_TYPE,
             randomAlphaOfLength(10),
             null,
             "source_field",
@@ -396,6 +417,7 @@ public class GeoIpProcessorTests extends ESTestCase {
     public void testConnectionType() throws Exception {
         String ip = "214.78.120.5";
         GeoIpProcessor processor = new GeoIpProcessor(
+            GEOIP_TYPE,
             randomAlphaOfLength(10),
             null,
             "source_field",
@@ -425,6 +447,7 @@ public class GeoIpProcessorTests extends ESTestCase {
     public void testDomain() throws Exception {
         String ip = "69.219.64.2";
         GeoIpProcessor processor = new GeoIpProcessor(
+            GEOIP_TYPE,
             randomAlphaOfLength(10),
             null,
             "source_field",
@@ -454,6 +477,7 @@ public class GeoIpProcessorTests extends ESTestCase {
     public void testEnterprise() throws Exception {
         String ip = "74.209.24.4";
         GeoIpProcessor processor = new GeoIpProcessor(
+            GEOIP_TYPE,
             randomAlphaOfLength(10),
             null,
             "source_field",
@@ -475,7 +499,7 @@ public class GeoIpProcessorTests extends ESTestCase {
         @SuppressWarnings("unchecked")
         Map<String, Object> geoData = (Map<String, Object>) ingestDocument.getSourceAndMetadata().get("target_field");
         assertThat(geoData, notNullValue());
-        assertThat(geoData.size(), equalTo(30));
+        assertThat(geoData.size(), equalTo(33));
         assertThat(geoData.get("ip"), equalTo(ip));
         assertThat(geoData.get("country_confidence"), equalTo(99));
         assertThat(geoData.get("country_in_european_union"), equalTo(false));
@@ -506,11 +530,15 @@ public class GeoIpProcessorTests extends ESTestCase {
         assertThat(geoData.get("isp_organization_name"), equalTo("Fairpoint Communications"));
         assertThat(geoData.get("user_type"), equalTo("residential"));
         assertThat(geoData.get("connection_type"), equalTo("Cable/DSL"));
+        assertThat(geoData.get("registered_country_in_european_union"), equalTo(false));
+        assertThat(geoData.get("registered_country_iso_code"), equalTo("US"));
+        assertThat(geoData.get("registered_country_name"), equalTo("United States"));
     }
 
     public void testIsp() throws Exception {
         String ip = "149.101.100.1";
         GeoIpProcessor processor = new GeoIpProcessor(
+            GEOIP_TYPE,
             randomAlphaOfLength(10),
             null,
             "source_field",
@@ -545,6 +573,7 @@ public class GeoIpProcessorTests extends ESTestCase {
 
     public void testAddressIsNotInTheDatabase() throws Exception {
         GeoIpProcessor processor = new GeoIpProcessor(
+            GEOIP_TYPE,
             randomAlphaOfLength(10),
             null,
             "source_field",
@@ -569,6 +598,7 @@ public class GeoIpProcessorTests extends ESTestCase {
      */
     public void testInvalid() {
         GeoIpProcessor processor = new GeoIpProcessor(
+            GEOIP_TYPE,
             randomAlphaOfLength(10),
             null,
             "source_field",
@@ -590,6 +620,7 @@ public class GeoIpProcessorTests extends ESTestCase {
 
     public void testListAllValid() throws Exception {
         GeoIpProcessor processor = new GeoIpProcessor(
+            GEOIP_TYPE,
             randomAlphaOfLength(10),
             null,
             "source_field",
@@ -617,6 +648,7 @@ public class GeoIpProcessorTests extends ESTestCase {
 
     public void testListPartiallyValid() throws Exception {
         GeoIpProcessor processor = new GeoIpProcessor(
+            GEOIP_TYPE,
             randomAlphaOfLength(10),
             null,
             "source_field",
@@ -644,6 +676,7 @@ public class GeoIpProcessorTests extends ESTestCase {
 
     public void testListNoMatches() throws Exception {
         GeoIpProcessor processor = new GeoIpProcessor(
+            GEOIP_TYPE,
             randomAlphaOfLength(10),
             null,
             "source_field",
@@ -667,7 +700,7 @@ public class GeoIpProcessorTests extends ESTestCase {
     public void testListDatabaseReferenceCounting() throws Exception {
         AtomicBoolean closeCheck = new AtomicBoolean(false);
         var loader = loader("GeoLite2-City.mmdb", closeCheck);
-        GeoIpProcessor processor = new GeoIpProcessor(randomAlphaOfLength(10), null, "source_field", () -> {
+        GeoIpProcessor processor = new GeoIpProcessor(GEOIP_TYPE, randomAlphaOfLength(10), null, "source_field", () -> {
             loader.preLookup();
             return loader;
         }, () -> true, "target_field", ipDataLookupAll(Database.City), false, false, "filename");
@@ -692,6 +725,7 @@ public class GeoIpProcessorTests extends ESTestCase {
 
     public void testListFirstOnly() throws Exception {
         GeoIpProcessor processor = new GeoIpProcessor(
+            GEOIP_TYPE,
             randomAlphaOfLength(10),
             null,
             "source_field",
@@ -717,6 +751,7 @@ public class GeoIpProcessorTests extends ESTestCase {
 
     public void testListFirstOnlyNoMatches() throws Exception {
         GeoIpProcessor processor = new GeoIpProcessor(
+            GEOIP_TYPE,
             randomAlphaOfLength(10),
             null,
             "source_field",
@@ -739,6 +774,7 @@ public class GeoIpProcessorTests extends ESTestCase {
 
     public void testInvalidDatabase() throws Exception {
         GeoIpProcessor processor = new GeoIpProcessor(
+            GEOIP_TYPE,
             randomAlphaOfLength(10),
             null,
             "source_field",
@@ -762,6 +798,7 @@ public class GeoIpProcessorTests extends ESTestCase {
 
     public void testNoDatabase() throws Exception {
         GeoIpProcessor processor = new GeoIpProcessor(
+            GEOIP_TYPE,
             randomAlphaOfLength(10),
             null,
             "source_field",
@@ -785,6 +822,7 @@ public class GeoIpProcessorTests extends ESTestCase {
 
     public void testNoDatabase_ignoreMissing() throws Exception {
         GeoIpProcessor processor = new GeoIpProcessor(
+            GEOIP_TYPE,
             randomAlphaOfLength(10),
             null,
             "source_field",

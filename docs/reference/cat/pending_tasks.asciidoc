@@ -11,8 +11,7 @@ console. They are _not_ intended for use by applications. For application
 consumption, use the <<cluster-pending,pending cluster tasks API>>.
 ====
 
-Returns cluster-level changes that have not yet been executed, similar to the
-<<cluster-pending, pending cluster tasks>> API.
+Returns <<cluster-state-publishing,cluster-level changes>> that have not yet been executed.
 
 [[cat-pending-tasks-api-request]]
 ==== {api-request-title}

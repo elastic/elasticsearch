@@ -38,6 +38,9 @@ import java.util.function.BiConsumer;
 import static java.util.Map.entry;
 import static org.elasticsearch.ingest.geoip.GeoIpTestUtils.copyDatabase;
 import static org.elasticsearch.ingest.geoip.IpinfoIpDataLookups.parseAsn;
+import static org.elasticsearch.ingest.geoip.IpinfoIpDataLookups.parseBoolean;
+import static org.elasticsearch.ingest.geoip.IpinfoIpDataLookups.parseLocationDouble;
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -72,6 +75,14 @@ public class IpinfoIpDataLookupsTests extends ESTestCase {
         // the second ASN variant database is like a specialization of the ASN database
         assertThat(Sets.difference(Database.Asn.properties(), Database.AsnV2.properties()), is(empty()));
         assertThat(Database.Asn.defaultProperties(), equalTo(Database.AsnV2.defaultProperties()));
+
+        // the second City variant database is like a version of the ordinary City database but lacking many fields
+        assertThat(Sets.difference(Database.CityV2.properties(), Database.City.properties()), is(empty()));
+        assertThat(Sets.difference(Database.CityV2.defaultProperties(), Database.City.defaultProperties()), is(empty()));
+
+        // the second Country variant database is like a version of the ordinary Country database but lacking come fields
+        assertThat(Sets.difference(Database.CountryV2.properties(), Database.CountryV2.properties()), is(empty()));
+        assertThat(Database.CountryV2.defaultProperties(), equalTo(Database.Country.defaultProperties()));
     }
 
     public void testParseAsn() {
@@ -88,6 +99,33 @@ public class IpinfoIpDataLookupsTests extends ESTestCase {
         assertThat(parseAsn("anythingelse"), nullValue());
     }
 
+    public void testParseBoolean() {
+        // expected cases: "true" is true and "" is false
+        assertThat(parseBoolean("true"), equalTo(true));
+        assertThat(parseBoolean(""), equalTo(false));
+        assertThat(parseBoolean("false"), equalTo(false)); // future proofing
+        // defensive case: null becomes null, this is not expected fwiw
+        assertThat(parseBoolean(null), nullValue());
+        // defensive cases: we strip whitespace and ignore case
+        assertThat(parseBoolean("    "), equalTo(false));
+        assertThat(parseBoolean(" TrUe "), equalTo(true));
+        assertThat(parseBoolean(" FaLSE "), equalTo(false));
+        // bottom case: a non-parsable string is null
+        assertThat(parseBoolean(randomAlphaOfLength(8)), nullValue());
+    }
+
+    public void testParseLocationDouble() {
+        // expected case: "123.45" is 123.45
+        assertThat(parseLocationDouble("123.45"), equalTo(123.45));
+        // defensive cases: null and empty becomes null, this is not expected fwiw
+        assertThat(parseLocationDouble(null), nullValue());
+        assertThat(parseLocationDouble(""), nullValue());
+        // defensive cases: we strip whitespace
+        assertThat(parseLocationDouble("  -123.45  "), equalTo(-123.45));
+        // bottom case: a non-parsable string is null
+        assertThat(parseLocationDouble("anythingelse"), nullValue());
+    }
+
     public void testAsn() throws IOException {
         assumeFalse("https://github.com/elastic/elasticsearch/issues/114266", Constants.WINDOWS);
         Path configDir = tmpDir;
@@ -100,7 +138,7 @@ public class IpinfoIpDataLookupsTests extends ESTestCase {
 
         // this is the 'free' ASN database (sample)
         try (DatabaseReaderLazyLoader loader = configDatabases.getDatabase("ip_asn_sample.mmdb")) {
-            IpDataLookup lookup = new IpinfoIpDataLookups.Asn(Set.of(Database.Property.values()));
+            IpDataLookup lookup = new IpinfoIpDataLookups.Asn(Database.AsnV2.properties());
             Map<String, Object> data = lookup.getData(loader, "5.182.109.0");
             assertThat(
                 data,
@@ -118,7 +156,7 @@ public class IpinfoIpDataLookupsTests extends ESTestCase {
 
         // this is the non-free or 'standard' ASN database (sample)
         try (DatabaseReaderLazyLoader loader = configDatabases.getDatabase("asn_sample.mmdb")) {
-            IpDataLookup lookup = new IpinfoIpDataLookups.Asn(Set.of(Database.Property.values()));
+            IpDataLookup lookup = new IpinfoIpDataLookups.Asn(Database.AsnV2.properties());
             Map<String, Object> data = lookup.getData(loader, "23.53.116.0");
             assertThat(
                 data,
@@ -185,7 +223,7 @@ public class IpinfoIpDataLookupsTests extends ESTestCase {
 
         // this is the 'free' Country database (sample)
         try (DatabaseReaderLazyLoader loader = configDatabases.getDatabase("ip_country_sample.mmdb")) {
-            IpDataLookup lookup = new IpinfoIpDataLookups.Country(Set.of(Database.Property.values()));
+            IpDataLookup lookup = new IpinfoIpDataLookups.Country(Database.CountryV2.properties());
             Map<String, Object> data = lookup.getData(loader, "4.221.143.168");
             assertThat(
                 data,
@@ -199,6 +237,144 @@ public class IpinfoIpDataLookupsTests extends ESTestCase {
                     )
                 )
             );
+        }
+    }
+
+    public void testGeolocation() throws IOException {
+        assumeFalse("https://github.com/elastic/elasticsearch/issues/114266", Constants.WINDOWS);
+        Path configDir = tmpDir;
+        copyDatabase("ipinfo/ip_geolocation_sample.mmdb", configDir.resolve("ip_geolocation_sample.mmdb"));
+
+        GeoIpCache cache = new GeoIpCache(1000); // real cache to test purging of entries upon a reload
+        ConfigDatabases configDatabases = new ConfigDatabases(configDir, cache);
+        configDatabases.initialize(resourceWatcherService);
+
+        // this is the non-free or 'standard' Geolocation database (sample)
+        try (DatabaseReaderLazyLoader loader = configDatabases.getDatabase("ip_geolocation_sample.mmdb")) {
+            IpDataLookup lookup = new IpinfoIpDataLookups.Geolocation(Database.CityV2.properties());
+            Map<String, Object> data = lookup.getData(loader, "2.124.90.182");
+            assertThat(
+                data,
+                equalTo(
+                    Map.ofEntries(
+                        entry("ip", "2.124.90.182"),
+                        entry("country_iso_code", "GB"),
+                        entry("region_name", "England"),
+                        entry("city_name", "London"),
+                        entry("timezone", "Europe/London"),
+                        entry("postal_code", "E1W"),
+                        entry("location", Map.of("lat", 51.50853, "lon", -0.12574))
+                    )
+                )
+            );
+        }
+    }
+
+    public void testGeolocationInvariants() {
+        assumeFalse("https://github.com/elastic/elasticsearch/issues/114266", Constants.WINDOWS);
+        Path configDir = tmpDir;
+        copyDatabase("ipinfo/ip_geolocation_sample.mmdb", configDir.resolve("ip_geolocation_sample.mmdb"));
+
+        {
+            final Set<String> expectedColumns = Set.of(
+                "network",
+                "city",
+                "region",
+                "country",
+                "postal_code",
+                "timezone",
+                "latitude",
+                "longitude"
+            );
+
+            Path databasePath = configDir.resolve("ip_geolocation_sample.mmdb");
+            assertDatabaseInvariants(databasePath, (ip, row) -> {
+                assertThat(row.keySet(), equalTo(expectedColumns));
+                {
+                    String latitude = (String) row.get("latitude");
+                    assertThat(latitude, equalTo(latitude.trim()));
+                    Double parsed = parseLocationDouble(latitude);
+                    assertThat(parsed, notNullValue());
+                    assertThat(latitude, equalTo(Double.toString(parsed))); // reverse it
+                }
+                {
+                    String longitude = (String) row.get("longitude");
+                    assertThat(longitude, equalTo(longitude.trim()));
+                    Double parsed = parseLocationDouble(longitude);
+                    assertThat(parsed, notNullValue());
+                    assertThat(longitude, equalTo(Double.toString(parsed))); // reverse it
+                }
+            });
+        }
+    }
+
+    public void testPrivacyDetection() throws IOException {
+        assumeFalse("https://github.com/elastic/elasticsearch/issues/114266", Constants.WINDOWS);
+        Path configDir = tmpDir;
+        copyDatabase("ipinfo/privacy_detection_sample.mmdb", configDir.resolve("privacy_detection_sample.mmdb"));
+
+        GeoIpCache cache = new GeoIpCache(1000); // real cache to test purging of entries upon a reload
+        ConfigDatabases configDatabases = new ConfigDatabases(configDir, cache);
+        configDatabases.initialize(resourceWatcherService);
+
+        // testing the first row in the sample database
+        try (DatabaseReaderLazyLoader loader = configDatabases.getDatabase("privacy_detection_sample.mmdb")) {
+            IpDataLookup lookup = new IpinfoIpDataLookups.PrivacyDetection(Database.PrivacyDetection.properties());
+            Map<String, Object> data = lookup.getData(loader, "1.53.59.33");
+            assertThat(
+                data,
+                equalTo(
+                    Map.ofEntries(
+                        entry("ip", "1.53.59.33"),
+                        entry("hosting", false),
+                        entry("proxy", false),
+                        entry("relay", false),
+                        entry("tor", false),
+                        entry("vpn", true)
+                    )
+                )
+            );
+        }
+
+        // testing a row with a non-empty service in the sample database
+        try (DatabaseReaderLazyLoader loader = configDatabases.getDatabase("privacy_detection_sample.mmdb")) {
+            IpDataLookup lookup = new IpinfoIpDataLookups.PrivacyDetection(Database.PrivacyDetection.properties());
+            Map<String, Object> data = lookup.getData(loader, "216.131.74.65");
+            assertThat(
+                data,
+                equalTo(
+                    Map.ofEntries(
+                        entry("ip", "216.131.74.65"),
+                        entry("hosting", true),
+                        entry("proxy", false),
+                        entry("service", "FastVPN"),
+                        entry("relay", false),
+                        entry("tor", false),
+                        entry("vpn", true)
+                    )
+                )
+            );
+        }
+    }
+
+    public void testPrivacyDetectionInvariants() {
+        assumeFalse("https://github.com/elastic/elasticsearch/issues/114266", Constants.WINDOWS);
+        Path configDir = tmpDir;
+        copyDatabase("ipinfo/privacy_detection_sample.mmdb", configDir.resolve("privacy_detection_sample.mmdb"));
+
+        {
+            final Set<String> expectedColumns = Set.of("network", "service", "hosting", "proxy", "relay", "tor", "vpn");
+
+            Path databasePath = configDir.resolve("privacy_detection_sample.mmdb");
+            assertDatabaseInvariants(databasePath, (ip, row) -> {
+                assertThat(row.keySet(), equalTo(expectedColumns));
+
+                for (String booleanColumn : Set.of("hosting", "proxy", "relay", "tor", "vpn")) {
+                    String bool = (String) row.get(booleanColumn);
+                    assertThat(bool, anyOf(equalTo("true"), equalTo(""), equalTo("false")));
+                    assertThat(parseBoolean(bool), notNullValue());
+                }
+            });
         }
     }
 

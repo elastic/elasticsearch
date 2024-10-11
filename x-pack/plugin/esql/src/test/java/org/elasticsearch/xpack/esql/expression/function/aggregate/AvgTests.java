@@ -70,7 +70,7 @@ public class AvgTests extends AbstractAggregationTestCase {
 
             if (fieldData.size() == 1) {
                 // For single elements, we directly return them to avoid precision issues
-                expected = fieldData.get(0);
+                expected = ((Number) fieldData.get(0)).doubleValue();
             } else if (fieldData.size() > 1) {
                 expected = switch (fieldTypedData.type().widenSmallNumeric()) {
                     case INTEGER -> fieldData.stream()

@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.inference.rank.textsimilarity;
 
-import org.elasticsearch.action.search.SearchPhaseExecutionException;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.rank.RankBuilder;
 import org.elasticsearch.search.rank.rerank.AbstractRerankerIT;
@@ -16,10 +14,6 @@ import org.elasticsearch.xpack.inference.InferencePlugin;
 
 import java.util.Collection;
 import java.util.List;
-
-import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
-import static org.elasticsearch.index.query.QueryBuilders.constantScoreQuery;
-import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 
 public class TextSimilarityRankMultiNodeTests extends AbstractRerankerIT {
 

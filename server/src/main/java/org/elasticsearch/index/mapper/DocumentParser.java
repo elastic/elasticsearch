@@ -227,7 +227,7 @@ public final class DocumentParser {
                     if (isObjectInPath.isEmpty() == false
                         && (isObjectInPath.get(isObjectInPath.size() - 1) && currentToken == XContentParser.Token.END_OBJECT
                             || isObjectInPath.get(isObjectInPath.size() - 1) == false && currentToken == XContentParser.Token.END_ARRAY)) {
-                        path.remove(isObjectInPath.size() - 1);
+                        path.remove(path.size() - 1);
                         isObjectInPath.remove(isObjectInPath.size() - 1);
                     }
                     fieldName = null;

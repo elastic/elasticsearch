@@ -719,3 +719,100 @@ modify source mapping from synthetic to disabled after index creation:
         index: test_modify_source_mode_synthetic_disabled
   - match: { test_modify_source_mode_synthetic_disabled.mappings._source.mode: synthetic }
 
+---
+modify logsdb index source mode to disabled after index creation:
+  - do:
+      indices.create:
+        index: test_modify_logsdb_disabled_after_creation
+        body:
+          settings:
+            index:
+              mode: logsdb
+
+  - do:
+      catch: bad_request
+      indices.put_mapping:
+        index: test_modify_logsdb_disabled_after_creation
+        body:
+          _source:
+            mode: disabled
+  - match: { error.type: "mapper_parsing_exception" }
+  - match: { error.reason: "Failed to parse mapping: Indices with with index mode [logsdb] only support synthetic source" }
+
+---
+modify logsdb index source mode to stored after index creation:
+  - do:
+      indices.create:
+        index: test_modify_logsdb_stored_after_creation
+        body:
+          settings:
+            index:
+              mode: logsdb
+
+  - do:
+      catch: bad_request
+      indices.put_mapping:
+        index: test_modify_logsdb_stored_after_creation
+        body:
+          _source:
+            mode: stored
+  - match: { error.type: "mapper_parsing_exception" }
+  - match: { error.reason: "Failed to parse mapping: Indices with with index mode [logsdb] only support synthetic source" }
+
+---
+modify time_series index source mode to disabled after index creation:
+  - do:
+      indices.create:
+        index: test_modify_time_series_disabled_after_creation
+        body:
+          settings:
+            index:
+              mode: time_series
+              routing_path: [ keyword ]
+              time_series:
+                start_time: 2021-04-28T00:00:00Z
+                end_time: 2021-04-29T00:00:00Z
+          mappings:
+            properties:
+              keyword:
+                type: keyword
+                time_series_dimension: true
+
+  - do:
+      catch: bad_request
+      indices.put_mapping:
+        index: test_modify_time_series_disabled_after_creation
+        body:
+          _source:
+            mode: disabled
+  - match: { error.type: "mapper_parsing_exception" }
+  - match: { error.reason: "Failed to parse mapping: time series indices only support synthetic source" }
+
+---
+modify time_series index source mode to stored after index creation:
+  - do:
+      indices.create:
+        index: test_modify_time_series_stored_after_creation
+        body:
+          settings:
+            index:
+              mode: time_series
+              routing_path: [ keyword ]
+              time_series:
+                start_time: 2021-04-28T00:00:00Z
+                end_time: 2021-04-29T00:00:00Z
+          mappings:
+            properties:
+              keyword:
+                type: keyword
+                time_series_dimension: true
+
+  - do:
+      catch: bad_request
+      indices.put_mapping:
+        index: test_modify_time_series_stored_after_creation
+        body:
+          _source:
+            mode: stored
+  - match: { error.type: "mapper_parsing_exception" }
+  - match: { error.reason: "Failed to parse mapping: time series indices only support synthetic source" }

@@ -292,6 +292,33 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/113874
 - class: org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDateNanosTests
   issue: https://github.com/elastic/elasticsearch/issues/113661
+- class: org.elasticsearch.xpack.inference.InferenceRestIT
+  method: test {p0=inference/30_semantic_text_inference/Calculates embeddings using the default ELSER 2 endpoint}
+  issue: https://github.com/elastic/elasticsearch/issues/114412
+- class: org.elasticsearch.xpack.inference.InferenceRestIT
+  method: test {p0=inference/40_semantic_text_query/Query a field that uses the default ELSER 2 endpoint}
+  issue: https://github.com/elastic/elasticsearch/issues/114376
+- class: org.elasticsearch.kibana.KibanaThreadPoolIT
+  method: testBlockedThreadPoolsRejectUserRequests
+  issue: https://github.com/elastic/elasticsearch/issues/113939
+- class: org.elasticsearch.ingest.geoip.DatabaseNodeServiceIT
+  method: testGzippedDatabase
+  issue: https://github.com/elastic/elasticsearch/issues/113752
+- class: org.elasticsearch.xpack.rank.rrf.RRFRankClientYamlTestSuiteIT
+  method: test {yaml=rrf/700_rrf_retriever_search_api_compatibility/rrf retriever with top-level collapse}
+  issue: https://github.com/elastic/elasticsearch/issues/114331
+- class: org.elasticsearch.threadpool.SimpleThreadPoolIT
+  method: testThreadPoolMetrics
+  issue: https://github.com/elastic/elasticsearch/issues/108320
+- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
+  method: test {p0=indices.split/40_routing_partition_size/nested}
+  issue: https://github.com/elastic/elasticsearch/issues/113842
+- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
+  method: test {p0=indices.split/40_routing_partition_size/more than 1}
+  issue: https://github.com/elastic/elasticsearch/issues/113841
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
+  method: test {categorize.Categorize ASYNC}
+  issue: https://github.com/elastic/elasticsearch/issues/113721
 
 # Examples:
 #

@@ -109,10 +109,9 @@ public class JsonXContentParser extends AbstractXContentParser {
             throwOnNoText();
         }
         String text = "";
-        try{
+        try {
             text = parser.getText();
-        }
-        catch(JsonParseException e){
+        } catch(JsonParseException e) {
             throw newXContentParseException(e);
         }
         return text;

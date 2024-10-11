@@ -13,10 +13,16 @@ TIP: You can host {es} on your own hardware or send your data to {es} on {ecloud
 * <<multi-region-two-datacenter-architecture,Time Series HA Architecture: Multi-Region With Two Datacenters>>
 * Two Availability Zone with ... Architecture
 * Three Availability Zone with ... Architecture
+
+[discrete]
+[[reference-architectures-cloud]]
 === Cloud Architectures
 * <<elastic-cloud-architecture,Elastic Cloud Hot-Frozen Architecture>>
 
+[discrete]
+[[reference-architectures-time-series-2]]
 === Time Series - Option 2
+
 [cols="50, 50"]
 |===
 | *Architecture* | *Use when*

@@ -83,7 +83,6 @@ public abstract class AbstractFileWatchingService extends AbstractLifecycleCompo
      * initial service start.
      */
     protected void processFileOnServiceStart() throws IOException, ExecutionException, InterruptedException {
-        // by default apply same logic as a regular file changes run
         processFileChanges();
     }
 

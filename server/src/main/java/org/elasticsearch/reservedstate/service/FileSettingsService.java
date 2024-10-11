@@ -11,7 +11,6 @@ package org.elasticsearch.reservedstate.service;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterState;
@@ -122,7 +121,7 @@ public class FileSettingsService extends MasterNodeFileWatchingService implement
 
     /**
      * Read settings and pass them to {@link ReservedClusterStateService} for application.
-     * Settings will be reprocessed even if the cluster-state version equals that in the settings file.
+     * Settings will be reprocessed even if the cluster-state version equals that found in the settings file.
      */
     @Override
     protected void processFileOnServiceStart() throws IOException, ExecutionException, InterruptedException {
@@ -150,7 +149,7 @@ public class FileSettingsService extends MasterNodeFileWatchingService implement
         completion.get();
     }
 
-    private static void completeProcessing(Exception e, ActionListener<Void> completion) {
+    private static void completeProcessing(Exception e, PlainActionFuture<Void> completion) {
         if (e != null) {
             completion.onFailure(e);
         } else {

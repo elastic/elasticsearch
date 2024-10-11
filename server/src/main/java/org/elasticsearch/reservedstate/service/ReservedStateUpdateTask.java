@@ -202,8 +202,7 @@ public class ReservedStateUpdateTask implements ClusterStateTaskListener {
         if (existingMetadata != null && existingMetadata.version() >= reservedStateVersion.version()) {
             if (allowSameVersion && existingMetadata.version().equals(reservedStateVersion.version())) {
                 logger.debug(
-                    "Updating reserved cluster state for namespace [{}] and version [{}] matching current metadata version. "
-                        + "Same version run was requested for this call.",
+                    "Updating reserved cluster state for namespace [{}] and version [{}] matching current metadata version",
                     namespace,
                     reservedStateVersion.version()
                 );

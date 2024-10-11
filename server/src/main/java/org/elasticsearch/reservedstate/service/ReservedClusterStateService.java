@@ -166,15 +166,12 @@ public class ReservedClusterStateService {
 
     }
 
-    public void process(String namespace, ReservedStateChunk reservedStateChunk, Consumer<Exception> errorListener) {
-        process(namespace, reservedStateChunk, false, errorListener);
-    }
-
     /**
      * Saves and reserves a chunk of the cluster state under a given 'namespace' from {@link XContentParser}
      *
      * @param namespace the namespace under which we'll store the reserved keys in the cluster state metadata
      * @param reservedStateChunk a {@link ReservedStateChunk} composite state object to process
+     * @param allowSameVersion whether processing should also run if the metadata version matches the file version
      * @param errorListener a consumer called with {@link IllegalStateException} if the content has errors and the
      *        cluster state cannot be correctly applied, null if successful or the state failed to apply because of incompatible version.
      */

@@ -89,6 +89,16 @@ PUT semantic-embeddings
 It will be used to generate the embeddings based on the input text.
 Every time you ingest data into the related `semantic_text` field, this endpoint will be used for creating the vector representation of the text.
 
+[NOTE]
+====
+If you're using web crawlers or connectors to generate indices, you have to
+<<indices-put-mapping,update the index mappings>> for these indices to
+include the `semantic_text` field. Once the mapping is updated, you'll need to run
+a full web crawl or a full connector sync. This ensures that all existing
+documents are reprocessed and updated with the new semantic embeddings,
+enabling semantic search on the updated data.
+====
+
 
 [discrete]
 [[semantic-text-load-data]]
@@ -117,6 +127,13 @@ After the upload is complete, you will see an index named `test-data` with 182,4
 Create the embeddings from the text by reindexing the data from the `test-data` index to the `semantic-embeddings` index.
 The data in the `content` field will be reindexed into the `content` semantic text field of the destination index.
 The reindexed data will be processed by the {infer} endpoint associated with the `content` semantic text field.
+
+[NOTE]
+====
+This step uses the reindex API to simulate data ingestion. If you are working with data that has already been indexed,
+rather than using the test-data set, reindexing is required to ensure that the data is processed by the {infer} endpoint
+and the necessary embeddings are generated.
+====
 
 [source,console]
 ------------------------------------------------------------

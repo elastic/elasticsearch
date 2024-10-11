@@ -78,13 +78,19 @@ public class MaxMindSupportTests extends ESTestCase {
         "city.name",
         "continent.code",
         "continent.name",
+        "country.inEuropeanUnion",
         "country.isoCode",
         "country.name",
+        "location.accuracyRadius",
         "location.latitude",
         "location.longitude",
         "location.timeZone",
         "mostSpecificSubdivision.isoCode",
-        "mostSpecificSubdivision.name"
+        "mostSpecificSubdivision.name",
+        "postal.code",
+        "registeredCountry.inEuropeanUnion",
+        "registeredCountry.isoCode",
+        "registeredCountry.name"
     );
     private static final Set<String> CITY_UNSUPPORTED_FIELDS = Set.of(
         "city.confidence",
@@ -94,14 +100,12 @@ public class MaxMindSupportTests extends ESTestCase {
         "continent.names",
         "country.confidence",
         "country.geoNameId",
-        "country.inEuropeanUnion",
         "country.names",
         "leastSpecificSubdivision.confidence",
         "leastSpecificSubdivision.geoNameId",
         "leastSpecificSubdivision.isoCode",
         "leastSpecificSubdivision.name",
         "leastSpecificSubdivision.names",
-        "location.accuracyRadius",
         "location.averageIncome",
         "location.metroCode",
         "location.populationDensity",
@@ -109,13 +113,9 @@ public class MaxMindSupportTests extends ESTestCase {
         "mostSpecificSubdivision.confidence",
         "mostSpecificSubdivision.geoNameId",
         "mostSpecificSubdivision.names",
-        "postal.code",
         "postal.confidence",
         "registeredCountry.confidence",
         "registeredCountry.geoNameId",
-        "registeredCountry.inEuropeanUnion",
-        "registeredCountry.isoCode",
-        "registeredCountry.name",
         "registeredCountry.names",
         "representedCountry.confidence",
         "representedCountry.geoNameId",
@@ -159,23 +159,23 @@ public class MaxMindSupportTests extends ESTestCase {
 
     private static final Set<String> COUNTRY_SUPPORTED_FIELDS = Set.of(
         "continent.name",
+        "country.inEuropeanUnion",
         "country.isoCode",
         "continent.code",
-        "country.name"
+        "country.name",
+        "registeredCountry.inEuropeanUnion",
+        "registeredCountry.isoCode",
+        "registeredCountry.name"
     );
     private static final Set<String> COUNTRY_UNSUPPORTED_FIELDS = Set.of(
         "continent.geoNameId",
         "continent.names",
         "country.confidence",
         "country.geoNameId",
-        "country.inEuropeanUnion",
         "country.names",
         "maxMind",
         "registeredCountry.confidence",
         "registeredCountry.geoNameId",
-        "registeredCountry.inEuropeanUnion",
-        "registeredCountry.isoCode",
-        "registeredCountry.name",
         "registeredCountry.names",
         "representedCountry.confidence",
         "representedCountry.geoNameId",
@@ -213,16 +213,25 @@ public class MaxMindSupportTests extends ESTestCase {
     private static final Set<String> DOMAIN_UNSUPPORTED_FIELDS = Set.of("ipAddress", "network");
 
     private static final Set<String> ENTERPRISE_SUPPORTED_FIELDS = Set.of(
+        "city.confidence",
         "city.name",
         "continent.code",
         "continent.name",
+        "country.confidence",
+        "country.inEuropeanUnion",
         "country.isoCode",
         "country.name",
+        "location.accuracyRadius",
         "location.latitude",
         "location.longitude",
         "location.timeZone",
         "mostSpecificSubdivision.isoCode",
         "mostSpecificSubdivision.name",
+        "postal.code",
+        "postal.confidence",
+        "registeredCountry.inEuropeanUnion",
+        "registeredCountry.isoCode",
+        "registeredCountry.name",
         "traits.anonymous",
         "traits.anonymousVpn",
         "traits.autonomousSystemNumber",
@@ -241,21 +250,17 @@ public class MaxMindSupportTests extends ESTestCase {
         "traits.userType"
     );
     private static final Set<String> ENTERPRISE_UNSUPPORTED_FIELDS = Set.of(
-        "city.confidence",
         "city.geoNameId",
         "city.names",
         "continent.geoNameId",
         "continent.names",
-        "country.confidence",
         "country.geoNameId",
-        "country.inEuropeanUnion",
         "country.names",
         "leastSpecificSubdivision.confidence",
         "leastSpecificSubdivision.geoNameId",
         "leastSpecificSubdivision.isoCode",
         "leastSpecificSubdivision.name",
         "leastSpecificSubdivision.names",
-        "location.accuracyRadius",
         "location.averageIncome",
         "location.metroCode",
         "location.populationDensity",
@@ -263,13 +268,8 @@ public class MaxMindSupportTests extends ESTestCase {
         "mostSpecificSubdivision.confidence",
         "mostSpecificSubdivision.geoNameId",
         "mostSpecificSubdivision.names",
-        "postal.code",
-        "postal.confidence",
         "registeredCountry.confidence",
         "registeredCountry.geoNameId",
-        "registeredCountry.inEuropeanUnion",
-        "registeredCountry.isoCode",
-        "registeredCountry.name",
         "registeredCountry.names",
         "representedCountry.confidence",
         "representedCountry.geoNameId",
@@ -361,7 +361,12 @@ public class MaxMindSupportTests extends ESTestCase {
 
     private static final Set<Class<? extends AbstractResponse>> KNOWN_UNSUPPORTED_RESPONSE_CLASSES = Set.of(IpRiskResponse.class);
 
-    private static final Set<Database> KNOWN_UNSUPPORTED_DATABASE_VARIANTS = Set.of(Database.AsnV2);
+    private static final Set<Database> KNOWN_UNSUPPORTED_DATABASE_VARIANTS = Set.of(
+        Database.AsnV2,
+        Database.CityV2,
+        Database.CountryV2,
+        Database.PrivacyDetection
+    );
 
     public void testMaxMindSupport() {
         for (Database databaseType : Database.values()) {

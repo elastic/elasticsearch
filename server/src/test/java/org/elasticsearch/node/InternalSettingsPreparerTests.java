@@ -96,11 +96,7 @@ public class InternalSettingsPreparerTests extends ESTestCase {
             );
             fail("Expected SettingsException");
         } catch (SettingsException e) {
-            assertEquals(
-                "Failed to replace property place holders from 'elasticsearch.yml' "
-                    + "caused by: Could not resolve placeholder 'ES_CLUSTER_NAME'",
-                e.getMessage()
-            );
+            assertEquals("Failed to replace property placeholders from [elasticsearch.yml]", e.getMessage());
         }
     }
 

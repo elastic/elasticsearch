@@ -120,9 +120,13 @@ public class FileSettingsService extends MasterNodeFileWatchingService implement
         processFileChanges(false);
     }
 
+    /**
+     * Read settings and pass them to {@link ReservedClusterStateService} for application.
+     * Settings will be reprocessed even if the cluster-state version equals that in the settings file.
+     */
     @Override
-    protected void processInitialFileFound() throws IOException, ExecutionException, InterruptedException {
-        logger.info("re-processing path [{}] for [{}] on service start", watchedFile(), NAMESPACE);
+    protected void processFileOnServiceStart() throws IOException, ExecutionException, InterruptedException {
+        logger.info("processing path [{}] for [{}] on service start", watchedFile(), NAMESPACE);
         processFileChanges(true);
     }
 

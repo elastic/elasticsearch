@@ -118,6 +118,15 @@ public class ReservedClusterStateService {
         }
     }
 
+    /**
+     * Saves and reserves a chunk of the cluster state under a given 'namespace' from {@link XContentParser}
+     *
+     * @param namespace the namespace under which we'll store the reserved keys in the cluster state metadata
+     * @param parser the XContentParser to process
+     * @param allowSameVersion whether processing should also run if the metadata version matches the file version
+     * @param errorListener a consumer called with {@link IllegalStateException} if the content has errors and the
+     *        cluster state cannot be correctly applied, null if successful or state couldn't be applied because of incompatible version.
+     */
     public void process(String namespace, XContentParser parser, boolean allowSameVersion, Consumer<Exception> errorListener) {
         ReservedStateChunk stateChunk;
 
@@ -135,18 +144,6 @@ public class ReservedClusterStateService {
         }
 
         process(namespace, stateChunk, allowSameVersion, errorListener);
-    }
-
-    /**
-     * Saves and reserves a chunk of the cluster state under a given 'namespace' from {@link XContentParser}
-     *
-     * @param namespace the namespace under which we'll store the reserved keys in the cluster state metadata
-     * @param parser the XContentParser to process
-     * @param errorListener a consumer called with {@link IllegalStateException} if the content has errors and the
-     *        cluster state cannot be correctly applied, null if successful or state couldn't be applied because of incompatible version.
-     */
-    public void process(String namespace, XContentParser parser, Consumer<Exception> errorListener) {
-        process(namespace, parser, false, errorListener);
     }
 
     public void initEmpty(String namespace, ActionListener<ActionResponse.Empty> listener) {

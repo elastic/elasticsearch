@@ -54,6 +54,7 @@ import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
@@ -150,7 +151,7 @@ public class FileSettingsServiceTests extends ESTestCase {
         doAnswer((Answer<Void>) invocation -> {
             ((Consumer<Exception>) invocation.getArgument(2)).accept(new IllegalStateException("Some exception"));
             return null;
-        }).when(controller).process(any(), any(XContentParser.class), any());
+        }).when(controller).process(any(), any(XContentParser.class), eq(false), any());
 
         AtomicBoolean settingsChanged = new AtomicBoolean(false);
         CountDownLatch latch = new CountDownLatch(1);
@@ -163,7 +164,7 @@ public class FileSettingsServiceTests extends ESTestCase {
             } finally {
                 latch.countDown();
             }
-        }).when(fileSettingsService).processInitialFileFound();
+        }).when(fileSettingsService).processFileOnServiceStart();
 
         Files.createDirectories(fileSettingsService.watchedFileDir());
         // contents of the JSON don't matter, we just need a file to exist
@@ -175,7 +176,7 @@ public class FileSettingsServiceTests extends ESTestCase {
         // wait until the watcher thread has started, and it has discovered the file
         assertTrue(latch.await(20, TimeUnit.SECONDS));
 
-        verify(fileSettingsService, times(1)).processInitialFileFound();
+        verify(fileSettingsService, times(1)).processFileOnServiceStart();
         // assert we never notified any listeners of successful application of file based settings
         assertFalse(settingsChanged.get());
     }
@@ -186,7 +187,7 @@ public class FileSettingsServiceTests extends ESTestCase {
         doAnswer((Answer<Void>) invocation -> {
             ((Consumer<Exception>) invocation.getArgument(2)).accept(null);
             return null;
-        }).when(controller).process(any(), any(XContentParser.class), any());
+        }).when(controller).process(any(), any(XContentParser.class), eq(true), any());
 
         CountDownLatch latch = new CountDownLatch(1);
 
@@ -202,7 +203,7 @@ public class FileSettingsServiceTests extends ESTestCase {
             } finally {
                 latch.countDown();
             }
-        }).when(fileSettingsService).processInitialFileFound();
+        }).when(fileSettingsService).processFileOnServiceStart();
 
         fileSettingsService.start();
         fileSettingsService.clusterChanged(new ClusterChangedEvent("test", clusterService.state(), ClusterState.EMPTY_STATE));
@@ -210,7 +211,8 @@ public class FileSettingsServiceTests extends ESTestCase {
         // wait for listener to be called
         assertTrue(latch.await(20, TimeUnit.SECONDS));
 
-        verify(fileSettingsService, times(1)).processInitialFileFound();
+        verify(fileSettingsService, times(1)).processFileOnServiceStart();
+        verify(controller, times(1)).process(any(), any(XContentParser.class), eq(true), any());
     }
 
     @SuppressWarnings("unchecked")

@@ -1,0 +1,33 @@
+[[multi-region-two-datacenter-architecture]]
+== Time Series HA Architecture: Multi-Region With Two Datacenters
+
+=== Overview
+
+This article outlines the architecture for deploying Elasticsearch to handle 22 terabytes of Application Performance Monitoring (APM) data per day. The architecture includes the necessary components of Elasticsearch and placeholders for machine sizes, including heap, CPU, RAM, and storage. This architecture assumes 2 days of hot data, 5 days of warm data, 7 days of cold data, and X days of frozen data.
+
+=== Use Case
+
+This architecture is intended for organizations that need to: 
+Monitor the performance and health of their applications in real-time
+Provide insights and alerts to ensure optimal performance and quick issue resolution.
+Additional reasons…
+
+=== Architecture
+
+image::images/multi-region-two-datacenter.png["A multi-region time-series architecture across two datacenters"]
+
+=== Important Considerations
+
+The following list are important conderations for this architecture:
+
+* Shard Management: Maintain shard sizes within recommended ranges and aim for an optimal number of shards per node to prevent * oversharding. For more information see, Size your shards.
+* Cold nodes can be converted to frozen potentially depending on retention requirements and performance
+* Cost: Plan for the costs associated with storing large volumes of data, including the use of SSDs for Hot tiers.
+* For Warm tiers preferred hardware profile? I am assuming dense storage but not positive
+
+=== Resources and references
+
+* <<shard-size-best-practices,Size your shards>>Size your shards
+* https://www.elastic.co/guide/en/elasticsearch/reference/current/index.html[Elasticsearch Documentation]
+* https://www.elastic.co/guide/en/kibana/reference/current/index.html[Kibana Documentation]
+* https://www.elastic.co/guide/en/observability/current/apm.html[Application Performance monitoring (APM)]

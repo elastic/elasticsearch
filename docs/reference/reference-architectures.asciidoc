@@ -8,7 +8,7 @@ This section provides a series of reference architectures.
 [discrete]
 [[reference-architectures-general]]
 === General
-* <<single-cluster-architecture,Single cluster Architecture>>
+* <<multi-region-two-datacenter-architecture,Time Series HA Architecture: Multi-Region With Two Datacenters>>
 --
 
-include::reference-architectures/single-cluster-architecture.asciidoc[]
+include::reference-architectures/multi-region-two-datacenter-architecture.asciidoc[]

@@ -49,6 +49,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.elasticsearch.TransportVersions.FAILURE_STORE_AUTH;
 import static org.elasticsearch.common.xcontent.XContentHelper.createParserNotCompressed;
 
 /**
@@ -909,6 +910,8 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
         String[] grantedFields = null;
         String[] deniedFields = null;
         boolean allowRestrictedIndices = false;
+        boolean dataSelector = IndicesPrivileges.DEFAULT_DATA_SELECTOR;
+        boolean failureSelector = IndicesPrivileges.DEFAULT_FAILURE_SELECTOR;
         String[] remoteClusters = null;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
@@ -946,6 +949,55 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
                         token
                     );
                 }
+            } else if (Fields.SELECTORS.match(currentFieldName, parser.getDeprecationHandler())) {
+                if (token == XContentParser.Token.START_OBJECT) {
+                    token = parser.nextToken();
+                    do {
+                        if (token == XContentParser.Token.FIELD_NAME) {
+                            currentFieldName = parser.currentName();
+                            token = parser.nextToken();
+                            if (Fields.DATA_SELECTOR.match(currentFieldName, parser.getDeprecationHandler())) {
+                                dataSelector = parser.booleanValue();
+                            } else if (Fields.FAILURE_SELECTOR.match(currentFieldName, parser.getDeprecationHandler())) {
+                                failureSelector = parser.booleanValue();
+                            } else {
+                                throw new ElasticsearchParseException(
+                                    "failed to parse indices privileges for role [{}]. "
+                                        + "\"{}\" only accepts options {} and {}, but got: {}",
+                                    roleName,
+                                    Fields.FIELD_PERMISSIONS,
+                                    Fields.DATA_SELECTOR,
+                                    Fields.FAILURE_SELECTOR,
+                                    parser.currentName()
+                                );
+                            }
+                        } else {
+                            if (token == XContentParser.Token.END_OBJECT) {
+                                throw new ElasticsearchParseException(
+                                    "failed to parse indices privileges for role [{}]. " + "\"{}\" must not be empty.",
+                                    roleName,
+                                    Fields.FIELD_PERMISSIONS
+                                );
+                            } else {
+                                throw new ElasticsearchParseException(
+                                    "failed to parse indices privileges for role [{}]. expected {} but " + "got {}.",
+                                    roleName,
+                                    XContentParser.Token.FIELD_NAME,
+                                    token
+                                );
+                            }
+                        }
+                    } while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT);
+                } else {
+                    throw new ElasticsearchParseException(
+                        "failed to parse indices privileges for role [{}]. expected {} but got {} in \"{}\".",
+                        roleName,
+                        XContentParser.Token.START_OBJECT,
+                        token,
+                        Fields.SELECTORS
+                    );
+                }
+
             } else if (Fields.QUERY.match(currentFieldName, parser.getDeprecationHandler())) {
                 if (token == XContentParser.Token.START_OBJECT) {
                     XContentBuilder builder = JsonXContent.contentBuilder();
@@ -1109,6 +1161,8 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
                 .deniedFields(deniedFields)
                 .query(query)
                 .allowRestrictedIndices(allowRestrictedIndices)
+                .dataStoreSelector(dataSelector)
+                .failureStoreSelector(failureSelector)
                 .build(),
             remoteClusters
         );
@@ -1324,6 +1378,9 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
 
         private static final IndicesPrivileges[] NONE = new IndicesPrivileges[0];
 
+        public static final boolean DEFAULT_DATA_SELECTOR = true;
+        public static final boolean DEFAULT_FAILURE_SELECTOR = false;
+
         private String[] indices;
         private String[] privileges;
         private String[] grantedFields = null;
@@ -1333,6 +1390,8 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
         // users. Setting this flag eliminates this special status, and any index name pattern in the permission will cover restricted
         // indices as well.
         private boolean allowRestrictedIndices = false;
+        private boolean dataSelector = DEFAULT_DATA_SELECTOR;
+        private boolean failureSelector = DEFAULT_FAILURE_SELECTOR;
 
         private IndicesPrivileges() {}
 
@@ -1343,6 +1402,10 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
             this.privileges = in.readStringArray();
             this.query = in.readOptionalBytesReference();
             this.allowRestrictedIndices = in.readBoolean();
+            if (in.getTransportVersion().onOrAfter(FAILURE_STORE_AUTH)) {
+                this.dataSelector = in.readBoolean();
+                this.failureSelector = in.readBoolean();
+            }
         }
 
         @Override
@@ -1353,6 +1416,10 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
             out.writeStringArray(privileges);
             out.writeOptionalBytesReference(query);
             out.writeBoolean(allowRestrictedIndices);
+            if (out.getTransportVersion().onOrAfter(FAILURE_STORE_AUTH)) {
+                out.writeBoolean(dataSelector);
+                out.writeBoolean(failureSelector);
+            }
         }
 
         public static Builder builder() {
@@ -1398,6 +1465,14 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
             return allowRestrictedIndices;
         }
 
+        public boolean dataSelector() {
+            return dataSelector;
+        }
+
+        public boolean failureSelector() {
+            return failureSelector;
+        }
+
         public boolean hasDeniedFields() {
             return deniedFields != null && deniedFields.length > 0;
         }
@@ -1419,6 +1494,8 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
             StringBuilder sb = new StringBuilder("IndicesPrivileges[");
             sb.append("indices=[").append(Strings.arrayToCommaDelimitedString(indices));
             sb.append("], allowRestrictedIndices=[").append(allowRestrictedIndices);
+            sb.append("], dataSelector=[").append(dataSelector);
+            sb.append("], failureSelector=[").append(failureSelector);
             sb.append("], privileges=[").append(Strings.arrayToCommaDelimitedString(privileges));
             sb.append("], ");
             if (grantedFields != null || deniedFields != null) {
@@ -1460,6 +1537,8 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
             if (Arrays.equals(privileges, that.privileges) == false) return false;
             if (Arrays.equals(grantedFields, that.grantedFields) == false) return false;
             if (Arrays.equals(deniedFields, that.deniedFields) == false) return false;
+            if (dataSelector != that.dataSelector) return false;
+            if (failureSelector != that.failureSelector) return false;
             return Objects.equals(query, that.query);
         }
 
@@ -1470,6 +1549,8 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
             result = 31 * result + Arrays.hashCode(privileges);
             result = 31 * result + Arrays.hashCode(grantedFields);
             result = 31 * result + Arrays.hashCode(deniedFields);
+            result = 31 * result + (dataSelector ? 1 : 0);
+            result = 31 * result + (failureSelector ? 1 : 0);
             result = 31 * result + (query != null ? query.hashCode() : 0);
             return result;
         }
@@ -1496,6 +1577,16 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
                 }
                 builder.endObject();
             }
+            if (dataSelector != DEFAULT_DATA_SELECTOR || failureSelector != DEFAULT_FAILURE_SELECTOR) {
+                builder.startObject(RoleDescriptor.Fields.SELECTORS.getPreferredName());
+                if (dataSelector != DEFAULT_DATA_SELECTOR) {
+                    builder.field(Fields.DATA_SELECTOR.getPreferredName(), dataSelector);
+                }
+                if (failureSelector != DEFAULT_FAILURE_SELECTOR) {
+                    builder.field(Fields.FAILURE_SELECTOR.getPreferredName(), failureSelector);
+                }
+                builder.endObject();
+            }
             if (query != null) {
                 builder.field("query", query.utf8ToString());
             }
@@ -1512,6 +1603,14 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
                 return 0;
             }
             int cmp = Boolean.compare(allowRestrictedIndices, o.allowRestrictedIndices);
+            if (cmp != 0) {
+                return cmp;
+            }
+            cmp = Boolean.compare(dataSelector, o.dataSelector);
+            if (cmp != 0) {
+                return cmp;
+            }
+            cmp = Boolean.compare(failureSelector, o.failureSelector);
             if (cmp != 0) {
                 return cmp;
             }
@@ -1575,6 +1674,16 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
 
             public Builder allowRestrictedIndices(boolean allow) {
                 indicesPrivileges.allowRestrictedIndices = allow;
+                return this;
+            }
+
+            public Builder dataStoreSelector(boolean selector) {
+                indicesPrivileges.dataSelector = selector;
+                return this;
+            }
+
+            public Builder failureStoreSelector(boolean selector) {
+                indicesPrivileges.failureSelector = selector;
                 return this;
             }
 
@@ -1877,6 +1986,9 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
         ParseField GRANT_FIELDS = new ParseField("grant");
         ParseField EXCEPT_FIELDS = new ParseField("except");
         ParseField METADATA = new ParseField("metadata");
+        ParseField SELECTORS = new ParseField("selectors");
+        ParseField DATA_SELECTOR = new ParseField("data");
+        ParseField FAILURE_SELECTOR = new ParseField("failure");
 
         ParseField METADATA_FLATTENED = new ParseField("metadata_flattened");
         ParseField TRANSIENT_METADATA = new ParseField("transient_metadata");

@@ -97,7 +97,82 @@ public class LogsIndexModeCustomSettingsIT extends LogsIndexModeRestTestIT {
         assertThat(type, equalTo("date"));
     }
 
-    public void testConfigureStoredSource() throws IOException {
+    public void testConfigureStoredSourceBeforeIndexCreation() throws IOException {
+        var storedSourceMapping = """
+            {
+              "template": {
+                "settings": {
+                  "index": {
+                    "mode": "logsdb"
+                  }
+                },
+                "mappings": {
+                  "_source": {
+                    "mode": "stored"
+                  }
+                }
+              }
+            }""";
+
+        assertOK(putComponentTemplate(client, "logs@custom", storedSourceMapping));
+        assertOK(createDataStream(client, "logs-custom-dev"));
+
+        var mapping = getMapping(client, getDataStreamBackingIndex(client, "logs-custom-dev", 0));
+        String sourceMode = (String) subObject("_source").apply(mapping).get("mode");
+        assertThat(sourceMode, equalTo("stored"));
+    }
+
+    public void testConfigureDisabledSourceBeforeIndexCreation() {
+        var storedSourceMapping = """
+            {
+              "template": {
+                "settings": {
+                  "index": {
+                    "mode": "logsdb"
+                  }
+                },
+                "mappings": {
+                  "_source": {
+                    "enabled": false
+                  }
+                }
+              }
+            }""";
+
+        Exception e = assertThrows(ResponseException.class, () -> putComponentTemplate(client, "logs@custom", storedSourceMapping));
+        assertThat(
+            e.getMessage(),
+            containsString("Failed to parse mapping: _source can not be disabled in index using [logsdb] index mode")
+        );
+        assertThat(e.getMessage(), containsString("mapper_parsing_exception"));
+    }
+
+    public void testConfigureDisabledSourceModeBeforeIndexCreation() {
+        var storedSourceMapping = """
+            {
+              "template": {
+                "settings": {
+                  "index": {
+                    "mode": "logsdb"
+                  }
+                },
+                "mappings": {
+                  "_source": {
+                    "mode": "disabled"
+                  }
+                }
+              }
+            }""";
+
+        Exception e = assertThrows(ResponseException.class, () -> putComponentTemplate(client, "logs@custom", storedSourceMapping));
+        assertThat(
+            e.getMessage(),
+            containsString("Failed to parse mapping: _source can not be disabled in index using [logsdb] index mode")
+        );
+        assertThat(e.getMessage(), containsString("mapper_parsing_exception"));
+    }
+
+    public void testConfigureStoredSourceWhenIndexIsCreated() throws IOException {
         var storedSourceMapping = """
             {
               "template": {
@@ -109,18 +184,46 @@ public class LogsIndexModeCustomSettingsIT extends LogsIndexModeRestTestIT {
               }
             }""";
 
-        Exception e = assertThrows(ResponseException.class, () -> putComponentTemplate(client, "logs@custom", storedSourceMapping));
-        assertThat(
-            e.getMessage(),
-            containsString("updating component template [logs@custom] results in invalid composable template [logs]")
-        );
-        assertThat(e.getMessage(), containsString("Indices with with index mode [logsdb] only support synthetic source"));
-
+        assertOK(putComponentTemplate(client, "logs@custom", storedSourceMapping));
         assertOK(createDataStream(client, "logs-custom-dev"));
 
         var mapping = getMapping(client, getDataStreamBackingIndex(client, "logs-custom-dev", 0));
         String sourceMode = (String) subObject("_source").apply(mapping).get("mode");
-        assertThat(sourceMode, equalTo("synthetic"));
+        assertThat(sourceMode, equalTo("stored"));
+    }
+
+    public void testConfigureDisabledSourceWhenIndexIsCreated() throws IOException {
+        var disabledModeMapping = """
+            {
+              "template": {
+                "mappings": {
+                  "_source": {
+                    "enabled": false
+                  }
+                }
+              }
+            }""";
+
+        assertOK(putComponentTemplate(client, "logs@custom", disabledModeMapping));
+        ResponseException e = expectThrows(ResponseException.class, () -> createDataStream(client, "logs-custom-dev"));
+        assertThat(e.getMessage(), containsString("_source can not be disabled in index using [logsdb] index mode"));
+    }
+
+    public void testConfigureDisabledSourceModeWhenIndexIsCreated() throws IOException {
+        var disabledModeMapping = """
+            {
+              "template": {
+                "mappings": {
+                  "_source": {
+                    "mode": "disabled"
+                  }
+                }
+              }
+            }""";
+
+        assertOK(putComponentTemplate(client, "logs@custom", disabledModeMapping));
+        ResponseException e = expectThrows(ResponseException.class, () -> createDataStream(client, "logs-custom-dev"));
+        assertThat(e.getMessage(), containsString("_source can not be disabled in index using [logsdb] index mode"));
     }
 
     public void testOverrideIndexCodec() throws IOException {

@@ -32,6 +32,7 @@ import static org.elasticsearch.xpack.esql.stats.FeatureMetric.SORT;
 import static org.elasticsearch.xpack.esql.stats.FeatureMetric.STATS;
 import static org.elasticsearch.xpack.esql.stats.FeatureMetric.WHERE;
 import static org.elasticsearch.xpack.esql.stats.Metrics.FPREFIX;
+import static org.elasticsearch.xpack.esql.stats.Metrics.FUNC_PREFIX;
 
 public class VerifierMetricsTests extends ESTestCase {
 
@@ -54,6 +55,8 @@ public class VerifierMetricsTests extends ESTestCase {
         assertEquals(0, drop(c));
         assertEquals(0, keep(c));
         assertEquals(0, rename(c));
+
+        assertEquals(1, function("CONCAT", c));
     }
 
     public void testEvalQuery() {
@@ -73,6 +76,8 @@ public class VerifierMetricsTests extends ESTestCase {
         assertEquals(0, drop(c));
         assertEquals(0, keep(c));
         assertEquals(0, rename(c));
+
+        assertEquals(1, function("LENGTH", c));
     }
 
     public void testGrokQuery() {
@@ -92,6 +97,8 @@ public class VerifierMetricsTests extends ESTestCase {
         assertEquals(0, drop(c));
         assertEquals(0, keep(c));
         assertEquals(0, rename(c));
+
+        assertEquals(1, function("CONCAT", c));
     }
 
     public void testLimitQuery() {
@@ -149,6 +156,8 @@ public class VerifierMetricsTests extends ESTestCase {
         assertEquals(0, drop(c));
         assertEquals(0, keep(c));
         assertEquals(0, rename(c));
+
+        assertEquals(1, function("MAX", c));
     }
 
     public void testWhereQuery() {
@@ -187,6 +196,9 @@ public class VerifierMetricsTests extends ESTestCase {
         assertEquals(0, drop(c));
         assertEquals(0, keep(c));
         assertEquals(0, rename(c));
+
+        assertEquals(1, function("EQUALS", c));
+        assertEquals(1, function("GREATERTHAN", c));
     }
 
     public void testTwoQueriesExecuted() {
@@ -226,6 +238,11 @@ public class VerifierMetricsTests extends ESTestCase {
         assertEquals(0, drop(c));
         assertEquals(0, keep(c));
         assertEquals(0, rename(c));
+
+        assertEquals(1, function("CONCAT", c));
+        assertEquals(1, function("MAX", c));
+        assertEquals(1, function("MIN", c));
+        assertEquals(2, function("GREATERTHAN", c));
     }
 
     public void testEnrich() {
@@ -251,6 +268,8 @@ public class VerifierMetricsTests extends ESTestCase {
         assertEquals(0, drop(c));
         assertEquals(1L, keep(c));
         assertEquals(0, rename(c));
+
+        assertEquals(1, function("TOSTRING", c));
     }
 
     public void testMvExpand() {
@@ -279,6 +298,9 @@ public class VerifierMetricsTests extends ESTestCase {
         assertEquals(0, drop(c));
         assertEquals(1L, keep(c));
         assertEquals(0, rename(c));
+
+        assertEquals(1, function("WILDCARDLIKE", c));
+        assertEquals(1, function("EQUALS", c));
     }
 
     public void testShowInfo() {
@@ -298,6 +320,8 @@ public class VerifierMetricsTests extends ESTestCase {
         assertEquals(0, drop(c));
         assertEquals(0, keep(c));
         assertEquals(0, rename(c));
+
+        assertEquals(1, function("COUNT", c));
     }
 
     public void testRow() {
@@ -317,6 +341,8 @@ public class VerifierMetricsTests extends ESTestCase {
         assertEquals(0, drop(c));
         assertEquals(0, keep(c));
         assertEquals(0, rename(c));
+
+        assertNullFunction("EQUALS", c);
     }
 
     public void testDropAndRename() {
@@ -336,6 +362,8 @@ public class VerifierMetricsTests extends ESTestCase {
         assertEquals(1L, drop(c));
         assertEquals(0, keep(c));
         assertEquals(1L, rename(c));
+
+        assertEquals(1, function("COUNT", c));
     }
 
     public void testKeep() {
@@ -360,6 +388,10 @@ public class VerifierMetricsTests extends ESTestCase {
         assertEquals(0, drop(c));
         assertEquals(1L, keep(c));
         assertEquals(0, rename(c));
+
+        assertEquals(1, function("IN", c));
+        assertEquals(1, function("ISNULL", c));
+        assertEquals(1, function("LESSTHANOREQUAL", c));
     }
 
     private long dissect(Counters c) {
@@ -420,6 +452,19 @@ public class VerifierMetricsTests extends ESTestCase {
 
     private long rename(Counters c) {
         return c.get(FPREFIX + RENAME);
+    }
+
+    private long function(String function, Counters c) {
+        return c.get(FUNC_PREFIX + function);
+    }
+
+    private void assertNullFunction(String function, Counters c) {
+        try {
+            c.get(FUNC_PREFIX + function);
+            fail();
+        } catch (NullPointerException npe) {
+
+        }
     }
 
     private Counters esql(String esql) {

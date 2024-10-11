@@ -12,6 +12,7 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.xpack.core.watcher.common.stats.Counters;
 
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
@@ -36,8 +37,10 @@ public class Metrics {
     private final Map<QueryMetric, Map<OperationType, CounterMetric>> opsByTypeMetrics;
     // map that holds one counter per esql query "feature" (eval, sort, limit, where....)
     private final Map<FeatureMetric, CounterMetric> featuresMetrics;
+    private final Map<String, CounterMetric> functionMetrics;
     protected static String QPREFIX = "queries.";
     protected static String FPREFIX = "features.";
+    protected static String FUNC_PREFIX = "functions.";
 
     public Metrics() {
         Map<QueryMetric, Map<OperationType, CounterMetric>> qMap = new LinkedHashMap<>();
@@ -56,6 +59,9 @@ public class Metrics {
             fMap.put(featureMetric, new CounterMetric());
         }
         featuresMetrics = Collections.unmodifiableMap(fMap);
+
+        // we could pre-populate this map using FunctionRegistry
+        functionMetrics = Collections.synchronizedMap(new HashMap<>());
     }
 
     /**
@@ -81,6 +87,10 @@ public class Metrics {
         this.featuresMetrics.get(metric).inc();
     }
 
+    public void incFunctionMetric(String functionName) {
+        functionMetrics.computeIfAbsent(functionName, c -> new CounterMetric()).inc();
+    }
+
     public Counters stats() {
         Counters counters = new Counters();
 
@@ -100,6 +110,11 @@ public class Metrics {
         // features metrics
         for (Entry<FeatureMetric, CounterMetric> entry : featuresMetrics.entrySet()) {
             counters.inc(FPREFIX + entry.getKey().toString(), entry.getValue().count());
+        }
+
+        // function metrics
+        for (Entry<String, CounterMetric> entry : functionMetrics.entrySet()) {
+            counters.inc(FUNC_PREFIX + entry.getKey(), entry.getValue().count());
         }
 
         return counters;

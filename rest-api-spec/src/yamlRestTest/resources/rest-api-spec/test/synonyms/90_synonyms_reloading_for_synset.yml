@@ -26,6 +26,14 @@
             - synonyms: "bye => goodbye"
               id: "synonym-rule-2"
 
+  # This is to ensure that all index shards (write and read) are available. In serverless this can take some time.
+  - do:
+      cluster.health:
+        index: .synonyms-2
+        level: shards
+        timeout: 10s
+        wait_for_status: green
+
   # Create my_index1 with synonym_filter that uses synonyms_set1
   - do:
       indices.create:

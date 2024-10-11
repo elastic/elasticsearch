@@ -183,7 +183,7 @@ public abstract class AbstractFileWatchingService extends AbstractLifecycleCompo
             Path path = watchedFile();
 
             if (Files.exists(path)) {
-                logger.debug("processing operator settings file [{}] on service start", path);
+                logger.debug("found initial operator settings file [{}], applying...", path);
                 processSettingsOnServiceStartAndNotifyListeners();
             } else {
                 processInitialFileMissing();

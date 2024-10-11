@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.codec.tsdb;
@@ -20,17 +21,10 @@ public class DocValuesForUtil {
     private static final int BITS_IN_FIVE_BYTES = 5 * Byte.SIZE;
     private static final int BITS_IN_SIX_BYTES = 6 * Byte.SIZE;
     private static final int BITS_IN_SEVEN_BYTES = 7 * Byte.SIZE;
-    private final int blockSize;
-    private final byte[] encoded;
+    private static final int blockSize = ES87TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE;
+    private final byte[] encoded = new byte[1024];
 
-    public DocValuesForUtil() {
-        this(ES87TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE);
-    }
-
-    private DocValuesForUtil(int blockSize) {
-        this.blockSize = blockSize;
-        this.encoded = new byte[1024];
-    }
+    public DocValuesForUtil() {}
 
     public static int roundBits(int bitsPerValue) {
         if (bitsPerValue > 24 && bitsPerValue <= 32) {
@@ -73,7 +67,7 @@ public class DocValuesForUtil {
         out.writeBytes(this.encoded, bytesPerValue * in.length);
     }
 
-    public void decode(int bitsPerValue, final DataInput in, long[] out) throws IOException {
+    public static void decode(int bitsPerValue, final DataInput in, long[] out) throws IOException {
         if (bitsPerValue <= 24) {
             ForUtil.decode(bitsPerValue, in, out);
         } else if (bitsPerValue <= 32) {
@@ -87,7 +81,7 @@ public class DocValuesForUtil {
         }
     }
 
-    private void decodeFiveSixOrSevenBytesPerValue(int bitsPerValue, final DataInput in, long[] out) throws IOException {
+    private static void decodeFiveSixOrSevenBytesPerValue(int bitsPerValue, final DataInput in, long[] out) throws IOException {
         // NOTE: we expect multibyte values to be written "least significant byte" first
         int bytesPerValue = bitsPerValue / Byte.SIZE;
         long mask = (1L << bitsPerValue) - 1;

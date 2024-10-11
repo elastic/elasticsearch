@@ -14,12 +14,14 @@ composed_of:
 - apm-10d@lifecycle
 - logs-apm@settings
 - logs-apm.error@mappings
+- logs-apm.error-fallback@ilm
 - logs@custom
 - logs-apm.error@custom
 - ecs@mappings
 ignore_missing_component_templates:
 - logs@custom
 - logs-apm.error@custom
+- logs-apm.error-fallback@ilm
 template:
   mappings:
     properties:

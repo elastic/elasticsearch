@@ -39,6 +39,7 @@ import org.elasticsearch.xpack.core.ml.action.GetDatafeedsStatsAction;
 import org.elasticsearch.xpack.core.ml.action.GetJobsStatsAction;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsStatsAction;
+import org.elasticsearch.xpack.core.ml.action.MlMemoryAction;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedState;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsState;
@@ -65,6 +66,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.TreeMap;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -72,16 +74,20 @@ import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 
 public class MachineLearningUsageTransportAction extends XPackUsageFeatureTransportAction {
 
-    private static class ModelStats {
+    private static class DeploymentStats {
 
         private final String modelId;
         private final String taskType;
         private final StatsAccumulator inferenceCounts = new StatsAccumulator();
         private Instant lastAccess;
+        private final int numThreads;
+        private final int numAllocations;
 
-        ModelStats(String modelId, String taskType) {
+        DeploymentStats(String modelId, String taskType, int numThreads, int numAllocations) {
             this.modelId = modelId;
             this.taskType = taskType;
+            this.numThreads = numThreads;
+            this.numAllocations = numAllocations;
         }
 
         void update(AssignmentStats.NodeStats stats) {
@@ -95,6 +101,8 @@ public class MachineLearningUsageTransportAction extends XPackUsageFeatureTransp
             Map<String, Object> result = new HashMap<>();
             result.put("model_id", modelId);
             result.put("task_type", taskType);
+            result.put("num_allocations", numAllocations);
+            result.put("num_threads", numThreads);
             result.put("inference_counts", inferenceCounts.asMap());
             if (lastAccess != null) {
                 result.put("last_access", lastAccess.toString());
@@ -158,6 +166,7 @@ public class MachineLearningUsageTransportAction extends XPackUsageFeatureTransp
                 Collections.emptyMap(),
                 Collections.emptyMap(),
                 Collections.emptyMap(),
+                Collections.emptyMap(),
                 0
             );
             listener.onResponse(new XPackUsageFeatureResponse(usage));
@@ -167,11 +176,14 @@ public class MachineLearningUsageTransportAction extends XPackUsageFeatureTransp
         Map<String, Object> jobsUsage = new LinkedHashMap<>();
         Map<String, Object> datafeedsUsage = new LinkedHashMap<>();
         Map<String, Object> analyticsUsage = new LinkedHashMap<>();
+        AtomicReference<Map<String, Object>> inferenceUsage = new AtomicReference<>(Map.of());
+
         int nodeCount = mlNodeCount(state);
 
-        // Step 5. return final ML usage
-        ActionListener<Map<String, Object>> inferenceUsageListener = ActionListener.wrap(
-            inferenceUsage -> listener.onResponse(
+        // Step 6. return final ML usage
+        ActionListener<MlMemoryAction.Response> memoryUsageListener = ActionListener.wrap(memoryResponse -> {
+            var memoryUsage = extractMemoryUsage(memoryResponse);
+            listener.onResponse(
                 new XPackUsageFeatureResponse(
                     new MachineLearningFeatureSetUsage(
                         MachineLearningField.ML_API_FEATURE.checkWithoutTracking(licenseState),
@@ -179,28 +191,38 @@ public class MachineLearningUsageTransportAction extends XPackUsageFeatureTransp
                         jobsUsage,
                         datafeedsUsage,
                         analyticsUsage,
-                        inferenceUsage,
+                        inferenceUsage.get(),
+                        memoryUsage,
                         nodeCount
                     )
                 )
-            ),
-            e -> {
-                logger.warn("Failed to get inference usage to include in ML usage", e);
-                listener.onResponse(
-                    new XPackUsageFeatureResponse(
-                        new MachineLearningFeatureSetUsage(
-                            MachineLearningField.ML_API_FEATURE.checkWithoutTracking(licenseState),
-                            enabled,
-                            jobsUsage,
-                            datafeedsUsage,
-                            analyticsUsage,
-                            Collections.emptyMap(),
-                            nodeCount
-                        )
+            );
+        }, e -> {
+            logger.warn("Failed to get memory usage to include in ML usage", e);
+            listener.onResponse(
+                new XPackUsageFeatureResponse(
+                    new MachineLearningFeatureSetUsage(
+                        MachineLearningField.ML_API_FEATURE.checkWithoutTracking(licenseState),
+                        enabled,
+                        jobsUsage,
+                        datafeedsUsage,
+                        analyticsUsage,
+                        inferenceUsage.get(),
+                        Collections.emptyMap(),
+                        nodeCount
                     )
-                );
-            }
-        );
+                )
+            );
+        });
+
+        // Step 5. Get
+        ActionListener<Map<String, Object>> inferenceUsageListener = ActionListener.wrap(inference -> {
+            inferenceUsage.set(inference);
+            client.execute(MlMemoryAction.INSTANCE, new MlMemoryAction.Request("_all"), memoryUsageListener);
+        }, e -> {
+            logger.warn("Failed to get inference usage to include in ML usage", e);
+            client.execute(MlMemoryAction.INSTANCE, new MlMemoryAction.Request("_all"), memoryUsageListener);
+        });
 
         // Step 4. Extract usage from data frame analytics configs and then get inference usage
         ActionListener<GetDataFrameAnalyticsAction.Response> dataframeAnalyticsListener = ActionListener.wrap(response -> {
@@ -464,7 +486,7 @@ public class MachineLearningUsageTransportAction extends XPackUsageFeatureTransp
         int deploymentsCount = 0;
         double avgTimeSum = 0.0;
         StatsAccumulator nodeDistribution = new StatsAccumulator();
-        Map<String, ModelStats> statsByModel = new TreeMap<>();
+        Map<String, DeploymentStats> statsByModel = new TreeMap<>();
         for (var stats : statsResponse.getResources().results()) {
             AssignmentStats deploymentStats = stats.getDeploymentStats();
             if (deploymentStats == null) {
@@ -478,7 +500,15 @@ public class MachineLearningUsageTransportAction extends XPackUsageFeatureTransp
             String modelId = deploymentStats.getModelId();
             String taskType = taskTypes.get(deploymentStats.getModelId());
             String mapKey = modelId + ":" + taskType;
-            ModelStats modelStats = statsByModel.computeIfAbsent(mapKey, key -> new ModelStats(modelId, taskType));
+            DeploymentStats modelStats = statsByModel.computeIfAbsent(
+                mapKey,
+                key -> new DeploymentStats(
+                    modelId,
+                    taskType,
+                    deploymentStats.getThreadsPerAllocation(),
+                    deploymentStats.getNumberOfAllocations()
+                )
+            );
             for (var nodeStats : deploymentStats.getNodeStats()) {
                 long nodeInferenceCount = nodeStats.getInferenceCount().orElse(0L);
                 avgTimeSum += nodeStats.getAvgInferenceTime().orElse(0.0) * nodeInferenceCount;
@@ -499,7 +529,7 @@ public class MachineLearningUsageTransportAction extends XPackUsageFeatureTransp
                 "inference_counts",
                 nodeDistribution.asMap(),
                 "stats_by_model",
-                statsByModel.values().stream().map(ModelStats::asMap).collect(Collectors.toList())
+                statsByModel.values().stream().map(DeploymentStats::asMap).collect(Collectors.toList())
             )
         );
     }
@@ -588,6 +618,21 @@ public class MachineLearningUsageTransportAction extends XPackUsageFeatureTransp
         ingestUsage.put("time_ms", getMinMaxSumAsLongsFromStats(timeStats));
         ingestUsage.put("num_failures", getMinMaxSumAsLongsFromStats(failureStats));
         inferenceUsage.put("ingest_processors", Collections.singletonMap(MachineLearningFeatureSetUsage.ALL, ingestUsage));
+    }
+
+    private static Map<String, Object> extractMemoryUsage(MlMemoryAction.Response memoryResponse) {
+        var adMem = memoryResponse.getNodes().stream().mapToLong(mem -> mem.getMlAnomalyDetectors().getBytes()).sum();
+        var dfaMem = memoryResponse.getNodes().stream().mapToLong(mem -> mem.getMlDataFrameAnalytics().getBytes()).sum();
+        var pytorchMem = memoryResponse.getNodes().stream().mapToLong(mem -> mem.getMlNativeInference().getBytes()).sum();
+        var nativeOverheadMem = memoryResponse.getNodes().stream().mapToLong(mem -> mem.getMlNativeCodeOverhead().getBytes()).sum();
+        long totalUsedMem = adMem + dfaMem + pytorchMem + nativeOverheadMem;
+
+        var memoryUsage = new LinkedHashMap<String, Object>();
+        memoryUsage.put("anomaly_detectors_memory_bytes", adMem);
+        memoryUsage.put("data_frame_analytics_memory_bytes", dfaMem);
+        memoryUsage.put("pytorch_inference_memory_bytes", pytorchMem);
+        memoryUsage.put("total_used_memory_bytes", totalUsedMem);
+        return memoryUsage;
     }
 
     private static Map<String, Object> getMinMaxSumAsLongsFromStats(StatsAccumulator stats) {

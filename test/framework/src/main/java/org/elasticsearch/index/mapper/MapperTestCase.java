@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
@@ -55,6 +56,7 @@ import org.elasticsearch.search.lookup.SourceProvider;
 import org.elasticsearch.test.ListMatcher;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.hamcrest.Matcher;
 
@@ -1068,6 +1070,14 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             inputValue.accept(b);
         }
 
+        private void buildInputArray(XContentBuilder b, int elementCount) throws IOException {
+            b.startArray("field");
+            for (int i = 0; i < elementCount; i++) {
+                inputValue.accept(b);
+            }
+            b.endArray();
+        }
+
         private String expected() throws IOException {
             XContentBuilder b = JsonXContent.contentBuilder().startObject().field("field");
             expectedForSyntheticSource.accept(b);
@@ -1517,6 +1527,61 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             syntheticSourceExample.buildInput(b);
             b.endObject();
         }), equalTo("{\"obj\":" + syntheticSourceExample.expected() + "}"));
+    }
+
+    protected SyntheticSourceSupport syntheticSourceSupportForKeepTests(boolean ignoreMalformed) {
+        return syntheticSourceSupport(ignoreMalformed);
+    }
+
+    public void testSyntheticSourceKeepNone() throws IOException {
+        SyntheticSourceExample example = syntheticSourceSupportForKeepTests(shouldUseIgnoreMalformed()).example(1);
+        DocumentMapper mapper = createDocumentMapper(syntheticSourceMapping(b -> {
+            b.startObject("field");
+            b.field("synthetic_source_keep", "none");
+            example.mapping().accept(b);
+            b.endObject();
+        }));
+        assertThat(syntheticSource(mapper, example::buildInput), equalTo(example.expected()));
+    }
+
+    public void testSyntheticSourceKeepAll() throws IOException {
+        SyntheticSourceExample example = syntheticSourceSupportForKeepTests(shouldUseIgnoreMalformed()).example(1);
+        DocumentMapper mapperAll = createDocumentMapper(syntheticSourceMapping(b -> {
+            b.startObject("field");
+            b.field("synthetic_source_keep", "all");
+            example.mapping().accept(b);
+            b.endObject();
+        }));
+
+        var builder = XContentFactory.jsonBuilder();
+        builder.startObject();
+        example.buildInput(builder);
+        builder.endObject();
+        String expected = Strings.toString(builder);
+        assertThat(syntheticSource(mapperAll, example::buildInput), equalTo(expected));
+    }
+
+    public void testSyntheticSourceKeepArrays() throws IOException {
+        SyntheticSourceExample example = syntheticSourceSupportForKeepTests(shouldUseIgnoreMalformed()).example(1);
+        DocumentMapper mapperAll = createDocumentMapper(syntheticSourceMapping(b -> {
+            b.startObject("field");
+            b.field("synthetic_source_keep", randomFrom("arrays", "all"));  // Both options keep array source.
+            example.mapping().accept(b);
+            b.endObject();
+        }));
+
+        int elementCount = randomIntBetween(2, 5);
+        CheckedConsumer<XContentBuilder, IOException> buildInput = (XContentBuilder builder) -> {
+            example.buildInputArray(builder, elementCount);
+        };
+
+        var builder = XContentFactory.jsonBuilder();
+        builder.startObject();
+        buildInput.accept(builder);
+        builder.endObject();
+        String expected = Strings.toString(builder);
+        String actual = syntheticSource(mapperAll, buildInput);
+        assertThat(actual, equalTo(expected));
     }
 
     @Override

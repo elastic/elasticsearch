@@ -26,7 +26,7 @@ import static org.hamcrest.Matchers.sameInstance;
 public class CohereCompletionRequestTests extends ESTestCase {
 
     public void testCreateRequest_UrlDefined() throws IOException {
-        var request = new CohereCompletionRequest(List.of("abc"), CohereCompletionModelTests.createModel("url", "secret", null));
+        var request = new CohereCompletionRequest(List.of("abc"), CohereCompletionModelTests.createModel("url", "secret", null), false);
 
         var httpRequest = request.createHttpRequest();
         assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
@@ -43,7 +43,7 @@ public class CohereCompletionRequestTests extends ESTestCase {
     }
 
     public void testCreateRequest_ModelDefined() throws IOException {
-        var request = new CohereCompletionRequest(List.of("abc"), CohereCompletionModelTests.createModel("url", "secret", "model"));
+        var request = new CohereCompletionRequest(List.of("abc"), CohereCompletionModelTests.createModel("url", "secret", "model"), false);
 
         var httpRequest = request.createHttpRequest();
         assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
@@ -60,14 +60,14 @@ public class CohereCompletionRequestTests extends ESTestCase {
     }
 
     public void testTruncate_ReturnsSameInstance() {
-        var request = new CohereCompletionRequest(List.of("abc"), CohereCompletionModelTests.createModel("url", "secret", "model"));
+        var request = new CohereCompletionRequest(List.of("abc"), CohereCompletionModelTests.createModel("url", "secret", "model"), false);
         var truncatedRequest = request.truncate();
 
         assertThat(truncatedRequest, sameInstance(request));
     }
 
     public void testTruncationInfo_ReturnsNull() {
-        var request = new CohereCompletionRequest(List.of("abc"), CohereCompletionModelTests.createModel("url", "secret", "model"));
+        var request = new CohereCompletionRequest(List.of("abc"), CohereCompletionModelTests.createModel("url", "secret", "model"), false);
 
         assertNull(request.getTruncationInfo());
     }

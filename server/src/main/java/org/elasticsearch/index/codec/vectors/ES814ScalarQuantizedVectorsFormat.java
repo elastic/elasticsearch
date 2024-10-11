@@ -1,14 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.codec.vectors;
 
-import org.apache.lucene.codecs.KnnFieldVectorsWriter;
 import org.apache.lucene.codecs.hnsw.DefaultFlatVectorScorer;
 import org.apache.lucene.codecs.hnsw.FlatFieldVectorsWriter;
 import org.apache.lucene.codecs.hnsw.FlatVectorsFormat;
@@ -49,6 +49,10 @@ public class ES814ScalarQuantizedVectorsFormat extends FlatVectorsFormat {
 
     private static final FlatVectorsFormat rawVectorFormat = new Lucene99FlatVectorsFormat(DefaultFlatVectorScorer.INSTANCE);
 
+    static final FlatVectorsScorer flatVectorScorer = new ESFlatVectorsScorer(
+        new ScalarQuantizedVectorScorer(DefaultFlatVectorScorer.INSTANCE)
+    );
+
     /** The minimum confidence interval */
     private static final float MINIMUM_CONFIDENCE_INTERVAL = 0.9f;
 
@@ -60,12 +64,12 @@ public class ES814ScalarQuantizedVectorsFormat extends FlatVectorsFormat {
      * calculated as `1-1/(vector_dimensions + 1)`
      */
     public final Float confidenceInterval;
-    final FlatVectorsScorer flatVectorScorer;
 
     private final byte bits;
     private final boolean compress;
 
     public ES814ScalarQuantizedVectorsFormat(Float confidenceInterval, int bits, boolean compress) {
+        super(NAME);
         if (confidenceInterval != null
             && confidenceInterval != DYNAMIC_CONFIDENCE_INTERVAL
             && (confidenceInterval < MINIMUM_CONFIDENCE_INTERVAL || confidenceInterval > MAXIMUM_CONFIDENCE_INTERVAL)) {
@@ -82,7 +86,6 @@ public class ES814ScalarQuantizedVectorsFormat extends FlatVectorsFormat {
             throw new IllegalArgumentException("bits must be one of: 4, 7, 8; bits=" + bits);
         }
         this.confidenceInterval = confidenceInterval;
-        this.flatVectorScorer = new ESFlatVectorsScorer(new ScalarQuantizedVectorScorer(DefaultFlatVectorScorer.INSTANCE));
         this.bits = (byte) bits;
         this.compress = compress;
     }
@@ -136,8 +139,8 @@ public class ES814ScalarQuantizedVectorsFormat extends FlatVectorsFormat {
         }
 
         @Override
-        public FlatFieldVectorsWriter<?> addField(FieldInfo fieldInfo, KnnFieldVectorsWriter<?> knnFieldVectorsWriter) throws IOException {
-            return delegate.addField(fieldInfo, knnFieldVectorsWriter);
+        public FlatFieldVectorsWriter<?> addField(FieldInfo fieldInfo) throws IOException {
+            return delegate.addField(fieldInfo);
         }
 
         @Override

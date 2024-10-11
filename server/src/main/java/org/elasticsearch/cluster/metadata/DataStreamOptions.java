@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.metadata;
@@ -34,6 +35,9 @@ public record DataStreamOptions(@Nullable DataStreamFailureStore failureStore)
         ToXContentObject {
 
     public static final ParseField FAILURE_STORE_FIELD = new ParseField("failure_store");
+    public static final DataStreamOptions FAILURE_STORE_ENABLED = new DataStreamOptions(new DataStreamFailureStore(true));
+    public static final DataStreamOptions FAILURE_STORE_DISABLED = new DataStreamOptions(new DataStreamFailureStore(false));
+    public static final DataStreamOptions EMPTY = new DataStreamOptions();
 
     public static final ConstructingObjectParser<DataStreamOptions, Void> PARSER = new ConstructingObjectParser<>(
         "options",
@@ -58,13 +62,12 @@ public record DataStreamOptions(@Nullable DataStreamFailureStore failureStore)
         return new DataStreamOptions(in.readOptionalWriteable(DataStreamFailureStore::new));
     }
 
-    @Nullable
-    public DataStreamFailureStore getFailureStore() {
-        return failureStore;
-    }
-
     public static Diff<DataStreamOptions> readDiffFrom(StreamInput in) throws IOException {
         return SimpleDiffable.readDiffFrom(DataStreamOptions::read, in);
+    }
+
+    public boolean isEmpty() {
+        return this.equals(EMPTY);
     }
 
     @Override

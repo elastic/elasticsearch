@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.ingest.geoip;
@@ -30,6 +31,7 @@ import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.ingest.EnterpriseGeoIpTask.EnterpriseGeoIpTaskParams;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.ingest.Processor;
+import org.elasticsearch.ingest.geoip.direct.DatabaseConfiguration;
 import org.elasticsearch.ingest.geoip.direct.DeleteDatabaseConfigurationAction;
 import org.elasticsearch.ingest.geoip.direct.GetDatabaseConfigurationAction;
 import org.elasticsearch.ingest.geoip.direct.PutDatabaseConfigurationAction;
@@ -127,7 +129,7 @@ public class IngestGeoIpPlugin extends Plugin
             parameters.ingestService.getClusterService()
         );
         databaseRegistry.set(registry);
-        return Map.of(GeoIpProcessor.TYPE, new GeoIpProcessor.Factory(registry));
+        return Map.of(GeoIpProcessor.GEOIP_TYPE, new GeoIpProcessor.Factory(GeoIpProcessor.GEOIP_TYPE, registry));
     }
 
     @Override
@@ -160,7 +162,7 @@ public class IngestGeoIpPlugin extends Plugin
 
     @Override
     public void close() throws IOException {
-        databaseRegistry.get().close();
+        databaseRegistry.get().shutdown();
     }
 
     @Override
@@ -231,7 +233,22 @@ public class IngestGeoIpPlugin extends Plugin
             new NamedWriteableRegistry.Entry(PersistentTaskParams.class, GEOIP_DOWNLOADER, GeoIpTaskParams::new),
             new NamedWriteableRegistry.Entry(PersistentTaskState.class, ENTERPRISE_GEOIP_DOWNLOADER, EnterpriseGeoIpTaskState::new),
             new NamedWriteableRegistry.Entry(PersistentTaskParams.class, ENTERPRISE_GEOIP_DOWNLOADER, EnterpriseGeoIpTaskParams::new),
-            new NamedWriteableRegistry.Entry(Task.Status.class, GEOIP_DOWNLOADER, GeoIpDownloaderStats::new)
+            new NamedWriteableRegistry.Entry(Task.Status.class, GEOIP_DOWNLOADER, GeoIpDownloaderStats::new),
+            new NamedWriteableRegistry.Entry(
+                DatabaseConfiguration.Provider.class,
+                DatabaseConfiguration.Maxmind.NAME,
+                DatabaseConfiguration.Maxmind::new
+            ),
+            new NamedWriteableRegistry.Entry(
+                DatabaseConfiguration.Provider.class,
+                DatabaseConfiguration.Local.NAME,
+                DatabaseConfiguration.Local::new
+            ),
+            new NamedWriteableRegistry.Entry(
+                DatabaseConfiguration.Provider.class,
+                DatabaseConfiguration.Web.NAME,
+                DatabaseConfiguration.Web::new
+            )
         );
     }
 

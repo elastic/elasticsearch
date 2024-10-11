@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper.vectors;
@@ -174,7 +175,7 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
             ),
             fieldMapping(
                 b -> b.field("type", "dense_vector")
-                    .field("dims", dims)
+                    .field("dims", dims * 8)
                     .field("index", true)
                     .field("similarity", "l2_norm")
                     .field("element_type", "bit")
@@ -191,7 +192,7 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
             ),
             fieldMapping(
                 b -> b.field("type", "dense_vector")
-                    .field("dims", dims)
+                    .field("dims", dims * 8)
                     .field("index", true)
                     .field("similarity", "l2_norm")
                     .field("element_type", "bit")
@@ -890,9 +891,7 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
             })));
             assertThat(
                 e.getMessage(),
-                equalTo(
-                    "Failed to parse mapping: " + "The number of dimensions for field [field] should be in the range [1, 4096] but was [0]"
-                )
+                equalTo("Failed to parse mapping: " + "The number of dimensions should be in the range [1, 4096] but was [0]")
             );
         }
         // test max limit for non-indexed vectors
@@ -903,10 +902,7 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
             })));
             assertThat(
                 e.getMessage(),
-                equalTo(
-                    "Failed to parse mapping: "
-                        + "The number of dimensions for field [field] should be in the range [1, 4096] but was [5000]"
-                )
+                equalTo("Failed to parse mapping: " + "The number of dimensions should be in the range [1, 4096] but was [5000]")
             );
         }
         // test max limit for indexed vectors
@@ -918,10 +914,7 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
             })));
             assertThat(
                 e.getMessage(),
-                equalTo(
-                    "Failed to parse mapping: "
-                        + "The number of dimensions for field [field] should be in the range [1, 4096] but was [5000]"
-                )
+                equalTo("Failed to parse mapping: " + "The number of dimensions should be in the range [1, 4096] but was [5000]")
             );
         }
     }
@@ -952,6 +945,14 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
             XContentHelper.convertToMap(BytesReference.bytes(mapping), false, mapping.contentType()).v2(),
             XContentHelper.convertToMap(mapperService.documentMapper().mappingSource().uncompressed(), false, mapping.contentType()).v2()
         );
+    }
+
+    public void testLargeDimsBit() throws IOException {
+        createMapperService(fieldMapping(b -> {
+            b.field("type", "dense_vector");
+            b.field("dims", 1024 * Byte.SIZE);
+            b.field("element_type", ElementType.BIT.toString());
+        }));
     }
 
     public void testDefaults() throws Exception {
@@ -2058,5 +2059,10 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
         public List<SyntheticSourceInvalidExample> invalidExample() {
             return List.of();
         }
+    }
+
+    @Override
+    public void testSyntheticSourceKeepArrays() {
+        // The mapper expects to parse an array of values by default, it's not compatible with array of arrays.
     }
 }

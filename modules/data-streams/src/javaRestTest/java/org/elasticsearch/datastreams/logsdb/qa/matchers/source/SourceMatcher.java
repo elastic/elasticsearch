@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.datastreams.logsdb.qa.matchers.source;
@@ -179,7 +180,9 @@ public class SourceMatcher extends GenericEqualsMatcher<List<Map<String, Object>
 
     // Checks for scenarios when source is stored exactly and therefore can be compared without special logic.
     private boolean sourceMatchesExactly(MappingTransforms.FieldMapping mapping, List<Object> expectedValues) {
-        return mapping.parentMappingParameters().stream().anyMatch(m -> m.getOrDefault("enabled", "true").equals("false"));
+        return mapping.parentMappingParameters().stream().anyMatch(m -> m.getOrDefault("enabled", "true").equals("false"))
+            || mapping.mappingParameters().getOrDefault("synthetic_source_keep", "none").equals("all")
+            || expectedValues.size() > 1 && mapping.mappingParameters().getOrDefault("synthetic_source_keep", "none").equals("arrays");
     }
 
     private MatchResult matchWithGenericMatcher(List<Object> actualValues, List<Object> expectedValues) {

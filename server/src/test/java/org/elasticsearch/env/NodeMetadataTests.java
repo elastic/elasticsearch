@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.env;
 
@@ -79,7 +80,7 @@ public class NodeMetadataTests extends ESTestCase {
         );
     }
 
-    @UpdateForV9
+    @UpdateForV9(owner = UpdateForV9.Owner.CORE_INFRA)
     @AwaitsFix(bugUrl = "as mentioned in the comment below, the behavior here is changing for 9.0 so this test needs updating")
     public void testReadsFormatWithoutVersion() throws IOException {
         // the behaviour tested here is only appropriate if the current version is compatible with versions 7 and earlier
@@ -154,7 +155,7 @@ public class NodeMetadataTests extends ESTestCase {
         );
     }
 
-    @UpdateForV9
+    @UpdateForV9(owner = UpdateForV9.Owner.CORE_INFRA)
     @AwaitsFix(bugUrl = "Needs to be updated for 9.0 version bump")
     public void testUpgradeMarksPreviousVersion() {
         final String nodeId = randomAlphaOfLength(10);

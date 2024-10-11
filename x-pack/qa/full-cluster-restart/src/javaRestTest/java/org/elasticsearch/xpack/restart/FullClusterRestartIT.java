@@ -26,6 +26,7 @@ import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.search.RestSearchAction;
+import org.elasticsearch.test.MapMatcher;
 import org.elasticsearch.test.StreamsUtils;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.RestTestLegacyFeatures;
@@ -294,7 +295,7 @@ public class FullClusterRestartIT extends AbstractXpackFullClusterRestartTestCas
     }
 
     public void testServiceAccountApiKey() throws IOException {
-        @UpdateForV9
+        @UpdateForV9(owner = UpdateForV9.Owner.SECURITY)
         var originalClusterSupportsServiceAccounts = oldClusterHasFeature(RestTestLegacyFeatures.SERVICE_ACCOUNTS_SUPPORTED);
         assumeTrue("no service accounts in versions before 7.13", originalClusterSupportsServiceAccounts);
 
@@ -360,29 +361,10 @@ public class FullClusterRestartIT extends AbstractXpackFullClusterRestartTestCas
                         )
                     )
             );
-            if (clusterHasFeature(RestTestLegacyFeatures.SECURITY_ROLE_DESCRIPTORS_OPTIONAL)) {
-                createApiKeyRequest.setJsonEntity("""
-                    {
-                       "name": "super_legacy_key"
-                    }""");
-            } else {
-                createApiKeyRequest.setJsonEntity("""
-                    {
-                       "name": "super_legacy_key",
-                       "role_descriptors": {
-                         "super": {
-                           "cluster": [ "all" ],
-                           "indices": [
-                             {
-                               "names": [ "*" ],
-                               "privileges": [ "all" ],
-                               "allow_restricted_indices": true
-                             }
-                           ]
-                         }
-                       }
-                    }""");
-            }
+            createApiKeyRequest.setJsonEntity("""
+                {
+                   "name": "super_legacy_key"
+                }""");
             final Map<String, Object> createApiKeyResponse = entityAsMap(client().performRequest(createApiKeyRequest));
             final byte[] keyBytes = (createApiKeyResponse.get("id") + ":" + createApiKeyResponse.get("api_key")).getBytes(
                 StandardCharsets.UTF_8
@@ -392,20 +374,6 @@ public class FullClusterRestartIT extends AbstractXpackFullClusterRestartTestCas
             final Request saveApiKeyRequest = new Request("PUT", "/api_keys/_doc/super_legacy_key");
             saveApiKeyRequest.setJsonEntity("{\"auth_header\":\"" + apiKeyAuthHeader + "\"}");
             assertOK(client().performRequest(saveApiKeyRequest));
-
-            if (clusterHasFeature(RestTestLegacyFeatures.SYSTEM_INDICES_REST_ACCESS_ENFORCED) == false) {
-                final Request indexRequest = new Request("POST", ".security/_doc");
-                indexRequest.setJsonEntity("""
-                    {
-                      "doc_type": "foo"
-                    }""");
-                if (clusterHasFeature(RestTestLegacyFeatures.SYSTEM_INDICES_REST_ACCESS_DEPRECATED)) {
-                    indexRequest.setOptions(systemIndexWarningHandlerOptions(".security-7").addHeader("Authorization", apiKeyAuthHeader));
-                } else {
-                    indexRequest.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", apiKeyAuthHeader));
-                }
-                assertOK(client().performRequest(indexRequest));
-            }
         } else {
             final Request getRequest = new Request("GET", "/api_keys/_doc/super_legacy_key");
             final Map<String, Object> getResponseMap = responseAsMap(client().performRequest(getRequest));
@@ -471,15 +439,7 @@ public class FullClusterRestartIT extends AbstractXpackFullClusterRestartTestCas
 
             // create the rollup job
             final Request createRollupJobRequest = new Request("PUT", "/_rollup/job/rollup-job-test");
-
-            String intervalType;
-            if (clusterHasFeature(RestTestLegacyFeatures.SEARCH_AGGREGATIONS_FORCE_INTERVAL_SELECTION_DATE_HISTOGRAM)) {
-                intervalType = "fixed_interval";
-            } else {
-                intervalType = "interval";
-            }
-
-            createRollupJobRequest.setJsonEntity(Strings.format("""
+            createRollupJobRequest.setJsonEntity("""
                 {
                   "index_pattern": "rollup-*",
                   "rollup_index": "results-rollup",
@@ -488,7 +448,7 @@ public class FullClusterRestartIT extends AbstractXpackFullClusterRestartTestCas
                   "groups": {
                     "date_histogram": {
                       "field": "timestamp",
-                      "%s": "5m"
+                      "fixed_interval": "5m"
                     }
                   },
                   "metrics": [
@@ -497,7 +457,7 @@ public class FullClusterRestartIT extends AbstractXpackFullClusterRestartTestCas
                       "metrics": [ "min", "max", "sum" ]
                     }
                   ]
-                }""", intervalType));
+                }""");
 
             Map<String, Object> createRollupJobResponse = entityAsMap(client().performRequest(createRollupJobRequest));
             assertThat(createRollupJobResponse.get("acknowledged"), equalTo(Boolean.TRUE));
@@ -523,7 +483,7 @@ public class FullClusterRestartIT extends AbstractXpackFullClusterRestartTestCas
     }
 
     public void testTransformLegacyTemplateCleanup() throws Exception {
-        @UpdateForV9
+        @UpdateForV9(owner = UpdateForV9.Owner.MACHINE_LEARNING)
         var originalClusterSupportsTransform = oldClusterHasFeature(RestTestLegacyFeatures.TRANSFORM_SUPPORTED);
         assumeTrue("Before 7.2 transforms didn't exist", originalClusterSupportsTransform);
 
@@ -549,11 +509,7 @@ public class FullClusterRestartIT extends AbstractXpackFullClusterRestartTestCas
             assertThat(createIndexResponse.get("acknowledged"), equalTo(Boolean.TRUE));
 
             // create a transform
-            String endpoint = clusterHasFeature(RestTestLegacyFeatures.TRANSFORM_NEW_API_ENDPOINT)
-                ? "_transform/transform-full-cluster-restart-test"
-                : "_data_frame/transforms/transform-full-cluster-restart-test";
-            final Request createTransformRequest = new Request("PUT", endpoint);
-
+            final Request createTransformRequest = new Request("PUT", "_transform/transform-full-cluster-restart-test");
             createTransformRequest.setJsonEntity("""
                 {
                   "source": {
@@ -605,7 +561,7 @@ public class FullClusterRestartIT extends AbstractXpackFullClusterRestartTestCas
     }
 
     public void testSlmPolicyAndStats() throws IOException {
-        @UpdateForV9
+        @UpdateForV9(owner = UpdateForV9.Owner.DATA_MANAGEMENT)
         var originalClusterSupportsSlm = oldClusterHasFeature(RestTestLegacyFeatures.SLM_SUPPORTED);
 
         SnapshotLifecyclePolicy slmPolicy = new SnapshotLifecyclePolicy(
@@ -958,10 +914,10 @@ public class FullClusterRestartIT extends AbstractXpackFullClusterRestartTestCas
     @SuppressWarnings("unchecked")
     public void testDataStreams() throws Exception {
 
-        @UpdateForV9
+        @UpdateForV9(owner = UpdateForV9.Owner.DATA_MANAGEMENT)
         var originalClusterSupportsDataStreams = oldClusterHasFeature(RestTestLegacyFeatures.DATA_STREAMS_SUPPORTED);
 
-        @UpdateForV9
+        @UpdateForV9(owner = UpdateForV9.Owner.DATA_MANAGEMENT)
         var originalClusterDataStreamHasDateInIndexName = oldClusterHasFeature(RestTestLegacyFeatures.NEW_DATA_STREAMS_INDEX_NAME_FORMAT);
 
         assumeTrue("no data streams in versions before 7.9.0", originalClusterSupportsDataStreams);
@@ -1011,7 +967,7 @@ public class FullClusterRestartIT extends AbstractXpackFullClusterRestartTestCas
     /**
      * Tests that a single document survives. Super basic smoke test.
      */
-    @UpdateForV9 // Can be removed
+    @UpdateForV9(owner = UpdateForV9.Owner.SEARCH_FOUNDATIONS) // Can be removed
     public void testDisableFieldNameField() throws IOException {
         assumeFalse(
             "can only disable field names field before 8.0",
@@ -1062,9 +1018,14 @@ public class FullClusterRestartIT extends AbstractXpackFullClusterRestartTestCas
                 }""");
             // {"columns":[{"name":"dv","type":"keyword"},{"name":"no_dv","type":"keyword"}],"values":[["test",null]]}
             try {
+                Map<String, Object> result = entityAsMap(client().performRequest(esql));
+                MapMatcher mapMatcher = matchesMap();
+                if (result.get("took") != null) {
+                    mapMatcher = mapMatcher.entry("took", ((Integer) result.get("took")).intValue());
+                }
                 assertMap(
-                    entityAsMap(client().performRequest(esql)),
-                    matchesMap().entry(
+                    result,
+                    mapMatcher.entry(
                         "columns",
                         List.of(Map.of("name", "dv", "type", "keyword"), Map.of("name", "no_dv", "type", "keyword"))
                     ).entry("values", List.of(List.of("test", "test")))

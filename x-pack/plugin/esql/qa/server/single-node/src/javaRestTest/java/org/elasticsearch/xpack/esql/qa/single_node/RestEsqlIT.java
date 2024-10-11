@@ -44,6 +44,7 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.startsWith;
@@ -78,10 +79,12 @@ public class RestEsqlIT extends RestEsqlTestCase {
             builder.pragmas(Settings.builder().put("data_partitioning", "shard").build());
         }
         Map<String, Object> result = runEsql(builder);
-        assertEquals(2, result.size());
+        assertEquals(3, result.size());
         Map<String, String> colA = Map.of("name", "avg(value)", "type", "double");
         assertEquals(List.of(colA), result.get("columns"));
         assertEquals(List.of(List.of(499.5d)), result.get("values"));
+        assertTrue(result.containsKey("took"));
+        assertThat(((Number) result.get("took")).longValue(), greaterThanOrEqualTo(0L));
     }
 
     public void testInvalidPragma() throws IOException {
@@ -114,7 +117,8 @@ public class RestEsqlIT extends RestEsqlTestCase {
             setLoggingLevel("INFO");
             RequestObjectBuilder builder = requestObjectBuilder().query("ROW DO_NOT_LOG_ME = 1");
             Map<String, Object> result = runEsql(builder);
-            assertEquals(2, result.size());
+            assertEquals(3, result.size());
+            assertThat(((Integer) result.get("took")).intValue(), greaterThanOrEqualTo(0));
             Map<String, String> colA = Map.of("name", "DO_NOT_LOG_ME", "type", "integer");
             assertEquals(List.of(colA), result.get("columns"));
             assertEquals(List.of(List.of(1)), result.get("values"));
@@ -133,7 +137,8 @@ public class RestEsqlIT extends RestEsqlTestCase {
             setLoggingLevel("DEBUG");
             RequestObjectBuilder builder = requestObjectBuilder().query("ROW DO_LOG_ME = 1");
             Map<String, Object> result = runEsql(builder);
-            assertEquals(2, result.size());
+            assertEquals(3, result.size());
+            assertThat(((Integer) result.get("took")).intValue(), greaterThanOrEqualTo(0));
             Map<String, String> colA = Map.of("name", "DO_LOG_ME", "type", "integer");
             assertEquals(List.of(colA), result.get("columns"));
             assertEquals(List.of(List.of(1)), result.get("values"));
@@ -283,11 +288,13 @@ public class RestEsqlIT extends RestEsqlTestCase {
             builder.pragmas(Settings.builder().put("data_partitioning", "shard").build());
         }
         Map<String, Object> result = runEsql(builder);
+        MapMatcher mapMatcher = matchesMap();
         assertMap(
             result,
-            matchesMap().entry("columns", matchesList().item(matchesMap().entry("name", "AVG(value)").entry("type", "double")))
+            mapMatcher.entry("columns", matchesList().item(matchesMap().entry("name", "AVG(value)").entry("type", "double")))
                 .entry("values", List.of(List.of(499.5d)))
                 .entry("profile", matchesMap().entry("drivers", instanceOf(List.class)))
+                .entry("took", greaterThanOrEqualTo(0))
         );
 
         List<List<String>> signatures = new ArrayList<>();
@@ -323,6 +330,35 @@ public class RestEsqlIT extends RestEsqlTestCase {
         );
     }
 
+    public void testProfileOrdinalsGroupingOperator() throws IOException {
+        indexTimestampData(1);
+
+        RequestObjectBuilder builder = requestObjectBuilder().query(fromIndex() + " | STATS AVG(value) BY test.keyword");
+        builder.profile(true);
+        if (Build.current().isSnapshot()) {
+            // Lock to shard level partitioning, so we get consistent profile output
+            builder.pragmas(Settings.builder().put("data_partitioning", "shard").build());
+        }
+        Map<String, Object> result = runEsql(builder);
+
+        List<List<String>> signatures = new ArrayList<>();
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> profiles = (List<Map<String, Object>>) ((Map<String, Object>) result.get("profile")).get("drivers");
+        for (Map<String, Object> p : profiles) {
+            fixTypesOnProfile(p);
+            assertThat(p, commonProfile());
+            List<String> sig = new ArrayList<>();
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> operators = (List<Map<String, Object>>) p.get("operators");
+            for (Map<String, Object> o : operators) {
+                sig.add((String) o.get("operator"));
+            }
+            signatures.add(sig);
+        }
+
+        assertThat(signatures.get(0).get(2), equalTo("OrdinalsGroupingOperator[aggregators=[\"sum of longs\", \"count\"]]"));
+    }
+
     public void testInlineStatsProfile() throws IOException {
         assumeTrue("INLINESTATS only available on snapshots", Build.current().isSnapshot());
         indexTimestampData(1);
@@ -333,21 +369,26 @@ public class RestEsqlIT extends RestEsqlTestCase {
             // Lock to shard level partitioning, so we get consistent profile output
             builder.pragmas(Settings.builder().put("data_partitioning", "shard").build());
         }
+
         Map<String, Object> result = runEsql(builder);
+        MapMatcher mapMatcher = matchesMap();
         ListMatcher values = matchesList();
         for (int i = 0; i < 1000; i++) {
             values = values.item(matchesList().item("2020-12-12T00:00:00.000Z").item("value" + i).item("value" + i).item(i).item(499.5));
         }
         assertMap(
             result,
-            matchesMap().entry(
+            mapMatcher.entry(
                 "columns",
                 matchesList().item(matchesMap().entry("name", "@timestamp").entry("type", "date"))
                     .item(matchesMap().entry("name", "test").entry("type", "text"))
                     .item(matchesMap().entry("name", "test.keyword").entry("type", "keyword"))
                     .item(matchesMap().entry("name", "value").entry("type", "long"))
                     .item(matchesMap().entry("name", "AVG(value)").entry("type", "double"))
-            ).entry("values", values).entry("profile", matchesMap().entry("drivers", instanceOf(List.class)))
+            )
+                .entry("values", values)
+                .entry("profile", matchesMap().entry("drivers", instanceOf(List.class)))
+                .entry("took", greaterThanOrEqualTo(0))
         );
 
         List<List<String>> signatures = new ArrayList<>();
@@ -382,10 +423,8 @@ public class RestEsqlIT extends RestEsqlTestCase {
                     .item("ProjectOperator")
                     .item("OutputOperator"),
                 // Second pass read and join via eval
-                matchesList().item("LuceneSourceOperator")
+                matchesList().item("LuceneTopNSourceOperator")
                     .item("EvalOperator")
-                    .item("ValuesSourceReaderOperator")
-                    .item("TopNOperator")
                     .item("ValuesSourceReaderOperator")
                     .item("ProjectOperator")
                     .item("ExchangeSinkOperator"),
@@ -443,16 +482,20 @@ public class RestEsqlIT extends RestEsqlTestCase {
         for (int group2 = 0; group2 < 10; group2++) {
             expectedValues.add(List.of(1.0, 1, 1, 0, group2));
         }
+        MapMatcher mapMatcher = matchesMap();
         assertMap(
             result,
-            matchesMap().entry(
+            mapMatcher.entry(
                 "columns",
                 matchesList().item(matchesMap().entry("name", "AVG(value)").entry("type", "double"))
                     .item(matchesMap().entry("name", "MAX(value)").entry("type", "long"))
                     .item(matchesMap().entry("name", "MIN(value)").entry("type", "long"))
                     .item(matchesMap().entry("name", "group1").entry("type", "long"))
                     .item(matchesMap().entry("name", "group2").entry("type", "long"))
-            ).entry("values", expectedValues).entry("profile", matchesMap().entry("drivers", instanceOf(List.class)))
+            )
+                .entry("values", expectedValues)
+                .entry("profile", matchesMap().entry("drivers", instanceOf(List.class)))
+                .entry("took", greaterThanOrEqualTo(0))
         );
 
         @SuppressWarnings("unchecked")
@@ -533,7 +576,9 @@ public class RestEsqlIT extends RestEsqlTestCase {
                 .entry("processing_nanos", greaterThan(0))
                 .entry("processed_queries", List.of("*:*"));
             case "ValuesSourceReaderOperator" -> basicProfile().entry("readers_built", matchesMap().extraOk());
-            case "AggregationOperator" -> matchesMap().entry("pages_processed", greaterThan(0)).entry("aggregation_nanos", greaterThan(0));
+            case "AggregationOperator" -> matchesMap().entry("pages_processed", greaterThan(0))
+                .entry("aggregation_nanos", greaterThan(0))
+                .entry("aggregation_finish_nanos", greaterThan(0));
             case "ExchangeSinkOperator" -> matchesMap().entry("pages_accepted", greaterThan(0));
             case "ExchangeSourceOperator" -> matchesMap().entry("pages_emitted", greaterThan(0)).entry("pages_waiting", 0);
             case "ProjectOperator", "EvalOperator" -> basicProfile();
@@ -544,6 +589,16 @@ public class RestEsqlIT extends RestEsqlTestCase {
             case "TopNOperator" -> matchesMap().entry("occupied_rows", 0)
                 .entry("ram_used", instanceOf(String.class))
                 .entry("ram_bytes_used", greaterThan(0));
+            case "LuceneTopNSourceOperator" -> matchesMap().entry("pages_emitted", greaterThan(0))
+                .entry("current", greaterThan(0))
+                .entry("processed_slices", greaterThan(0))
+                .entry("processed_shards", List.of("rest-esql-test:0"))
+                .entry("total_slices", greaterThan(0))
+                .entry("slice_max", 0)
+                .entry("slice_min", 0)
+                .entry("processing_nanos", greaterThan(0))
+                .entry("processed_queries", List.of("*:*"))
+                .entry("slice_index", 0);
             default -> throw new AssertionError("unexpected status: " + o);
         };
         MapMatcher expectedOp = matchesMap().entry("operator", startsWith(name));

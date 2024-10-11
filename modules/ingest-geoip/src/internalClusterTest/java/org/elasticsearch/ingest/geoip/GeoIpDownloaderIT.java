@@ -1,14 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.ingest.geoip;
 
-import com.maxmind.geoip2.DatabaseReader;
+import com.maxmind.db.Reader;
 
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.action.ingest.SimulateDocumentBaseResult;
@@ -737,8 +738,8 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
 
     @SuppressForbidden(reason = "Maxmind API requires java.io.File")
     private void parseDatabase(Path tempFile) throws IOException {
-        try (DatabaseReader databaseReader = new DatabaseReader.Builder(tempFile.toFile()).build()) {
-            assertNotNull(databaseReader.getMetadata());
+        try (Reader reader = new Reader(tempFile.toFile())) {
+            assertNotNull(reader.getMetadata());
         }
     }
 

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.monitor.metrics;
@@ -31,7 +32,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 
-import static org.elasticsearch.index.IndexingPressure.MAX_INDEXING_BYTES;
+import static org.elasticsearch.index.IndexingPressure.MAX_COORDINATING_BYTES;
+import static org.elasticsearch.index.IndexingPressure.MAX_PRIMARY_BYTES;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -197,7 +199,7 @@ public class NodeIndexingMetricsIT extends ESIntegTestCase {
     public void testCoordinatingRejectionMetricsArePublishing() {
 
         // lower Indexing Pressure limits to trigger coordinating rejections
-        final String dataNode = internalCluster().startNode(Settings.builder().put(MAX_INDEXING_BYTES.getKey(), "1KB"));
+        final String dataNode = internalCluster().startNode(Settings.builder().put(MAX_COORDINATING_BYTES.getKey(), "1KB"));
         ensureStableCluster(1);
 
         final TestTelemetryPlugin plugin = internalCluster().getInstance(PluginsService.class, dataNode)
@@ -238,7 +240,7 @@ public class NodeIndexingMetricsIT extends ESIntegTestCase {
     public void testCoordinatingRejectionMetricsSpiking() throws Exception {
 
         // lower Indexing Pressure limits to trigger coordinating rejections
-        final String dataNode = internalCluster().startNode(Settings.builder().put(MAX_INDEXING_BYTES.getKey(), "1KB"));
+        final String dataNode = internalCluster().startNode(Settings.builder().put(MAX_COORDINATING_BYTES.getKey(), "1KB"));
         ensureStableCluster(1);
 
         final TestTelemetryPlugin plugin = internalCluster().getInstance(PluginsService.class, dataNode)
@@ -307,10 +309,10 @@ public class NodeIndexingMetricsIT extends ESIntegTestCase {
     public void testPrimaryDocumentRejectionMetricsArePublishing() {
 
         // setting low Indexing Pressure limits to trigger primary rejections
-        final String dataNode = internalCluster().startNode(Settings.builder().put(MAX_INDEXING_BYTES.getKey(), "2KB").build());
+        final String dataNode = internalCluster().startNode(Settings.builder().put(MAX_PRIMARY_BYTES.getKey(), "2KB").build());
         // setting high Indexing Pressure limits to pass coordinating checks
         final String coordinatingNode = internalCluster().startCoordinatingOnlyNode(
-            Settings.builder().put(MAX_INDEXING_BYTES.getKey(), "10MB").build()
+            Settings.builder().put(MAX_COORDINATING_BYTES.getKey(), "10MB").build()
         );
         ensureStableCluster(2);
 
@@ -374,10 +376,10 @@ public class NodeIndexingMetricsIT extends ESIntegTestCase {
     public void testPrimaryDocumentRejectionMetricsFluctuatingOverTime() throws Exception {
 
         // setting low Indexing Pressure limits to trigger primary rejections
-        final String dataNode = internalCluster().startNode(Settings.builder().put(MAX_INDEXING_BYTES.getKey(), "4KB").build());
+        final String dataNode = internalCluster().startNode(Settings.builder().put(MAX_PRIMARY_BYTES.getKey(), "4KB").build());
         // setting high Indexing Pressure limits to pass coordinating checks
         final String coordinatingNode = internalCluster().startCoordinatingOnlyNode(
-            Settings.builder().put(MAX_INDEXING_BYTES.getKey(), "100MB").build()
+            Settings.builder().put(MAX_COORDINATING_BYTES.getKey(), "100MB").build()
         );
         ensureStableCluster(2);
 

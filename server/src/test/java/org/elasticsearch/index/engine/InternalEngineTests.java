@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.engine;
@@ -54,7 +55,7 @@ import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortedSetSortField;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
-import org.apache.lucene.search.TotalHitCountCollector;
+import org.apache.lucene.search.TotalHitCountCollectorManager;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.Lock;
@@ -639,9 +640,8 @@ public class InternalEngineTests extends EngineTestCase {
             recoverFromTranslog(recoveringEngine, translogHandler, Long.MAX_VALUE);
             recoveringEngine.refresh("test");
             try (Engine.Searcher searcher = recoveringEngine.acquireSearcher("test")) {
-                final TotalHitCountCollector collector = new TotalHitCountCollector();
-                searcher.search(new MatchAllDocsQuery(), collector);
-                assertThat(collector.getTotalHits(), equalTo(operations.get(operations.size() - 1) instanceof Engine.Delete ? 0 : 1));
+                Integer totalHits = searcher.search(new MatchAllDocsQuery(), new TotalHitCountCollectorManager());
+                assertThat(totalHits, equalTo(operations.get(operations.size() - 1) instanceof Engine.Delete ? 0 : 1));
             }
         }
     }
@@ -2008,16 +2008,20 @@ public class InternalEngineTests extends EngineTestCase {
 
         if (lastFieldValueDoc1 != null) {
             try (Engine.Searcher searcher = engine.acquireSearcher("test")) {
-                final TotalHitCountCollector collector = new TotalHitCountCollector();
-                searcher.search(new TermQuery(new Term("value", lastFieldValueDoc1)), collector);
-                assertThat(collector.getTotalHits(), equalTo(1));
+                Integer totalHits = searcher.search(
+                    new TermQuery(new Term("value", lastFieldValueDoc1)),
+                    new TotalHitCountCollectorManager()
+                );
+                assertThat(totalHits, equalTo(1));
             }
         }
         if (lastFieldValueDoc2 != null) {
             try (Engine.Searcher searcher = engine.acquireSearcher("test")) {
-                final TotalHitCountCollector collector = new TotalHitCountCollector();
-                searcher.search(new TermQuery(new Term("value", lastFieldValueDoc2)), collector);
-                assertThat(collector.getTotalHits(), equalTo(1));
+                Integer totalHits = searcher.search(
+                    new TermQuery(new Term("value", lastFieldValueDoc2)),
+                    new TotalHitCountCollectorManager()
+                );
+                assertThat(totalHits, equalTo(1));
             }
         }
 
@@ -2243,9 +2247,11 @@ public class InternalEngineTests extends EngineTestCase {
                 // first op and it failed.
                 if (docDeleted == false && lastFieldValue != null) {
                     try (Engine.Searcher searcher = engine.acquireSearcher("test")) {
-                        final TotalHitCountCollector collector = new TotalHitCountCollector();
-                        searcher.search(new TermQuery(new Term("value", lastFieldValue)), collector);
-                        assertThat(collector.getTotalHits(), equalTo(1));
+                        Integer totalHits = searcher.search(
+                            new TermQuery(new Term("value", lastFieldValue)),
+                            new TotalHitCountCollectorManager()
+                        );
+                        assertThat(totalHits, equalTo(1));
                     }
                 }
             }
@@ -2269,9 +2275,8 @@ public class InternalEngineTests extends EngineTestCase {
         assertVisibleCount(engine, docDeleted ? 0 : 1);
         if (docDeleted == false) {
             try (Engine.Searcher searcher = engine.acquireSearcher("test")) {
-                final TotalHitCountCollector collector = new TotalHitCountCollector();
-                searcher.search(new TermQuery(new Term("value", lastFieldValue)), collector);
-                assertThat(collector.getTotalHits(), equalTo(1));
+                Integer totalHits = searcher.search(new TermQuery(new Term("value", lastFieldValue)), new TotalHitCountCollectorManager());
+                assertThat(totalHits, equalTo(1));
             }
         }
         return opsPerformed;
@@ -2356,9 +2361,8 @@ public class InternalEngineTests extends EngineTestCase {
         if (docDeleted == false) {
             logger.info("searching for [{}]", lastFieldValue);
             try (Engine.Searcher searcher = engine.acquireSearcher("test")) {
-                final TotalHitCountCollector collector = new TotalHitCountCollector();
-                searcher.search(new TermQuery(new Term("value", lastFieldValue)), collector);
-                assertThat(collector.getTotalHits(), equalTo(1));
+                Integer totalHits = searcher.search(new TermQuery(new Term("value", lastFieldValue)), new TotalHitCountCollectorManager());
+                assertThat(totalHits, equalTo(1));
             }
         }
     }
@@ -2374,9 +2378,8 @@ public class InternalEngineTests extends EngineTestCase {
         final int opsOnPrimary = assertOpsOnPrimary(primaryOps, finalReplicaVersion, deletedOnReplica, replicaEngine);
         final long currentSeqNo = getSequenceID(replicaEngine, new Engine.Get(false, false, Term.toString(lastReplicaOp.uid()))).v1();
         try (Engine.Searcher searcher = engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL)) {
-            final TotalHitCountCollector collector = new TotalHitCountCollector();
-            searcher.search(new MatchAllDocsQuery(), collector);
-            if (collector.getTotalHits() > 0) {
+            Integer totalHits = searcher.search(new MatchAllDocsQuery(), new TotalHitCountCollectorManager());
+            if (totalHits > 0) {
                 // last op wasn't delete
                 assertThat(currentSeqNo, equalTo(finalReplicaSeqNo + opsOnPrimary));
             }
@@ -2399,9 +2402,8 @@ public class InternalEngineTests extends EngineTestCase {
         assertVisibleCount(engine, lastFieldValue == null ? 0 : 1);
         if (lastFieldValue != null) {
             try (Engine.Searcher searcher = engine.acquireSearcher("test")) {
-                final TotalHitCountCollector collector = new TotalHitCountCollector();
-                searcher.search(new TermQuery(new Term("value", lastFieldValue)), collector);
-                assertThat(collector.getTotalHits(), equalTo(1));
+                Integer totalHits = searcher.search(new TermQuery(new Term("value", lastFieldValue)), new TotalHitCountCollectorManager());
+                assertThat(totalHits, equalTo(1));
             }
         }
     }
@@ -3205,9 +3207,10 @@ public class InternalEngineTests extends EngineTestCase {
                     engine.syncTranslog(); // to advance persisted local checkpoint
                     assertEquals(engine.getProcessedLocalCheckpoint(), engine.getPersistedLocalCheckpoint());
                     globalCheckpoint.set(engine.getPersistedLocalCheckpoint());
-                    asInstanceOf(
+                    safeAwaitFailure(
                         IllegalStateException.class,
-                        safeAwaitFailure(Void.class, listener -> engine.recoverFromTranslog(translogHandler, Long.MAX_VALUE, listener))
+                        Void.class,
+                        listener -> engine.recoverFromTranslog(translogHandler, Long.MAX_VALUE, listener)
                     );
                     Map<String, String> userData = engine.getLastCommittedSegmentInfos().getUserData();
                     assertEquals(engine.getTranslog().getTranslogUUID(), userData.get(Translog.TRANSLOG_UUID_KEY));

@@ -55,5 +55,7 @@
   ],
   "examples" : [
     "ROW a=[3, 5, 1, 6]\n| EVAL avg_a = MV_AVG(a)"
-  ]
+  ],
+  "preview" : false,
+  "snapshot_only" : false
 }

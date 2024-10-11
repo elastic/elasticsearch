@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.packaging.test;
@@ -435,7 +436,10 @@ public class KeystoreManagementTests extends PackagingTestCase {
         switch (distribution.packaging) {
             case TAR, ZIP -> assertThat(keystore, file(File, ARCHIVE_OWNER, ARCHIVE_OWNER, p660));
             case DEB, RPM -> assertThat(keystore, file(File, "root", "elasticsearch", p660));
-            case DOCKER, DOCKER_UBI, DOCKER_IRON_BANK, DOCKER_CLOUD, DOCKER_CLOUD_ESS -> assertThat(keystore, DockerFileMatcher.file(p660));
+            case DOCKER, DOCKER_UBI, DOCKER_IRON_BANK, DOCKER_CLOUD, DOCKER_CLOUD_ESS, DOCKER_WOLFI, DOCKER_WOLFI_ESS -> assertThat(
+                keystore,
+                DockerFileMatcher.file(p660)
+            );
             default -> throw new IllegalStateException("Unknown Elasticsearch packaging type.");
         }
     }

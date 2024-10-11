@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.index.shard;
 
@@ -2168,16 +2169,14 @@ public class IndexShardTests extends IndexShardTestCase {
         final ShardRouting relocationRouting = ShardRoutingHelper.relocate(originalRouting, "other_node");
         IndexShardTestCase.updateRoutingEntry(shard, relocationRouting);
         IndexShardTestCase.updateRoutingEntry(shard, originalRouting);
-        asInstanceOf(
+        safeAwaitFailure(
             IllegalIndexShardStateException.class,
-            safeAwaitFailure(
-                Void.class,
-                listener -> shard.relocated(
-                    relocationRouting.relocatingNodeId(),
-                    relocationRouting.getTargetRelocatingShard().allocationId().getId(),
-                    (primaryContext, l) -> fail("should not be called"),
-                    listener
-                )
+            Void.class,
+            listener -> shard.relocated(
+                relocationRouting.relocatingNodeId(),
+                relocationRouting.getTargetRelocatingShard().allocationId().getId(),
+                (primaryContext, l) -> fail("should not be called"),
+                listener
             )
         );
         closeShards(shard);
@@ -2262,16 +2261,14 @@ public class IndexShardTests extends IndexShardTestCase {
 
         final AtomicBoolean relocated = new AtomicBoolean();
 
-        final IllegalIndexShardStateException wrongNodeException = asInstanceOf(
+        final IllegalIndexShardStateException wrongNodeException = safeAwaitFailure(
             IllegalIndexShardStateException.class,
-            safeAwaitFailure(
-                Void.class,
-                listener -> shard.relocated(
-                    wrongTargetNodeShardRouting.relocatingNodeId(),
-                    wrongTargetNodeShardRouting.getTargetRelocatingShard().allocationId().getId(),
-                    (ctx, l) -> relocated.set(true),
-                    listener
-                )
+            Void.class,
+            listener -> shard.relocated(
+                wrongTargetNodeShardRouting.relocatingNodeId(),
+                wrongTargetNodeShardRouting.getTargetRelocatingShard().allocationId().getId(),
+                (ctx, l) -> relocated.set(true),
+                listener
             )
         );
         assertThat(
@@ -2280,16 +2277,14 @@ public class IndexShardTests extends IndexShardTestCase {
         );
         assertFalse(relocated.get());
 
-        final IllegalStateException wrongTargetIdException = asInstanceOf(
+        final IllegalStateException wrongTargetIdException = safeAwaitFailure(
             IllegalStateException.class,
-            safeAwaitFailure(
-                Void.class,
-                listener -> shard.relocated(
-                    wrongTargetAllocationIdShardRouting.relocatingNodeId(),
-                    wrongTargetAllocationIdShardRouting.getTargetRelocatingShard().allocationId().getId(),
-                    (ctx, l) -> relocated.set(true),
-                    listener
-                )
+            Void.class,
+            listener -> shard.relocated(
+                wrongTargetAllocationIdShardRouting.relocatingNodeId(),
+                wrongTargetAllocationIdShardRouting.getTargetRelocatingShard().allocationId().getId(),
+                (ctx, l) -> relocated.set(true),
+                listener
             )
         );
         assertThat(
@@ -4190,7 +4185,7 @@ public class IndexShardTests extends IndexShardTestCase {
             );
             shard.flushOnIdle(0);
             assertFalse(shard.isActive());
-            assertBusy(mockLog::assertAllExpectationsMatched);
+            mockLog.awaitAllExpectationsMatched();
 
             // While the first flush is happening, index one more doc (to turn the shard's active flag to true),
             // and issue a second flushOnIdle request which should not wait for the ongoing flush
@@ -4205,7 +4200,7 @@ public class IndexShardTests extends IndexShardTestCase {
                 )
             );
             shard.flushOnIdle(0);
-            assertBusy(mockLog::assertAllExpectationsMatched);
+            mockLog.awaitAllExpectationsMatched();
 
             // A direct call to flush (with waitIfOngoing=false) should not wait and return false immediately
             assertFalse(shard.flush(new FlushRequest().waitIfOngoing(false).force(false)));
@@ -4222,7 +4217,7 @@ public class IndexShardTests extends IndexShardTestCase {
                     "released flush lock"
                 )
             );
-            assertBusy(mockLog::assertAllExpectationsMatched);
+            mockLog.awaitAllExpectationsMatched();
 
             // The second flushOnIdle (that did not happen) should have turned the active flag to true
             assertTrue(shard.isActive());

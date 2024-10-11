@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.datastreams;
 
@@ -586,7 +587,7 @@ public class DataStreamIT extends ESIntegTestCase {
         verifyResolvability(dataStreamName, indicesAdmin().prepareForceMerge(dataStreamName), false);
         verifyResolvability(dataStreamName, indicesAdmin().prepareValidateQuery(dataStreamName), false);
         verifyResolvability(dataStreamName, indicesAdmin().prepareRecoveries(dataStreamName), false);
-        verifyResolvability(dataStreamName, indicesAdmin().prepareGetAliases("dummy").addIndices(dataStreamName), false);
+        verifyResolvability(dataStreamName, indicesAdmin().prepareGetAliases("dummy").setIndices(dataStreamName), false);
         verifyResolvability(dataStreamName, indicesAdmin().prepareGetFieldMappings(dataStreamName), false);
         verifyResolvability(dataStreamName, indicesAdmin().preparePutMapping(dataStreamName).setSource("""
             {"_doc":{"properties": {"my_field":{"type":"keyword"}}}}""", XContentType.JSON), false);
@@ -1414,7 +1415,7 @@ public class DataStreamIT extends ESIntegTestCase {
 
         IndexRequest indexRequest = new IndexRequest(dataStreamName).opType("create").source("{}", XContentType.JSON);
         Exception e = expectThrows(Exception.class, client().index(indexRequest));
-        assertThat(e.getCause().getMessage(), equalTo("data stream timestamp field [@timestamp] is missing"));
+        assertThat(e.getCause().getCause().getMessage(), equalTo("data stream timestamp field [@timestamp] is missing"));
     }
 
     public void testMultipleTimestampValuesInDocument() throws Exception {
@@ -1430,7 +1431,7 @@ public class DataStreamIT extends ESIntegTestCase {
         IndexRequest indexRequest = new IndexRequest(dataStreamName).opType("create")
             .source("{\"@timestamp\": [\"2020-12-12\",\"2022-12-12\"]}", XContentType.JSON);
         Exception e = expectThrows(Exception.class, client().index(indexRequest));
-        assertThat(e.getCause().getMessage(), equalTo("data stream timestamp field [@timestamp] encountered multiple values"));
+        assertThat(e.getCause().getCause().getMessage(), equalTo("data stream timestamp field [@timestamp] encountered multiple values"));
     }
 
     public void testMixedAutoCreate() throws Exception {
@@ -2440,7 +2441,13 @@ public class DataStreamIT extends ESIntegTestCase {
         request.indexTemplate(
             ComposableIndexTemplate.builder()
                 .indexPatterns(patterns)
-                .template(new Template(settings, mappings == null ? null : CompressedXContent.fromJSON(mappings), aliases, lifecycle))
+                .template(
+                    Template.builder()
+                        .settings(settings)
+                        .mappings(mappings == null ? null : CompressedXContent.fromJSON(mappings))
+                        .aliases(aliases)
+                        .lifecycle(lifecycle)
+                )
                 .metadata(metadata)
                 .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(false, false, withFailureStore))
                 .build()

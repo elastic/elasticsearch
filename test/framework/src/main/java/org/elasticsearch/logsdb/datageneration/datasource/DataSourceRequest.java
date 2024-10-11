@@ -1,16 +1,20 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.logsdb.datageneration.datasource;
 
+import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.logsdb.datageneration.DataGeneratorSpecification;
 import org.elasticsearch.logsdb.datageneration.FieldType;
 import org.elasticsearch.logsdb.datageneration.fields.DynamicMapping;
+
+import java.util.Set;
 
 public interface DataSourceRequest<TResponse extends DataSourceResponse> {
     TResponse accept(DataSourceHandler handler);
@@ -101,15 +105,18 @@ public interface DataSourceRequest<TResponse extends DataSourceResponse> {
         }
     }
 
-    record LeafMappingParametersGenerator(String fieldName, FieldType fieldType)
-        implements
-            DataSourceRequest<DataSourceResponse.LeafMappingParametersGenerator> {
+    record LeafMappingParametersGenerator(
+        String fieldName,
+        FieldType fieldType,
+        Set<String> eligibleCopyToFields,
+        DynamicMapping dynamicMapping
+    ) implements DataSourceRequest<DataSourceResponse.LeafMappingParametersGenerator> {
         public DataSourceResponse.LeafMappingParametersGenerator accept(DataSourceHandler handler) {
             return handler.handle(this);
         }
     }
 
-    record ObjectMappingParametersGenerator(boolean isNested)
+    record ObjectMappingParametersGenerator(boolean isRoot, boolean isNested, ObjectMapper.Subobjects parentSubobjects)
         implements
             DataSourceRequest<DataSourceResponse.ObjectMappingParametersGenerator> {
         public DataSourceResponse.ObjectMappingParametersGenerator accept(DataSourceHandler handler) {

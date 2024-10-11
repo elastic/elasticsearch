@@ -13,6 +13,7 @@ import org.antlr.v4.runtime.misc.Interval;
 import org.antlr.v4.runtime.tree.ParseTree;
 import org.antlr.v4.runtime.tree.ParseTreeVisitor;
 import org.antlr.v4.runtime.tree.TerminalNode;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.xpack.esql.core.ParsingException;
 import org.elasticsearch.xpack.esql.core.tree.Location;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -20,11 +21,27 @@ import org.elasticsearch.xpack.esql.core.util.Check;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Function;
 
 import static java.util.Collections.emptyList;
 
 public final class ParserUtils {
+    public enum ParamClassification {
+        VALUE,
+        IDENTIFIER,
+        PATTERN
+    }
+
+    public static final Map<String, ParamClassification> paramClassifications = Maps.newMapWithExpectedSize(
+        ParamClassification.values().length
+    );
+
+    static {
+        for (ParamClassification e : ParamClassification.values()) {
+            paramClassifications.put(e.name(), e);
+        }
+    }
 
     private ParserUtils() {}
 

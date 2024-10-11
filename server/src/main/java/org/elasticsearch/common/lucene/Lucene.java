@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.lucene;
@@ -73,7 +74,6 @@ import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.lucene.grouping.TopFieldGroups;
-import org.elasticsearch.search.retriever.rankdoc.RankDocsSortField;
 import org.elasticsearch.search.sort.ShardDocSortField;
 
 import java.io.IOException;
@@ -88,7 +88,7 @@ import java.util.Map;
 import java.util.Objects;
 
 public class Lucene {
-    public static final String LATEST_CODEC = "Lucene99";
+    public static final String LATEST_CODEC = "Lucene912";
 
     public static final String SOFT_DELETES_FIELD = "__soft_deletes";
 
@@ -241,7 +241,7 @@ public class Lucene {
 
             @Override
             protected Object doBody(String segmentFileName) throws IOException {
-                try (IndexInput input = directory.openInput(segmentFileName, IOContext.READ)) {
+                try (IndexInput input = directory.openInput(segmentFileName, IOContext.READONCE)) {
                     CodecUtil.checksumEntireFile(input);
                 }
                 return null;
@@ -552,8 +552,6 @@ public class Lucene {
             return newSortField;
         } else if (sortField.getClass() == ShardDocSortField.class) {
             return new SortField(sortField.getField(), SortField.Type.LONG, sortField.getReverse());
-        } else if (sortField.getClass() == RankDocsSortField.class) {
-            return new SortField(sortField.getField(), SortField.Type.INT, sortField.getReverse());
         } else {
             return sortField;
         }

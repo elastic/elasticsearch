@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.codec.vectors;
@@ -31,11 +32,13 @@ import org.apache.lucene.util.hnsw.RandomVectorScorer;
 
 import java.io.IOException;
 
+import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.MAX_DIMS_COUNT;
+
 public class ES813FlatVectorFormat extends KnnVectorsFormat {
 
     static final String NAME = "ES813FlatVectorFormat";
 
-    private final FlatVectorsFormat format = new Lucene99FlatVectorsFormat(DefaultFlatVectorScorer.INSTANCE);
+    private static final FlatVectorsFormat format = new Lucene99FlatVectorsFormat(DefaultFlatVectorScorer.INSTANCE);
 
     /**
      * Sole constructor
@@ -54,6 +57,11 @@ public class ES813FlatVectorFormat extends KnnVectorsFormat {
         return new ES813FlatVectorReader(format.fieldsReader(state));
     }
 
+    @Override
+    public int getMaxDimensions(String fieldName) {
+        return MAX_DIMS_COUNT;
+    }
+
     static class ES813FlatVectorWriter extends KnnVectorsWriter {
 
         private final FlatVectorsWriter writer;
@@ -65,7 +73,7 @@ public class ES813FlatVectorFormat extends KnnVectorsFormat {
 
         @Override
         public KnnFieldVectorsWriter<?> addField(FieldInfo fieldInfo) throws IOException {
-            return writer.addField(fieldInfo, null);
+            return writer.addField(fieldInfo);
         }
 
         @Override

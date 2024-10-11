@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.legacygeo;
 
@@ -302,7 +303,7 @@ public class GeoWKTShapeParserTests extends BaseGeoParsingTestCase {
         assertThat(e, hasToString(containsString("coordinate dimensions do not match")));
     }
 
-    @UpdateForV9
+    @UpdateForV9(owner = UpdateForV9.Owner.SEARCH_ANALYTICS)
     @AwaitsFix(bugUrl = "this test is using pre 8.0.0 index versions so needs to be removed or updated")
     public void testParseMixedDimensionPolyWithHoleStoredZ() throws IOException {
         List<Coordinate> shellCoordinates = new ArrayList<>();
@@ -337,7 +338,7 @@ public class GeoWKTShapeParserTests extends BaseGeoParsingTestCase {
         assertThat(e, hasToString(containsString("unable to add coordinate to CoordinateBuilder: coordinate dimensions do not match")));
     }
 
-    @UpdateForV9
+    @UpdateForV9(owner = UpdateForV9.Owner.SEARCH_ANALYTICS)
     @AwaitsFix(bugUrl = "this test is using pre 8.0.0 index versions so needs to be removed or updated")
     public void testParsePolyWithStoredZ() throws IOException {
         List<Coordinate> shellCoordinates = new ArrayList<>();
@@ -362,7 +363,7 @@ public class GeoWKTShapeParserTests extends BaseGeoParsingTestCase {
         assertEquals(shapeBuilder.numDimensions(), 3);
     }
 
-    @UpdateForV9
+    @UpdateForV9(owner = UpdateForV9.Owner.SEARCH_ANALYTICS)
     @AwaitsFix(bugUrl = "this test is using pre 8.0.0 index versions so needs to be removed or updated")
     public void testParseOpenPolygon() throws IOException {
         String openPolygon = "POLYGON ((100 5, 100 10, 90 10, 90 5))";

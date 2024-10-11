@@ -14,6 +14,7 @@ import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -28,7 +29,6 @@ import org.elasticsearch.xpack.idp.saml.sp.SamlServiceProviderIndex;
 import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.time.Instant;
-import java.util.Base64;
 import java.util.stream.Collectors;
 
 public class TransportPutSamlServiceProviderAction extends HandledTransportAction<
@@ -154,7 +154,7 @@ public class TransportPutSamlServiceProviderAction extends HandledTransportActio
 
     private static String deriveDocumentId(SamlServiceProviderDocument document) {
         final byte[] sha256 = MessageDigests.sha256().digest(document.entityId.getBytes(StandardCharsets.UTF_8));
-        return Base64.getUrlEncoder().withoutPadding().encodeToString(sha256);
+        return Strings.BASE_64_NO_PADDING_URL_ENCODER.encodeToString(sha256);
     }
 
 }

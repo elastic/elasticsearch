@@ -11,7 +11,7 @@ esplugin {
   name 'x-pack-esql'
   description 'The plugin that powers ESQL for Elasticsearch'
   classname 'org.elasticsearch.xpack.esql.plugin.EsqlPlugin'
-  extendedPlugins = ['x-pack-esql-core', 'lang-painless']
+  extendedPlugins = ['x-pack-esql-core', 'lang-painless', 'x-pack-ml']
 }
 
 base {
@@ -22,6 +22,7 @@ dependencies {
   compileOnly project(path: xpackModule('core'))
   compileOnly project(':modules:lang-painless:spi')
   compileOnly project(xpackModule('esql-core'))
+  compileOnly project(xpackModule('ml'))
   implementation project('compute')
   implementation project('compute:ann')
   implementation project(':libs:elasticsearch-dissect')
@@ -316,7 +317,7 @@ tasks.named('stringTemplates').configure {
   }
 
 
-  File inInputFile = file("src/main/java/org/elasticsearch/xpack/esql/expression/predicate/operator/comparison/InEvaluator.java.st")
+  File inInputFile = file("src/main/java/org/elasticsearch/xpack/esql/expression/predicate/operator/comparison/X-InEvaluator.java.st")
   template {
     it.properties = booleanProperties
     it.inputFile =  inInputFile

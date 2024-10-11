@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.ingest;
@@ -282,13 +283,16 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
             return;
         }
 
-        String requestPipeline = indexRequest.getPipeline();
-
-        Pipelines pipelines = resolvePipelinesFromMetadata(originalRequest, indexRequest, metadata, epochMillis) //
-            .or(() -> resolvePipelinesFromIndexTemplates(indexRequest, metadata))
-            .orElse(Pipelines.NO_PIPELINES_DEFINED);
+        /*
+         * Here we look for the pipelines associated with the index if the index exists. If the index does not exist we fall back to using
+         * templates to find the pipelines.
+         */
+        final Pipelines pipelines = resolvePipelinesFromMetadata(originalRequest, indexRequest, metadata, epochMillis).or(
+            () -> resolvePipelinesFromIndexTemplates(indexRequest, metadata)
+        ).orElse(Pipelines.NO_PIPELINES_DEFINED);
 
         // The pipeline coming as part of the request always has priority over the resolved one from metadata or templates
+        String requestPipeline = indexRequest.getPipeline();
         if (requestPipeline != null) {
             indexRequest.setPipeline(requestPipeline);
         } else {

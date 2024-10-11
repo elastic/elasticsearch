@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch;
@@ -184,6 +185,7 @@ public class Version implements VersionId<Version>, ToXContentFragment {
     public static final Version V_8_15_0 = new Version(8_15_00_99);
     public static final Version V_8_15_1 = new Version(8_15_01_99);
     public static final Version V_8_15_2 = new Version(8_15_02_99);
+    public static final Version V_8_15_3 = new Version(8_15_03_99);
     public static final Version V_8_16_0 = new Version(8_16_00_99);
     public static final Version V_9_0_0 = new Version(9_00_00_99);
     public static final Version CURRENT = V_9_0_0;
@@ -230,7 +232,7 @@ public class Version implements VersionId<Version>, ToXContentFragment {
         VERSION_STRINGS = Map.copyOf(builderByString);
     }
 
-    @UpdateForV9
+    @UpdateForV9(owner = UpdateForV9.Owner.CORE_INFRA)
     // Re-enable this assertion once the rest api version is bumped
     private static void assertRestApiVersion() {
         // assert RestApiVersion.current().major == CURRENT.major && RestApiVersion.previous().major == CURRENT.major - 1

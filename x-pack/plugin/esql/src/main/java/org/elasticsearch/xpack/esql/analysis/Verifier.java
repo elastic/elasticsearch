@@ -21,13 +21,13 @@ import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.expression.predicate.BinaryOperator;
 import org.elasticsearch.xpack.esql.core.expression.predicate.fulltext.MatchQueryPredicate;
-import org.elasticsearch.xpack.esql.core.expression.predicate.fulltext.StringQueryPredicate;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Rate;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.FullTextFunction;
 import org.elasticsearch.xpack.esql.expression.function.grouping.GroupingFunction;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Neg;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
@@ -186,7 +186,7 @@ public class Verifier {
             checkForSortOnSpatialTypes(p, failures);
 
             checkFilterMatchConditions(p, failures);
-            checkMatchCommand(p, failures);
+            checkFullTextQueryFunctions(p, failures);
         });
         checkRemoteEnrich(plan, failures);
 
@@ -552,10 +552,9 @@ public class Verifier {
      */
     private static void checkForSortOnSpatialTypes(LogicalPlan p, Set<Failure> localFailures) {
         if (p instanceof OrderBy ob) {
-            ob.forEachExpression(Attribute.class, attr -> {
-                DataType dataType = attr.dataType();
-                if (DataType.isSpatial(dataType)) {
-                    localFailures.add(fail(attr, "cannot sort on " + dataType.typeName()));
+            ob.order().forEach(order -> {
+                if (DataType.isSpatial(order.dataType())) {
+                    localFailures.add(fail(order, "cannot sort on " + order.dataType().typeName()));
                 }
             });
         }
@@ -642,19 +641,30 @@ public class Verifier {
         }
     }
 
-    private static void checkMatchCommand(LogicalPlan plan, Set<Failure> failures) {
+    private static void checkFullTextQueryFunctions(LogicalPlan plan, Set<Failure> failures) {
         if (plan instanceof Filter f) {
             Expression condition = f.condition();
-            if (condition instanceof StringQueryPredicate) {
+            if (condition instanceof FullTextFunction ftf) {
                 // Similar to cases present in org.elasticsearch.xpack.esql.optimizer.rules.PushDownAndCombineFilters -
                 // we can't check if it can be pushed down as we don't have yet information about the fields present in the
                 // StringQueryPredicate
                 plan.forEachDown(LogicalPlan.class, lp -> {
                     if ((lp instanceof Filter || lp instanceof OrderBy || lp instanceof EsRelation) == false) {
-                        failures.add(fail(plan, "MATCH cannot be used after {}", lp.sourceText().split(" ")[0].toUpperCase(Locale.ROOT)));
+                        failures.add(
+                            fail(
+                                plan,
+                                "[{}] function cannot be used after {}",
+                                ftf.functionName(),
+                                lp.sourceText().split(" ")[0].toUpperCase(Locale.ROOT)
+                            )
+                        );
                     }
                 });
             }
+        } else {
+            plan.forEachExpression(FullTextFunction.class, ftf -> {
+                failures.add(fail(ftf, "[{}] function is only supported in WHERE commands", ftf.functionName()));
+            });
         }
     }
 }

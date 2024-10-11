@@ -12,6 +12,8 @@ import com.sun.net.httpserver.Headers;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Streams;
@@ -23,9 +25,11 @@ import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 
+import java.io.BufferedReader;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -35,6 +39,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Predicate;
 import java.util.regex.Matcher;
@@ -47,6 +52,8 @@ import static org.elasticsearch.repositories.azure.AzureFixtureHelper.assertVali
  */
 @SuppressForbidden(reason = "Uses a HttpServer to emulate an Azure endpoint")
 public class AzureHttpHandler implements HttpHandler {
+    private static final Logger logger = LogManager.getLogger(AzureHttpHandler.class);
+
     private final Map<String, BytesReference> blobs;
     private final String account;
     private final String container;
@@ -264,7 +271,89 @@ public class AzureHttpHandler implements HttpHandler {
                 exchange.sendResponseHeaders(RestStatus.OK.getStatus(), response.length);
                 exchange.getResponseBody().write(response);
 
+            } else if (Regex.simpleMatch("POST /" + account + "/" + container + "*restype=container*comp=batch*", request)) {
+                // Blob Batch (https://learn.microsoft.com/en-us/rest/api/storageservices/blob-batch)
+                final StringBuilder response = new StringBuilder();
+
+                try (BufferedReader requestReader = new BufferedReader(new InputStreamReader(exchange.getRequestBody()))) {
+                    String batchBoundary = requestReader.readLine();
+                    String responseBoundary = "batch_" + UUID.randomUUID();
+
+                    logger.debug("Batch boundary: " + batchBoundary);
+                    String line;
+                    String contentId = null, requestId = null, toDelete = null;
+                    while ((line = requestReader.readLine()) != null) {
+                        if (batchBoundary.equals(line) || (batchBoundary + "--").equals(line)) {
+                            // Found the end of a single request, process it
+                            if (contentId == null || requestId == null || toDelete == null) {
+                                throw new IllegalStateException(
+                                    "Missing contentId/requestId/toDelete: " + contentId + "/" + requestId + "/" + toDelete
+                                );
+                            }
+
+                            // Process the deletion
+                            blobs.remove("/" + account + toDelete);
+                            response.append("--")
+                                .append(responseBoundary)
+                                .append("\r\n")
+                                .append("Content-Type: application/http\r\n")
+                                .append("Content-ID: ")
+                                .append(contentId)
+                                .append("\r\n\r\n")
+                                .append("HTTP/1.1 202 Accepted\r\n")
+                                .append("x-ms-delete-type-permanent: true\r\n")
+                                .append("x-ms-request-id: ")
+                                .append(requestId)
+                                .append("\r\n")
+                                .append("x-ms-version: 2018-11-09\r\n\r\n");
+
+                            // Clear the state
+                            toDelete = null;
+                            contentId = null;
+                            requestId = null;
+
+                            logger.debug("--> Starting a new batch");
+                        } else if (line.startsWith("Content-Type")
+                            || line.startsWith("Content-Transfer-Encoding")
+                            || line.startsWith("Accept")
+                            || line.startsWith("Content-Length")
+                            || line.startsWith("User-Agent")
+                            || line.startsWith("Date")
+                            || line.isBlank()) {
+                                // Ignore
+                            } else if (Regex.simpleMatch("x-ms-client-request-id: *", line)) {
+                                if (requestId != null) {
+                                    throw new IllegalStateException("Got multiple request IDs in a single request?");
+                                }
+                                requestId = line.split("\\s")[1];
+                            } else if (Regex.simpleMatch("Content-ID: *", line)) {
+                                if (contentId != null) {
+                                    throw new IllegalStateException("Got multiple content IDs in a single request?");
+                                }
+                                contentId = line.split("\\s")[1];
+                            } else if (Regex.simpleMatch("DELETE /" + container + "/*", line)) {
+                                logger.debug("--> Got delete line: " + line);
+                                String blobName = RestUtils.decodeComponent(line.split("(\\s|\\?)")[1]);
+                                logger.debug("--> Deleting blob: " + blobName);
+                                if (toDelete != null) {
+                                    throw new IllegalStateException("Got multiple deletes in a single request?");
+                                }
+                                toDelete = blobName;
+                            } else {
+                                logger.debug("--> Ignoring line: " + line);
+                            }
+                    }
+                    response.append("--").append(responseBoundary).append("--\r\n0\r\n");
+                    // Send the response
+                    exchange.getResponseHeaders().add("Content-Type", "multipart/mixed; boundary=" + responseBoundary);
+                    exchange.sendResponseHeaders(RestStatus.ACCEPTED.getStatus(), response.length());
+                    logger.debug("--> Sending response:\n{}", response);
+                    try (OutputStream responseBody = exchange.getResponseBody()) {
+                        responseBody.write(response.toString().getBytes(StandardCharsets.UTF_8));
+                    }
+                }
             } else {
+                logger.warn("--> Unrecognised request received: {}", request);
                 sendError(exchange, RestStatus.BAD_REQUEST);
             }
         } finally {

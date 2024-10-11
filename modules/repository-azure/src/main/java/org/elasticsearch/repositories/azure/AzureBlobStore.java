@@ -25,6 +25,9 @@ import com.azure.storage.blob.BlobContainerAsyncClient;
 import com.azure.storage.blob.BlobContainerClient;
 import com.azure.storage.blob.BlobServiceAsyncClient;
 import com.azure.storage.blob.BlobServiceClient;
+import com.azure.storage.blob.batch.BlobBatch;
+import com.azure.storage.blob.batch.BlobBatchClient;
+import com.azure.storage.blob.batch.BlobBatchClientBuilder;
 import com.azure.storage.blob.models.BlobErrorCode;
 import com.azure.storage.blob.models.BlobItem;
 import com.azure.storage.blob.models.BlobItemProperties;
@@ -84,8 +87,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Spliterator;
-import java.util.Spliterators;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -93,12 +94,13 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.LongAdder;
 import java.util.function.BiPredicate;
 import java.util.stream.Collectors;
-import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.core.Strings.format;
 
 public class AzureBlobStore implements BlobStore {
     private static final Logger logger = LogManager.getLogger(AzureBlobStore.class);
+    // See https://learn.microsoft.com/en-us/rest/api/storageservices/blob-batch#request-body
+    private static final int MAX_ELEMENTS_PER_BATCH = 256;
     private static final long DEFAULT_READ_CHUNK_SIZE = new ByteSizeValue(32, ByteSizeUnit.MB).getBytes();
     private static final int DEFAULT_UPLOAD_BUFFERS_SIZE = (int) new ByteSizeValue(64, ByteSizeUnit.KB).getBytes();
 
@@ -278,35 +280,27 @@ public class AzureBlobStore implements BlobStore {
         throw exception;
     }
 
-    /**
-     * {@inheritDoc}
-     * <p>
-     * Note that in this Azure implementation we issue a series of individual
-     * <a href="https://learn.microsoft.com/en-us/rest/api/storageservices/delete-blob">delete blob</a> calls rather than aggregating
-     * deletions into <a href="https://learn.microsoft.com/en-us/rest/api/storageservices/blob-batch">blob batch</a> calls.
-     * The reason for this is that the blob batch endpoint has limited support for SAS token authentication.
-     *
-     * @see <a href="https://learn.microsoft.com/en-us/rest/api/storageservices/blob-batch?tabs=shared-access-signatures#authorization">
-     *     API docs around SAS auth limitations</a>
-     * @see <a href="https://github.com/Azure/azure-storage-java/issues/538">Java SDK issue</a>
-     * @see <a href="https://github.com/elastic/elasticsearch/pull/65140#discussion_r528752070">Discussion on implementing PR</a>
-     */
     @Override
-    public void deleteBlobsIgnoringIfNotExists(OperationPurpose purpose, Iterator<String> blobs) {
-        if (blobs.hasNext() == false) {
+    public void deleteBlobsIgnoringIfNotExists(OperationPurpose purpose, Iterator<String> blobNames) {
+        if (blobNames.hasNext() == false) {
             return;
         }
-
-        BlobServiceAsyncClient asyncClient = asyncClient(purpose);
+        final AzureBlobServiceClient azureBlobServiceClient = getAzureBlobServiceClientClient(purpose);
         SocketAccess.doPrivilegedVoidException(() -> {
-            final BlobContainerAsyncClient blobContainerClient = asyncClient.getBlobContainerAsyncClient(container);
-            try {
-                Flux.fromStream(StreamSupport.stream(Spliterators.spliteratorUnknownSize(blobs, Spliterator.ORDERED), false))
-                    .flatMap(blob -> getDeleteTask(blob, blobContainerClient.getBlobAsyncClient(blob)), CONCURRENT_DELETES)
-                    .then()
-                    .block();
-            } catch (Exception e) {
-                filterDeleteExceptionsAndRethrow(e, new IOException("Unable to delete blobs"));
+            // We need to use a container-scoped BlobBatchClient, so the restype=container parameter
+            // is sent, and we can support all SAS token types
+            // See https://learn.microsoft.com/en-us/rest/api/storageservices/blob-batch?tabs=shared-access-signatures#authorization
+            BlobBatchClient batchAsyncClient = new BlobBatchClientBuilder(
+                azureBlobServiceClient.getAsyncClient().getBlobContainerAsyncClient(container)
+            ).buildClient();
+            while (blobNames.hasNext()) {
+                final BlobBatch currentBatch = batchAsyncClient.getBlobBatch();
+                int counter = 0;
+                while (counter < MAX_ELEMENTS_PER_BATCH && blobNames.hasNext()) {
+                    currentBatch.deleteBlob(container, blobNames.next());
+                    counter++;
+                }
+                batchAsyncClient.submitBatch(currentBatch);
             }
         });
     }

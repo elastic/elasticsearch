@@ -12,8 +12,41 @@ import org.elasticsearch.inference.EmptyTaskSettings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.inference.services.elser.ElserModels;
+import org.junit.Test;
 
 public class ElasticInferenceServiceSparseEmbeddingsModelTests extends ESTestCase {
+
+    @Test
+    public void testCreateURI_ThrowError_OnMissingURIScheme() {
+        expectThrows(IllegalArgumentException.class, () -> createModel("www.missing-scheme-gateway-url.com"));
+    }
+
+    @Test
+    public void testCreateURI_ThrowError_OnWrongURIScheme() {
+        expectThrows(IllegalArgumentException.class, () -> createModel("file://www.missing-scheme-gateway-url.com"));
+    }
+
+    @Test
+    public void testCreateURI_DoesNotThrowError_ForHTTP() {
+        var scheme = "http";
+
+        try {
+            createModel(scheme + "://www.valid-gateway-url.com");
+        } catch (Exception e) {
+            fail(e, "Should not throw exception for " + "[" + scheme + "]");
+        }
+    }
+
+    @Test
+    public void testCreateURI_DoesNotThrowError_ForHTTPS() {
+        var scheme = "https";
+
+        try {
+            createModel(scheme + "://www.valid-gateway-url.com");
+        } catch (Exception e) {
+            fail(e, "Should not throw exception for " + "[" + scheme + "]");
+        }
+    }
 
     public static ElasticInferenceServiceSparseEmbeddingsModel createModel(String url) {
         return createModel(url, null);

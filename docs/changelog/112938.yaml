@@ -1,0 +1,35 @@
+pr: 112938
+summary: Enhance SORT push-down to Lucene to cover references to fields and ST_DISTANCE function
+area: ES|QL
+type: enhancement
+issues:
+ - 109973
+highlight:
+  title: Enhance SORT push-down to Lucene to cover references to fields and ST_DISTANCE function
+  body: |-
+    The most used and likely most valuable geospatial search query in Elasticsearch is the sorted proximity search,
+    finding items within a certain distance of a point of interest and sorting the results by distance.
+    This has been possible in ES|QL since 8.15.0, but the sorting was done in-memory, not pushed down to Lucene.
+    Now the sorting is pushed down to Lucene, which results in a significant performance improvement.
+
+    Queries that perform both filtering and sorting on distance are supported. For example:
+
+    [source,esql]
+    ----
+    FROM test
+    | EVAL distance = ST_DISTANCE(location, TO_GEOPOINT("POINT(37.7749, -122.4194)"))
+    | WHERE distance < 1000000
+    | SORT distance ASC, name DESC
+    | LIMIT 10
+    ----
+
+    In addition, the support for sorting on EVAL expressions has been extended to cover references to fields:
+
+    [source,esql]
+    ----
+    FROM test
+    | EVAL ref = field
+    | SORT ref ASC
+    | LIMIT 10
+    ----
+  notable: false

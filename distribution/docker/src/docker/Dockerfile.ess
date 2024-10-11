@@ -25,7 +25,7 @@ USER root
 
 COPY plugins/*.zip /opt/plugins/archive/
 
-RUN chown root.root /opt/plugins/archive/*
+RUN chown 1000:1000 /opt/plugins/archive/*
 RUN chmod 0444 /opt/plugins/archive/*
 
 FROM ${base_image}

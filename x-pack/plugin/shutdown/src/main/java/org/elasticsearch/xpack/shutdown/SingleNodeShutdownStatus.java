@@ -138,7 +138,7 @@ public class SingleNodeShutdownStatus implements Writeable, ChunkedToXContentObj
                     builder.field(TARGET_NODE_NAME_FIELD.getPreferredName(), metadata.getTargetNodeName());
                 }
                 if (metadata.getGracePeriod() != null) {
-                    builder.timeField(
+                    builder.timestampField(
                         SingleNodeShutdownMetadata.GRACE_PERIOD_FIELD.getPreferredName(),
                         metadata.getGracePeriod().getStringRep()
                     );

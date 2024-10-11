@@ -368,7 +368,7 @@ public final class TrainedModelAssignment implements SimpleDiffable<TrainedModel
         if (reason != null) {
             builder.field(REASON.getPreferredName(), reason);
         }
-        builder.timeField(START_TIME.getPreferredName(), startTime);
+        builder.timestampField(START_TIME.getPreferredName(), startTime);
         builder.field(MAX_ASSIGNED_ALLOCATIONS.getPreferredName(), maxAssignedAllocations);
         builder.field(ADAPTIVE_ALLOCATIONS.getPreferredName(), adaptiveAllocationsSettings);
         builder.endObject();

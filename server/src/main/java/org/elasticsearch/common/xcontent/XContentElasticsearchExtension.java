@@ -57,13 +57,13 @@ public class XContentElasticsearchExtension implements XContentBuilderExtension 
         // Fully-qualified here to reduce ambiguity around our (ES') Version class
         writers.put(org.apache.lucene.util.Version.class, (b, v) -> b.value(Objects.toString(v)));
         writers.put(TimeValue.class, (b, v) -> b.value(v.toString()));
-        writers.put(ZonedDateTime.class, XContentBuilder::timeValue);
-        writers.put(OffsetDateTime.class, XContentBuilder::timeValue);
-        writers.put(OffsetTime.class, XContentBuilder::timeValue);
-        writers.put(java.time.Instant.class, XContentBuilder::timeValue);
-        writers.put(LocalDateTime.class, XContentBuilder::timeValue);
-        writers.put(LocalDate.class, XContentBuilder::timeValue);
-        writers.put(LocalTime.class, XContentBuilder::timeValue);
+        writers.put(ZonedDateTime.class, XContentBuilder::timestampValue);
+        writers.put(OffsetDateTime.class, XContentBuilder::timestampValue);
+        writers.put(OffsetTime.class, XContentBuilder::timestampValue);
+        writers.put(java.time.Instant.class, XContentBuilder::timestampValue);
+        writers.put(LocalDateTime.class, XContentBuilder::timestampValue);
+        writers.put(LocalDate.class, XContentBuilder::timestampValue);
+        writers.put(LocalTime.class, XContentBuilder::timestampValue);
         writers.put(DayOfWeek.class, (b, v) -> b.value(v.toString()));
         writers.put(Month.class, (b, v) -> b.value(v.toString()));
         writers.put(MonthDay.class, (b, v) -> b.value(v.toString()));

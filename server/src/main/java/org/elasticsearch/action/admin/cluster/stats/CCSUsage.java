@@ -21,9 +21,6 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.query.SearchTimeoutException;
 import org.elasticsearch.tasks.TaskCancelledException;
-import org.elasticsearch.transport.ConnectTransportException;
-import org.elasticsearch.transport.NoSeedNodeLeftException;
-import org.elasticsearch.transport.NoSuchRemoteClusterException;
 
 import java.util.Arrays;
 import java.util.HashMap;
@@ -118,7 +115,7 @@ public class CCSUsage {
             if (unwrapped instanceof Exception) {
                 e = (Exception) unwrapped;
             }
-            if (isRemoteUnavailable(e)) {
+            if (ExceptionsHelper.isRemoteUnavailableException(e)) {
                 return Result.REMOTES_UNAVAILABLE;
             }
             if (ExceptionsHelper.unwrap(e, ResourceNotFoundException.class) != null) {
@@ -147,27 +144,6 @@ public class CCSUsage {
             }
             // OK we don't know what happened
             return Result.UNKNOWN;
-        }
-
-        /**
-         * Is this failure exception because remote was unavailable?
-         * See also: TransportResolveClusterAction#notConnectedError
-         */
-        static boolean isRemoteUnavailable(Exception e) {
-            if (ExceptionsHelper.unwrap(
-                e,
-                ConnectTransportException.class,
-                NoSuchRemoteClusterException.class,
-                NoSeedNodeLeftException.class
-            ) != null) {
-                return true;
-            }
-            Throwable ill = ExceptionsHelper.unwrap(e, IllegalStateException.class, IllegalArgumentException.class);
-            if (ill != null && (ill.getMessage().contains("Unable to open any connections") || ill.getMessage().contains("unknown host"))) {
-                return true;
-            }
-            // Ok doesn't look like any of the known remote exceptions
-            return false;
         }
 
         /**

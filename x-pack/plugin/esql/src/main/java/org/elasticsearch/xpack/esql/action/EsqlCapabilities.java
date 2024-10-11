@@ -28,6 +28,11 @@ import java.util.Set;
 public class EsqlCapabilities {
     public enum Cap {
         /**
+         * Support for function {@code REVERSE}.
+         */
+        FN_REVERSE,
+
+        /**
          * Support for function {@code CBRT}. Done in #108574.
          */
         FN_CBRT,
@@ -257,11 +262,9 @@ public class EsqlCapabilities {
         MATCH_OPERATOR(true),
 
         /**
-         * Support for the {@code META} keyword. Tests with this tag are
-         * intentionally excluded from mixed version clusters because we
-         * continually add functions, so they constantly fail if we don't.
+         * Removing support for the {@code META} keyword.
          */
-        META,
+        NO_META,
 
         /**
          * Add CombineBinaryComparisons rule.
@@ -277,6 +280,11 @@ public class EsqlCapabilities {
          * Support for to_date_nanos function
          */
         TO_DATE_NANOS(EsqlCorePlugin.DATE_NANOS_FEATURE_FLAG),
+
+        /**
+         * Support for datetime in least and greatest functions
+         */
+        LEAST_GREATEST_FOR_DATES,
 
         /**
          * Support CIDRMatch in CombineDisjunctions rule.
@@ -337,7 +345,12 @@ public class EsqlCapabilities {
         /**
          * Compute year differences in full calendar years.
          */
-        DATE_DIFF_YEAR_CALENDARIAL;
+        DATE_DIFF_YEAR_CALENDARIAL,
+
+        /**
+         * Support named parameters for field names.
+         */
+        NAMED_PARAMETER_FOR_FIELD_AND_FUNCTION_NAMES;
 
         private final boolean snapshotOnly;
         private final FeatureFlag featureFlag;

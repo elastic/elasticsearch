@@ -754,7 +754,6 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
         Alias field = visitField(ctx.field(), source);
         var filterExpression = ctx.booleanExpression();
 
-
         if (filterExpression != null) {
             Expression condition = expression(filterExpression);
             Expression child = field.child();

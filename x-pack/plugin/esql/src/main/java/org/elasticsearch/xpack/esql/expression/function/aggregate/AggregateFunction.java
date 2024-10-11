@@ -146,7 +146,7 @@ public abstract class AggregateFunction extends Function {
         if (super.equals(obj)) {
             AggregateFunction other = (AggregateFunction) obj;
             return Objects.equals(other.field(), field())
-                && Objects.equals(other.filter, filter)
+                && Objects.equals(other.filter(), filter())
                 && Objects.equals(other.parameters(), parameters());
         }
         return false;

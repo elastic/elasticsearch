@@ -1288,7 +1288,7 @@ x:integer   | y:string
 
 reverseWithTextFields
 required_capability: fn_reverse
-required_capability: fn_reverse_keyword
+required_capability: functions_never_emit_text
 FROM books 
 | EVAL title_reversed = REVERSE(title), author_reversed_twice = REVERSE(REVERSE(author)), eq = author_reversed_twice == author 
 | KEEP title, title_reversed, author, author_reversed_twice, eq, book_no

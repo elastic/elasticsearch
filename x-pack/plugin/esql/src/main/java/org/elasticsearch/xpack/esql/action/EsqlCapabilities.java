@@ -33,9 +33,9 @@ public class EsqlCapabilities {
         FN_REVERSE,
 
         /**
-         * The reverse function now always emits only KEYWORD type. #114334
+         * All functions that take TEXT should never emit TEXT, only KEYWORD. #114334
          */
-        FN_REVERSE_KEYWORD,
+        FUNCTIONS_NEVER_EMIT_TEXT,
 
         /**
          * Support for function {@code CBRT}. Done in #108574.

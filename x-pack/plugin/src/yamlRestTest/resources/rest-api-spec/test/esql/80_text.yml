@@ -392,7 +392,7 @@ setup:
         - method: POST
           path: /_query
           parameters: [method, path, parameters, capabilities]
-          capabilities: [fn_reverse, fn_reverse_keyword]
+          capabilities: [fn_reverse, functions_never_emit_text]
       reason: "reverse not yet added"
   - do:
       allowed_warnings_regex:

@@ -131,6 +131,7 @@ OPQS                | OPQS      | OPQS      | ___       | small
 
 maxOfText
 required_capability: agg_max_min_string_support
+required_capability: functions_never_emit_text
 from airports
 | eval x = name
 | where scalerank >= 9
@@ -142,6 +143,7 @@ Zaporozhye Int'l  | Zaporozhye Int'l | Zaporozhye Int'l
 
 maxOfTextGrouping
 required_capability: agg_max_min_string_support
+required_capability: functions_never_emit_text
 from airports
 | eval x = name
 | where scalerank >= 9
@@ -211,6 +213,7 @@ LUH                 | LUH       | LUH       | ___       | small
 
 minOfText
 required_capability: agg_max_min_string_support
+required_capability: functions_never_emit_text
 from airports
 | eval x = name
 | where scalerank >= 9
@@ -222,6 +225,7 @@ Abdul Rachman Saleh | Abdul Rachman Saleh | Abdul Rachman Saleh
 
 minOfTextGrouping
 required_capability: agg_max_min_string_support
+required_capability: functions_never_emit_text
 from airports
 | eval x = name
 | where scalerank >= 9

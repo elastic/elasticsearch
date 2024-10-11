@@ -1,10 +1,14 @@
 [[elastic-cloud-architecture]]
 == Elastic Cloud Hot-Frozen Architecture
 
+[discrete]
+[[cloud-hot-frozen-overview]]
 === Overview
 
 This article outlines the architecture for deploying Elasticsearch to handle 22 terabytes of Application Performance Monitoring (APM) data per day. The architecture includes the necessary components of Elasticsearch and placeholders for machine sizes, including heap, CPU, RAM, and storage. This architecture assumes 2 days of hot data, 5 days of warm data, 7 days of cold data, and X days of frozen data.
 
+[discrete]
+[[cloud-hot-use-case]]
 === Use Case
 
 This architecture is intended for organizations that need to:
@@ -13,10 +17,14 @@ This architecture is intended for organizations that need to:
 * Provide insights and alerts to ensure optimal performance and quick issue resolution.
 * Additional reasons…
 
+[discrete]
+[[cloud-hot-frozen-architecture]]
 === Architecture
 
 image::images/elastic-cloud-architecture.png["An Elastic Cloud Architecture"]
 
+[discrete]
+[[cloud-hot-frozen-considerations]]
 === Important Considerations
 
 The following list are important conderations for this architecture:
@@ -26,6 +34,8 @@ The following list are important conderations for this architecture:
 * Cost: Plan for the costs associated with storing large volumes of data, including the use of SSDs for Hot tiers.
 * For Warm tiers preferred hardware profile? I am assuming dense storage but not positive
 
+[discrete]
+[[cloud-hot-frozen-resources]]
 === Resources and references
 
 * <<shard-size-best-practices,Size your shards>>

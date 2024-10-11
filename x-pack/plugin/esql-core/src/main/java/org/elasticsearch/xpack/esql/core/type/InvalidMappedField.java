@@ -10,6 +10,8 @@ package org.elasticsearch.xpack.esql.core.type;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.core.util.PlanStreamInput;
+import org.elasticsearch.xpack.esql.core.util.PlanStreamOutput;
 
 import java.io.IOException;
 import java.util.Map;
@@ -52,7 +54,7 @@ public class InvalidMappedField extends EsField {
     }
 
     protected InvalidMappedField(StreamInput in) throws IOException {
-        this(in.readString(), in.readString(), in.readImmutableMap(StreamInput::readString, EsField::readFrom));
+        this(((PlanStreamInput) in).readCachedString(), in.readString(), in.readImmutableMap(StreamInput::readString, EsField::readFrom));
     }
 
     public Set<DataType> types() {
@@ -61,7 +63,7 @@ public class InvalidMappedField extends EsField {
 
     @Override
     public void writeContent(StreamOutput out) throws IOException {
-        out.writeString(getName());
+        ((PlanStreamOutput) out).writeCachedString(getName());
         out.writeString(errorMessage);
         out.writeMap(getProperties(), (o, x) -> x.writeTo(out));
     }

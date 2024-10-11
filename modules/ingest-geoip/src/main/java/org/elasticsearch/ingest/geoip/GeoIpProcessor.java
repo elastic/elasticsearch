@@ -13,6 +13,7 @@ import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.core.Assertions;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
@@ -22,6 +23,7 @@ import org.elasticsearch.ingest.geoip.IpDataLookupFactories.IpDataLookupFactory;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Supplier;
@@ -36,9 +38,12 @@ public final class GeoIpProcessor extends AbstractProcessor {
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(GeoIpProcessor.class);
     static final String DEFAULT_DATABASES_DEPRECATION_MESSAGE = "the [fallback_to_default_databases] has been deprecated, because "
         + "Elasticsearch no longer includes the default Maxmind geoip databases. This setting will be removed in Elasticsearch 9.0";
+    static final String UNSUPPORTED_DATABASE_DEPRECATION_MESSAGE = "the geoip processor will no longer support database type [{}] "
+        + "in a future version of Elasticsearch"; // TODO add a message about migration?
 
-    public static final String TYPE = "geoip";
+    public static final String GEOIP_TYPE = "geoip";
 
+    private final String type;
     private final String field;
     private final Supplier<Boolean> isValid;
     private final String targetField;
@@ -62,6 +67,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
      * @param databaseFile  the name of the database file being queried; used only for tagging documents if the database is unavailable
      */
     GeoIpProcessor(
+        final String type,
         final String tag,
         final String description,
         final String field,
@@ -74,6 +80,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
         final String databaseFile
     ) {
         super(tag, description);
+        this.type = type;
         this.field = field;
         this.isValid = isValid;
         this.targetField = targetField;
@@ -93,7 +100,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
         Object ip = document.getFieldValue(field, Object.class, ignoreMissing);
 
         if (isValid.get() == false) {
-            document.appendFieldValue("tags", "_geoip_expired_database", false);
+            document.appendFieldValue("tags", "_" + type + "_expired_database", false);
             return document;
         } else if (ip == null && ignoreMissing) {
             return document;
@@ -104,7 +111,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
         try (IpDatabase ipDatabase = this.supplier.get()) {
             if (ipDatabase == null) {
                 if (ignoreMissing == false) {
-                    tag(document, databaseFile);
+                    tag(document, type, databaseFile);
                 }
                 return document;
             }
@@ -146,7 +153,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
 
     @Override
     public String getType() {
-        return TYPE;
+        return type;
     }
 
     String getField() {
@@ -202,9 +209,11 @@ public final class GeoIpProcessor extends AbstractProcessor {
 
     public static final class Factory implements Processor.Factory {
 
+        private final String type; // currently always just "geoip"
         private final IpDatabaseProvider ipDatabaseProvider;
 
-        public Factory(IpDatabaseProvider ipDatabaseProvider) {
+        public Factory(String type, IpDatabaseProvider ipDatabaseProvider) {
+            this.type = type;
             this.ipDatabaseProvider = ipDatabaseProvider;
         }
 
@@ -215,16 +224,16 @@ public final class GeoIpProcessor extends AbstractProcessor {
             final String description,
             final Map<String, Object> config
         ) throws IOException {
-            String ipField = readStringProperty(TYPE, processorTag, config, "field");
-            String targetField = readStringProperty(TYPE, processorTag, config, "target_field", "geoip");
-            String databaseFile = readStringProperty(TYPE, processorTag, config, "database_file", "GeoLite2-City.mmdb");
-            List<String> propertyNames = readOptionalList(TYPE, processorTag, config, "properties");
-            boolean ignoreMissing = readBooleanProperty(TYPE, processorTag, config, "ignore_missing", false);
-            boolean firstOnly = readBooleanProperty(TYPE, processorTag, config, "first_only", true);
+            String ipField = readStringProperty(type, processorTag, config, "field");
+            String targetField = readStringProperty(type, processorTag, config, "target_field", "geoip");
+            String databaseFile = readStringProperty(type, processorTag, config, "database_file", "GeoLite2-City.mmdb");
+            List<String> propertyNames = readOptionalList(type, processorTag, config, "properties");
+            boolean ignoreMissing = readBooleanProperty(type, processorTag, config, "ignore_missing", false);
+            boolean firstOnly = readBooleanProperty(type, processorTag, config, "first_only", true);
 
             // Validating the download_database_on_pipeline_creation even if the result
             // is not used directly by the factory.
-            downloadDatabaseOnPipelineCreation(config, processorTag);
+            downloadDatabaseOnPipelineCreation(type, config, processorTag);
 
             // noop, should be removed in 9.0
             Object value = config.remove("fallback_to_default_databases");
@@ -239,7 +248,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
                     // at a later moment, so a processor impl is returned that tags documents instead. If a database cannot be sourced
                     // then the processor will continue to tag documents with a warning until it is remediated by providing a database
                     // or changing the pipeline.
-                    return new DatabaseUnavailableProcessor(processorTag, description, databaseFile);
+                    return new DatabaseUnavailableProcessor(type, processorTag, description, databaseFile);
                 }
                 databaseType = ipDatabase.getDatabaseType();
             }
@@ -248,17 +257,48 @@ public final class GeoIpProcessor extends AbstractProcessor {
             try {
                 factory = IpDataLookupFactories.get(databaseType, databaseFile);
             } catch (IllegalArgumentException e) {
-                throw newConfigurationException(TYPE, processorTag, "database_file", e.getMessage());
+                throw newConfigurationException(type, processorTag, "database_file", e.getMessage());
+            }
+
+            // the "geoip" processor type does additional validation of the database_type
+            if (GEOIP_TYPE.equals(type)) {
+                // type sniffing is done with the lowercased type
+                final String lowerCaseDatabaseType = databaseType.toLowerCase(Locale.ROOT);
+
+                // start with a strict positive rejection check -- as we support addition database providers,
+                // we should expand these checks when possible
+                if (lowerCaseDatabaseType.startsWith(IpinfoIpDataLookups.IPINFO_PREFIX)) {
+                    throw newConfigurationException(
+                        type,
+                        processorTag,
+                        "database_file",
+                        Strings.format("Unsupported database type [%s] for file [%s]", databaseType, databaseFile)
+                    );
+                }
+
+                // end with a lax negative rejection check -- if we aren't *certain* it's a maxmind database, then we'll warn --
+                // it's possible for example that somebody cooked up a custom database of their own that happened to work with
+                // our preexisting code, they should migrate to the new processor, but we're not going to break them right now
+                if (lowerCaseDatabaseType.startsWith(MaxmindIpDataLookups.GEOIP2_PREFIX) == false
+                    && lowerCaseDatabaseType.startsWith(MaxmindIpDataLookups.GEOLITE2_PREFIX) == false) {
+                    deprecationLogger.warn(
+                        DeprecationCategory.OTHER,
+                        "unsupported_database_type",
+                        UNSUPPORTED_DATABASE_DEPRECATION_MESSAGE,
+                        databaseType
+                    );
+                }
             }
 
             final IpDataLookup ipDataLookup;
             try {
                 ipDataLookup = factory.create(propertyNames);
             } catch (IllegalArgumentException e) {
-                throw newConfigurationException(TYPE, processorTag, "properties", e.getMessage());
+                throw newConfigurationException(type, processorTag, "properties", e.getMessage());
             }
 
             return new GeoIpProcessor(
+                type,
                 processorTag,
                 description,
                 ipField,
@@ -272,34 +312,31 @@ public final class GeoIpProcessor extends AbstractProcessor {
             );
         }
 
-        public static boolean downloadDatabaseOnPipelineCreation(Map<String, Object> config) {
-            return downloadDatabaseOnPipelineCreation(config, null);
+        public static boolean downloadDatabaseOnPipelineCreation(String type, Map<String, Object> config, String processorTag) {
+            return readBooleanProperty(type, processorTag, config, "download_database_on_pipeline_creation", true);
         }
-
-        public static boolean downloadDatabaseOnPipelineCreation(Map<String, Object> config, String processorTag) {
-            return readBooleanProperty(GeoIpProcessor.TYPE, processorTag, config, "download_database_on_pipeline_creation", true);
-        }
-
     }
 
     static class DatabaseUnavailableProcessor extends AbstractProcessor {
 
+        private final String type;
         private final String databaseName;
 
-        DatabaseUnavailableProcessor(String tag, String description, String databaseName) {
+        DatabaseUnavailableProcessor(String type, String tag, String description, String databaseName) {
             super(tag, description);
+            this.type = type;
             this.databaseName = databaseName;
         }
 
         @Override
         public IngestDocument execute(IngestDocument ingestDocument) throws Exception {
-            tag(ingestDocument, databaseName);
+            tag(ingestDocument, this.type, databaseName);
             return ingestDocument;
         }
 
         @Override
         public String getType() {
-            return TYPE;
+            return type;
         }
 
         public String getDatabaseName() {
@@ -307,7 +344,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
         }
     }
 
-    private static void tag(IngestDocument ingestDocument, String databaseName) {
-        ingestDocument.appendFieldValue("tags", "_geoip_database_unavailable_" + databaseName, true);
+    private static void tag(IngestDocument ingestDocument, String type, String databaseName) {
+        ingestDocument.appendFieldValue("tags", "_" + type + "_database_unavailable_" + databaseName, true);
     }
 }

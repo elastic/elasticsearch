@@ -7,8 +7,8 @@
 
 package org.elasticsearch.xpack.inference.external.amazonbedrock;
 
-import com.amazonaws.services.bedrockruntime.model.ConverseResult;
-import com.amazonaws.services.bedrockruntime.model.InvokeModelResult;
+import software.amazon.awssdk.services.bedrockruntime.model.ConverseResponse;
+import software.amazon.awssdk.services.bedrockruntime.model.InvokeModelResponse;
 
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
@@ -60,13 +60,13 @@ public class AmazonBedrockMockExecuteRequestSender extends AmazonBedrockExecuteO
     private void setCacheResult() {
         var mockCache = (AmazonBedrockMockClientCache) this.clientCache;
         var result = results.remove();
-        if (result instanceof ConverseResult converseResult) {
-            mockCache.setConverseResult(converseResult);
+        if (result instanceof ConverseResponse converseResponse) {
+            mockCache.setConverseResponse(converseResponse);
             return;
         }
 
-        if (result instanceof InvokeModelResult invokeModelResult) {
-            mockCache.setInvokeModelResult(invokeModelResult);
+        if (result instanceof InvokeModelResponse invokeModelResponse) {
+            mockCache.setInvokeModelResponse(invokeModelResponse);
             return;
         }
 

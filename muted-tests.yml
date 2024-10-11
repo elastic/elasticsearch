@@ -380,6 +380,12 @@ tests:
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=synonyms/60_synonym_rule_get/Synonym rule not found}
   issue: https://github.com/elastic/elasticsearch/issues/114444
+- class: org.elasticsearch.datastreams.logsdb.qa.LogsDbVersusLogsDbReindexedIntoStandardModeChallengeRestIT
+  method: testTermsAggregation
+  issue: https://github.com/elastic/elasticsearch/issues/114554
+- class: org.elasticsearch.datastreams.logsdb.qa.LogsDbVersusLogsDbReindexedIntoStandardModeChallengeRestIT
+  method: testTermsQuery
+  issue: https://github.com/elastic/elasticsearch/issues/114563
 
 # Examples:
 #

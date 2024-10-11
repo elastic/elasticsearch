@@ -110,7 +110,7 @@ public abstract class AggregateFunction extends Function {
     }
 
     public boolean hasFilter() {
-        return filter != null && filter != Literal.TRUE;
+        return filter != null && (filter.foldable() == false || Boolean.TRUE.equals(filter.fold()) == false);
     }
 
     public Expression filter() {

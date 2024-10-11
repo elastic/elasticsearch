@@ -1,0 +1,254 @@
+---
+create logsdb data stream with host.name as keyword:
+  - requires:
+      cluster_features: [ "mapper.keyword_normalizer_synthetic_source" ]
+      reason: support for normalizer on keyword fields
+
+  - do:
+      cluster.put_component_template:
+        name: "logsdb-mappings"
+        body:
+          template:
+            settings:
+              mode: "logsdb"
+            mappings:
+              properties:
+                host.name:
+                  type: "keyword"
+
+  - do:
+      indices.put_index_template:
+        name: "logsdb-index-template"
+        body:
+          index_patterns: ["logsdb"]
+          data_stream: {}
+          composed_of: ["logsdb-mappings"]
+
+  - do:
+      indices.create_data_stream:
+        name: "logsdb"
+
+  - is_true: acknowledged
+
+---
+create logsdb data stream with host.name as keyword and timestamp as date:
+  - requires:
+      cluster_features: [ "mapper.keyword_normalizer_synthetic_source" ]
+      reason: support for normalizer on keyword fields
+
+  - do:
+      cluster.put_component_template:
+        name: "logsdb-mappings"
+        body:
+          template:
+            settings:
+              mode: "logsdb"
+            mappings:
+              properties:
+                host.name:
+                  type: "keyword"
+                "@timestamp":
+                  type: "date"
+
+  - do:
+      indices.put_index_template:
+        name: "logsdb-index-template"
+        body:
+          index_patterns: ["logsdb"]
+          data_stream: {}
+          composed_of: ["logsdb-mappings"]
+
+  - do:
+      indices.create_data_stream:
+        name: "logsdb"
+
+  - is_true: acknowledged
+
+---
+create logsdb data stream with host as keyword:
+  - requires:
+      cluster_features: [ "mapper.keyword_normalizer_synthetic_source" ]
+      reason: support for normalizer on keyword fields
+
+  - do:
+      cluster.put_component_template:
+        name: "logsdb-mappings"
+        body:
+          template:
+            settings:
+              mode: "logsdb"
+            mappings:
+              properties:
+                host:
+                  type: "keyword"
+
+  - do:
+      indices.put_index_template:
+        name: "logsdb-index-template"
+        body:
+          index_patterns: ["logsdb"]
+          data_stream: {}
+          composed_of: ["logsdb-mappings"]
+
+  - do:
+      catch: bad_request
+      indices.create_data_stream:
+        name: "logsdb"
+
+  - match: { error.type: "mapper_parsing_exception" }
+  - match: { error.reason: "Failed to parse mapping: can't merge a non object mapping [host] with an object mapping" }
+
+---
+create logsdb data stream with host as text and multi fields:
+  - requires:
+      cluster_features: [ "mapper.keyword_normalizer_synthetic_source" ]
+      reason: support for normalizer on keyword fields
+
+  - do:
+      cluster.put_component_template:
+        name: "logsdb-mappings"
+        body:
+          template:
+            settings:
+              mode: "logsdb"
+            mappings:
+              properties:
+                host:
+                  type: "text"
+                  fields:
+                    keyword:
+                      ignore_above: 256
+                      type: "keyword"
+                "@timestamp":
+                  type: "date"
+                  format: "strict_date_optional_time"
+
+  - do:
+      indices.put_index_template:
+        name: "logsdb-index-template"
+        body:
+          index_patterns: ["logsdb"]
+          data_stream: {}
+          composed_of: ["logsdb-mappings"]
+
+  - do:
+      catch: bad_request
+      indices.create_data_stream:
+        name: "logsdb"
+
+  - match: { error.type: "mapper_parsing_exception" }
+  - match: { error.reason: "Failed to parse mapping: can't merge a non object mapping [host] with an object mapping" }
+
+---
+create logsdb data stream with host as text:
+  - requires:
+      cluster_features: ["mapper.keyword_normalizer_synthetic_source"]
+      reason: "Support for normalizer on keyword fields"
+
+  - do:
+      cluster.put_component_template:
+        name: "logsdb-mappings"
+        body:
+          template:
+            settings:
+              mode: "logsdb"
+            mappings:
+              properties:
+                host:
+                  type: "text"
+                "@timestamp":
+                  type: "date"
+                  format: "strict_date_optional_time"
+
+  - do:
+      indices.put_index_template:
+        name: "logsdb-index-template"
+        body:
+          index_patterns: ["logsdb"]
+          data_stream: {}
+          composed_of: ["logsdb-mappings"]
+
+  - do:
+      catch: bad_request
+      indices.create_data_stream:
+        name: "logsdb"
+
+  - match: { error.type: "mapper_parsing_exception" }
+  - match: { error.reason: "Failed to parse mapping: can't merge a non object mapping [host] with an object mapping" }
+
+---
+create logsdb data stream with host as text and name as double:
+  - requires:
+      cluster_features: ["mapper.keyword_normalizer_synthetic_source"]
+      reason: "Support for normalizer on keyword fields"
+
+  - do:
+      cluster.put_component_template:
+        name: "logsdb-mappings"
+        body:
+          template:
+            settings:
+              mode: "logsdb"
+            mappings:
+              properties:
+                host:
+                  type: "text"
+                  fields:
+                    name:
+                      type: "double"
+                "@timestamp":
+                  type: "date"
+                  format: "strict_date_optional_time"
+
+  - do:
+      indices.put_index_template:
+        name: "logsdb-index-template"
+        body:
+          index_patterns: ["logsdb"]
+          data_stream: {}
+          composed_of: ["logsdb-mappings"]
+
+  - do:
+      catch: bad_request
+      indices.create_data_stream:
+        name: "logsdb"
+
+  - match: { error.type: "mapper_parsing_exception" }
+  - match: { error.reason: "Failed to parse mapping: can't merge a non object mapping [host] with an object mapping" }
+
+---
+create logsdb data stream with timestamp object mapping:
+  - requires:
+      cluster_features: ["mapper.keyword_normalizer_synthetic_source"]
+      reason: "Support for normalizer on keyword fields"
+
+  - do:
+      cluster.put_component_template:
+        name: "logsdb-mappings"
+        body:
+          template:
+            settings:
+              mode: "logsdb"
+            mappings:
+              properties:
+                host:
+                  properties:
+                    name:
+                      type: "keyword"
+                "@timestamp":
+                  properties:
+                    date:
+                      type: "date"
+                      format: "strict_date_optional_time"
+
+  - do:
+      catch: bad_request
+      indices.put_index_template:
+        name: "logsdb-index-template"
+        body:
+          index_patterns: ["logsdb"]
+          data_stream: {}
+          composed_of: ["logsdb-mappings"]
+
+  - match: { error.type: "illegal_argument_exception" }
+  - match: { error.reason: "composable template [logsdb-index-template] template after composition with component templates [logsdb-mappings] is invalid" }

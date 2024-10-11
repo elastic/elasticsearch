@@ -7,8 +7,13 @@ This section provides a series of reference architectures.
 
 [discrete]
 [[reference-architectures-general]]
-=== General
+=== Time Series
 * <<multi-region-two-datacenter-architecture,Time Series HA Architecture: Multi-Region With Two Datacenters>>
+* Two Availability Zone with ... Architecture
+* Three Availability Zone with ... Architecture
+=== Cloud Architectures
+* <<elastic-cloud-architecture,Elastic Cloud Hot-Frozen Architecture>>
 --
 
 include::reference-architectures/multi-region-two-datacenter-architecture.asciidoc[]
+include::reference-architectures/elastic-cloud-architecture.asciidoc[]

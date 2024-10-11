@@ -254,8 +254,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
             return new Parameter<?>[] { enabled, mode, includes, excludes };
         }
 
-        private boolean isDefault() {
-            final Mode sourceMode = resolveEffectiveSourceMode(settings, mode.get());
+        private boolean isDefault(final Mode sourceMode) {
             if (sourceMode != null
                 && (((indexMode != null && indexMode.isSyntheticSourceEnabled() && sourceMode == Mode.SYNTHETIC) == false)
                     || sourceMode == Mode.DISABLED)) {
@@ -280,11 +279,12 @@ public class SourceFieldMapper extends MetadataFieldMapper {
                     throw new MapperParsingException("Cannot set both [mode] and [enabled] parameters");
                 }
             }
-            if (isDefault()) {
+            final Mode sourceMode = resolveEffectiveSourceMode(settings, mode.get());
+            if (isDefault(sourceMode)) {
                 return switch (indexMode) {
                     case TIME_SERIES -> enableRecoverySource ? TSDB_DEFAULT : TSDB_DEFAULT_NO_RECOVERY_SOURCE;
                     case LOGSDB -> enableRecoverySource ? LOGSDB_DEFAULT : LOGSDB_DEFAULT_NO_RECOVERY_SOURCE;
-                    default -> getDefaultSourceMode(enableRecoverySource, resolveEffectiveSourceMode(settings, mode.get()));
+                    default -> getDefaultSourceMode(enableRecoverySource, sourceMode);
                 };
             }
             if (supportsNonDefaultParameterValues == false) {
@@ -311,7 +311,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
             }
 
             SourceFieldMapper sourceFieldMapper = new SourceFieldMapper(
-                resolveEffectiveSourceMode(settings, mode.get()),
+                sourceMode,
                 enabled.get(),
                 includes.getValue().toArray(Strings.EMPTY_ARRAY),
                 excludes.getValue().toArray(Strings.EMPTY_ARRAY),

@@ -381,6 +381,9 @@ tests:
 - class: org.elasticsearch.datastreams.logsdb.qa.LogsDbVersusLogsDbReindexedIntoStandardModeChallengeRestIT
   method: testTermsQuery
   issue: https://github.com/elastic/elasticsearch/issues/114563
+- class: org.elasticsearch.datastreams.logsdb.qa.LogsDbVersusLogsDbReindexedIntoStandardModeChallengeRestIT
+  method: testMatchAllQuery
+  issue: https://github.com/elastic/elasticsearch/issues/114607
 
 # Examples:
 #

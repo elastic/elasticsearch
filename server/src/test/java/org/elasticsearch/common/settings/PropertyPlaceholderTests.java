@@ -63,10 +63,9 @@ public class PropertyPlaceholderTests extends ESTestCase {
         PropertyPlaceholder.PlaceholderResolver placeholderResolver = new SimplePlaceholderResolver(map, false, true);
         try {
             propertyPlaceholder.replacePlaceholders("${foo}", placeholderResolver);
-            fail("Expected PropertyPlaceholderException");
-        } catch (PropertyPlaceholderException e) {
+            fail("Expected IllegalArgumentException");
+        } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), is("Could not resolve placeholder 'foo'"));
-            assertThat(e.placeholder, is("foo"));
         }
     }
 
@@ -129,10 +128,9 @@ public class PropertyPlaceholderTests extends ESTestCase {
         PropertyPlaceholder.PlaceholderResolver placeholderResolver = new SimplePlaceholderResolver(map, false, true);
         try {
             propertyPlaceholder.replacePlaceholders("${foo}", placeholderResolver);
-            fail("Expected PropertyPlaceholderException");
-        } catch (PropertyPlaceholderException e) {
+            fail("Expected IllegalArgumentException");
+        } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), is("Circular placeholder reference 'foo' in property definitions"));
-            assertThat(e.placeholder, is("foo"));
         }
     }
 

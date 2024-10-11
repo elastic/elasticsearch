@@ -10,7 +10,6 @@
 package org.elasticsearch.node;
 
 import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.common.settings.PropertyPlaceholderException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.core.PathUtils;
@@ -57,14 +56,9 @@ public class InternalSettingsPreparer {
         replaceForcedSettings(output);
         try {
             output.replacePropertyPlaceholders();
-        } catch (PropertyPlaceholderException e) {
+        } catch (Exception e) {
             throw new SettingsException(
-                "Failed to replace property place holders from '"
-                    + configFile.getFileName()
-                    + "'"
-                    + " with placeholder '"
-                    + e.placeholder
-                    + "'",
+                "Failed to replace property place holders from '" + configFile.getFileName() + "' " + "caused by: " + e.getMessage(),
                 e
             );
         }

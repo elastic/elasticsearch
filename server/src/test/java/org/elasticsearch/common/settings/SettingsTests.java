@@ -66,12 +66,11 @@ public class SettingsTests extends ESTestCase {
     public void testReplacePropertiesPlaceholderSystemVariablesHaveNoEffect() {
         final String value = System.getProperty("java.home");
         assertNotNull(value);
-        final PropertyPlaceholderException e = expectThrows(
-            PropertyPlaceholderException.class,
+        final IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
             () -> Settings.builder().put("setting1", "${java.home}").replacePropertyPlaceholders().build()
         );
         assertThat(e, hasToString(containsString("Could not resolve placeholder 'java.home'")));
-        assertThat(e.placeholder, equalTo("java.home"));
     }
 
     public void testGetAsSettings() {

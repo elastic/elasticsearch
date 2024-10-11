@@ -133,24 +133,28 @@ public class FileSettingsRoleMappingsRestartIT extends SecurityIntegTestCase {
         logger.info("--> restart master");
         internalCluster().restartNode(masterNode);
         ensureGreen();
+        awaitFileSettingsWatcher();
 
-        // assert role mappings are recovered from "disk"
-        assertRoleMappingsInClusterState(
-            new ExpressionRoleMapping(
-                "everyone_kibana_alone",
-                new FieldExpression("username", List.of(new FieldExpression.FieldValue("*"))),
-                List.of("kibana_user"),
-                List.of(),
-                Map.of("uuid", "b9a59ba9-6b92-4be2-bb8d-02bb270cb3a7", "_foo", "something"),
-                true
-            ),
-            new ExpressionRoleMapping(
-                "everyone_fleet_alone",
-                new FieldExpression("username", List.of(new FieldExpression.FieldValue("*"))),
-                List.of("fleet_user"),
-                List.of(),
-                Map.of("uuid", "b9a59ba9-6b92-4be3-bb8d-02bb270cb3a7", "_foo", "something_else"),
-                false
+        // assert busy to give mappings time to update after restart; otherwise, the role mapping names might be dummy values
+        // `name_not_available_after_deserialization`
+        assertBusy(
+            () -> assertRoleMappingsInClusterState(
+                new ExpressionRoleMapping(
+                    "everyone_kibana_alone",
+                    new FieldExpression("username", List.of(new FieldExpression.FieldValue("*"))),
+                    List.of("kibana_user"),
+                    List.of(),
+                    Map.of("uuid", "b9a59ba9-6b92-4be2-bb8d-02bb270cb3a7", "_foo", "something"),
+                    true
+                ),
+                new ExpressionRoleMapping(
+                    "everyone_fleet_alone",
+                    new FieldExpression("username", List.of(new FieldExpression.FieldValue("*"))),
+                    List.of("fleet_user"),
+                    List.of(),
+                    Map.of("uuid", "b9a59ba9-6b92-4be3-bb8d-02bb270cb3a7", "_foo", "something_else"),
+                    false
+                )
             )
         );
 
@@ -205,7 +209,7 @@ public class FileSettingsRoleMappingsRestartIT extends SecurityIntegTestCase {
         fileSettingsService.addFileChangedListener(latch::countDown);
         // Don't increment version but write new file contents to test re-processing on restart
         writeJSONFileWithoutVersionIncrement(masterNode, testJSONOnlyUpdatedRoleMappings, logger, versionCounter);
-        // make sure we saw a file settings update so that we know it got processed, but it did not affect cluster state
+        // Make sure we saw a file settings update so that we know it got processed, but it did not affect cluster state
         assertTrue(latch.await(20, TimeUnit.SECONDS));
 
         // Nothing changed yet because version is the same and there was no restart
@@ -244,9 +248,7 @@ public class FileSettingsRoleMappingsRestartIT extends SecurityIntegTestCase {
                     Map.of("uuid", "b9a59ba9-6b92-4be2-bb8d-02bb270cb3a7", "_foo", "something"),
                     true
                 )
-            ),
-            20,
-            TimeUnit.SECONDS
+            )
         );
 
         cleanupClusterState(masterNode);

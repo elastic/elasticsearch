@@ -149,9 +149,9 @@ public class FileSettingsServiceTests extends ESTestCase {
     @SuppressWarnings("unchecked")
     public void testInitialFileError() throws Exception {
         doAnswer((Answer<Void>) invocation -> {
-            ((Consumer<Exception>) invocation.getArgument(2)).accept(new IllegalStateException("Some exception"));
+            ((Consumer<Exception>) invocation.getArgument(3)).accept(new IllegalStateException("Some exception"));
             return null;
-        }).when(controller).process(any(), any(XContentParser.class), eq(false), any());
+        }).when(controller).process(any(), any(XContentParser.class), eq(true), any());
 
         AtomicBoolean settingsChanged = new AtomicBoolean(false);
         CountDownLatch latch = new CountDownLatch(1);
@@ -177,6 +177,7 @@ public class FileSettingsServiceTests extends ESTestCase {
         assertTrue(latch.await(20, TimeUnit.SECONDS));
 
         verify(fileSettingsService, times(1)).processFileOnServiceStart();
+        verify(controller, times(1)).process(any(), any(XContentParser.class), eq(true), any());
         // assert we never notified any listeners of successful application of file based settings
         assertFalse(settingsChanged.get());
     }
@@ -185,7 +186,7 @@ public class FileSettingsServiceTests extends ESTestCase {
     public void testInitialFileWorks() throws Exception {
         // Let's check that if we didn't throw an error that everything works
         doAnswer((Answer<Void>) invocation -> {
-            ((Consumer<Exception>) invocation.getArgument(2)).accept(null);
+            ((Consumer<Exception>) invocation.getArgument(3)).accept(null);
             return null;
         }).when(controller).process(any(), any(XContentParser.class), eq(true), any());
 

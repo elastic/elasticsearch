@@ -46,7 +46,25 @@ public class DeleteDataStreamAction extends ActionType<AcknowledgedResponse> {
         // empty response can be returned in case wildcards were used or
         // 404 status code returned in case no wildcard were used.
         private final boolean wildcardExpressionsOriginallySpecified;
-        private IndicesOptions indicesOptions = IndicesOptions.fromOptions(false, true, true, true, false, false, true, false);
+        private IndicesOptions indicesOptions = IndicesOptions.builder()
+            .concreteTargetOptions(IndicesOptions.ConcreteTargetOptions.ERROR_WHEN_UNAVAILABLE_TARGETS)
+            .wildcardOptions(
+                IndicesOptions.WildcardOptions.builder()
+                    .matchOpen(true)
+                    .matchClosed(true)
+                    .resolveAliases(false)
+                    .allowEmptyExpressions(true)
+                    .build()
+            )
+            .gatekeeperOptions(
+                IndicesOptions.GatekeeperOptions.builder()
+                    .allowAliasToMultipleIndices(false)
+                    .allowClosedIndices(true)
+                    .ignoreThrottled(false)
+                    .allowFailureIndices(true)
+                    .build()
+            )
+            .build();
 
         public Request(TimeValue masterNodeTimeout, String... names) {
             super(masterNodeTimeout);

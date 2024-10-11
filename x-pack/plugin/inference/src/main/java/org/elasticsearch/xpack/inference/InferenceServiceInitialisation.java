@@ -7,7 +7,12 @@
 
 package org.elasticsearch.xpack.inference;
 
+import org.elasticsearch.xpack.inference.registry.ModelRegistry;
+import org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalService;
+
 public class InferenceServiceInitialisation {
 
-    public void createBuiltInConfigs()
+    public void createBuiltInConfigs(ElasticsearchInternalService esService, ModelRegistry registry) {
+
+    }
 }

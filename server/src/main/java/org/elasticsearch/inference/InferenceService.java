@@ -12,6 +12,8 @@ package org.elasticsearch.inference;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 
@@ -39,9 +41,16 @@ public interface InferenceService extends Closeable {
      * @param modelId               Model Id
      * @param taskType              The model task type
      * @param config                Configuration options including the secrets
+     * @param settings              Settings
      * @param parsedModelListener   A listener which will handle the resulting model or failure
      */
-    void parseRequestConfig(String modelId, TaskType taskType, Map<String, Object> config, ActionListener<Model> parsedModelListener);
+    void parseRequestConfig(
+        String modelId,
+        TaskType taskType,
+        Map<String, Object> config,
+        ClusterSettings settings,
+        ActionListener<Model> parsedModelListener
+    );
 
     /**
      * Parse model configuration from {@code config map} from persisted storage and return the parsed {@link Model}. This requires that

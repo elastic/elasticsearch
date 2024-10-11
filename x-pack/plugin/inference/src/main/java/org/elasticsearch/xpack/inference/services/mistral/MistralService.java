@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.inference.services.mistral;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkedInferenceServiceResults;
@@ -117,11 +118,22 @@ public class MistralService extends SenderService {
         return NAME;
     }
 
+    // for testing
+    void parseRequestConfig(
+        String inferenceEntityId,
+        TaskType taskType,
+        Map<String, Object> config,
+        ActionListener<Model> parsedModelListener
+    ) {
+        parseRequestConfig(inferenceEntityId, taskType, config, null, parsedModelListener);
+    }
+
     @Override
     public void parseRequestConfig(
         String modelId,
         TaskType taskType,
         Map<String, Object> config,
+        ClusterSettings settings,
         ActionListener<Model> parsedModelListener
     ) {
         try {

@@ -105,6 +105,7 @@ public class AlibabaCloudSearchServiceTests extends ESTestCase {
                     AlibabaCloudSearchEmbeddingsTaskSettingsTests.getTaskSettingsMap(null),
                     getSecretSettingsMap("secret")
                 ),
+                null,
                 modelVerificationListener
             );
         }
@@ -131,6 +132,7 @@ public class AlibabaCloudSearchServiceTests extends ESTestCase {
                     createRandomChunkingSettingsMap(),
                     getSecretSettingsMap("secret")
                 ),
+                null,
                 modelVerificationListener
             );
         }
@@ -159,6 +161,7 @@ public class AlibabaCloudSearchServiceTests extends ESTestCase {
                     createRandomChunkingSettingsMap(),
                     getSecretSettingsMap("secret")
                 ),
+                null,
                 modelVerificationListener
             );
         }
@@ -186,6 +189,7 @@ public class AlibabaCloudSearchServiceTests extends ESTestCase {
                     AlibabaCloudSearchEmbeddingsTaskSettingsTests.getTaskSettingsMap(null),
                     getSecretSettingsMap("secret")
                 ),
+                null,
                 modelVerificationListener
             );
         }

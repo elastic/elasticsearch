@@ -1,0 +1,5 @@
+pr: 114375
+summary: Handle `InternalSendException` inline for non-forking handlers
+area: Distributed
+type: bug
+issues: []

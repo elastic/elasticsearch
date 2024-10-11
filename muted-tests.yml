@@ -17,9 +17,6 @@ tests:
 - class: "org.elasticsearch.xpack.deprecation.DeprecationHttpIT"
   issue: "https://github.com/elastic/elasticsearch/issues/108628"
   method: "testDeprecatedSettingsReturnWarnings"
-- class: "org.elasticsearch.xpack.test.rest.XPackRestIT"
-  issue: "https://github.com/elastic/elasticsearch/issues/109687"
-  method: "test {p0=sql/translate/Translate SQL}"
 - class: org.elasticsearch.index.store.FsDirectoryFactoryTests
   method: testStoreDirectory
   issue: https://github.com/elastic/elasticsearch/issues/110210
@@ -74,9 +71,6 @@ tests:
 - class: org.elasticsearch.xpack.test.rest.XPackRestIT
   method: test {p0=rollup/security_tests/Index-based access}
   issue: https://github.com/elastic/elasticsearch/issues/111631
-- class: org.elasticsearch.tdigest.ComparisonTests
-  method: testSparseGaussianDistribution
-  issue: https://github.com/elastic/elasticsearch/issues/111721
 - class: org.elasticsearch.upgrades.FullClusterRestartIT
   method: testSnapshotRestore {cluster=OLD}
   issue: https://github.com/elastic/elasticsearch/issues/111777
@@ -95,9 +89,6 @@ tests:
 - class: org.elasticsearch.xpack.ml.integration.MlJobIT
   method: testDeleteJobAfterMissingIndex
   issue: https://github.com/elastic/elasticsearch/issues/112088
-- class: org.elasticsearch.xpack.test.rest.XPackRestIT
-  method: test {p0=transform/preview_transforms/Test preview transform latest}
-  issue: https://github.com/elastic/elasticsearch/issues/112144
 - class: org.elasticsearch.smoketest.SmokeTestMultiNodeClientYamlTestSuiteIT
   issue: https://github.com/elastic/elasticsearch/issues/112147
 - class: org.elasticsearch.smoketest.WatcherYamlRestIT
@@ -127,9 +118,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.ManyShardsIT
   method: testConcurrentQueries
   issue: https://github.com/elastic/elasticsearch/issues/112424
-- class: org.elasticsearch.xpack.inference.external.http.RequestBasedTaskRunnerTests
-  method: testLoopOneAtATime
-  issue: https://github.com/elastic/elasticsearch/issues/112471
 - class: org.elasticsearch.ingest.geoip.IngestGeoIpClientYamlTestSuiteIT
   issue: https://github.com/elastic/elasticsearch/issues/111497
 - class: org.elasticsearch.smoketest.SmokeTestIngestWithAllDepsClientYamlTestSuiteIT
@@ -141,9 +129,6 @@ tests:
 - class: org.elasticsearch.search.basic.SearchWhileRelocatingIT
   method: testSearchAndRelocateConcurrentlyRandomReplicas
   issue: https://github.com/elastic/elasticsearch/issues/112515
-- class: org.elasticsearch.xpack.test.rest.XPackRestIT
-  method: test {p0=terms_enum/10_basic/Test search after on unconfigured constant keyword field}
-  issue: https://github.com/elastic/elasticsearch/issues/112624
 - class: org.elasticsearch.xpack.esql.EsqlAsyncSecurityIT
   method: testIndexPatternErrorMessageComparison_ESQL_SearchDSL
   issue: https://github.com/elastic/elasticsearch/issues/112630
@@ -230,21 +215,9 @@ tests:
 - class: org.elasticsearch.packaging.test.WindowsServiceTests
   method: test81JavaOptsInJvmOptions
   issue: https://github.com/elastic/elasticsearch/issues/113313
-- class: org.elasticsearch.xpack.test.rest.XPackRestIT
-  method: test {p0=esql/50_index_patterns/disjoint_mappings}
-  issue: https://github.com/elastic/elasticsearch/issues/113315
-- class: org.elasticsearch.xpack.test.rest.XPackRestIT
-  method: test {p0=wildcard/10_wildcard_basic/Query_string wildcard query}
-  issue: https://github.com/elastic/elasticsearch/issues/113316
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=mtermvectors/10_basic/Tests catching other exceptions per item}
   issue: https://github.com/elastic/elasticsearch/issues/113325
-- class: org.elasticsearch.xpack.test.rest.XPackRestIT
-  method: test {p0=transform/transforms_force_delete/Test force deleting a running transform}
-  issue: https://github.com/elastic/elasticsearch/issues/113327
-- class: org.elasticsearch.xpack.test.rest.XPackRestIT
-  method: test {p0=analytics/top_metrics/sort by scaled float field}
-  issue: https://github.com/elastic/elasticsearch/issues/113340
 - class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
   method: test {yaml=reference/ccr/apis/follow/post-resume-follow/line_84}
   issue: https://github.com/elastic/elasticsearch/issues/113343
@@ -307,8 +280,6 @@ tests:
 - class: org.elasticsearch.xpack.restart.MLModelDeploymentFullClusterRestartIT
   method: testDeploymentSurvivesRestart {cluster=UPGRADED}
   issue: https://github.com/elastic/elasticsearch/issues/112980
-- class: org.elasticsearch.xpack.searchablesnapshots.hdfs.SecureHdfsSearchableSnapshotsIT
-  issue: https://github.com/elastic/elasticsearch/issues/113753
 - class: org.elasticsearch.ingest.geoip.DatabaseNodeServiceIT
   method: testNonGzippedDatabase
   issue: https://github.com/elastic/elasticsearch/issues/113821
@@ -356,6 +327,9 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/114182
 - class: org.elasticsearch.xpack.esql.action.EsqlActionBreakerIT
   issue: https://github.com/elastic/elasticsearch/issues/114194
+- class: org.elasticsearch.xpack.ilm.ExplainLifecycleIT
+  method: testStepInfoPreservedOnAutoRetry
+  issue: https://github.com/elastic/elasticsearch/issues/114220
 - class: org.elasticsearch.xpack.inference.services.openai.OpenAiServiceTests
   method: testInfer_StreamRequest
   issue: https://github.com/elastic/elasticsearch/issues/114232
@@ -374,6 +348,44 @@ tests:
 - class: org.elasticsearch.xpack.inference.services.cohere.CohereServiceTests
   method: testInfer_StreamRequest
   issue: https://github.com/elastic/elasticsearch/issues/114385
+- class: org.elasticsearch.xpack.inference.InferenceRestIT
+  method: test {p0=inference/30_semantic_text_inference/Calculates embeddings using the default ELSER 2 endpoint}
+  issue: https://github.com/elastic/elasticsearch/issues/114412
+- class: org.elasticsearch.xpack.inference.InferenceRestIT
+  method: test {p0=inference/40_semantic_text_query/Query a field that uses the default ELSER 2 endpoint}
+  issue: https://github.com/elastic/elasticsearch/issues/114376
+- class: org.elasticsearch.search.retriever.RankDocsRetrieverBuilderTests
+  method: testRewrite
+  issue: https://github.com/elastic/elasticsearch/issues/114467
+- class: org.elasticsearch.packaging.test.DockerTests
+  method: test022InstallPluginsFromLocalArchive
+  issue: https://github.com/elastic/elasticsearch/issues/111063
+- class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
+  method: test {yaml=reference/esql/esql-across-clusters/line_196}
+  issue: https://github.com/elastic/elasticsearch/issues/114488
+- class: org.elasticsearch.gradle.internal.PublishPluginFuncTest
+  issue: https://github.com/elastic/elasticsearch/issues/114492
+- class: org.elasticsearch.xpack.inference.DefaultElserIT
+  method: testInferCreatesDefaultElser
+  issue: https://github.com/elastic/elasticsearch/issues/114503
+- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
+  method: test {p0=synonyms/60_synonym_rule_get/Synonym set not found}
+  issue: https://github.com/elastic/elasticsearch/issues/114432
+- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
+  method: test {p0=synonyms/60_synonym_rule_get/Get a synonym rule}
+  issue: https://github.com/elastic/elasticsearch/issues/114443
+- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
+  method: test {p0=synonyms/60_synonym_rule_get/Synonym rule not found}
+  issue: https://github.com/elastic/elasticsearch/issues/114444
+- class: org.elasticsearch.datastreams.logsdb.qa.LogsDbVersusLogsDbReindexedIntoStandardModeChallengeRestIT
+  method: testTermsAggregation
+  issue: https://github.com/elastic/elasticsearch/issues/114554
+- class: org.elasticsearch.datastreams.logsdb.qa.LogsDbVersusLogsDbReindexedIntoStandardModeChallengeRestIT
+  method: testTermsQuery
+  issue: https://github.com/elastic/elasticsearch/issues/114563
+- class: org.elasticsearch.datastreams.logsdb.qa.LogsDbVersusLogsDbReindexedIntoStandardModeChallengeRestIT
+  method: testMatchAllQuery
+  issue: https://github.com/elastic/elasticsearch/issues/114607
 
 # Examples:
 #

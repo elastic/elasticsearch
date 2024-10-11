@@ -84,7 +84,6 @@ public class SecurityMigrationExecutor extends PersistentTasksExecutor<SecurityM
                 .migrate(
                     securityIndexManager,
                     client,
-                    clusterService.state(),
                     ActionListener.wrap(
                         response -> updateMigrationVersion(
                             migrationEntry.getKey(),

@@ -801,10 +801,7 @@ public class Security extends Plugin
         this.persistentTasksService.set(persistentTasksService);
 
         systemIndices.getMainIndexManager().addStateListener((oldState, newState) -> {
-            // Only consider applying migrations if it's the master node and the security index exists
-            if (clusterService.state().nodes().isLocalNodeElectedMaster() && newState.indexExists()) {
-                applyPendingSecurityMigrations(newState);
-            }
+            applyPendingSecurityMigrations(clusterService.state(), newState);
         });
 
         scriptServiceReference.set(scriptService);
@@ -1224,7 +1221,12 @@ public class Security extends Plugin
         return components;
     }
 
-    private void applyPendingSecurityMigrations(SecurityIndexManager.State newState) {
+    private void applyPendingSecurityMigrations(ClusterState clusterState, SecurityIndexManager.State newState) {
+        // Only consider applying migrations if it's the master node and the security index exists
+        if (clusterState.nodes().isLocalNodeElectedMaster() == false || newState.indexExists() == false) {
+            return;
+        }
+
         // If no migrations have been applied and the security index is on the latest version (new index), all migrations can be skipped
         if (newState.migrationsVersion == 0 && newState.createdOnLatestVersion) {
             submitPersistentMigrationTask(SecurityMigrations.MIGRATIONS_BY_VERSION.lastKey(), false);
@@ -1236,7 +1238,9 @@ public class Security extends Plugin
         );
 
         // Check if next migration that has not been applied is eligible to run on the current cluster
-        if (nextMigration == null || systemIndices.getMainIndexManager().isEligibleSecurityMigration(nextMigration.getValue()) == false) {
+        if (nextMigration == null
+            || systemIndices.getMainIndexManager().isEligibleSecurityMigration(nextMigration.getValue()) == false
+            || nextMigration.getValue().checkPreconditions(clusterState) == false) {
             // Reset retry counter if all eligible migrations have been applied successfully
             nodeLocalMigrationRetryCount.set(0);
         } else if (nodeLocalMigrationRetryCount.get() > MAX_SECURITY_MIGRATION_RETRY_COUNT) {

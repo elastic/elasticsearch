@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.security.action.rolemapping;
 
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.ReservedStateMetadata;
 import org.elasticsearch.reservedstate.ReservedClusterStateHandler;
 import org.elasticsearch.reservedstate.TransformState;
 import org.elasticsearch.xcontent.XContentParser;
@@ -34,6 +35,8 @@ import static org.elasticsearch.common.xcontent.XContentHelper.mapToXContentPars
  */
 public class ReservedRoleMappingAction implements ReservedClusterStateHandler<List<PutRoleMappingRequest>> {
     public static final String NAME = "role_mappings";
+    private static final String FILE_SETTINGS_METADATA_NAMESPACE = "file_settings";
+    private static final String HANDLER_ROLE_MAPPINGS_NAME = "role_mappings";
 
     @Override
     public String name() {
@@ -69,6 +72,11 @@ public class ReservedRoleMappingAction implements ReservedClusterStateHandler<Li
             }
         }
         return result;
+    }
+
+    public static Set<String> getFileSettingsMetadataHandlerRoleMappingKeys(ClusterState clusterState) {
+        ReservedStateMetadata fileSettingsMetadata = clusterState.metadata().reservedStateMetadata().get(FILE_SETTINGS_METADATA_NAMESPACE);
+        return fileSettingsMetadata.handlers().get(HANDLER_ROLE_MAPPINGS_NAME).keys();
     }
 
     private Set<ExpressionRoleMapping> validate(List<PutRoleMappingRequest> roleMappings) {

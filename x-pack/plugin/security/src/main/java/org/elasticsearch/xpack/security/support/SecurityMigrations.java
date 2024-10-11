@@ -21,9 +21,9 @@ import org.elasticsearch.index.reindex.UpdateByQueryAction;
 import org.elasticsearch.index.reindex.UpdateByQueryRequest;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
-import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.core.security.action.rolemapping.DeleteRoleMappingRequestBuilder;
+import org.elasticsearch.xpack.core.security.action.rolemapping.GetRoleMappingsRequestBuilder;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.ExpressionRoleMapping;
 import org.elasticsearch.xpack.core.security.authz.RoleMappingMetadata;
 
@@ -35,6 +35,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
 
+import static org.elasticsearch.xpack.security.action.rolemapping.ReservedRoleMappingAction.getFileSettingsMetadataHandlerRoleMappingKeys;
 import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SecurityMainIndexMappingVersion.ADD_REMOTE_CLUSTER_AND_DESCRIPTION_FIELDS;
 
 /**
@@ -47,12 +48,22 @@ public class SecurityMigrations {
         /**
          * Method that will execute the actual migration - needs to be idempotent and non-blocking
          *
-         * @param indexManager for the security index
+         * @param securityIndexManager manager for the main security index
          * @param client the index client
-         * @param state the current cluster state
          * @param listener listener to provide updates back to caller
          */
-        void migrate(SecurityIndexManager indexManager, Client client, ClusterState state, ActionListener<Void> listener);
+        void migrate(SecurityIndexManager securityIndexManager, Client client, ActionListener<Void> listener);
+
+        /**
+         * Check preconditions to make sure the cluster is ready for the migration
+         *
+         * @param clusterState state of the cluster
+         *
+         * @return true if preconditions are met, false otherwise
+         */
+        default boolean checkPreconditions(ClusterState clusterState) {
+            return true;
+        }
 
         /**
          * Any node features that are required for this migration to run. This makes sure that all nodes in the cluster can handle any
@@ -79,31 +90,26 @@ public class SecurityMigrations {
             private static final Logger logger = LogManager.getLogger(SecurityMigration.class);
 
             @Override
-            public void migrate(SecurityIndexManager indexManager, Client client, ClusterState state, ActionListener<Void> listener) {
+            public void migrate(SecurityIndexManager securityIndexManager, Client client, ActionListener<Void> listener) {
                 BoolQueryBuilder filterQuery = new BoolQueryBuilder().filter(QueryBuilders.termQuery("type", "role"))
                     .mustNot(QueryBuilders.existsQuery("metadata_flattened"));
                 SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().query(filterQuery).size(0).trackTotalHits(true);
-                SearchRequest countRequest = new SearchRequest(indexManager.getConcreteIndexName());
+                SearchRequest countRequest = new SearchRequest(securityIndexManager.getConcreteIndexName());
                 countRequest.source(searchSourceBuilder);
 
                 client.search(countRequest, ActionListener.wrap(response -> {
                     // If there are no roles, skip migration
                     if (response.getHits().getTotalHits().value > 0) {
                         logger.info("Preparing to migrate [" + response.getHits().getTotalHits().value + "] roles");
-                        updateRolesByQuery(indexManager, client, filterQuery, listener);
+                        updateRolesByQuery(securityIndexManager.getConcreteIndexName(), client, filterQuery, listener);
                     } else {
                         listener.onResponse(null);
                     }
                 }, listener::onFailure));
             }
 
-            private void updateRolesByQuery(
-                SecurityIndexManager indexManager,
-                Client client,
-                BoolQueryBuilder filterQuery,
-                ActionListener<Void> listener
-            ) {
-                UpdateByQueryRequest updateByQueryRequest = new UpdateByQueryRequest(indexManager.getConcreteIndexName());
+            private void updateRolesByQuery(String indexName, Client client, BoolQueryBuilder filterQuery, ActionListener<Void> listener) {
+                UpdateByQueryRequest updateByQueryRequest = new UpdateByQueryRequest(indexName);
                 updateByQueryRequest.setQuery(filterQuery);
                 updateByQueryRequest.setScript(
                     new Script(
@@ -134,53 +140,40 @@ public class SecurityMigrations {
             private static final Logger logger = LogManager.getLogger(SecurityMigration.class);
 
             @Override
-            public void migrate(SecurityIndexManager indexManager, Client client, ClusterState state, ActionListener<Void> listener) {
-                getRoleMappingIdsBothInClusterStateAndIndex(
-                    indexManager,
+            public void migrate(SecurityIndexManager securityIndexManager, Client client, ActionListener<Void> listener) {
+                if (securityIndexManager.getClusterStateRoleMappings().isEmpty()) {
+                    listener.onResponse(null);
+                }
+
+                getNativeRoleMappingsToDelete(
                     client,
-                    state,
+                    securityIndexManager.getClusterStateRoleMappings().stream().map(ExpressionRoleMapping::getName).toList(),
                     ActionListener.wrap(
-                        roleMappingIds -> deleteRoleMappings(client, roleMappingIds.iterator(), listener),
+                        roleMappingIds -> deleteNativeRoleMappings(client, roleMappingIds.iterator(), listener),
                         listener::onFailure
                     )
                 );
             }
 
-            private void getRoleMappingIdsBothInClusterStateAndIndex(
-                SecurityIndexManager indexManager,
+            private void getNativeRoleMappingsToDelete(
                 Client client,
-                ClusterState state,
+                List<String> clusterStateRoleMappingNames,
                 ActionListener<List<String>> listener
             ) {
-                RoleMappingMetadata roleMappingMetadata = RoleMappingMetadata.getFromClusterState(state);
-                List<String> roleMappingNames = roleMappingMetadata.getRoleMappings().stream().map(ExpressionRoleMapping::getName).toList();
-
-                if (roleMappingNames.isEmpty()) {
+                if (clusterStateRoleMappingNames.isEmpty()) {
                     listener.onResponse(List.of());
                     return;
                 }
+                getNativeRoleMappingFromNames(client, listener, clusterStateRoleMappingNames.toArray(String[]::new));
+            }
 
-                BoolQueryBuilder filterQuery = new BoolQueryBuilder().filter(QueryBuilders.termQuery("doc_type", "role-mapping"))
-                    .must(
-                        QueryBuilders.idsQuery()
-                            .addIds(roleMappingNames.stream().map(name -> "role-mapping_" + name).toArray(String[]::new))
-                    );
-
-                SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().query(filterQuery).trackTotalHits(true);
-                SearchRequest request = new SearchRequest(indexManager.getConcreteIndexName());
-                request.source(searchSourceBuilder);
-
-                client.search(request, ActionListener.wrap(response -> {
-                    if (response.getHits().getTotalHits().value > 0) {
-                        logger.info("Preparing to delete [" + response.getHits().getTotalHits().value + "] role mappings");
-                        listener.onResponse(Arrays.stream(response.getHits().getHits()).map(SearchHit::getId).toList());
-                    } else {
-                        listener.onResponse(List.of());
-                    }
+            private void getNativeRoleMappingFromNames(Client client, ActionListener<List<String>> listener, String... names) {
+                new GetRoleMappingsRequestBuilder(client).names(names).execute(ActionListener.wrap(response -> {
+                    listener.onResponse(Arrays.stream(response.mappings()).map(ExpressionRoleMapping::getName).toList());
                 }, listener::onFailure));
             }
 
-            private void deleteRoleMappings(Client client, Iterator<String> namesIterator, ActionListener<Void> listener) {
+            private void deleteNativeRoleMappings(Client client, Iterator<String> namesIterator, ActionListener<Void> listener) {
                 String name = namesIterator.next();
                 new DeleteRoleMappingRequestBuilder(client).name(name)
                     .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
@@ -189,11 +182,28 @@ public class SecurityMigrations {
                             logger.warn("Expected role mapping [" + name + "] not found during role mapping clean up.");
                         }
                         if (namesIterator.hasNext()) {
-                            deleteRoleMappings(client, namesIterator, listener);
+                            deleteNativeRoleMappings(client, namesIterator, listener);
                         } else {
                             listener.onResponse(null);
                         }
                     }, listener::onFailure));
+            }
+
+            @Override
+            public boolean checkPreconditions(ClusterState clusterState) {
+                if (getFileSettingsMetadataHandlerRoleMappingKeys(clusterState).isEmpty()) {
+                    // No operator defined role mappings, so doesn't need to be ready since cleanup is a noop
+                    return true;
+                }
+
+                // TODO Change this to check version of role mapping metadata when available. So, if version is up to date -> needs upgrade
+                if (RoleMappingMetadata.getFromClusterState(clusterState).getRoleMappings().stream().anyMatch((roleMapping) -> true)) {
+                    // Version is up-to-date for role mapping so ready for cleanup
+                    return true;
+                }
+
+                // Version is not up-to-date, can't trigger cleanup
+                return false;
             }
 
             @Override

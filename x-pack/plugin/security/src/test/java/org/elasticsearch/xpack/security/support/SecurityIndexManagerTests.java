@@ -582,7 +582,7 @@ public class SecurityIndexManagerTests extends ESTestCase {
         manager.clusterChanged(event(markShardsAvailable(clusterStateBuilder)));
         assertTrue(manager.isReadyForSecurityMigration(new SecurityMigrations.SecurityMigration() {
             @Override
-            public void migrate(SecurityIndexManager indexManager, Client client, ClusterState state, ActionListener<Void> listener) {
+            public void migrate(SecurityIndexManager indexManager, Client client, ActionListener<Void> listener) {
                 listener.onResponse(null);
             }
 
@@ -610,7 +610,7 @@ public class SecurityIndexManagerTests extends ESTestCase {
         manager.clusterChanged(event(markShardsAvailable(clusterStateBuilder)));
         assertFalse(manager.isReadyForSecurityMigration(new SecurityMigrations.SecurityMigration() {
             @Override
-            public void migrate(SecurityIndexManager indexManager, Client client, ClusterState state, ActionListener<Void> listener) {
+            public void migrate(SecurityIndexManager indexManager, Client client, ActionListener<Void> listener) {
                 listener.onResponse(null);
             }
 
@@ -638,7 +638,7 @@ public class SecurityIndexManagerTests extends ESTestCase {
         manager.clusterChanged(event(markShardsAvailable(clusterStateBuilder)));
         assertFalse(manager.isReadyForSecurityMigration(new SecurityMigrations.SecurityMigration() {
             @Override
-            public void migrate(SecurityIndexManager indexManager, Client client, ClusterState state, ActionListener<Void> listener) {
+            public void migrate(SecurityIndexManager indexManager, Client client, ActionListener<Void> listener) {
                 listener.onResponse(null);
             }
 

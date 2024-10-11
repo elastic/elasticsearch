@@ -109,8 +109,9 @@ public class FileSettingsServiceIT extends ESIntegTestCase {
         );
     }
 
-    public static void writeJSONFile(String node, String json, AtomicLong versionCounter, Logger logger) throws Exception {
-        long version = versionCounter.incrementAndGet();
+    public static void writeJSONFile(String node, String json, AtomicLong versionCounter, Logger logger, boolean incrementVersion)
+        throws Exception {
+        long version = incrementVersion ? versionCounter.incrementAndGet() : versionCounter.get();
 
         FileSettingsService fileSettingsService = internalCluster().getInstance(FileSettingsService.class, node);
 
@@ -122,6 +123,15 @@ public class FileSettingsServiceIT extends ESIntegTestCase {
         logger.info("--> Before writing new settings file with version [{}]", version);
         Files.move(tempFilePath, fileSettingsService.watchedFile(), StandardCopyOption.ATOMIC_MOVE);
         logger.info("--> After writing new settings file: [{}]", settingsFileContent);
+    }
+
+    public static void writeJSONFile(String node, String json, AtomicLong versionCounter, Logger logger) throws Exception {
+        writeJSONFile(node, json, versionCounter, logger, true);
+    }
+
+    public static void writeJSONFileWithoutVersionIncrement(String node, String json, AtomicLong versionCounter, Logger logger)
+        throws Exception {
+        writeJSONFile(node, json, versionCounter, logger, false);
     }
 
     private Tuple<CountDownLatch, AtomicLong> setupCleanupClusterStateListener(String node) {
@@ -171,7 +181,10 @@ public class FileSettingsServiceIT extends ESIntegTestCase {
     private void assertClusterStateSaveOK(CountDownLatch savedClusterState, AtomicLong metadataVersion, String expectedBytesPerSec)
         throws Exception {
         assertTrue(savedClusterState.await(20, TimeUnit.SECONDS));
+        assertExpectedRecoveryBytesSettingAndVersion(metadataVersion, expectedBytesPerSec);
+    }
 
+    private static void assertExpectedRecoveryBytesSettingAndVersion(AtomicLong metadataVersion, String expectedBytesPerSec) {
         final ClusterStateResponse clusterStateResponse = clusterAdmin().state(
             new ClusterStateRequest(TEST_REQUEST_TIMEOUT).waitForMetadataVersion(metadataVersion.get())
         ).actionGet();
@@ -335,6 +348,38 @@ public class FileSettingsServiceIT extends ESIntegTestCase {
 
         writeJSONFile(masterNode, testErrorJSON, versionCounter, logger);
         assertClusterStateNotSaved(savedClusterState.v1(), savedClusterState.v2());
+    }
+
+    public void testErrorCanRecoverOnRestart() throws Exception {
+        internalCluster().setBootstrapMasterNodeIndex(0);
+        logger.info("--> start data node / non master node");
+        String dataNode = internalCluster().startNode(Settings.builder().put(dataOnlyNode()).put("discovery.initial_state_timeout", "1s"));
+        FileSettingsService dataFileSettingsService = internalCluster().getInstance(FileSettingsService.class, dataNode);
+
+        assertFalse(dataFileSettingsService.watching());
+
+        logger.info("--> start master node");
+        final String masterNode = internalCluster().startMasterOnlyNode(
+            Settings.builder().put(INITIAL_STATE_TIMEOUT_SETTING.getKey(), "0s").build()
+        );
+        assertMasterNode(internalCluster().nonMasterClient(), masterNode);
+        var savedClusterState = setupClusterStateListenerForError(masterNode);
+
+        FileSettingsService masterFileSettingsService = internalCluster().getInstance(FileSettingsService.class, masterNode);
+
+        assertTrue(masterFileSettingsService.watching());
+        assertFalse(dataFileSettingsService.watching());
+
+        writeJSONFile(masterNode, testErrorJSON, versionCounter, logger);
+        assertClusterStateNotSaved(savedClusterState.v1(), savedClusterState.v2());
+
+        // write valid json without version increment to simulate ES being able to process settings after a restart (usually, this would be
+        // due to a code change)
+        writeJSONFileWithoutVersionIncrement(masterNode, testJSON, versionCounter, logger);
+        internalCluster().restartNode(masterNode);
+        ensureGreen();
+
+        assertBusy(() -> assertExpectedRecoveryBytesSettingAndVersion(versionCounter, "50mb"));
     }
 
     public void testSettingsAppliedOnMasterReElection() throws Exception {

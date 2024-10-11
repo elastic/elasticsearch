@@ -37,7 +37,6 @@ import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.DataStream;
-import org.elasticsearch.cluster.metadata.DataStreamFactoryRetention;
 import org.elasticsearch.cluster.metadata.DataStreamGlobalRetentionSettings;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle.Downsampling;
@@ -142,8 +141,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
     private DoExecuteDelegate clientDelegate;
     private ClusterService clusterService;
     private final DataStreamGlobalRetentionSettings globalRetentionSettings = DataStreamGlobalRetentionSettings.create(
-        ClusterSettings.createBuiltInClusterSettings(),
-        DataStreamFactoryRetention.emptyFactoryRetention()
+        ClusterSettings.createBuiltInClusterSettings()
     );
 
     @Before

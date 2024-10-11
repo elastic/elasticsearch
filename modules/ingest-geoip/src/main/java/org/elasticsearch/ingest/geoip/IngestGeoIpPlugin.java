@@ -129,7 +129,7 @@ public class IngestGeoIpPlugin extends Plugin
             parameters.ingestService.getClusterService()
         );
         databaseRegistry.set(registry);
-        return Map.of(GeoIpProcessor.TYPE, new GeoIpProcessor.Factory(registry));
+        return Map.of(GeoIpProcessor.GEOIP_TYPE, new GeoIpProcessor.Factory(GeoIpProcessor.GEOIP_TYPE, registry));
     }
 
     @Override

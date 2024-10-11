@@ -434,8 +434,7 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
             mock(ClusterService.class),
             mock(IndicesService.class),
             DataStreamGlobalRetentionSettings.create(
-                ClusterSettings.createBuiltInClusterSettings(),
-                DataStreamFactoryRetention.emptyFactoryRetention()
+                ClusterSettings.createBuiltInClusterSettings()
             )
         );
 

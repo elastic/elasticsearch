@@ -3235,6 +3235,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      *             }][_doc{f}#23], limit[], sort[] estimatedRowSize[304]
      * </code>
      */
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/114625")
     public void testPushWhereEvalToSource() {
         String query = """
             FROM airports
@@ -3269,6 +3270,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertThat("Expected range to be less than 4", range.to(), equalTo(4));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/114625")
     public void testPushSpatialIntersectsEvalToSource() {
         for (String query : new String[] { """
             FROM airports

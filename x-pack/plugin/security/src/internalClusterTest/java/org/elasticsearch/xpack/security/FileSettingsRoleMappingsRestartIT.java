@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.core.security.authc.support.mapper.ExpressionRole
 import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.FieldExpression;
 import org.elasticsearch.xpack.core.security.authz.RoleMappingMetadata;
 import org.elasticsearch.xpack.security.action.rolemapping.ReservedRoleMappingAction;
+import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -34,7 +35,12 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, autoManageMasterNodes = false)
 public class FileSettingsRoleMappingsRestartIT extends SecurityIntegTestCase {
 
-    private static final AtomicLong versionCounter = new AtomicLong(1);
+    private final AtomicLong versionCounter = new AtomicLong(1);
+
+    @Before
+    public void resetVersion() {
+        versionCounter.set(1);
+    }
 
     private static final String testJSONOnlyRoleMappings = """
         {

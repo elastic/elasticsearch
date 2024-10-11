@@ -25,6 +25,7 @@ import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.reservedstate.action.ReservedClusterSettingsAction;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.junit.Before;
 
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -50,7 +51,12 @@ import static org.hamcrest.Matchers.nullValue;
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, autoManageMasterNodes = false)
 public class FileSettingsServiceIT extends ESIntegTestCase {
 
-    private static final AtomicLong versionCounter = new AtomicLong(1);
+    private final AtomicLong versionCounter = new AtomicLong(1);
+
+    @Before
+    public void resetVersionCounter() {
+        versionCounter.set(1);
+    }
 
     private static final String testJSON = """
         {
@@ -97,6 +103,19 @@ public class FileSettingsServiceIT extends ESIntegTestCase {
              },
              "state": {
                  "not_cluster_settings": {
+                     "search.allow_expensive_queries": "false"
+                 }
+             }
+        }""";
+
+    private static final String testOtherErrorJSON = """
+        {
+             "metadata": {
+                 "version": "%s",
+                 "compatibility": "8.4.0"
+             },
+             "state": {
+                 "still_not_cluster_settings": {
                      "search.allow_expensive_queries": "false"
                  }
              }
@@ -371,7 +390,10 @@ public class FileSettingsServiceIT extends ESIntegTestCase {
         assertFalse(dataFileSettingsService.watching());
 
         writeJSONFile(masterNode, testErrorJSON, versionCounter, logger);
-        assertClusterStateNotSaved(savedClusterState.v1(), savedClusterState.v2());
+        AtomicLong metadataVersion = savedClusterState.v2();
+        assertClusterStateNotSaved(savedClusterState.v1(), metadataVersion);
+        logger.info("returned version: [{}] version counter: [{}]", metadataVersion, versionCounter);
+        assertBusy(this::assertHasErrors);
 
         // write valid json without version increment to simulate ES being able to process settings after a restart (usually, this would be
         // due to a code change)
@@ -380,6 +402,8 @@ public class FileSettingsServiceIT extends ESIntegTestCase {
         ensureGreen();
 
         assertBusy(() -> assertExpectedRecoveryBytesSettingAndVersion(versionCounter, "50mb"));
+        // ensure error got cleared
+        assertNoErrors();
     }
 
     public void testSettingsAppliedOnMasterReElection() throws Exception {
@@ -428,4 +452,20 @@ public class FileSettingsServiceIT extends ESIntegTestCase {
         assertClusterStateSaveOK(savedClusterState.v1(), savedClusterState.v2(), "43mb");
     }
 
+    private void assertHasErrors() {
+        var errorMetadata = getErrorMetadata();
+        assertThat(errorMetadata, is(notNullValue()));
+    }
+
+    private void assertNoErrors() {
+        var errorMetadata = getErrorMetadata();
+        assertThat(errorMetadata, is(nullValue()));
+    }
+
+    private ReservedStateErrorMetadata getErrorMetadata() {
+        final ClusterStateResponse clusterStateResponse = clusterAdmin().state(
+            new ClusterStateRequest(TEST_REQUEST_TIMEOUT).waitForMetadataVersion(versionCounter.get())
+        ).actionGet();
+        return clusterStateResponse.getState().getMetadata().reservedStateMetadata().get(FileSettingsService.NAMESPACE).errorMetadata();
+    }
 }

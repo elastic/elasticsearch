@@ -15,6 +15,7 @@ import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkedInferenceServiceResults;
@@ -53,7 +54,7 @@ import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Consumer;
+import java.util.function.BiConsumer;
 import java.util.function.Function;
 
 import static org.elasticsearch.xpack.core.inference.results.ResultUtils.createInvalidChunkedResultException;
@@ -62,7 +63,6 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFrom
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwIfNotEmptyMap;
 import static org.elasticsearch.xpack.inference.services.elasticsearch.ElserModels.ELSER_V2_MODEL;
 import static org.elasticsearch.xpack.inference.services.elasticsearch.ElserModels.ELSER_V2_MODEL_LINUX_X86;
-import static org.elasticsearch.xpack.inference.services.openai.OpenAiServiceFields.EMBEDDING_MAX_BATCH_SIZE;
 
 public class ElasticsearchInternalService extends BaseElasticsearchInternalService {
 
@@ -89,7 +89,7 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
     // for testing
     ElasticsearchInternalService(
         InferenceServiceExtension.InferenceServiceFactoryContext context,
-        Consumer<ActionListener<Set<String>>> platformArch
+        BiConsumer<ClusterSettings, ActionListener<Set<String>>> platformArch
     ) {
         super(context, platformArch);
     }
@@ -104,6 +104,7 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
         String inferenceEntityId,
         TaskType taskType,
         Map<String, Object> config,
+        ClusterSettings settings,
         ActionListener<Model> modelListener
     ) {
         if (inferenceEntityId.equals(DEFAULT_ELSER_ID)) {
@@ -146,6 +147,7 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
                             + " deprecated and will be removed in a future release. Please specify a model_id field."
                     );
                     platformArch.accept(
+                        settings,
                         modelListener.delegateFailureAndWrap(
                             (delegate, arch) -> elserCase(
                                 inferenceEntityId,
@@ -163,6 +165,7 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
                 }
             } else if (MULTILINGUAL_E5_SMALL_VALID_IDS.contains(modelId)) {
                 platformArch.accept(
+                    settings,
                     modelListener.delegateFailureAndWrap(
                         (delegate, arch) -> e5Case(
                             inferenceEntityId,
@@ -177,6 +180,7 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
                 );
             } else if (ElserModels.isValidModel(modelId)) {
                 platformArch.accept(
+                    settings,
                     modelListener.delegateFailureAndWrap(
                         (delegate, arch) -> elserCase(
                             inferenceEntityId,
@@ -795,12 +799,23 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
 
     @Override
     public List<UnparsedModel> defaultConfigs() {
-        // TODO Chunking settings
+        return defaultConfigsPlatfromAgnostic();
+    }
+
+    public List<UnparsedModel> defaultConfigsLinuxOptimised() {
+        return defaultConfigs(true);
+    }
+
+    public List<UnparsedModel> defaultConfigsPlatfromAgnostic() {
+        return defaultConfigs(false);
+    }
+
+    private List<UnparsedModel> defaultConfigs(boolean useLinuxOptimizedModel) {
         Map<String, Object> elserSettings = Map.of(
             ModelConfigurations.SERVICE_SETTINGS,
             Map.of(
                 ElasticsearchInternalServiceSettings.MODEL_ID,
-                ElserModels.ELSER_V2_MODEL,  // TODO pick model depending on platform
+                useLinuxOptimizedModel ? ELSER_V2_MODEL_LINUX_X86 : ELSER_V2_MODEL,
                 ElasticsearchInternalServiceSettings.NUM_THREADS,
                 1,
                 ElasticsearchInternalServiceSettings.ADAPTIVE_ALLOCATIONS,

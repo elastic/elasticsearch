@@ -260,7 +260,7 @@ public enum IndexMode {
                     return DEFAULT_LOGS_TIMESTAMP_MAPPING_WITH_HOSTNAME;
                 }
             }
-            return DEFAULT_LOGS_TIMESTAMP_MAPPING_WITHOUT_HOSTNAME;
+            return DEFAULT_TIME_SERIES_TIMESTAMP_MAPPING;
         }
 
         @Override
@@ -336,69 +336,33 @@ public enum IndexMode {
         return "[" + IndexSettings.MODE.getKey() + "=time_series]";
     }
 
-    public static final CompressedXContent DEFAULT_TIME_SERIES_TIMESTAMP_MAPPING;
+    private static CompressedXContent createMapping(boolean includeHostName) throws IOException {
+        return new CompressedXContent((builder, params) -> {
+            builder.startObject(MapperService.SINGLE_MAPPING_NAME)
+                .startObject(DataStreamTimestampFieldMapper.NAME)
+                .field("enabled", true)
+                .endObject()
+                .startObject("properties")
+                .startObject(DataStreamTimestampFieldMapper.DEFAULT_PATH)
+                .field("type", DateFieldMapper.CONTENT_TYPE)
+                .endObject();
 
-    static {
-        try {
-            DEFAULT_TIME_SERIES_TIMESTAMP_MAPPING = new CompressedXContent(
-                ((builder, params) -> builder.startObject(MapperService.SINGLE_MAPPING_NAME)
-                    .startObject(DataStreamTimestampFieldMapper.NAME)
-                    .field("enabled", true)
-                    .endObject()
-                    .startObject("properties")
-                    .startObject(DataStreamTimestampFieldMapper.DEFAULT_PATH)
-                    .field("type", DateFieldMapper.CONTENT_TYPE)
-                    .field("ignore_malformed", "false")
-                    .endObject()
-                    .endObject()
-                    .endObject())
-            );
-        } catch (IOException e) {
-            throw new AssertionError(e);
-        }
+            if (includeHostName) {
+                builder.startObject(HOST_NAME).field("type", KeywordFieldMapper.CONTENT_TYPE).field("ignore_above", 1024).endObject();
+            }
+
+            return builder.endObject().endObject();
+        });
     }
 
-    public static final CompressedXContent DEFAULT_LOGS_TIMESTAMP_MAPPING_WITH_HOSTNAME;
+    private static final CompressedXContent DEFAULT_TIME_SERIES_TIMESTAMP_MAPPING;
+
+    private static final CompressedXContent DEFAULT_LOGS_TIMESTAMP_MAPPING_WITH_HOSTNAME;
 
     static {
         try {
-            DEFAULT_LOGS_TIMESTAMP_MAPPING_WITH_HOSTNAME = new CompressedXContent(
-                ((builder, params) -> builder.startObject(MapperService.SINGLE_MAPPING_NAME)
-                    .startObject(DataStreamTimestampFieldMapper.NAME)
-                    .field("enabled", true)
-                    .endObject()
-                    .startObject("properties")
-                    .startObject(DataStreamTimestampFieldMapper.DEFAULT_PATH)
-                    .field("type", DateFieldMapper.CONTENT_TYPE)
-                    .endObject()
-                    .startObject(HOST_NAME)
-                    .field("type", KeywordFieldMapper.CONTENT_TYPE)
-                    .field("ignore_above", 1024)
-                    .endObject()
-                    .endObject()
-                    .endObject())
-            );
-        } catch (IOException e) {
-            throw new AssertionError(e);
-        }
-    }
-
-    public static final CompressedXContent DEFAULT_LOGS_TIMESTAMP_MAPPING_WITHOUT_HOSTNAME;
-
-    static {
-        try {
-            DEFAULT_LOGS_TIMESTAMP_MAPPING_WITHOUT_HOSTNAME = new CompressedXContent(
-                ((builder, params) -> builder.startObject(MapperService.SINGLE_MAPPING_NAME)
-                    .startObject(DataStreamTimestampFieldMapper.NAME)
-                    .field("enabled", true)
-                    .endObject()
-                    .startObject("properties")
-                    .startObject(DataStreamTimestampFieldMapper.DEFAULT_PATH)
-                    .field("type", DateFieldMapper.CONTENT_TYPE)
-                    .endObject()
-                    .endObject()
-                    .endObject())
-            );
+            DEFAULT_TIME_SERIES_TIMESTAMP_MAPPING = createMapping(false);
+            DEFAULT_LOGS_TIMESTAMP_MAPPING_WITH_HOSTNAME = createMapping(true);
         } catch (IOException e) {
             throw new AssertionError(e);
         }

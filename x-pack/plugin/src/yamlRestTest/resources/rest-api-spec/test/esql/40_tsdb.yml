@@ -178,6 +178,14 @@ cast counter then filter:
 
 ---
 sort on counter without cast:
+  - requires:
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [sorting_on_source_and_counters_forbidden]
+      reason: "Sorting on counters shouldn't have been possible"
   - do:
       catch: /cannot sort on counter_long/
       esql.query:

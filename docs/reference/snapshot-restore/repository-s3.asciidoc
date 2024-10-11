@@ -341,7 +341,7 @@ include::repository-shared-settings.asciidoc[]
 
     (integer) Sets the number times to retry a throttled snapshot deletion. Defaults to `10`, minimum value is `0` which
     will disable retries altogether. Note that if retries are enabled in the Azure client, each of these retries
-    comprises that many cient-level retries.
+    comprises that many client-level retries.
 
 NOTE: The option of defining client settings in the repository settings as
 documented below is considered deprecated, and will be removed in a future

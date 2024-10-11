@@ -298,18 +298,20 @@ tests:
 - class: org.elasticsearch.xpack.inference.InferenceRestIT
   method: test {p0=inference/40_semantic_text_query/Query a field that uses the default ELSER 2 endpoint}
   issue: https://github.com/elastic/elasticsearch/issues/114376
-- class: org.elasticsearch.kibana.KibanaThreadPoolIT
-  method: testBlockedThreadPoolsRejectUserRequests
-  issue: https://github.com/elastic/elasticsearch/issues/113939
-- class: org.elasticsearch.ingest.geoip.DatabaseNodeServiceIT
-  method: testGzippedDatabase
-  issue: https://github.com/elastic/elasticsearch/issues/113752
-- class: org.elasticsearch.xpack.rank.rrf.RRFRankClientYamlTestSuiteIT
-  method: test {yaml=rrf/700_rrf_retriever_search_api_compatibility/rrf retriever with top-level collapse}
-  issue: https://github.com/elastic/elasticsearch/issues/114331
-- class: org.elasticsearch.threadpool.SimpleThreadPoolIT
-  method: testThreadPoolMetrics
-  issue: https://github.com/elastic/elasticsearch/issues/108320
+- class: org.elasticsearch.search.retriever.RankDocsRetrieverBuilderTests
+  method: testRewrite
+  issue: https://github.com/elastic/elasticsearch/issues/114467
+- class: org.elasticsearch.packaging.test.DockerTests
+  method: test022InstallPluginsFromLocalArchive
+  issue: https://github.com/elastic/elasticsearch/issues/111063
+- class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
+  method: test {yaml=reference/esql/esql-across-clusters/line_196}
+  issue: https://github.com/elastic/elasticsearch/issues/114488
+- class: org.elasticsearch.gradle.internal.PublishPluginFuncTest
+  issue: https://github.com/elastic/elasticsearch/issues/114492
+- class: org.elasticsearch.xpack.inference.DefaultElserIT
+  method: testInferCreatesDefaultElser
+  issue: https://github.com/elastic/elasticsearch/issues/114503
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=indices.split/40_routing_partition_size/nested}
   issue: https://github.com/elastic/elasticsearch/issues/113842

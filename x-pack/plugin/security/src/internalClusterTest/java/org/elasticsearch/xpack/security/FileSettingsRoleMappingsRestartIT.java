@@ -21,6 +21,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -86,7 +87,7 @@ public class FileSettingsRoleMappingsRestartIT extends SecurityIntegTestCase {
              }
         }""";
 
-    private static String emptyJSON = """
+    private static final String emptyJSON = """
         {
              "metadata": {
                  "version": "%s",
@@ -154,12 +155,7 @@ public class FileSettingsRoleMappingsRestartIT extends SecurityIntegTestCase {
         );
 
         // now remove the role mappings via the same settings file
-        savedClusterState = setupClusterStateListenerForCleanup(masterNode);
-        awaitFileSettingsWatcher();
-        logger.info("--> remove the role mappings with an empty settings file");
-        writeJSONFile(masterNode, emptyJSON, logger, versionCounter);
-        awaitSuccessful = savedClusterState.v1().await(20, TimeUnit.SECONDS);
-        assertTrue(awaitSuccessful);
+        cleanupClusterState(masterNode);
 
         // no role mappings
         assertRoleMappingsInClusterState();
@@ -204,10 +200,15 @@ public class FileSettingsRoleMappingsRestartIT extends SecurityIntegTestCase {
             )
         );
 
-        // Don't increment version but write new file
+        final CountDownLatch latch = new CountDownLatch(1);
+        final FileSettingsService fileSettingsService = internalCluster().getInstance(FileSettingsService.class, masterNode);
+        fileSettingsService.addFileChangedListener(latch::countDown);
+        // Don't increment version but write new file contents to test re-processing on restart
         writeJSONFileWithoutVersionIncrement(masterNode, testJSONOnlyUpdatedRoleMappings, logger, versionCounter);
+        // make sure we saw a file settings update so that we know it got processed, but it did not affect cluster state
+        assertTrue(latch.await(20, TimeUnit.SECONDS));
 
-        // Nothing changed yet because version was the same
+        // Nothing changed yet because version is the same and there was no restart
         assertRoleMappingsInClusterState(
             new ExpressionRoleMapping(
                 "everyone_kibana_alone",
@@ -230,13 +231,11 @@ public class FileSettingsRoleMappingsRestartIT extends SecurityIntegTestCase {
         logger.info("--> restart master");
         internalCluster().restartNode(masterNode);
         ensureGreen();
-
-        FileSettingsService masterFileSettingsService = internalCluster().getInstance(FileSettingsService.class, masterNode);
-        assertBusy(() -> assertTrue(masterFileSettingsService.watching()));
+        awaitFileSettingsWatcher();
 
         // Assert busy to give mappings time to update
-        assertBusy(() -> {
-            assertRoleMappingsInClusterState(
+        assertBusy(
+            () -> assertRoleMappingsInClusterState(
                 new ExpressionRoleMapping(
                     "everyone_kibana_together",
                     new FieldExpression("username", List.of(new FieldExpression.FieldValue("*"))),
@@ -245,8 +244,10 @@ public class FileSettingsRoleMappingsRestartIT extends SecurityIntegTestCase {
                     Map.of("uuid", "b9a59ba9-6b92-4be2-bb8d-02bb270cb3a7", "_foo", "something"),
                     true
                 )
-            );
-        }, 20, TimeUnit.SECONDS);
+            ),
+            20,
+            TimeUnit.SECONDS
+        );
 
         cleanupClusterState(masterNode);
     }

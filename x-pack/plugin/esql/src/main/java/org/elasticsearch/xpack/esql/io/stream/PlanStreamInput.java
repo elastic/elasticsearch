@@ -291,7 +291,7 @@ public final class PlanStreamInput extends NamedWriteableAwareStreamInput
     private void cacheString(int id, String string) {
         assert id >= 0;
         if (id >= stringCache.length) {
-            stringCache = ArrayUtil.grow(stringCache);
+            stringCache = ArrayUtil.grow(stringCache, id + 1);
         }
         stringCache[id] = string;
     }

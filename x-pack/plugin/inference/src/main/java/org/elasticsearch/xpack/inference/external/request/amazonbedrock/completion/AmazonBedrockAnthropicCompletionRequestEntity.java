@@ -7,8 +7,7 @@
 
 package org.elasticsearch.xpack.inference.external.request.amazonbedrock.completion;
 
-import com.amazonaws.services.bedrockruntime.model.ConverseRequest;
-import com.amazonaws.services.bedrockruntime.model.InferenceConfiguration;
+import software.amazon.awssdk.services.bedrockruntime.model.ConverseRequest;
 
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
@@ -31,40 +30,38 @@ public record AmazonBedrockAnthropicCompletionRequestEntity(
     }
 
     @Override
-    public ConverseRequest addMessages(ConverseRequest request) {
-        return request.withMessages(getConverseMessageList(messages));
+    public ConverseRequest.Builder addMessages(ConverseRequest.Builder request) {
+        return request.messages(getConverseMessageList(messages));
     }
 
     @Override
-    public ConverseRequest addInferenceConfig(ConverseRequest request) {
+    public ConverseRequest.Builder addInferenceConfig(ConverseRequest.Builder request) {
         if (temperature == null && topP == null && maxTokenCount == null) {
             return request;
         }
 
-        InferenceConfiguration inferenceConfig = new InferenceConfiguration();
+        return request.inferenceConfig(config -> {
+            if (temperature != null) {
+                config.temperature(temperature.floatValue());
+            }
 
-        if (temperature != null) {
-            inferenceConfig = inferenceConfig.withTemperature(temperature.floatValue());
-        }
+            if (topP != null) {
+                config.topP(topP.floatValue());
+            }
 
-        if (topP != null) {
-            inferenceConfig = inferenceConfig.withTopP(topP.floatValue());
-        }
-
-        if (maxTokenCount != null) {
-            inferenceConfig = inferenceConfig.withMaxTokens(maxTokenCount);
-        }
-
-        return request.withInferenceConfig(inferenceConfig);
+            if (maxTokenCount != null) {
+                config.maxTokens(maxTokenCount);
+            }
+        });
     }
 
     @Override
-    public ConverseRequest addAdditionalModelFields(ConverseRequest request) {
+    public ConverseRequest.Builder addAdditionalModelFields(ConverseRequest.Builder request) {
         if (topK == null) {
             return request;
         }
 
         String topKField = Strings.format("{\"top_k\":%f}", topK.floatValue());
-        return request.withAdditionalModelResponseFieldPaths(topKField);
+        return request.additionalModelResponseFieldPaths(topKField);
     }
 }

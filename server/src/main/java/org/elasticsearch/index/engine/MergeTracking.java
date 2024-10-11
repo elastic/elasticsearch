@@ -98,10 +98,10 @@ public class MergeTracking {
 
         String message = String.format(
             Locale.ROOT,
-            "merge segment [%s] done: took [%s], [%,.1f MB], [%,d docs], [%s stopped], [%s throttled]",
+            "merge segment [%s] done: took [%s], [%s], [%,d docs], [%s stopped], [%s throttled]",
             getSegmentName(merge),
             TimeValue.timeValueMillis(tookMS),
-            totalSizeInBytes / 1024f / 1024f,
+            ByteSizeValue.ofBytes(totalSizeInBytes),
             totalNumDocs,
             TimeValue.timeValueMillis(stoppedMS),
             TimeValue.timeValueMillis(throttledMS)

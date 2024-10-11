@@ -29,7 +29,7 @@ TIP: You can host {es} on your own hardware or send your data to {es} on {ecloud
 
 | <<multi-region-two-datacenter-architecture>>
 
-image:reference-architectures/multi-region-two-datacenter.png[Image showing a multi-region two datacenter architecture]
+image:reference-architectures/images/multi-region-two-datacenter.png[Image showing a multi-region two datacenter architecture]
 
 a| 
 You want to:
@@ -49,6 +49,8 @@ You want to:
 
 |===
 
+[discrete]
+[[reference-architectures-ingest-architectures]]
 === Ingest Architectures
 
 Additionally, we have architectures specifically tailored to the ingestion portion of your architecture and these can be found at, https://www.elastic.co/guide/en/ingest/current/use-case-arch.html[Ingest Architectures]

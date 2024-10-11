@@ -855,27 +855,23 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
 
     String unresolvedAttributeNameInParam(ParserRuleContext ctx, Expression param) {
         String invalidParam = "Query parameter [{}]{}, cannot be used as an identifier";
-        switch (param) {
-            case Literal lit -> throw new ParsingException(
+        if (param instanceof Literal lit) {
+            throw new ParsingException(
                 source(ctx),
                 invalidParam,
                 ctx.getText(),
                 lit.value() != null ? " with value [" + lit.value() + "] declared as a constant" : " is null or undefined"
             );
-            case UnresolvedNamePattern up -> throw new ParsingException(
-                source(ctx),
-                invalidParam,
-                ctx.getText(),
-                "[" + up.name() + "] declared as a pattern"
-            );
-            case UnresolvedAttribute ua -> {
-                if (ua.name() != null) {
-                    return ua.name();
-                } else { // this should not happen
-                    throw new ParsingException(source(ctx), invalidParam, ctx.getText(), "[null]");
-                }
+        } else if (param instanceof UnresolvedNamePattern up) {
+            throw new ParsingException(source(ctx), invalidParam, ctx.getText(), "[" + up.name() + "] declared as a pattern");
+        } else if (param instanceof UnresolvedAttribute ua) {
+            if (ua.name() != null) {
+                return ua.name();
+            } else { // this should not happen
+                throw new ParsingException(source(ctx), invalidParam, ctx.getText(), "[null]");
             }
-            default -> throw new ParsingException(source(ctx), invalidParam, ctx.getText(), "[null]");
+        } else {
+            throw new ParsingException(source(ctx), invalidParam, ctx.getText(), "[null]");
         }
     }
 

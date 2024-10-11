@@ -42,17 +42,15 @@ public class ScriptTermStats {
     private final Supplier<StatsSummary> docFreqSupplier;
     private final Supplier<StatsSummary> totalTermFreqSupplier;
 
-    // private volatile PostingsEnum[] postings;
-
     public ScriptTermStats(IndexSearcher searcher, LeafReaderContext leafReaderContext, IntSupplier docIdSupplier, Set<Term> terms) {
         this.searcher = searcher;
         this.leafReaderContext = leafReaderContext;
         this.docIdSupplier = docIdSupplier;
         this.terms = terms.toArray(new Term[0]);
         this.termContextsSupplier = CachedSupplier.wrap(this::loadTermContexts);
+        this.postingsSupplier = CachedSupplier.wrap(this::loadPostings);
         this.docFreqSupplier = CachedSupplier.wrap(this::loadDocFreq);
         this.totalTermFreqSupplier = CachedSupplier.wrap(this::loadTotalTermFreq);
-        this.postingsSupplier = CachedSupplier.wrap(this::loadPostings);
     }
 
     /**

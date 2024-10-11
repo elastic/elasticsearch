@@ -34,10 +34,7 @@ public class PolicyParser {
 
     public PolicyParser(String policyName, InputStream inputStream) throws IOException {
         this.policyName = policyName;
-        this.policyParser = YamlXContent.yamlXContent.createParser(
-            XContentParserConfiguration.EMPTY,
-            Objects.requireNonNull(inputStream)
-        );
+        this.policyParser = YamlXContent.yamlXContent.createParser(XContentParserConfiguration.EMPTY, Objects.requireNonNull(inputStream));
     }
 
     public void parsePolicy() {

@@ -54,6 +54,7 @@ import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
@@ -151,7 +152,7 @@ public class FileSettingsServiceTests extends ESTestCase {
         doAnswer((Answer<Void>) invocation -> {
             ((Consumer<Exception>) invocation.getArgument(3)).accept(new IllegalStateException("Some exception"));
             return null;
-        }).when(controller).process(any(), any(XContentParser.class), eq(true), any());
+        }).when(controller).process(any(), any(XContentParser.class), anyBoolean(), any());
 
         AtomicBoolean settingsChanged = new AtomicBoolean(false);
         CountDownLatch latch = new CountDownLatch(1);
@@ -188,7 +189,7 @@ public class FileSettingsServiceTests extends ESTestCase {
         doAnswer((Answer<Void>) invocation -> {
             ((Consumer<Exception>) invocation.getArgument(3)).accept(null);
             return null;
-        }).when(controller).process(any(), any(XContentParser.class), eq(true), any());
+        }).when(controller).process(any(), any(XContentParser.class), anyBoolean(), any());
 
         CountDownLatch latch = new CountDownLatch(1);
 
@@ -214,6 +215,51 @@ public class FileSettingsServiceTests extends ESTestCase {
 
         verify(fileSettingsService, times(1)).processFileOnServiceStart();
         verify(controller, times(1)).process(any(), any(XContentParser.class), eq(true), any());
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testProcessFileChanges() throws Exception {
+        doAnswer((Answer<Void>) invocation -> {
+            ((Consumer<Exception>) invocation.getArgument(3)).accept(null);
+            return null;
+        }).when(controller).process(any(), any(XContentParser.class), anyBoolean(), any());
+
+        // we get three events: initial clusterChanged event, first write, second write
+        CountDownLatch latch = new CountDownLatch(3);
+
+        fileSettingsService.addFileChangedListener(latch::countDown);
+
+        Files.createDirectories(fileSettingsService.watchedFileDir());
+        // contents of the JSON don't matter, we just need a file to exist
+        writeTestFile(fileSettingsService.watchedFile(), "{}");
+
+        doAnswer((Answer<?>) invocation -> {
+            try {
+                return invocation.callRealMethod();
+            } finally {
+                latch.countDown();
+            }
+        }).when(fileSettingsService).processFileOnServiceStart();
+        doAnswer((Answer<?>) invocation -> {
+            try {
+                return invocation.callRealMethod();
+            } finally {
+                latch.countDown();
+            }
+        }).when(fileSettingsService).processFileChanges();
+
+        fileSettingsService.start();
+        fileSettingsService.clusterChanged(new ClusterChangedEvent("test", clusterService.state(), ClusterState.EMPTY_STATE));
+        // second file change; contents still don't matter
+        writeTestFile(fileSettingsService.watchedFile(), "{}");
+
+        // wait for listener to be called (once for initial processing, once for subsequent update)
+        assertTrue(latch.await(20, TimeUnit.SECONDS));
+
+        verify(fileSettingsService, times(1)).processFileOnServiceStart();
+        verify(controller, times(1)).process(any(), any(XContentParser.class), eq(true), any());
+        verify(fileSettingsService, times(1)).processFileChanges();
+        verify(controller, times(1)).process(any(), any(XContentParser.class), eq(false), any());
     }
 
     @SuppressWarnings("unchecked")

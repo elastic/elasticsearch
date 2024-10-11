@@ -1,0 +1,5 @@
+pr: 114552
+summary: Improve exception message for bad environment variable placeholders in settings
+area: Infra/Settings
+type: enhancement
+issues: [110858]

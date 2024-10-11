@@ -462,8 +462,7 @@ public final class SearchPhaseController {
                     : "not enough hits fetched. index [" + index + "] length: " + fetchResult.hits().getHits().length;
                 SearchHit searchHit = fetchResult.hits().getHits()[index];
                 searchHit.shard(fetchResult.getSearchShardTarget());
-                if (reducedQueryPhase.queryPhaseRankCoordinatorContext != null) {
-                    assert shardDoc instanceof RankDoc;
+                if (shardDoc instanceof RankDoc) {
                     searchHit.setRank(((RankDoc) shardDoc).rank);
                     searchHit.score(shardDoc.score);
                     long shardAndDoc = ShardDocSortField.encodeShardAndDoc(shardDoc.shardIndex, shardDoc.doc);
@@ -735,6 +734,9 @@ public final class SearchPhaseController {
             return DEFAULT_SIZE;
         }
         SearchSourceBuilder source = request.source();
+        if (source.rankBuilder() != null) {
+            return source.rankBuilder().rankWindowSize();
+        }
         return (source.size() == -1 ? DEFAULT_SIZE : source.size()) + (source.from() == -1 ? SearchService.DEFAULT_FROM : source.from());
     }
 

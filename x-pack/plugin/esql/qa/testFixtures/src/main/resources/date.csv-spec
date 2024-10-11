@@ -369,7 +369,7 @@ date1:date               | dd_ms:integer
 
 evalDateDiffMonthAsWhole0Months
 
-ROW from="2023-12-31T23:59:59.999Z"::DATETIME, to="2024-01-01T00:00:00"::DATETIME
+ROW from=TO_DATETIME("2023-12-31T23:59:59.999Z"), to=TO_DATETIME("2024-01-01T00:00:00")
 | EVAL msecs=DATE_DIFF("milliseconds", from, to), months=DATE_DIFF("month", from, to)
 ;
 
@@ -380,7 +380,7 @@ ROW from="2023-12-31T23:59:59.999Z"::DATETIME, to="2024-01-01T00:00:00"::DATETIM
 
 evalDateDiffMonthAsWhole1Month
 
-ROW from="2023-12-31T23:59:59.999Z"::DATETIME, to="2024-02-01T00:00:00"::DATETIME
+ROW from=TO_DATETIME("2023-12-31T23:59:59.999Z"), to=TO_DATETIME("2024-02-01T00:00:00")
 | EVAL secs=DATE_DIFF("seconds", from, to), months=DATE_DIFF("month", from, to)
 ;
 
@@ -392,7 +392,7 @@ ROW from="2023-12-31T23:59:59.999Z"::DATETIME, to="2024-02-01T00:00:00"::DATETIM
 evalDateDiffYearAsWhole0Years
 required_capability: date_diff_year_calendarial
 
-ROW from="2023-12-31T23:59:59.999Z"::DATETIME, to="2024-01-01T00:00:00"::DATETIME
+ROW from=TO_DATETIME("2023-12-31T23:59:59.999Z"), to=TO_DATETIME("2024-01-01T00:00:00")
 | EVAL msecs=DATE_DIFF("milliseconds", from, to), years=DATE_DIFF("year", from, to)
 ;
 
@@ -403,7 +403,7 @@ ROW from="2023-12-31T23:59:59.999Z"::DATETIME, to="2024-01-01T00:00:00"::DATETIM
 evalDateDiffYearAsWhole1Year
 required_capability: date_diff_year_calendarial
 
-ROW from="2023-12-31T23:59:59.999Z"::DATETIME, to="2025-01-01T00:00:00"::DATETIME
+ROW from=TO_DATETIME("2023-12-31T23:59:59.999Z"), to=TO_DATETIME("2025-01-01T00:00:00")
 | EVAL secs=DATE_DIFF("seconds", from, to), years=DATE_DIFF("year", from, to)
 ;
 
@@ -414,7 +414,7 @@ ROW from="2023-12-31T23:59:59.999Z"::DATETIME, to="2025-01-01T00:00:00"::DATETIM
 evalDateDiffYearAsWhole1Year
 required_capability: date_diff_year_calendarial
 
-ROW from="2024-01-01T00:00:00Z"::DATETIME, to="2025-01-01T00:00:00"::DATETIME
+ROW from=TO_DATETIME("2024-01-01T00:00:00Z"), to=TO_DATETIME("2025-01-01T00:00:00")
 | EVAL secs=DATE_DIFF("seconds", from, to), years=DATE_DIFF("year", from, to)
 ;
 
@@ -426,9 +426,9 @@ evalDateDiffYearForDocs
 required_capability: date_diff_year_calendarial
 
 // tag::evalDateDiffYearForDocs[]
-ROW end_23="2023-12-31T23:59:59.999Z"::DATETIME,
-  start_24="2024-01-01T00:00:00.000Z"::DATETIME,
-    end_24="2024-12-31T23:59:59.999"::DATETIME
+ROW end_23=TO_DATETIME("2023-12-31T23:59:59.999Z"),
+  start_24=TO_DATETIME("2024-01-01T00:00:00.000Z"),
+    end_24=TO_DATETIME("2024-12-31T23:59:59.999")
 | EVAL end23_to_start24=DATE_DIFF("year", end_23, start_24)
 | EVAL end23_to_end24=DATE_DIFF("year", end_23, end_24)
 | EVAL start_to_end_24=DATE_DIFF("year", start_24, end_24)

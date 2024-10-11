@@ -41,6 +41,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.COMMA_ESCAPING_REGEX;
@@ -223,6 +224,15 @@ public class CsvTestsDataLoader {
         }
     }
 
+    public static Set<TestsDataset> availableDatasetsForEs(RestClient client) throws IOException {
+        boolean inferenceEnabled = clusterHasInferenceEndpoint(client);
+
+        return CSV_DATASET_MAP.values()
+            .stream()
+            .filter(d -> d.requiresInferenceEndpoint == false || inferenceEnabled)
+            .collect(Collectors.toCollection(HashSet::new));
+    }
+
     public static void loadDataSetIntoEs(RestClient client) throws IOException {
         loadDataSetIntoEs(client, (restClient, indexName, indexMapping, indexSettings) -> {
             ESRestTestCase.createIndex(restClient, indexName, indexSettings, indexMapping, null);
@@ -233,10 +243,7 @@ public class CsvTestsDataLoader {
         Logger logger = LogManager.getLogger(CsvTestsDataLoader.class);
 
         Set<String> loadedDatasets = new HashSet<>();
-        for (var dataset : CSV_DATASET_MAP.values()) {
-            if (dataset.requiresInferenceEndpoint && clusterHasInferenceEndpoint(client) == false) {
-                continue;
-            }
+        for (var dataset : availableDatasetsForEs(client)) {
             load(client, dataset, logger, indexCreator);
             loadedDatasets.add(dataset.indexName);
         }

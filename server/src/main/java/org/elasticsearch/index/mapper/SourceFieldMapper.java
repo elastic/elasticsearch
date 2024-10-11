@@ -202,7 +202,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
             this.indexMode = indexMode;
             this.supportsNonDefaultParameterValues = supportsCheckForNonDefaultParams == false
                 || settings.getAsBoolean(LOSSY_PARAMETERS_ALLOWED_SETTING_NAME, true);
-            this.enableRecoverySource =  indexMode == IndexMode.LOGSDB ? false : enableRecoverySource;
+            this.enableRecoverySource = indexMode == IndexMode.LOGSDB ? false : enableRecoverySource;
         }
 
         public Builder setSynthetic() {

@@ -388,7 +388,7 @@ public final class LuceneChangesSnapshot implements Translog.Snapshot {
             scoreDocs,
             startIndex,
             scoreDocs.length,
-            new ScoreDoc(docBase+maxDoc, Float.NaN, -1),
+            new ScoreDoc(docBase + maxDoc, Float.NaN, -1),
             Comparator.comparingInt(a -> a.doc)
         );
         if (rightIndex < 0) {

@@ -44,8 +44,8 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.index.engine.LuceneChangesSnapshot.getLeafDocIDs;
-import static org.elasticsearch.index.engine.LuceneChangesSnapshot.loadFromStoredFields;
 import static org.elasticsearch.index.engine.LuceneChangesSnapshot.loadFromSourceLoader;
+import static org.elasticsearch.index.engine.LuceneChangesSnapshot.loadFromStoredFields;
 
 /**
  * A {@link Translog.Snapshot} implementation that retrieves changes from a Lucene index in batches.
@@ -167,7 +167,7 @@ public final class LuceneBatchChangesSnapshot implements Translog.Snapshot {
         }
         if (op != null) {
             assert fromSeqNo <= op.seqNo() && op.seqNo() <= toSeqNo && lastSeenSeqNo < op.seqNo()
-                    : "Unexpected operation; "
+                : "Unexpected operation; "
                     + "last_seen_seqno ["
                     + lastSeenSeqNo
                     + "], from_seqno ["

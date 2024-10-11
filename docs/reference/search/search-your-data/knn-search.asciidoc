@@ -1210,6 +1210,7 @@ will from all shards will be gathered before rescoring.
 The second way is to score per shard with the <<query-dsl-knn-query, knn query>> and <<query-dsl-script-score-query, script_score query >>. Generally, this means that there will be more rescoring per shard, but this
 can increase overall recall at the cost of compute.
 
+[source,console]
 --------------------------------------------------
 POST /my-index/_search
 {

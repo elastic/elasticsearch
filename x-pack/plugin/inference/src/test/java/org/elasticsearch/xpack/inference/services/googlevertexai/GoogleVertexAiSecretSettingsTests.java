@@ -29,6 +29,15 @@ public class GoogleVertexAiSecretSettingsTests extends AbstractBWCWireSerializat
         return new GoogleVertexAiSecretSettings(randomSecureStringOfLength(30));
     }
 
+    public void testNewSecretSettings() {
+        GoogleVertexAiSecretSettings initialSettings = createRandom();
+        GoogleVertexAiSecretSettings newSettings = createRandom();
+        GoogleVertexAiSecretSettings newGoogleVertexAiSecretSettings = (GoogleVertexAiSecretSettings) initialSettings.newSecretSettings(
+            Map.of(GoogleVertexAiSecretSettings.SERVICE_ACCOUNT_JSON, newSettings.serviceAccountJson.toString())
+        );
+        assertEquals(newSettings, newGoogleVertexAiSecretSettings);
+    }
+
     public void testFromMap_ReturnsNull_WhenMapIsNUll() {
         assertNull(GoogleVertexAiSecretSettings.fromMap(null));
     }

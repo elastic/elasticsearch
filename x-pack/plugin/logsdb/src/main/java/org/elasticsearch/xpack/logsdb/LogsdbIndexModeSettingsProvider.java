@@ -7,9 +7,7 @@
 
 package org.elasticsearch.xpack.logsdb;
 
-import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Setting;
@@ -59,7 +57,7 @@ final class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
             return Settings.EMPTY;
         }
 
-        if (usesLogsAtSettingsComponentTemplate(metadata, dataStreamName) && matchesLogsPattern(dataStreamName)) {
+        if (matchesLogsPattern(dataStreamName)) {
             return Settings.builder().put("index.mode", IndexMode.LOGSDB.getName()).build();
         }
 
@@ -72,23 +70,6 @@ final class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
 
     private IndexMode resolveIndexMode(final String mode) {
         return mode != null ? Enum.valueOf(IndexMode.class, mode.toUpperCase(Locale.ROOT)) : null;
-    }
-
-    private boolean usesLogsAtSettingsComponentTemplate(final Metadata metadata, final String name) {
-        final String template = MetadataIndexTemplateService.findV2Template(metadata, name, false);
-        if (template == null) {
-            return false;
-        }
-        final ComposableIndexTemplate composableIndexTemplate = metadata.templatesV2().get(template);
-        if (composableIndexTemplate == null) {
-            return false;
-        }
-        for (final String componentTemplate : composableIndexTemplate.composedOf()) {
-            if ("logs@settings".equals(componentTemplate)) {
-                return true;
-            }
-        }
-        return false;
     }
 
 }

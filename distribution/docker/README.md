@@ -7,7 +7,7 @@ the [DockerBase] enum.
    * UBI - the same as the default image, but based upon [RedHat's UBI
      images][ubi], specifically their minimal flavour.
    * Wolfi - the same as the default image, but based upon [Wolfi](https://github.com/wolfi-dev)
-   * Wolfi ESS - this directly extends the Wolfi image, and adds all ES plugins
+   * Cloud ESS - this directly extends the Wolfi image, and adds all ES plugins
      that the ES build generates in an archive directory. It also sets an
      environment variable that points at this directory. This allows plugins to
      be installed from the archive instead of the internet, speeding up
@@ -23,7 +23,6 @@ the [DockerBase] enum.
      software (FOSS) and Commercial off-the-shelf (COTS). In practice, this is
      another UBI build, this time on the regular UBI image, with extra
      hardening. See below for more details.
-
    * Cloud - this is mostly the same as the default image, with some notable differences:
       * `filebeat` and `metricbeat` are included
       * `wget` is included
@@ -31,12 +30,6 @@ the [DockerBase] enum.
         `/app/elasticsearch.sh`. In normal use this file would be bind-mounted
         in, but the image ships a stub version of this file so that the image
         can still be tested.
-   * Cloud ESS - this directly extends the Cloud image, and adds all ES plugins
-     that the ES build generates in an archive directory. It also sets an
-     environment variable that points at this directory. This allows plugins to
-     be installed from the archive instead of the internet, speeding up
-     deployment times.
-
 The long-term goal is for both Cloud images to be retired in favour of the
 default image.
 

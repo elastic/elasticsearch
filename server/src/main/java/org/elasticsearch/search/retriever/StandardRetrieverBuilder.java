@@ -113,29 +113,29 @@ public final class StandardRetrieverBuilder extends RetrieverBuilder implements 
     @Override
     public RetrieverBuilder rewrite(QueryRewriteContext ctx) throws IOException {
         boolean changed = false;
-        List<SortBuilder<?>> newSortBuilders = null;
+        List<SortBuilder<?>> rewrittenSortBuilders = null;
         if (sortBuilders != null) {
-            newSortBuilders = new ArrayList<>(sortBuilders.size());
+            rewrittenSortBuilders = new ArrayList<>(sortBuilders.size());
             for (var sort : sortBuilders) {
                 var newSort = sort.rewrite(ctx);
-                newSortBuilders.add(newSort);
-                changed = newSort != sort;
+                rewrittenSortBuilders.add(newSort);
+                changed |= newSort != sort;
             }
         }
         var rewrittenFilters = rewritePreFilters(ctx);
         changed |= rewrittenFilters != preFilterQueryBuilders;
 
-        QueryBuilder queryBuilderRewrite = null;
+        QueryBuilder rewrittenQuery = null;
         if (queryBuilder != null) {
-            queryBuilderRewrite = queryBuilder.rewrite(ctx);
-            changed |= queryBuilderRewrite != queryBuilder;
+            rewrittenQuery = queryBuilder.rewrite(ctx);
+            changed |= rewrittenQuery != queryBuilder;
         }
 
         if (changed) {
             var rewritten = new StandardRetrieverBuilder(this);
-            rewritten.sortBuilders = newSortBuilders;
-            rewritten.preFilterQueryBuilders = preFilterQueryBuilders;
-            rewritten.queryBuilder = queryBuilderRewrite;
+            rewritten.sortBuilders = rewrittenSortBuilders;
+            rewritten.preFilterQueryBuilders = rewrittenFilters;
+            rewritten.queryBuilder = rewrittenQuery;
             return rewritten;
         }
         return this;

@@ -321,6 +321,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
   method: test {categorize.Categorize ASYNC}
   issue: https://github.com/elastic/elasticsearch/issues/113721
+- class: org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvPercentileTests
+  method: "testEvaluateBlockWithoutNulls {TestCase=field: <positive mv UNORDERED longs>, percentile: <small positive double>}"
+  issue: https://github.com/elastic/elasticsearch/issues/114585
 
 # Examples:
 #

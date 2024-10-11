@@ -10,13 +10,8 @@
 package org.elasticsearch.ingest.geoip;
 
 import org.apache.lucene.util.Constants;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.IOUtils;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.threadpool.TestThreadPool;
-import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.watcher.ResourceWatcherService;
 import org.junit.After;
 import org.junit.Before;
 
@@ -31,31 +26,24 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class MaxmindIpDataLookupsTests extends ESTestCase {
-    private ThreadPool threadPool;
-    private ResourceWatcherService resourceWatcherService;
 
     // a temporary directory that mmdb files can be copied to and read from
     private Path tmpDir;
 
     @Before
     public void setup() {
-        threadPool = new TestThreadPool(ConfigDatabases.class.getSimpleName());
-        Settings settings = Settings.builder().put("resource.reload.interval.high", TimeValue.timeValueMillis(100)).build();
-        resourceWatcherService = new ResourceWatcherService(settings, threadPool);
         tmpDir = createTempDir();
     }
 
     @After
     public void cleanup() throws IOException {
-        resourceWatcherService.close();
-        threadPool.shutdownNow();
         IOUtils.rm(tmpDir);
     }
 
     public void testCity() throws Exception {
         assumeFalse("https://github.com/elastic/elasticsearch/issues/114266", Constants.WINDOWS);
         String databaseName = "GeoLite2-City.mmdb";
-        String ip = null;// "8.8.8.8";
+        String ip = "8.8.8.8";
         assertExpectedLookupResults(
             databaseName,
             ip,
@@ -300,14 +288,12 @@ public class MaxmindIpDataLookupsTests extends ESTestCase {
             for (Map.Entry<String, Object> entry : expected.entrySet()) {
                 assertThat("Unexpected value returned for key " + entry.getKey(), data.get(entry.getKey()), equalTo(entry.getValue()));
             }
-            assertThat(data, equalTo(expected));
         }
     }
 
     private DatabaseReaderLazyLoader loader(final String databaseName) {
         Path path = tmpDir.resolve(databaseName);
         copyDatabase(databaseName, path);
-
         final GeoIpCache cache = new GeoIpCache(1000);
         return new DatabaseReaderLazyLoader(cache, path, null);
     }

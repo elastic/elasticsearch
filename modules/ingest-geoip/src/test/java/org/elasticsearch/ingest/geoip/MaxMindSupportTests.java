@@ -87,7 +87,10 @@ public class MaxMindSupportTests extends ESTestCase {
         "location.timeZone",
         "mostSpecificSubdivision.isoCode",
         "mostSpecificSubdivision.name",
-        "postal.code"
+        "postal.code",
+        "registeredCountry.inEuropeanUnion",
+        "registeredCountry.isoCode",
+        "registeredCountry.name"
     );
     private static final Set<String> CITY_UNSUPPORTED_FIELDS = Set.of(
         "city.confidence",
@@ -113,9 +116,6 @@ public class MaxMindSupportTests extends ESTestCase {
         "postal.confidence",
         "registeredCountry.confidence",
         "registeredCountry.geoNameId",
-        "registeredCountry.inEuropeanUnion",
-        "registeredCountry.isoCode",
-        "registeredCountry.name",
         "registeredCountry.names",
         "representedCountry.confidence",
         "representedCountry.geoNameId",
@@ -162,7 +162,10 @@ public class MaxMindSupportTests extends ESTestCase {
         "country.inEuropeanUnion",
         "country.isoCode",
         "continent.code",
-        "country.name"
+        "country.name",
+        "registeredCountry.inEuropeanUnion",
+        "registeredCountry.isoCode",
+        "registeredCountry.name"
     );
     private static final Set<String> COUNTRY_UNSUPPORTED_FIELDS = Set.of(
         "continent.geoNameId",
@@ -173,9 +176,6 @@ public class MaxMindSupportTests extends ESTestCase {
         "maxMind",
         "registeredCountry.confidence",
         "registeredCountry.geoNameId",
-        "registeredCountry.inEuropeanUnion",
-        "registeredCountry.isoCode",
-        "registeredCountry.name",
         "registeredCountry.names",
         "representedCountry.confidence",
         "representedCountry.geoNameId",
@@ -229,6 +229,9 @@ public class MaxMindSupportTests extends ESTestCase {
         "mostSpecificSubdivision.name",
         "postal.code",
         "postal.confidence",
+        "registeredCountry.inEuropeanUnion",
+        "registeredCountry.isoCode",
+        "registeredCountry.name",
         "traits.anonymous",
         "traits.anonymousVpn",
         "traits.autonomousSystemNumber",
@@ -267,9 +270,6 @@ public class MaxMindSupportTests extends ESTestCase {
         "mostSpecificSubdivision.names",
         "registeredCountry.confidence",
         "registeredCountry.geoNameId",
-        "registeredCountry.inEuropeanUnion",
-        "registeredCountry.isoCode",
-        "registeredCountry.name",
         "registeredCountry.names",
         "representedCountry.confidence",
         "representedCountry.geoNameId",
@@ -364,6 +364,7 @@ public class MaxMindSupportTests extends ESTestCase {
     private static final Set<Database> KNOWN_UNSUPPORTED_DATABASE_VARIANTS = Set.of(
         Database.AsnV2,
         Database.CityV2,
+        Database.CountryV2,
         Database.PrivacyDetection
     );
 

@@ -292,6 +292,50 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/113874
 - class: org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDateNanosTests
   issue: https://github.com/elastic/elasticsearch/issues/113661
+- class: org.elasticsearch.xpack.inference.InferenceRestIT
+  method: test {p0=inference/30_semantic_text_inference/Calculates embeddings using the default ELSER 2 endpoint}
+  issue: https://github.com/elastic/elasticsearch/issues/114412
+- class: org.elasticsearch.xpack.inference.InferenceRestIT
+  method: test {p0=inference/40_semantic_text_query/Query a field that uses the default ELSER 2 endpoint}
+  issue: https://github.com/elastic/elasticsearch/issues/114376
+- class: org.elasticsearch.search.retriever.RankDocsRetrieverBuilderTests
+  method: testRewrite
+  issue: https://github.com/elastic/elasticsearch/issues/114467
+- class: org.elasticsearch.packaging.test.DockerTests
+  method: test022InstallPluginsFromLocalArchive
+  issue: https://github.com/elastic/elasticsearch/issues/111063
+- class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
+  method: test {yaml=reference/esql/esql-across-clusters/line_196}
+  issue: https://github.com/elastic/elasticsearch/issues/114488
+- class: org.elasticsearch.gradle.internal.PublishPluginFuncTest
+  issue: https://github.com/elastic/elasticsearch/issues/114492
+- class: org.elasticsearch.xpack.inference.DefaultElserIT
+  method: testInferCreatesDefaultElser
+  issue: https://github.com/elastic/elasticsearch/issues/114503
+- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
+  method: test {p0=indices.split/40_routing_partition_size/nested}
+  issue: https://github.com/elastic/elasticsearch/issues/113842
+- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
+  method: test {p0=indices.split/40_routing_partition_size/more than 1}
+  issue: https://github.com/elastic/elasticsearch/issues/113841
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
+  method: test {categorize.Categorize ASYNC}
+  issue: https://github.com/elastic/elasticsearch/issues/113721
+- class: org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvPercentileTests
+  method: "testEvaluateBlockWithoutNulls {TestCase=field: <positive mv UNORDERED longs>, percentile: <small positive double>}"
+  issue: https://github.com/elastic/elasticsearch/issues/114585
+- class: org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvPercentileTests
+  method: "testEvaluateBlockWithoutNulls {TestCase=field: <positive mv SORTED_ASCENDING longs>, percentile: <small positive double>}"
+  issue: https://github.com/elastic/elasticsearch/issues/114586
+- class: org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvPercentileTests
+  method: "testEvaluateBlockWithoutNulls {TestCase=field: <positive mv DEDUPLICATED_AND_SORTED_ASCENDING longs>, percentile: <small positive double>}"
+  issue: https://github.com/elastic/elasticsearch/issues/114587
+- class: org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvPercentileTests
+  method: "testEvaluateBlockWithoutNulls {TestCase=field: <positive mv DEDUPLICATED_UNORDERD longs>, percentile: <small positive double>}"
+  issue: https://github.com/elastic/elasticsearch/issues/114588
+- class: org.elasticsearch.action.search.SearchQueryThenFetchAsyncActionTests
+  method: testMinimumVersionSameAsNewVersion
+  issue: https://github.com/elastic/elasticsearch/issues/114593
 
 # Examples:
 #

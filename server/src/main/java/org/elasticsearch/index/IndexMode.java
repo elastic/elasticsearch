@@ -217,8 +217,8 @@ public enum IndexMode {
 
         @Override
         public void validateSourceFieldMapper(SourceFieldMapper sourceFieldMapper) {
-            if (sourceFieldMapper.isSynthetic() == false) {
-                throw new IllegalArgumentException("time series indices only support synthetic source");
+            if (sourceFieldMapper.enabled() == false) {
+                throw new IllegalArgumentException("_source can not be disabled in index using [" + IndexMode.TIME_SERIES + "] index mode");
             }
         }
 
@@ -292,8 +292,8 @@ public enum IndexMode {
 
         @Override
         public void validateSourceFieldMapper(SourceFieldMapper sourceFieldMapper) {
-            if (sourceFieldMapper.isSynthetic() == false) {
-                throw new IllegalArgumentException("Indices with with index mode [" + IndexMode.LOGSDB + "] only support synthetic source");
+            if (sourceFieldMapper.enabled() == false) {
+                throw new IllegalArgumentException("_source can not be disabled in index using [" + IndexMode.LOGSDB + "] index mode");
             }
         }
 

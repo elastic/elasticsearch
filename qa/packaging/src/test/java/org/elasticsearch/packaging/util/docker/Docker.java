@@ -532,9 +532,7 @@ public class Docker {
                 )
             );
 
-        if (es.distribution.packaging == Packaging.DOCKER_CLOUD
-            || es.distribution.packaging == Packaging.DOCKER_CLOUD_ESS
-            || es.distribution.packaging == Packaging.DOCKER_WOLFI_ESS) {
+        if (es.distribution.packaging == Packaging.DOCKER_CLOUD || es.distribution.packaging == Packaging.DOCKER_CLOUD_ESS) {
             verifyCloudContainerInstallation(es);
         }
     }
@@ -543,7 +541,7 @@ public class Docker {
         final String pluginArchive = "/opt/plugins/archive";
         final List<String> plugins = listContents(pluginArchive);
 
-        if (es.distribution.packaging == Packaging.DOCKER_CLOUD_ESS || es.distribution.packaging == Packaging.DOCKER_WOLFI_ESS) {
+        if (es.distribution.packaging == Packaging.DOCKER_CLOUD_ESS) {
             assertThat("ESS image should come with plugins in " + pluginArchive, plugins, not(empty()));
 
             final List<String> repositoryPlugins = plugins.stream()

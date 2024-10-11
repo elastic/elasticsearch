@@ -30,7 +30,7 @@ parameter, such as the `query` parameter in the
 [[filter-context]]
 === Filter context
 
-A filter answers the binary question “Does this document match this query clause?”. The anwser is simply "yes" or "no".
+A filter answers the binary question “Does this document match this query clause?”. The answer is simply "yes" or "no".
 Filtering has several benefits:
 
 . *Simple binary logic*: In a filter context, a query clause determines document matches based on a yes/no criterion, without score calculation.
@@ -44,7 +44,7 @@ Filters are particularly effective for querying structured data and implementing
 Common filter applications include:
 
 * Date range checks: for example is the `timestamp` field between 2015 and 2016
-* Status checks: for example is the `status` field equals "published"
+* Status checks: for example is the `status` field equal to "published"
 
 Filter context applies when a query clause is passed to a `filter` parameter, such as:
 

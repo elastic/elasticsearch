@@ -313,6 +313,9 @@ tests:
 - class: org.elasticsearch.threadpool.SimpleThreadPoolIT
   method: testThreadPoolMetrics
   issue: https://github.com/elastic/elasticsearch/issues/108320
+- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
+  method: test {p0=indices.split/40_routing_partition_size/nested}
+  issue: https://github.com/elastic/elasticsearch/issues/113842
 
 # Examples:
 #

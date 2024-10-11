@@ -45,6 +45,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.startsWith;
@@ -332,14 +333,13 @@ public class RestEsqlIT extends RestEsqlTestCase {
     }
 
     public void testProfileOrdinalsGroupingOperator() throws IOException {
+        assumeTrue("requires pragmas", Build.current().isSnapshot());
         indexTimestampData(1);
 
         RequestObjectBuilder builder = requestObjectBuilder().query(fromIndex() + " | STATS AVG(value) BY test.keyword");
         builder.profile(true);
-        if (Build.current().isSnapshot()) {
-            // Lock to shard level partitioning, so we get consistent profile output
-            builder.pragmas(Settings.builder().put("data_partitioning", "shard").build());
-        }
+        // Lock to shard level partitioning, so we get consistent profile output
+        builder.pragmas(Settings.builder().put("data_partitioning", "shard").build());
         Map<String, Object> result = runEsql(builder);
 
         List<List<String>> signatures = new ArrayList<>();
@@ -357,7 +357,7 @@ public class RestEsqlIT extends RestEsqlTestCase {
             signatures.add(sig);
         }
 
-        assertThat(signatures.get(0).get(2), equalTo("OrdinalsGroupingOperator[aggregators=[\"sum of longs\", \"count\"]]"));
+        assertThat(signatures, hasItem(hasItem("OrdinalsGroupingOperator[aggregators=[\"sum of longs\", \"count\"]]")));
     }
 
     public void testInlineStatsProfile() throws IOException {

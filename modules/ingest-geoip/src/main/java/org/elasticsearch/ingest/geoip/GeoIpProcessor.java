@@ -226,7 +226,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
             final Map<String, Object> config
         ) throws IOException {
             String ipField = readStringProperty(type, processorTag, config, "field");
-            String targetField = readStringProperty(type, processorTag, config, "target_field", "geoip");
+            String targetField = readStringProperty(type, processorTag, config, "target_field", type);
             String databaseFile = readStringProperty(type, processorTag, config, "database_file", "GeoLite2-City.mmdb");
             List<String> propertyNames = readOptionalList(type, processorTag, config, "properties");
             boolean ignoreMissing = readBooleanProperty(type, processorTag, config, "ignore_missing", false);

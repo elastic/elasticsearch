@@ -348,14 +348,14 @@ public class EsqlCapabilities {
         DATE_DIFF_YEAR_CALENDARIAL,
 
         /**
+         * Support named parameters for field names.
+         */
+        NAMED_PARAMETER_FOR_FIELD_AND_FUNCTION_NAMES,
+
+        /**
          * Allow filter per individual aggregation.
          */
         PER_AGG_FILTERING;
-
-        /**
-         * Support named parameters for field names.
-         */
-        NAMED_PARAMETER_FOR_FIELD_AND_FUNCTION_NAMES;
 
         private final boolean snapshotOnly;
         private final FeatureFlag featureFlag;

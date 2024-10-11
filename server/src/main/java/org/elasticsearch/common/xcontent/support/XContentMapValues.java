@@ -192,16 +192,62 @@ public class XContentMapValues {
     }
 
     private static Object extractValue(String[] pathElements, int index, Object currentValue, Object nullValue) {
-        List<Object> extractedValues = new ArrayList<>();
-        extractAndInsertValue(pathElements, index, currentValue, nullValue, false, null, extractedValues);
-
-        if (extractedValues.isEmpty()) {
-            return null;
-        } else if (extractedValues.size() == 1) {
-            return extractedValues.get(0);
-        } else {
-            return extractedValues;
+        if (currentValue instanceof List<?> valueList) {
+            List<Object> newList = new ArrayList<>(valueList.size());
+            for (Object o : valueList) {
+                Object listValue = extractValue(pathElements, index, o, nullValue);
+                if (listValue != null) {
+                    // we add arrays as list elements only if we are already at leaf,
+                    // otherwise append individual elements to the new list so we don't
+                    // accumulate intermediate array structures
+                    if (listValue instanceof List<?> list) {
+                        if (index == pathElements.length) {
+                            newList.add(list);
+                        } else {
+                            newList.addAll(list);
+                        }
+                    } else {
+                        newList.add(listValue);
+                    }
+                }
+            }
+            return newList;
         }
+
+        if (index == pathElements.length) {
+            return currentValue != null ? currentValue : nullValue;
+        }
+
+        if (currentValue instanceof Map<?, ?> map) {
+            String key = pathElements[index];
+            int nextIndex = index + 1;
+            List<Object> extractedValues = new ArrayList<>();
+            while (true) {
+                if (map.containsKey(key)) {
+                    Object mapValue = map.get(key);
+                    if (mapValue == null) {
+                        extractedValues.add(nullValue);
+                    } else {
+                        Object val = extractValue(pathElements, nextIndex, mapValue, nullValue);
+                        if (val != null) {
+                            extractedValues.add(val);
+                        }
+                    }
+                }
+                if (nextIndex == pathElements.length) {
+                    if (extractedValues.size() == 0) {
+                        return null;
+                    } else if (extractedValues.size() == 1) {
+                        return extractedValues.get(0);
+                    } else {
+                        return extractedValues;
+                    }
+                }
+                key += "." + pathElements[nextIndex];
+                nextIndex++;
+            }
+        }
+        return null;
     }
 
     /**

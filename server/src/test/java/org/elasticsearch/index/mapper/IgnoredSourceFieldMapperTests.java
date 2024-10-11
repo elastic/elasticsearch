@@ -901,6 +901,37 @@ public class IgnoredSourceFieldMapperTests extends MapperServiceTestCase {
         );
     }
 
+    public void testConflictingFieldNameAfterArray() throws IOException {
+        DocumentMapper documentMapper = createMapperService(syntheticSourceMapping(b -> {
+            b.startObject("path").startObject("properties");
+            {
+                b.startObject("to").startObject("properties");
+                {
+                    b.startObject("id").field("type", "integer").field("synthetic_source_keep", "arrays").endObject();
+                }
+                b.endObject().endObject();
+                b.startObject("id").field("type", "float").endObject();
+            }
+            b.endObject().endObject();
+        })).documentMapper();
+
+        var syntheticSource = syntheticSource(documentMapper, b -> {
+            b.startObject("path");
+            {
+                b.startArray("to");
+                {
+                    b.startObject().array("id", 1, 20, 3).endObject();
+                    b.startObject().field("id", 10).endObject();
+                }
+                b.endArray();
+                b.field("id", "0.1");
+            }
+            b.endObject();
+        });
+        assertEquals("""
+            {"path":{"id":0.1,"to":{"id":[1,20,3,10]}}}""", syntheticSource);
+    }
+
     public void testArrayWithinArray() throws IOException {
         DocumentMapper documentMapper = createMapperService(syntheticSourceMapping(b -> {
             b.startObject("path");

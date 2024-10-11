@@ -18,6 +18,7 @@ import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.TransportMultiSearchAction;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
@@ -89,7 +90,9 @@ public abstract class CompoundRetrieverBuilder<T extends CompoundRetrieverBuilde
         final SearchCoordinatorProfiler profiler = ctx.profiler();
         Timer rewriteTimer = null;
         if (profiler != null && profiler.getRetriever() == null) {
-            profiler.retriever(new RetrieverProfileResult(this.getName(), -1, new ArrayList<>(innerRetrievers.size())));
+            profiler.retriever(
+                new RetrieverProfileResult(this.getName(), -1, Maps.newConcurrentHashMapWithExpectedSize(innerRetrievers.size()))
+            );
             rewriteTimer = profiler.getNewTimer(SearchCoordinatorTimingType.RETRIEVER_REWRITE);
             rewriteTimer.start();
         }
@@ -150,7 +153,8 @@ public abstract class CompoundRetrieverBuilder<T extends CompoundRetrieverBuilde
                                         listener.onFailure(new IllegalStateException("Coordinator profile results are missing"));
                                     }
                                     SearchProfileCoordinatorResult nestedResult = item.getResponse().getCoordinatorProfileResults();
-                                    profiler.captureInnerRetrieverResult(nestedResult);
+                                    nestedResult.getRetrieverProfileResult().setTookInMillis(item.getResponse().getTookInMillis());
+                                    profiler.captureInnerRetrieverResult(innerRetrievers.get(i).retriever().getName(), nestedResult);
                                 }
                             }
                         }

@@ -54,11 +54,7 @@ public class SearchProfileCoordinatorResult implements Writeable, ToXContentFrag
     }
 
     public RetrieverProfileResult getRetrieverProfileResult() {
-        return retrieverProfileResult;
-    }
-
-    public Map<String, Long> getBreakdownMap() {
-        return breakdownMap;
+        return this.retrieverProfileResult;
     }
 
     @Override

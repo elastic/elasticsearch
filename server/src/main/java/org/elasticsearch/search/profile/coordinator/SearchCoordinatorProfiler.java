@@ -22,11 +22,11 @@ public class SearchCoordinatorProfiler extends AbstractProfileBreakdown<SearchCo
         this.nodeId = nodeId;
     }
 
-    public void captureInnerRetrieverResult(SearchProfileCoordinatorResult profileResult) {
+    public void captureInnerRetrieverResult(String name, SearchProfileCoordinatorResult profileResult) {
         if (retriever == null) {
             throw new IllegalArgumentException("parent [retriever] results have not been initialized");
         }
-        retriever.addChild(profileResult);
+        retriever.addChild(name, profileResult);
     }
 
     public void captureRetrieverTookInMillis(long tookInMillis) {

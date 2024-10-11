@@ -17,15 +17,15 @@ import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.List;
+import java.util.Map;
 
 public class RetrieverProfileResult implements ToXContentObject, Writeable {
 
     private final String name;
     private long tookInMillis;
-    private final List<SearchProfileCoordinatorResult> children;
+    private final Map<String, SearchProfileCoordinatorResult> children;
 
-    public RetrieverProfileResult(String name, long tookInMillis, List<SearchProfileCoordinatorResult> children) {
+    public RetrieverProfileResult(String name, long tookInMillis, Map<String, SearchProfileCoordinatorResult> children) {
         this.name = name;
         this.tookInMillis = tookInMillis;
         this.children = children;
@@ -34,14 +34,14 @@ public class RetrieverProfileResult implements ToXContentObject, Writeable {
     public RetrieverProfileResult(StreamInput in) throws IOException {
         name = in.readString();
         tookInMillis = in.readLong();
-        children = in.readCollectionAsList(SearchProfileCoordinatorResult::new);
+        children = in.readMap(StreamInput::readString, SearchProfileCoordinatorResult::new);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(name);
         out.writeLong(tookInMillis);
-        out.writeCollection(children);
+        out.writeMap(children, StreamOutput::writeString, StreamOutput::writeWriteable);
     }
 
     @Override
@@ -53,9 +53,11 @@ public class RetrieverProfileResult implements ToXContentObject, Writeable {
         }
         if (false == children.isEmpty()) {
             builder.startArray("children");
-            for (SearchProfileCoordinatorResult child : children) {
+            for (Map.Entry<String, SearchProfileCoordinatorResult> child : children.entrySet()) {
                 builder.startObject();
-                child.toXContent(builder, params);
+                builder.startObject(child.getKey());
+                child.getValue().toXContent(builder, params);
+                builder.endObject();
                 builder.endObject();
             }
             builder.endArray();
@@ -65,13 +67,9 @@ public class RetrieverProfileResult implements ToXContentObject, Writeable {
         return builder;
     }
 
-    public List<SearchProfileCoordinatorResult> getChildren() {
-        return children;
-    }
-
-    public void addChild(SearchProfileCoordinatorResult profileResult) {
+    public void addChild(String name, SearchProfileCoordinatorResult profileResult) {
         assert profileResult != null;
-        children.add(profileResult);
+        children.put(name, profileResult);
     }
 
     public void setTookInMillis(long tookInMillis) {

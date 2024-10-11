@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.core.inference.ChunkingSettingsFeatureFlag;
 import org.elasticsearch.xpack.core.inference.results.InferenceTextEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.inference.results.RankedDocsResults;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
+import org.elasticsearch.xpack.core.ml.action.GetDeploymentStatsAction;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
 import org.elasticsearch.xpack.core.ml.action.InferModelAction;
 import org.elasticsearch.xpack.core.ml.inference.results.ErrorInferenceResults;
@@ -50,6 +51,7 @@ import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -62,7 +64,6 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFrom
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwIfNotEmptyMap;
 import static org.elasticsearch.xpack.inference.services.elasticsearch.ElserModels.ELSER_V2_MODEL;
 import static org.elasticsearch.xpack.inference.services.elasticsearch.ElserModels.ELSER_V2_MODEL_LINUX_X86;
-import static org.elasticsearch.xpack.inference.services.openai.OpenAiServiceFields.EMBEDDING_MAX_BATCH_SIZE;
 
 public class ElasticsearchInternalService extends BaseElasticsearchInternalService {
 
@@ -791,6 +792,39 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
 
         Collections.sort(rankings);
         return new RankedDocsResults(rankings);
+    }
+
+    @Override
+    public void updateModelsWithDynamicFields(List<Model> models, ActionListener<List<Model>> listener) {
+        var modelsByDeploymentIds = new HashMap<String, ElasticsearchInternalModel>();
+        for (var model : models) {
+            if (model instanceof ElasticsearchInternalModel esModel) {
+                modelsByDeploymentIds.put(esModel.internalServiceSettings.deloymentId(), esModel);
+            } else {
+                listener.onFailure(
+                    new ElasticsearchStatusException(
+                        "Cannot update model [{}] as it is not an Elasticsearch service model",
+                        RestStatus.INTERNAL_SERVER_ERROR,
+                        model.getInferenceEntityId()
+                    )
+                );
+                return;
+            }
+        }
+
+        String deploymentIds = String.join(",", modelsByDeploymentIds.keySet());
+        client.execute(
+            GetDeploymentStatsAction.INSTANCE,
+            new GetDeploymentStatsAction.Request(deploymentIds),
+            listener.delegateFailureAndWrap((l, stats) -> {
+                for (var deploymentStats : stats.getStats().results()) {
+                    var model = modelsByDeploymentIds.get(deploymentStats.getDeploymentId());
+                    model.updateNumAllocation(deploymentStats.getNumberOfAllocations());
+                }
+
+                l.onResponse(new ArrayList<>(modelsByDeploymentIds.values()));
+            })
+        );
     }
 
     @Override

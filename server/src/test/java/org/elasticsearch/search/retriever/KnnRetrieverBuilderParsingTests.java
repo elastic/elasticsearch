@@ -22,7 +22,6 @@ import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.rank.RankDoc;
 import org.elasticsearch.search.retriever.rankdoc.RankDocsQueryBuilder;
-import org.elasticsearch.search.vectors.ExactKnnQueryBuilder;
 import org.elasticsearch.test.AbstractXContentTestCase;
 import org.elasticsearch.usage.SearchUsage;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -75,7 +74,7 @@ public class KnnRetrieverBuilderParsingTests extends AbstractXContentTestCase<Kn
 
     @Override
     protected KnnRetrieverBuilder doParseInstance(XContentParser parser) throws IOException {
-        return KnnRetrieverBuilder.fromXContent(
+        return (KnnRetrieverBuilder) RetrieverBuilder.parseTopLevelRetrieverBuilder(
             parser,
             new RetrieverParserContext(
                 new SearchUsage(),
@@ -122,17 +121,15 @@ public class KnnRetrieverBuilderParsingTests extends AbstractXContentTestCase<Kn
         final int preFilters = knnRetriever.preFilterQueryBuilders.size();
         QueryBuilder topDocsQuery = knnRetriever.topDocsQuery();
         assertNotNull(topDocsQuery);
-        assertThat(topDocsQuery, instanceOf(BoolQueryBuilder.class));
-        assertThat(((BoolQueryBuilder) topDocsQuery).filter().size(), equalTo(1 + preFilters));
-        assertThat(((BoolQueryBuilder) topDocsQuery).filter().get(0), instanceOf(RankDocsQueryBuilder.class));
-        for (int i = 0; i < preFilters; i++) {
-            assertThat(
-                ((BoolQueryBuilder) topDocsQuery).filter().get(i + 1),
-                instanceOf(knnRetriever.preFilterQueryBuilders.get(i).getClass())
-            );
+        assertThat(topDocsQuery, anyOf(instanceOf(RankDocsQueryBuilder.class), instanceOf(BoolQueryBuilder.class)));
+        if (topDocsQuery instanceof BoolQueryBuilder bq) {
+            assertThat(bq.must().size(), equalTo(1));
+            assertThat(bq.must().get(0), instanceOf(RankDocsQueryBuilder.class));
+            assertThat(bq.filter().size(), equalTo(preFilters));
+            for (int i = 0; i < preFilters; i++) {
+                assertThat(bq.filter().get(i), instanceOf(knnRetriever.preFilterQueryBuilders.get(i).getClass()));
+            }
         }
-        assertThat(((BoolQueryBuilder) topDocsQuery).should().size(), equalTo(1));
-        assertThat(((BoolQueryBuilder) topDocsQuery).should().get(0), instanceOf(ExactKnnQueryBuilder.class));
     }
 
     @Override

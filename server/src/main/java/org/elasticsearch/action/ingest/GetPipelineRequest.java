@@ -13,6 +13,7 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.MasterNodeReadRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.TimeValue;
 
 import java.io.IOException;
 
@@ -21,8 +22,8 @@ public class GetPipelineRequest extends MasterNodeReadRequest<GetPipelineRequest
     private final String[] ids;
     private final boolean summary;
 
-    public GetPipelineRequest(boolean summary, String... ids) {
-        super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
+    public GetPipelineRequest(TimeValue masterNodeTimeout, boolean summary, String... ids) {
+        super(masterNodeTimeout);
         if (ids == null) {
             throw new IllegalArgumentException("ids cannot be null");
         }
@@ -30,8 +31,8 @@ public class GetPipelineRequest extends MasterNodeReadRequest<GetPipelineRequest
         this.summary = summary;
     }
 
-    public GetPipelineRequest(String... ids) {
-        this(false, ids);
+    public GetPipelineRequest(TimeValue masterNodeTimeout, String... ids) {
+        this(masterNodeTimeout, false, ids);
     }
 
     public GetPipelineRequest(StreamInput in) throws IOException {

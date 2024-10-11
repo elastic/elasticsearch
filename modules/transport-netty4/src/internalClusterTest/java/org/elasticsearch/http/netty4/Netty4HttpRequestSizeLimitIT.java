@@ -14,6 +14,7 @@ import io.netty.handler.codec.http.HttpResponseStatus;
 import io.netty.util.ReferenceCounted;
 
 import org.elasticsearch.ESNetty4IntegTestCase;
+import org.elasticsearch.action.bulk.IncrementalBulkService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -52,6 +53,8 @@ public class Netty4HttpRequestSizeLimitIT extends ESNetty4IntegTestCase {
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         return Settings.builder()
             .put(super.nodeSettings(nodeOrdinal, otherSettings))
+            // TODO: We do not currently support in flight circuit breaker limits for bulk. However, IndexingPressure applies
+            .put(IncrementalBulkService.INCREMENTAL_BULK.getKey(), false)
             .put(HierarchyCircuitBreakerService.IN_FLIGHT_REQUESTS_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), LIMIT)
             .build();
     }

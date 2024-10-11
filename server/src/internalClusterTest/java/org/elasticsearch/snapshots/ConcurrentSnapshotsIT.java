@@ -18,7 +18,6 @@ import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotStatus;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusResponse;
-import org.elasticsearch.action.admin.indices.delete.DeleteIndexClusterStateUpdateRequest;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -33,9 +32,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.common.util.concurrent.UncategorizedExecutionException;
 import org.elasticsearch.core.PathUtils;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.discovery.AbstractDisruptionTestCase;
-import org.elasticsearch.index.Index;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoryConflictException;
@@ -59,6 +56,7 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
@@ -2214,12 +2212,17 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
                     .anyMatch(e -> e.snapshot().getSnapshotId().getName().equals("snapshot-with-index-1") && e.state().completed())
             )
             // execute the index deletion _directly on the master_ so it happens before the snapshot finalization executes
-            .andThen(l -> masterDeleteIndexService.deleteIndices(new DeleteIndexClusterStateUpdateRequest(l.map(r -> {
-                assertTrue(r.isAcknowledged());
-                return null;
-            })).indices(new Index[] { internalCluster().clusterService().state().metadata().index(indexToDelete).getIndex() })
-                .ackTimeout(TimeValue.timeValueSeconds(10))
-                .masterNodeTimeout(TimeValue.timeValueSeconds(10))))
+            .andThen(
+                l -> masterDeleteIndexService.deleteIndices(
+                    TEST_REQUEST_TIMEOUT,
+                    TEST_REQUEST_TIMEOUT,
+                    Set.of(internalCluster().clusterService().state().metadata().index(indexToDelete).getIndex()),
+                    l.map(r -> {
+                        assertTrue(r.isAcknowledged());
+                        return null;
+                    })
+                )
+            )
             // ultimately create the index again so that taking a full snapshot will pick up any missing shard gen blob, and deleting that
             // full snapshot will clean up all dangling shard-level blobs
             .andThen((l, ignored) -> prepareCreate(indexToDelete, indexSettingsNoReplicas(1)).execute(l.map(r -> {

@@ -83,8 +83,8 @@ query:
           query:
             range:
               http.clientip:
-                from: 232.0.0.0
-                to: 253.0.0.0
+                gte: 232.0.0.0
+                lte: 253.0.0.0
   - match: { hits.total.value: 4 }
 
 ---

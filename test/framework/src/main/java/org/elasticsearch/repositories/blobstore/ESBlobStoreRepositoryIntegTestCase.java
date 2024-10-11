@@ -236,7 +236,17 @@ public abstract class ESBlobStoreRepositoryIntegTestCase extends ESIntegTestCase
         if (randomBoolean()) {
             container.writeBlob(randomPurpose(), blobName, bytesArray, failIfAlreadyExists);
         } else {
-            container.writeBlobAtomic(randomNonDataPurpose(), blobName, bytesArray, failIfAlreadyExists);
+            if (randomBoolean()) {
+                container.writeBlobAtomic(randomNonDataPurpose(), blobName, bytesArray, failIfAlreadyExists);
+            } else {
+                container.writeBlobAtomic(
+                    randomNonDataPurpose(),
+                    blobName,
+                    bytesArray.streamInput(),
+                    bytesArray.length(),
+                    failIfAlreadyExists
+                );
+            }
         }
     }
 

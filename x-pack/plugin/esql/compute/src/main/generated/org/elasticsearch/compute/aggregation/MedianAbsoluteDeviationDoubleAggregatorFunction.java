@@ -43,7 +43,7 @@ public final class MedianAbsoluteDeviationDoubleAggregatorFunction implements Ag
 
   public static MedianAbsoluteDeviationDoubleAggregatorFunction create(DriverContext driverContext,
       List<Integer> channels) {
-    return new MedianAbsoluteDeviationDoubleAggregatorFunction(driverContext, channels, MedianAbsoluteDeviationDoubleAggregator.initSingle());
+    return new MedianAbsoluteDeviationDoubleAggregatorFunction(driverContext, channels, MedianAbsoluteDeviationDoubleAggregator.initSingle(driverContext));
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -57,11 +57,11 @@ public final class MedianAbsoluteDeviationDoubleAggregatorFunction implements Ag
 
   @Override
   public void addRawInput(Page page, BooleanVector mask) {
-    if (mask.isConstant()) {
-      if (mask.getBoolean(0) == false) {
-        // Entire page masked away
-        return;
-      }
+    if (mask.allFalse()) {
+      // Entire page masked away
+      return;
+    }
+    if (mask.allTrue()) {
       // No masking
       DoubleBlock block = page.getBlock(channels.get(0));
       DoubleVector vector = block.asVector();

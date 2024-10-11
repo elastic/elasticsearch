@@ -36,7 +36,11 @@ PUT _inference/sparse_embedding/my-elser-endpoint <1>
 {
   "service": "elser", <2>
   "service_settings": {
-    "num_allocations": 1,
+    "adaptive_allocations": { <3>
+      "enabled": true,
+      "min_number_of_allocations": 3,
+      "max_number_of_allocations": 10
+    },
     "num_threads": 1
   }
 }
@@ -46,6 +50,8 @@ PUT _inference/sparse_embedding/my-elser-endpoint <1>
 be used and ELSER creates sparse vectors. The `inference_id` is
 `my-elser-endpoint`.
 <2> The `elser` service is used in this example.
+<3> This setting enables and configures adaptive allocations.
+Adaptive allocations make it possible for ELSER to automatically scale up or down resources based on the current load on the process.
 
 [NOTE]
 ====
@@ -83,6 +89,16 @@ PUT semantic-embeddings
 It will be used to generate the embeddings based on the input text.
 Every time you ingest data into the related `semantic_text` field, this endpoint will be used for creating the vector representation of the text.
 
+[NOTE]
+====
+If you're using web crawlers or connectors to generate indices, you have to
+<<indices-put-mapping,update the index mappings>> for these indices to
+include the `semantic_text` field. Once the mapping is updated, you'll need to run
+a full web crawl or a full connector sync. This ensures that all existing
+documents are reprocessed and updated with the new semantic embeddings,
+enabling semantic search on the updated data.
+====
+
 
 [discrete]
 [[semantic-text-load-data]]
@@ -96,11 +112,12 @@ a list of relevant text passages. All unique passages, along with their IDs,
 have been extracted from that data set and compiled into a
 https://github.com/elastic/stack-docs/blob/main/docs/en/stack/ml/nlp/data/msmarco-passagetest2019-unique.tsv[tsv file].
 
-Download the file and upload it to your cluster using the
-{kibana-ref}/connect-to-elasticsearch.html#upload-data-kibana[Data Visualizer]
-in the {ml-app} UI. Assign the name `id` to the first column and `content` to
-the second column. The index name is `test-data`. Once the upload is complete,
-you can see an index named `test-data` with 182469 documents.
+Download the file and upload it to your cluster using the {kibana-ref}/connect-to-elasticsearch.html#upload-data-kibana[Data Visualizer] in the {ml-app} UI.
+After your data is analyzed, click **Override settings**.
+Under **Edit field names**, assign `id` to the first column and `content` to the second.
+Click **Apply**, then **Import**.
+Name the index `test-data`, and click **Import**.
+After the upload is complete, you will see an index named `test-data` with 182,469 documents.
 
 
 [discrete]
@@ -110,6 +127,13 @@ you can see an index named `test-data` with 182469 documents.
 Create the embeddings from the text by reindexing the data from the `test-data` index to the `semantic-embeddings` index.
 The data in the `content` field will be reindexed into the `content` semantic text field of the destination index.
 The reindexed data will be processed by the {infer} endpoint associated with the `content` semantic text field.
+
+[NOTE]
+====
+This step uses the reindex API to simulate data ingestion. If you are working with data that has already been indexed,
+rather than using the test-data set, reindexing is required to ensure that the data is processed by the {infer} endpoint
+and the necessary embeddings are generated.
+====
 
 [source,console]
 ------------------------------------------------------------
@@ -137,8 +161,10 @@ GET _tasks/<task_id>
 ------------------------------------------------------------
 // TEST[skip:TBD]
 
-It is recommended to cancel the reindexing process if you don't want to wait
-until it is fully complete which might take a long time for an inference endpoint with few assigned resources:
+Reindexing large datasets can take a long time.
+You can test this workflow using only a subset of the dataset.
+Do this by cancelling the reindexing process, and only generating embeddings for the subset that was reindexed.
+The following API request will cancel the reindexing task:
 
 [source,console]
 ------------------------------------------------------------

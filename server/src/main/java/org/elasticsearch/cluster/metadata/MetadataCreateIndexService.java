@@ -52,6 +52,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
@@ -254,12 +255,23 @@ public class MetadataCreateIndexService {
      * the timeout, then {@link ShardsAcknowledgedResponse#isShardsAcknowledged()} will
      * return true, otherwise if the operation timed out, then it will return false.
      *
+     * @param masterNodeTimeout timeout on cluster state update in pending task queue
+     * @param ackTimeout        timeout on waiting for all nodes to ack the cluster state update
+     * @param waitForActiveShardsTimeout timeout for waiting for the {@link ActiveShardCount} specified in
+     *                                   {@link CreateIndexClusterStateUpdateRequest#waitForActiveShards()} to be satisfied.
+     *                                   May also be {@code null}, in which case it waits forever.
      * @param request the index creation cluster state update request
      * @param listener the listener on which to send the index creation cluster state update response
      */
-    public void createIndex(final CreateIndexClusterStateUpdateRequest request, final ActionListener<ShardsAcknowledgedResponse> listener) {
+    public void createIndex(
+        final TimeValue masterNodeTimeout,
+        final TimeValue ackTimeout,
+        @Nullable final TimeValue waitForActiveShardsTimeout,
+        final CreateIndexClusterStateUpdateRequest request,
+        final ActionListener<ShardsAcknowledgedResponse> listener
+    ) {
         logger.trace("createIndex[{}]", request);
-        onlyCreateIndex(request, listener.delegateFailureAndWrap((delegate, response) -> {
+        onlyCreateIndex(masterNodeTimeout, ackTimeout, request, listener.delegateFailureAndWrap((delegate, response) -> {
             if (response.isAcknowledged()) {
                 logger.trace(
                     "[{}] index creation acknowledged, waiting for active shards [{}]",
@@ -270,7 +282,7 @@ public class MetadataCreateIndexService {
                     clusterService,
                     new String[] { request.index() },
                     request.waitForActiveShards(),
-                    request.ackTimeout(),
+                    waitForActiveShardsTimeout,
                     delegate.map(shardsAcknowledged -> {
                         if (shardsAcknowledged == false) {
                             logger.debug(
@@ -290,13 +302,18 @@ public class MetadataCreateIndexService {
         }));
     }
 
-    private void onlyCreateIndex(final CreateIndexClusterStateUpdateRequest request, final ActionListener<AcknowledgedResponse> listener) {
+    private void onlyCreateIndex(
+        final TimeValue masterNodeTimeout,
+        final TimeValue ackTimeout,
+        final CreateIndexClusterStateUpdateRequest request,
+        final ActionListener<AcknowledgedResponse> listener
+    ) {
         normalizeRequestSetting(request);
 
         var delegate = new AllocationActionListener<>(listener, threadPool.getThreadContext());
         submitUnbatchedTask(
             "create-index [" + request.index() + "], cause [" + request.cause() + "]",
-            new AckedClusterStateUpdateTask(Priority.URGENT, request, delegate.clusterStateUpdate()) {
+            new AckedClusterStateUpdateTask(Priority.URGENT, masterNodeTimeout, ackTimeout, delegate.clusterStateUpdate()) {
 
                 @Override
                 public ClusterState execute(ClusterState currentState) throws Exception {
@@ -963,7 +980,6 @@ public class MetadataCreateIndexService {
 
         final Settings.Builder indexSettingsBuilder = Settings.builder();
         if (sourceMetadata == null) {
-            final Settings.Builder additionalIndexSettings = Settings.builder();
             final Settings templateAndRequestSettings = Settings.builder().put(combinedTemplateSettings).put(request.settings()).build();
 
             final boolean timeSeriesTemplate = Optional.of(request)
@@ -973,19 +989,20 @@ public class MetadataCreateIndexService {
 
             // Loop through all the explicit index setting providers, adding them to the
             // additionalIndexSettings map
+            final Settings.Builder additionalIndexSettings = Settings.builder();
             final var resolvedAt = Instant.ofEpochMilli(request.getNameResolvedAt());
             for (IndexSettingProvider provider : indexSettingProviders) {
-                additionalIndexSettings.put(
-                    provider.getAdditionalIndexSettings(
-                        request.index(),
-                        request.dataStreamName(),
-                        timeSeriesTemplate,
-                        currentState.getMetadata(),
-                        resolvedAt,
-                        templateAndRequestSettings,
-                        combinedTemplateMappings
-                    )
+                var newAdditionalSettings = provider.getAdditionalIndexSettings(
+                    request.index(),
+                    request.dataStreamName(),
+                    timeSeriesTemplate,
+                    currentState.getMetadata(),
+                    resolvedAt,
+                    templateAndRequestSettings,
+                    combinedTemplateMappings
                 );
+                validateAdditionalSettings(provider, newAdditionalSettings, additionalIndexSettings);
+                additionalIndexSettings.put(newAdditionalSettings);
             }
 
             // For all the explicit settings, we go through the template and request level settings
@@ -1092,6 +1109,29 @@ public class MetadataCreateIndexService {
         validateTranslogRetentionSettings(indexSettings);
         validateStoreTypeSetting(indexSettings);
         return indexSettings;
+    }
+
+    /**
+     * Validates whether additional settings don't have keys that are already defined in all additional settings.
+     *
+     * @param provider                  The {@link IndexSettingProvider} that produced <code>additionalSettings</code>
+     * @param additionalSettings        The settings produced by the specified <code>provider</code>
+     * @param allAdditionalSettings     A settings builder containing all additional settings produced by any {@link IndexSettingProvider}
+     *                                  that already executed
+     * @throws IllegalArgumentException If keys in additionalSettings are already defined in allAdditionalSettings
+     */
+    public static void validateAdditionalSettings(
+        IndexSettingProvider provider,
+        Settings additionalSettings,
+        Settings.Builder allAdditionalSettings
+    ) throws IllegalArgumentException {
+        for (String settingName : additionalSettings.keySet()) {
+            if (allAdditionalSettings.keys().contains(settingName)) {
+                var name = provider.getClass().getSimpleName();
+                var message = Strings.format("additional index setting [%s] added by [%s] is already present", settingName, name);
+                throw new IllegalArgumentException(message);
+            }
+        }
     }
 
     private static void validateSoftDeleteSettings(Settings indexSettings) {

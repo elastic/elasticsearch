@@ -15,6 +15,8 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 
+import static org.hamcrest.Matchers.containsString;
+
 public class DataStreamFailureStoreTests extends AbstractXContentSerializingTestCase<DataStreamFailureStore> {
 
     @Override
@@ -39,5 +41,10 @@ public class DataStreamFailureStoreTests extends AbstractXContentSerializingTest
 
     static DataStreamFailureStore randomFailureStore() {
         return new DataStreamFailureStore(randomBoolean());
+    }
+
+    public void testInvalidEmptyConfiguration() {
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> new DataStreamFailureStore((Boolean) null));
+        assertThat(exception.getMessage(), containsString("at least one non-null configuration value"));
     }
 }

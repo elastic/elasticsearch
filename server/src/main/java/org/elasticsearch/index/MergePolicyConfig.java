@@ -243,7 +243,7 @@ public final class MergePolicyConfig {
     public static final Setting<ByteSizeValue> INDEX_MERGE_POLICY_MAX_MERGED_SEGMENT_SETTING = Setting.byteSizeSetting(
         "index.merge.policy.max_merged_segment",
         // We're not using DEFAULT_MAX_MERGED_SEGMENT here as we want different defaults for time-based data vs. non-time based
-        new ByteSizeValue(0, ByteSizeUnit.BYTES),
+        ByteSizeValue.ZERO,
         Property.Dynamic,
         Property.IndexScope
     );

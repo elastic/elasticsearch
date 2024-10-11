@@ -277,10 +277,6 @@ public record DatabaseConfiguration(String id, String name, Provider provider) i
             this(in.readString());
         }
 
-        public static Maxmind parse(XContentParser parser) {
-            return PARSER.apply(parser, null);
-        }
-
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(accountId);
@@ -308,10 +304,6 @@ public record DatabaseConfiguration(String id, String name, Provider provider) i
 
         public Ipinfo(StreamInput in) throws IOException {
             this();
-        }
-
-        public static Ipinfo parse(XContentParser parser) {
-            return PARSER.apply(parser, null);
         }
 
         @Override
@@ -353,10 +345,6 @@ public record DatabaseConfiguration(String id, String name, Provider provider) i
             this(in.readString());
         }
 
-        public static Local parse(XContentParser parser) {
-            return PARSER.apply(parser, null);
-        }
-
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(type);
@@ -388,10 +376,6 @@ public record DatabaseConfiguration(String id, String name, Provider provider) i
 
         public Web(StreamInput in) throws IOException {
             this();
-        }
-
-        public static Web parse(XContentParser parser) {
-            return PARSER.apply(parser, null);
         }
 
         @Override

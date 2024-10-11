@@ -166,7 +166,7 @@ public class MaxmindIpDataLookupsTests extends ESTestCase {
         );
     }
 
-    public void testAnonymmousIp() throws Exception {
+    public void testAnonymousIp() throws Exception {
         assumeFalse("https://github.com/elastic/elasticsearch/issues/114266", Constants.WINDOWS);
         final String databaseName = "GeoIP2-Anonymous-IP-Test.mmdb";
         String ip = "81.2.69.1";

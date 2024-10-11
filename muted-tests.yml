@@ -342,6 +342,9 @@ tests:
 - class: org.elasticsearch.xpack.security.support.SecurityIndexManagerIntegTests
   method: testOnIndexAvailableForSearchIndexAlreadyAvailable
   issue: https://github.com/elastic/elasticsearch/issues/114608
+- class: org.elasticsearch.action.search.SearchQueryThenFetchAsyncActionTests
+  method: testMinimumVersionShardDuringPhaseExecution
+  issue: https://github.com/elastic/elasticsearch/issues/114611
 
 # Examples:
 #

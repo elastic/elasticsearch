@@ -154,12 +154,12 @@ public class ReservedClusterStateService {
             new ReservedStateUpdateTask(
                 namespace,
                 emptyState,
+                false,
                 Map.of(),
                 List.of(),
                 // error state should not be possible since there is no metadata being parsed or processed
                 errorState -> { throw new AssertionError(); },
-                listener,
-                false
+                listener
             ),
             null
         );
@@ -228,6 +228,7 @@ public class ReservedClusterStateService {
             new ReservedStateUpdateTask(
                 namespace,
                 reservedStateChunk,
+                allowSameVersion,
                 handlers,
                 orderedHandlers,
                 ReservedClusterStateService.this::updateErrorState,
@@ -248,8 +249,7 @@ public class ReservedClusterStateService {
                             errorListener.accept(null);
                         }
                     }
-                },
-                allowSameVersion
+                }
             ),
             null
         );

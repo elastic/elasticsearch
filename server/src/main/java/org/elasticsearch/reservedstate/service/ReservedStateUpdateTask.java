@@ -56,22 +56,11 @@ public class ReservedStateUpdateTask implements ClusterStateTaskListener {
     public ReservedStateUpdateTask(
         String namespace,
         ReservedStateChunk stateChunk,
+        boolean allowSameVersion,
         Map<String, ReservedClusterStateHandler<?>> handlers,
         Collection<String> orderedHandlers,
         Consumer<ErrorState> errorReporter,
         ActionListener<ActionResponse.Empty> listener
-    ) {
-        this(namespace, stateChunk, handlers, orderedHandlers, errorReporter, listener, false);
-    }
-
-    public ReservedStateUpdateTask(
-        String namespace,
-        ReservedStateChunk stateChunk,
-        Map<String, ReservedClusterStateHandler<?>> handlers,
-        Collection<String> orderedHandlers,
-        Consumer<ErrorState> errorReporter,
-        ActionListener<ActionResponse.Empty> listener,
-        boolean allowSameVersion
     ) {
         this.namespace = namespace;
         this.stateChunk = stateChunk;

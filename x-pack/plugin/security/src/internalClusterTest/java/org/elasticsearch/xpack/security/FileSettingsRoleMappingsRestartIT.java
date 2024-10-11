@@ -177,14 +177,13 @@ public class FileSettingsRoleMappingsRestartIT extends SecurityIntegTestCase {
         internalCluster().setBootstrapMasterNodeIndex(0);
 
         final String masterNode = internalCluster().getMasterName();
-        {
-            var savedClusterState = setupClusterStateListener(masterNode, "everyone_kibana_alone");
-            awaitFileSettingsWatcher();
-            logger.info("--> write some role mappings, no other file settings");
-            writeJSONFile(masterNode, testJSONOnlyRoleMappings, logger, versionCounter);
-            boolean awaitSuccessful = savedClusterState.v1().await(20, TimeUnit.SECONDS);
-            assertTrue(awaitSuccessful);
-        }
+
+        var savedClusterState = setupClusterStateListener(masterNode, "everyone_kibana_alone");
+        awaitFileSettingsWatcher();
+        logger.info("--> write some role mappings, no other file settings");
+        writeJSONFile(masterNode, testJSONOnlyRoleMappings, logger, versionCounter);
+        boolean awaitSuccessful = savedClusterState.v1().await(20, TimeUnit.SECONDS);
+        assertTrue(awaitSuccessful);
 
         assertRoleMappingsInClusterState(
             new ExpressionRoleMapping(
@@ -231,6 +230,9 @@ public class FileSettingsRoleMappingsRestartIT extends SecurityIntegTestCase {
         logger.info("--> restart master");
         internalCluster().restartNode(masterNode);
         ensureGreen();
+
+        FileSettingsService masterFileSettingsService = internalCluster().getInstance(FileSettingsService.class, masterNode);
+        assertBusy(() -> assertTrue(masterFileSettingsService.watching()));
 
         // Assert busy to give mappings time to update
         assertBusy(() -> {

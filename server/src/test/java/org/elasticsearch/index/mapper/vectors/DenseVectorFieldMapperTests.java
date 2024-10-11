@@ -172,7 +172,7 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
             ),
             fieldMapping(
                 b -> b.field("type", "dense_vector")
-                    .field("dims", dims)
+                    .field("dims", dims * 8)
                     .field("index", true)
                     .field("similarity", "l2_norm")
                     .field("element_type", "bit")
@@ -189,7 +189,7 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
             ),
             fieldMapping(
                 b -> b.field("type", "dense_vector")
-                    .field("dims", dims)
+                    .field("dims", dims * 8)
                     .field("index", true)
                     .field("similarity", "l2_norm")
                     .field("element_type", "bit")
@@ -343,9 +343,7 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
             })));
             assertThat(
                 e.getMessage(),
-                equalTo(
-                    "Failed to parse mapping: " + "The number of dimensions for field [field] should be in the range [1, 4096] but was [0]"
-                )
+                equalTo("Failed to parse mapping: " + "The number of dimensions should be in the range [1, 4096] but was [0]")
             );
         }
         // test max limit for non-indexed vectors
@@ -356,10 +354,7 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
             })));
             assertThat(
                 e.getMessage(),
-                equalTo(
-                    "Failed to parse mapping: "
-                        + "The number of dimensions for field [field] should be in the range [1, 4096] but was [5000]"
-                )
+                equalTo("Failed to parse mapping: " + "The number of dimensions should be in the range [1, 4096] but was [5000]")
             );
         }
         // test max limit for indexed vectors
@@ -371,10 +366,7 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
             })));
             assertThat(
                 e.getMessage(),
-                equalTo(
-                    "Failed to parse mapping: "
-                        + "The number of dimensions for field [field] should be in the range [1, 4096] but was [5000]"
-                )
+                equalTo("Failed to parse mapping: " + "The number of dimensions should be in the range [1, 4096] but was [5000]")
             );
         }
     }
@@ -405,6 +397,14 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
             XContentHelper.convertToMap(BytesReference.bytes(mapping), false, mapping.contentType()).v2(),
             XContentHelper.convertToMap(mapperService.documentMapper().mappingSource().uncompressed(), false, mapping.contentType()).v2()
         );
+    }
+
+    public void testLargeDimsBit() throws IOException {
+        createMapperService(fieldMapping(b -> {
+            b.field("type", "dense_vector");
+            b.field("dims", 1024 * Byte.SIZE);
+            b.field("element_type", ElementType.BIT.toString());
+        }));
     }
 
     public void testDefaults() throws Exception {

@@ -39,6 +39,22 @@ public class KqlStringBuilder extends KqlBaseBaseVisitor<String> {
             .collect(Collectors.joining(UNQUOTED_LITERAL_TERM_DELIMITER));
     }
 
+    protected String aggregateResult(String aggregate, String nextResult) {
+        if (aggregate == null && nextResult == null) {
+            return "";
+        }
+
+        if (aggregate == null) {
+            return nextResult;
+        }
+
+        if (nextResult == null) {
+            return aggregate;
+        }
+
+        return String.join(UNQUOTED_LITERAL_TERM_DELIMITER, aggregate, nextResult);
+    }
+
     private String unescapeQuotedString(ParserRuleContext ctx, String inputText) {
         StringBuilder sb = new StringBuilder();
         for (int i = 0; i < inputText.length();) {

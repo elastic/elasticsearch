@@ -43,7 +43,6 @@ public class TextSimilarityRankMultiNodeTests extends AbstractRerankerIT {
         return List.of(InferencePlugin.class, TextSimilarityTestPlugin.class);
     }
 
-
     public void testQueryPhaseShardThrowingAllShardsFail() throws Exception {
         // no-op
     }

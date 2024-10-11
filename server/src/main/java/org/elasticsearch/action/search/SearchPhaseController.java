@@ -736,6 +736,9 @@ public final class SearchPhaseController {
             return DEFAULT_SIZE;
         }
         SearchSourceBuilder source = request.source();
+        if (source.rankBuilder() != null) {
+            return source.rankBuilder().rankWindowSize();
+        }
         return (source.size() == -1 ? DEFAULT_SIZE : source.size()) + (source.from() == -1 ? SearchService.DEFAULT_FROM : source.from());
     }
 

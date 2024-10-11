@@ -86,6 +86,12 @@ public class BlobStoreHealthIndicatorTests extends ESTestCase {
         assertThat(getDuration(details, "time_since_last_check_started_millis"), equalTo(healthRequestTime - startTime));
         assertThat(getDuration(details, "time_since_last_update_millis"), equalTo(healthRequestTime - responseTime));
         assertThat(getDuration(details, "last_check_duration_millis"), equalTo(responseTime - startTime));
+        assertThat(
+            details.get("time_since_last_check_started"),
+            equalTo(TimeValue.timeValueMillis(healthRequestTime - startTime).toString())
+        );
+        assertThat(details.get("time_since_last_update"), equalTo(TimeValue.timeValueMillis(healthRequestTime - responseTime).toString()));
+        assertThat(details.get("last_check_duration"), equalTo(TimeValue.timeValueMillis(responseTime - startTime).toString()));
         assertThat(details.get("error_message"), is(nullValue()));
         assertThat(result.impacts(), empty());
         assertThat(result.diagnosisList(), empty());
@@ -230,6 +236,7 @@ public class BlobStoreHealthIndicatorTests extends ESTestCase {
 
     private Map<String, Object> xContentToMap(ToXContent xcontent) throws IOException {
         XContentBuilder builder = XContentFactory.jsonBuilder();
+        builder.humanReadable(true);
         xcontent.toXContent(builder, ToXContent.EMPTY_PARAMS);
         XContentParser parser = XContentType.JSON.xContent()
             .createParser(XContentParserConfiguration.EMPTY, BytesReference.bytes(builder).streamInput());

@@ -145,6 +145,11 @@ public class AzureAiStudioChatCompletionTaskSettings implements TaskSettings {
     }
 
     @Override
+    public boolean isEmpty() {
+        return temperature == null && topP == null && doSample == null && maxNewTokens == null;
+    }
+
+    @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeOptionalDouble(temperature);
         out.writeOptionalDouble(topP);

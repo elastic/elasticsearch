@@ -57,7 +57,7 @@ public class ReverseTests extends AbstractScalarFunctionTestCase {
             return new TestCaseSupplier.TestCase(
                 List.of(fieldTypedData),
                 expectedToString,
-                fieldSupplier.type(),
+                fieldSupplier.type() == DataType.TEXT ? DataType.KEYWORD : fieldSupplier.type(),
                 equalTo(new BytesRef(expectedValue))
             );
         });

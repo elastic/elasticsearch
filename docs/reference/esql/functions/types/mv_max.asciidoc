@@ -12,7 +12,7 @@ integer | integer
 ip | ip
 keyword | keyword
 long | long
-text | text
+text | keyword
 unsigned_long | unsigned_long
 version | version
 |===

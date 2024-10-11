@@ -136,8 +136,8 @@ from airports
 | where scalerank >= 9
 | stats max(name), a = max(name), b = max(x);
 
-max(name):text   | a:text           | b:text
-Zaporozhye Int'l | Zaporozhye Int'l | Zaporozhye Int'l
+max(name):keyword | a:keyword        | b:keyword
+Zaporozhye Int'l  | Zaporozhye Int'l | Zaporozhye Int'l
 ;
 
 maxOfTextGrouping
@@ -149,7 +149,7 @@ from airports
 | sort type asc
 | limit 4;
 
-max(name):text   | a:text           | b:text           | type:keyword
+max(name):keyword| a:keyword        | b:keyword        | type:keyword
 Cheongju Int'l   | Cheongju Int'l   | Cheongju Int'l   | major
 Zaporozhye Int'l | Zaporozhye Int'l | Zaporozhye Int'l | mid
 Zaporozhye Int'l | Zaporozhye Int'l | Zaporozhye Int'l | military
@@ -216,7 +216,7 @@ from airports
 | where scalerank >= 9
 | stats min(name), a = min(name), b = min(x);
 
-min(name):text      | a:text              | b:text
+min(name):keyword   | a:keyword           | b:keyword
 Abdul Rachman Saleh | Abdul Rachman Saleh | Abdul Rachman Saleh
 ;
 
@@ -229,7 +229,7 @@ from airports
 | sort type asc
 | limit 4;
 
-min(name):text      | a:text              | b:text              | type:keyword
+min(name):keyword   | a:keyword           | b:keyword           | type:keyword
 Chandigarh Int'l    | Chandigarh Int'l    | Chandigarh Int'l    | major
 Abdul Rachman Saleh | Abdul Rachman Saleh | Abdul Rachman Saleh | mid
 Abdul Rachman Saleh | Abdul Rachman Saleh | Abdul Rachman Saleh | military

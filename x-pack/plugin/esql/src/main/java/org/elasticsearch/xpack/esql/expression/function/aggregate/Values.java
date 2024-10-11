@@ -30,13 +30,15 @@ import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
+import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
+import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
 
 public class Values extends AggregateFunction implements ToAggregator {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Values", Values::new);
 
     @FunctionInfo(
-        returnType = { "boolean", "date", "double", "integer", "ip", "keyword", "long", "text", "version" },
+        returnType = { "boolean", "date", "double", "integer", "ip", "keyword", "long", "version" },
         preview = true,
         description = "Returns all values in a group as a multivalued field. The order of the returned values isn't guaranteed. "
             + "If you need the values returned in order use <<esql-mv_sort>>.",
@@ -80,7 +82,8 @@ public class Values extends AggregateFunction implements ToAggregator {
 
     @Override
     public DataType dataType() {
-        return field().dataType();
+        DataType t = field().dataType();
+        return t == TEXT ? KEYWORD : t;
     }
 
     @Override

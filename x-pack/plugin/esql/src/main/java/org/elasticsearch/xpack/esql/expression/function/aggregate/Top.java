@@ -41,6 +41,8 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.Param
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNotNullAndFoldable;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isString;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
+import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
+import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 
 public class Top extends AggregateFunction implements ToAggregator, SurrogateExpression {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Top", Top::new);
@@ -49,7 +51,7 @@ public class Top extends AggregateFunction implements ToAggregator, SurrogateExp
     private static final String ORDER_DESC = "DESC";
 
     @FunctionInfo(
-        returnType = { "boolean", "double", "integer", "long", "date", "ip", "keyword", "text" },
+        returnType = { "boolean", "double", "integer", "long", "date", "ip", "keyword" },
         description = "Collects the top values for a field. Includes repeated values.",
         isAggregation = true,
         examples = @Example(file = "stats_top", tag = "top")
@@ -162,7 +164,8 @@ public class Top extends AggregateFunction implements ToAggregator, SurrogateExp
 
     @Override
     public DataType dataType() {
-        return field().dataType();
+        DataType t = field().dataType();
+        return t == TEXT ? KEYWORD : t;
     }
 
     @Override

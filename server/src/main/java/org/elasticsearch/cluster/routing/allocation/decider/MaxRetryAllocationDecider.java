@@ -75,9 +75,9 @@ public class MaxRetryAllocationDecider extends AllocationDecider {
                 NAME,
                 "shard has exceeded the maximum number of retries [%d] on failed allocation attempts - "
                     + "manually call [%s] to retry, and for more information, see [%s] [%s]",
-                ReferenceDocs.ALLOCATION_EXPLAIN_MAX_RETRY,
                 maxRetries,
                 RETRY_FAILED_API,
+                ReferenceDocs.ALLOCATION_EXPLAIN_MAX_RETRY,
                 info.toString()
             );
         } else {

@@ -747,7 +747,15 @@ public class MlJobIT extends ESRestTestCase {
                 }
               }
             }""", AnomalyDetectorsIndex.jobResultsAliasedName(jobId), Job.ID, jobId));
-        client().performRequest(extraIndex1);
+
+        // Creating an index with a leading dot (".") is now deprecated.
+        // Ensure the ensuing warning exception doesn't cause a test case failure
+        try {
+            client().performRequest(extraIndex1);
+        } catch (org.elasticsearch.client.WarningFailureException e) {
+            logger.warn(e.getMessage());
+        }
+
         Request extraIndex2 = new Request("PUT", indexName + "-002");
         extraIndex2.setJsonEntity(Strings.format("""
             {
@@ -762,7 +770,14 @@ public class MlJobIT extends ESRestTestCase {
                 }
               }
             }""", AnomalyDetectorsIndex.jobResultsAliasedName(jobId), Job.ID, jobId));
-        client().performRequest(extraIndex2);
+
+        // Creating an index with a leading dot (".") is now deprecated.
+        // Ensure the ensuing warning exception doesn't cause a test case failure
+        try {
+            client().performRequest(extraIndex2);
+        } catch (org.elasticsearch.client.WarningFailureException e) {
+            logger.warn(e.getMessage());
+        }
 
         // Use _cat/indices/.ml-anomalies-* instead of _cat/indices/_all to workaround https://github.com/elastic/elasticsearch/issues/45652
         String indicesBeforeDelete = EntityUtils.toString(
@@ -983,10 +998,10 @@ public class MlJobIT extends ESRestTestCase {
     }
 
     private void closeJob(String jobId) throws IOException {
-        Response openResponse = client().performRequest(
+        Response closeResponse = client().performRequest(
             new Request("POST", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId + "/_close")
         );
-        assertThat(entityAsMap(openResponse), hasEntry("closed", true));
+        assertThat(entityAsMap(closeResponse), hasEntry("closed", true));
     }
 
     private Response putJob(String jobId, String jsonBody) throws IOException {
@@ -1000,5 +1015,8 @@ public class MlJobIT extends ESRestTestCase {
         new MlRestTestStateCleaner(logger, adminClient()).resetFeatures();
         // Don't check analytics jobs as they are independent of anomaly detection jobs and should not be created by this test.
         waitForPendingTasks(adminClient(), taskName -> taskName.contains(MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME));
+        // Finally, clean up any lingering persistent tasks (such as "_close", "_close[n]" etc.) that may negatively
+        // impact subsequent tests.
+        client().performRequest(new Request("POST", "/_tasks/_cancel"));
     }
 }

@@ -148,7 +148,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
             List.of(new CompressedXContent(DEFAULT_MAPPING))
         );
 
-        assertTrue(additionalIndexSettings.isEmpty());
+        assertIndexMode(additionalIndexSettings, IndexMode.LOGSDB.getName());
     }
 
     public void testWithLogsComponentTemplate() throws IOException {
@@ -202,7 +202,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
             List.of(new CompressedXContent(DEFAULT_MAPPING))
         );
 
-        assertTrue(additionalIndexSettings.isEmpty());
+        assertIndexMode(additionalIndexSettings, IndexMode.LOGSDB.getName());
     }
 
     public void testNonMatchingTemplateIndexPattern() throws IOException {
@@ -220,7 +220,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
             List.of(new CompressedXContent(DEFAULT_MAPPING))
         );
 
-        assertTrue(additionalIndexSettings.isEmpty());
+        assertIndexMode(additionalIndexSettings, IndexMode.LOGSDB.getName());
     }
 
     public void testCaseSensitivity() throws IOException {
@@ -256,7 +256,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
             List.of(new CompressedXContent(DEFAULT_MAPPING))
         );
 
-        assertTrue(additionalIndexSettings.isEmpty());
+        assertIndexMode(additionalIndexSettings, IndexMode.LOGSDB.getName());
     }
 
     public void testBeforeAndAFterSettingUpdate() throws IOException {

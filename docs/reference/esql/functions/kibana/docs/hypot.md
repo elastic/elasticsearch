@@ -8,5 +8,5 @@ Hypotenuses of infinities are null.
 
 ```
 ROW a = 3.0, b = 4.0
-| EVAL c = hypot(a, b)
+| EVAL c = HYPOT(a, b)
 ```

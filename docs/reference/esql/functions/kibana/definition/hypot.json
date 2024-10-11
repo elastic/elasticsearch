@@ -294,7 +294,7 @@
     }
   ],
   "examples" : [
-    "ROW a = 3.0, b = 4.0\n| EVAL c = hypot(a, b)"
+    "ROW a = 3.0, b = 4.0\n| EVAL c = HYPOT(a, b)"
   ],
   "preview" : false,
   "snapshot_only" : false

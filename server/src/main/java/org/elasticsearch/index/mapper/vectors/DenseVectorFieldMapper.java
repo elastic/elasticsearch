@@ -139,32 +139,27 @@ public class DenseVectorFieldMapper extends FieldMapper {
             if (o instanceof Integer == false) {
                 throw new MapperParsingException("Property [dims] on field [" + n + "] must be an integer but got [" + o + "]");
             }
-            int dims = XContentMapValues.nodeIntegerValue(o);
-            int maxDims = elementType.getValue() == ElementType.BIT ? MAX_DIMS_COUNT_BIT : MAX_DIMS_COUNT;
-            int minDims = elementType.getValue() == ElementType.BIT ? Byte.SIZE : 1;
-            if (dims < minDims || dims > maxDims) {
-                throw new MapperParsingException(
-                    "The number of dimensions for field ["
-                        + n
-                        + "] should be in the range ["
-                        + minDims
-                        + ", "
-                        + maxDims
-                        + "] but was ["
-                        + dims
-                        + "]"
-                );
-            }
-            if (elementType.getValue() == ElementType.BIT) {
-                if (dims % Byte.SIZE != 0) {
+
+            return XContentMapValues.nodeIntegerValue(o);
+        }, m -> toType(m).fieldType().dims, XContentBuilder::field, Object::toString).setSerializerCheck((id, ic, v) -> v != null)
+            .setMergeValidator((previous, current, c) -> previous == null || Objects.equals(previous, current))
+            .addValidator(dims -> {
+                if (dims == null) {
+                    return;
+                }
+                int maxDims = elementType.getValue() == ElementType.BIT ? MAX_DIMS_COUNT_BIT : MAX_DIMS_COUNT;
+                int minDims = elementType.getValue() == ElementType.BIT ? Byte.SIZE : 1;
+                if (dims < minDims || dims > maxDims) {
                     throw new MapperParsingException(
-                        "The number of dimensions for field [" + n + "] should be a multiple of 8 but was [" + dims + "]"
+                        "The number of dimensions should be in the range [" + minDims + ", " + maxDims + "] but was [" + dims + "]"
                     );
                 }
-            }
-            return dims;
-        }, m -> toType(m).fieldType().dims, XContentBuilder::field, Object::toString).setSerializerCheck((id, ic, v) -> v != null)
-            .setMergeValidator((previous, current, c) -> previous == null || Objects.equals(previous, current));
+                if (elementType.getValue() == ElementType.BIT) {
+                    if (dims % Byte.SIZE != 0) {
+                        throw new MapperParsingException("The number of dimensions for should be a multiple of 8 but was [" + dims + "]");
+                    }
+                }
+            });
         private final Parameter<VectorSimilarity> similarity;
 
         private final Parameter<IndexOptions> indexOptions;

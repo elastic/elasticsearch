@@ -17,7 +17,8 @@ import org.apache.lucene.search.suggest.document.CompletionPostingsFormat;
 public interface CompletionsPostingsFormatExtension {
 
     /**
-     * Returns the name of the  {@link CompletionPostingsFormat} that Elasticsearch should use.
+     * Returns the name of the  {@link CompletionPostingsFormat} that Elasticsearch should use. Should return null if the extension
+     * is not enabled.
      */
     String getFormatName();
 

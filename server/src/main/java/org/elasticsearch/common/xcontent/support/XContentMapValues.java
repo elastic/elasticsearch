@@ -278,7 +278,7 @@ public class XContentMapValues {
             suffixMap.map().put(suffixMap.suffix(), newValue);
         } else {
             throw new IllegalArgumentException(
-                "Path [" + path + "] matches " + buffer.size() + " values, there is ambiguity about which value to replace"
+                "Path [" + path + "] matches " + buffer.size() + " values, it is ambiguous which value to replace"
             );
         }
     }
@@ -319,7 +319,7 @@ public class XContentMapValues {
                     + "] has value ["
                     + currentValue
                     + "] of type ["
-                    + currentValue.getClass()
+                    + currentValue.getClass().getSimpleName()
                     + "], which cannot be traversed into further"
             );
         }

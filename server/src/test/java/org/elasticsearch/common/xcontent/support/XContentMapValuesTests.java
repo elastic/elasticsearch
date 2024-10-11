@@ -758,12 +758,12 @@ public class XContentMapValuesTests extends AbstractFilteringTestCase {
                     break;
                 } else {
                     throw new AssertionError(
-                        "Layer ["
+                        "Path ["
                             + String.join(".", Arrays.stream(Arrays.copyOfRange(pathElements, 0, i)).toList())
                             + "] has value ["
                             + value
                             + "] of type ["
-                            + value.getClass()
+                            + value.getClass().getSimpleName()
                             + "], which cannot be traversed into further"
                     );
                 }
@@ -778,12 +778,16 @@ public class XContentMapValuesTests extends AbstractFilteringTestCase {
             XContentBuilder builder = XContentFactory.jsonBuilder().startObject().field("test", "value").endObject();
 
             Map<String, Object> map = toSourceMap(Strings.toString(builder));
-            assertThat(XContentMapValues.insertValue("test", map, "value2").toString(), equalTo("value"));
+            XContentMapValues.insertValue("test", map, "value2");
             assertThat(getMapValue.apply(map, "test"), equalTo("value2"));
-            assertThat(XContentMapValues.insertValue("test.me", map, "test.me.value"), nullValue());
-            assertThat(getMapValue.apply(map, "test\\.me"), equalTo("test.me.value"));
-            assertThat(XContentMapValues.insertValue("something.else.2", map, "something.else.2.value"), nullValue());
+            XContentMapValues.insertValue("something.else.2", map, "something.else.2.value");
             assertThat(getMapValue.apply(map, "something\\.else\\.2"), equalTo("something.else.2.value"));
+
+            IllegalArgumentException ex = assertThrows(
+                IllegalArgumentException.class,
+                () -> XContentMapValues.insertValue("test.me", map, "test.me.value")
+            );
+            assertThat(ex.getMessage(), equalTo("Path [test] has value [value2] of type [String], which cannot be traversed into further"));
         }
         {
             XContentBuilder builder = XContentFactory.jsonBuilder().startObject();
@@ -791,17 +795,26 @@ public class XContentMapValuesTests extends AbstractFilteringTestCase {
             builder.endObject();
 
             Map<String, Object> map = toSourceMap(Strings.toString(builder));
-            assertThat(XContentMapValues.insertValue("path1.path2.test", map, "value2").toString(), equalTo("value"));
+            XContentMapValues.insertValue("path1.path2.test", map, "value2");
             assertThat(getMapValue.apply(map, "path1.path2.test"), equalTo("value2"));
-            assertThat(XContentMapValues.insertValue("path1.path2.test_me", map, "test_me_value"), nullValue());
+            XContentMapValues.insertValue("path1.path2.test_me", map, "test_me_value");
             assertThat(getMapValue.apply(map, "path1\\.path2\\.test_me"), equalTo("test_me_value"));
-            assertThat(XContentMapValues.insertValue("path1.non_path2.test", map, "test_value"), nullValue());
+            XContentMapValues.insertValue("path1.non_path2.test", map, "test_value");
             assertThat(getMapValue.apply(map, "path1\\.non_path2\\.test"), equalTo("test_value"));
 
-            assertThat(XContentMapValues.insertValue("path1.path2", map, Map.of("path3", "bar")), equalTo(Map.of("test", "value2")));
+            IllegalArgumentException ex = assertThrows(
+                IllegalArgumentException.class,
+                () -> XContentMapValues.insertValue("path1.path2.test.test2", map, "value3")
+            );
+            assertThat(
+                ex.getMessage(),
+                equalTo("Path [path1.path2.test] has value [value2] of type [String], which cannot be traversed into further")
+            );
+
+            XContentMapValues.insertValue("path1.path2", map, Map.of("path3", "bar"));
             assertThat(getMapValue.apply(map, "path1.path2"), equalTo(Map.of("path3", "bar")));
 
-            assertThat(XContentMapValues.insertValue("path1", map, "baz"), equalTo(Map.of("path2", Map.of("path3", "bar"))));
+            XContentMapValues.insertValue("path1", map, "baz");
             assertThat(getMapValue.apply(map, "path1"), equalTo("baz"));
         }
 
@@ -812,10 +825,7 @@ public class XContentMapValuesTests extends AbstractFilteringTestCase {
             builder.endObject();
             Map<String, Object> map = toSourceMap(Strings.toString(builder));
 
-            assertThat(
-                XContentMapValues.insertValue("path1.test", map, List.of("value3", "value4", "value5")),
-                equalTo(List.of("value1", "value2"))
-            );
+            XContentMapValues.insertValue("path1.test", map, List.of("value3", "value4", "value5"));
             assertThat(getMapValue.apply(map, "path1.test"), equalTo(List.of("value3", "value4", "value5")));
         }
     }
@@ -825,10 +835,15 @@ public class XContentMapValuesTests extends AbstractFilteringTestCase {
         builder.startObject("foo").field("cat", "meow").endObject();
         builder.field("foo.cat", "miau");
         builder.endObject();
+
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, Strings.toString(builder))) {
             Map<String, Object> map = parser.map();
-            assertThat((List<?>) XContentMapValues.insertValue("foo.cat", map, "woof"), containsInAnyOrder("meow", "miau"));
-            assertThat(map, equalTo(Map.of("foo", Map.of("cat", "woof"))));
+            IllegalArgumentException ex = assertThrows(
+                IllegalArgumentException.class,
+                () -> XContentMapValues.insertValue("foo.cat", map, "woof")
+            );
+            assertThat(ex.getMessage(), equalTo("Path [foo.cat] matches 2 values, it is ambiguous which value to replace"));
+            assertThat(map, equalTo(Map.of("foo", Map.of("cat", "meow"), "foo.cat", "miau")));
         }
     }
 }

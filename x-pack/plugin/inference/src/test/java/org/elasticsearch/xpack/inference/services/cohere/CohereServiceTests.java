@@ -19,6 +19,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.inference.ChunkedInferenceServiceResults;
 import org.elasticsearch.inference.ChunkingOptions;
+import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
@@ -30,6 +31,7 @@ import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.core.inference.ChunkingSettingsFeatureFlag;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.results.InferenceChunkedTextEmbeddingByteResults;
 import org.elasticsearch.xpack.core.inference.results.InferenceChunkedTextEmbeddingFloatResults;
@@ -62,6 +64,8 @@ import static org.elasticsearch.xpack.inference.Utils.getInvalidModel;
 import static org.elasticsearch.xpack.inference.Utils.getPersistedConfigMap;
 import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityPool;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
+import static org.elasticsearch.xpack.inference.chunking.ChunkingSettingsTests.createRandomChunkingSettings;
+import static org.elasticsearch.xpack.inference.chunking.ChunkingSettingsTests.createRandomChunkingSettingsMap;
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
 import static org.elasticsearch.xpack.inference.results.TextEmbeddingResultsTests.buildExpectationFloat;
@@ -113,6 +117,95 @@ public class CohereServiceTests extends ESTestCase {
                     embeddingsModel.getTaskSettings(),
                     is(new CohereEmbeddingsTaskSettings(InputType.INGEST, CohereTruncation.START))
                 );
+                MatcherAssert.assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is("secret"));
+            }, e -> fail("Model parsing should have succeeded " + e.getMessage()));
+
+            service.parseRequestConfig(
+                "id",
+                TaskType.TEXT_EMBEDDING,
+                getRequestConfigMap(
+                    CohereEmbeddingsServiceSettingsTests.getServiceSettingsMap("url", "model", CohereEmbeddingType.FLOAT),
+                    getTaskSettingsMap(InputType.INGEST, CohereTruncation.START),
+                    getSecretSettingsMap("secret")
+                ),
+                modelListener
+            );
+
+        }
+    }
+
+    public void testParseRequestConfig_ThrowsElasticsearchStatusExceptionWhenChunkingSettingsProvidedAndFeatureFlagDisabled()
+        throws IOException {
+        assumeTrue("Only if 'inference_chunking_settings' feature flag is disabled", ChunkingSettingsFeatureFlag.isEnabled() == false);
+        try (var service = createCohereService()) {
+            var serviceSettings = CohereEmbeddingsServiceSettingsTests.getServiceSettingsMap("url", "model", null);
+
+            var config = getRequestConfigMap(
+                serviceSettings,
+                getTaskSettingsMap(null, null),
+                createRandomChunkingSettingsMap(),
+                getSecretSettingsMap("secret")
+            );
+
+            var failureListener = ActionListener.<Model>wrap((model) -> fail("Model parsing should have failed"), e -> {
+                MatcherAssert.assertThat(e, instanceOf(ElasticsearchStatusException.class));
+                MatcherAssert.assertThat(e.getMessage(), containsString("Model configuration contains settings"));
+            });
+            service.parseRequestConfig("id", TaskType.TEXT_EMBEDDING, config, failureListener);
+        }
+    }
+
+    public void testParseRequestConfig_CreatesACohereEmbeddingsModelWhenChunkingSettingsProvidedAndFeatureFlagEnabled() throws IOException {
+        assumeTrue("Only if 'inference_chunking_settings' feature flag is enabled", ChunkingSettingsFeatureFlag.isEnabled());
+        try (var service = createCohereService()) {
+            ActionListener<Model> modelListener = ActionListener.wrap(model -> {
+                MatcherAssert.assertThat(model, instanceOf(CohereEmbeddingsModel.class));
+
+                var embeddingsModel = (CohereEmbeddingsModel) model;
+                MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().uri().toString(), is("url"));
+                MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().modelId(), is("model"));
+                MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getEmbeddingType(), is(CohereEmbeddingType.FLOAT));
+                MatcherAssert.assertThat(
+                    embeddingsModel.getTaskSettings(),
+                    is(new CohereEmbeddingsTaskSettings(InputType.INGEST, CohereTruncation.START))
+                );
+                MatcherAssert.assertThat(embeddingsModel.getConfigurations().getChunkingSettings(), instanceOf(ChunkingSettings.class));
+                assertThat(embeddingsModel.getConfigurations().getChunkingSettings(), instanceOf(ChunkingSettings.class));
+                MatcherAssert.assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is("secret"));
+            }, e -> fail("Model parsing should have succeeded " + e.getMessage()));
+
+            service.parseRequestConfig(
+                "id",
+                TaskType.TEXT_EMBEDDING,
+                getRequestConfigMap(
+                    CohereEmbeddingsServiceSettingsTests.getServiceSettingsMap("url", "model", CohereEmbeddingType.FLOAT),
+                    getTaskSettingsMap(InputType.INGEST, CohereTruncation.START),
+                    createRandomChunkingSettingsMap(),
+                    getSecretSettingsMap("secret")
+                ),
+                modelListener
+            );
+
+        }
+    }
+
+    public void testParseRequestConfig_CreatesACohereEmbeddingsModelWhenChunkingSettingsNotProvidedAndFeatureFlagEnabled()
+        throws IOException {
+        assumeTrue("Only if 'inference_chunking_settings' feature flag is enabled", ChunkingSettingsFeatureFlag.isEnabled());
+        try (var service = createCohereService()) {
+            ActionListener<Model> modelListener = ActionListener.wrap(model -> {
+                MatcherAssert.assertThat(model, instanceOf(CohereEmbeddingsModel.class));
+
+                var embeddingsModel = (CohereEmbeddingsModel) model;
+                MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().uri().toString(), is("url"));
+                MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().modelId(), is("model"));
+                MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getEmbeddingType(), is(CohereEmbeddingType.FLOAT));
+                MatcherAssert.assertThat(
+                    embeddingsModel.getTaskSettings(),
+                    is(new CohereEmbeddingsTaskSettings(InputType.INGEST, CohereTruncation.START))
+                );
+                MatcherAssert.assertThat(embeddingsModel.getConfigurations().getChunkingSettings(), instanceOf(ChunkingSettings.class));
+                assertThat(embeddingsModel.getConfigurations().getChunkingSettings(), instanceOf(ChunkingSettings.class));
                 MatcherAssert.assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is("secret"));
             }, e -> fail("Model parsing should have succeeded " + e.getMessage()));
 
@@ -301,6 +394,92 @@ public class CohereServiceTests extends ESTestCase {
             MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().uri().toString(), is("url"));
             MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().modelId(), is("model"));
             MatcherAssert.assertThat(embeddingsModel.getTaskSettings(), is(new CohereEmbeddingsTaskSettings(null, null)));
+            MatcherAssert.assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is("secret"));
+        }
+    }
+
+    public void testParsePersistedConfigWithSecrets_CreatesACohereEmbeddingsModelWithoutChunkingSettingsWhenFeatureFlagDisabled()
+        throws IOException {
+        assumeTrue("Only if 'inference_chunking_settings' feature flag is disabled", ChunkingSettingsFeatureFlag.isEnabled() == false);
+        try (var service = createCohereService()) {
+            var persistedConfig = getPersistedConfigMap(
+                CohereEmbeddingsServiceSettingsTests.getServiceSettingsMap("url", "model", null),
+                getTaskSettingsMap(null, null),
+                createRandomChunkingSettingsMap(),
+                getSecretSettingsMap("secret")
+            );
+
+            var model = service.parsePersistedConfigWithSecrets(
+                "id",
+                TaskType.TEXT_EMBEDDING,
+                persistedConfig.config(),
+                persistedConfig.secrets()
+            );
+
+            MatcherAssert.assertThat(model, instanceOf(CohereEmbeddingsModel.class));
+
+            var embeddingsModel = (CohereEmbeddingsModel) model;
+            MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().uri().toString(), is("url"));
+            MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().modelId(), is("model"));
+            MatcherAssert.assertThat(embeddingsModel.getTaskSettings(), is(new CohereEmbeddingsTaskSettings(null, null)));
+            assertNull(embeddingsModel.getConfigurations().getChunkingSettings());
+            MatcherAssert.assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is("secret"));
+        }
+    }
+
+    public void testParsePersistedConfigWithSecrets_CreatesACohereEmbeddingsModelWhenChunkingSettingsProvidedAndFeatureFlagEnabled()
+        throws IOException {
+        assumeTrue("Only if 'inference_chunking_settings' feature flag is enabled", ChunkingSettingsFeatureFlag.isEnabled());
+        try (var service = createCohereService()) {
+            var persistedConfig = getPersistedConfigMap(
+                CohereEmbeddingsServiceSettingsTests.getServiceSettingsMap("url", "model", null),
+                getTaskSettingsMap(null, null),
+                createRandomChunkingSettingsMap(),
+                getSecretSettingsMap("secret")
+            );
+
+            var model = service.parsePersistedConfigWithSecrets(
+                "id",
+                TaskType.TEXT_EMBEDDING,
+                persistedConfig.config(),
+                persistedConfig.secrets()
+            );
+
+            MatcherAssert.assertThat(model, instanceOf(CohereEmbeddingsModel.class));
+
+            var embeddingsModel = (CohereEmbeddingsModel) model;
+            MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().uri().toString(), is("url"));
+            MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().modelId(), is("model"));
+            MatcherAssert.assertThat(embeddingsModel.getTaskSettings(), is(new CohereEmbeddingsTaskSettings(null, null)));
+            MatcherAssert.assertThat(embeddingsModel.getConfigurations().getChunkingSettings(), instanceOf(ChunkingSettings.class));
+            MatcherAssert.assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is("secret"));
+        }
+    }
+
+    public void testParsePersistedConfigWithSecrets_CreatesACohereEmbeddingsModelWhenChunkingSettingsNotProvidedAndFeatureFlagEnabled()
+        throws IOException {
+        assumeTrue("Only if 'inference_chunking_settings' feature flag is enabled", ChunkingSettingsFeatureFlag.isEnabled());
+        try (var service = createCohereService()) {
+            var persistedConfig = getPersistedConfigMap(
+                CohereEmbeddingsServiceSettingsTests.getServiceSettingsMap("url", "model", null),
+                getTaskSettingsMap(null, null),
+                getSecretSettingsMap("secret")
+            );
+
+            var model = service.parsePersistedConfigWithSecrets(
+                "id",
+                TaskType.TEXT_EMBEDDING,
+                persistedConfig.config(),
+                persistedConfig.secrets()
+            );
+
+            MatcherAssert.assertThat(model, instanceOf(CohereEmbeddingsModel.class));
+
+            var embeddingsModel = (CohereEmbeddingsModel) model;
+            MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().uri().toString(), is("url"));
+            MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().modelId(), is("model"));
+            MatcherAssert.assertThat(embeddingsModel.getTaskSettings(), is(new CohereEmbeddingsTaskSettings(null, null)));
+            MatcherAssert.assertThat(embeddingsModel.getConfigurations().getChunkingSettings(), instanceOf(ChunkingSettings.class));
             MatcherAssert.assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is("secret"));
         }
     }
@@ -503,6 +682,74 @@ public class CohereServiceTests extends ESTestCase {
             MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().uri().toString(), is("url"));
             MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().modelId(), is("model"));
             MatcherAssert.assertThat(embeddingsModel.getTaskSettings(), is(new CohereEmbeddingsTaskSettings(null, CohereTruncation.NONE)));
+            assertNull(embeddingsModel.getSecretSettings());
+        }
+    }
+
+    public void testParsePersistedConfig_CreatesACohereEmbeddingsModelWithoutChunkingSettingsWhenChunkingSettingsFeatureFlagDisabled()
+        throws IOException {
+        assumeTrue("Only if 'inference_chunking_settings' feature flag is disabled", ChunkingSettingsFeatureFlag.isEnabled() == false);
+        try (var service = createCohereService()) {
+            var persistedConfig = getPersistedConfigMap(
+                CohereEmbeddingsServiceSettingsTests.getServiceSettingsMap("url", "model", null),
+                getTaskSettingsMap(null, CohereTruncation.NONE),
+                createRandomChunkingSettingsMap()
+            );
+
+            var model = service.parsePersistedConfig("id", TaskType.TEXT_EMBEDDING, persistedConfig.config());
+
+            MatcherAssert.assertThat(model, instanceOf(CohereEmbeddingsModel.class));
+
+            var embeddingsModel = (CohereEmbeddingsModel) model;
+            MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().uri().toString(), is("url"));
+            MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().modelId(), is("model"));
+            MatcherAssert.assertThat(embeddingsModel.getTaskSettings(), is(new CohereEmbeddingsTaskSettings(null, CohereTruncation.NONE)));
+            assertNull(embeddingsModel.getConfigurations().getChunkingSettings());
+            assertNull(embeddingsModel.getSecretSettings());
+        }
+    }
+
+    public void testParsePersistedConfig_CreatesACohereEmbeddingsModelWhenChunkingSettingsProvidedAndFeatureFlagEnabled()
+        throws IOException {
+        assumeTrue("Only if 'inference_chunking_settings' feature flag is enabled", ChunkingSettingsFeatureFlag.isEnabled());
+        try (var service = createCohereService()) {
+            var persistedConfig = getPersistedConfigMap(
+                CohereEmbeddingsServiceSettingsTests.getServiceSettingsMap("url", "model", null),
+                getTaskSettingsMap(null, CohereTruncation.NONE),
+                createRandomChunkingSettingsMap()
+            );
+
+            var model = service.parsePersistedConfig("id", TaskType.TEXT_EMBEDDING, persistedConfig.config());
+
+            MatcherAssert.assertThat(model, instanceOf(CohereEmbeddingsModel.class));
+
+            var embeddingsModel = (CohereEmbeddingsModel) model;
+            MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().uri().toString(), is("url"));
+            MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().modelId(), is("model"));
+            MatcherAssert.assertThat(embeddingsModel.getTaskSettings(), is(new CohereEmbeddingsTaskSettings(null, CohereTruncation.NONE)));
+            MatcherAssert.assertThat(embeddingsModel.getConfigurations().getChunkingSettings(), instanceOf(ChunkingSettings.class));
+            assertNull(embeddingsModel.getSecretSettings());
+        }
+    }
+
+    public void testParsePersistedConfig_CreatesACohereEmbeddingsModelWhenChunkingSettingsNotProvidedAndFeatureFlagEnabled()
+        throws IOException {
+        assumeTrue("Only if 'inference_chunking_settings' feature flag is enabled", ChunkingSettingsFeatureFlag.isEnabled());
+        try (var service = createCohereService()) {
+            var persistedConfig = getPersistedConfigMap(
+                CohereEmbeddingsServiceSettingsTests.getServiceSettingsMap("url", "model", null),
+                getTaskSettingsMap(null, CohereTruncation.NONE)
+            );
+
+            var model = service.parsePersistedConfig("id", TaskType.TEXT_EMBEDDING, persistedConfig.config());
+
+            MatcherAssert.assertThat(model, instanceOf(CohereEmbeddingsModel.class));
+
+            var embeddingsModel = (CohereEmbeddingsModel) model;
+            MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().uri().toString(), is("url"));
+            MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().modelId(), is("model"));
+            MatcherAssert.assertThat(embeddingsModel.getTaskSettings(), is(new CohereEmbeddingsTaskSettings(null, CohereTruncation.NONE)));
+            MatcherAssert.assertThat(embeddingsModel.getConfigurations().getChunkingSettings(), instanceOf(ChunkingSettings.class));
             assertNull(embeddingsModel.getSecretSettings());
         }
     }
@@ -1164,6 +1411,52 @@ public class CohereServiceTests extends ESTestCase {
     }
 
     public void testChunkedInfer_BatchesCalls() throws IOException {
+        var model = CohereEmbeddingsModelTests.createModel(
+            getUrl(webServer),
+            "secret",
+            new CohereEmbeddingsTaskSettings(null, null),
+            1024,
+            1024,
+            "model",
+            null
+        );
+
+        testChunkedInfer(model);
+    }
+
+    public void testChunkedInfer_BatchesCallsChunkingSettingsSetAndFeatureFlagEnabled() throws IOException {
+        assumeTrue("Only if 'inference_chunking_settings' feature flag is enabled", ChunkingSettingsFeatureFlag.isEnabled());
+        var model = CohereEmbeddingsModelTests.createModel(
+            getUrl(webServer),
+            "secret",
+            new CohereEmbeddingsTaskSettings(null, null),
+            createRandomChunkingSettings(),
+            1024,
+            1024,
+            "model",
+            null
+        );
+
+        testChunkedInfer(model);
+    }
+
+    public void testChunkedInfer_ChunkingSettingsNotSetAndFeatureFlagEnabled() throws IOException {
+        assumeTrue("Only if 'inference_chunking_settings' feature flag is enabled", ChunkingSettingsFeatureFlag.isEnabled());
+        var model = CohereEmbeddingsModelTests.createModel(
+            getUrl(webServer),
+            "secret",
+            new CohereEmbeddingsTaskSettings(null, null),
+            null,
+            1024,
+            1024,
+            "model",
+            null
+        );
+
+        testChunkedInfer(model);
+    }
+
+    private void testChunkedInfer(CohereEmbeddingsModel model) throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
         try (var service = new CohereService(senderFactory, createWithEmptySettings(threadPool))) {
@@ -1200,15 +1493,6 @@ public class CohereServiceTests extends ESTestCase {
                 """;
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
-            var model = CohereEmbeddingsModelTests.createModel(
-                getUrl(webServer),
-                "secret",
-                new CohereEmbeddingsTaskSettings(null, null),
-                1024,
-                1024,
-                "model",
-                null
-            );
             PlainActionFuture<List<ChunkedInferenceServiceResults>> listener = new PlainActionFuture<>();
             // 2 inputs
             service.chunkedInfer(
@@ -1351,6 +1635,7 @@ public class CohereServiceTests extends ESTestCase {
         assertEquals(SimilarityMeasure.DOT_PRODUCT, CohereService.defaultSimilarity());
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/114385")
     public void testInfer_StreamRequest() throws Exception {
         String responseJson = """
             {"event_type":"text-generation", "text":"hello"}
@@ -1384,6 +1669,7 @@ public class CohereServiceTests extends ESTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/114385")
     public void testInfer_StreamRequest_ErrorResponse() throws Exception {
         String responseJson = """
             { "event_type":"stream-end", "finish_reason":"ERROR", "response":{ "text": "how dare you" } }
@@ -1397,6 +1683,18 @@ public class CohereServiceTests extends ESTestCase {
             .hasNoEvents()
             .hasErrorWithStatusCode(500)
             .hasErrorContaining("how dare you");
+    }
+
+    private Map<String, Object> getRequestConfigMap(
+        Map<String, Object> serviceSettings,
+        Map<String, Object> taskSettings,
+        Map<String, Object> chunkingSettings,
+        Map<String, Object> secretSettings
+    ) {
+        var requestConfigMap = getRequestConfigMap(serviceSettings, taskSettings, secretSettings);
+        requestConfigMap.put(ModelConfigurations.CHUNKING_SETTINGS, chunkingSettings);
+
+        return requestConfigMap;
     }
 
     private Map<String, Object> getRequestConfigMap(

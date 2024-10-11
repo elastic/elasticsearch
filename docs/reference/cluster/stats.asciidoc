@@ -762,6 +762,10 @@ Queries are counted once per search request, meaning that if the same query type
 (object) Search sections used in selected nodes.
 For each section, name and number of times it's been used is reported.
 
+`retrievers`::
+(object) Retriever types that were used in selected nodes.
+For each retriever, name and number of times it's been used is reported.
+
 =====
 
 `dense_vector`::

@@ -310,6 +310,9 @@ tests:
 - class: org.elasticsearch.xpack.rank.rrf.RRFRankClientYamlTestSuiteIT
   method: test {yaml=rrf/700_rrf_retriever_search_api_compatibility/rrf retriever with top-level collapse}
   issue: https://github.com/elastic/elasticsearch/issues/114331
+- class: org.elasticsearch.threadpool.SimpleThreadPoolIT
+  method: testThreadPoolMetrics
+  issue: https://github.com/elastic/elasticsearch/issues/108320
 
 # Examples:
 #

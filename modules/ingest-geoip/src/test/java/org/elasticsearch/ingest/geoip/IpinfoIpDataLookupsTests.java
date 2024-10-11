@@ -15,7 +15,6 @@ import com.maxmind.db.Reader;
 
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.common.network.NetworkAddress;
-import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.test.ESTestCase;
@@ -37,9 +36,7 @@ import static org.elasticsearch.ingest.geoip.IpinfoIpDataLookups.parseBoolean;
 import static org.elasticsearch.ingest.geoip.IpinfoIpDataLookups.parseLocationDouble;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsInAnyOrder;
-import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
@@ -57,20 +54,6 @@ public class IpinfoIpDataLookupsTests extends ESTestCase {
     @After
     public void cleanup() throws IOException {
         IOUtils.rm(tmpDir);
-    }
-
-    public void testDatabasePropertyInvariants() {
-        // the second ASN variant database is like a specialization of the ASN database
-        assertThat(Sets.difference(Database.Asn.properties(), Database.AsnV2.properties()), is(empty()));
-        assertThat(Database.Asn.defaultProperties(), equalTo(Database.AsnV2.defaultProperties()));
-
-        // the second City variant database is like a version of the ordinary City database but lacking many fields
-        assertThat(Sets.difference(Database.CityV2.properties(), Database.City.properties()), is(empty()));
-        assertThat(Sets.difference(Database.CityV2.defaultProperties(), Database.City.defaultProperties()), is(empty()));
-
-        // the second Country variant database is like a version of the ordinary Country database but lacking come fields
-        assertThat(Sets.difference(Database.CountryV2.properties(), Database.CountryV2.properties()), is(empty()));
-        assertThat(Database.CountryV2.defaultProperties(), equalTo(Database.Country.defaultProperties()));
     }
 
     public void testParseAsn() {

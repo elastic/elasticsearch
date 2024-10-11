@@ -130,14 +130,6 @@ public class FileSettingsService extends MasterNodeFileWatchingService implement
         processFileChanges(true);
     }
 
-    @Override
-    protected void processInitialFileMissing() throws ExecutionException, InterruptedException {
-        logger.info("setting file [{}] not found, initializing [{}] as empty", watchedFile(), NAMESPACE);
-        PlainActionFuture<ActionResponse.Empty> completion = new PlainActionFuture<>();
-        stateService.initEmpty(NAMESPACE, completion);
-        completion.get();
-    }
-
     private void processFileChanges(boolean allowSameVersion) throws IOException, InterruptedException, ExecutionException {
         PlainActionFuture<Void> completion = new PlainActionFuture<>();
         try (
@@ -147,6 +139,14 @@ public class FileSettingsService extends MasterNodeFileWatchingService implement
         ) {
             stateService.process(NAMESPACE, parser, allowSameVersion, (e) -> completeProcessing(e, completion));
         }
+        completion.get();
+    }
+
+    @Override
+    protected void processInitialFileMissing() throws ExecutionException, InterruptedException {
+        PlainActionFuture<ActionResponse.Empty> completion = new PlainActionFuture<>();
+        logger.info("setting file [{}] not found, initializing [{}] as empty", watchedFile(), NAMESPACE);
+        stateService.initEmpty(NAMESPACE, completion);
         completion.get();
     }
 

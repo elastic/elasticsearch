@@ -89,7 +89,7 @@ public class TemplateRoleNameTests extends ESTestCase {
     public void testEvaluateRoles() throws Exception {
         final ScriptService scriptService = new ScriptService(
             Settings.EMPTY,
-            Collections.singletonMap(MustacheScriptEngine.NAME, new MustacheScriptEngine()),
+            Collections.singletonMap(MustacheScriptEngine.NAME, new MustacheScriptEngine(Settings.EMPTY)),
             ScriptModule.CORE_CONTEXTS,
             () -> 1L
         );
@@ -145,7 +145,7 @@ public class TemplateRoleNameTests extends ESTestCase {
     public void testValidate() {
         final ScriptService scriptService = new ScriptService(
             Settings.EMPTY,
-            Collections.singletonMap(MustacheScriptEngine.NAME, new MustacheScriptEngine()),
+            Collections.singletonMap(MustacheScriptEngine.NAME, new MustacheScriptEngine(Settings.EMPTY)),
             ScriptModule.CORE_CONTEXTS,
             () -> 1L
         );
@@ -173,7 +173,7 @@ public class TemplateRoleNameTests extends ESTestCase {
     public void testValidateWillPassWithEmptyContext() {
         final ScriptService scriptService = new ScriptService(
             Settings.EMPTY,
-            Collections.singletonMap(MustacheScriptEngine.NAME, new MustacheScriptEngine()),
+            Collections.singletonMap(MustacheScriptEngine.NAME, new MustacheScriptEngine(Settings.EMPTY)),
             ScriptModule.CORE_CONTEXTS,
             () -> 1L
         );
@@ -204,7 +204,7 @@ public class TemplateRoleNameTests extends ESTestCase {
     public void testValidateWillFailForSyntaxError() {
         final ScriptService scriptService = new ScriptService(
             Settings.EMPTY,
-            Collections.singletonMap(MustacheScriptEngine.NAME, new MustacheScriptEngine()),
+            Collections.singletonMap(MustacheScriptEngine.NAME, new MustacheScriptEngine(Settings.EMPTY)),
             ScriptModule.CORE_CONTEXTS,
             () -> 1L
         );
@@ -268,7 +268,7 @@ public class TemplateRoleNameTests extends ESTestCase {
         final Settings settings = Settings.builder().put("script.allowed_types", ScriptService.ALLOW_NONE).build();
         final ScriptService scriptService = new ScriptService(
             settings,
-            Collections.singletonMap(MustacheScriptEngine.NAME, new MustacheScriptEngine()),
+            Collections.singletonMap(MustacheScriptEngine.NAME, new MustacheScriptEngine(Settings.EMPTY)),
             ScriptModule.CORE_CONTEXTS,
             () -> 1L
         );
@@ -285,7 +285,7 @@ public class TemplateRoleNameTests extends ESTestCase {
         final Settings settings = Settings.builder().put("script.allowed_types", ScriptService.ALLOW_NONE).build();
         final ScriptService scriptService = new ScriptService(
             settings,
-            Collections.singletonMap(MustacheScriptEngine.NAME, new MustacheScriptEngine()),
+            Collections.singletonMap(MustacheScriptEngine.NAME, new MustacheScriptEngine(Settings.EMPTY)),
             ScriptModule.CORE_CONTEXTS,
             () -> 1L
         );
@@ -314,7 +314,7 @@ public class TemplateRoleNameTests extends ESTestCase {
     public void testValidateWillFailWhenStoredScriptIsNotFound() {
         final ScriptService scriptService = new ScriptService(
             Settings.EMPTY,
-            Collections.singletonMap(MustacheScriptEngine.NAME, new MustacheScriptEngine()),
+            Collections.singletonMap(MustacheScriptEngine.NAME, new MustacheScriptEngine(Settings.EMPTY)),
             ScriptModule.CORE_CONTEXTS,
             () -> 1L
         );

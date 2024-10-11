@@ -313,17 +313,38 @@ tests:
   method: test {p0=indices.split/40_routing_partition_size/nested}
   issue: https://github.com/elastic/elasticsearch/issues/113842
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
-  method: test {p0=synonyms/60_synonym_rule_get/Get a synonym rule}
-  issue: https://github.com/elastic/elasticsearch/issues/114443
-- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
-  method: test {p0=synonyms/60_synonym_rule_get/Synonym rule not found}
-  issue: https://github.com/elastic/elasticsearch/issues/114444
-- class: org.elasticsearch.xpack.esql.optimizer.PhysicalPlanOptimizerTests
-  method: testPushSpatialIntersectsEvalToSource {default}
-  issue: https://github.com/elastic/elasticsearch/issues/114627
-- class: org.elasticsearch.xpack.esql.optimizer.PhysicalPlanOptimizerTests
-  method: testPushWhereEvalToSource {default}
-  issue: https://github.com/elastic/elasticsearch/issues/114628
+  method: test {p0=indices.split/40_routing_partition_size/more than 1}
+  issue: https://github.com/elastic/elasticsearch/issues/113841
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
+  method: test {categorize.Categorize ASYNC}
+  issue: https://github.com/elastic/elasticsearch/issues/113721
+- class: org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvPercentileTests
+  method: "testEvaluateBlockWithoutNulls {TestCase=field: <positive mv UNORDERED longs>, percentile: <small positive double>}"
+  issue: https://github.com/elastic/elasticsearch/issues/114585
+- class: org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvPercentileTests
+  method: "testEvaluateBlockWithoutNulls {TestCase=field: <positive mv SORTED_ASCENDING longs>, percentile: <small positive double>}"
+  issue: https://github.com/elastic/elasticsearch/issues/114586
+- class: org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvPercentileTests
+  method: "testEvaluateBlockWithoutNulls {TestCase=field: <positive mv DEDUPLICATED_AND_SORTED_ASCENDING longs>, percentile: <small positive double>}"
+  issue: https://github.com/elastic/elasticsearch/issues/114587
+- class: org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvPercentileTests
+  method: "testEvaluateBlockWithoutNulls {TestCase=field: <positive mv DEDUPLICATED_UNORDERD longs>, percentile: <small positive double>}"
+  issue: https://github.com/elastic/elasticsearch/issues/114588
+- class: org.elasticsearch.action.search.SearchQueryThenFetchAsyncActionTests
+  method: testMinimumVersionSameAsNewVersion
+  issue: https://github.com/elastic/elasticsearch/issues/114593
+- class: org.elasticsearch.smoketest.SmokeTestIngestWithAllDepsClientYamlTestSuiteIT
+  method: test {yaml=ingest/80_ingest_simulate/Test ingest simulate with template substitutions for component templates}
+  issue: https://github.com/elastic/elasticsearch/issues/114602
+- class: org.elasticsearch.smoketest.SmokeTestIngestWithAllDepsClientYamlTestSuiteIT
+  method: test {yaml=ingest/80_ingest_simulate/Test ingest simulate with template substitutions for component templates removing pipelines}
+  issue: https://github.com/elastic/elasticsearch/issues/114603
+- class: org.elasticsearch.xpack.security.support.SecurityIndexManagerIntegTests
+  method: testOnIndexAvailableForSearchIndexAlreadyAvailable
+  issue: https://github.com/elastic/elasticsearch/issues/114608
+- class: org.elasticsearch.action.search.SearchQueryThenFetchAsyncActionTests
+  method: testMinimumVersionShardDuringPhaseExecution
+  issue: https://github.com/elastic/elasticsearch/issues/114611
 
 # Examples:
 #

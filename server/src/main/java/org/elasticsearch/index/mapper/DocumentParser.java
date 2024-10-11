@@ -225,8 +225,8 @@ public final class DocumentParser {
                 } else if (currentToken == XContentParser.Token.END_OBJECT || currentToken == XContentParser.Token.END_ARRAY) {
                     // Remove the path, if the scope type matches the one when the path was added.
                     if (isObjectInPath.isEmpty() == false
-			    && (isObjectInPath.get(isObjectInPath.size() - 1) && currentToken == XContentParser.Token.END_OBJECT
-                            || isObjectInPath.get(.get(isObjectInPath.size() - 1)) == false && currentToken == XContentParser.Token.END_ARRAY)) {
+                        && (isObjectInPath.get(isObjectInPath.size() - 1) && currentToken == XContentParser.Token.END_OBJECT
+                            || isObjectInPath.get(isObjectInPath.size() - 1) == false && currentToken == XContentParser.Token.END_ARRAY)) {
                         path.remove(isObjectInPath.size() - 1);
                         isObjectInPath.remove(isObjectInPath.size() - 1);
                     }

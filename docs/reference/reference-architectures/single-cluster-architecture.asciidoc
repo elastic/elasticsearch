@@ -1,0 +1,4 @@
+[[single-cluster-architecture]]
+=== Single cluster architecture
+
+This is an example page

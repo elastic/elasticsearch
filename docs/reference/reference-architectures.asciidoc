@@ -9,6 +9,6 @@ This section provides a series of reference architectures.
 [[reference-architectures-general]]
 === General
 * <<single-cluster-architecture,Single cluster Architecture>>
-
+--
 
 include::reference-architectures/single-cluster-architecture.asciidoc[]

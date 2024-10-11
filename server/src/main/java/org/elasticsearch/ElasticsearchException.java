@@ -1936,6 +1936,12 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             IndexDocFailureStoreStatus.ExceptionWithFailureStoreStatus::new,
             183,
             TransportVersions.FAILURE_STORE_STATUS_IN_INDEX_RESPONSE
+        ),
+        PROPERTY_PLACEHOLDER_EXCEPTION(
+            org.elasticsearch.common.settings.PropertyPlaceholderException.class,
+            org.elasticsearch.common.settings.PropertyPlaceholderException::new,
+            184,
+            UNKNOWN_VERSION_ADDED
         );
 
         final Class<? extends ElasticsearchException> exceptionClass;

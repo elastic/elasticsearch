@@ -67,7 +67,10 @@ class PropertyPlaceholder {
             if (endIndex != -1) {
                 String placeholder = buf.substring(startIndex + this.placeholderPrefix.length(), endIndex);
                 if (visitedPlaceholders.add(placeholder) == false) {
-                    throw new IllegalArgumentException("Circular placeholder reference '" + placeholder + "' in property definitions");
+                    throw new PropertyPlaceholderException(
+                        "Circular placeholder reference '" + placeholder + "' in property definitions",
+                        placeholder
+                    );
                 }
                 // Recursive invocation, parsing placeholders contained in the placeholder key.
                 placeholder = parseStringValue(placeholder, placeholderResolver, visitedPlaceholders);
@@ -100,7 +103,7 @@ class PropertyPlaceholder {
                     // Proceed with unprocessed value.
                     startIndex = buf.indexOf(this.placeholderPrefix, endIndex + this.placeholderSuffix.length());
                 } else {
-                    throw new IllegalArgumentException("Could not resolve placeholder '" + placeholder + "'");
+                    throw new PropertyPlaceholderException("Could not resolve placeholder '" + placeholder + "'", placeholder);
                 }
 
                 visitedPlaceholders.remove(placeholder);

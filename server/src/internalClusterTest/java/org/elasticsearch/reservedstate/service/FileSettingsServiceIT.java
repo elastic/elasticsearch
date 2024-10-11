@@ -393,7 +393,7 @@ public class FileSettingsServiceIT extends ESIntegTestCase {
         AtomicLong metadataVersion = savedClusterState.v2();
         assertClusterStateNotSaved(savedClusterState.v1(), metadataVersion);
         logger.info("returned version: [{}] version counter: [{}]", metadataVersion, versionCounter);
-        assertBusy(this::assertHasErrors);
+        assertHasErrors(versionCounter.get());
 
         // write valid json without version increment to simulate ES being able to process settings after a restart (usually, this would be
         // due to a code change)
@@ -403,7 +403,7 @@ public class FileSettingsServiceIT extends ESIntegTestCase {
 
         assertBusy(() -> assertExpectedRecoveryBytesSettingAndVersion(versionCounter, "50mb"));
         // ensure error got cleared
-        assertNoErrors();
+        assertNoErrors(versionCounter.get());
     }
 
     public void testSettingsAppliedOnMasterReElection() throws Exception {
@@ -452,19 +452,19 @@ public class FileSettingsServiceIT extends ESIntegTestCase {
         assertClusterStateSaveOK(savedClusterState.v1(), savedClusterState.v2(), "43mb");
     }
 
-    private void assertHasErrors() {
-        var errorMetadata = getErrorMetadata();
+    private void assertHasErrors(long waitForMetadataVersion) {
+        var errorMetadata = getErrorMetadata(waitForMetadataVersion);
         assertThat(errorMetadata, is(notNullValue()));
     }
 
-    private void assertNoErrors() {
-        var errorMetadata = getErrorMetadata();
+    private void assertNoErrors(long waitForMetadataVersion) {
+        var errorMetadata = getErrorMetadata(waitForMetadataVersion);
         assertThat(errorMetadata, is(nullValue()));
     }
 
-    private ReservedStateErrorMetadata getErrorMetadata() {
+    private ReservedStateErrorMetadata getErrorMetadata(long waitForMetadataVersion) {
         final ClusterStateResponse clusterStateResponse = clusterAdmin().state(
-            new ClusterStateRequest(TEST_REQUEST_TIMEOUT).waitForMetadataVersion(versionCounter.get())
+            new ClusterStateRequest(TEST_REQUEST_TIMEOUT).waitForMetadataVersion(waitForMetadataVersion)
         ).actionGet();
         return clusterStateResponse.getState().getMetadata().reservedStateMetadata().get(FileSettingsService.NAMESPACE).errorMetadata();
     }

@@ -652,7 +652,7 @@ public final class IndexSettings {
     );
 
     public static final Setting<Boolean> SYNTHETIC_SOURCE_SECOND_DOC_PARSING_PASS_SETTING = Setting.boolSetting(
-            "index.synthetic_source.enable_second_doc_parsing_pass",
+        "index.synthetic_source.enable_second_doc_parsing_pass",
         true,
         Property.IndexScope,
         Property.Dynamic

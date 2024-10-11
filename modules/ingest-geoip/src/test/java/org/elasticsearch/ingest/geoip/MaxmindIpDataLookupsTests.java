@@ -156,7 +156,7 @@ public class MaxmindIpDataLookupsTests extends ESTestCase {
 
     public void testAsn() throws IOException {
         assumeFalse("https://github.com/elastic/elasticsearch/issues/114266", Constants.WINDOWS);
-        final String databaseName = "GeoLite2-ASN.mmdb";
+        String databaseName = "GeoLite2-ASN.mmdb";
         String ip = "82.171.64.0";
         assertExpectedLookupResults(
             databaseName,
@@ -168,7 +168,7 @@ public class MaxmindIpDataLookupsTests extends ESTestCase {
 
     public void testAnonymousIp() throws Exception {
         assumeFalse("https://github.com/elastic/elasticsearch/issues/114266", Constants.WINDOWS);
-        final String databaseName = "GeoIP2-Anonymous-IP-Test.mmdb";
+        String databaseName = "GeoIP2-Anonymous-IP-Test.mmdb";
         String ip = "81.2.69.1";
         assertExpectedLookupResults(
             databaseName,

@@ -255,12 +255,19 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         }
 
         private boolean isDefault() {
-            Mode m = mode.get();
-            if (m != null
-                && (((indexMode != null && indexMode.isSyntheticSourceEnabled() && m == Mode.SYNTHETIC) == false) || m == Mode.DISABLED)) {
+            final Mode sourceMode = resolveEffectiveSourceMode(settings, mode.get());
+            if (sourceMode != null
+                && (((indexMode != null && indexMode.isSyntheticSourceEnabled() && sourceMode == Mode.SYNTHETIC) == false)
+                    || sourceMode == Mode.DISABLED)) {
                 return false;
             }
             return enabled.get().value() && includes.getValue().isEmpty() && excludes.getValue().isEmpty();
+        }
+
+        private static Mode resolveEffectiveSourceMode(final Settings settings, final SourceFieldMapper.Mode mode) {
+            // NOTE: if the `index.mapper.source.mode` exists it takes precedence to determine the source mode for `_source`
+            // otherwise the mode is determined according to `index.mode` and `_source.mode`.
+            return INDEX_MAPPER_SOURCE_MODE_SETTING.exists(settings) ? INDEX_MAPPER_SOURCE_MODE_SETTING.get(settings) : mode;
         }
 
         @Override
@@ -304,7 +311,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
             }
 
             SourceFieldMapper sourceFieldMapper = new SourceFieldMapper(
-                INDEX_MAPPER_SOURCE_MODE_SETTING.exists(settings) == false ? mode.get() : INDEX_MAPPER_SOURCE_MODE_SETTING.get(settings),
+                resolveEffectiveSourceMode(settings, mode.get()),
                 enabled.get(),
                 includes.getValue().toArray(Strings.EMPTY_ARRAY),
                 excludes.getValue().toArray(Strings.EMPTY_ARRAY),

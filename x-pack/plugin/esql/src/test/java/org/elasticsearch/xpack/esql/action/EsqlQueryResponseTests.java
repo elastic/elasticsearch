@@ -134,7 +134,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
     }
 
     EsqlExecutionInfo createExecutionInfo() {
-        EsqlExecutionInfo executionInfo = new EsqlExecutionInfo();
+        EsqlExecutionInfo executionInfo = new EsqlExecutionInfo(true);
         executionInfo.overallTook(new TimeValue(5000));
         executionInfo.swapCluster(
             "",
@@ -426,9 +426,9 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                 }
             }
             if (clusterInfoMap.isEmpty()) {
-                return new EsqlExecutionInfo();
+                return new EsqlExecutionInfo(true);
             } else {
-                return new EsqlExecutionInfo(clusterInfoMap);
+                return new EsqlExecutionInfo(clusterInfoMap, true);
             }
         }
 

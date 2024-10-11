@@ -239,7 +239,10 @@ public class TransportVersions {
     public static final TransportVersion TEXT_SIMILARITY_RERANKER_QUERY_REWRITE = def(8_763_00_0);
     public static final TransportVersion SIMULATE_INDEX_TEMPLATES_SUBSTITUTIONS = def(8_764_00_0);
     public static final TransportVersion RETRIEVERS_TELEMETRY_ADDED = def(8_765_00_0);
-    public static final TransportVersion ESQL_PER_AGGREGATE_FILTER = def(8_766_00_0);
+    public static final TransportVersion ESQL_CACHED_STRING_SERIALIZATION = def(8_766_00_0);
+    public static final TransportVersion CHUNK_SENTENCE_OVERLAP_SETTING_ADDED = def(8_767_00_0);
+    public static final TransportVersion OPT_IN_ESQL_CCS_EXECUTION_INFO = def(8_768_00_0);
+    public static final TransportVersion ESQL_PER_AGGREGATE_FILTER = def(8_769_00_0);
 
     /*
      * STOP! READ THIS FIRST! No, really,

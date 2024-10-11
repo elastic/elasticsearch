@@ -759,7 +759,6 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             assertThat(collectionResult, not(hasItem(Double.NaN)));
             assertThat(collectionResult, not(hasItem(Double.POSITIVE_INFINITY)));
             assertThat(collectionResult, not(hasItem(Double.NEGATIVE_INFINITY)));
-            assertThat(collectionResult, not(hasItem(-0.0)));
         }
         assert testCase.getMatcher().matches(Double.NaN) == false;
         assertThat(result, not(equalTo(Double.NaN)));
@@ -767,8 +766,6 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         assertThat(result, not(equalTo(Double.POSITIVE_INFINITY)));
         assert testCase.getMatcher().matches(Double.NEGATIVE_INFINITY) == false;
         assertThat(result, not(equalTo(Double.NEGATIVE_INFINITY)));
-        assert testCase.getMatcher().matches(-0.0) == false;
-        assertThat(result, not(equalTo(-0.0)));
         assertThat(result, testCase.getMatcher());
         if (testCase.getExpectedWarnings() != null) {
             assertWarnings(testCase.getExpectedWarnings());

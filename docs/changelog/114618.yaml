@@ -1,0 +1,5 @@
+pr: 114618
+summary: Skipping Recovery Source When LogsDB is Enabled
+area: Logs
+type: enhancement
+issues: []

@@ -129,6 +129,15 @@ public class HeapAttackIT extends ESRestTestCase {
                 try {
                     resp = client().performRequest(fetch);
                 } catch (ResponseException e) {
+                    if (e.getResponse().getStatusLine().getStatusCode() == 403) {
+                        /*
+                         * There's a bug when loading from the translog with security
+                         * enabled. If we retry a few times we'll load from the index
+                         * itself and should succeed.
+                         */
+                        logger.error("polled for results got 403");
+                        continue;
+                    }
                     if (e.getResponse().getStatusLine().getStatusCode() == 404) {
                         logger.error("polled for results got 404");
                         continue;

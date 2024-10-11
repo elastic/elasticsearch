@@ -163,7 +163,7 @@ public class GeoIpProcessorTests extends ESTestCase {
     }
 
     /**
-     * Tests that an exception in the IpDataLoopup is propagated out of the GeoIpProcessor's execute method
+     * Tests that an exception in the IpDataLookup is propagated out of the GeoIpProcessor's execute method
      */
     public void testExceptionPropagates() {
         GeoIpProcessor processor = new GeoIpProcessor(

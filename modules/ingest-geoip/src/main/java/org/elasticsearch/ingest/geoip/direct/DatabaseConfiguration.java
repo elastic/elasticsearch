@@ -89,6 +89,13 @@ public record DatabaseConfiguration(String id, String name, Provider provider) i
         (a, id) -> {
             String name = (String) a[0];
             Provider provider;
+
+            // one and only one provider object must be present
+            final long numNonNulls = Arrays.stream(a, 1, a.length).filter(Objects::nonNull).count();
+            if (numNonNulls != 1) {
+                throw new IllegalArgumentException("Exactly one provider object must be specified, but [" + numNonNulls + "] were found");
+            }
+
             if (a[1] != null) {
                 provider = (Maxmind) a[1];
             } else if (a[2] != null) {

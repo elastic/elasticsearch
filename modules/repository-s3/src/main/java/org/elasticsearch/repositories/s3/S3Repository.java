@@ -209,13 +209,13 @@ class S3Repository extends MeteredBlobStoreRepository {
      */
     static final Setting<TimeValue> RETRY_THROTTLED_DELETE_DELAY_INCREMENT = Setting.timeSetting(
         "throttled_delete_retry.delay_increment",
-        new TimeValue(50, TimeUnit.MILLISECONDS),
+        TimeValue.timeValueMillis(50),
         TimeValue.ZERO
     );
     static final Setting<TimeValue> RETRY_THROTTLED_DELETE_MAXIMUM_DELAY = Setting.timeSetting(
         "throttled_delete_retry.maximum_delay",
-        new TimeValue(500, TimeUnit.MILLISECONDS),
-       TimeValue.ZERO
+        TimeValue.timeValueSeconds(5),
+        TimeValue.ZERO
     );
     static final Setting<Integer> RETRY_THROTTLED_DELETE_MAX_NUMBER_OF_RETRIES = Setting.intSetting(
         "throttled_delete_retry.maximum_number_of_retries",

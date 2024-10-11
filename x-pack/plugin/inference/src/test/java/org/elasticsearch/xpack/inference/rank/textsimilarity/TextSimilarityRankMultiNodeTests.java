@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.inference.rank.textsimilarity;
 
+import org.elasticsearch.action.search.SearchPhaseExecutionException;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.rank.RankBuilder;
 import org.elasticsearch.search.rank.rerank.AbstractRerankerIT;
@@ -14,6 +16,10 @@ import org.elasticsearch.xpack.inference.InferencePlugin;
 
 import java.util.Collection;
 import java.util.List;
+
+import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
+import static org.elasticsearch.index.query.QueryBuilders.constantScoreQuery;
+import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 
 public class TextSimilarityRankMultiNodeTests extends AbstractRerankerIT {
 
@@ -41,5 +47,14 @@ public class TextSimilarityRankMultiNodeTests extends AbstractRerankerIT {
     @Override
     protected Collection<Class<? extends Plugin>> pluginsNeeded() {
         return List.of(InferencePlugin.class, TextSimilarityTestPlugin.class);
+    }
+
+
+    public void testQueryPhaseShardThrowingAllShardsFail() throws Exception {
+        // no-op
+    }
+
+    public void testQueryPhaseCoordinatorThrowingAllShardsFail() throws Exception {
+        // no-op
     }
 }

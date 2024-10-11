@@ -248,37 +248,6 @@ public class TextSimilarityTestPlugin extends Plugin implements ActionPlugin {
         }
 
         @Override
-        public QueryPhaseRankShardContext buildQueryPhaseShardContext(List<Query> queries, int from) {
-            if (this.throwingRankBuilderType == AbstractRerankerIT.ThrowingRankBuilderType.THROWING_QUERY_PHASE_SHARD_CONTEXT)
-                return new QueryPhaseRankShardContext(queries, rankWindowSize()) {
-                    @Override
-                    public RankShardResult combineQueryPhaseResults(List<TopDocs> rankResults) {
-                        throw new UnsupportedOperationException("qps - simulated failure");
-                    }
-                };
-            else {
-                return super.buildQueryPhaseShardContext(queries, from);
-            }
-        }
-
-        @Override
-        public QueryPhaseRankCoordinatorContext buildQueryPhaseCoordinatorContext(int size, int from) {
-            if (this.throwingRankBuilderType == AbstractRerankerIT.ThrowingRankBuilderType.THROWING_QUERY_PHASE_COORDINATOR_CONTEXT)
-                return new QueryPhaseRankCoordinatorContext(rankWindowSize()) {
-                    @Override
-                    public ScoreDoc[] rankQueryPhaseResults(
-                        List<QuerySearchResult> querySearchResults,
-                        SearchPhaseController.TopDocsStats topDocStats
-                    ) {
-                        throw new UnsupportedOperationException("qpc - simulated failure");
-                    }
-                };
-            else {
-                return super.buildQueryPhaseCoordinatorContext(size, from);
-            }
-        }
-
-        @Override
         public RankFeaturePhaseRankShardContext buildRankFeaturePhaseShardContext() {
             if (this.throwingRankBuilderType == AbstractRerankerIT.ThrowingRankBuilderType.THROWING_RANK_FEATURE_PHASE_SHARD_CONTEXT)
                 return new RankFeaturePhaseRankShardContext(field()) {

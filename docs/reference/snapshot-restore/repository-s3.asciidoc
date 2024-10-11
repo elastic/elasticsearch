@@ -331,7 +331,7 @@ include::repository-shared-settings.asciidoc[]
 
 `throttled_delete_retry.delay_increment`::
 
-    (integer) This value is used as the delay before the first retry and the amount the delay is incremented by on each subsequent retry. Default is 50ms, minimum is 0ms.
+    (<<time-units,time value>>) This value is used as the delay before the first retry and the amount the delay is incremented by on each subsequent retry. Default is 50ms, minimum is 0ms.
 
 `throttled_delete_retry.maximum_delay`::
 

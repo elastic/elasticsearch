@@ -267,7 +267,7 @@ public class S3BlobStoreRepositoryMetricsTests extends S3BlobStoreRepositoryTest
             Settings.builder()
                 .put(repositorySettings(repositoryName))
                 .put(S3ClientSettings.MAX_RETRIES_SETTING.getConcreteSettingForNamespace("placeholder").getKey(), 0)
-                .put(S3Repository.RETRY_THROTTLED_DELETE_INITIAL_DELAY.getKey(), TimeValue.timeValueMillis(10))
+                .put(S3Repository.RETRY_THROTTLED_DELETE_DELAY_INCREMENT.getKey(), TimeValue.timeValueMillis(10))
                 .put(S3Repository.RETRY_THROTTLED_DELETE_MAX_NUMBER_OF_RETRIES.getKey(), maxRetries)
                 .build(),
             false
@@ -299,7 +299,7 @@ public class S3BlobStoreRepositoryMetricsTests extends S3BlobStoreRepositoryTest
             Settings.builder()
                 .put(repositorySettings(repositoryName))
                 .put(S3ClientSettings.MAX_RETRIES_SETTING.getConcreteSettingForNamespace("placeholder").getKey(), 0)
-                .put(S3Repository.RETRY_THROTTLED_DELETE_INITIAL_DELAY.getKey(), TimeValue.timeValueMillis(10))
+                .put(S3Repository.RETRY_THROTTLED_DELETE_DELAY_INCREMENT.getKey(), TimeValue.timeValueMillis(10))
                 .put(S3Repository.RETRY_THROTTLED_DELETE_MAX_NUMBER_OF_RETRIES.getKey(), maxRetries)
                 .build(),
             false

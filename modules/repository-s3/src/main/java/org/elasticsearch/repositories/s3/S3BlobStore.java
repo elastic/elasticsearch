@@ -424,7 +424,11 @@ class S3BlobStore implements BlobStore {
                 logger.warn("Aborting tenacious snapshot delete retries due to interrupt");
             }
         } else {
-            logger.warn("Exceeded maximum tenacious snapshot delete retries, aborting");
+            logger.warn(
+                "Exceeded maximum tenacious snapshot delete retries, aborting. Using back-off policy "
+                    + retryThrottledDeleteBackoffPolicy
+                    + ", see the throttled_delete_retry.* S3 repository properties to configure the back-off parameters"
+            );
         }
         return false;
     }

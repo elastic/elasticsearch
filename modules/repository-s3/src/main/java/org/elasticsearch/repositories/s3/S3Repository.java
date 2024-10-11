@@ -204,17 +204,22 @@ class S3Repository extends MeteredBlobStoreRepository {
     );
 
     /**
-     * We will retry deletes that fail due to throttling. We use an {@link BackoffPolicy#exponentialBackoff(TimeValue, int)}
-     * with the following <code>initialDelay</code> and <code>maxNumberOfRetries</code>
+     * We will retry deletes that fail due to throttling. We use an {@link BackoffPolicy#linearBackoff(TimeValue, int, TimeValue)}
+     * with the following parameters
      */
-    static final Setting<TimeValue> RETRY_THROTTLED_DELETE_INITIAL_DELAY = Setting.timeSetting(
-        "throttled_delete_retry.initial_delay",
+    static final Setting<TimeValue> RETRY_THROTTLED_DELETE_DELAY_INCREMENT = Setting.timeSetting(
+        "throttled_delete_retry.delay_increment",
         new TimeValue(50, TimeUnit.MILLISECONDS),
-        new TimeValue(10, TimeUnit.MILLISECONDS)
+        new TimeValue(0, TimeUnit.MILLISECONDS)
+    );
+    static final Setting<TimeValue> RETRY_THROTTLED_DELETE_MAXIMUM_DELAY = Setting.timeSetting(
+        "throttled_delete_retry.maximum_delay",
+        new TimeValue(500, TimeUnit.MILLISECONDS),
+        new TimeValue(0, TimeUnit.MILLISECONDS)
     );
     static final Setting<Integer> RETRY_THROTTLED_DELETE_MAX_NUMBER_OF_RETRIES = Setting.intSetting(
-        "throttled_delete_retry.max_number_of_retries",
-        8,
+        "throttled_delete_retry.maximum_number_of_retries",
+        10,
         0
     );
 
@@ -441,9 +446,10 @@ class S3Repository extends MeteredBlobStoreRepository {
             bigArrays,
             threadPool,
             s3RepositoriesMetrics,
-            BackoffPolicy.exponentialBackoff(
-                RETRY_THROTTLED_DELETE_INITIAL_DELAY.get(metadata.settings()),
-                RETRY_THROTTLED_DELETE_MAX_NUMBER_OF_RETRIES.get(metadata.settings())
+            BackoffPolicy.linearBackoff(
+                RETRY_THROTTLED_DELETE_DELAY_INCREMENT.get(metadata.settings()),
+                RETRY_THROTTLED_DELETE_MAX_NUMBER_OF_RETRIES.get(metadata.settings()),
+                RETRY_THROTTLED_DELETE_MAXIMUM_DELAY.get(metadata.settings())
             )
         );
     }

@@ -8,6 +8,7 @@
  */
 package org.elasticsearch.common;
 
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 
 import java.util.Collections;
@@ -82,6 +83,18 @@ public abstract class BackoffPolicy implements Iterable<TimeValue> {
     }
 
     /**
+     * Creates a new linear backoff policy with the provided configuration
+     *
+     * @param delayIncrement The amount by which to increment the delay on each retry
+     * @param maxNumberOfRetries The maximum number of retries
+     * @param maximumDelay The maximum delay
+     * @return A backoff policy with linear increase in wait time for retries.
+     */
+    public static BackoffPolicy linearBackoff(TimeValue delayIncrement, int maxNumberOfRetries, TimeValue maximumDelay) {
+        return new LinearBackoff(delayIncrement, maxNumberOfRetries, maximumDelay);
+    }
+
+    /**
      * Wraps the backoff policy in one that calls a method every time a new backoff is taken from the policy.
      */
     public static BackoffPolicy wrap(BackoffPolicy delegate, Runnable onBackoff) {
@@ -100,6 +113,11 @@ public abstract class BackoffPolicy implements Iterable<TimeValue> {
         public Iterator<TimeValue> iterator() {
             return Collections.emptyIterator();
         }
+
+        @Override
+        public String toString() {
+            return "NoBackoff";
+        }
     }
 
     private static class ExponentialBackoff extends BackoffPolicy {
@@ -117,6 +135,11 @@ public abstract class BackoffPolicy implements Iterable<TimeValue> {
         @Override
         public Iterator<TimeValue> iterator() {
             return new ExponentialBackoffIterator(start, numberOfElements);
+        }
+
+        @Override
+        public String toString() {
+            return "ExponentialBackoff{start=" + start + ", numberOfElements=" + numberOfElements + '}';
         }
     }
 
@@ -163,6 +186,11 @@ public abstract class BackoffPolicy implements Iterable<TimeValue> {
         public Iterator<TimeValue> iterator() {
             return new ConstantBackoffIterator(delay, numberOfElements);
         }
+
+        @Override
+        public String toString() {
+            return "ConstantBackoff{delay=" + delay + ", numberOfElements=" + numberOfElements + '}';
+        }
     }
 
     private static final class ConstantBackoffIterator implements Iterator<TimeValue> {
@@ -203,6 +231,11 @@ public abstract class BackoffPolicy implements Iterable<TimeValue> {
         public Iterator<TimeValue> iterator() {
             return new WrappedBackoffIterator(delegate.iterator(), onBackoff);
         }
+
+        @Override
+        public String toString() {
+            return "WrappedBackoffPolicy{delegate=" + delegate + ", onBackoff=" + onBackoff + '}';
+        }
     }
 
     private static final class WrappedBackoffIterator implements Iterator<TimeValue> {
@@ -226,6 +259,62 @@ public abstract class BackoffPolicy implements Iterable<TimeValue> {
             }
             onBackoff.run();
             return delegate.next();
+        }
+    }
+
+    private static final class LinearBackoff extends BackoffPolicy {
+
+        private final TimeValue delayIncrement;
+        private final int maxNumberOfRetries;
+        private final TimeValue maximumDelay;
+
+        private LinearBackoff(TimeValue delayIncrement, int maxNumberOfRetries, @Nullable TimeValue maximumDelay) {
+            this.delayIncrement = delayIncrement;
+            this.maxNumberOfRetries = maxNumberOfRetries;
+            this.maximumDelay = maximumDelay;
+        }
+
+        @Override
+        public Iterator<TimeValue> iterator() {
+            return new LinearBackoffIterator(delayIncrement, maxNumberOfRetries, maximumDelay);
+        }
+
+        @Override
+        public String toString() {
+            return "LinearBackoff{"
+                + "delayIncrement="
+                + delayIncrement
+                + ", maxNumberOfRetries="
+                + maxNumberOfRetries
+                + ", maximumDelay="
+                + maximumDelay
+                + '}';
+        }
+    }
+
+    private static final class LinearBackoffIterator implements Iterator<TimeValue> {
+
+        private final TimeValue delayIncrement;
+        private final int maxNumberOfRetries;
+        private final TimeValue maximumDelay;
+        private int curr;
+
+        private LinearBackoffIterator(TimeValue delayIncrement, int maxNumberOfRetries, @Nullable TimeValue maximumDelay) {
+            this.delayIncrement = delayIncrement;
+            this.maxNumberOfRetries = maxNumberOfRetries;
+            this.maximumDelay = maximumDelay;
+        }
+
+        @Override
+        public boolean hasNext() {
+            return curr < maxNumberOfRetries;
+        }
+
+        @Override
+        public TimeValue next() {
+            curr++;
+            TimeValue timeValue = TimeValue.timeValueMillis(curr * delayIncrement.millis());
+            return maximumDelay == null ? timeValue : timeValue.compareTo(maximumDelay) < 0 ? timeValue : maximumDelay;
         }
     }
 }

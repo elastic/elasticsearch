@@ -77,6 +77,25 @@ public class BackoffPolicyTests extends ESTestCase {
         }
     }
 
+    public void testLinearBackoffWithLimit() {
+        int incrementMillis = randomIntBetween(10, 500);
+        int limitMillis = randomIntBetween(1000, 5000);
+        int maxNumberOfRetries = randomIntBetween(0, 30);
+        BackoffPolicy timeValues = BackoffPolicy.linearBackoff(
+            timeValueMillis(incrementMillis),
+            maxNumberOfRetries,
+            timeValueMillis(limitMillis)
+        );
+        int counter = 0;
+        for (TimeValue timeValue : timeValues) {
+            counter++;
+            int unlimitedValue = counter * incrementMillis;
+            int expectedValue = Math.min(unlimitedValue, limitMillis);
+            assertEquals(timeValueMillis(expectedValue), timeValue);
+        }
+        assertEquals(counter, maxNumberOfRetries);
+    }
+
     public void testNoBackoff() {
         BackoffPolicy noBackoff = BackoffPolicy.noBackoff();
         int numberOfBackoffsToPerform = randomIntBetween(1, 3);

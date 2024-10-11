@@ -846,7 +846,7 @@ public final class XContentBuilder implements Closeable, Flushable {
             Function<Object, Object> transformer = DATE_TRANSFORMERS.get(timeValue.getClass());
             if (transformer == null) {
                 final var exception = new IllegalArgumentException(
-                    "cannot write time value xcontent for unknown value of type " + timeValue.getClass()
+                    "cannot write timestamp value xcontent for value of unknown type " + timeValue.getClass()
                 );
                 assert false : exception;
                 throw exception;

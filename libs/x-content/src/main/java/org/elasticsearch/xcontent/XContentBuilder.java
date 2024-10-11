@@ -809,13 +809,13 @@ public final class XContentBuilder implements Closeable, Flushable {
     //////////////////////////////////
 
     /**
-     * Write a field with a timestamp value: if the passed timeValue is null then writes null, otherwise looks up an appropriate date
-     * transformer and uses it to format the value.
+     * Write a field with a timestamp value: if the passed timestamp is null then writes null, otherwise looks up the date transformer
+     * for the type of {@code timestamp} and uses it to format the value.
      *
      * @throws IllegalArgumentException if there is no transformer for the given value type
      */
-    public XContentBuilder timestampField(String name, Object timeValue) throws IOException {
-        return field(name).timestampValue(timeValue);
+    public XContentBuilder timestampField(String name, Object timestamp) throws IOException {
+        return field(name).timestampValue(timestamp);
     }
 
     /**
@@ -834,24 +834,24 @@ public final class XContentBuilder implements Closeable, Flushable {
     }
 
     /**
-     * Write a timestamp value: if the passed timeValue is null then writes null, otherwise looks up an appropriate date transformer and
-     * uses it to format the value.
+     * Write a timestamp value: if the passed timestamp is null then writes null, otherwise looks up the date transformer for the type of
+     * {@code timestamp} and uses it to format the value.
      *
      * @throws IllegalArgumentException if there is no transformer for the given value type
      */
-    public XContentBuilder timestampValue(Object timeValue) throws IOException {
-        if (timeValue == null) {
+    public XContentBuilder timestampValue(Object timestamp) throws IOException {
+        if (timestamp == null) {
             return nullValue();
         } else {
-            Function<Object, Object> transformer = DATE_TRANSFORMERS.get(timeValue.getClass());
+            Function<Object, Object> transformer = DATE_TRANSFORMERS.get(timestamp.getClass());
             if (transformer == null) {
                 final var exception = new IllegalArgumentException(
-                    "cannot write timestamp value xcontent for value of unknown type " + timeValue.getClass()
+                    "cannot write timestamp value xcontent for value of unknown type " + timestamp.getClass()
                 );
                 assert false : exception;
                 throw exception;
             }
-            return value(transformer.apply(timeValue));
+            return value(transformer.apply(timestamp));
         }
     }
 

@@ -27,7 +27,6 @@ public class TemplateGenerator {
     public TemplateGenerator(DataGeneratorSpecification specification) {
         this.specification = specification;
         this.childFieldGenerator = specification.dataSource().get(new DataSourceRequest.ChildFieldGenerator(specification));
-        // TODO DynamicMapping should not be here, should be in template generation instead?
         this.fieldTypeGenerator = specification.dataSource().get(new DataSourceRequest.FieldTypeGenerator()).generator();
     }
 

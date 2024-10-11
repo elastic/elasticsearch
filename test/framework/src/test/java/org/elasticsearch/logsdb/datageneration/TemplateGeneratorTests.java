@@ -23,7 +23,7 @@ public class TemplateGeneratorTests extends ESTestCase {
     }
 
     private void validateMappingTemplate(Map<String, Template.Entry> template) {
-        // Just a high level sanity check, can be more involved
+        // Just a high level sanity check, we test that mapping and documents make sense in DataGenerationTests.
         for (var entry : template.entrySet()) {
             assertNotNull(entry.getKey());
             assertFalse(entry.getKey().isEmpty());

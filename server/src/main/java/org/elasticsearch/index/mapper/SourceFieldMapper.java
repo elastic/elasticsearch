@@ -513,9 +513,9 @@ public class SourceFieldMapper extends MetadataFieldMapper {
 
     private static SourceFieldMapper getDefaultSourceMode(boolean enableRecoverySource, final Mode mode) {
         if (enableRecoverySource) {
-            return (mode == Mode.SYNTHETIC) ? DEFAULT_SYNTHETIC : DEFAULT;
+            return mode == Mode.SYNTHETIC ? DEFAULT_SYNTHETIC : DEFAULT;
         } else {
-            return (mode == Mode.SYNTHETIC) ? DEFAULT_NO_RECOVERY_SOURCE_SYNTHETIC : DEFAULT_NO_RECOVERY_SOURCE;
+            return mode == Mode.SYNTHETIC ? DEFAULT_NO_RECOVERY_SOURCE_SYNTHETIC : DEFAULT_NO_RECOVERY_SOURCE;
         }
     }
 }

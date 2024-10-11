@@ -333,6 +333,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvPercentileTests
   method: "testEvaluateBlockWithoutNulls {TestCase=field: <positive mv DEDUPLICATED_UNORDERD longs>, percentile: <small positive double>}"
   issue: https://github.com/elastic/elasticsearch/issues/114588
+- class: org.elasticsearch.action.search.SearchQueryThenFetchAsyncActionTests
+  method: testMinimumVersionSameAsNewVersion
+  issue: https://github.com/elastic/elasticsearch/issues/114593
 
 # Examples:
 #

@@ -9,8 +9,13 @@
 
 package org.elasticsearch.common.xcontent.json;
 
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.BaseXContentTestCase;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.xcontent.XContentGenerator;
+import org.elasticsearch.xcontent.XContentParseException;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
@@ -27,5 +32,15 @@ public class JsonXContentTests extends BaseXContentTestCase {
         ByteArrayOutputStream os = new ByteArrayOutputStream();
         XContentGenerator generator = JsonXContent.jsonXContent.createGenerator(os);
         doTestBigInteger(generator, os);
+    }
+
+    public void testMalformedJsonFieldThrowsXContentException() throws Exception{
+        String json = "{\"test\":\"/*/}";
+        try (XContentParser parser = JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, json)) {
+            parser.nextToken();
+            parser.nextToken();
+            parser.nextToken();
+            assertThrows(XContentParseException.class, () -> parser.text());
+        }
     }
 }

@@ -602,8 +602,6 @@ modify source mapping from stored to disabled after index creation:
   - do:
       indices.get_mapping:
         index: test_modify_source_mode_stored_disabled
-
-  # _source.mode is updated, but the setting takes precedence
   - match: { test_modify_source_mode_stored_disabled.mappings._source.mode: stored }
 
 ---
@@ -627,8 +625,6 @@ modify source mapping from stored to synthetic after index creation:
   - do:
       indices.get_mapping:
         index: test_modify_source_mode_stored_synthetic
-
-  # _source.mode is updated, but the setting takes precedence
   - match: { test_modify_source_mode_stored_synthetic.mappings._source.mode: stored }
 
 ---
@@ -652,8 +648,6 @@ modify source mapping from disabled to stored after index creation:
   - do:
       indices.get_mapping:
         index: test_modify_source_mode_disabled_stored
-
-  # _source.mode is updated, but the setting takes precedence
   - match: { test_modify_source_mode_disabled_stored.mappings._source.mode: disabled }
 
 ---
@@ -677,8 +671,6 @@ modify source mapping from disabled to synthetic after index creation:
   - do:
       indices.get_mapping:
         index: test_modify_source_mode_disabled_synthetic
-
-  # _source.mode is updated, but the setting takes precedence
   - match: { test_modify_source_mode_disabled_synthetic.mappings._source.mode: disabled }
 
 ---
@@ -702,8 +694,6 @@ modify source mapping from synthetic to stored after index creation:
   - do:
       indices.get_mapping:
         index: test_modify_source_mode_synthetic_stored
-
-  # _source.mode is updated, but the setting takes precedence
   - match: { test_modify_source_mode_synthetic_stored.mappings._source.mode: synthetic }
 
 ---
@@ -727,7 +717,5 @@ modify source mapping from synthetic to disabled after index creation:
   - do:
       indices.get_mapping:
         index: test_modify_source_mode_synthetic_disabled
-
-  # _source.mode is updated, but the setting takes precedence
   - match: { test_modify_source_mode_synthetic_disabled.mappings._source.mode: synthetic }
 

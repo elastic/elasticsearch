@@ -21,12 +21,12 @@ import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.TimeValue;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
-import java.util.stream.Collectors;
 
 public class XContentMapValues {
     /**
@@ -251,135 +251,78 @@ public class XContentMapValues {
     }
 
     /**
-     * <p>
-     * For the provided path, return its current value in the xContent map and replace the first instance of the path with the provided
-     * new value. All subsequent instances of the path will be removed from the xContent map. The map will be modified in-place.
+     * Insert or replace the path's value with the provided new value. The map will be modified in-place.
      * If the path does not exist in the map, it will be added as a flat top-level entry with the provided new value.
-     * </p>
-     * <p>
-     * Note that in contrast with {@link XContentMapValues#extractRawValues}, array and object values
-     * can be returned.
-     * </p>
      *
      * @param path the value's path in the map.
-     * @param map the map to search and modify.
+     * @param map the map to search and modify in-place.
      * @param newValue the new value to assign to the path.
-     *
-     * @return the value associated with the path in the map prior to replacement or 'null' if the path did not exist.
      */
-    public static Object insertValue(String path, Map<?, ?> map, Object newValue) {
-        return insertValue(path, map, newValue, null);
-    }
-
-    /**
-     * <p>
-     * For the provided path, return its current value in the xContent map and replace the first instance of the path with the provided
-     * new value. All subsequent instances of the path will be removed from the xContent map. The map will be modified in-place.
-     * If the path does not exist in the map, it will be added as a flat top-level entry with the provided new value.
-     * </p>
-     * <p>
-     * Note that in contrast with {@link XContentMapValues#extractRawValues}, array and object values
-     * can be returned.
-     * </p>
-     *
-     * @param path the value's path in the map.
-     * @param map the map to search and modify.
-     * @param newValue the new value to assign to the path.
-     * @param nullValue a value to return if the path exists, but the value is 'null'. This helps
-     *                  in distinguishing between a path that doesn't exist vs. a value of 'null'.
-     *
-     * @return the value associated with the path in the map prior to replacement or 'null' if the path did not exist.
-     */
-    @SuppressWarnings("unchecked")
-    public static Object insertValue(String path, Map<?, ?> map, Object newValue, Object nullValue) {
+    public static void insertValue(String path, Map<?, ?> map, Object newValue) {
         String[] pathElements = path.split("\\.");
         if (pathElements.length == 0) {
-            return null;
+            return;
         }
 
-        List<Object> extractedValues = new ArrayList<>();
-        extractAndInsertValue(pathElements, 0, map, nullValue, true, newValue, extractedValues);
+        List<SuffixMap> buffer = new ArrayList<>();
+        extractSuffixMaps(pathElements, 0, map, buffer);
 
-        if (extractedValues.isEmpty()) {
-            // No values were extracted, meaning no value was replaced. Add the new value using a flat path to handle if subobjects: false
-            // in downstream parsing.
-            ((Map<String, Object>) map).put(path, newValue);
-            return null;
-        } else if (extractedValues.size() == 1) {
-            return extractedValues.get(0);
+        if (buffer.isEmpty()) {
+            // No suffix maps were extracted, meaning the path was not found in the map. Add the new value using a flat path to handle if
+            // subobjects: false in downstream parsing.
+            @SuppressWarnings("unchecked")
+            Map<String, Object> castedMap = (Map<String, Object>) map;
+            castedMap.put(path, newValue);
+        } else if (buffer.size() == 1) {
+            SuffixMap suffixMap = buffer.getFirst();
+            suffixMap.map().put(suffixMap.suffix(), newValue);
         } else {
-            return extractedValues;
+            throw new IllegalArgumentException(
+                "Path [" + path + "] matches " + buffer.size() + " values, there is ambiguity about which value to replace"
+            );
         }
     }
 
-    @SuppressWarnings("unchecked")
-    private static void extractAndInsertValue(
-        String[] pathElements,
-        int index,
-        Object currentValue,
-        Object nullValue,
-        boolean insertNewValue,
-        Object newValue,
-        List<Object> extractedValues
-    ) {
+    private record SuffixMap(String suffix, Map<String, Object> map) {}
+
+    private static boolean extractSuffixMaps(String[] pathElements, int index, Object currentValue, List<SuffixMap> buffer) {
         if (index == pathElements.length) {
-            // Found an element value to extract
-            if (currentValue instanceof List<?> valueList) {
-                // If it's a list, unpack the first list layer to avoid undesired list-of-list representations
-                extractedValues.addAll(replaceNullValues(valueList, nullValue));
-            } else {
-                extractedValues.add(currentValue != null ? currentValue : nullValue);
-            }
+            return true;
         } else if (currentValue instanceof List<?> valueList) {
             for (Object o : valueList) {
-                extractAndInsertValue(pathElements, index, o, nullValue, insertNewValue, newValue, extractedValues);
+                extractSuffixMaps(pathElements, index, o, buffer);
             }
-        } else if (currentValue instanceof Map<?, ?> map) {
+
+            return false;
+        } else if (currentValue instanceof Map<?, ?>) {
+            @SuppressWarnings("unchecked")
+            Map<String, Object> map = (Map<String, Object>) currentValue;
+
             String key = pathElements[index];
-            int nextIndex = index + 1;
-            while (true) {
+            while (index < pathElements.length) {
                 if (map.containsKey(key)) {
-                    // We could use an enum for this, but the scope of use is so limited that an int will do.
-                    // 1 = replace value
-                    // 0 = do nothing
-                    // -1 = remove value
-                    int valueModAction = 0;
-                    if (insertNewValue && nextIndex == pathElements.length) {
-                        // We found a value to extract and then either replace or remove.
-                        // Check the extracted values size before we add to it because if we add an unpacked list, we could potentially
-                        // be adding more than one value.
-                        valueModAction = extractedValues.isEmpty() ? 1 : -1;
-                    }
-
-                    extractAndInsertValue(pathElements, nextIndex, map.get(key), nullValue, insertNewValue, newValue, extractedValues);
-
-                    if (valueModAction == 1) {
-                        // Replace the first instance of the path with the new value
-                        ((Map<String, Object>) map).put(key, newValue);
-                    } else if (valueModAction == -1) {
-                        // Remove any following instances of the path
-                        map.remove(key);
+                    if (extractSuffixMaps(pathElements, index + 1, map.get(key), buffer)) {
+                        buffer.add(new SuffixMap(key, map));
                     }
                 }
-                if (nextIndex == pathElements.length) {
-                    return;
+
+                if (++index < pathElements.length) {
+                    key += "." + pathElements[index];
                 }
-                key += "." + pathElements[nextIndex];
-                nextIndex++;
             }
+
+            return false;
+        } else {
+            throw new IllegalArgumentException(
+                "Path ["
+                    + String.join(".", Arrays.stream(Arrays.copyOfRange(pathElements, 0, index)).toList())
+                    + "] has value ["
+                    + currentValue
+                    + "] of type ["
+                    + currentValue.getClass()
+                    + "], which cannot be traversed into further"
+            );
         }
-    }
-
-    private static List<Object> replaceNullValues(List<?> valueList, Object nullValue) {
-        return valueList.stream().map(v -> {
-            if (v == null) {
-                return nullValue;
-            } else if (v instanceof List<?> nestedList) {
-                return replaceNullValues(nestedList, nullValue);
-            } else {
-                return v;
-            }
-        }).collect(Collectors.toList());
     }
 
     /**

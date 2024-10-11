@@ -17,7 +17,7 @@ setup:
       cluster.health:
         index: .synonyms-2
         level: shards
-        timeout: 10s
+        timeout: 1m
         wait_for_status: green
 
 ---

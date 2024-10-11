@@ -42,6 +42,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
         + "in a future version of Elasticsearch"; // TODO add a message about migration?
 
     public static final String GEOIP_TYPE = "geoip";
+    public static final String IP_LOCATION_TYPE = "ip_location";
 
     private final String type;
     private final String field;

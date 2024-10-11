@@ -19,10 +19,13 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.anEmptyMap;
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
 
 public class OpenAiServiceUpgradeIT extends InferenceUpgradeTestCase {
 
@@ -91,7 +94,7 @@ public class OpenAiServiceUpgradeIT extends InferenceUpgradeTestCase {
             // model id is moved to service settings
             assertThat(serviceSettings, hasEntry("model_id", "text-embedding-ada-002"));
             var taskSettings = (Map<String, Object>) configs.get(0).get("task_settings");
-            assertThat(taskSettings.keySet(), empty());
+            assertThat(taskSettings, anyOf(nullValue(), anEmptyMap()));
 
             // Inference on old cluster model
             assertEmbeddingInference(oldClusterId);
@@ -145,7 +148,7 @@ public class OpenAiServiceUpgradeIT extends InferenceUpgradeTestCase {
             var serviceSettings = (Map<String, Object>) configs.get(0).get("service_settings");
             assertThat(serviceSettings, hasEntry("model_id", "gpt-4"));
             var taskSettings = (Map<String, Object>) configs.get(0).get("task_settings");
-            assertThat(taskSettings.keySet(), empty());
+            assertThat(taskSettings, anyOf(nullValue(), anEmptyMap()));
 
             assertCompletionInference(oldClusterId);
         } else if (isUpgradedCluster()) {
@@ -154,7 +157,7 @@ public class OpenAiServiceUpgradeIT extends InferenceUpgradeTestCase {
             var serviceSettings = (Map<String, Object>) configs.get(0).get("service_settings");
             assertThat(serviceSettings, hasEntry("model_id", "gpt-4"));
             var taskSettings = (Map<String, Object>) configs.get(0).get("task_settings");
-            assertThat(taskSettings.keySet(), empty());
+            assertThat(taskSettings, anyOf(nullValue(), anEmptyMap()));
 
             assertCompletionInference(oldClusterId);
 

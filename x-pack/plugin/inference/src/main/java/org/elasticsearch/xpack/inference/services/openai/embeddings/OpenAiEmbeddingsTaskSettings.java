@@ -67,6 +67,11 @@ public class OpenAiEmbeddingsTaskSettings implements TaskSettings {
         this.user = user;
     }
 
+    @Override
+    public boolean isEmpty() {
+        return user == null;
+    }
+
     public OpenAiEmbeddingsTaskSettings(StreamInput in) throws IOException {
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
             this.user = in.readOptionalString();

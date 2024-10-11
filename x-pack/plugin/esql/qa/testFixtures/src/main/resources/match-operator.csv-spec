@@ -90,3 +90,96 @@ count(*): long  | author.keyword:keyword
 1               | Paul Faulkner
 8               | William Faulkner
 ;
+
+singleMatchWithTextFieldScoring
+required_capability: metadata_score
+required_capability: match_operator
+from books METADATA _score | where author match "William Faulkner" | keep book_no, author, _score | sort book_no | LIMIT 5;
+
+book_no:keyword | author:text | _score:double
+2378            | [Carol Faulkner, Holly Byers Ochoa, Lucretia Mott] | 0.9976131916046143
+2713            | William Faulkner                                   | 4.272439002990723
+2847            | Colleen Faulkner                                   | 1.7401835918426514
+2883            | William Faulkner                                   | 4.272439002990723
+3293            | Danny Faulkner                                     | 1.7401835918426514
+;
+
+
+
+singleMatchWithKeywordFieldScoring
+required_capability: metadata_score
+required_capability: match_operator
+from books METADATA _score | where author.keyword match "William Faulkner" | keep book_no, author, _score | sort book_no;
+
+book_no:keyword | author:text | _score:double
+2713            | William Faulkner | 2.3142893314361572
+2883            | William Faulkner | 2.3142893314361572
+4724            | William Faulkner | 2.3142893314361572
+4977            | William Faulkner | 2.3142893314361572
+5119            | William Faulkner | 2.3142893314361572
+5404            | William Faulkner | 2.3142893314361572
+5578            | William Faulkner | 2.3142893314361572
+8077            | William Faulkner | 2.3142893314361572
+9896            | William Faulkner | 2.3142893314361572
+;
+
+multipleMatchScoring
+required_capability: metadata_score
+required_capability: match_operator
+from books METADATA _score
+| where (description match "Sauron" OR description match "Dark Lord") AND
+  (author match "J. R. R. Tolkien" OR author match "John Ronald Reuel Tolkien")
+| keep book_no, title, author, _score
+| sort book_no
+| limit 4
+;
+
+book_no:keyword | title:text                                                       | author:text               | _score:double
+1463            | Realms of Tolkien: Images of Middle-earth                        | J. R. R. Tolkien          | 12.25712776184082
+2675            | The Lord of the Rings - Boxed Set                                | J.R.R. Tolkien            | 4.520735740661621
+2714            | Return of the King Being the Third Part of The Lord of the Rings | J. R. R. Tolkien          | 17.39082145690918
+2936            | Fellowship of the Ring 2ND Edition                               | John Ronald Reuel Tolkien | 15.420738220214844
+;
+
+multipleWhereWithMatchScoring
+required_capability: metadata_score
+required_capability: match_operator
+from books METADATA _score
+| where title match "short stories"
+| where author match "Ursula K. Le Guin"
+| keep book_no, title, author, _score
+| sort book_no
+;
+
+book_no:keyword | title:text                                | author:text | _score:double
+8480            | The wind's twelve quarters: Short stories | Ursula K. Le Guin  | 14.489097595214844
+;
+
+combinedMatchWithFunctionsScoring
+required_capability: metadata_score
+required_capability: match_operator
+from books METADATA _score
+| where title match "Tolkien" AND author match "Tolkien" AND year > 2000
+| where mv_count(author) == 1
+| keep book_no, title, author, year, _score
+| sort book_no
+;
+
+book_no:keyword | title:text               | author:text    | year:integer | _score:double
+5335            | Letters of J R R Tolkien | J.R.R. Tolkien | 2014  | 5.448054313659668
+;
+
+combinedMatchWithScoringEval
+required_capability: metadata_score
+required_capability: match_operator
+from books METADATA _score
+| where title match "Tolkien" AND author match "Tolkien" AND year > 2000
+| where mv_count(author) == 1
+| eval c_score = ceil(_score)
+| keep book_no, title, author, year, c_score
+| sort book_no
+;
+
+book_no:keyword | title:text               | author:text    | year:integer | c_score:double
+5335            | Letters of J R R Tolkien | J.R.R. Tolkien | 2014  | 6
+;

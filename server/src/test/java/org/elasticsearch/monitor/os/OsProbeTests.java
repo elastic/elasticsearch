@@ -136,12 +136,18 @@ public class OsProbeTests extends ESTestCase {
         if (Constants.LINUX) {
             if (stats.getCgroup() != null) {
                 assertThat(stats.getCgroup().getCpuAcctControlGroup(), notNullValue());
-                assertThat(stats.getCgroup().getCpuAcctUsageNanos(), greaterThan(0L));
+                assertThat(new BigInteger(stats.getCgroup().getCpuAcctUsageNanos()), greaterThan(BigInteger.ZERO));
                 assertThat(stats.getCgroup().getCpuCfsQuotaMicros(), anyOf(equalTo(-1L), greaterThanOrEqualTo(0L)));
                 assertThat(stats.getCgroup().getCpuCfsPeriodMicros(), greaterThanOrEqualTo(0L));
-                assertThat(stats.getCgroup().getCpuStat().getNumberOfElapsedPeriods(), greaterThanOrEqualTo(0L));
-                assertThat(stats.getCgroup().getCpuStat().getNumberOfTimesThrottled(), greaterThanOrEqualTo(0L));
-                assertThat(stats.getCgroup().getCpuStat().getTimeThrottledNanos(), greaterThanOrEqualTo(0L));
+                assertThat(
+                    new BigInteger(stats.getCgroup().getCpuStat().getNumberOfElapsedPeriods()),
+                    greaterThanOrEqualTo(BigInteger.ZERO)
+                );
+                assertThat(
+                    new BigInteger(stats.getCgroup().getCpuStat().getNumberOfTimesThrottled()),
+                    greaterThanOrEqualTo(BigInteger.ZERO)
+                );
+                assertThat(new BigInteger(stats.getCgroup().getCpuStat().getTimeThrottledNanos()), greaterThanOrEqualTo(BigInteger.ZERO));
                 // These could be null if transported from a node running an older version, but shouldn't be null on the current node
                 assertThat(stats.getCgroup().getMemoryControlGroup(), notNullValue());
                 String memoryLimitInBytes = stats.getCgroup().getMemoryLimitInBytes();

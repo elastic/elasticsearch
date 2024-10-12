@@ -70,12 +70,11 @@ create an index with disabled source mode and logsdb index mode without setting:
               mode: disabled
 
   - match: { error.type: "mapper_parsing_exception" }
-  - match: { error.reason: "Failed to parse mapping: Indices with with index mode [logsdb] only support synthetic source" }
+  - match: { error.reason: "Failed to parse mapping: _source can not be disabled in index using [logsdb] index mode" }
 
 ---
 create an index with stored source mode and logsdb index mode without setting:
   - do:
-      catch: bad_request
       indices.create:
         index: test_stored_logsdb
         body:
@@ -86,8 +85,16 @@ create an index with stored source mode and logsdb index mode without setting:
             _source:
               mode: stored
 
-  - match: { error.type: "mapper_parsing_exception" }
-  - match: { error.reason: "Failed to parse mapping: Indices with with index mode [logsdb] only support synthetic source" }
+  - do:
+      indices.get_settings:
+        index: "test_stored_logsdb"
+  - match: { test_stored_logsdb.settings.index.mode: logsdb }
+
+  - do:
+      indices.get_mapping:
+        index: test_stored_logsdb
+
+  - match: { test_stored_logsdb.mappings._source.mode: stored }
 
 ---
 create an index with synthetic source mode and logsdb index mode without setting:
@@ -131,12 +138,11 @@ create an index with disabled source mode and time series index mode without set
                 time_series_dimension: true
 
   - match: { error.type: "mapper_parsing_exception" }
-  - match: { error.reason: "Failed to parse mapping: time series indices only support synthetic source" }
+  - match: { error.reason: "Failed to parse mapping: _source can not be disabled in index using [time_series] index mode" }
 
 ---
 create an index with stored source mode and time series index mode without setting:
   - do:
-      catch: bad_request
       indices.create:
         index: test_stored_time_series
         body:
@@ -155,8 +161,17 @@ create an index with stored source mode and time series index mode without setti
                 type: keyword
                 time_series_dimension: true
 
-  - match: { error.type: "mapper_parsing_exception" }
-  - match: { error.reason: "Failed to parse mapping: time series indices only support synthetic source" }
+  - do:
+      indices.get_settings:
+        index: "test_stored_time_series"
+  - match: { test_stored_time_series.settings.index.mode: time_series }
+
+  - do:
+      indices.get_mapping:
+        index: test_stored_time_series
+
+  - match: { test_stored_time_series.mappings._source.mode: stored }
+
 
 ---
 create an index with synthetic source mode and time series index mode without setting:
@@ -485,44 +500,44 @@ create an index with logsdb index mode and synthetic source:
 
   - match: { test_logsdb_index_mode_synthetic.mappings._source.mode: synthetic }
 
----
-create an index with time_series index mode and stored source:
-  - do:
-      catch: bad_request
-      indices.create:
-        index: test_time_series_index_mode_undefined
-        body:
-          settings:
-            index:
-              mode: time_series
-              mapping.source.mode: stored
-              routing_path: [ keyword ]
-              time_series:
-                start_time: 2021-04-28T00:00:00Z
-                end_time: 2021-04-29T00:00:00Z
-          mappings:
-            properties:
-              keyword:
-                type: keyword
-                time_series_dimension: true
+#---
+#create an index with time_series index mode and stored source:
+#  - do:
+#      catch: bad_request
+#      indices.create:
+#        index: test_time_series_index_mode_undefined
+#        body:
+#          settings:
+#            index:
+#              mode: time_series
+#              mapping.source.mode: stored
+#              routing_path: [ keyword ]
+#              time_series:
+#                start_time: 2021-04-28T00:00:00Z
+#                end_time: 2021-04-29T00:00:00Z
+#          mappings:
+#            properties:
+#              keyword:
+#                type: keyword
+#                time_series_dimension: true
+#
+#  - match: { error.type: "mapper_parsing_exception" }
+#  - match: { error.reason: "Failed to parse mapping: _source can not be disabled in index using [time_series] index mode" }
 
-  - match: { error.type: "mapper_parsing_exception" }
-  - match: { error.reason: "Failed to parse mapping: time series indices only support synthetic source" }
-
----
-create an index with logsdb index mode and stored source:
-  - do:
-      catch: bad_request
-      indices.create:
-        index: test_logsdb_index_mode_undefined
-        body:
-          settings:
-            index:
-              mode: logsdb
-              mapping.source.mode: stored
-
-  - match: { error.type: "mapper_parsing_exception" }
-  - match: { error.reason: "Failed to parse mapping: Indices with with index mode [logsdb] only support synthetic source" }
+#---
+#create an index with logsdb index mode and stored source:
+#  - do:
+#      catch: bad_request
+#      indices.create:
+#        index: test_logsdb_index_mode_undefined
+#        body:
+#          settings:
+#            index:
+#              mode: logsdb
+#              mapping.source.mode: stored
+#
+#  - match: { error.type: "mapper_parsing_exception" }
+#  - match: { error.reason: "Failed to parse mapping: _source can not be disabled in index using [logsdb] index mode" }
 
 ---
 create an index with time_series index mode and disabled source:
@@ -546,7 +561,7 @@ create an index with time_series index mode and disabled source:
                 time_series_dimension: true
 
   - match: { error.type: "mapper_parsing_exception" }
-  - match: { error.reason: "Failed to parse mapping: time series indices only support synthetic source" }
+  - match: { error.reason: "Failed to parse mapping: _source can not be disabled in index using [time_series] index mode" }
 
 ---
 create an index with logsdb index mode and disabled source:
@@ -561,7 +576,7 @@ create an index with logsdb index mode and disabled source:
               mapping.source.mode: disabled
 
   - match: { error.type: "mapper_parsing_exception" }
-  - match: { error.reason: "Failed to parse mapping: Indices with with index mode [logsdb] only support synthetic source" }
+  - match: { error.reason: "Failed to parse mapping: _source can not be disabled in index using [logsdb] index mode" }
 
 ---
 modify final setting after index creation:
@@ -737,7 +752,7 @@ modify logsdb index source mode to disabled after index creation:
           _source:
             mode: disabled
   - match: { error.type: "mapper_parsing_exception" }
-  - match: { error.reason: "Failed to parse mapping: Indices with with index mode [logsdb] only support synthetic source" }
+  - match: { error.reason: "Failed to parse mapping: _source can not be disabled in index using [logsdb] index mode" }
 
 ---
 modify logsdb index source mode to stored after index creation:
@@ -756,8 +771,8 @@ modify logsdb index source mode to stored after index creation:
         body:
           _source:
             mode: stored
-  - match: { error.type: "mapper_parsing_exception" }
-  - match: { error.reason: "Failed to parse mapping: Indices with with index mode [logsdb] only support synthetic source" }
+  - match: { error.type: "illegal_argument_exception" }
+  - match: { error.reason: "Mapper for [_source] conflicts with existing mapper:\n\tCannot update parameter [mode] from [synthetic] to [stored]" }
 
 ---
 modify time_series index source mode to disabled after index creation:
@@ -786,7 +801,7 @@ modify time_series index source mode to disabled after index creation:
           _source:
             mode: disabled
   - match: { error.type: "mapper_parsing_exception" }
-  - match: { error.reason: "Failed to parse mapping: time series indices only support synthetic source" }
+  - match: { error.reason: "Failed to parse mapping: _source can not be disabled in index using [time_series] index mode" }
 
 ---
 modify time_series index source mode to stored after index creation:
@@ -814,5 +829,5 @@ modify time_series index source mode to stored after index creation:
         body:
           _source:
             mode: stored
-  - match: { error.type: "mapper_parsing_exception" }
-  - match: { error.reason: "Failed to parse mapping: time series indices only support synthetic source" }
+  - match: { error.type: "illegal_argument_exception" }
+  - match: { error.reason: "Mapper for [_source] conflicts with existing mapper:\n\tCannot update parameter [mode] from [synthetic] to [stored]" }

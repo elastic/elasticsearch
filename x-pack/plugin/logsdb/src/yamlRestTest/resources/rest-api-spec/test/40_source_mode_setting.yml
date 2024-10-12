@@ -86,6 +86,11 @@ create an index with stored source mode and logsdb index mode without setting:
               mode: stored
 
   - do:
+      indices.get_settings:
+        index: "test_stored_logsdb"
+  - match: { test_stored_logsdb.settings.index.mode: logsdb }
+
+  - do:
       indices.get_mapping:
         index: test_stored_logsdb
 
@@ -157,10 +162,16 @@ create an index with stored source mode and time series index mode without setti
                 time_series_dimension: true
 
   - do:
+      indices.get_settings:
+        index: "test_stored_time_series"
+  - match: { test_stored_time_series.settings.index.mode: time_series }
+
+  - do:
       indices.get_mapping:
         index: test_stored_time_series
 
   - match: { test_stored_time_series.mappings._source.mode: stored }
+
 
 ---
 create an index with synthetic source mode and time series index mode without setting:
@@ -512,7 +523,7 @@ create an index with time_series index mode and stored source:
   - do:
       indices.get_settings:
         index: "test_time_series_index_mode_undefined"
-  - match: { test_time_series_index_mode_undefined.settings.index.mapping.source.mode: stored }
+  - match: { test_time_series_index_mode_undefined.settings.index.mode: time_series }
 
   - do:
       indices.get_mapping:
@@ -530,6 +541,11 @@ create an index with logsdb index mode and stored source:
             index:
               mode: logsdb
               mapping.source.mode: stored
+
+  - do:
+      indices.get_settings:
+        index: "test_logsdb_index_mode_undefined"
+  - match: { test_logsdb_index_mode_undefined.settings.index.mode: logsdb }
 
   - do:
       indices.get_mapping:

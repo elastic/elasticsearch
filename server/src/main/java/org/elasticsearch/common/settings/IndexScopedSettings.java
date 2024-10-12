@@ -163,7 +163,6 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
         MapperService.INDEX_MAPPING_DEPTH_LIMIT_SETTING,
         MapperService.INDEX_MAPPING_DIMENSION_FIELDS_LIMIT_SETTING,
         MapperService.INDEX_MAPPING_FIELD_NAME_LENGTH_LIMIT_SETTING,
-        MapperService.INDEX_MAPPER_DYNAMIC_SETTING,
         BitsetFilterCache.INDEX_LOAD_RANDOM_ACCESS_FILTERS_EAGERLY_SETTING,
         IndexModule.INDEX_STORE_TYPE_SETTING,
         IndexModule.INDEX_STORE_PRE_LOAD_SETTING,
@@ -188,7 +187,6 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
         FieldMapper.SYNTHETIC_SOURCE_KEEP_INDEX_SETTING,
         IgnoredSourceFieldMapper.SKIP_IGNORED_SOURCE_WRITE_SETTING,
         IgnoredSourceFieldMapper.SKIP_IGNORED_SOURCE_READ_SETTING,
-        IndexSettings.SYNTHETIC_SOURCE_SECOND_DOC_PARSING_PASS_SETTING,
         SourceFieldMapper.INDEX_MAPPER_SOURCE_MODE_SETTING,
 
         // validate that built-in similarities don't get redefined

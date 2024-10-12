@@ -79,9 +79,7 @@ public class WeightedAvg extends AggregateFunction implements SurrogateExpressio
 
     @Override
     protected void deprecatedWriteParams(StreamOutput out) throws IOException {
-        List<Expression> fields = children();
-        assert fields.size() == 2;
-        out.writeNamedWriteable(fields.get(1));
+        out.writeNamedWriteable(weight);
     }
 
     @Override

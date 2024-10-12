@@ -92,10 +92,10 @@ public class Top extends AggregateFunction implements ToAggregator, SurrogateExp
 
     @Override
     protected void deprecatedWriteParams(StreamOutput out) throws IOException {
-        List<Expression> fields = children();
-        assert fields.size() == 3;
-        out.writeNamedWriteable(fields.get(1));
-        out.writeNamedWriteable(fields.get(2));
+        List<? extends Expression> params = parameters();
+        assert params.size() == 2;
+        out.writeNamedWriteable(params.get(0));
+        out.writeNamedWriteable(params.get(1));
     }
 
     @Override

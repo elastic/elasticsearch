@@ -103,7 +103,7 @@ public class Percentile extends NumericAggregate implements SurrogateExpression 
 
     @Override
     protected void deprecatedWriteParams(StreamOutput out) throws IOException {
-        out.writeNamedWriteable(children().get(1));
+        out.writeNamedWriteable(percentile);
     }
 
     @Override

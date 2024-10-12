@@ -29,7 +29,6 @@ import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnparsedModel;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.xpack.core.inference.ChunkingSettingsFeatureFlag;
 import org.elasticsearch.xpack.core.inference.results.InferenceTextEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.inference.results.RankedDocsResults;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
@@ -123,8 +122,7 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
             String serviceName = (String) config.remove(ModelConfigurations.SERVICE); // required for elser service in elasticsearch service
 
             ChunkingSettings chunkingSettings;
-            if (ChunkingSettingsFeatureFlag.isEnabled()
-                && (TaskType.TEXT_EMBEDDING.equals(taskType) || TaskType.SPARSE_EMBEDDING.equals(taskType))) {
+            if (TaskType.TEXT_EMBEDDING.equals(taskType) || TaskType.SPARSE_EMBEDDING.equals(taskType)) {
                 chunkingSettings = ChunkingSettingsBuilder.fromMap(
                     removeFromMapOrDefaultEmpty(config, ModelConfigurations.CHUNKING_SETTINGS)
                 );
@@ -435,8 +433,7 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
         Map<String, Object> taskSettingsMap = removeFromMapOrDefaultEmpty(config, ModelConfigurations.TASK_SETTINGS);
 
         ChunkingSettings chunkingSettings = null;
-        if (ChunkingSettingsFeatureFlag.isEnabled()
-            && (TaskType.TEXT_EMBEDDING.equals(taskType) || TaskType.SPARSE_EMBEDDING.equals(taskType))) {
+        if (TaskType.TEXT_EMBEDDING.equals(taskType) || TaskType.SPARSE_EMBEDDING.equals(taskType)) {
             chunkingSettings = ChunkingSettingsBuilder.fromMap(removeFromMapOrDefaultEmpty(config, ModelConfigurations.CHUNKING_SETTINGS));
         }
 
@@ -664,21 +661,12 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
 
         if (model instanceof ElasticsearchInternalModel esModel) {
 
-            List<EmbeddingRequestChunker.BatchRequestAndListener> batchedRequests;
-            if (ChunkingSettingsFeatureFlag.isEnabled()) {
-                batchedRequests = new EmbeddingRequestChunker(
-                    input,
-                    EMBEDDING_MAX_BATCH_SIZE,
-                    embeddingTypeFromTaskTypeAndSettings(model.getTaskType(), esModel.internalServiceSettings),
-                    esModel.getConfigurations().getChunkingSettings()
-                ).batchRequestsWithListeners(listener);
-            } else {
-                batchedRequests = new EmbeddingRequestChunker(
-                    input,
-                    EMBEDDING_MAX_BATCH_SIZE,
-                    embeddingTypeFromTaskTypeAndSettings(model.getTaskType(), esModel.internalServiceSettings)
-                ).batchRequestsWithListeners(listener);
-            }
+            List<EmbeddingRequestChunker.BatchRequestAndListener> batchedRequests = new EmbeddingRequestChunker(
+                input,
+                EMBEDDING_MAX_BATCH_SIZE,
+                embeddingTypeFromTaskTypeAndSettings(model.getTaskType(), esModel.internalServiceSettings),
+                esModel.getConfigurations().getChunkingSettings()
+            ).batchRequestsWithListeners(listener);
 
             for (var batch : batchedRequests) {
                 var inferenceRequest = buildInferenceRequest(

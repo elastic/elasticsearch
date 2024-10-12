@@ -55,6 +55,7 @@ import static org.elasticsearch.ingest.geoip.GeoIpDownloader.DATABASES_INDEX;
 import static org.elasticsearch.ingest.geoip.GeoIpDownloader.GEOIP_DOWNLOADER;
 import static org.elasticsearch.ingest.geoip.GeoIpProcessor.Factory.downloadDatabaseOnPipelineCreation;
 import static org.elasticsearch.ingest.geoip.GeoIpProcessor.GEOIP_TYPE;
+import static org.elasticsearch.ingest.geoip.GeoIpProcessor.IP_LOCATION_TYPE;
 
 /**
  * Persistent task executor that is responsible for starting {@link GeoIpDownloader} after task is allocated by master node.
@@ -297,9 +298,18 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
             return false;
         }
 
-        final Map<String, Object> processorConfig = (Map<String, Object>) processor.get(GEOIP_TYPE);
-        if (processorConfig != null) {
-            return downloadDatabaseOnPipelineCreation(GEOIP_TYPE, processorConfig, null) == downloadDatabaseOnPipelineCreation;
+        {
+            final Map<String, Object> processorConfig = (Map<String, Object>) processor.get(GEOIP_TYPE);
+            if (processorConfig != null) {
+                return downloadDatabaseOnPipelineCreation(GEOIP_TYPE, processorConfig, null) == downloadDatabaseOnPipelineCreation;
+            }
+        }
+
+        {
+            final Map<String, Object> processorConfig = (Map<String, Object>) processor.get(IP_LOCATION_TYPE);
+            if (processorConfig != null) {
+                return downloadDatabaseOnPipelineCreation(IP_LOCATION_TYPE, processorConfig, null) == downloadDatabaseOnPipelineCreation;
+            }
         }
 
         return isProcessorWithOnFailureGeoIpProcessor(processor, downloadDatabaseOnPipelineCreation)

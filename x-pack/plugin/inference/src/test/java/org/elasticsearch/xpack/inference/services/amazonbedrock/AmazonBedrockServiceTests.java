@@ -26,7 +26,6 @@ import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.core.inference.ChunkingSettingsFeatureFlag;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.results.ChatCompletionResults;
 import org.elasticsearch.xpack.core.inference.results.InferenceChunkedTextEmbeddingFloatResults;
@@ -309,35 +308,7 @@ public class AmazonBedrockServiceTests extends ESTestCase {
         }
     }
 
-    public void testParseRequestConfig_ThrowsElasticsearchStatusExceptionWhenChunkingSettingsProvidedAndFeatureFlagDisabled()
-        throws IOException {
-        assumeTrue("Only if 'inference_chunking_settings' feature flag is disabled", ChunkingSettingsFeatureFlag.isEnabled() == false);
-        try (var service = createAmazonBedrockService()) {
-            ActionListener<Model> modelVerificationListener = ActionListener.wrap(
-                model -> fail("Expected exception, but got model: " + model),
-                exception -> {
-                    assertThat(exception, instanceOf(ElasticsearchStatusException.class));
-                    assertThat(exception.getMessage(), containsString("Model configuration contains settings"));
-                }
-            );
-
-            service.parseRequestConfig(
-                "id",
-                TaskType.TEXT_EMBEDDING,
-                getRequestConfigMap(
-                    createEmbeddingsRequestSettingsMap("region", "model", "amazontitan", null, null, null, null),
-                    Map.of(),
-                    createRandomChunkingSettingsMap(),
-                    getAmazonBedrockSecretSettingsMap("access", "secret")
-                ),
-                modelVerificationListener
-            );
-        }
-    }
-
-    public void testParseRequestConfig_CreatesAnAmazonBedrockEmbeddingsModelWhenChunkingSettingsProvidedAndFeatureFlagEnabled()
-        throws IOException {
-        assumeTrue("Only if 'inference_chunking_settings' feature flag is enabled", ChunkingSettingsFeatureFlag.isEnabled());
+    public void testParseRequestConfig_CreatesAnAmazonBedrockEmbeddingsModelWhenChunkingSettingsProvided() throws IOException {
         try (var service = createAmazonBedrockService()) {
             ActionListener<Model> modelVerificationListener = ActionListener.wrap(model -> {
                 assertThat(model, instanceOf(AmazonBedrockEmbeddingsModel.class));
@@ -366,9 +337,7 @@ public class AmazonBedrockServiceTests extends ESTestCase {
         }
     }
 
-    public void testParseRequestConfig_CreatesAnAmazonBedrockEmbeddingsModelWhenChunkingSettingsNotProvidedAndFeatureFlagEnabled()
-        throws IOException {
-        assumeTrue("Only if 'inference_chunking_settings' feature flag is enabled", ChunkingSettingsFeatureFlag.isEnabled());
+    public void testParseRequestConfig_CreatesAnAmazonBedrockEmbeddingsModelWhenChunkingSettingsNotProvided() throws IOException {
         try (var service = createAmazonBedrockService()) {
             ActionListener<Model> modelVerificationListener = ActionListener.wrap(model -> {
                 assertThat(model, instanceOf(AmazonBedrockEmbeddingsModel.class));
@@ -445,38 +414,7 @@ public class AmazonBedrockServiceTests extends ESTestCase {
         }
     }
 
-    public void testParsePersistedConfigWithSecrets_CreatesAnAmazonBedrockEmbeddingsModelWithoutChunkingSettingsWhenFeatureFlagDisabled()
-        throws IOException {
-        assumeTrue("Only if 'inference_chunking_settings' feature flag is disabled", ChunkingSettingsFeatureFlag.isEnabled() == false);
-        try (var service = createAmazonBedrockService()) {
-            var settingsMap = createEmbeddingsRequestSettingsMap("region", "model", "amazontitan", null, false, null, null);
-            var secretSettingsMap = getAmazonBedrockSecretSettingsMap("access", "secret");
-
-            var persistedConfig = getPersistedConfigMap(settingsMap, new HashMap<String, Object>(Map.of()), secretSettingsMap);
-
-            var model = service.parsePersistedConfigWithSecrets(
-                "id",
-                TaskType.TEXT_EMBEDDING,
-                persistedConfig.config(),
-                persistedConfig.secrets()
-            );
-
-            assertThat(model, instanceOf(AmazonBedrockEmbeddingsModel.class));
-
-            var settings = (AmazonBedrockEmbeddingsServiceSettings) model.getServiceSettings();
-            assertThat(settings.region(), is("region"));
-            assertThat(settings.modelId(), is("model"));
-            assertThat(settings.provider(), is(AmazonBedrockProvider.AMAZONTITAN));
-            assertNull(model.getConfigurations().getChunkingSettings());
-            var secretSettings = (AmazonBedrockSecretSettings) model.getSecretSettings();
-            assertThat(secretSettings.accessKey.toString(), is("access"));
-            assertThat(secretSettings.secretKey.toString(), is("secret"));
-        }
-    }
-
-    public void testParsePersistedConfigWithSecrets_CreatesAnAmazonBedrockEmbeddingsModelWhenChunkingSettingsProvidedAndFeatureFlagEnabled()
-        throws IOException {
-        assumeTrue("Only if 'inference_chunking_settings' feature flag is enabled", ChunkingSettingsFeatureFlag.isEnabled());
+    public void testParsePersistedConfigWithSecrets_CreatesAnAmazonBedrockEmbeddingsModelWhenChunkingSettingsProvided() throws IOException {
         try (var service = createAmazonBedrockService()) {
             var settingsMap = createEmbeddingsRequestSettingsMap("region", "model", "amazontitan", null, false, null, null);
             var secretSettingsMap = getAmazonBedrockSecretSettingsMap("access", "secret");
@@ -508,11 +446,8 @@ public class AmazonBedrockServiceTests extends ESTestCase {
         }
     }
 
-    public
-        void
-        testParsePersistedConfigWithSecrets_CreatesAnAmazonBedrockEmbeddingsModelWhenChunkingSettingsNotProvidedAndFeatureFlagEnabled()
-            throws IOException {
-        assumeTrue("Only if 'inference_chunking_settings' feature flag is enabled", ChunkingSettingsFeatureFlag.isEnabled());
+    public void testParsePersistedConfigWithSecrets_CreatesAnAmazonBedrockEmbeddingsModelWhenChunkingSettingsNotProvided()
+        throws IOException {
         try (var service = createAmazonBedrockService()) {
             var settingsMap = createEmbeddingsRequestSettingsMap("region", "model", "amazontitan", null, false, null, null);
             var secretSettingsMap = getAmazonBedrockSecretSettingsMap("access", "secret");
@@ -723,38 +658,7 @@ public class AmazonBedrockServiceTests extends ESTestCase {
         }
     }
 
-    public
-        void
-        testParsePersistedConfig_CreatesAnAmazonBedrockEmbeddingsModelWithoutChunkingSettingsWhenChunkingSettingsFeatureFlagDisabled()
-            throws IOException {
-        assumeTrue("Only if 'inference_chunking_settings' feature flag is disabled", ChunkingSettingsFeatureFlag.isEnabled() == false);
-        try (var service = createAmazonBedrockService()) {
-            var settingsMap = createEmbeddingsRequestSettingsMap("region", "model", "amazontitan", null, false, null, null);
-            var secretSettingsMap = getAmazonBedrockSecretSettingsMap("access", "secret");
-
-            var persistedConfig = getPersistedConfigMap(
-                settingsMap,
-                new HashMap<String, Object>(Map.of()),
-                createRandomChunkingSettingsMap(),
-                secretSettingsMap
-            );
-
-            var model = service.parsePersistedConfig("id", TaskType.TEXT_EMBEDDING, persistedConfig.config());
-
-            assertThat(model, instanceOf(AmazonBedrockEmbeddingsModel.class));
-
-            var settings = (AmazonBedrockEmbeddingsServiceSettings) model.getServiceSettings();
-            assertThat(settings.region(), is("region"));
-            assertThat(settings.modelId(), is("model"));
-            assertThat(settings.provider(), is(AmazonBedrockProvider.AMAZONTITAN));
-            assertNull(model.getConfigurations().getChunkingSettings());
-            assertNull(model.getSecretSettings());
-        }
-    }
-
-    public void testParsePersistedConfig_CreatesAnAmazonBedrockEmbeddingsModelWhenChunkingSettingsProvidedAndFeatureFlagEnabled()
-        throws IOException {
-        assumeTrue("Only if 'inference_chunking_settings' feature flag is enabled", ChunkingSettingsFeatureFlag.isEnabled());
+    public void testParsePersistedConfig_CreatesAnAmazonBedrockEmbeddingsModelWhenChunkingSettingsProvided() throws IOException {
         try (var service = createAmazonBedrockService()) {
             var settingsMap = createEmbeddingsRequestSettingsMap("region", "model", "amazontitan", null, false, null, null);
             var secretSettingsMap = getAmazonBedrockSecretSettingsMap("access", "secret");
@@ -779,9 +683,7 @@ public class AmazonBedrockServiceTests extends ESTestCase {
         }
     }
 
-    public void testParsePersistedConfig_CreatesAnAmazonBedrockEmbeddingsModelWhenChunkingSettingsNotProvidedAndFeatureFlagEnabled()
-        throws IOException {
-        assumeTrue("Only if 'inference_chunking_settings' feature flag is enabled", ChunkingSettingsFeatureFlag.isEnabled());
+    public void testParsePersistedConfig_CreatesAnAmazonBedrockEmbeddingsModelWhenChunkingSettingsNotProvided() throws IOException {
         try (var service = createAmazonBedrockService()) {
             var settingsMap = createEmbeddingsRequestSettingsMap("region", "model", "amazontitan", null, false, null, null);
             var secretSettingsMap = getAmazonBedrockSecretSettingsMap("access", "secret");
@@ -1296,21 +1198,7 @@ public class AmazonBedrockServiceTests extends ESTestCase {
         }
     }
 
-    public void testChunkedInfer_CallsInfer_ConvertsFloatResponse_ForEmbeddings() throws IOException {
-        var model = AmazonBedrockEmbeddingsModelTests.createModel(
-            "id",
-            "region",
-            "model",
-            AmazonBedrockProvider.AMAZONTITAN,
-            "access",
-            "secret"
-        );
-
-        testChunkedInfer(model);
-    }
-
-    public void testChunkedInfer_ChunkingSettingsSetAndFeatureFlagEnabled() throws IOException {
-        assumeTrue("Only if 'inference_chunking_settings' feature flag is enabled", ChunkingSettingsFeatureFlag.isEnabled());
+    public void testChunkedInfer_ChunkingSettingsSet() throws IOException {
         var model = AmazonBedrockEmbeddingsModelTests.createModel(
             "id",
             "region",
@@ -1324,8 +1212,7 @@ public class AmazonBedrockServiceTests extends ESTestCase {
         testChunkedInfer(model);
     }
 
-    public void testChunkedInfer_ChunkingSettingsNotSetAndFeatureFlagEnabled() throws IOException {
-        assumeTrue("Only if 'inference_chunking_settings' feature flag is enabled", ChunkingSettingsFeatureFlag.isEnabled());
+    public void testChunkedInfer_ChunkingSettingsNotSet() throws IOException {
         var model = AmazonBedrockEmbeddingsModelTests.createModel(
             "id",
             "region",

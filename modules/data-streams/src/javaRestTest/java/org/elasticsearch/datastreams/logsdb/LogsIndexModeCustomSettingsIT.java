@@ -226,6 +226,23 @@ public class LogsIndexModeCustomSettingsIT extends LogsIndexModeRestTestIT {
         assertThat(e.getMessage(), containsString("_source can not be disabled in index using [logsdb] index mode"));
     }
 
+    public void testConfigureStoredSourceWhenIndexIsCreated() throws IOException {
+        var storedSourceMapping = """
+            {
+              "template": {
+                "mappings": {
+                  "_source": {
+                    "mode": "stored"
+                  }
+                }
+              }
+            }""";
+
+        assertOK(putComponentTemplate(client, "logs@custom", storedSourceMapping));
+        ResponseException e = expectThrows(ResponseException.class, () -> createDataStream(client, "logs-custom-dev"));
+        assertThat(e.getMessage(), containsString("Indices with with index mode [logsdb] only support synthetic source"));
+    }
+
     public void testOverrideIndexCodec() throws IOException {
         var indexCodecOverrideTemplate = """
             {

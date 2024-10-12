@@ -71,6 +71,7 @@ import java.util.Map;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
+import static java.util.Map.entry;
 import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
 import static org.elasticsearch.ingest.EnterpriseGeoIpTask.ENTERPRISE_GEOIP_DOWNLOADER;
 import static org.elasticsearch.ingest.IngestService.INGEST_ORIGIN;
@@ -129,7 +130,10 @@ public class IngestGeoIpPlugin extends Plugin
             parameters.ingestService.getClusterService()
         );
         databaseRegistry.set(registry);
-        return Map.of(GeoIpProcessor.GEOIP_TYPE, new GeoIpProcessor.Factory(GeoIpProcessor.GEOIP_TYPE, registry));
+        return Map.ofEntries(
+            entry(GeoIpProcessor.GEOIP_TYPE, new GeoIpProcessor.Factory(GeoIpProcessor.GEOIP_TYPE, registry)),
+            entry(GeoIpProcessor.IP_LOCATION_TYPE, new GeoIpProcessor.Factory(GeoIpProcessor.IP_LOCATION_TYPE, registry))
+        );
     }
 
     @Override
@@ -238,6 +242,11 @@ public class IngestGeoIpPlugin extends Plugin
                 DatabaseConfiguration.Provider.class,
                 DatabaseConfiguration.Maxmind.NAME,
                 DatabaseConfiguration.Maxmind::new
+            ),
+            new NamedWriteableRegistry.Entry(
+                DatabaseConfiguration.Provider.class,
+                DatabaseConfiguration.Ipinfo.NAME,
+                DatabaseConfiguration.Ipinfo::new
             ),
             new NamedWriteableRegistry.Entry(
                 DatabaseConfiguration.Provider.class,

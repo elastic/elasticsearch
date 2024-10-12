@@ -2067,6 +2067,22 @@ public final class InternalTestCluster extends TestCluster {
         return Collections.emptySet();
     }
 
+    public synchronized Set<String> nodesIDsInclude(String index) {
+        if (clusterService().state().routingTable().hasIndex(index)) {
+            List<ShardRouting> allShards = clusterService().state().routingTable().allShards(index);
+            DiscoveryNodes discoveryNodes = clusterService().state().getNodes();
+            Set<String> nodeIds = new HashSet<>();
+            for (ShardRouting shardRouting : allShards) {
+                if (shardRouting.assignedToNode()) {
+                    DiscoveryNode discoveryNode = discoveryNodes.get(shardRouting.currentNodeId());
+                    nodeIds.add(discoveryNode.getId());
+                }
+            }
+            return nodeIds;
+        }
+        return Collections.emptySet();
+    }
+
     /**
      * Performs cluster bootstrap when node with index {@link #bootstrapMasterNodeIndex} is started
      * with the names of all existing and new master-eligible nodes.

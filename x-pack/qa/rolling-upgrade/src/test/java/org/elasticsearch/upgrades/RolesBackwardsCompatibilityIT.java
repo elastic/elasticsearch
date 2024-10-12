@@ -387,7 +387,7 @@ public class RolesBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
         return new RoleDescriptor(
             randomAlphaOfLengthBetween(3, 90),
             randomSubsetOf(Set.of("all", "monitor", "none")).toArray(String[]::new),
-            randomIndicesPrivileges(0, 3, excludedPrivileges),
+            randomIndicesPrivileges(0, 3, excludedPrivileges, false),
             randomApplicationPrivileges(),
             includeManageRoles ? randomManageRolesPrivileges() : null,
             generateRandomStringArray(5, randomIntBetween(2, 8), false, true),

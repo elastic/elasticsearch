@@ -143,8 +143,9 @@ public class RoleDescriptorTests extends ESTestCase {
             is(
                 "Role[name=test, cluster=[all,none]"
                     + ", global=[{APPLICATION:manage:applications=app01,app02},{PROFILE:write:applications=app*}]"
-                    + ", indicesPrivileges=[IndicesPrivileges[indices=[i1,i2], allowRestrictedIndices=[false], privileges=[read]"
-                    + ", field_security=[grant=[body,title], except=null], query={\"match_all\": {}}],]"
+                    + ", indicesPrivileges=[IndicesPrivileges[indices=[i1,i2], allowRestrictedIndices=[false], dataSelector=[true]"
+                    + ", failureSelector=[false], privileges=[read], field_security=[grant=[body,title], except=null]"
+                    + ", query={\"match_all\": {}}],]"
                     + ", applicationPrivileges=[ApplicationResourcePrivileges[application=my_app, privileges=[read,write], resources=[*]],]"
                     + ", runAs=[sudo], metadata=[{}], remoteIndicesPrivileges=[], remoteClusterPrivileges=[]"
                     + ", restriction=Restriction[workflows=[]], description=]"
@@ -1090,7 +1091,7 @@ public class RoleDescriptorTests extends ESTestCase {
     }
 
     public void testIndicesPrivilegesCompareTo() {
-        final RoleDescriptor.IndicesPrivileges indexPrivilege = randomIndicesPrivilegesBuilder().build();
+        final RoleDescriptor.IndicesPrivileges indexPrivilege = randomIndicesPrivilegesBuilder(true).build();
         @SuppressWarnings({ "EqualsWithItself" })
         final int actual = indexPrivilege.compareTo(indexPrivilege);
         assertThat(actual, equalTo(0));
@@ -1108,55 +1109,74 @@ public class RoleDescriptorTests extends ESTestCase {
                     .grantedFields(indexPrivilege.getGrantedFields() == null ? null : indexPrivilege.getGrantedFields().clone())
                     .deniedFields(indexPrivilege.getDeniedFields() == null ? null : indexPrivilege.getDeniedFields().clone())
                     .allowRestrictedIndices(indexPrivilege.allowRestrictedIndices())
+                    .dataStoreSelector(indexPrivilege.dataSelector())
+                    .failureStoreSelector(indexPrivilege.failureSelector())
                     .build()
             ),
             equalTo(0)
         );
 
-        RoleDescriptor.IndicesPrivileges first = randomIndicesPrivilegesBuilder().allowRestrictedIndices(false).build();
-        RoleDescriptor.IndicesPrivileges second = randomIndicesPrivilegesBuilder().allowRestrictedIndices(true).build();
+        RoleDescriptor.IndicesPrivileges first = randomIndicesPrivilegesBuilder(true).allowRestrictedIndices(false).build();
+        RoleDescriptor.IndicesPrivileges second = randomIndicesPrivilegesBuilder(true).allowRestrictedIndices(true).build();
         assertThat(first.compareTo(second), lessThan(0));
         assertThat(second.compareTo(first), greaterThan(0));
 
-        first = randomIndicesPrivilegesBuilder().indices("a", "b").build();
-        second = randomIndicesPrivilegesBuilder().indices("b", "a").allowRestrictedIndices(first.allowRestrictedIndices()).build();
+        first = randomIndicesPrivilegesBuilder(false).indices("a", "b").build();
+        second = randomIndicesPrivilegesBuilder(false).indices("b", "a").allowRestrictedIndices(first.allowRestrictedIndices()).build();
         assertThat(first.compareTo(second), lessThan(0));
         assertThat(second.compareTo(first), greaterThan(0));
 
-        first = randomIndicesPrivilegesBuilder().privileges("read", "write").build();
-        second = randomIndicesPrivilegesBuilder().allowRestrictedIndices(first.allowRestrictedIndices())
-            .privileges("write", "read")
-            .indices(first.getIndices())
+        first = randomIndicesPrivilegesBuilder(true).indices("a", "b").build();
+        second = randomIndicesPrivilegesBuilder(true).indices("b", "a")
+            .allowRestrictedIndices(first.allowRestrictedIndices())
+            .dataStoreSelector(first.dataSelector())
+            .failureStoreSelector(first.failureSelector())
             .build();
         assertThat(first.compareTo(second), lessThan(0));
         assertThat(second.compareTo(first), greaterThan(0));
 
-        first = randomIndicesPrivilegesBuilder().query(randomBoolean() ? null : "{\"match\":{\"field-a\":\"a\"}}").build();
-        second = randomIndicesPrivilegesBuilder().allowRestrictedIndices(first.allowRestrictedIndices())
+        first = randomIndicesPrivilegesBuilder(true).privileges("read", "write").build();
+        second = randomIndicesPrivilegesBuilder(true).allowRestrictedIndices(first.allowRestrictedIndices())
+            .privileges("write", "read")
+            .indices(first.getIndices())
+            .dataStoreSelector(first.dataSelector())
+            .failureStoreSelector(first.failureSelector())
+            .build();
+        assertThat(first.compareTo(second), lessThan(0));
+        assertThat(second.compareTo(first), greaterThan(0));
+
+        first = randomIndicesPrivilegesBuilder(true).query(randomBoolean() ? null : "{\"match\":{\"field-a\":\"a\"}}").build();
+        second = randomIndicesPrivilegesBuilder(true).allowRestrictedIndices(first.allowRestrictedIndices())
             .query("{\"match\":{\"field-b\":\"b\"}}")
             .indices(first.getIndices())
             .privileges(first.getPrivileges())
+            .dataStoreSelector(first.dataSelector())
+            .failureStoreSelector(first.failureSelector())
             .build();
         assertThat(first.compareTo(second), lessThan(0));
         assertThat(second.compareTo(first), greaterThan(0));
 
-        first = randomIndicesPrivilegesBuilder().grantedFields(randomBoolean() ? null : new String[] { "a", "b" }).build();
-        second = randomIndicesPrivilegesBuilder().allowRestrictedIndices(first.allowRestrictedIndices())
+        first = randomIndicesPrivilegesBuilder(true).grantedFields(randomBoolean() ? null : new String[] { "a", "b" }).build();
+        second = randomIndicesPrivilegesBuilder(true).allowRestrictedIndices(first.allowRestrictedIndices())
             .grantedFields("b", "a")
             .indices(first.getIndices())
             .privileges(first.getPrivileges())
             .query(first.getQuery())
+            .dataStoreSelector(first.dataSelector())
+            .failureStoreSelector(first.failureSelector())
             .build();
         assertThat(first.compareTo(second), lessThan(0));
         assertThat(second.compareTo(first), greaterThan(0));
 
-        first = randomIndicesPrivilegesBuilder().deniedFields(randomBoolean() ? null : new String[] { "a", "b" }).build();
-        second = randomIndicesPrivilegesBuilder().allowRestrictedIndices(first.allowRestrictedIndices())
+        first = randomIndicesPrivilegesBuilder(true).deniedFields(randomBoolean() ? null : new String[] { "a", "b" }).build();
+        second = randomIndicesPrivilegesBuilder(true).allowRestrictedIndices(first.allowRestrictedIndices())
             .deniedFields("b", "a")
             .indices(first.getIndices())
             .privileges(first.getPrivileges())
             .query(first.getQuery())
             .grantedFields(first.getGrantedFields())
+            .dataStoreSelector(first.dataSelector())
+            .failureStoreSelector(first.failureSelector())
             .build();
         assertThat(first.compareTo(second), lessThan(0));
         assertThat(second.compareTo(first), greaterThan(0));
@@ -1317,7 +1337,7 @@ public class RoleDescriptorTests extends ESTestCase {
             new RoleDescriptor(
                 "name",
                 null,
-                randomBoolean() ? null : randomIndicesPrivileges(1, 5),
+                randomBoolean() ? null : randomIndicesPrivileges(1, 5, false),
                 null,
                 null,
                 null,

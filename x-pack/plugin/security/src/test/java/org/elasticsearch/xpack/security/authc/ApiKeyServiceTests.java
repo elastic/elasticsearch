@@ -3357,7 +3357,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         return new RoleDescriptor(
             randomAlphaOfLengthBetween(3, 90),
             randomSubsetOf(ClusterPrivilegeResolver.names()).toArray(String[]::new),
-            RoleDescriptorTestHelper.randomIndicesPrivileges(0, 3),
+            RoleDescriptorTestHelper.randomIndicesPrivileges(0, 3, true),
             RoleDescriptorTestHelper.randomApplicationPrivileges(),
             RoleDescriptorTestHelper.randomClusterPrivileges(),
             generateRandomStringArray(5, randomIntBetween(2, 8), false, true),

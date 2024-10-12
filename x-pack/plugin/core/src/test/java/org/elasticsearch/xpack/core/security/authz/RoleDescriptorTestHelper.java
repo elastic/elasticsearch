@@ -147,7 +147,7 @@ public final class RoleDescriptorTestHelper {
     }
 
     public static RoleDescriptor.RemoteIndicesPrivileges[] randomRemoteIndicesPrivileges(int min, int max, Set<String> excludedPrivileges) {
-        final RoleDescriptor.IndicesPrivileges[] innerIndexPrivileges = randomIndicesPrivileges(min, max, excludedPrivileges);
+        final RoleDescriptor.IndicesPrivileges[] innerIndexPrivileges = randomIndicesPrivileges(min, max, excludedPrivileges, true);
         final RoleDescriptor.RemoteIndicesPrivileges[] remoteIndexPrivileges =
             new RoleDescriptor.RemoteIndicesPrivileges[innerIndexPrivileges.length];
         for (int i = 0; i < remoteIndexPrivileges.length; i++) {
@@ -159,29 +159,39 @@ public final class RoleDescriptorTestHelper {
         return remoteIndexPrivileges;
     }
 
-    public static RoleDescriptor.IndicesPrivileges[] randomIndicesPrivileges(int min, int max) {
-        return randomIndicesPrivileges(min, max, Set.of());
+    public static RoleDescriptor.IndicesPrivileges[] randomIndicesPrivileges(int min, int max, boolean allowSelectors) {
+        return randomIndicesPrivileges(min, max, Set.of(), allowSelectors);
     }
 
-    public static RoleDescriptor.IndicesPrivileges[] randomIndicesPrivileges(int min, int max, Set<String> excludedPrivileges) {
+    public static RoleDescriptor.IndicesPrivileges[] randomIndicesPrivileges(
+        int min,
+        int max,
+        Set<String> excludedPrivileges,
+        boolean allowSelectors
+    ) {
         final RoleDescriptor.IndicesPrivileges[] indexPrivileges = new RoleDescriptor.IndicesPrivileges[randomIntBetween(min, max)];
         for (int i = 0; i < indexPrivileges.length; i++) {
-            indexPrivileges[i] = randomIndicesPrivilegesBuilder(excludedPrivileges).build();
+            indexPrivileges[i] = randomIndicesPrivilegesBuilder(excludedPrivileges, allowSelectors).build();
         }
         return indexPrivileges;
     }
 
-    public static RoleDescriptor.IndicesPrivileges.Builder randomIndicesPrivilegesBuilder() {
-        return randomIndicesPrivilegesBuilder(Set.of());
+    public static RoleDescriptor.IndicesPrivileges.Builder randomIndicesPrivilegesBuilder(boolean allowSelectors) {
+        return randomIndicesPrivilegesBuilder(Set.of(), allowSelectors);
     }
 
-    private static RoleDescriptor.IndicesPrivileges.Builder randomIndicesPrivilegesBuilder(Set<String> excludedPrivileges) {
+    private static RoleDescriptor.IndicesPrivileges.Builder randomIndicesPrivilegesBuilder(
+        Set<String> excludedPrivileges,
+        boolean allowSelectors
+    ) {
         final Set<String> candidatePrivilegesNames = Sets.difference(IndexPrivilege.names(), excludedPrivileges);
         assert false == candidatePrivilegesNames.isEmpty() : "no candidate privilege names to random from";
         final RoleDescriptor.IndicesPrivileges.Builder builder = RoleDescriptor.IndicesPrivileges.builder()
             .privileges(randomSubsetOf(randomIntBetween(1, 4), candidatePrivilegesNames))
             .indices(generateRandomStringArray(5, randomIntBetween(3, 9), false, false))
-            .allowRestrictedIndices(randomBoolean());
+            .allowRestrictedIndices(randomBoolean())
+            .dataStoreSelector(allowSelectors ? randomBoolean() : RoleDescriptor.IndicesPrivileges.DEFAULT_DATA_SELECTOR)
+            .failureStoreSelector(allowSelectors ? randomBoolean() : RoleDescriptor.IndicesPrivileges.DEFAULT_FAILURE_SELECTOR);
         randomDlsFls(builder);
         return builder;
     }
@@ -275,6 +285,7 @@ public final class RoleDescriptorTestHelper {
         private boolean allowDescription = false;
         private boolean allowRemoteClusters = false;
         private boolean allowConfigurableClusterPrivileges = false;
+        private boolean allowSelectors = false;
 
         public Builder() {}
 
@@ -313,6 +324,11 @@ public final class RoleDescriptorTestHelper {
             return this;
         }
 
+        public Builder allowSelectors(boolean allowSelectors) {
+            this.allowSelectors = allowSelectors;
+            return this;
+        }
+
         public RoleDescriptor build() {
             final RoleDescriptor.RemoteIndicesPrivileges[] remoteIndexPrivileges;
             if (alwaysIncludeRemoteIndices || (allowRemoteIndices && randomBoolean())) {
@@ -329,7 +345,7 @@ public final class RoleDescriptorTestHelper {
             return new RoleDescriptor(
                 randomAlphaOfLengthBetween(3, 90),
                 randomSubsetOf(ClusterPrivilegeResolver.names()).toArray(String[]::new),
-                randomIndicesPrivileges(0, 3),
+                randomIndicesPrivileges(0, 3, allowSelectors),
                 randomApplicationPrivileges(),
                 allowConfigurableClusterPrivileges ? randomClusterPrivileges() : null,
                 generateRandomStringArray(5, randomIntBetween(2, 8), false, true),

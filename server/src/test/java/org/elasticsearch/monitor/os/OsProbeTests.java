@@ -197,26 +197,26 @@ public class OsProbeTests extends ESTestCase {
             case 1 -> {
                 assertNotNull(cgroup);
                 assertThat(cgroup.getCpuAcctControlGroup(), equalTo("/" + hierarchy));
-                assertThat(cgroup.getCpuAcctUsageNanos(), equalTo(364869866063112L));
+                assertThat(cgroup.getCpuAcctUsageNanos(), equalTo("364869866063112"));
                 assertThat(cgroup.getCpuControlGroup(), equalTo("/" + hierarchy));
                 assertThat(cgroup.getCpuCfsPeriodMicros(), equalTo(100000L));
                 assertThat(cgroup.getCpuCfsQuotaMicros(), equalTo(50000L));
-                assertThat(cgroup.getCpuStat().getNumberOfElapsedPeriods(), equalTo(17992L));
-                assertThat(cgroup.getCpuStat().getNumberOfTimesThrottled(), equalTo(1311L));
-                assertThat(cgroup.getCpuStat().getTimeThrottledNanos(), equalTo(139298645489L));
+                assertThat(cgroup.getCpuStat().getNumberOfElapsedPeriods(), equalTo("17992"));
+                assertThat(cgroup.getCpuStat().getNumberOfTimesThrottled(), equalTo("1311"));
+                assertThat(cgroup.getCpuStat().getTimeThrottledNanos(), equalTo("139298645489"));
                 assertThat(cgroup.getMemoryLimitInBytes(), equalTo("18446744073709551615"));
                 assertThat(cgroup.getMemoryUsageInBytes(), equalTo("4796416"));
             }
             case 2 -> {
                 assertNotNull(cgroup);
                 assertThat(cgroup.getCpuAcctControlGroup(), equalTo("/" + hierarchy));
-                assertThat(cgroup.getCpuAcctUsageNanos(), equalTo(364869866063000L));
+                assertThat(cgroup.getCpuAcctUsageNanos(), equalTo("364869866063000"));
                 assertThat(cgroup.getCpuControlGroup(), equalTo("/" + hierarchy));
                 assertThat(cgroup.getCpuCfsPeriodMicros(), equalTo(100000L));
                 assertThat(cgroup.getCpuCfsQuotaMicros(), equalTo(50000L));
-                assertThat(cgroup.getCpuStat().getNumberOfElapsedPeriods(), equalTo(17992L));
-                assertThat(cgroup.getCpuStat().getNumberOfTimesThrottled(), equalTo(1311L));
-                assertThat(cgroup.getCpuStat().getTimeThrottledNanos(), equalTo(139298645000L));
+                assertThat(cgroup.getCpuStat().getNumberOfElapsedPeriods(), equalTo("17992"));
+                assertThat(cgroup.getCpuStat().getNumberOfTimesThrottled(), equalTo("1311"));
+                assertThat(cgroup.getCpuStat().getTimeThrottledNanos(), equalTo("139298645000"));
                 assertThat(cgroup.getMemoryLimitInBytes(), equalTo("18446744073709551615"));
                 assertThat(cgroup.getMemoryUsageInBytes(), equalTo("4796416"));
             }

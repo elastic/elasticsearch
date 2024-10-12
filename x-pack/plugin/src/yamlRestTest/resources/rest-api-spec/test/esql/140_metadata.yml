@@ -158,6 +158,13 @@ setup:
 
 ---
 "sort on _source not allowed":
+  - requires:
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [sorting_on_source_and_counters_forbidden]
   - do:
       catch: /cannot sort on _source/
       esql.query:

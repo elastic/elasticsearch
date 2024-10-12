@@ -45,7 +45,7 @@
       inference.get:
         inference_id: "*"
   - length: { endpoints: 2}
-  - match: { endpoints.0.inference_id: ".default-multilingual-e5-small" }
+  - match: { endpoints.0.inference_id: ".multi-e5-small" }
   - match: { endpoints.1.inference_id: ".elser-2" }
 
   - do:

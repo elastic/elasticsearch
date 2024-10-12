@@ -88,26 +88,8 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         true
     );
 
-    private static final SourceFieldMapper DEFAULT_SYNTHETIC = new SourceFieldMapper(
-        Mode.SYNTHETIC,
-        Explicit.IMPLICIT_TRUE,
-        Strings.EMPTY_ARRAY,
-        Strings.EMPTY_ARRAY,
-        null,
-        true
-    );
-
     private static final SourceFieldMapper DEFAULT_NO_RECOVERY_SOURCE = new SourceFieldMapper(
         null,
-        Explicit.IMPLICIT_TRUE,
-        Strings.EMPTY_ARRAY,
-        Strings.EMPTY_ARRAY,
-        null,
-        false
-    );
-
-    private static final SourceFieldMapper DEFAULT_NO_RECOVERY_SOURCE_SYNTHETIC = new SourceFieldMapper(
-        Mode.SYNTHETIC,
         Explicit.IMPLICIT_TRUE,
         Strings.EMPTY_ARRAY,
         Strings.EMPTY_ARRAY,
@@ -124,8 +106,26 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         true
     );
 
+    private static final SourceFieldMapper TSDB_DEFAULT_STORED = new SourceFieldMapper(
+        Mode.STORED,
+        Explicit.IMPLICIT_TRUE,
+        Strings.EMPTY_ARRAY,
+        Strings.EMPTY_ARRAY,
+        IndexMode.TIME_SERIES,
+        true
+    );
+
     private static final SourceFieldMapper TSDB_DEFAULT_NO_RECOVERY_SOURCE = new SourceFieldMapper(
         Mode.SYNTHETIC,
+        Explicit.IMPLICIT_TRUE,
+        Strings.EMPTY_ARRAY,
+        Strings.EMPTY_ARRAY,
+        IndexMode.TIME_SERIES,
+        false
+    );
+
+    private static final SourceFieldMapper TSDB_DEFAULT_NO_RECOVERY_SOURCE_STORED = new SourceFieldMapper(
+        Mode.STORED,
         Explicit.IMPLICIT_TRUE,
         Strings.EMPTY_ARRAY,
         Strings.EMPTY_ARRAY,
@@ -142,8 +142,26 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         true
     );
 
+    private static final SourceFieldMapper LOGSDB_DEFAULT_STORED = new SourceFieldMapper(
+        Mode.STORED,
+        Explicit.IMPLICIT_TRUE,
+        Strings.EMPTY_ARRAY,
+        Strings.EMPTY_ARRAY,
+        IndexMode.LOGSDB,
+        true
+    );
+
     private static final SourceFieldMapper LOGSDB_DEFAULT_NO_RECOVERY_SOURCE = new SourceFieldMapper(
         Mode.SYNTHETIC,
+        Explicit.IMPLICIT_TRUE,
+        Strings.EMPTY_ARRAY,
+        Strings.EMPTY_ARRAY,
+        IndexMode.LOGSDB,
+        false
+    );
+
+    private static final SourceFieldMapper LOGSDB_DEFAULT_NO_RECOVERY_SOURCE_STORED = new SourceFieldMapper(
+        Mode.STORED,
         Explicit.IMPLICIT_TRUE,
         Strings.EMPTY_ARRAY,
         Strings.EMPTY_ARRAY,
@@ -281,11 +299,8 @@ public class SourceFieldMapper extends MetadataFieldMapper {
             }
             final Mode sourceMode = resolveEffectiveSourceMode(settings, mode.get());
             if (isDefault(sourceMode)) {
-                return switch (indexMode) {
-                    case TIME_SERIES -> enableRecoverySource ? TSDB_DEFAULT : TSDB_DEFAULT_NO_RECOVERY_SOURCE;
-                    case LOGSDB -> enableRecoverySource ? LOGSDB_DEFAULT : LOGSDB_DEFAULT_NO_RECOVERY_SOURCE;
-                    default -> getDefaultSourceMode(enableRecoverySource, sourceMode);
-                };
+                return resolveSourceMode(indexMode, sourceMode, enableRecoverySource);
+
             }
             if (supportsNonDefaultParameterValues == false) {
                 List<String> disallowed = new ArrayList<>();
@@ -326,21 +341,39 @@ public class SourceFieldMapper extends MetadataFieldMapper {
 
     }
 
+    private static SourceFieldMapper resolveSourceMode(final IndexMode indexMode, final Mode sourceMode, boolean enableRecoverySource) {
+        if (indexMode == IndexMode.STANDARD) {
+            return enableRecoverySource ? DEFAULT : DEFAULT_NO_RECOVERY_SOURCE;
+        }
+        final SourceFieldMapper syntheticWithoutRecoverySource = indexMode == IndexMode.TIME_SERIES
+            ? TSDB_DEFAULT_NO_RECOVERY_SOURCE
+            : LOGSDB_DEFAULT_NO_RECOVERY_SOURCE;
+        final SourceFieldMapper syntheticWithRecoverySource = indexMode == IndexMode.TIME_SERIES ? TSDB_DEFAULT : LOGSDB_DEFAULT;
+        final SourceFieldMapper storedWithoutRecoverySource = indexMode == IndexMode.TIME_SERIES
+            ? TSDB_DEFAULT_NO_RECOVERY_SOURCE_STORED
+            : LOGSDB_DEFAULT_NO_RECOVERY_SOURCE_STORED;
+        final SourceFieldMapper storedWithRecoverySource = indexMode == IndexMode.TIME_SERIES ? TSDB_DEFAULT_STORED : LOGSDB_DEFAULT_STORED;
+
+        return switch (sourceMode) {
+            case SYNTHETIC -> enableRecoverySource ? syntheticWithRecoverySource : syntheticWithoutRecoverySource;
+            case STORED -> enableRecoverySource ? storedWithRecoverySource : storedWithoutRecoverySource;
+            case DISABLED -> throw new IllegalArgumentException(
+                "_source can not be disabled in index using [" + indexMode + "] index mode"
+            );
+        };
+    }
+
     public static final TypeParser PARSER = new ConfigurableTypeParser(c -> {
-        var indexMode = c.getIndexSettings().getMode();
+        final IndexMode indexMode = c.getIndexSettings().getMode();
         boolean enableRecoverySource = INDICES_RECOVERY_SOURCE_ENABLED_SETTING.get(c.getSettings());
+        final Mode settingSourceMode = INDEX_MAPPER_SOURCE_MODE_SETTING.get(c.getSettings());
+
         if (indexMode.isSyntheticSourceEnabled()) {
-            if (indexMode == IndexMode.TIME_SERIES) {
-                if (c.getIndexSettings().getIndexVersionCreated().onOrAfter(IndexVersions.V_8_7_0)) {
-                    return enableRecoverySource ? TSDB_DEFAULT : TSDB_DEFAULT_NO_RECOVERY_SOURCE;
-                } else {
-                    return enableRecoverySource ? TSDB_LEGACY_DEFAULT : TSDB_LEGACY_DEFAULT_NO_RECOVERY_SOURCE;
-                }
-            } else if (indexMode == IndexMode.LOGSDB) {
-                return enableRecoverySource ? LOGSDB_DEFAULT : LOGSDB_DEFAULT_NO_RECOVERY_SOURCE;
+            if (indexMode == IndexMode.TIME_SERIES && c.getIndexSettings().getIndexVersionCreated().before(IndexVersions.V_8_7_0)) {
+                return enableRecoverySource ? TSDB_LEGACY_DEFAULT : TSDB_LEGACY_DEFAULT_NO_RECOVERY_SOURCE;
             }
         }
-        return getDefaultSourceMode(enableRecoverySource, INDEX_MAPPER_SOURCE_MODE_SETTING.get(c.getSettings()));
+        return resolveSourceMode(indexMode, settingSourceMode, enableRecoverySource);
     },
         c -> new Builder(
             c.getIndexSettings().getMode(),
@@ -509,13 +542,5 @@ public class SourceFieldMapper extends MetadataFieldMapper {
 
     public boolean isSynthetic() {
         return mode == Mode.SYNTHETIC;
-    }
-
-    private static SourceFieldMapper getDefaultSourceMode(boolean enableRecoverySource, final Mode mode) {
-        if (enableRecoverySource) {
-            return mode == Mode.SYNTHETIC ? DEFAULT_SYNTHETIC : DEFAULT;
-        } else {
-            return mode == Mode.SYNTHETIC ? DEFAULT_NO_RECOVERY_SOURCE_SYNTHETIC : DEFAULT_NO_RECOVERY_SOURCE;
-        }
     }
 }

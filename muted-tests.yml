@@ -68,9 +68,6 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/111448
 - class: org.elasticsearch.search.SearchServiceTests
   issue: https://github.com/elastic/elasticsearch/issues/111529
-- class: org.elasticsearch.xpack.test.rest.XPackRestIT
-  method: test {p0=rollup/security_tests/Index-based access}
-  issue: https://github.com/elastic/elasticsearch/issues/111631
 - class: org.elasticsearch.upgrades.FullClusterRestartIT
   method: testSnapshotRestore {cluster=OLD}
   issue: https://github.com/elastic/elasticsearch/issues/111777
@@ -372,21 +369,15 @@ tests:
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=synonyms/60_synonym_rule_get/Synonym rule not found}
   issue: https://github.com/elastic/elasticsearch/issues/114444
-- class: org.elasticsearch.datastreams.logsdb.qa.LogsDbVersusLogsDbReindexedIntoStandardModeChallengeRestIT
-  method: testTermsAggregation
-  issue: https://github.com/elastic/elasticsearch/issues/114554
-- class: org.elasticsearch.datastreams.logsdb.qa.LogsDbVersusLogsDbReindexedIntoStandardModeChallengeRestIT
-  method: testTermsQuery
-  issue: https://github.com/elastic/elasticsearch/issues/114563
-- class: org.elasticsearch.datastreams.logsdb.qa.LogsDbVersusLogsDbReindexedIntoStandardModeChallengeRestIT
-  method: testMatchAllQuery
-  issue: https://github.com/elastic/elasticsearch/issues/114607
 - class: org.elasticsearch.xpack.esql.optimizer.PhysicalPlanOptimizerTests
   method: testPushSpatialIntersectsEvalToSource {default}
   issue: https://github.com/elastic/elasticsearch/issues/114627
 - class: org.elasticsearch.xpack.esql.optimizer.PhysicalPlanOptimizerTests
   method: testPushWhereEvalToSource {default}
   issue: https://github.com/elastic/elasticsearch/issues/114628
+- class: org.elasticsearch.xpack.inference.integration.ModelRegistryIT
+  method: testGetModel
+  issue: https://github.com/elastic/elasticsearch/issues/114657
 
 # Examples:
 #

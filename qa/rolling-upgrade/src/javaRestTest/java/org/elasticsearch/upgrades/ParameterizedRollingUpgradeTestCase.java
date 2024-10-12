@@ -55,14 +55,13 @@ public abstract class ParameterizedRollingUpgradeTestCase extends ESRestTestCase
     protected abstract ElasticsearchCluster getUpgradeCluster();
 
     @Before
-    public void extractOldClusterFeatures() {
+    public void upgradeNode() throws Exception {
+        // extract old cluster features
         if (isOldCluster() && oldClusterTestFeatureService == null) {
             oldClusterTestFeatureService = testFeatureService;
         }
-    }
 
-    @Before
-    public void extractOldIndexVersion() throws Exception {
+        // extract old index version
         if (oldIndexVersion == null && upgradedNodes.isEmpty()) {
             IndexVersion indexVersion = null;   // these should all be the same version
 
@@ -93,13 +92,11 @@ public abstract class ParameterizedRollingUpgradeTestCase extends ESRestTestCase
             assertThat("Index version could not be read", indexVersion, notNullValue());
             oldIndexVersion = indexVersion;
         }
-    }
 
-    @Before
-    public void upgradeNode() throws Exception {
         // Skip remaining tests if upgrade failed
         assumeFalse("Cluster upgrade failed", upgradeFailed);
 
+        // finally, upgrade node
         if (upgradedNodes.size() < requestedUpgradedNodes) {
             closeClients();
             // we might be running a specific upgrade test by itself - check previous nodes too

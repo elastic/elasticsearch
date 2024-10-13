@@ -1,0 +1,6 @@
+pr: 90713
+summary: Do not enqueue an fsync for non-existing cache files
+area: Snapshot/Restore
+type: bug
+issues:
+ - 90704

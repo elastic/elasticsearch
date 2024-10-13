@@ -24,6 +24,7 @@ import org.elasticsearch.core.Releasables;
 import java.io.IOException;
 import java.nio.channels.FileChannel;
 import java.nio.file.Files;
+import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.util.Collections;
@@ -499,6 +500,7 @@ public class CacheFile {
             try {
                 if (needsFsync.compareAndSet(true, false)) {
                     boolean success = false;
+                    boolean shouldFsync = true;
                     try {
                         // Capture the completed ranges before fsyncing; ranges that are completed after this point won't be considered as
                         // persisted on disk by the caller of this method, even if they are fully written to disk at the time the file
@@ -510,8 +512,11 @@ public class CacheFile {
                         IOUtils.fsync(file, false, false);
                         success = true;
                         return completedRanges;
+                    } catch (NoSuchFileException e) {
+                        shouldFsync = false;
+                        throw e;
                     } finally {
-                        if (success == false) {
+                        if (success == false && shouldFsync) {
                             markAsNeedsFSync();
                         }
                     }

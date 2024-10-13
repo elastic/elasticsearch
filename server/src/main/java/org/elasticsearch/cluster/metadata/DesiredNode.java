@@ -58,8 +58,6 @@ public final class DesiredNode implements Writeable, ToXContentObject, Comparabl
     private static final ParseField PROCESSORS_RANGE_FIELD = new ParseField("processors_range");
     private static final ParseField MEMORY_FIELD = new ParseField("memory");
     private static final ParseField STORAGE_FIELD = new ParseField("storage");
-    @UpdateForV9(owner = UpdateForV9.Owner.DISTRIBUTED_COORDINATION) // Remove deprecated field
-    private static final ParseField VERSION_FIELD = new ParseField("node_version");
 
     public static final ConstructingObjectParser<DesiredNode, Void> PARSER = new ConstructingObjectParser<>(
         "desired_node",
@@ -69,8 +67,7 @@ public final class DesiredNode implements Writeable, ToXContentObject, Comparabl
             (Processors) args[1],
             (ProcessorsRange) args[2],
             (ByteSizeValue) args[3],
-            (ByteSizeValue) args[4],
-            (String) args[5]
+            (ByteSizeValue) args[4]
         )
     );
 
@@ -102,12 +99,6 @@ public final class DesiredNode implements Writeable, ToXContentObject, Comparabl
             ConstructingObjectParser.constructorArg(),
             (p, c) -> ByteSizeValue.parseBytesSizeValue(p.text(), STORAGE_FIELD.getPreferredName()),
             STORAGE_FIELD,
-            ObjectParser.ValueType.STRING
-        );
-        parser.declareField(
-            ConstructingObjectParser.optionalConstructorArg(),
-            (p, c) -> p.text(),
-            VERSION_FIELD,
             ObjectParser.ValueType.STRING
         );
     }
@@ -275,14 +266,6 @@ public final class DesiredNode implements Writeable, ToXContentObject, Comparabl
         }
         builder.field(MEMORY_FIELD.getPreferredName(), memory);
         builder.field(STORAGE_FIELD.getPreferredName(), storage);
-        addDeprecatedVersionField(builder);
-    }
-
-    @UpdateForV9(owner = UpdateForV9.Owner.DISTRIBUTED_COORDINATION) // Remove deprecated field from response
-    private void addDeprecatedVersionField(XContentBuilder builder) throws IOException {
-        if (version != null) {
-            builder.field(VERSION_FIELD.getPreferredName(), version);
-        }
     }
 
     public boolean hasMasterRole() {

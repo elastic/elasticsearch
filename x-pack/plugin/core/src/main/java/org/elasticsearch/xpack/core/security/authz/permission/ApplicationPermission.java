@@ -173,6 +173,14 @@ public final class ApplicationPermission {
             .collect(Collectors.toSet());
     }
 
+    public Set<String> getResourcePatternsByName(ApplicationPrivilege privilege) {
+        return permissions.stream()
+            .filter(e -> e.privilege.getApplication().equals(privilege.getApplication()) && e.privilege.name().equals(privilege.name()))
+            .map(e -> e.resourceNames)
+            .flatMap(Set::stream)
+            .collect(Collectors.toSet());
+    }
+
     private static class PermissionEntry {
         private final ApplicationPrivilege privilege;
         private final Predicate<String> application;
@@ -191,18 +199,18 @@ public final class ApplicationPermission {
         }
 
         private boolean matchesPrivilege(ApplicationPrivilege other) {
-            if (this.privilege.equals(other)) {
-                return true;
-            }
-            if (this.application.test(other.getApplication()) == false) {
+            assert other.name().size() <= 1 : "can only compare to singletons but got [" + other + "]";
+            if (application.test(other.getApplication()) == false) {
                 return false;
             }
             if (Operations.isTotal(privilege.getAutomaton())) {
                 return true;
             }
-            return Operations.isEmpty(privilege.getAutomaton()) == false
-                && Operations.isEmpty(other.getAutomaton()) == false
-                && Operations.subsetOf(other.getAutomaton(), privilege.getAutomaton());
+            // If the privilege we are checking is not stored (i.e., maps to no action patterns) check by name instead
+            if (Operations.isEmpty(other.getAutomaton())) {
+                return privilege.name().containsAll(other.name());
+            }
+            return Operations.subsetOf(other.getAutomaton(), privilege.getAutomaton());
         }
 
         @Override

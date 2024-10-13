@@ -212,7 +212,13 @@ public class InferencePlugin extends Plugin implements ActionPlugin, ExtensibleP
             );
         }
 
-        var factoryContext = new InferenceServiceExtension.InferenceServiceFactoryContext(services.client(), services.threadPool());
+        var factoryContext = new InferenceServiceExtension.InferenceServiceFactoryContext(
+            services.client(),
+            services.threadPool(),
+            services.clusterService(),
+            settings
+        );
+
         // This must be done after the HttpRequestSenderFactory is created so that the services can get the
         // reference correctly
         var registry = new InferenceServiceRegistry(inferenceServices, factoryContext);

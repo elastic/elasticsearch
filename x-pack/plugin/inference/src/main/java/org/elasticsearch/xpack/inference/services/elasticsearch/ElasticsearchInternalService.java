@@ -15,7 +15,6 @@ import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkedInferenceServiceResults;
@@ -28,7 +27,6 @@ import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.TaskType;
-import org.elasticsearch.inference.UnparsedModel;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.inference.ChunkingSettingsFeatureFlag;
 import org.elasticsearch.xpack.core.inference.results.InferenceTextEmbeddingFloatResults;
@@ -36,6 +34,7 @@ import org.elasticsearch.xpack.core.inference.results.RankedDocsResults;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
 import org.elasticsearch.xpack.core.ml.action.InferModelAction;
+import org.elasticsearch.xpack.core.ml.inference.assignment.AdaptiveAllocationsSettings;
 import org.elasticsearch.xpack.core.ml.inference.results.ErrorInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.MlTextEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
@@ -54,7 +53,7 @@ import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 import java.util.function.Function;
 
 import static org.elasticsearch.xpack.core.inference.results.ResultUtils.createInvalidChunkedResultException;
@@ -89,7 +88,7 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
     // for testing
     ElasticsearchInternalService(
         InferenceServiceExtension.InferenceServiceFactoryContext context,
-        BiConsumer<ClusterSettings, ActionListener<Set<String>>> platformArch
+        Consumer<ActionListener<PreferredModelVariant>> platformArch
     ) {
         super(context, platformArch);
     }
@@ -104,7 +103,6 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
         String inferenceEntityId,
         TaskType taskType,
         Map<String, Object> config,
-        ClusterSettings settings,
         ActionListener<Model> modelListener
     ) {
         if (inferenceEntityId.equals(DEFAULT_ELSER_ID)) {
@@ -147,13 +145,12 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
                             + " deprecated and will be removed in a future release. Please specify a model_id field."
                     );
                     platformArch.accept(
-                        settings,
                         modelListener.delegateFailureAndWrap(
-                            (delegate, arch) -> elserCase(
+                            (delegate, preferredModelVariant) -> elserCase(
                                 inferenceEntityId,
                                 taskType,
                                 config,
-                                arch,
+                                preferredModelVariant,
                                 serviceSettingsMap,
                                 chunkingSettings,
                                 modelListener
@@ -165,13 +162,12 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
                 }
             } else if (MULTILINGUAL_E5_SMALL_VALID_IDS.contains(modelId)) {
                 platformArch.accept(
-                    settings,
                     modelListener.delegateFailureAndWrap(
-                        (delegate, arch) -> e5Case(
+                        (delegate, preferredModelVariant) -> e5Case(
                             inferenceEntityId,
                             taskType,
                             config,
-                            arch,
+                            preferredModelVariant,
                             serviceSettingsMap,
                             chunkingSettings,
                             modelListener
@@ -180,13 +176,12 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
                 );
             } else if (ElserModels.isValidModel(modelId)) {
                 platformArch.accept(
-                    settings,
                     modelListener.delegateFailureAndWrap(
-                        (delegate, arch) -> elserCase(
+                        (delegate, preferredModelVariant) -> elserCase(
                             inferenceEntityId,
                             taskType,
                             config,
-                            arch,
+                            preferredModelVariant,
                             serviceSettingsMap,
                             chunkingSettings,
                             modelListener
@@ -290,7 +285,7 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
         String inferenceEntityId,
         TaskType taskType,
         Map<String, Object> config,
-        Set<String> platformArchitectures,
+        PreferredModelVariant preferredModelVariant,
         Map<String, Object> serviceSettingsMap,
         ChunkingSettings chunkingSettings,
         ActionListener<Model> modelListener
@@ -300,12 +295,12 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
         if (esServiceSettingsBuilder.getModelId() == null) {
             esServiceSettingsBuilder.setModelId(
                 selectDefaultModelVariantBasedOnClusterArchitecture(
-                    platformArchitectures,
+                    preferredModelVariant,
                     MULTILINGUAL_E5_SMALL_MODEL_ID_LINUX_X86,
                     MULTILINGUAL_E5_SMALL_MODEL_ID
                 )
             );
-        } else if (modelVariantValidForArchitecture(platformArchitectures, esServiceSettingsBuilder.getModelId()) == false) {
+        } else if (modelVariantValidForArchitecture(preferredModelVariant, esServiceSettingsBuilder.getModelId()) == false) {
             throw new IllegalArgumentException(
                 "Error parsing request config, model id does not match any models available on this platform. Was ["
                     + esServiceSettingsBuilder.getModelId()
@@ -327,14 +322,14 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
         );
     }
 
-    static boolean modelVariantValidForArchitecture(Set<String> platformArchitectures, String modelId) {
+    static boolean modelVariantValidForArchitecture(PreferredModelVariant modelVariant, String modelId) {
         if (modelId.equals(MULTILINGUAL_E5_SMALL_MODEL_ID)) {
             // platform agnostic model is always compatible
             return true;
         }
         return modelId.equals(
             selectDefaultModelVariantBasedOnClusterArchitecture(
-                platformArchitectures,
+                modelVariant,
                 MULTILINGUAL_E5_SMALL_MODEL_ID_LINUX_X86,
                 MULTILINGUAL_E5_SMALL_MODEL_ID
             )
@@ -345,14 +340,14 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
         String inferenceEntityId,
         TaskType taskType,
         Map<String, Object> config,
-        Set<String> platformArchitectures,
+        PreferredModelVariant preferredModelVariant,
         Map<String, Object> serviceSettingsMap,
         ChunkingSettings chunkingSettings,
         ActionListener<Model> modelListener
     ) {
         var esServiceSettingsBuilder = ElasticsearchInternalServiceSettings.fromRequestMap(serviceSettingsMap);
         final String defaultModelId = selectDefaultModelVariantBasedOnClusterArchitecture(
-            platformArchitectures,
+            preferredModelVariant,
             ELSER_V2_MODEL_LINUX_X86,
             ELSER_V2_MODEL
         );
@@ -387,7 +382,7 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
             defaultModelId
         );
 
-        if (modelVariantDoesNotMatchArchitecturesAndIsNotPlatformAgnostic(platformArchitectures, esServiceSettingsBuilder.getModelId())) {
+        if (modelVariantDoesNotMatchArchitecturesAndIsNotPlatformAgnostic(preferredModelVariant, esServiceSettingsBuilder.getModelId())) {
             throw new IllegalArgumentException(
                 "Error parsing request config, model id does not match any models available on this platform. Was ["
                     + esServiceSettingsBuilder.getModelId()
@@ -411,12 +406,12 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
     }
 
     private static boolean modelVariantDoesNotMatchArchitecturesAndIsNotPlatformAgnostic(
-        Set<String> platformArchitectures,
+        PreferredModelVariant preferredModelVariant,
         String modelId
     ) {
         return modelId.equals(
             selectDefaultModelVariantBasedOnClusterArchitecture(
-                platformArchitectures,
+                preferredModelVariant,
                 MULTILINGUAL_E5_SMALL_MODEL_ID_LINUX_X86,
                 MULTILINGUAL_E5_SMALL_MODEL_ID
             )
@@ -797,48 +792,49 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
         return new RankedDocsResults(rankings);
     }
 
-    @Override
-    public List<UnparsedModel> defaultConfigs() {
-        return defaultConfigsPlatfromAgnostic();
+    public List<DefaultConfigId> defaultConfigIds() {
+        return List.of(new DefaultConfigId(DEFAULT_ELSER_ID, TaskType.SPARSE_EMBEDDING, this));
     }
 
-    public List<UnparsedModel> defaultConfigsLinuxOptimised() {
+    /**
+     * Default configurations that can be out of the box without creating an endpoint first.
+     * @param defaultsListener Config listener
+     */
+    @Override
+    public void defaultConfigs(ActionListener<List<Model>> defaultsListener) {
+        platformArch.accept(defaultsListener.delegateFailureAndWrap((delegate, preferredModelVariant) -> {
+            if (PreferredModelVariant.LINUX_X86_OPTIMIZED.equals(preferredModelVariant)) {
+                defaultsListener.onResponse(defaultConfigsLinuxOptimised());
+            } else {
+                defaultsListener.onResponse(defaultConfigsPlatfromAgnostic());
+            }
+        }));
+    }
+
+    private List<Model> defaultConfigsLinuxOptimised() {
         return defaultConfigs(true);
     }
 
-    public List<UnparsedModel> defaultConfigsPlatfromAgnostic() {
+    private List<Model> defaultConfigsPlatfromAgnostic() {
         return defaultConfigs(false);
     }
 
-    private List<UnparsedModel> defaultConfigs(boolean useLinuxOptimizedModel) {
-        Map<String, Object> elserSettings = Map.of(
-            ModelConfigurations.SERVICE_SETTINGS,
-            Map.of(
-                ElasticsearchInternalServiceSettings.MODEL_ID,
-                useLinuxOptimizedModel ? ELSER_V2_MODEL_LINUX_X86 : ELSER_V2_MODEL,
-                ElasticsearchInternalServiceSettings.NUM_THREADS,
+    private List<Model> defaultConfigs(boolean useLinuxOptimizedModel) {
+        var defaultElser = new ElserInternalModel(
+            DEFAULT_ELSER_ID,
+            TaskType.SPARSE_EMBEDDING,
+            NAME,
+            new ElserInternalServiceSettings(
+                null,
                 1,
-                ElasticsearchInternalServiceSettings.ADAPTIVE_ALLOCATIONS,
-                Map.of(
-                    "enabled",
-                    Boolean.TRUE,
-                    "min_number_of_allocations",
-                    1,
-                    "max_number_of_allocations",
-                    8   // no max?
-                )
-            )
+                useLinuxOptimizedModel ? ELSER_V2_MODEL_LINUX_X86 : ELSER_V2_MODEL,
+                new AdaptiveAllocationsSettings(Boolean.TRUE, 1, 8)
+            ),
+            ElserMlNodeTaskSettings.DEFAULT,
+            null // default chunking settings
         );
 
-        return List.of(
-            new UnparsedModel(
-                DEFAULT_ELSER_ID,
-                TaskType.SPARSE_EMBEDDING,
-                NAME,
-                elserSettings,
-                Map.of() // no secrets
-            )
-        );
+        return List.of(defaultElser);
     }
 
     @Override

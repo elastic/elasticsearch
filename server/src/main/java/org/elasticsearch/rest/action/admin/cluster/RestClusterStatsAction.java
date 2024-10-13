@@ -32,7 +32,8 @@ public class RestClusterStatsAction extends BaseRestHandler {
     private static final Set<String> SUPPORTED_CAPABILITIES = Set.of(
         "human-readable-total-docs-size",
         "verbose-dense-vector-mapping-stats",
-        "ccs-stats"
+        "ccs-stats",
+        "retrievers-usage-stats"
     );
     private static final Set<String> SUPPORTED_QUERY_PARAMETERS = Set.of("include_remotes", "nodeId", REST_TIMEOUT_PARAM);
 
@@ -57,7 +58,7 @@ public class RestClusterStatsAction extends BaseRestHandler {
             request.paramAsBoolean("include_remotes", false),
             request.paramAsStringArray("nodeId", null)
         );
-        clusterStatsRequest.timeout(getTimeout(request));
+        clusterStatsRequest.setTimeout(getTimeout(request));
         return channel -> new RestCancellableNodeClient(client, request.getHttpChannel()).admin()
             .cluster()
             .clusterStats(clusterStatsRequest, new NodesResponseRestListener<>(channel));

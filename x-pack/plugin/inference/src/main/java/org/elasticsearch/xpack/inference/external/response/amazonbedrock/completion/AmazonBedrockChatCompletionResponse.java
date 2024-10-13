@@ -7,7 +7,8 @@
 
 package org.elasticsearch.xpack.inference.external.response.amazonbedrock.completion;
 
-import com.amazonaws.services.bedrockruntime.model.ConverseResult;
+import software.amazon.awssdk.services.bedrockruntime.model.ContentBlock;
+import software.amazon.awssdk.services.bedrockruntime.model.ConverseResponse;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.inference.InferenceServiceResults;
@@ -16,13 +17,11 @@ import org.elasticsearch.xpack.inference.external.request.amazonbedrock.AmazonBe
 import org.elasticsearch.xpack.inference.external.request.amazonbedrock.completion.AmazonBedrockChatCompletionRequest;
 import org.elasticsearch.xpack.inference.external.response.amazonbedrock.AmazonBedrockResponse;
 
-import java.util.ArrayList;
-
 public class AmazonBedrockChatCompletionResponse extends AmazonBedrockResponse {
 
-    private final ConverseResult result;
+    private final ConverseResponse result;
 
-    public AmazonBedrockChatCompletionResponse(ConverseResult responseResult) {
+    public AmazonBedrockChatCompletionResponse(ConverseResponse responseResult) {
         this.result = responseResult;
     }
 
@@ -35,14 +34,14 @@ public class AmazonBedrockChatCompletionResponse extends AmazonBedrockResponse {
         throw new ElasticsearchException("unexpected request type [" + request.getClass() + "]");
     }
 
-    public static ChatCompletionResults fromResponse(ConverseResult response) {
-        var responseMessage = response.getOutput().getMessage();
-
-        var messageContents = responseMessage.getContent();
-        var resultTexts = new ArrayList<ChatCompletionResults.Result>();
-        for (var messageContent : messageContents) {
-            resultTexts.add(new ChatCompletionResults.Result(messageContent.getText()));
-        }
+    public static ChatCompletionResults fromResponse(ConverseResponse response) {
+        var resultTexts = response.output()
+            .message()
+            .content()
+            .stream()
+            .map(ContentBlock::text)
+            .map(ChatCompletionResults.Result::new)
+            .toList();
 
         return new ChatCompletionResults(resultTexts);
     }

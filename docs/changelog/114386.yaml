@@ -1,0 +1,5 @@
+pr: 114386
+summary: Improve handling of failure to create persistent task
+area: Task Management
+type: bug
+issues: []

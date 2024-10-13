@@ -89,9 +89,6 @@ tests:
 - class: org.elasticsearch.xpack.inference.InferenceRestIT
   method: test {p0=inference/80_random_rerank_retriever/Random rerank retriever predictably shuffles results}
   issue: https://github.com/elastic/elasticsearch/issues/111999
-- class: org.elasticsearch.xpack.test.rest.XPackRestIT
-  method: test {p0=transform/preview_transforms/Test preview transform latest}
-  issue: https://github.com/elastic/elasticsearch/issues/112144
 - class: org.elasticsearch.smoketest.SmokeTestMultiNodeClientYamlTestSuiteIT
   issue: https://github.com/elastic/elasticsearch/issues/112147
 - class: org.elasticsearch.smoketest.WatcherYamlRestIT

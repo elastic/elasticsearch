@@ -11,7 +11,6 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
@@ -136,7 +135,6 @@ public class AmazonBedrockService extends SenderService {
         String modelId,
         TaskType taskType,
         Map<String, Object> config,
-        ClusterSettings settings,
         ActionListener<Model> parsedModelListener
     ) {
         try {

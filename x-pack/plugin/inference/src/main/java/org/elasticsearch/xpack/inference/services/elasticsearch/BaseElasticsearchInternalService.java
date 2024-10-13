@@ -15,7 +15,6 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.client.internal.OriginSettingClient;
-import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceExtension;
@@ -23,7 +22,6 @@ import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.core.ClientHelper;
-import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
 import org.elasticsearch.xpack.core.ml.action.InferModelAction;
 import org.elasticsearch.xpack.core.ml.action.PutTrainedModelAction;
@@ -42,7 +40,7 @@ import java.util.EnumSet;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
-import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 
 import static org.elasticsearch.xpack.core.ClientHelper.INFERENCE_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
@@ -51,7 +49,7 @@ public abstract class BaseElasticsearchInternalService implements InferenceServi
 
     protected final OriginSettingClient client;
     protected final ExecutorService inferenceExecutor;
-    protected final BiConsumer<ClusterSettings, ActionListener<Set<String>>> platformArch;
+    protected final Consumer<ActionListener<Set<String>>> platformArch;
 
     private static final Logger logger = LogManager.getLogger(BaseElasticsearchInternalService.class);
 
@@ -68,7 +66,7 @@ public abstract class BaseElasticsearchInternalService implements InferenceServi
     // service package.
     public BaseElasticsearchInternalService(
         InferenceServiceExtension.InferenceServiceFactoryContext context,
-        BiConsumer<ClusterSettings, ActionListener<Set<String>>> platformArchFn
+        Consumer<ActionListener<Set<String>>> platformArchFn
     ) {
         this.client = new OriginSettingClient(context.client(), ClientHelper.INFERENCE_ORIGIN);
         this.inferenceExecutor = context.threadPool().executor(InferencePlugin.UTILITY_THREAD_POOL_NAME);
@@ -223,12 +221,12 @@ public abstract class BaseElasticsearchInternalService implements InferenceServi
         }
     }
 
-    private void platformArchitecture(ClusterSettings settings, ActionListener<Set<String>> platformArchitectureListener) {
+    private void platformArchitecture(ActionListener<Set<String>> platformArchitectureListener) {
         // Find the cluster platform as the service may need that
         // information when creating the model
         MlPlatformArchitecturesUtil.getMlNodesArchitecturesSet(
             platformArchitectureListener.delegateFailureAndWrap((delegate, architectures) -> {
-                if (architectures.isEmpty() && clusterIsInElasticCloud(settings)) {
+                if (architectures.isEmpty() && clusterIsInElasticCloud()) {
                     // In Elastic cloud ml nodes run on Linux x86
                     delegate.onResponse(Set.of("linux-x86_64"));
                 } else {
@@ -240,9 +238,9 @@ public abstract class BaseElasticsearchInternalService implements InferenceServi
         );
     }
 
-    static boolean clusterIsInElasticCloud(ClusterSettings settings) {
-        var maxLazyNodes = settings.get(MachineLearningField.MAX_LAZY_ML_NODES);
-        return maxLazyNodes != null && maxLazyNodes > 0;
+    static boolean clusterIsInElasticCloud() {
+        // use a heuristic to determine if in Elastic cloud.
+        return true; // TODO
     }
 
     public static InferModelAction.Request buildInferenceRequest(

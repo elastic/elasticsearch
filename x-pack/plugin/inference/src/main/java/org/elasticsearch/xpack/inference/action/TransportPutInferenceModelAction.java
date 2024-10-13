@@ -60,7 +60,6 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
     private final ModelRegistry modelRegistry;
     private final InferenceServiceRegistry serviceRegistry;
     private final Client client;
-    private final ClusterService clusterService;
     private volatile boolean skipValidationAndStart;
 
     @Inject
@@ -90,8 +89,7 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
         this.serviceRegistry = serviceRegistry;
         this.client = client;
         this.skipValidationAndStart = InferencePlugin.SKIP_VALIDATE_AND_START.get(settings);
-        this.clusterService = clusterService;
-        this.clusterService.getClusterSettings()
+        clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(InferencePlugin.SKIP_VALIDATE_AND_START, this::setSkipValidationAndStart);
     }
 
@@ -198,7 +196,7 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
             }
         });
 
-        service.parseRequestConfig(inferenceEntityId, taskType, config, clusterService.getClusterSettings(), parsedModelListener);
+        service.parseRequestConfig(inferenceEntityId, taskType, config, parsedModelListener);
     }
 
     private void startInferenceEndpoint(InferenceService service, Model model, ActionListener<PutInferenceModelAction.Response> listener) {

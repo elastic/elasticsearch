@@ -12,7 +12,6 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkedInferenceServiceResults;
@@ -63,22 +62,11 @@ public class GoogleVertexAiService extends SenderService {
         return NAME;
     }
 
-    // for testing
-    void parseRequestConfig(
-        String inferenceEntityId,
-        TaskType taskType,
-        Map<String, Object> config,
-        ActionListener<Model> parsedModelListener
-    ) {
-        parseRequestConfig(inferenceEntityId, taskType, config, null, parsedModelListener);
-    }
-
     @Override
     public void parseRequestConfig(
         String inferenceEntityId,
         TaskType taskType,
         Map<String, Object> config,
-        ClusterSettings settings,
         ActionListener<Model> parseModelListener
     ) {
         try {

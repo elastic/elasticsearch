@@ -114,7 +114,6 @@ public class AmazonBedrockServiceTests extends ESTestCase {
                     Map.of(),
                     getAmazonBedrockSecretSettingsMap("access", "secret")
                 ),
-                null,
                 modelVerificationListener
             );
         }
@@ -138,7 +137,6 @@ public class AmazonBedrockServiceTests extends ESTestCase {
                     Map.of(),
                     getAmazonBedrockSecretSettingsMap("access", "secret")
                 ),
-                null,
                 modelVerificationListener
             );
         }
@@ -162,7 +160,6 @@ public class AmazonBedrockServiceTests extends ESTestCase {
                     Map.of(),
                     getAmazonBedrockSecretSettingsMap("access", "secret")
                 ),
-                null,
                 modelVerificationListener
             );
         }
@@ -186,7 +183,6 @@ public class AmazonBedrockServiceTests extends ESTestCase {
                     getChatCompletionTaskSettingsMap(1.0, 0.5, 0.2, 128),
                     getAmazonBedrockSecretSettingsMap("access", "secret")
                 ),
-                null,
                 modelVerificationListener
             );
         }
@@ -213,7 +209,7 @@ public class AmazonBedrockServiceTests extends ESTestCase {
                 }
             );
 
-            service.parseRequestConfig("id", TaskType.TEXT_EMBEDDING, config, null, modelVerificationListener);
+            service.parseRequestConfig("id", TaskType.TEXT_EMBEDDING, config, modelVerificationListener);
         }
     }
 
@@ -234,7 +230,7 @@ public class AmazonBedrockServiceTests extends ESTestCase {
                 );
             });
 
-            service.parseRequestConfig("id", TaskType.TEXT_EMBEDDING, config, null, modelVerificationListener);
+            service.parseRequestConfig("id", TaskType.TEXT_EMBEDDING, config, modelVerificationListener);
         }
     }
 
@@ -258,7 +254,7 @@ public class AmazonBedrockServiceTests extends ESTestCase {
                 );
             });
 
-            service.parseRequestConfig("id", TaskType.COMPLETION, config, null, modelVerificationListener);
+            service.parseRequestConfig("id", TaskType.COMPLETION, config, modelVerificationListener);
         }
     }
 
@@ -282,7 +278,7 @@ public class AmazonBedrockServiceTests extends ESTestCase {
                 );
             });
 
-            service.parseRequestConfig("id", TaskType.COMPLETION, config, null, modelVerificationListener);
+            service.parseRequestConfig("id", TaskType.COMPLETION, config, modelVerificationListener);
         }
     }
 
@@ -308,7 +304,6 @@ public class AmazonBedrockServiceTests extends ESTestCase {
                     Map.of(),
                     getAmazonBedrockSecretSettingsMap("access", "secret")
                 ),
-                null,
                 modelVerificationListener
             );
         }
@@ -335,7 +330,6 @@ public class AmazonBedrockServiceTests extends ESTestCase {
                     createRandomChunkingSettingsMap(),
                     getAmazonBedrockSecretSettingsMap("access", "secret")
                 ),
-                null,
                 modelVerificationListener
             );
         }
@@ -367,7 +361,6 @@ public class AmazonBedrockServiceTests extends ESTestCase {
                     createRandomChunkingSettingsMap(),
                     getAmazonBedrockSecretSettingsMap("access", "secret")
                 ),
-                null,
                 modelVerificationListener
             );
         }
@@ -398,7 +391,6 @@ public class AmazonBedrockServiceTests extends ESTestCase {
                     Map.of(),
                     getAmazonBedrockSecretSettingsMap("access", "secret")
                 ),
-                null,
                 modelVerificationListener
             );
         }
@@ -422,7 +414,6 @@ public class AmazonBedrockServiceTests extends ESTestCase {
                     Map.of(),
                     getAmazonBedrockSecretSettingsMap("access", "secret")
                 ),
-                null,
                 modelVerificationListener
             );
         }

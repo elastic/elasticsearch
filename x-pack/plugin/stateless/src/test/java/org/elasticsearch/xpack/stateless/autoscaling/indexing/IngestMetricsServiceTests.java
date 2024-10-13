@@ -69,6 +69,9 @@ import java.util.stream.IntStream;
 
 import static co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestMetricsService.ACCURATE_LOAD_WINDOW;
 import static co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestMetricsService.HIGH_INGESTION_LOAD_WEIGHT_DURING_SCALING;
+import static co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestMetricsService.IngestMetricType.ADJUSTED;
+import static co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestMetricsService.IngestMetricType.SINGLE;
+import static co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestMetricsService.IngestMetricType.UNADJUSTED;
 import static co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestMetricsService.LOAD_ADJUSTMENT_AFTER_SCALING_WINDOW;
 import static co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestMetricsService.LOW_INGESTION_LOAD_WEIGHT_DURING_SCALING;
 import static co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestMetricsService.NODE_INGEST_LOAD_SNAPSHOTS_METRIC_NAME;
@@ -832,10 +835,13 @@ public class IngestMetricsServiceTests extends ESTestCase {
             NODE_INGEST_LOAD_SNAPSHOTS_METRIC_NAME
         );
         assertThat(
-            measurements.stream().filter(measurement -> (boolean) measurement.attributes().get("adjusted") == false).peek(measurement -> {
-                assertThat(measurement.attributes().get("quality"), is(MetricQuality.EXACT.getLabel()));
-                assertThat(measurement.attributes().get("node_name"), notNullValue());
-            }).collect(Collectors.toUnmodifiableMap(m -> m.attributes().get("node_id"), Measurement::getDouble)),
+            measurements.stream()
+                .filter(measurement -> ADJUSTED.key().equals(measurement.attributes().get("type")) == false)
+                .peek(measurement -> {
+                    assertThat(measurement.attributes().get("quality"), is(MetricQuality.EXACT.getLabel()));
+                    assertThat(measurement.attributes().get("node_name"), notNullValue());
+                })
+                .collect(Collectors.toUnmodifiableMap(m -> m.attributes().get("node_id"), Measurement::getDouble)),
             equalTo(publishedLoads)
         );
 
@@ -854,17 +860,30 @@ public class IngestMetricsServiceTests extends ESTestCase {
                 )
             );
             assertThat(measurements, hasSize(publishedLoads.size() * 2));
-            assertThat(measurements.stream().filter(measurement -> (boolean) measurement.attributes().get("adjusted")).peek(measurement -> {
-                assertThat(measurement.attributes().get("quality"), is(MetricQuality.MINIMUM.getLabel()));
-                assertThat(measurement.attributes().get("node_name"), notNullValue());
-            }).collect(Collectors.toUnmodifiableMap(m -> m.attributes().get("node_id"), Measurement::getDouble)),
+            assertThat(
+                measurements.stream()
+                    .filter(measurement -> ADJUSTED.key().equals(measurement.attributes().get("type")))
+                    .peek(measurement -> {
+                        assertThat(measurement.attributes().get("quality"), is(MetricQuality.MINIMUM.getLabel()));
+                        assertThat(measurement.attributes().get("node_name"), notNullValue());
+                    })
+                    .collect(Collectors.toUnmodifiableMap(m -> m.attributes().get("node_id"), Measurement::getDouble)),
                 equalTo(
                     readMetrics.stream().collect(Collectors.toUnmodifiableMap(NodeIngestLoadSnapshot::nodeId, NodeIngestLoadSnapshot::load))
                 )
             );
+            // All values have type=adjusted or type=unadjusted
+            assertTrue(
+                measurements.stream()
+                    .allMatch(
+                        measurement -> UNADJUSTED.key().equals(measurement.attributes().get("type"))
+                            || ADJUSTED.key().equals(measurement.attributes().get("type"))
+                    )
+            );
         } else {
             assertThat(lastNodeIngestLoadSnapshots.adjusted(), nullValue());
             assertThat(measurements, hasSize(publishedLoads.size()));
+            assertTrue(measurements.stream().allMatch(measurement -> SINGLE.key().equals(measurement.attributes().get("type"))));
         }
     }
 

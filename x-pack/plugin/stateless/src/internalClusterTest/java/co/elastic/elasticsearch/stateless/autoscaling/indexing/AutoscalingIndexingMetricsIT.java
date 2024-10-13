@@ -64,6 +64,8 @@ import java.util.stream.IntStream;
 
 import static co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestMetricsService.ACCURATE_LOAD_WINDOW;
 import static co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestMetricsService.HIGH_INGESTION_LOAD_WEIGHT_DURING_SCALING;
+import static co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestMetricsService.IngestMetricType.ADJUSTED;
+import static co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestMetricsService.IngestMetricType.SINGLE;
 import static co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestMetricsService.LOW_INGESTION_LOAD_WEIGHT_DURING_SCALING;
 import static co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestMetricsService.NODE_INGEST_LOAD_SNAPSHOTS_METRIC_NAME;
 import static co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestMetricsService.groupIndexNodesByShutdownStatus;
@@ -540,7 +542,7 @@ public class AutoscalingIndexingMetricsIT extends AbstractStatelessIntegTestCase
         plugin.collect();
         List<Measurement> measurements = plugin.getDoubleGaugeMeasurement(NODE_INGEST_LOAD_SNAPSHOTS_METRIC_NAME);
         assertThat(measurements.size(), equalTo(numNodes));
-        measurements.forEach(measurement -> assertThat(measurement.attributes().get("adjusted"), is(false)));
+        measurements.forEach(measurement -> assertThat(measurement.attributes().get("type"), is(SINGLE.key())));
         measurements.forEach(measurement -> assertThat(measurement.attributes().get("quality"), is(MetricQuality.EXACT.getLabel())));
 
         final ClusterService clusterService = internalCluster().getCurrentMasterNodeInstance(ClusterService.class);
@@ -578,7 +580,7 @@ public class AutoscalingIndexingMetricsIT extends AbstractStatelessIntegTestCase
         measurements = plugin.getDoubleGaugeMeasurement(NODE_INGEST_LOAD_SNAPSHOTS_METRIC_NAME);
         assertThat(measurements.size(), equalTo(numNodes * 2));
         final Map<Object, List<Measurement>> groupedMeasurements = measurements.stream()
-            .collect(Collectors.groupingBy(m -> m.attributes().get("adjusted")));
+            .collect(Collectors.groupingBy(m -> ADJUSTED.key().equals(m.attributes().get("type"))));
         assertThat(groupedMeasurements.get(false), hasSize(numNodes));
         groupedMeasurements.get(false).forEach(m -> assertThat(m.attributes().get("quality"), is(MetricQuality.EXACT.getLabel())));
         assertThat(groupedMeasurements.get(true), hasSize(numNodes));

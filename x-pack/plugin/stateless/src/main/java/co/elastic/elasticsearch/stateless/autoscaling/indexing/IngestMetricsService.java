@@ -42,6 +42,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
@@ -49,6 +50,10 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+
+import static co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestMetricsService.IngestMetricType.ADJUSTED;
+import static co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestMetricsService.IngestMetricType.SINGLE;
+import static co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestMetricsService.IngestMetricType.UNADJUSTED;
 
 public class IngestMetricsService implements ClusterStateListener {
 
@@ -97,6 +102,32 @@ public class IngestMetricsService implements ClusterStateListener {
     );
 
     public static final String NODE_INGEST_LOAD_SNAPSHOTS_METRIC_NAME = "es.autoscaling.indexing.node_ingest_load.current";
+
+    /**
+     * Allows us to query for
+     * <ul>
+     *     <li>the adjusted stream, using <code>type=single OR type=adjusted</code></li>
+     *     <li>the unadjusted stream, using <code>type=single OR type=unadjusted</code></li>
+     * </ul>
+     */
+    public enum IngestMetricType {
+        /**
+         * The metric published when only unadjusted values are published
+         */
+        SINGLE,
+        /**
+         * The unadjusted form of the metric (when both unadjusted and adjusted values are published)
+         */
+        UNADJUSTED,
+        /**
+         * The adjusted form of the metric (when both unadjusted and adjusted values are published)
+         */
+        ADJUSTED;
+
+        public String key() {
+            return name().toLowerCase(Locale.ROOT);
+        }
+    }
 
     private static final Logger logger = LogManager.getLogger(IngestMetricsService.class);
 
@@ -161,15 +192,19 @@ public class IngestMetricsService implements ClusterStateListener {
             final List<NodeIngestLoadSnapshot> raw = lastNodeIngestLoadSnapshots.raw();
             final List<NodeIngestLoadSnapshot> adjusted = lastNodeIngestLoadSnapshots.adjusted();
             final List<DoubleWithAttributes> values = new ArrayList<>(raw.size() + (adjusted == null ? 0 : adjusted.size()));
-            raw.forEach(nodeIngestLoadSnapshot -> values.add(buildNodeIngestLoadMetricValue(nodeIngestLoadSnapshot, false)));
+            final IngestMetricType unadjustedType = adjusted == null ? SINGLE : UNADJUSTED;
+            raw.forEach(nodeIngestLoadSnapshot -> values.add(buildNodeIngestLoadMetricValue(nodeIngestLoadSnapshot, unadjustedType)));
             if (adjusted != null) {
-                adjusted.forEach(nodeIngestLoadSnapshot -> values.add(buildNodeIngestLoadMetricValue(nodeIngestLoadSnapshot, true)));
+                adjusted.forEach(nodeIngestLoadSnapshot -> values.add(buildNodeIngestLoadMetricValue(nodeIngestLoadSnapshot, ADJUSTED)));
             }
             return values;
         });
     }
 
-    private static DoubleWithAttributes buildNodeIngestLoadMetricValue(NodeIngestLoadSnapshot nodeIngestLoadSnapshot, boolean adjusted) {
+    private static DoubleWithAttributes buildNodeIngestLoadMetricValue(
+        NodeIngestLoadSnapshot nodeIngestLoadSnapshot,
+        IngestMetricType ingestMetricType
+    ) {
         return new DoubleWithAttributes(
             nodeIngestLoadSnapshot.load(),
             Map.of(
@@ -179,8 +214,8 @@ public class IngestMetricsService implements ClusterStateListener {
                 nodeIngestLoadSnapshot.nodeName(),
                 "quality",
                 nodeIngestLoadSnapshot.metricQuality().getLabel(),
-                "adjusted",
-                adjusted
+                "type",
+                ingestMetricType.key()
             )
         );
     }

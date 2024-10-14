@@ -60,6 +60,7 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
 import org.elasticsearch.xpack.esql.action.EsqlSearchShardsAction;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSourceExec;
@@ -206,13 +207,19 @@ public class ComputeService {
         );
         long start = configuration.getQueryStartTimeNanos();
         String local = RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
+        /*
+         * Grab the output attributes here, so we can pass them to
+         * the listener without holding on to a reference to the
+         * entire plan.
+         */
+        List<Attribute> outputAttributes = physicalPlan.output();
         try (
             Releasable ignored = exchangeSource.addEmptySink();
             // this is the top level ComputeListener called once at the end (e.g., once all clusters have finished for a CCS)
             var computeListener = ComputeListener.create(local, transportService, rootTask, execInfo, start, listener.map(r -> {
                 long tookTimeNanos = System.nanoTime() - configuration.getQueryStartTimeNanos();
                 execInfo.overallTook(new TimeValue(tookTimeNanos, TimeUnit.NANOSECONDS));
-                return new Result(physicalPlan.output(), collectedPages, r.getProfiles(), execInfo);
+                return new Result(outputAttributes, collectedPages, r.getProfiles(), execInfo);
             }))
         ) {
             // run compute on the coordinator
@@ -827,7 +834,7 @@ public class ComputeService {
              * execution metadata for ES|QL processing local to this cluster. The execution info will be copied into the
              * ComputeResponse that is sent back to the primary coordinating cluster.
              */
-            EsqlExecutionInfo execInfo = new EsqlExecutionInfo();
+            EsqlExecutionInfo execInfo = new EsqlExecutionInfo(true);
             execInfo.swapCluster(clusterAlias, (k, v) -> new EsqlExecutionInfo.Cluster(clusterAlias, Arrays.toString(request.indices())));
             CancellableTask cancellable = (CancellableTask) task;
             long start = request.configuration().getQueryStartTimeNanos();

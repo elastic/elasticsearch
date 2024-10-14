@@ -27,7 +27,7 @@ import java.util.function.Supplier;
 import static org.hamcrest.Matchers.equalTo;
 
 @FunctionName("qstr")
-public class QueryStringTests extends AbstractFunctionTestCase {
+public class QueryStringFunctionTests extends AbstractFunctionTestCase {
 
     public QueryStringTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();

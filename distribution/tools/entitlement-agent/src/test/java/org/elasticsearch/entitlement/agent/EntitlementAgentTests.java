@@ -9,21 +9,44 @@
 
 package org.elasticsearch.entitlement.agent;
 
-import org.elasticsearch.entitlement.runtime.api.EntitlementChecks;
+import com.carrotsearch.randomizedtesting.annotations.SuppressForbidden;
+
+import org.elasticsearch.entitlement.runtime.api.ElasticsearchEntitlementManager;
+import org.elasticsearch.entitlement.runtime.api.NotEntitledException;
+import org.elasticsearch.entitlement.runtime.internals.EntitlementInternals;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.ESTestCase.WithoutSecurityManager;
+import org.junit.After;
 
 /**
- * This is an end-to-end test that runs with the javaagent installed.
- * It should exhaustively test every instrumented method to make sure it passes with the entitlement
- * and fails without it.
+ * This is an end-to-end test of the agent and entitlement runtime.
+ * It runs with the agent installed, and exhaustively tests every instrumented method
+ * to make sure it works with the entitlement granted and throws without it.
+ * The only exception is {@link System#exit}, where we can't that it works without
+ * terminating the JVM.
+ * <p>
+ * If you're trying to debug the instrumentation code, take a look at {@code InstrumenterTests}.
+ * That tests the bytecode portion without firing up an agent, which makes everything easier to troubleshoot.
+ * <p>
  * See {@code build.gradle} for how we set the command line arguments for this test.
  */
 @WithoutSecurityManager
 public class EntitlementAgentTests extends ESTestCase {
 
-    public void testAgentBooted() {
-        assertTrue(EntitlementChecks.isAgentBooted());
+    public static final ElasticsearchEntitlementManager ENTITLEMENT_MANAGER = ElasticsearchEntitlementManager.get();
+
+    @After
+    public void resetEverything() {
+        EntitlementInternals.reset();
+    }
+
+    /**
+     * We can't really check that this one passes because it will just exit the JVM.
+     */
+    @SuppressForbidden("Specifically testing System.exit")
+    public void testSystemExitNotEntitled() {
+        ENTITLEMENT_MANAGER.activate();
+        assertThrows(NotEntitledException.class, () -> System.exit(123));
     }
 
 }

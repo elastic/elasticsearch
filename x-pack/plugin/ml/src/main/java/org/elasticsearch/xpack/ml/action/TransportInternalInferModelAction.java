@@ -71,7 +71,7 @@ public class TransportInternalInferModelAction extends HandledTransportAction<Re
     private final XPackLicenseState licenseState;
     private final TrainedModelProvider trainedModelProvider;
     private final AdaptiveAllocationsScalerService adaptiveAllocationsScalerService;
-    private final InferenceWaitForAllocation scalingInference;
+    private final InferenceWaitForAllocation waitForAllocation;
     private final ThreadPool threadPool;
 
     TransportInternalInferModelAction(
@@ -94,7 +94,7 @@ public class TransportInternalInferModelAction extends HandledTransportAction<Re
         this.licenseState = licenseState;
         this.trainedModelProvider = trainedModelProvider;
         this.adaptiveAllocationsScalerService = adaptiveAllocationsScalerService;
-        this.scalingInference = new InferenceWaitForAllocation(assignmentService, this::inferOnBlockedRequest);
+        this.waitForAllocation = new InferenceWaitForAllocation(assignmentService, this::inferOnBlockedRequest);
         this.threadPool = threadPool;
     }
 
@@ -280,7 +280,7 @@ public class TransportInternalInferModelAction extends HandledTransportAction<Re
             if (starting) {
                 message += "; starting deployment of one allocation";
                 logger.info(message);
-                scalingInference.waitForAssignment(
+                waitForAllocation.waitForAssignment(
                     new InferenceWaitForAllocation.WaitingRequest(request, responseBuilder, parentTaskId, listener)
                 );
                 return;

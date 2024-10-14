@@ -85,7 +85,8 @@ public class InferenceWaitForAllocation {
      */
     public synchronized void waitForAssignment(WaitingRequest request) {
         logger.info("waitForAssignment will wait for condition");
-        if (pendingRequestCount.get() > MAX_PENDING_REQUEST_COUNT) {
+        if (pendingRequestCount.incrementAndGet() >= MAX_PENDING_REQUEST_COUNT) {
+            pendingRequestCount.decrementAndGet();
             request.listener.onFailure(
                 new ElasticsearchStatusException(
                     "Rejected inference request waiting for an allocation of deployment [{}]. Too many pending requests",
@@ -96,7 +97,6 @@ public class InferenceWaitForAllocation {
             return;
         }
 
-        pendingRequestCount.incrementAndGet();
         var predicate = new DeploymentHasAtLeastOneAllocation(request.deploymentId());
 
         assignmentService.waitForAssignmentCondition(

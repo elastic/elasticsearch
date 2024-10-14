@@ -156,7 +156,7 @@ public class TransportGetInferenceModelAction extends HandledTransportAction<
 
             for (var entry : parsedModelsByService.entrySet()) {
                 serviceRegistry.getService(entry.getKey())
-                    .get()  // must be non-null to get his far
+                    .get()  // must be non-null to get this far
                     .updateModelsWithDynamicFields(entry.getValue(), groupedListener);
             }
         } catch (Exception e) {

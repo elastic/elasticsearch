@@ -29,14 +29,14 @@ import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.QSTR_FUNC
 import static org.hamcrest.Matchers.equalTo;
 
 @FunctionName("qstr")
-public class QueryStringFunctionTests extends AbstractFunctionTestCase {
+public class QueryStringTests extends AbstractFunctionTestCase {
 
     @BeforeClass
     public static void checkFunctionEnabled() {
         assumeTrue("QSTR capability should be enabled ", QSTR_FUNCTION.isEnabled());
     }
 
-    public QueryStringFunctionTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
+    public QueryStringTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }
 
@@ -77,6 +77,6 @@ public class QueryStringFunctionTests extends AbstractFunctionTestCase {
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return new QueryStringFunction(source, args.get(0));
+        return new QueryString(source, args.get(0));
     }
 }

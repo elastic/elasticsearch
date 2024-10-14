@@ -673,10 +673,10 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
         }
 
         private long getExpectedShardSize(ShardRouting shard) {
-            final ProjectId projectId = state.globalRoutingTable().getProjectLookup().project(shard.index());
-            if (projectId == null) {
-                throw new IllegalArgumentException("cannot find project for shard [" + shard + "]");
-            }
+            final ProjectId projectId = state.globalRoutingTable()
+                .getProjectLookup()
+                .project(shard.index())
+                .orElseThrow(() -> new IllegalArgumentException("cannot find project for shard [" + shard + "]"));
             return ExpectedShardSizeEstimator.getExpectedShardSize(
                 shard,
                 0L,

@@ -251,7 +251,7 @@ After performing the hybrid search, the query will return the top 10 documents t
   }
 }
 ------------------------------------------------------------
-// TEST[skip:TBD]
+// NOTCONSOLE
 <1> The name of the index the document belongs to.
 <2> The unique identifier of the document.
 <3> The relevance score of the document based on the search query.

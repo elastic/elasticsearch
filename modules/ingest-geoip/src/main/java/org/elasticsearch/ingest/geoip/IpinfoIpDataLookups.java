@@ -73,6 +73,44 @@ final class IpinfoIpDataLookups {
         return parts.stream().filter((s) -> IPINFO_TYPE_STOP_WORDS.contains(s) == false).collect(Collectors.joining("_"));
     }
 
+    @Nullable
+    static Database getIpinfoDatabase(final String databaseType) {
+        // for ipinfo the database selection is more along the lines of user-agent sniffing than
+        // string-based dispatch. the specific database_type strings could change in the future,
+        // hence the somewhat loose nature of this checking.
+
+        final String cleanedType = ipinfoTypeCleanup(databaseType);
+
+        // early detection on any of the 'extended' types
+        if (databaseType.contains("extended")) {
+            // which are not currently supported, so log and return null
+            logger.trace("returning null for unsupported database_type [{}]", databaseType);
+            return null;
+        }
+
+        // early detection on 'country_asn' so the 'country' and 'asn' checks don't get faked out
+        if (cleanedType.contains("country_asn")) {
+            // which are not currently supported, so log and return null
+            logger.trace("returning null for unsupported database_type [{}]", databaseType);
+            // but it's not currently supported, so return null
+            return null;
+        }
+
+        if (cleanedType.contains("asn")) {
+            return Database.AsnV2;
+        } else if (cleanedType.contains("country")) {
+            return Database.CountryV2;
+        } else if (cleanedType.contains("location")) { // note: catches 'location' and 'geolocation' ;)
+            return Database.CityV2;
+        } else if (cleanedType.contains("privacy")) {
+            return Database.PrivacyDetection;
+        } else {
+            // no match was found, so log and return null
+            logger.trace("returning null for unsupported database_type [{}]", databaseType);
+            return null;
+        }
+    }
+
     /**
      * Lax-ly parses a string that (ideally) looks like 'AS123' into a Long like 123L (or null, if such parsing isn't possible).
      * @param asn a potentially empty (or null) ASN string that is expected to contain 'AS' and then a parsable long

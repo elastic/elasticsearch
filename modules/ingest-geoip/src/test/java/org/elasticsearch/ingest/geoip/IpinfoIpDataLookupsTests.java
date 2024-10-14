@@ -38,6 +38,7 @@ import static org.elasticsearch.ingest.geoip.IpinfoIpDataLookups.parseLocationDo
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
@@ -379,6 +380,35 @@ public class IpinfoIpDataLookupsTests extends ESTestCase {
             String cleanedType = entry.getValue();
             assertThat(ipinfoTypeCleanup(type), equalTo(cleanedType));
         }
+    }
+
+    public void testDatabaseTypeParsing() throws IOException {
+        // this test is a little bit overloaded -- it's testing that we're getting the expected sorts of
+        // database_type strings from these files, *and* it's also testing that we dispatch on those strings
+        // correctly and associated those files with the correct high-level Elasticsearch Database type.
+        // down the road it would probably make sense to split these out and find a better home for some of the
+        // logic, but for now it's probably more valuable to have the test *somewhere* than to get especially
+        // pedantic about where precisely it should be.
+
+        copyDatabase("ipinfo/ip_asn_sample.mmdb", tmpDir.resolve("ip_asn_sample.mmdb"));
+        copyDatabase("ipinfo/ip_geolocation_sample.mmdb", tmpDir.resolve("ip_geolocation_sample.mmdb"));
+        copyDatabase("ipinfo/asn_sample.mmdb", tmpDir.resolve("asn_sample.mmdb"));
+        copyDatabase("ipinfo/ip_country_sample.mmdb", tmpDir.resolve("ip_country_sample.mmdb"));
+        copyDatabase("ipinfo/privacy_detection_sample.mmdb", tmpDir.resolve("privacy_detection_sample.mmdb"));
+
+        assertThat(parseDatabaseFromType("ip_asn_sample.mmdb"), is(Database.AsnV2));
+        assertThat(parseDatabaseFromType("ip_geolocation_sample.mmdb"), is(Database.CityV2));
+        assertThat(parseDatabaseFromType("asn_sample.mmdb"), is(Database.AsnV2));
+        assertThat(parseDatabaseFromType("ip_country_sample.mmdb"), is(Database.CountryV2));
+        assertThat(parseDatabaseFromType("privacy_detection_sample.mmdb"), is(Database.PrivacyDetection));
+
+        // additional cases where we're bailing early on types we don't support
+        assertThat(IpinfoIpDataLookups.getIpinfoDatabase("ipinfo ip_country_asn_sample.mmdb"), nullValue());
+        assertThat(IpinfoIpDataLookups.getIpinfoDatabase("ipinfo privacy_detection_extended_sample.mmdb"), nullValue());
+    }
+
+    private Database parseDatabaseFromType(String databaseFile) throws IOException {
+        return IpinfoIpDataLookups.getIpinfoDatabase(MMDBUtil.getDatabaseType(tmpDir.resolve(databaseFile)));
     }
 
     private static void assertDatabaseInvariants(final Path databasePath, final BiConsumer<InetAddress, Map<String, Object>> rowConsumer) {

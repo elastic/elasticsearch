@@ -70,18 +70,15 @@ public class ScriptTermStats {
     public int matchedTermsCount() {
         final int docId = docIdSupplier.getAsInt();
         int matchedTerms = 0;
+        advancePostings(docId);
 
-        try {
-            advancePostings(docId);
-            for (PostingsEnum postingsEnum : postingsSupplier.get()) {
-                if (postingsEnum != null && postingsEnum.docID() == docId && postingsEnum.freq() > 0) {
-                    matchedTerms++;
-                }
+        for (PostingsEnum postingsEnum : postingsSupplier.get()) {
+            if (postingsEnum != null && postingsEnum.docID() == docId) {
+                matchedTerms++;
             }
-            return matchedTerms;
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
         }
+
+        return matchedTerms;
     }
 
     /**
@@ -176,7 +173,6 @@ public class ScriptTermStats {
 
         try {
             advancePostings(docId);
-
             for (PostingsEnum postingsEnum : postingsSupplier.get()) {
                 if (postingsEnum == null || postingsEnum.docID() != docId) {
                     continue;

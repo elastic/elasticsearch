@@ -342,12 +342,6 @@ tests:
 - class: org.elasticsearch.action.search.SearchQueryThenFetchAsyncActionTests
   method: testMinimumVersionShardDuringPhaseExecution
   issue: https://github.com/elastic/elasticsearch/issues/114611
-- class: org.elasticsearch.xpack.esql.optimizer.PhysicalPlanOptimizerTests
-  method: testPushSpatialIntersectsEvalToSource {default}
-  issue: https://github.com/elastic/elasticsearch/issues/114627
-- class: org.elasticsearch.xpack.esql.optimizer.PhysicalPlanOptimizerTests
-  method: testPushWhereEvalToSource {default}
-  issue: https://github.com/elastic/elasticsearch/issues/114628
 
 # Examples:
 #

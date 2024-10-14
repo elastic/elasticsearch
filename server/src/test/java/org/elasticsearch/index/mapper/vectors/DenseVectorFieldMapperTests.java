@@ -9,6 +9,7 @@
 
 package org.elasticsearch.index.mapper.vectors;
 
+import com.carrotsearch.randomizedtesting.annotations.Repeat;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 
 import org.apache.lucene.codecs.Codec;
@@ -2021,8 +2022,8 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
     }
 
     private static class DenseVectorSyntheticSourceSupport implements SyntheticSourceSupport {
-        private final int dims = between(512, 1000);
-        private final ElementType elementType = randomFrom(ElementType.BIT);
+        private final int dims = between(5, 1000);
+        private final ElementType elementType = randomFrom(ElementType.BYTE, ElementType.FLOAT, ElementType.BIT);
         private final boolean indexed = randomBoolean();
         private final boolean indexOptionsSet = indexed && randomBoolean();
 

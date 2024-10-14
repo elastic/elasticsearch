@@ -67,7 +67,6 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
@@ -718,7 +717,7 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
     }
 
     public void testIgnoredSourceFilteringIntegration() throws Exception {
-        MapperService mapperService = createMapperService(
+        DocumentMapper mapper = createMapperService(
             Settings.builder()
                 .put("index.mapping.total_fields.limit", 1)
                 .put("index.mapping.total_fields.ignore_dynamic_beyond_limit", true)
@@ -726,11 +725,10 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
             syntheticSourceMapping(b -> {
                 b.startObject("foo").field("type", "keyword").endObject();
             })
-        );
-        DocumentMapper mapper = mapperService.documentMapper();
+        ).documentMapper();
 
         try (Directory directory = newDirectory()) {
-            RandomIndexWriter iw = indexWriterForSyntheticSource(directory, mapperService);
+            RandomIndexWriter iw = indexWriterForSyntheticSource(directory);
             ParsedDocument doc = mapper.parse(source(b -> {
                 b.field("fieldA", "testA");
                 b.field("fieldB", "testB");

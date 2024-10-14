@@ -796,23 +796,14 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
             .build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService());
     }
 
-    protected RandomIndexWriter indexWriterForSyntheticSource(Directory directory, MapperService mapperService) throws IOException {
+    protected RandomIndexWriter indexWriterForSyntheticSource(Directory directory) throws IOException {
         // MockAnalyzer (rarely) produces random payloads that lead to failures during assertReaderEquals.
-        IndexWriterConfig iwc = new IndexWriterConfig(new StandardAnalyzer()).setCodec(
-            new PerFieldMapperCodec(Zstd814StoredFieldsFormat.Mode.BEST_SPEED, mapperService, BigArrays.NON_RECYCLING_INSTANCE)
-        );
-        return new RandomIndexWriter(random(), directory, iwc);
+        return new RandomIndexWriter(random(), directory, new StandardAnalyzer());
     }
 
     protected final String syntheticSource(DocumentMapper mapper, CheckedConsumer<XContentBuilder, IOException> build) throws IOException {
         try (Directory directory = newDirectory()) {
-            MapperService mapperService;
-            try (XContentBuilder mapping = XContentFactory.jsonBuilder().startObject()) {
-                mapper.mapping().toXContent(mapping, ToXContent.EMPTY_PARAMS);
-                mapping.endObject();
-                mapperService = createMapperService(mapping);
-            }
-            RandomIndexWriter iw = indexWriterForSyntheticSource(directory, mapperService);
+            RandomIndexWriter iw = indexWriterForSyntheticSource(directory);
             ParsedDocument doc = mapper.parse(source(build));
             doc.updateSeqID(0, 0);
             doc.version().setLongValue(0);
@@ -820,7 +811,7 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
             iw.close();
             try (DirectoryReader indexReader = wrapInMockESDirectoryReader(DirectoryReader.open(directory))) {
                 String syntheticSource = syntheticSource(mapper, indexReader, doc.docs().size() - 1);
-                roundTripSyntheticSource(mapperService, mapper, syntheticSource, indexReader);
+                roundTripSyntheticSource(mapper, syntheticSource, indexReader);
                 return syntheticSource;
             }
         }
@@ -836,14 +827,9 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
      * That's the point, really. It'll just be "close enough" for
      * round tripping.
      */
-    private void roundTripSyntheticSource(
-        MapperService mapperService,
-        DocumentMapper mapper,
-        String syntheticSource,
-        DirectoryReader reader
-    ) throws IOException {
+    private void roundTripSyntheticSource(DocumentMapper mapper, String syntheticSource, DirectoryReader reader) throws IOException {
         try (Directory roundTripDirectory = newDirectory()) {
-            RandomIndexWriter roundTripIw = indexWriterForSyntheticSource(roundTripDirectory, mapperService);
+            RandomIndexWriter roundTripIw = indexWriterForSyntheticSource(roundTripDirectory);
             ParsedDocument doc = mapper.parse(new SourceToParse("1", new BytesArray(syntheticSource), XContentType.JSON));
             // Process root and nested documents in the same way as the normal indexing chain (assuming a single document)
             doc.updateSeqID(0, 0);

@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.sql.plugin;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -57,7 +56,6 @@ import java.util.Map;
 import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.action.ActionListener.wrap;
 import static org.elasticsearch.xpack.core.ClientHelper.ASYNC_SEARCH_ORIGIN;
-import static org.elasticsearch.xpack.ql.plugin.TransportActionUtils.executeRequestWithRetryAttempt;
 import static org.elasticsearch.xpack.sql.plugin.Transports.clusterName;
 import static org.elasticsearch.xpack.sql.plugin.Transports.username;
 import static org.elasticsearch.xpack.sql.proto.Mode.CLI;
@@ -161,22 +159,11 @@ public final class TransportSqlQueryAction extends HandledTransportAction<SqlQue
         );
 
         if (Strings.hasText(request.cursor()) == false) {
-            executeRequestWithRetryAttempt(
-                clusterService,
-                listener::onFailure,
-                onFailure -> planExecutor.sql(
-                    cfg,
-                    request.query(),
-                    request.params(),
-                    wrap(p -> listener.onResponse(createResponseWithSchema(request, p, task)), onFailure)
-                ),
-                node -> transportService.sendRequest(
-                    node,
-                    SqlQueryAction.NAME,
-                    request,
-                    new ActionListenerResponseHandler<>(listener, SqlQueryResponse::new, EsExecutors.DIRECT_EXECUTOR_SERVICE)
-                ),
-                log
+            planExecutor.sql(
+                cfg,
+                request.query(),
+                request.params(),
+                wrap(p -> listener.onResponse(createResponseWithSchema(request, p, task)), listener::onFailure)
             );
         } else {
             Tuple<Cursor, ZoneId> decoded = Cursors.decodeFromStringWithZone(request.cursor(), planExecutor.writeableRegistry());

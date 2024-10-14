@@ -10,7 +10,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.util.PriorityQueue;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DelegatingActionListener;
 import org.elasticsearch.action.search.ClosePointInTimeRequest;
@@ -101,7 +100,6 @@ import static java.util.Collections.singletonList;
 import static org.elasticsearch.action.ActionListener.wrap;
 import static org.elasticsearch.xpack.ql.execution.search.extractor.AbstractFieldHitExtractor.MultiValueSupport.LENIENT;
 import static org.elasticsearch.xpack.ql.execution.search.extractor.AbstractFieldHitExtractor.MultiValueSupport.NONE;
-import static org.elasticsearch.xpack.sql.proto.VersionCompatibility.INTRODUCING_UNSIGNED_LONG;
 
 // TODO: add retry/back-off
 public class Querier {
@@ -202,7 +200,7 @@ public class Querier {
     public static SearchRequest prepareRequest(SearchSourceBuilder source, SqlConfiguration cfg, boolean includeFrozen, String... indices) {
         source.timeout(cfg.requestTimeout());
 
-        SearchRequest searchRequest = new SearchRequest(Version.fromId(INTRODUCING_UNSIGNED_LONG.id));
+        SearchRequest searchRequest = new SearchRequest();
         if (source.pointInTimeBuilder() == null) {
             searchRequest.indices(indices);
             searchRequest.indicesOptions(

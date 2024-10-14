@@ -92,9 +92,6 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
 
     private boolean ccsMinimizeRoundtrips;
 
-    @Nullable
-    private final Version minCompatibleShardNode;
-
     public static final IndicesOptions DEFAULT_INDICES_OPTIONS = IndicesOptions.strictExpandOpenAndForbidClosedIgnoreThrottled();
 
     private IndicesOptions indicesOptions = DEFAULT_INDICES_OPTIONS;
@@ -112,15 +109,10 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
     private boolean forceSyntheticSource = false;
 
     public SearchRequest() {
-        this((Version) null);
-    }
-
-    public SearchRequest(Version minCompatibleShardNode) {
         this.localClusterAlias = null;
         this.absoluteStartMillis = DEFAULT_ABSOLUTE_START_MILLIS;
         this.finalReduce = true;
-        this.minCompatibleShardNode = minCompatibleShardNode;
-        this.ccsMinimizeRoundtrips = minCompatibleShardNode == null;
+        this.ccsMinimizeRoundtrips = true;
     }
 
     /**
@@ -219,7 +211,6 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         this.localClusterAlias = localClusterAlias;
         this.absoluteStartMillis = absoluteStartMillis;
         this.finalReduce = finalReduce;
-        this.minCompatibleShardNode = searchRequest.minCompatibleShardNode;
         this.waitForCheckpoints = searchRequest.waitForCheckpoints;
         this.waitForCheckpointsTimeout = searchRequest.waitForCheckpointsTimeout;
         this.forceSyntheticSource = searchRequest.forceSyntheticSource;
@@ -263,10 +254,8 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
             finalReduce = true;
         }
         ccsMinimizeRoundtrips = in.readBoolean();
-        if (in.readBoolean()) {
-            minCompatibleShardNode = Version.readVersion(in);
-        } else {
-            minCompatibleShardNode = null;
+        if (in.getTransportVersion().before(TransportVersions.REMOVE_MIN_COMPATIBLE_SHARD_NODE) && in.readBoolean()) {
+            Version.readVersion(in); // and drop on the floor
         }
         waitForCheckpoints = in.readMap(StreamInput::readLongArray);
         waitForCheckpointsTimeout = in.readTimeValue();
@@ -302,9 +291,8 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
             out.writeBoolean(finalReduce);
         }
         out.writeBoolean(ccsMinimizeRoundtrips);
-        out.writeBoolean(minCompatibleShardNode != null);
-        if (minCompatibleShardNode != null) {
-            Version.writeVersion(minCompatibleShardNode, out);
+        if (out.getTransportVersion().before(TransportVersions.REMOVE_MIN_COMPATIBLE_SHARD_NODE)) {
+            out.writeBoolean(false);
         }
         out.writeMap(waitForCheckpoints, StreamOutput::writeLongArray);
         out.writeTimeValue(waitForCheckpointsTimeout);
@@ -351,14 +339,6 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
                 validationException = addValidationError("[preference] cannot be used with point in time", validationException);
             }
         }
-        if (minCompatibleShardNode() != null) {
-            if (isCcsMinimizeRoundtrips()) {
-                validationException = addValidationError(
-                    "[ccs_minimize_roundtrips] cannot be [true] when setting a minimum compatible " + "shard version",
-                    validationException
-                );
-            }
-        }
         if (pointInTimeBuilder() != null && waitForCheckpoints.isEmpty() == false) {
             validationException = addValidationError("using [point in time] is not allowed with wait_for_checkpoints", validationException);
 
@@ -399,15 +379,6 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
      */
     long getAbsoluteStartMillis() {
         return absoluteStartMillis;
-    }
-
-    /**
-     * Returns the minimum compatible shard version the search request needs to run on. If the version is null, then there are no
-     * restrictions imposed on shards versions part of this search.
-     */
-    @Nullable
-    public Version minCompatibleShardNode() {
-        return minCompatibleShardNode;
     }
 
     /**
@@ -818,7 +789,6 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
             && Objects.equals(localClusterAlias, that.localClusterAlias)
             && absoluteStartMillis == that.absoluteStartMillis
             && ccsMinimizeRoundtrips == that.ccsMinimizeRoundtrips
-            && Objects.equals(minCompatibleShardNode, that.minCompatibleShardNode)
             && forceSyntheticSource == that.forceSyntheticSource;
     }
 
@@ -840,7 +810,6 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
             localClusterAlias,
             absoluteStartMillis,
             ccsMinimizeRoundtrips,
-            minCompatibleShardNode,
             forceSyntheticSource
         );
     }

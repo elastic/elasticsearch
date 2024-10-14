@@ -964,19 +964,9 @@ create logsdb data stream with multi-fields on host.name and no sorting:
           data_stream: {}
 
   - do:
+      catch: bad_request
       indices.create_data_stream:
         name: logsdb-no-sort-multi-fields
-  - is_true: acknowledged
 
-  - do:
-      indices.get_data_stream:
-        name: logsdb-no-sort-multi-fields
-
-  - set: { data_streams.0.indices.0.index_name: backing_index }
-  - do:
-      indices.get_mapping:
-        index: $backing_index
-
-  - match: { .$backing_index.mappings.properties.@timestamp.type: date }
-  - match: { .$backing_index.mappings.properties.host.properties.name.fields.keyword.type: keyword }
-  - match: { .$backing_index.mappings.properties.host.properties.name.fields.keyword.ignore_above: null }
+  - match: { error.type: "illegal_argument_exception" }
+  - match: { error.reason: "docvalues not found for index sort field:[host.name]" }

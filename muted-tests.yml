@@ -387,6 +387,9 @@ tests:
 - class: org.elasticsearch.xpack.enrich.EnrichRestIT
   method: test {p0=enrich/30_tsdb_index/enrich documents over _bulk}
   issue: https://github.com/elastic/elasticsearch/issues/114761
+- class: org.elasticsearch.xpack.enrich.EnrichRestIT
+  method: test {p0=enrich/20_standard_index/enrich documents over _bulk via an alias}
+  issue: https://github.com/elastic/elasticsearch/issues/114763
 
 # Examples:
 #

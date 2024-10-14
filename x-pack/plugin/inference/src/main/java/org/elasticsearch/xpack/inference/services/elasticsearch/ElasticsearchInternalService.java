@@ -797,7 +797,7 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
     public List<DefaultConfigId> defaultConfigIds() {
         return List.of(new DefaultConfigId(DEFAULT_ELSER_ID, TaskType.SPARSE_EMBEDDING, this));
     }
-    
+
     @Override
     public void updateModelsWithDynamicFields(List<Model> models, ActionListener<List<Model>> listener) {
         var modelsByDeploymentIds = new HashMap<String, ElasticsearchInternalModel>();

@@ -192,12 +192,22 @@ public interface InferenceService extends Closeable {
         return supportedStreamingTasks().contains(taskType);
     }
 
+    record DefaultConfigId(String inferenceId, TaskType taskType, InferenceService service) {};
+
     /**
-     * A service can define default configurations that can be
-     * used out of the box without creating an endpoint first.
-     * @return Default configurations provided by this service
+     * Get the Ids and task type of any default configurations provided by this service
+     * @return Defaults
      */
-    default List<UnparsedModel> defaultConfigs() {
+    default List<DefaultConfigId> defaultConfigIds() {
         return List.of();
+    }
+
+    /**
+     * Call the listener with the default model configurations defined by
+     * the service
+     * @param defaultsListener The listener
+     */
+    default void defaultConfigs(ActionListener<List<Model>> defaultsListener) {
+        defaultsListener.onResponse(List.of());
     }
 }

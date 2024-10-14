@@ -1780,7 +1780,8 @@ public class IndicesService extends AbstractLifecycleComponent
             client,
             nowInMillis,
             clusterService::state,
-            this::getTimestampFieldTypeInfo
+            this::getTimestampFieldTypeInfo,
+            imd -> new IndexSettings(imd, settings)
         );
     }
 

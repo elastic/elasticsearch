@@ -1250,7 +1250,8 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
                 mock(Client.class),
                 System::currentTimeMillis,
                 () -> clusterState,
-                fields::get
+                fields::get,
+                ignored -> null
             );
         }
     }

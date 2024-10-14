@@ -17,6 +17,7 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.mapper.DataTierFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.index.mapper.ValueFetcher;
@@ -38,13 +39,13 @@ import static org.hamcrest.Matchers.containsString;
 public class DataTierFieldTypeTests extends MapperServiceTestCase {
 
     public void testPrefixQuery() throws IOException {
-        MappedFieldType ft = DataTierFieldMapper.DataTierFieldType.INSTANCE;
+        MappedFieldType ft = DataTierFieldType.INSTANCE;
         assertEquals(new MatchAllDocsQuery(), ft.prefixQuery("data_w", null, createContext()));
         assertEquals(new MatchNoDocsQuery(), ft.prefixQuery("noSuchRole", null, createContext()));
     }
 
     public void testWildcardQuery() {
-        MappedFieldType ft = DataTierFieldMapper.DataTierFieldType.INSTANCE;
+        MappedFieldType ft = DataTierFieldType.INSTANCE;
         assertEquals(new MatchAllDocsQuery(), ft.wildcardQuery("data_w*", null, createContext()));
         assertEquals(new MatchAllDocsQuery(), ft.wildcardQuery("data_warm", null, createContext()));
         assertEquals(new MatchAllDocsQuery(), ft.wildcardQuery("Data_Warm", null, true, createContext()));
@@ -56,7 +57,7 @@ public class DataTierFieldTypeTests extends MapperServiceTestCase {
     }
 
     public void testTermQuery() {
-        MappedFieldType ft = DataTierFieldMapper.DataTierFieldType.INSTANCE;
+        MappedFieldType ft = DataTierFieldType.INSTANCE;
         assertEquals(new MatchAllDocsQuery(), ft.termQuery("data_warm", createContext()));
         assertEquals(new MatchNoDocsQuery(), ft.termQuery("data_hot", createContext()));
         assertEquals(new MatchNoDocsQuery(), ft.termQuery("noSuchRole", createContext()));
@@ -66,7 +67,7 @@ public class DataTierFieldTypeTests extends MapperServiceTestCase {
     }
 
     public void testTermsQuery() {
-        MappedFieldType ft = DataTierFieldMapper.DataTierFieldType.INSTANCE;
+        MappedFieldType ft = DataTierFieldType.INSTANCE;
         assertEquals(new MatchAllDocsQuery(), ft.termsQuery(Arrays.asList("data_warm"), createContext()));
         assertEquals(new MatchNoDocsQuery(), ft.termsQuery(Arrays.asList("data_cold", "data_frozen"), createContext()));
 
@@ -75,13 +76,13 @@ public class DataTierFieldTypeTests extends MapperServiceTestCase {
     }
 
     public void testExistsQuery() {
-        MappedFieldType ft = DataTierFieldMapper.DataTierFieldType.INSTANCE;
+        MappedFieldType ft = DataTierFieldType.INSTANCE;
         assertEquals(new MatchAllDocsQuery(), ft.existsQuery(createContext()));
         assertEquals(new MatchNoDocsQuery(), ft.existsQuery(createContextWithoutSetting()));
     }
 
     public void testRegexpQuery() {
-        MappedFieldType ft = DataTierFieldMapper.DataTierFieldType.INSTANCE;
+        MappedFieldType ft = DataTierFieldType.INSTANCE;
         QueryShardException e = expectThrows(
             QueryShardException.class,
             () -> assertEquals(new MatchAllDocsQuery(), ft.regexpQuery("ind.x", 0, 0, 10, null, createContext()))
@@ -90,7 +91,7 @@ public class DataTierFieldTypeTests extends MapperServiceTestCase {
     }
 
     public void testFetchValue() throws IOException {
-        MappedFieldType ft = DataTierFieldMapper.DataTierFieldType.INSTANCE;
+        MappedFieldType ft = DataTierFieldType.INSTANCE;
         Source source = Source.empty(XContentType.JSON);
 
         List<Object> ignoredValues = new ArrayList<>();
@@ -140,6 +141,6 @@ public class DataTierFieldTypeTests extends MapperServiceTestCase {
 
     @Override
     public MappedFieldType getMappedFieldType() {
-        return DataTierFieldMapper.DataTierFieldType.INSTANCE;
+        return DataTierFieldType.INSTANCE;
     }
 }

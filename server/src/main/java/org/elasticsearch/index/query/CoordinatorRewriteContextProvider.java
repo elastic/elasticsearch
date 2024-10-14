@@ -11,8 +11,10 @@ package org.elasticsearch.index.query;
 
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.shard.IndexLongFieldRange;
 import org.elasticsearch.indices.DateFieldRangeInfo;
@@ -28,19 +30,22 @@ public class CoordinatorRewriteContextProvider {
     private final LongSupplier nowInMillis;
     private final Supplier<ClusterState> clusterStateSupplier;
     private final Function<Index, DateFieldRangeInfo> mappingSupplier;
+    private final Function<IndexMetadata, IndexSettings> indexSettingsSupplier;
 
     public CoordinatorRewriteContextProvider(
         XContentParserConfiguration parserConfig,
         Client client,
         LongSupplier nowInMillis,
         Supplier<ClusterState> clusterStateSupplier,
-        Function<Index, DateFieldRangeInfo> mappingSupplier
+        Function<Index, DateFieldRangeInfo> mappingSupplier,
+        Function<IndexMetadata, IndexSettings> indexSettingsSupplier
     ) {
         this.parserConfig = parserConfig;
         this.client = client;
         this.nowInMillis = nowInMillis;
         this.clusterStateSupplier = clusterStateSupplier;
         this.mappingSupplier = mappingSupplier;
+        this.indexSettingsSupplier = indexSettingsSupplier;
     }
 
     @Nullable
@@ -74,7 +79,8 @@ public class CoordinatorRewriteContextProvider {
             parserConfig,
             client,
             nowInMillis,
-            new DateFieldRangeInfo(timestampFieldType, timestampRange, dateFieldRangeInfo.eventIngestedFieldType(), eventIngestedRange)
+            new DateFieldRangeInfo(timestampFieldType, timestampRange, dateFieldRangeInfo.eventIngestedFieldType(), eventIngestedRange),
+            indexSettingsSupplier.apply(indexMetadata)
         );
     }
 }

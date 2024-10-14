@@ -13,6 +13,8 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.mapper.DataTierFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.shard.IndexLongFieldRange;
@@ -43,7 +45,8 @@ public class CoordinatorRewriteContext extends QueryRewriteContext {
         XContentParserConfiguration parserConfig,
         Client client,
         LongSupplier nowInMillis,
-        DateFieldRangeInfo dateFieldRangeInfo
+        DateFieldRangeInfo dateFieldRangeInfo,
+        IndexSettings indexSettings
     ) {
         super(
             parserConfig,
@@ -52,7 +55,7 @@ public class CoordinatorRewriteContext extends QueryRewriteContext {
             null,
             MappingLookup.EMPTY,
             Collections.emptyMap(),
-            null,
+            indexSettings,
             null,
             null,
             null,
@@ -75,9 +78,10 @@ public class CoordinatorRewriteContext extends QueryRewriteContext {
             return dateFieldRangeInfo.timestampFieldType();
         } else if (IndexMetadata.EVENT_INGESTED_FIELD_NAME.equals(fieldName)) {
             return dateFieldRangeInfo.eventIngestedFieldType();
-        } else {
-            return null;
+        } else if (DataTierFieldType.NAME.equals(fieldName)) {
+            return DataTierFieldType.INSTANCE;
         }
+        return null;
     }
 
     /**

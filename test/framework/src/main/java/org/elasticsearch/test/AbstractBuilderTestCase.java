@@ -631,7 +631,7 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
                 dateFieldType,
                 IndexLongFieldRange.NO_SHARDS.extendWithShardRange(0, 1, ShardLongFieldRange.of(min, max))
             );
-            return new CoordinatorRewriteContext(parserConfiguration, this.client, () -> nowInMillis, timestampFieldInfo);
+            return new CoordinatorRewriteContext(parserConfiguration, this.client, () -> nowInMillis, timestampFieldInfo, null);
         }
 
         DataRewriteContext createDataContext() {

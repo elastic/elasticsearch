@@ -222,9 +222,8 @@ Defaults to `l2_norm` when `element_type: bit` otherwise defaults to `cosine`.
 
 NOTE: `bit` vectors only support `l2_norm` as their similarity metric.
 
-+
 ^*^ This parameter can only be specified when `index` is `true`.
-+
+
 .Valid values for `similarity`
 [%collapsible%open]
 ====

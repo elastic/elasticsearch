@@ -347,11 +347,6 @@ public class TransportSimulateBulkAction extends TransportAbstractBulkAction {
         @Nullable CompressedXContent compressedXContent1,
         @Nullable CompressedXContent compressedXContent2
     ) throws IOException {
-        // if (compressedXContent1 == null) {
-        // return compressedXContent2;
-        // } else if (compressedXContent2 == null) {
-        // return compressedXContent1;
-        // }
         Map<String, Object> map1;
         if (compressedXContent1 == null) {
             map1 = new HashMap<>();

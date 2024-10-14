@@ -1339,7 +1339,7 @@ setup:
                     "dynamic": "strict",
                     "properties": {
                       "foo": {
-                        "type": "integer" ## clearly wrong
+                        "type": "integer"
                       }
                     }
                   }
@@ -1421,7 +1421,7 @@ setup:
                     "dynamic": "strict",
                     "properties": {
                       "foo": {
-                        "type": "integer" ## clearly wrong
+                        "type": "integer"
                       }
                     }
                   }

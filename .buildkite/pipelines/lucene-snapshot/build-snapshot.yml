@@ -1,10 +1,8 @@
 steps:
   - trigger: apache-lucene-build-snapshot
-    label: Trigger pipeline to build lucene 10 snapshot
+    label: Trigger pipeline to build lucene snapshot
     key: lucene-build
-    if: (build.env("LUCENE_BUILD_ID") == null || build.env("LUCENE_BUILD_ID") == "")
-    build:
-      branch: branch_10_0
+    if: build.env("LUCENE_BUILD_ID") == null || build.env("LUCENE_BUILD_ID") == ""
   - wait
   - label: Upload and update lucene snapshot
     command: .buildkite/scripts/lucene-snapshot/upload-snapshot.sh

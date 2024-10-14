@@ -45,7 +45,9 @@ public class LogsIndexModeRollingUpgradeIT extends AbstractRollingUpgradeTestCas
         .module("x-pack-stack")
         .setting("xpack.security.enabled", "false")
         .setting("xpack.license.self_generated.type", "trial")
-        .setting("cluster.logsdb.enabled", "true")
+        // We upgrade from standard to logsdb, so we need to start with logsdb disabled,
+        // then later cluster.logsdb.enabled gets set to true and next rollover data stream is in logsdb mode.
+        .setting("cluster.logsdb.enabled", "false")
         .setting("stack.templates.enabled", "false")
         .build();
 
@@ -69,39 +71,6 @@ public class LogsIndexModeRollingUpgradeIT extends AbstractRollingUpgradeTestCas
           "data_stream": {},
           "priority": 500,
           "template": {
-            "mappings": {
-              "properties": {
-                "@timestamp" : {
-                  "type": "date"
-                },
-                "host.name": {
-                  "type": "keyword"
-                },
-                "method": {
-                  "type": "keyword"
-                },
-                "message": {
-                  "type": "text"
-                },
-                "ip.address": {
-                  "type": "ip"
-                }
-              }
-            }
-          }
-        }""";
-
-    private static final String LOGS_TEMPLATE = """
-        {
-          "index_patterns": [ "logs-*-*" ],
-          "data_stream": {},
-          "priority": 500,
-          "template": {
-            "settings": {
-              "index": {
-                "mode": "logsdb"
-              }
-            },
             "mappings": {
               "properties": {
                 "@timestamp" : {
@@ -169,7 +138,7 @@ public class LogsIndexModeRollingUpgradeIT extends AbstractRollingUpgradeTestCas
             assertOK(bulkIndexResponse);
             assertThat(entityAsMap(bulkIndexResponse).get("errors"), Matchers.is(false));
         } else if (isUpgradedCluster()) {
-            assertOK(client().performRequest(putTemplate(client(), "logs-template", LOGS_TEMPLATE)));
+            enableLogsdbByDefault();
             assertOK(client().performRequest(rolloverDataStream(client(), "logs-apache-production")));
             final Response bulkIndexResponse = client().performRequest(bulkIndex("logs-apache-production", () -> {
                 final StringBuilder sb = new StringBuilder();
@@ -200,6 +169,18 @@ public class LogsIndexModeRollingUpgradeIT extends AbstractRollingUpgradeTestCas
                 matchesMap().extraOk().entry("_source", Map.of("mode", "synthetic"))
             );
         }
+    }
+
+    private static void enableLogsdbByDefault() throws IOException {
+        var request = new Request("PUT", "/_cluster/settings");
+        request.setJsonEntity("""
+            {
+                "persistent": {
+                    "cluster.logsdb.enabled": true
+                }
+            }
+            """);
+        assertOK(client().performRequest(request));
     }
 
     private void assertIndexMappingsAndSettings(int backingIndex, final Matcher<Object> indexModeMatcher, final MapMatcher mappingsMatcher)

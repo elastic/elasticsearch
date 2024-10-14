@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.inference.external.request.amazonbedrock.completion;
 
-import com.amazonaws.services.bedrockruntime.model.ConverseRequest;
+import software.amazon.awssdk.services.bedrockruntime.model.ConverseRequest;
 
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
@@ -52,11 +52,11 @@ public class AmazonBedrockChatCompletionRequest extends AmazonBedrockRequest {
     }
 
     private ConverseRequest getConverseRequest() {
-        var converseRequest = new ConverseRequest().withModelId(amazonBedrockModel.model());
+        var converseRequest = ConverseRequest.builder().modelId(amazonBedrockModel.model());
         converseRequest = requestEntity.addMessages(converseRequest);
         converseRequest = requestEntity.addInferenceConfig(converseRequest);
         converseRequest = requestEntity.addAdditionalModelFields(converseRequest);
-        return converseRequest;
+        return converseRequest.build();
     }
 
     public void executeChatCompletionRequest(

@@ -388,14 +388,6 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
             );
         }
 
-        if (modelVariantDoesNotMatchArchitecturesAndIsNotPlatformAgnostic(preferredModelVariant, esServiceSettingsBuilder.getModelId())) {
-            throw new IllegalArgumentException(
-                "Error parsing request config, model id does not match any models available on this platform. Was ["
-                    + esServiceSettingsBuilder.getModelId()
-                    + "]"
-            );
-        }
-
         throwIfNotEmptyMap(config, name());
         throwIfNotEmptyMap(serviceSettingsMap, name());
 
@@ -407,19 +399,6 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
                 new ElserInternalServiceSettings(esServiceSettingsBuilder.build()),
                 ElserMlNodeTaskSettings.DEFAULT,
                 chunkingSettings
-            )
-        );
-    }
-
-    private static boolean modelVariantDoesNotMatchArchitecturesAndIsNotPlatformAgnostic(
-        PreferredModelVariant preferredModelVariant,
-        String modelId
-    ) {
-        return modelId.equals(
-            selectDefaultModelVariantBasedOnClusterArchitecture(
-                preferredModelVariant,
-                MULTILINGUAL_E5_SMALL_MODEL_ID_LINUX_X86,
-                MULTILINGUAL_E5_SMALL_MODEL_ID
             )
         );
     }
@@ -799,7 +778,10 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
     }
 
     public List<DefaultConfigId> defaultConfigIds() {
-        return List.of(new DefaultConfigId(DEFAULT_ELSER_ID, TaskType.SPARSE_EMBEDDING, this));
+        return List.of(
+            new DefaultConfigId(DEFAULT_ELSER_ID, TaskType.SPARSE_EMBEDDING, this),
+            new DefaultConfigId(DEFAULT_E5_ID, TaskType.TEXT_EMBEDDING, this)
+        );
     }
 
     /**
@@ -839,8 +821,19 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
             ElserMlNodeTaskSettings.DEFAULT,
             null // default chunking settings
         );
-
-        return List.of(defaultElser);
+        var defaultE5 = new MultilingualE5SmallModel(
+            DEFAULT_E5_ID,
+            TaskType.TEXT_EMBEDDING,
+            NAME,
+            new MultilingualE5SmallInternalServiceSettings(
+                null,
+                1,
+                useLinuxOptimizedModel ? MULTILINGUAL_E5_SMALL_MODEL_ID_LINUX_X86 : MULTILINGUAL_E5_SMALL_MODEL_ID,
+                new AdaptiveAllocationsSettings(Boolean.TRUE, 1, 8)
+            ),
+            null // default chunking settings
+        );
+        return List.of(defaultElser, defaultE5);
     }
 
     @Override

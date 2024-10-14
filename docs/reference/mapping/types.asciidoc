@@ -41,7 +41,7 @@ Dates::                 Date types, including <<date,`date`>> and
                                 between its subfields.
 <<parent-join,`join`>>::        Defines a parent/child relationship for documents
                                 in the same index.
-<<parent-join,`passthrough`>>:: Provides aliases for sub-fields at the same level.
+<<passthrough,`passthrough`>>:: Provides aliases for sub-fields at the same level.
 
 
 [discrete]

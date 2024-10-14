@@ -62,8 +62,8 @@ GET my-index-000001/_search
 
 <1> An object is defined as pass-through. Its priority (required) is used for conflict resolution.
 <2> Object contents get indexed as usual, including dynamic mappings.
-<3> Sub-fields can be referenced in queries as if they're defined at the same level with the object.
-<4> Sub-fields can also be referenced including the object nam as prefix.
+<3> Sub-fields can be referenced in queries as if they're defined at the root level.
+<4> Sub-fields can also be referenced including the object name as prefix.
 
 [[passthrough-conflicts]]
 ==== Conflict resolution
@@ -104,9 +104,9 @@ PUT my-index-000002
           }
         }
       },
-      "resource-attributes": {
+      "resource.attributes": {
         "type": "passthrough",
-        "priority": 5,
+        "priority": 20,
         "properties": {
           "id": {
             "type": "keyword"
@@ -126,7 +126,7 @@ within `attributes`. `resource-attributes.id` can still be accessed using its fu
 ==== Defining sub-fields as time-series dimensions
 
 It is possible to configure a pass-through field as a container for  <<time-series-dimension,time-series dimensions>>.
-In this case, all sub-fields get annotated with the same parameter under the covers,and they're also
+In this case, all sub-fields get annotated with the same parameter under the covers, and they're also
 included in <<dimension-based-routing, routing path>> and <<tsid, tsid>> calculations, thus simplifying
 the <<tsds,TSDS>> setup:
 
@@ -134,7 +134,8 @@ the <<tsds,TSDS>> setup:
 --------------------------------------------------
 PUT _index_template/my-metrics
 {
-  "index_patterns": ["metrics-*"],
+  "index_patterns": ["metrics-mymetrics-*"],
+  "priority": 200,
   "data_stream": { },
   "template": {
     "settings": {

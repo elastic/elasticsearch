@@ -7,8 +7,8 @@
 
 package org.elasticsearch.xpack.core.security.authz.support;
 
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;

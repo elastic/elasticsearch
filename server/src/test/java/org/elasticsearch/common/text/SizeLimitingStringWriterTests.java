@@ -15,7 +15,7 @@ public class SizeLimitingStringWriterTests extends ESTestCase {
     public void testSizeIsLimited() {
         SizeLimitingStringWriter writer = new SizeLimitingStringWriter(10);
 
-        writer.write("a".repeat(10));
+        writer.write("aaaaaaaaaa");
 
         // test all the methods
         expectThrows(SizeLimitingStringWriter.SizeLimitExceededException.class, () -> writer.write('a'));

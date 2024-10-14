@@ -1,11 +1,11 @@
 pr: 114709
 summary: Remove support for wait_for_active_shards=index-setting in index close API
-area: CRUD
+area: 'Distributed'
 type: breaking
 issues: []
 breaking:
   title: Remove support for wait_for_active_shards=index-setting in index close API
-  area: Distributed
+  area: 'REST API'
   details: |-
     Since 8.0, the default behavior for closing indices has been to wait for the active shards based on the index
     setting. This parameter should no longer be used and is not supported in 9.0.

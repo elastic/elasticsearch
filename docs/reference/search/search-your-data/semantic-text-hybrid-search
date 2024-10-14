@@ -74,7 +74,7 @@ PUT semantic-hybrid-embeddings
 <1> The name of the field to contain the generated embeddings for semantic search.
 <2> The identifier of the inference endpoint that generates the embeddings based on the input text.
 <3> The name of the field to contain the original text for lexical search.
-<4> The `copy_to` field copies the contents of the `content` field into the `semantic_text` field, enabling hybrid search functionality.
+<4> The textual data stored in the `content` field will be copied to `semantic_text` and processed by the {infer} endpoint.
 
 [NOTE]
 ====

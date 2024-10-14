@@ -393,6 +393,9 @@ tests:
 - class: org.elasticsearch.xpack.enrich.EnrichRestIT
   method: test {p0=enrich/10_basic/Test enrich crud apis}
   issue: https://github.com/elastic/elasticsearch/issues/114766
+- class: org.elasticsearch.xpack.enrich.EnrichRestIT
+  method: test {p0=enrich/20_standard_index/enrich documents over _bulk}
+  issue: https://github.com/elastic/elasticsearch/issues/114768
 
 # Examples:
 #

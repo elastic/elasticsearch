@@ -405,6 +405,9 @@ tests:
 - class: org.elasticsearch.xpack.enrich.EnrichIT
   method: testEnrichSpecialTypes
   issue: https://github.com/elastic/elasticsearch/issues/114773
+- class: org.elasticsearch.xpack.security.operator.OperatorPrivilegesIT
+  method: testEveryActionIsEitherOperatorOnlyOrNonOperator
+  issue: https://github.com/elastic/elasticsearch/issues/102992
 
 # Examples:
 #

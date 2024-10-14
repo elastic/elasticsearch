@@ -35,12 +35,12 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class FileSettingsRoleMappingUpgradeIT extends ParameterizedRollingUpgradeTestCase {
 
-    private static final RunnableTestRuleAdapter versionLimit = new RunnableTestRuleAdapter(() -> {
-        assumeTrue(
+    private static final RunnableTestRuleAdapter versionLimit = new RunnableTestRuleAdapter(
+        () -> assumeTrue(
             "Only relevant when upgrading from a version before role mappings were stored in cluster state",
             getOldClusterTestVersion().after(new Version(8, 4, 0)) && getOldClusterTestVersion().before(new Version(8, 15, 0))
-        );
-    });
+        )
+    );
 
     private static final String settingsJSON = """
         {
@@ -98,7 +98,7 @@ public class FileSettingsRoleMappingUpgradeIT extends ParameterizedRollingUpgrad
             );
             assertThat(roleMappings, is(nullValue()));
         } else if (isUpgradedCluster()) {
-            // the nodes have all been upgraded. Check they read the file settings ok
+            // the nodes have all been upgraded. Check they re-processed the role mappings in the settings file on upgrade
             Request clusterStateRequest = new Request("GET", "/_cluster/state/metadata");
             List<Object> roleMappings = new XContentTestUtils.JsonMapView(entityAsMap(client().performRequest(clusterStateRequest))).get(
                 "metadata.role_mappings.role_mappings"

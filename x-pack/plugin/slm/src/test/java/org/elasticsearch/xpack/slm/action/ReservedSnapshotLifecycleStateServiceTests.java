@@ -399,7 +399,7 @@ public class ReservedSnapshotLifecycleStateServiceTests extends ESTestCase {
         AtomicReference<Exception> x = new AtomicReference<>();
 
         try (XContentParser parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, testJSON)) {
-            controller.process("operator", parser, x::set);
+            controller.process("operator", parser, randomBoolean(), x::set);
 
             assertThat(x.get(), instanceOf(IllegalStateException.class));
             assertThat(x.get().getMessage(), containsString("Error processing state change request for operator"));
@@ -419,7 +419,7 @@ public class ReservedSnapshotLifecycleStateServiceTests extends ESTestCase {
         );
 
         try (XContentParser parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, testJSON)) {
-            controller.process("operator", parser, Assert::assertNull);
+            controller.process("operator", parser, randomBoolean(), Assert::assertNull);
         }
     }
 

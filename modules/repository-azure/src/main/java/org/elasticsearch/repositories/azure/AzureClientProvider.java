@@ -335,8 +335,8 @@ class AzureClientProvider extends AbstractLifecycleComponent {
                 logger.debug("Detected error in RetryMetricsTracker", throwable);
                 metrics.errorCount++;
             }).doOnSuccess(response -> {
+                metrics.totalRequestTimeNanos += System.nanoTime() - requestStartTimeNanos;
                 if (RestStatus.isSuccessful(response.getStatusCode()) == false) {
-                    metrics.totalRequestTimeNanos += System.nanoTime() - requestStartTimeNanos;
                     metrics.errorCount++;
                     // Azure always throttles with a 429 response, see
                     // https://learn.microsoft.com/en-us/azure/azure-resource-manager/management/request-limits-and-throttling#error-code

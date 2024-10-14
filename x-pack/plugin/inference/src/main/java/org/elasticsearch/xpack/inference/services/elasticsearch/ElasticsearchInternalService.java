@@ -150,6 +150,7 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
                                 config,
                                 preferredModelVariant,
                                 serviceSettingsMap,
+                                true,
                                 chunkingSettings,
                                 modelListener
                             )
@@ -181,6 +182,7 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
                             config,
                             preferredModelVariant,
                             serviceSettingsMap,
+                            OLD_ELSER_SERVICE_NAME.equals(serviceName),
                             chunkingSettings,
                             modelListener
                         )
@@ -340,6 +342,7 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
         Map<String, Object> config,
         PreferredModelVariant preferredModelVariant,
         Map<String, Object> serviceSettingsMap,
+        boolean isElserService,
         ChunkingSettings chunkingSettings,
         ActionListener<Model> modelListener
     ) {
@@ -370,15 +373,17 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
             }
         }
 
-        DEPRECATION_LOGGER.warn(
-            DeprecationCategory.API,
-            "inference_api_elser_service",
-            "The [{}] service is deprecated and will be removed in a future release. Use the [{}] service instead, with"
-                + " [model_id] set to [{}] in the [service_settings]",
-            OLD_ELSER_SERVICE_NAME,
-            ElasticsearchInternalService.NAME,
-            defaultModelId
-        );
+        if (isElserService) {
+            DEPRECATION_LOGGER.warn(
+                DeprecationCategory.API,
+                "inference_api_elser_service",
+                "The [{}] service is deprecated and will be removed in a future release. Use the [{}] service instead, with"
+                    + " [model_id] set to [{}] in the [service_settings]",
+                OLD_ELSER_SERVICE_NAME,
+                ElasticsearchInternalService.NAME,
+                defaultModelId
+            );
+        }
 
         throwIfNotEmptyMap(config, name());
         throwIfNotEmptyMap(serviceSettingsMap, name());

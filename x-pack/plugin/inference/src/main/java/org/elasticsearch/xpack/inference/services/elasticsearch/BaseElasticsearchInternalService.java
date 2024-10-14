@@ -119,8 +119,9 @@ public abstract class BaseElasticsearchInternalService implements InferenceServi
     }
 
     @Override
-    public void stop(String inferenceEntityId, ActionListener<Boolean> listener) {
+    public void stop(String deploymentId, ActionListener<Boolean> listener) {
         // TODO check if other inference endpoints are using this deployment
+        // // get the model + deployment id and check if configured by deployment id or has a dedicated deployment
         var request = new StopTrainedModelDeploymentAction.Request(inferenceEntityId);
         request.setForce(true);
         client.execute(

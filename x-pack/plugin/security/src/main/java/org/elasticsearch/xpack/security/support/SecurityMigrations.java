@@ -141,13 +141,17 @@ public class SecurityMigrations {
 
             @Override
             public void migrate(SecurityIndexManager securityIndexManager, Client client, ActionListener<Void> listener) {
-                if (securityIndexManager.getClusterStateRoleMappings().isEmpty()) {
+                if (securityIndexManager.getClusterStateRoleMappingMetadata().getRoleMappings().isEmpty()) {
                     listener.onResponse(null);
                 }
 
                 getNativeRoleMappingsToDelete(
                     client,
-                    securityIndexManager.getClusterStateRoleMappings().stream().map(ExpressionRoleMapping::getName).toList(),
+                    securityIndexManager.getClusterStateRoleMappingMetadata()
+                        .getRoleMappings()
+                        .stream()
+                        .map(ExpressionRoleMapping::getName)
+                        .toList(),
                     ActionListener.wrap(
                         roleMappingIds -> deleteNativeRoleMappings(client, roleMappingIds.iterator(), listener),
                         listener::onFailure

@@ -75,7 +75,6 @@ public class SecurityMigrationExecutorTests extends ESTestCase {
     public void testSuccessfulMigration() {
         final int[] migrateInvocations = new int[1];
         SecurityMigrationExecutor securityMigrationExecutor = new SecurityMigrationExecutor(
-            mock(ClusterService.class),
             "test-task",
             threadPool.generic(),
             securityIndexManager,
@@ -93,7 +92,6 @@ public class SecurityMigrationExecutorTests extends ESTestCase {
     public void testNoMigrationMeetsRequirements() {
         final int[] migrateInvocationsCounter = new int[1];
         SecurityMigrationExecutor securityMigrationExecutor = new SecurityMigrationExecutor(
-            mock(ClusterService.class),
             "test-task",
             threadPool.generic(),
             securityIndexManager,
@@ -120,7 +118,6 @@ public class SecurityMigrationExecutorTests extends ESTestCase {
     public void testPartialMigration() {
         final int[] migrateInvocations = new int[1];
         SecurityMigrationExecutor securityMigrationExecutor = new SecurityMigrationExecutor(
-            mock(ClusterService.class),
             "test-task",
             threadPool.generic(),
             securityIndexManager,
@@ -151,7 +148,6 @@ public class SecurityMigrationExecutorTests extends ESTestCase {
     public void testNoMigrationNeeded() {
         final int[] migrateInvocations = new int[1];
         SecurityMigrationExecutor securityMigrationExecutor = new SecurityMigrationExecutor(
-            mock(ClusterService.class),
             "test-task",
             threadPool.generic(),
             securityIndexManager,
@@ -169,7 +165,6 @@ public class SecurityMigrationExecutorTests extends ESTestCase {
     public void testMigrationThrowsRuntimeException() {
         when(securityIndexManager.isReadyForSecurityMigration(any())).thenReturn(true);
         SecurityMigrationExecutor securityMigrationExecutor = new SecurityMigrationExecutor(
-            mock(ClusterService.class),
             "test-task",
             threadPool.generic(),
             securityIndexManager,
@@ -205,7 +200,6 @@ public class SecurityMigrationExecutorTests extends ESTestCase {
     public void testUpdateMigrationVersionThrowsException() {
         final int[] migrateInvocations = new int[1];
         SecurityMigrationExecutor securityMigrationExecutor = new SecurityMigrationExecutor(
-            mock(ClusterService.class),
             "test-task",
             threadPool.generic(),
             securityIndexManager,

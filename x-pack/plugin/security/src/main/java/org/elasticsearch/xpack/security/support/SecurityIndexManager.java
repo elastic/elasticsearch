@@ -46,7 +46,6 @@ import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.core.security.authc.support.mapper.ExpressionRoleMapping;
 import org.elasticsearch.xpack.core.security.authz.RoleMappingMetadata;
 import org.elasticsearch.xpack.security.SecurityFeatures;
 
@@ -287,8 +286,7 @@ public class SecurityIndexManager implements ClusterStateListener {
         Tuple<Boolean, Boolean> available = checkIndexAvailable(event.state());
         final boolean indexAvailableForWrite = available.v1();
         final boolean indexAvailableForSearch = available.v2();
-        final Set<ExpressionRoleMapping> clusterStateRoleMappings = RoleMappingMetadata.getFromClusterState(event.state())
-            .getRoleMappings();
+        final RoleMappingMetadata clusterStateRoleMappingMetadata = RoleMappingMetadata.getFromClusterState(event.state());
         final boolean mappingIsUpToDate = indexMetadata == null || checkIndexMappingUpToDate(event.state());
         final int migrationsVersion = getMigrationVersionFromIndexMetadata(indexMetadata);
         final SystemIndexDescriptor.MappingsVersion minClusterMappingVersion = getMinSecurityIndexMappingVersion(event.state());
@@ -329,7 +327,7 @@ public class SecurityIndexManager implements ClusterStateListener {
             allSecurityFeatures.stream()
                 .filter(feature -> featureService.clusterHasFeature(event.state(), feature))
                 .collect(Collectors.toSet()),
-            clusterStateRoleMappings
+            clusterStateRoleMappingMetadata
         );
         this.state = newState;
 
@@ -340,8 +338,8 @@ public class SecurityIndexManager implements ClusterStateListener {
         }
     }
 
-    public Set<ExpressionRoleMapping> getClusterStateRoleMappings() {
-        return state.clusterStateRoleMappings;
+    public RoleMappingMetadata getClusterStateRoleMappingMetadata() {
+        return state.clusterStateRoleMappingMetadata;
     }
 
     public static int getMigrationVersionFromIndexMetadata(IndexMetadata indexMetadata) {
@@ -724,7 +722,7 @@ public class SecurityIndexManager implements ClusterStateListener {
             null,
             null,
             Set.of(),
-            Set.of()
+            null
         );
         public final Instant creationTime;
         public final boolean isIndexUpToDate;
@@ -742,7 +740,7 @@ public class SecurityIndexManager implements ClusterStateListener {
         public final IndexMetadata.State indexState;
         public final String indexUUID;
         public final Set<NodeFeature> securityFeatures;
-        public final Set<ExpressionRoleMapping> clusterStateRoleMappings;
+        public final RoleMappingMetadata clusterStateRoleMappingMetadata;
 
         public State(
             Instant creationTime,
@@ -759,7 +757,7 @@ public class SecurityIndexManager implements ClusterStateListener {
             IndexMetadata.State indexState,
             String indexUUID,
             Set<NodeFeature> securityFeatures,
-            Set<ExpressionRoleMapping> clusterStateRoleMappings
+            RoleMappingMetadata clusterStateRoleMappingMetadata
         ) {
             this.creationTime = creationTime;
             this.isIndexUpToDate = isIndexUpToDate;
@@ -775,7 +773,7 @@ public class SecurityIndexManager implements ClusterStateListener {
             this.indexState = indexState;
             this.indexUUID = indexUUID;
             this.securityFeatures = securityFeatures;
-            this.clusterStateRoleMappings = clusterStateRoleMappings;
+            this.clusterStateRoleMappingMetadata = clusterStateRoleMappingMetadata;
         }
 
         @Override
@@ -795,7 +793,8 @@ public class SecurityIndexManager implements ClusterStateListener {
                 && Objects.equals(concreteIndexName, state.concreteIndexName)
                 && indexHealth == state.indexHealth
                 && indexState == state.indexState
-                && Objects.equals(securityFeatures, state.securityFeatures);
+                && Objects.equals(securityFeatures, state.securityFeatures)
+                && Objects.equals(clusterStateRoleMappingMetadata, state.clusterStateRoleMappingMetadata);
         }
 
         public boolean indexExists() {
@@ -816,7 +815,8 @@ public class SecurityIndexManager implements ClusterStateListener {
                 indexMappingVersion,
                 concreteIndexName,
                 indexHealth,
-                securityFeatures
+                securityFeatures,
+                clusterStateRoleMappingMetadata
             );
         }
 
@@ -853,6 +853,8 @@ public class SecurityIndexManager implements ClusterStateListener {
                 + '\''
                 + ", securityFeatures="
                 + securityFeatures
+                + ", clusterStateRoleMappingMetadata="
+                + clusterStateRoleMappingMetadata
                 + '}';
         }
     }

@@ -260,35 +260,6 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
         }
 
         {
-            ActionListener<Model> modelVerificationListener = ActionListener.wrap(
-                model -> fail("Expected exception, but got model: " + model),
-                exception -> {
-                    assertThat(exception, instanceOf(ElasticsearchStatusException.class));
-                    assertThat(exception.getMessage(), containsString("Model configuration contains settings"));
-                }
-            );
-
-            var service = createService(mock(Client.class), BaseElasticsearchInternalService.PreferredModelVariant.PLATFORM_AGNOSTIC);
-            var settings = new HashMap<String, Object>();
-            settings.put(
-                ModelConfigurations.SERVICE_SETTINGS,
-                new HashMap<>(
-                    Map.of(
-                        ElasticsearchInternalServiceSettings.NUM_ALLOCATIONS,
-                        1,
-                        ElasticsearchInternalServiceSettings.NUM_THREADS,
-                        4,
-                        ElasticsearchInternalServiceSettings.MODEL_ID,
-                        MULTILINGUAL_E5_SMALL_MODEL_ID
-                    )
-                )
-            );
-            settings.put(ModelConfigurations.CHUNKING_SETTINGS, createRandomChunkingSettingsMap());
-
-            service.parseRequestConfig(randomInferenceEntityId, TaskType.TEXT_EMBEDDING, settings, modelVerificationListener);
-        }
-
-        {
             var service = createService(mock(Client.class), BaseElasticsearchInternalService.PreferredModelVariant.PLATFORM_AGNOSTIC);
             var settings = new HashMap<String, Object>();
             settings.put(

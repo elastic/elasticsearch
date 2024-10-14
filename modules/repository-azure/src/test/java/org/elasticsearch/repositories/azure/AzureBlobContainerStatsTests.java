@@ -48,7 +48,7 @@ public class AzureBlobContainerStatsTests extends AbstractAzureServerTestCase {
             os.write(blobContent);
             os.flush();
         });
-        // BATCH_DELETE
+        // BLOB_BATCH
         blobStore.deleteBlobsIgnoringIfNotExists(purpose, List.of(randomIdentifier(), randomIdentifier(), randomIdentifier()).iterator());
 
         Map<String, Long> stats = blobStore.stats();
@@ -58,7 +58,7 @@ public class AzureBlobContainerStatsTests extends AbstractAzureServerTestCase {
         assertEquals(statsMapString, Long.valueOf(1L), stats.get(statsKey(purpose, AzureBlobStore.Operation.GET_BLOB_PROPERTIES)));
         assertEquals(statsMapString, Long.valueOf(1L), stats.get(statsKey(purpose, AzureBlobStore.Operation.PUT_BLOCK)));
         assertEquals(statsMapString, Long.valueOf(1L), stats.get(statsKey(purpose, AzureBlobStore.Operation.PUT_BLOCK_LIST)));
-        assertEquals(statsMapString, Long.valueOf(1L), stats.get(statsKey(purpose, AzureBlobStore.Operation.BATCH_DELETE)));
+        assertEquals(statsMapString, Long.valueOf(1L), stats.get(statsKey(purpose, AzureBlobStore.Operation.BLOB_BATCH)));
     }
 
     public void testOperationPurposeIsNotReflectedInBlobStoreStatsWhenNotServerless() throws IOException {
@@ -83,7 +83,7 @@ public class AzureBlobContainerStatsTests extends AbstractAzureServerTestCase {
                 os.write(blobContent);
                 os.flush();
             });
-            // BATCH_DELETE
+            // BLOB_BATCH
             blobStore.deleteBlobsIgnoringIfNotExists(
                 purpose,
                 List.of(randomIdentifier(), randomIdentifier(), randomIdentifier()).iterator()
@@ -97,7 +97,7 @@ public class AzureBlobContainerStatsTests extends AbstractAzureServerTestCase {
         assertEquals(statsMapString, Long.valueOf(repeatTimes), stats.get(AzureBlobStore.Operation.GET_BLOB_PROPERTIES.getKey()));
         assertEquals(statsMapString, Long.valueOf(repeatTimes), stats.get(AzureBlobStore.Operation.PUT_BLOCK.getKey()));
         assertEquals(statsMapString, Long.valueOf(repeatTimes), stats.get(AzureBlobStore.Operation.PUT_BLOCK_LIST.getKey()));
-        assertEquals(statsMapString, Long.valueOf(repeatTimes), stats.get(AzureBlobStore.Operation.BATCH_DELETE.getKey()));
+        assertEquals(statsMapString, Long.valueOf(repeatTimes), stats.get(AzureBlobStore.Operation.BLOB_BATCH.getKey()));
     }
 
     private static String statsKey(OperationPurpose purpose, AzureBlobStore.Operation operation) {

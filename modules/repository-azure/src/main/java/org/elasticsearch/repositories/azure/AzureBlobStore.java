@@ -150,7 +150,7 @@ public class AzureBlobStore implements BlobStore {
                     && isPutBlockListRequest(httpMethod, url) == false,
                 Operation.PUT_BLOB
             ),
-            new RequestMatcher(AzureBlobStore::isBatchDelete, Operation.BATCH_DELETE)
+            new RequestMatcher(AzureBlobStore::isBlobBatch, Operation.BLOB_BATCH)
         );
 
         this.requestMetricsHandler = (purpose, method, url, metrics) -> {
@@ -175,7 +175,7 @@ public class AzureBlobStore implements BlobStore {
         };
     }
 
-    private static boolean isBatchDelete(HttpMethod method, URL url) {
+    private static boolean isBlobBatch(HttpMethod method, URL url) {
         return method == HttpMethod.POST && url.getQuery() != null && url.getQuery().contains("comp=batch");
     }
 
@@ -691,7 +691,7 @@ public class AzureBlobStore implements BlobStore {
         PUT_BLOB("PutBlob"),
         PUT_BLOCK("PutBlock"),
         PUT_BLOCK_LIST("PutBlockList"),
-        BATCH_DELETE("BatchDelete");
+        BLOB_BATCH("BlobBatch");
 
         private final String key;
 

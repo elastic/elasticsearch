@@ -127,7 +127,7 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
                 MachineLearning.MAX_MACHINE_MEMORY_PERCENT,
                 MachineLearningField.USE_AUTO_MACHINE_MEMORY_PERCENT,
                 MachineLearning.MAX_OPEN_JOBS_PER_NODE,
-                MachineLearning.MAX_LAZY_ML_NODES,
+                MachineLearningField.MAX_LAZY_ML_NODES,
                 MachineLearning.MAX_ML_NODE_SIZE,
                 MachineLearning.ALLOCATED_PROCESSORS_SCALE
             )
@@ -2079,7 +2079,7 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
 
     private TrainedModelAssignmentClusterService createClusterService(int maxLazyNodes) {
         return new TrainedModelAssignmentClusterService(
-            Settings.builder().put(MachineLearning.MAX_LAZY_ML_NODES.getKey(), maxLazyNodes).build(),
+            Settings.builder().put(MachineLearningField.MAX_LAZY_ML_NODES.getKey(), maxLazyNodes).build(),
             clusterService,
             threadPool,
             nodeLoadDetector,

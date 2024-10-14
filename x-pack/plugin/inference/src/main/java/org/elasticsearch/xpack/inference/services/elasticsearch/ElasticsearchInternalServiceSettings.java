@@ -122,6 +122,18 @@ public class ElasticsearchInternalServiceSettings implements ServiceSettings {
         this.adaptiveAllocationsSettings = other.adaptiveAllocationsSettings;
     }
 
+    /**
+     * Copy constructor with the ability to set the number of allocations. Used for Update API.
+     * @param other the existing settings
+     * @param numAllocations the new number of allocations
+     */
+    public ElasticsearchInternalServiceSettings(ElasticsearchInternalServiceSettings other, int numAllocations) {
+        this.numAllocations = numAllocations;
+        this.numThreads = other.numThreads;
+        this.modelId = other.modelId;
+        this.adaptiveAllocationsSettings = other.adaptiveAllocationsSettings;
+    }
+
     public ElasticsearchInternalServiceSettings(StreamInput in) throws IOException {
         if (in.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_ADAPTIVE_ALLOCATIONS)) {
             this.numAllocations = in.readOptionalVInt();

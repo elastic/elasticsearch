@@ -210,7 +210,7 @@ After performing the hybrid search, the query will return the top 10 documents t
     "max_score": null,
     "hits": [
       {
-        "_index": "semantic-embeddings", <1>
+        "_index": "semantic-embeddings",
         "_id": "wv65epIBEMBRnhfTsOFM", <2>
         "_score": 0.032786883, <3>
         "_rank": 1,

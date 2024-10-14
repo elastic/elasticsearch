@@ -5,13 +5,11 @@ steps:
     steps:
       - label: "{{matrix.image}} / docker / packaging-tests-unix"
         key: "packaging-tests-unix-docker"
-        command: ./.ci/scripts/packaging-test.sh destructiveDistroTest.docker
+        command: ./.ci/scripts/packaging-test.sh destructiveDistroTest.docker-cloud-ess
         timeout_in_minutes: 300
         matrix:
           setup:
             image:
-              - centos-7
-              - debian-10
               - debian-11
               - opensuse-leap-15
               - oraclelinux-7
@@ -39,8 +37,6 @@ steps:
         matrix:
           setup:
             image:
-              - centos-7
-              - debian-10
               - debian-11
               - opensuse-leap-15
               - oraclelinux-7
@@ -68,8 +64,6 @@ steps:
         matrix:
           setup:
             image:
-              - centos-7
-              - debian-10
               - debian-11
               - opensuse-leap-15
               - oraclelinux-7

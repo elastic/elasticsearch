@@ -171,17 +171,6 @@ public class AdaptiveAllocationsScalerService implements ClusterStateListener {
             }
             return observations;
         }
-
-        void close() {
-            for (AutoCloseable metric : metrics) {
-                try {
-                    metric.close();
-                } catch (Exception e) {
-                    // do nothing
-                }
-            }
-            metrics.clear();
-        }
     }
 
     /**
@@ -259,12 +248,17 @@ public class AdaptiveAllocationsScalerService implements ClusterStateListener {
     }
 
     public synchronized void stop() {
+        clusterService.removeListener(this);
         stopScheduling();
-        metrics.close();
+        scalers.clear();
     }
 
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
+        if (event.metadataChanged() == false) {
+            return;
+        }
+
         updateAutoscalers(event.state());
         if (scalers.isEmpty() == false) {
             startScheduling();
@@ -410,49 +404,59 @@ public class AdaptiveAllocationsScalerService implements ClusterStateListener {
                 if (newNumberOfAllocations > numberOfAllocations.get(deploymentId)) {
                     lastScaleUpTimesMillis.put(deploymentId, now);
                 }
-                UpdateTrainedModelDeploymentAction.Request updateRequest = new UpdateTrainedModelDeploymentAction.Request(deploymentId);
-                updateRequest.setNumberOfAllocations(newNumberOfAllocations);
-                updateRequest.setIsInternal(true);
-                ClientHelper.executeAsyncWithOrigin(
-                    client,
-                    ClientHelper.ML_ORIGIN,
-                    UpdateTrainedModelDeploymentAction.INSTANCE,
-                    updateRequest,
-                    ActionListener.wrap(updateResponse -> {
-                        logger.info("adaptive allocations scaler: scaled [{}] to [{}] allocations.", deploymentId, newNumberOfAllocations);
-                        threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME)
-                            .execute(
-                                () -> inferenceAuditor.info(
-                                    deploymentId,
-                                    Strings.format(
-                                        "adaptive allocations scaler: scaled [%s] to [%s] allocations.",
-                                        deploymentId,
-                                        newNumberOfAllocations
-                                    )
-                                )
-                            );
-                    }, e -> {
-                        logger.atLevel(Level.WARN)
-                            .withThrowable(e)
-                            .log(
-                                "adaptive allocations scaler: scaling [{}] to [{}] allocations failed.",
-                                deploymentId,
-                                newNumberOfAllocations
-                            );
-                        threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME)
-                            .execute(
-                                () -> inferenceAuditor.warning(
-                                    deploymentId,
-                                    Strings.format(
-                                        "adaptive allocations scaler: scaling [%s] to [%s] allocations failed.",
-                                        deploymentId,
-                                        newNumberOfAllocations
-                                    )
-                                )
-                            );
-                    })
-                );
+                updateNumberOfAllocations(deploymentId, newNumberOfAllocations);
             }
         }
+    }
+
+    public boolean maybeStartAllocation(TrainedModelAssignment assignment) {
+        if (assignment.getAdaptiveAllocationsSettings() != null
+            && assignment.getAdaptiveAllocationsSettings().getEnabled() == Boolean.TRUE) {
+            lastScaleUpTimesMillis.put(assignment.getDeploymentId(), System.currentTimeMillis());
+            updateNumberOfAllocations(assignment.getDeploymentId(), 1);
+            return true;
+        }
+        return false;
+    }
+
+    private void updateNumberOfAllocations(String deploymentId, int numberOfAllocations) {
+        UpdateTrainedModelDeploymentAction.Request updateRequest = new UpdateTrainedModelDeploymentAction.Request(deploymentId);
+        updateRequest.setNumberOfAllocations(numberOfAllocations);
+        updateRequest.setIsInternal(true);
+        ClientHelper.executeAsyncWithOrigin(
+            client,
+            ClientHelper.ML_ORIGIN,
+            UpdateTrainedModelDeploymentAction.INSTANCE,
+            updateRequest,
+            ActionListener.wrap(updateResponse -> {
+                logger.info("adaptive allocations scaler: scaled [{}] to [{}] allocations.", deploymentId, numberOfAllocations);
+                threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME)
+                    .execute(
+                        () -> inferenceAuditor.info(
+                            deploymentId,
+                            Strings.format(
+                                "adaptive allocations scaler: scaled [%s] to [%s] allocations.",
+                                deploymentId,
+                                numberOfAllocations
+                            )
+                        )
+                    );
+            }, e -> {
+                logger.atLevel(Level.WARN)
+                    .withThrowable(e)
+                    .log("adaptive allocations scaler: scaling [{}] to [{}] allocations failed.", deploymentId, numberOfAllocations);
+                threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME)
+                    .execute(
+                        () -> inferenceAuditor.warning(
+                            deploymentId,
+                            Strings.format(
+                                "adaptive allocations scaler: scaling [%s] to [%s] allocations failed.",
+                                deploymentId,
+                                numberOfAllocations
+                            )
+                        )
+                    );
+            })
+        );
     }
 }

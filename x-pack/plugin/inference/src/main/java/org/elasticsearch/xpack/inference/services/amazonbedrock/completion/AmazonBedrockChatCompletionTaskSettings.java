@@ -17,6 +17,7 @@ import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
@@ -152,6 +153,11 @@ public class AmazonBedrockChatCompletionTaskSettings implements TaskSettings {
     }
 
     @Override
+    public boolean isEmpty() {
+        return temperature == null && topP == null && topK == null && maxNewTokens == null;
+    }
+
+    @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         {
@@ -186,5 +192,13 @@ public class AmazonBedrockChatCompletionTaskSettings implements TaskSettings {
     @Override
     public int hashCode() {
         return Objects.hash(temperature, topP, topK, maxNewTokens);
+    }
+
+    @Override
+    public TaskSettings updatedTaskSettings(Map<String, Object> newSettings) {
+        AmazonBedrockChatCompletionRequestTaskSettings requestSettings = AmazonBedrockChatCompletionRequestTaskSettings.fromMap(
+            new HashMap<>(newSettings)
+        );
+        return of(this, requestSettings);
     }
 }

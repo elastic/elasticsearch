@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.esql.spatial;
 import org.elasticsearch.geo.ShapeTestUtils;
 import org.elasticsearch.geometry.Geometry;
 
-public class SpatialPushDownCartesianPointIT extends SpatialPushDownTestCase {
+public class SpatialPushDownCartesianPointIT extends SpatialPushDownPointsTestCase {
 
     @Override
     protected String fieldType() {
@@ -30,5 +30,11 @@ public class SpatialPushDownCartesianPointIT extends SpatialPushDownTestCase {
     @Override
     protected String castingFunction() {
         return "TO_CARTESIANSHAPE";
+    }
+
+    @Override
+    protected double searchDistance() {
+        // We search much larger distances for Cartesian, to ensure we actually get results from the much wider data range
+        return 1e12;
     }
 }

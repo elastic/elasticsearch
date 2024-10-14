@@ -29,7 +29,8 @@ public final class TransportClearRepositoriesStatsArchiveAction extends Transpor
     ClearRepositoriesMeteringArchiveRequest,
     RepositoriesMeteringResponse,
     TransportClearRepositoriesStatsArchiveAction.ClearRepositoriesStatsArchiveNodeRequest,
-    RepositoriesNodeMeteringResponse> {
+    RepositoriesNodeMeteringResponse,
+    Void> {
 
     private final RepositoriesService repositoriesService;
 

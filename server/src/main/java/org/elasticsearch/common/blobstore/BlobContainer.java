@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.blobstore;
@@ -98,8 +99,8 @@ public interface BlobContainer {
      * @param purpose             The purpose of the operation
      * @param blobName            The name of the blob to write the contents of the input stream to.
      * @param inputStream         The input stream from which to retrieve the bytes to write to the blob.
-     * @param blobSize            The size of the blob to be written, in bytes.  It is implementation dependent whether
-     *                            this value is used in writing the blob to the repository.
+     * @param blobSize            The size of the blob to be written, in bytes. Must be the amount of bytes in the input stream. It is
+     *                            implementation dependent whether this value is used in writing the blob to the repository.
      * @param failIfAlreadyExists whether to throw a FileAlreadyExistsException if the given blob already exists
      * @throws FileAlreadyExistsException if failIfAlreadyExists is true and a blob by the same name already exists
      * @throws IOException                if the input stream could not be read, or the target blob could not be written to.
@@ -144,6 +145,22 @@ public interface BlobContainer {
     ) throws IOException;
 
     /**
+     * Reads blob content from the input stream and writes it to the container in a new blob with the given name,
+     * using an atomic write operation if the implementation supports it.
+     *
+     * @param purpose             The purpose of the operation
+     * @param blobName            The name of the blob to write the contents of the input stream to.
+     * @param inputStream         The input stream from which to retrieve the bytes to write to the blob.
+     * @param blobSize            The size of the blob to be written, in bytes. Must be the amount of bytes in the input stream. It is
+     *                            implementation dependent whether this value is used in writing the blob to the repository.
+     * @param failIfAlreadyExists whether to throw a FileAlreadyExistsException if the given blob already exists
+     * @throws FileAlreadyExistsException if failIfAlreadyExists is true and a blob by the same name already exists
+     * @throws IOException                if the input stream could not be read, or the target blob could not be written to.
+     */
+    void writeBlobAtomic(OperationPurpose purpose, String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists)
+        throws IOException;
+
+    /**
      * Reads blob content from a {@link BytesReference} and writes it to the container in a new blob with the given name,
      * using an atomic write operation if the implementation supports it.
      *
@@ -154,7 +171,11 @@ public interface BlobContainer {
      * @throws FileAlreadyExistsException if failIfAlreadyExists is true and a blob by the same name already exists
      * @throws IOException                if the input stream could not be read, or the target blob could not be written to.
      */
-    void writeBlobAtomic(OperationPurpose purpose, String blobName, BytesReference bytes, boolean failIfAlreadyExists) throws IOException;
+    default void writeBlobAtomic(OperationPurpose purpose, String blobName, BytesReference bytes, boolean failIfAlreadyExists)
+        throws IOException {
+        assert assertPurposeConsistency(purpose, blobName);
+        writeBlobAtomic(purpose, blobName, bytes.streamInput(), bytes.length(), failIfAlreadyExists);
+    }
 
     /**
      * Deletes this container and all its contents from the repository.

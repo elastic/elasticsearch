@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.analysis;
 
 import org.elasticsearch.Build;
+import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
@@ -25,16 +26,20 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.paramAsConstant;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.loadMapping;
-import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
-import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
+import static org.elasticsearch.xpack.esql.core.type.DataType.COUNTER_DOUBLE;
+import static org.elasticsearch.xpack.esql.core.type.DataType.COUNTER_INTEGER;
+import static org.elasticsearch.xpack.esql.core.type.DataType.COUNTER_LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.matchesRegex;
 
 //@TestLogging(value = "org.elasticsearch.xpack.esql:TRACE,org.elasticsearch.compute:TRACE", reason = "debug")
@@ -43,6 +48,9 @@ public class VerifierTests extends ESTestCase {
     private static final EsqlParser parser = new EsqlParser();
     private final Analyzer defaultAnalyzer = AnalyzerTestUtils.expandedDefaultAnalyzer();
     private final Analyzer tsdb = AnalyzerTestUtils.analyzer(AnalyzerTestUtils.tsdbIndexResolution());
+
+    private final List<String> TIME_DURATIONS = List.of("millisecond", "second", "minute", "hour");
+    private final List<String> DATE_PERIODS = List.of("day", "week", "month", "year");
 
     public void testIncompatibleTypesInMathOperation() {
         assertEquals(
@@ -279,6 +287,17 @@ public class VerifierTests extends ESTestCase {
             "1:42: Cannot convert string [a] to [DOUBLE], error [Cannot parse number [a]]",
             error("ROW a=[3, 5, 1, 6] | EVAL avg_a = MV_AVG(\"a\")")
         );
+        assertEquals(
+            "1:19: Unknown column [languages.*], did you mean any of [languages, languages.byte, languages.long, languages.short]?",
+            error("from test | where `languages.*` in (1, 2)")
+        );
+        assertEquals("1:22: Unknown function [func]", error("from test | eval x = func(languages) | where x in (1, 2)"));
+        assertEquals(
+            "1:32: Unknown column [languages.*], did you mean any of [languages, languages.byte, languages.long, languages.short]?",
+            error("from test | eval x = coalesce( `languages.*`, languages, 0 )")
+        );
+        String error = error("from test | eval x = func(languages) | eval y = coalesce(x, languages, 0 )");
+        assertThat(error, containsString("function [func]"));
     }
 
     public void testAggsExpressionsInStatsAggs() {
@@ -677,41 +696,170 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testPeriodAndDurationInRowAssignment() {
-        for (var unit : List.of("millisecond", "second", "minute", "hour", "day", "week", "month", "year")) {
+        for (var unit : TIME_DURATIONS) {
             assertEquals("1:5: cannot use [1 " + unit + "] directly in a row assignment", error("row a = 1 " + unit));
+            assertEquals(
+                "1:5: cannot use [1 " + unit + "::time_duration] directly in a row assignment",
+                error("row a = 1 " + unit + "::time_duration")
+            );
+            assertEquals(
+                "1:5: cannot use [\"1 " + unit + "\"::time_duration] directly in a row assignment",
+                error("row a = \"1 " + unit + "\"::time_duration")
+            );
+            assertEquals(
+                "1:5: cannot use [to_timeduration(1 " + unit + ")] directly in a row assignment",
+                error("row a = to_timeduration(1 " + unit + ")")
+            );
+            assertEquals(
+                "1:5: cannot use [to_timeduration(\"1 " + unit + "\")] directly in a row assignment",
+                error("row a = to_timeduration(\"1 " + unit + "\")")
+            );
+        }
+        for (var unit : DATE_PERIODS) {
+            assertEquals("1:5: cannot use [1 " + unit + "] directly in a row assignment", error("row a = 1 " + unit));
+            assertEquals(
+                "1:5: cannot use [1 " + unit + "::date_period] directly in a row assignment",
+                error("row a = 1 " + unit + "::date_period")
+            );
+            assertEquals(
+                "1:5: cannot use [\"1 " + unit + "\"::date_period] directly in a row assignment",
+                error("row a = \"1 " + unit + "\"::date_period")
+            );
+            assertEquals(
+                "1:5: cannot use [to_dateperiod(1 " + unit + ")] directly in a row assignment",
+                error("row a = to_dateperiod(1 " + unit + ")")
+            );
+            assertEquals(
+                "1:5: cannot use [to_dateperiod(\"1 " + unit + "\")] directly in a row assignment",
+                error("row a = to_dateperiod(\"1 " + unit + "\")")
+            );
         }
     }
 
     public void testSubtractDateTimeFromTemporal() {
-        for (var unit : List.of("millisecond", "second", "minute", "hour")) {
+        for (var unit : TIME_DURATIONS) {
             assertEquals(
-                "1:5: [-] arguments are in unsupported order: cannot subtract a [DATETIME] value [now()] from a [TIME_DURATION] amount [1 "
+                "1:5: [-] arguments are in unsupported order: cannot subtract a [DATETIME] value [now()] "
+                    + "from a [TIME_DURATION] amount [1 "
                     + unit
                     + "]",
                 error("row 1 " + unit + " - now() ")
             );
-        }
-        for (var unit : List.of("day", "week", "month", "year")) {
             assertEquals(
-                "1:5: [-] arguments are in unsupported order: cannot subtract a [DATETIME] value [now()] from a [DATE_PERIOD] amount [1 "
+                "1:5: [-] arguments are in unsupported order: cannot subtract a [DATETIME] value [now()] "
+                    + "from a [TIME_DURATION] amount [1 "
+                    + unit
+                    + "::time_duration]",
+                error("row 1 " + unit + "::time_duration" + " - now() ")
+            );
+            assertEquals(
+                "1:5: [-] arguments are in unsupported order: cannot subtract a [DATETIME] value [now()] "
+                    + "from a [TIME_DURATION] amount [\"1 "
+                    + unit
+                    + "\"::time_duration]",
+                error("row \"1 " + unit + "\"::time_duration" + " - now() ")
+            );
+            assertEquals(
+                "1:5: [-] arguments are in unsupported order: cannot subtract a [DATETIME] value [now()] "
+                    + "from a [TIME_DURATION] amount [to_timeduration(1 "
+                    + unit
+                    + ")]",
+                error("row to_timeduration(1 " + unit + ") - now() ")
+            );
+            assertEquals(
+                "1:5: [-] arguments are in unsupported order: cannot subtract a [DATETIME] value [now()] "
+                    + "from a [TIME_DURATION] amount [to_timeduration(\"1 "
+                    + unit
+                    + "\")]",
+                error("row to_timeduration(\"1 " + unit + "\") - now() ")
+            );
+        }
+        for (var unit : DATE_PERIODS) {
+            assertEquals(
+                "1:5: [-] arguments are in unsupported order: cannot subtract a [DATETIME] value [now()] "
+                    + "from a [DATE_PERIOD] amount [1 "
                     + unit
                     + "]",
                 error("row 1 " + unit + " - now() ")
+            );
+            assertEquals(
+                "1:5: [-] arguments are in unsupported order: cannot subtract a [DATETIME] value [now()] "
+                    + "from a [DATE_PERIOD] amount [1 "
+                    + unit
+                    + "::date_period]",
+                error("row 1 " + unit + "::date_period" + " - now() ")
+            );
+            assertEquals(
+                "1:5: [-] arguments are in unsupported order: cannot subtract a [DATETIME] value [now()] "
+                    + "from a [DATE_PERIOD] amount [\"1 "
+                    + unit
+                    + "\"::date_period]",
+                error("row \"1 " + unit + "\"::date_period" + " - now() ")
+            );
+            assertEquals(
+                "1:5: [-] arguments are in unsupported order: cannot subtract a [DATETIME] value [now()] "
+                    + "from a [DATE_PERIOD] amount [to_dateperiod(1 "
+                    + unit
+                    + ")]",
+                error("row to_dateperiod(1 " + unit + ") - now() ")
+            );
+            assertEquals(
+                "1:5: [-] arguments are in unsupported order: cannot subtract a [DATETIME] value [now()] "
+                    + "from a [DATE_PERIOD] amount [to_dateperiod(\"1 "
+                    + unit
+                    + "\")]",
+                error("row to_dateperiod(\"1 " + unit + "\") - now() ")
             );
         }
     }
 
     public void testPeriodAndDurationInEval() {
-        for (var unit : List.of("millisecond", "second", "minute", "hour")) {
+        for (var unit : TIME_DURATIONS) {
             assertEquals(
-                "1:18: EVAL does not support type [time_duration] in expression [1 " + unit + "]",
+                "1:18: EVAL does not support type [time_duration] as the return data type of expression [1 " + unit + "]",
                 error("row x = 1 | eval y = 1 " + unit)
             );
-        }
-        for (var unit : List.of("day", "week", "month", "year")) {
             assertEquals(
-                "1:18: EVAL does not support type [date_period] in expression [1 " + unit + "]",
+                "1:18: EVAL does not support type [time_duration] as the return data type of expression [1 " + unit + "::time_duration]",
+                error("row x = 1 | eval y = 1 " + unit + "::time_duration")
+            );
+            assertEquals(
+                "1:18: EVAL does not support type [time_duration] as the return data type of expression [\"1 "
+                    + unit
+                    + "\"::time_duration]",
+                error("row x = 1 | eval y = \"1 " + unit + "\"::time_duration")
+            );
+            assertEquals(
+                "1:18: EVAL does not support type [time_duration] as the return data type of expression [to_timeduration(1 " + unit + ")]",
+                error("row x = 1 | eval y = to_timeduration(1 " + unit + ")")
+            );
+            assertEquals(
+                "1:18: EVAL does not support type [time_duration] as the return data type of expression [to_timeduration(\"1 "
+                    + unit
+                    + "\")]",
+                error("row x = 1 | eval y = to_timeduration(\"1 " + unit + "\")")
+            );
+        }
+        for (var unit : DATE_PERIODS) {
+            assertEquals(
+                "1:18: EVAL does not support type [date_period] as the return data type of expression [1 " + unit + "]",
                 error("row x = 1 | eval y = 1 " + unit)
+            );
+            assertEquals(
+                "1:18: EVAL does not support type [date_period] as the return data type of expression [1 " + unit + "::date_period]",
+                error("row x = 1 | eval y = 1 " + unit + "::date_period")
+            );
+            assertEquals(
+                "1:18: EVAL does not support type [date_period] as the return data type of expression [\"1 " + unit + "\"::date_period]",
+                error("row x = 1 | eval y = \"1 " + unit + "\"::date_period")
+            );
+            assertEquals(
+                "1:18: EVAL does not support type [date_period] as the return data type of expression [to_dateperiod(1 " + unit + ")]",
+                error("row x = 1 | eval y = to_dateperiod(1 " + unit + ")")
+            );
+            assertEquals(
+                "1:18: EVAL does not support type [date_period] as the return data type of expression [to_dateperiod(\"1 " + unit + "\")]",
+                error("row x = 1 | eval y = to_dateperiod(\"1 " + unit + "\")")
             );
         }
     }
@@ -722,6 +870,14 @@ public class VerifierTests extends ESTestCase {
 
     public void testFilterDateConstant() {
         assertEquals("1:19: Condition expression needs to be boolean, found [DATE_PERIOD]", error("from test | where 1 year"));
+        assertEquals(
+            "1:19: Condition expression needs to be boolean, found [DATE_PERIOD]",
+            error("from test | where \"1 year\"::date_period")
+        );
+        assertEquals(
+            "1:19: Condition expression needs to be boolean, found [DATE_PERIOD]",
+            error("from test | where to_dateperiod(\"1 year\")")
+        );
     }
 
     public void testNestedAggField() {
@@ -755,6 +911,25 @@ public class VerifierTests extends ESTestCase {
         assertEquals("1:36: cannot sort on cartesian_point", error("FROM airports_web | LIMIT 5 | sort location", airportsWeb));
         assertEquals("1:38: cannot sort on geo_shape", error("FROM countries_bbox | LIMIT 5 | sort shape", countriesBbox));
         assertEquals("1:42: cannot sort on cartesian_shape", error("FROM countries_bbox_web | LIMIT 5 | sort shape", countriesBboxWeb));
+    }
+
+    public void testSourceSorting() {
+        assertEquals("1:35: cannot sort on _source", error("from test metadata _source | sort _source"));
+    }
+
+    public void testCountersSorting() {
+        Map<DataType, String> counterDataTypes = Map.of(
+            COUNTER_DOUBLE,
+            "network.message_in",
+            COUNTER_INTEGER,
+            "network.message_out",
+            COUNTER_LONG,
+            "network.bytes_out"
+        );
+        for (DataType counterDT : counterDataTypes.keySet()) {
+            var fieldName = counterDataTypes.get(counterDT);
+            assertEquals("1:18: cannot sort on " + counterDT.name().toLowerCase(Locale.ROOT), error("from test | sort " + fieldName, tsdb));
+        }
     }
 
     public void testInlineImpossibleConvert() {
@@ -935,19 +1110,234 @@ public class VerifierTests extends ESTestCase {
         );
     }
 
-    public void testMatchCommand() throws Exception {
-        assumeTrue("skipping because MATCH_COMMAND is not enabled", EsqlCapabilities.Cap.MATCH_COMMAND.isEnabled());
-        assertEquals("1:24: MATCH cannot be used after LIMIT", error("from test | limit 10 | match \"Anna\""));
-        assertEquals("1:13: MATCH cannot be used after SHOW", error("show info | match \"8.16.0\""));
-        assertEquals("1:17: MATCH cannot be used after ROW", error("row a= \"Anna\" | match \"Anna\""));
-        assertEquals("1:26: MATCH cannot be used after EVAL", error("from test | eval z = 2 | match \"Anna\""));
-        assertEquals("1:43: MATCH cannot be used after DISSECT", error("from test | dissect first_name \"%{foo}\" | match \"Connection\""));
-        assertEquals("1:27: MATCH cannot be used after DROP", error("from test | drop emp_no | match \"Anna\""));
-        assertEquals("1:35: MATCH cannot be used after EVAL", error("from test | eval n = emp_no * 3 | match \"Anna\""));
-        assertEquals("1:44: MATCH cannot be used after GROK", error("from test | grok last_name \"%{WORD:foo}\" | match \"Anna\""));
-        assertEquals("1:27: MATCH cannot be used after KEEP", error("from test | keep emp_no | match \"Anna\""));
+    public void testMatchFunctionNotAllowedAfterCommands() throws Exception {
+        assumeTrue("skipping because MATCH is not enabled", EsqlCapabilities.Cap.MATCH_FUNCTION.isEnabled());
 
-        // TODO Keep adding tests for all unsupported commands
+        assertEquals(
+            "1:24: [MATCH] function cannot be used after LIMIT",
+            error("from test | limit 10 | where match(first_name, \"Anna\")")
+        );
+    }
+
+    public void testQueryStringFunctionsNotAllowedAfterCommands() throws Exception {
+        assumeTrue("skipping because QSTR is not enabled", EsqlCapabilities.Cap.QSTR_FUNCTION.isEnabled());
+
+        // Source commands
+        assertEquals("1:13: [QSTR] function cannot be used after SHOW", error("show info | where qstr(\"8.16.0\")"));
+        assertEquals("1:17: [QSTR] function cannot be used after ROW", error("row a= \"Anna\" | where qstr(\"Anna\")"));
+
+        // Processing commands
+        assertEquals(
+            "1:43: [QSTR] function cannot be used after DISSECT",
+            error("from test | dissect first_name \"%{foo}\" | where qstr(\"Connection\")")
+        );
+        assertEquals("1:27: [QSTR] function cannot be used after DROP", error("from test | drop emp_no | where qstr(\"Anna\")"));
+        assertEquals(
+            "1:71: [QSTR] function cannot be used after ENRICH",
+            error("from test | enrich languages on languages with lang = language_name | where qstr(\"Anna\")")
+        );
+        assertEquals("1:26: [QSTR] function cannot be used after EVAL", error("from test | eval z = 2 | where qstr(\"Anna\")"));
+        assertEquals(
+            "1:44: [QSTR] function cannot be used after GROK",
+            error("from test | grok last_name \"%{WORD:foo}\" | where qstr(\"Anna\")")
+        );
+        assertEquals("1:27: [QSTR] function cannot be used after KEEP", error("from test | keep emp_no | where qstr(\"Anna\")"));
+        assertEquals("1:24: [QSTR] function cannot be used after LIMIT", error("from test | limit 10 | where qstr(\"Anna\")"));
+        assertEquals(
+            "1:35: [QSTR] function cannot be used after MV_EXPAND",
+            error("from test | mv_expand last_name | where qstr(\"Anna\")")
+        );
+        assertEquals(
+            "1:45: [QSTR] function cannot be used after RENAME",
+            error("from test | rename last_name as full_name | where qstr(\"Anna\")")
+        );
+        assertEquals(
+            "1:52: [QSTR] function cannot be used after STATS",
+            error("from test | STATS c = COUNT(emp_no) BY languages | where qstr(\"Anna\")")
+        );
+
+        // Some combination of processing commands
+        assertEquals(
+            "1:38: [QSTR] function cannot be used after LIMIT",
+            error("from test | keep emp_no | limit 10 | where qstr(\"Anna\")")
+        );
+        assertEquals(
+            "1:46: [QSTR] function cannot be used after MV_EXPAND",
+            error("from test | limit 10 | mv_expand last_name | where qstr(\"Anna\")")
+        );
+        assertEquals(
+            "1:52: [QSTR] function cannot be used after KEEP",
+            error("from test | mv_expand last_name | keep last_name | where qstr(\"Anna\")")
+        );
+        assertEquals(
+            "1:77: [QSTR] function cannot be used after RENAME",
+            error("from test | STATS c = COUNT(emp_no) BY languages | rename c as total_emps | where qstr(\"Anna\")")
+        );
+        assertEquals(
+            "1:54: [QSTR] function cannot be used after KEEP",
+            error("from test | rename last_name as name | keep emp_no | where qstr(\"Anna\")")
+        );
+    }
+
+    public void testQueryStringFunctionOnlyAllowedInWhere() throws Exception {
+        assumeTrue("skipping because QSTR is not enabled", EsqlCapabilities.Cap.QSTR_FUNCTION.isEnabled());
+
+        assertEquals("1:9: [QSTR] function is only supported in WHERE commands", error("row a = qstr(\"Anna\")"));
+        checkFullTextFunctionsOnlyAllowedInWhere("QSTR", "qstr(\"Anna\")");
+    }
+
+    public void testMatchFunctionOnlyAllowedInWhere() throws Exception {
+        assumeTrue("skipping because MATCH is not enabled", EsqlCapabilities.Cap.MATCH_FUNCTION.isEnabled());
+
+        checkFullTextFunctionsOnlyAllowedInWhere("MATCH", "match(first_name, \"Anna\")");
+    }
+
+    private void checkFullTextFunctionsOnlyAllowedInWhere(String functionName, String functionInvocation) throws Exception {
+        assertEquals(
+            "1:22: [" + functionName + "] function is only supported in WHERE commands",
+            error("from test | eval y = " + functionInvocation)
+        );
+        assertEquals(
+            "1:18: [" + functionName + "] function is only supported in WHERE commands",
+            error("from test | sort " + functionInvocation + " asc")
+        );
+        assertEquals(
+            "1:23: [" + functionName + "] function is only supported in WHERE commands",
+            error("from test | STATS c = " + functionInvocation + " BY first_name")
+        );
+    }
+
+    public void testQueryStringFunctionArgNotNullOrConstant() throws Exception {
+        assumeTrue("skipping because QSTR is not enabled", EsqlCapabilities.Cap.QSTR_FUNCTION.isEnabled());
+
+        assertEquals(
+            "1:19: argument of [qstr(first_name)] must be a constant, received [first_name]",
+            error("from test | where qstr(first_name)")
+        );
+        assertEquals("1:19: argument of [qstr(null)] cannot be null, received [null]", error("from test | where qstr(null)"));
+        // Other value types are tested in QueryStringFunctionTests
+    }
+
+    public void testQueryStringWithDisjunctions() {
+        assumeTrue("skipping because QSTR is not enabled", EsqlCapabilities.Cap.QSTR_FUNCTION.isEnabled());
+
+        checkWithDisjunctions("QSTR", "qstr(\"first_name: Anna\")");
+    }
+
+    public void testMatchWithDisjunctions() {
+        assumeTrue("skipping because MATCH is not enabled", EsqlCapabilities.Cap.MATCH_FUNCTION.isEnabled());
+
+        checkWithDisjunctions("MATCH", "match(first_name, \"Anna\")");
+    }
+
+    private void checkWithDisjunctions(String functionName, String functionInvocation) {
+        assertEquals(
+            LoggerMessageFormat.format(
+                null,
+                "1:19: Invalid condition [{} or length(first_name) > 12]. " + "Function {} can't be used as part of an or condition",
+                functionInvocation,
+                functionName
+            ),
+            error("from test | where " + functionInvocation + " or length(first_name) > 12")
+        );
+        assertEquals(
+            LoggerMessageFormat.format(
+                null,
+                "1:19: Invalid condition [({} and first_name is not null) or (length(first_name) > 12 and first_name is null)]. "
+                    + "Function {} can't be used as part of an or condition",
+                functionInvocation,
+                functionName
+            ),
+            error(
+                "from test | where ("
+                    + functionInvocation
+                    + " and first_name is not null) or (length(first_name) > 12 and first_name is null)"
+            )
+        );
+        assertEquals(
+            LoggerMessageFormat.format(
+                null,
+                "1:19: Invalid condition [({} and first_name is not null) or first_name is null]. "
+                    + "Function {} can't be used as part of an or condition",
+                functionInvocation,
+                functionName
+            ),
+            error("from test | where (" + functionInvocation + " and first_name is not null) or first_name is null")
+        );
+    }
+
+    public void testQueryStringFunctionWithNonBooleanFunctions() {
+        assumeTrue("skipping because QSTR is not enabled", EsqlCapabilities.Cap.QSTR_FUNCTION.isEnabled());
+
+        checkFullTextFunctionsWithNonBooleanFunctions("QSTR", "qstr(\"first_name: Anna\")");
+    }
+
+    public void testMatchFunctionWithNonBooleanFunctions() {
+        assumeTrue("skipping because MATCH is not enabled", EsqlCapabilities.Cap.MATCH_FUNCTION.isEnabled());
+
+        checkFullTextFunctionsWithNonBooleanFunctions("MATCH", "match(first_name, \"Anna\")");
+    }
+
+    private void checkFullTextFunctionsWithNonBooleanFunctions(String functionName, String functionInvocation) {
+        assertEquals(
+            "1:19: Invalid condition [" + functionInvocation + " is not null]. Function " + functionName + " can't be used with ISNOTNULL",
+            error("from test | where " + functionInvocation + " is not null")
+        );
+        assertEquals(
+            "1:19: Invalid condition [" + functionInvocation + " is null]. Function " + functionName + " can't be used with ISNULL",
+            error("from test | where " + functionInvocation + " is null")
+        );
+        assertEquals(
+            "1:19: Invalid condition ["
+                + functionInvocation
+                + " in (\"hello\", \"world\")]. Function "
+                + functionName
+                + " can't be used with IN",
+            error("from test | where " + functionInvocation + " in (\"hello\", \"world\")")
+        );
+    }
+
+    public void testMatchFunctionArgNotConstant() throws Exception {
+        assumeTrue("skipping because MATCH is not enabled", EsqlCapabilities.Cap.MATCH_FUNCTION.isEnabled());
+
+        assertEquals(
+            "1:19: second argument of [match(first_name, first_name)] must be a constant, received [first_name]",
+            error("from test | where match(first_name, first_name)")
+        );
+        assertEquals(
+            "1:59: second argument of [match(first_name, query)] must be a constant, received [query]",
+            error("from test | eval query = concat(\"first\", \" name\") | where match(first_name, query)")
+        );
+        // Other value types are tested in QueryStringFunctionTests
+    }
+
+    // These should pass eventually once we lift some restrictions on match function
+    public void testMatchFunctionCurrentlyUnsupportedBehaviour() throws Exception {
+        assumeTrue("skipping because MATCH is not enabled", EsqlCapabilities.Cap.MATCH_FUNCTION.isEnabled());
+
+        assertEquals(
+            "1:68: Unknown column [first_name]",
+            error("from test | stats max_salary = max(salary) by emp_no | where match(first_name, \"Anna\")")
+        );
+    }
+
+    public void testMatchFunctionNullArgs() throws Exception {
+        assumeTrue("skipping because MATCH is not enabled", EsqlCapabilities.Cap.MATCH_FUNCTION.isEnabled());
+
+        assertEquals(
+            "1:19: first argument of [match(null, \"query\")] cannot be null, received [null]",
+            error("from test | where match(null, \"query\")")
+        );
+        assertEquals(
+            "1:19: second argument of [match(first_name, null)] cannot be null, received [null]",
+            error("from test | where match(first_name, null)")
+        );
+    }
+
+    public void testMatchFunctionTargetsExistingField() throws Exception {
+        assumeTrue("skipping because MATCH is not enabled", EsqlCapabilities.Cap.MATCH_FUNCTION.isEnabled());
+
+        assertEquals("1:39: Unknown column [first_name]", error("from test | keep emp_no | where match(first_name, \"Anna\")"));
     }
 
     public void testCoalesceWithMixedNumericTypes() {
@@ -1055,10 +1445,91 @@ public class VerifierTests extends ESTestCase {
         );
     }
 
-    public void test() {
+    public void testToDatePeriodTimeDurationInInvalidPosition() {
+        // arithmetic operations in eval
         assertEquals(
-            "1:23: second argument of [coalesce(network.bytes_in, 0)] must be [counter_long], found value [0] type [integer]",
-            error("FROM tests | eval x = coalesce(network.bytes_in, 0)", tsdb)
+            "1:39: EVAL does not support type [date_period] as the return data type of expression [3 months + 5 days]",
+            error("row x = \"2024-01-01\"::datetime | eval y = 3 months + 5 days")
+        );
+
+        assertEquals(
+            "1:39: EVAL does not support type [date_period] as the return data type of expression "
+                + "[\"3 months\"::date_period + \"5 days\"::date_period]",
+            error("row x = \"2024-01-01\"::datetime | eval y = \"3 months\"::date_period + \"5 days\"::date_period")
+        );
+
+        assertEquals(
+            "1:39: EVAL does not support type [time_duration] as the return data type of expression [3 hours + 5 minutes]",
+            error("row x = \"2024-01-01\"::datetime | eval y = 3 hours + 5 minutes")
+        );
+
+        assertEquals(
+            "1:39: EVAL does not support type [time_duration] as the return data type of expression "
+                + "[\"3 hours\"::time_duration + \"5 minutes\"::time_duration]",
+            error("row x = \"2024-01-01\"::datetime | eval y = \"3 hours\"::time_duration + \"5 minutes\"::time_duration")
+        );
+
+        // where
+        assertEquals(
+            "1:26: first argument of [\"3 days\"::date_period == to_dateperiod(\"3 days\")] must be "
+                + "[boolean, cartesian_point, cartesian_shape, date_nanos, datetime, double, geo_point, geo_shape, integer, ip, keyword, "
+                + "long, text, unsigned_long or version], found value [\"3 days\"::date_period] type [date_period]",
+            error("row x = \"3 days\" | where \"3 days\"::date_period == to_dateperiod(\"3 days\")")
+        );
+
+        assertEquals(
+            "1:26: first argument of [\"3 hours\"::time_duration <= to_timeduration(\"3 hours\")] must be "
+                + "[date_nanos, datetime, double, integer, ip, keyword, long, text, unsigned_long or version], "
+                + "found value [\"3 hours\"::time_duration] type [time_duration]",
+            error("row x = \"3 days\" | where \"3 hours\"::time_duration <= to_timeduration(\"3 hours\")")
+        );
+
+        assertEquals(
+            "1:19: second argument of [first_name <= to_timeduration(\"3 hours\")] must be "
+                + "[date_nanos, datetime, double, integer, ip, keyword, long, text, unsigned_long or version], "
+                + "found value [to_timeduration(\"3 hours\")] type [time_duration]",
+            error("from test | where first_name <= to_timeduration(\"3 hours\")")
+        );
+
+        assertEquals(
+            "1:19: 1st argument of [first_name IN ( to_timeduration(\"3 hours\"), \"3 days\"::date_period)] must be [keyword], "
+                + "found value [to_timeduration(\"3 hours\")] type [time_duration]",
+            error("from test | where first_name IN ( to_timeduration(\"3 hours\"), \"3 days\"::date_period)")
+        );
+    }
+
+    public void testToDatePeriodToTimeDurationWithInvalidType() {
+        assertEquals(
+            "1:36: argument of [1.5::date_period] must be [date_period or string], found value [1.5] type [double]",
+            error("from types | EVAL x = birth_date + 1.5::date_period")
+        );
+        assertEquals(
+            "1:37: argument of [to_timeduration(1)] must be [time_duration or string], found value [1] type [integer]",
+            error("from types  | EVAL x = birth_date - to_timeduration(1)")
+        );
+        assertEquals(
+            "1:45: argument of [x::date_period] must be [date_period or string], found value [x] type [double]",
+            error("from types | EVAL x = 1.5, y = birth_date + x::date_period")
+        );
+        assertEquals(
+            "1:44: argument of [to_timeduration(x)] must be [time_duration or string], found value [x] type [integer]",
+            error("from types  | EVAL x = 1, y = birth_date - to_timeduration(x)")
+        );
+        assertEquals(
+            "1:64: argument of [x::date_period] must be [date_period or string], found value [x] type [datetime]",
+            error("from types | EVAL x = \"2024-09-08\"::datetime, y = birth_date + x::date_period")
+        );
+        assertEquals(
+            "1:65: argument of [to_timeduration(x)] must be [time_duration or string], found value [x] type [datetime]",
+            error("from types  | EVAL x = \"2024-09-08\"::datetime, y = birth_date - to_timeduration(x)")
+        );
+        assertEquals(
+            "1:58: argument of [x::date_period] must be [date_period or string], found value [x] type [ip]",
+            error("from types | EVAL x = \"2024-09-08\"::ip, y = birth_date + x::date_period")
+        );
+        assertEquals(
+            "1:59: argument of [to_timeduration(x)] must be [time_duration or string], found value [x] type [ip]",
+            error("from types  | EVAL x = \"2024-09-08\"::ip, y = birth_date - to_timeduration(x)")
         );
     }
 
@@ -1071,24 +1542,29 @@ public class VerifierTests extends ESTestCase {
     }
 
     private String error(String query, Analyzer analyzer, Object... params) {
+        return error(query, analyzer, VerificationException.class, params);
+    }
+
+    private String error(String query, Analyzer analyzer, Class<? extends Exception> exception, Object... params) {
         List<QueryParam> parameters = new ArrayList<>();
         for (Object param : params) {
             if (param == null) {
-                parameters.add(new QueryParam(null, null, NULL));
+                parameters.add(paramAsConstant(null, null));
             } else if (param instanceof String) {
-                parameters.add(new QueryParam(null, param, KEYWORD));
+                parameters.add(paramAsConstant(null, param));
             } else if (param instanceof Number) {
-                parameters.add(new QueryParam(null, param, DataType.fromJava(param)));
+                parameters.add(paramAsConstant(null, param));
             } else {
                 throw new IllegalArgumentException("VerifierTests don't support params of type " + param.getClass());
             }
         }
-        VerificationException e = expectThrows(
-            VerificationException.class,
-            () -> analyzer.analyze(parser.createStatement(query, new QueryParams(parameters)))
-        );
+        Throwable e = expectThrows(exception, () -> analyzer.analyze(parser.createStatement(query, new QueryParams(parameters))));
+        assertThat(e, instanceOf(exception));
+
         String message = e.getMessage();
-        assertTrue(message.startsWith("Found "));
+        if (e instanceof VerificationException) {
+            assertTrue(message.startsWith("Found "));
+        }
         String pattern = "\nline ";
         int index = message.indexOf(pattern);
         return message.substring(index + pattern.length());

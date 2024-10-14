@@ -1,0 +1,37 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "github>elastic/renovate-config:only-chainguard",
+    ":disableDependencyDashboard"
+  ],
+  "labels": [">non-issue", ":Delivery/Packaging", "Team:Delivery"],
+  "baseBranches": ["main", "8.x"],
+  "packageRules": [
+    {
+      "groupName": "wolfi (versioned)",
+      "groupSlug": "wolfi-versioned",
+      "description": "Override the `groupSlug` to create a non-special-character branch name",
+      "matchDatasources": [
+        "docker"
+      ],
+      "matchPackagePatterns": [
+        "^docker.elastic.co/wolfi/chainguard-base$"
+      ]
+    }
+  ],
+  "customManagers": [
+    {
+      "description": "Extract Wolfi images from elasticsearch DockerBase configuration",
+      "customType": "regex",
+      "fileMatch": [
+        "build\\-tools\\-internal\\/src\\/main\\/java\\/org\\/elasticsearch\\/gradle\\/internal\\/DockerBase\\.java$"
+      ],
+      "matchStrings": [
+        "\\s*\"?(?<depName>[^\\s:@\"]+)(?::(?<currentValue>[-a-zA-Z0-9.]+))?(?:@(?<currentDigest>sha256:[a-zA-Z0-9]+))?\"?"
+      ],
+      "currentValueTemplate": "{{#if currentValue}}{{{currentValue}}}{{else}}latest{{/if}}",
+      "autoReplaceStringTemplate": "{{{depName}}}{{#if newValue}}:{{{newValue}}}{{/if}}{{#if newDigest}}@{{{newDigest}}}{{/if}}\"",
+      "datasourceTemplate": "docker"
+    }
+  ]
+}

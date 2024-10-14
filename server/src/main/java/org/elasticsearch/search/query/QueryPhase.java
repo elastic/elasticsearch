@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.query;
@@ -59,6 +60,13 @@ public class QueryPhase {
 
     public static void execute(SearchContext searchContext) throws QueryPhaseExecutionException {
         if (searchContext.queryPhaseRankShardContext() == null) {
+            if (searchContext.request().source() != null && searchContext.request().source().rankBuilder() != null) {
+                // if we have a RankBuilder provided, we want to fetch all rankWindowSize results
+                // and rerank the documents as per the RankBuilder's instructions.
+                // Pagination will take place later once they're all (re)ranked.
+                searchContext.size(searchContext.request().source().rankBuilder().rankWindowSize());
+                searchContext.from(0);
+            }
             executeQuery(searchContext);
         } else {
             executeRank(searchContext);

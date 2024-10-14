@@ -23,6 +23,7 @@ import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.Map;
 
 public abstract class AbstractTestInferenceService implements InferenceService {
@@ -47,7 +48,7 @@ public abstract class AbstractTestInferenceService implements InferenceService {
         if (settings.containsKey(ModelConfigurations.TASK_SETTINGS)) {
             taskSettingsMap = (Map<String, Object>) settings.remove(ModelConfigurations.TASK_SETTINGS);
         } else {
-            taskSettingsMap = Map.of();
+            taskSettingsMap = new HashMap<>();
         }
 
         return taskSettingsMap;
@@ -134,6 +135,11 @@ public abstract class AbstractTestInferenceService implements InferenceService {
         }
 
         @Override
+        public boolean isEmpty() {
+            return temperature == null;
+        }
+
+        @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeOptionalVInt(temperature);
         }
@@ -156,6 +162,11 @@ public abstract class AbstractTestInferenceService implements InferenceService {
         @Override
         public TransportVersion getMinimalSupportedVersion() {
             return TransportVersion.current(); // fine for these tests but will not work for cluster upgrade tests
+        }
+
+        @Override
+        public TaskSettings updatedTaskSettings(Map<String, Object> newSettings) {
+            return fromMap(new HashMap<>(newSettings));
         }
     }
 
@@ -204,6 +215,11 @@ public abstract class AbstractTestInferenceService implements InferenceService {
         @Override
         public TransportVersion getMinimalSupportedVersion() {
             return TransportVersion.current(); // fine for these tests but will not work for cluster upgrade tests
+        }
+
+        @Override
+        public SecretSettings newSecretSettings(Map<String, Object> newSecrets) {
+            return TestSecretSettings.fromMap(new HashMap<>(newSecrets));
         }
     }
 }

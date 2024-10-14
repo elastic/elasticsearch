@@ -60,7 +60,8 @@ public class CachedBlob implements ToXContent {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        @UpdateForV9    // we can remove the version field when we no longer need to keep compatibility with <8.12
+        @UpdateForV9(owner = UpdateForV9.Owner.SEARCH_FOUNDATIONS)
+        // we can remove the version field when we no longer need to keep compatibility with <8.12
         final int version = Version.CURRENT.id;
         builder.startObject();
         {

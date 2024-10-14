@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch;
@@ -113,8 +114,8 @@ public class ReleaseVersions {
                     // this will no longer be the case with ES 10 (which won't know about ES v8.x where we introduced separated versions)
                     // maybe keep the release mapping around in the csv file?
                     // SEP for now
-                    @UpdateForV9
-                    // @UpdateForV10
+                    @UpdateForV9(owner = UpdateForV9.Owner.CORE_INFRA)
+                    // @UpdateForV10(owner = UpdateForV10.Owner.CORE_INFRA)
                     Version oldVersion = Version.fromId(id);
                     return oldVersion.toString();
                 }

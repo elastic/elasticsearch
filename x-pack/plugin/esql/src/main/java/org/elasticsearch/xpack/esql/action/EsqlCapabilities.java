@@ -28,9 +28,19 @@ import java.util.Set;
 public class EsqlCapabilities {
     public enum Cap {
         /**
+         * Support for function {@code REVERSE}.
+         */
+        FN_REVERSE,
+
+        /**
          * Support for function {@code CBRT}. Done in #108574.
          */
         FN_CBRT,
+
+        /**
+         * Support for function {@code HYPOT}.
+         */
+        FN_HYPOT,
 
         /**
          * Support for {@code MV_APPEND} function. #107001
@@ -98,6 +108,16 @@ public class EsqlCapabilities {
         AGG_TOP_IP_SUPPORT,
 
         /**
+         * Support for {@code keyword} and {@code text} fields in {@code TOP} aggregation.
+         */
+        AGG_TOP_STRING_SUPPORT,
+
+        /**
+         * {@code CASE} properly handling multivalue conditions.
+         */
+        CASE_MV,
+
+        /**
          * Optimization for ST_CENTROID changed some results in cartesian data. #108713
          */
         ST_CENTROID_AGG_OPTIMIZED,
@@ -144,6 +164,16 @@ public class EsqlCapabilities {
          * Fix determination of CRS types in spatial functions when folding.
          */
         SPATIAL_FUNCTIONS_FIX_CRSTYPE_FOLDING,
+
+        /**
+         * Enable spatial predicate functions to support multi-values. Done in #112063.
+         */
+        SPATIAL_PREDICATES_SUPPORT_MULTIVALUES,
+
+        /**
+         * Support a number of fixes and enhancements to spatial distance pushdown. Done in #112938.
+         */
+        SPATIAL_DISTANCE_PUSHDOWN_ENHANCEMENTS,
 
         /**
          * Fix to GROK and DISSECT that allows extracting attributes with the same name as the input
@@ -194,6 +224,11 @@ public class EsqlCapabilities {
         UNION_TYPES_MISSING_FIELD,
 
         /**
+         * Fix for widening of short numeric types in union-types. Done in #112610
+         */
+        UNION_TYPES_NUMERIC_WIDENING,
+
+        /**
          * Fix a parsing issue where numbers below Long.MIN_VALUE threw an exception instead of parsing as doubles.
          * see <a href="https://github.com/elastic/elasticsearch/issues/104323"> Parsing large numbers is inconsistent #104323 </a>
          */
@@ -237,19 +272,29 @@ public class EsqlCapabilities {
         MATCH_OPERATOR(true),
 
         /**
+         * Removing support for the {@code META} keyword.
+         */
+        NO_META,
+
+        /**
          * Add CombineBinaryComparisons rule.
          */
         COMBINE_BINARY_COMPARISONS,
 
         /**
-         * MATCH command support
-         */
-        MATCH_COMMAND(true),
-
-        /**
          * Support for nanosecond dates as a data type
          */
         DATE_NANOS_TYPE(EsqlCorePlugin.DATE_NANOS_FEATURE_FLAG),
+
+        /**
+         * Support for to_date_nanos function
+         */
+        TO_DATE_NANOS(EsqlCorePlugin.DATE_NANOS_FEATURE_FLAG),
+
+        /**
+         * Support for datetime in least and greatest functions
+         */
+        LEAST_GREATEST_FOR_DATES,
 
         /**
          * Support CIDRMatch in CombineDisjunctions rule.
@@ -284,7 +329,48 @@ public class EsqlCapabilities {
         /**
          * Support for requesting the "SPACE" function.
          */
-        SPACE;
+        SPACE,
+
+        /**
+         * Support explicit casting from string literal to DATE_PERIOD or TIME_DURATION.
+         */
+        CAST_STRING_LITERAL_TO_TEMPORAL_AMOUNT,
+
+        /**
+         * Supported the text categorization function "CATEGORIZE".
+         */
+        CATEGORIZE(true),
+
+        /**
+         * QSTR function
+         */
+        QSTR_FUNCTION(true),
+
+        /**
+         * MATCH function
+         */
+        MATCH_FUNCTION(true),
+
+        /**
+         * Don't optimize CASE IS NOT NULL function by not requiring the fields to be not null as well.
+         * https://github.com/elastic/elasticsearch/issues/112704
+         */
+        FIXED_WRONG_IS_NOT_NULL_CHECK_ON_CASE,
+
+        /**
+         * Compute year differences in full calendar years.
+         */
+        DATE_DIFF_YEAR_CALENDARIAL,
+
+        /**
+         * Support named parameters for field names.
+         */
+        NAMED_PARAMETER_FOR_FIELD_AND_FUNCTION_NAMES,
+
+        /**
+         * Fix sorting not allowed on _source and counters.
+         */
+        SORTING_ON_SOURCE_AND_COUNTERS_FORBIDDEN;
 
         private final boolean snapshotOnly;
         private final FeatureFlag featureFlag;

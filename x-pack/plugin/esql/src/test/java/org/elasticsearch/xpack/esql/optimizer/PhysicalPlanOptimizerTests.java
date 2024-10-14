@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.optimizer;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Build;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.lucene.BytesRefs;
@@ -20,12 +21,15 @@ import org.elasticsearch.geometry.Polygon;
 import org.elasticsearch.geometry.ShapeType;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.query.BoolQueryBuilder;
+import org.elasticsearch.index.query.ExistsQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.query.RegexpQueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.index.query.WildcardQueryBuilder;
+import org.elasticsearch.search.sort.FieldSortBuilder;
+import org.elasticsearch.search.sort.GeoDistanceSortBuilder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
@@ -41,6 +45,7 @@ import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
+import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.core.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.core.expression.predicate.logical.Or;
@@ -109,6 +114,7 @@ import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.esql.plan.physical.RowExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
+import org.elasticsearch.xpack.esql.plan.physical.UnaryExec;
 import org.elasticsearch.xpack.esql.planner.Mapper;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
@@ -150,14 +156,17 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.CARTESIAN_POINT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_POINT;
 import static org.elasticsearch.xpack.esql.parser.ExpressionBuilder.MAX_EXPRESSION_DEPTH;
 import static org.elasticsearch.xpack.esql.parser.LogicalPlanBuilder.MAX_QUERY_DEPTH;
+import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.isA;
 import static org.hamcrest.Matchers.matchesRegex;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
@@ -180,6 +189,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     private TestDataSource testData;
     private int allFieldRowSize;    // TODO: Move this into testDataSource so tests that load other indexes can also assert on this
     private TestDataSource airports;
+    private TestDataSource airportsNoDocValues;
     private TestDataSource airportsWeb;
     private TestDataSource countriesBbox;
     private TestDataSource countriesBboxWeb;
@@ -228,6 +238,12 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
         // Some tests use data from the airports and countries indexes, so we load that here, and use it in the plan(q, airports) function.
         this.airports = makeTestDataSource("airports", "mapping-airports.json", functionRegistry, enrichResolution);
+        this.airportsNoDocValues = makeTestDataSource(
+            "airports-no-doc-values",
+            "mapping-airports-no-doc-values.json",
+            functionRegistry,
+            enrichResolution
+        );
         this.airportsWeb = makeTestDataSource("airports_web", "mapping-airports_web.json", functionRegistry, enrichResolution);
         this.countriesBbox = makeTestDataSource("countriesBbox", "mapping-countries_bbox.json", functionRegistry, enrichResolution);
         this.countriesBboxWeb = makeTestDataSource(
@@ -521,11 +537,11 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertThat(names(extract.attributesToExtract()), contains("salary", "emp_no", "last_name"));
         var source = source(extract.child());
         assertThat(source.limit(), is(topN.limit()));
-        assertThat(source.sorts(), is(sorts(topN.order())));
+        assertThat(source.sorts(), is(fieldSorts(topN.order())));
 
         assertThat(source.limit(), is(l(10)));
         assertThat(source.sorts().size(), is(1));
-        FieldSort order = source.sorts().get(0);
+        EsQueryExec.Sort order = source.sorts().get(0);
         assertThat(order.direction(), is(Order.OrderDirection.ASC));
         assertThat(name(order.field()), is("last_name"));
         // last name is keyword, salary, emp_no, doc id, segment, forwards and backwards doc id maps are all ints
@@ -794,6 +810,19 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertThat(query.query(), is(boolQuery().should(existsQuery("emp_no")).should(existsQuery("salary"))));
     }
 
+    /**
+     * This used to not allow pushing the sort down to the source, but now it does, since the eval is not used for the sort
+     * <code>
+     * TopNExec[[Order[emp_no{f}#6,ASC,LAST]],1[INTEGER],0]
+     * \_ExchangeExec[[_meta_field{f}#12, emp_no{f}#6, first_name{f}#7, gender{f}#8, job{f}#13, job.raw{f}#14, ..],false]
+     *   \_ProjectExec[[_meta_field{f}#12, emp_no{f}#6, first_name{f}#7, gender{f}#8, job{f}#13, job.raw{f}#14, ..]]
+     *     \_FieldExtractExec[_meta_field{f}#12, emp_no{f}#6, first_name{f}#7, ge..][]
+     *       \_EvalExec[[null[INTEGER] AS nullsum]]
+     *         \_EsQueryExec[test], indexMode[standard], query[][_doc{f}#27], limit[1], sort[[
+     *           FieldSort[field=emp_no{f}#6, direction=ASC, nulls=LAST]
+     *         ]] estimatedRowSize[340]
+     * </code>
+     */
     public void testQueryWithNull() {
         var plan = physicalPlan("""
             from test
@@ -810,15 +839,10 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var exchange = asRemoteExchange(topN.child());
         var project = as(exchange.child(), ProjectExec.class);
         var extract = as(project.child(), FieldExtractExec.class);
-        var topNLocal = as(extract.child(), TopNExec.class);
-        // All fields except emp_no are loaded after this topn. We load an extra int for the doc and segment mapping.
-        assertThat(topNLocal.estimatedRowSize(), equalTo(allFieldRowSize + Integer.BYTES));
-
-        var extractForEval = as(topNLocal.child(), FieldExtractExec.class);
-        var eval = as(extractForEval.child(), EvalExec.class);
+        var eval = as(extract.child(), EvalExec.class);
         var source = source(eval.child());
-        // emp_no and nullsum are longs, doc id is an int
-        assertThat(source.estimatedRowSize(), equalTo(Integer.BYTES * 2 + Integer.BYTES));
+        // All fields loaded
+        assertThat(source.estimatedRowSize(), equalTo(allFieldRowSize + 3 * Integer.BYTES + Long.BYTES));
     }
 
     public void testPushAndInequalitiesFilter() {
@@ -1057,7 +1081,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var extract = as(project.child(), FieldExtractExec.class);
         var source = source(extract.child());
         assertThat(source.limit(), is(topN.limit()));
-        assertThat(source.sorts(), is(sorts(topN.order())));
+        assertThat(source.sorts(), is(fieldSorts(topN.order())));
         // an int for doc id, an int for segment id, two ints for doc id map, and int for emp_no.
         assertThat(source.estimatedRowSize(), equalTo(Integer.BYTES * 5 + KEYWORD_EST));
     }
@@ -1213,11 +1237,11 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertThat(names(extract.attributesToExtract()), contains("languages", "salary"));
         var source = source(extract.child());
         assertThat(source.limit(), is(topN.limit()));
-        assertThat(source.sorts(), is(sorts(topN.order())));
+        assertThat(source.sorts(), is(fieldSorts(topN.order())));
 
         assertThat(source.limit(), is(l(1)));
         assertThat(source.sorts().size(), is(1));
-        FieldSort order = source.sorts().get(0);
+        EsQueryExec.Sort order = source.sorts().get(0);
         assertThat(order.direction(), is(Order.OrderDirection.ASC));
         assertThat(name(order.field()), is("salary"));
         // ints for doc id, segment id, forwards and backwards mapping, languages, and salary
@@ -1744,6 +1768,124 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var regexpQuery = (RegexpQueryBuilder) mustNot.get(0);
         assertThat(regexpQuery.fieldName(), is("first_name"));
         assertThat(regexpQuery.value(), is(".*foo.*"));
+    }
+
+    /**
+     * <code>
+     * TopNExec[[Order[name{r}#4,ASC,LAST]],1000[INTEGER],0]
+     * \_ExchangeExec[[_meta_field{f}#20, emp_no{f}#14, gender{f}#16, job{f}#21, job.raw{f}#22, languages{f}#17,
+     *     long_noidx{f}#23, salary{f}#19, name{r}#4, first_name{r}#7, last_name{r}#10
+     *   ],false]
+     *   \_ProjectExec[[_meta_field{f}#20, emp_no{f}#14, gender{f}#16, job{f}#21, job.raw{f}#22, languages{f}#17,
+     *       long_noidx{f}#23, salary{f}#19, name{r}#4, first_name{r}#7, last_name{r}#10
+     *     ]]
+     *     \_FieldExtractExec[_meta_field{f}#20, emp_no{f}#14, gender{f}#16, job{..][]
+     *       \_EvalExec[[first_name{f}#15 AS name, last_name{f}#18 AS first_name, name{r}#4 AS last_name]]
+     *         \_FieldExtractExec[first_name{f}#15, last_name{f}#18][]
+     *           \_EsQueryExec[test], indexMode[standard], query[{
+     *             "bool":{"must":[
+     *               {"esql_single_value":{"field":"last_name","next":{"term":{"last_name":{"value":"foo"}}},"source":...}},
+     *               {"esql_single_value":{"field":"first_name","next":{"term":{"first_name":{"value":"bar"}}},"source":...}}
+     *             ],"boost":1.0}}][_doc{f}#37], limit[1000], sort[[
+     *               FieldSort[field=first_name{f}#15, direction=ASC, nulls=LAST]
+     *             ]] estimatedRowSize[486]
+     * </code>
+     */
+    public void testPushDownEvalFilter() {
+        var plan = physicalPlan("""
+            FROM test
+            | EVAL name = first_name, first_name = last_name, last_name = name
+            | WHERE first_name == "foo" AND last_name == "bar"
+            | SORT name
+            """);
+        var optimized = optimizedPlan(plan);
+
+        var topN = as(optimized, TopNExec.class);
+        var exchange = asRemoteExchange(topN.child());
+        var project = as(exchange.child(), ProjectExec.class);
+        var extract = as(project.child(), FieldExtractExec.class);
+        assertThat(extract.attributesToExtract().size(), greaterThan(5));
+        var eval = as(extract.child(), EvalExec.class);
+        extract = as(eval.child(), FieldExtractExec.class);
+        assertThat(
+            extract.attributesToExtract().stream().map(Attribute::name).collect(Collectors.toList()),
+            contains("first_name", "last_name")
+        );
+
+        // Now verify the correct Lucene push-down of both the filter and the sort
+        var source = source(extract.child());
+        QueryBuilder query = source.query();
+        assertNotNull(query);
+        assertThat(query, instanceOf(BoolQueryBuilder.class));
+        var boolQuery = (BoolQueryBuilder) query;
+        var must = boolQuery.must();
+        assertThat(must.size(), is(2));
+        var range1 = (TermQueryBuilder) ((SingleValueQuery.Builder) must.get(0)).next();
+        assertThat(range1.fieldName(), is("last_name"));
+        var range2 = (TermQueryBuilder) ((SingleValueQuery.Builder) must.get(1)).next();
+        assertThat(range2.fieldName(), is("first_name"));
+        var sort = source.sorts();
+        assertThat(sort.size(), is(1));
+        assertThat(sort.get(0).field().fieldName(), is("first_name"));
+    }
+
+    /**
+     * <code>
+     * ProjectExec[[last_name{f}#21 AS name, first_name{f}#18 AS last_name, last_name{f}#21 AS first_name]]
+     * \_TopNExec[[Order[last_name{f}#21,ASC,LAST]],10[INTEGER],0]
+     *   \_ExchangeExec[[last_name{f}#21, first_name{f}#18],false]
+     *     \_ProjectExec[[last_name{f}#21, first_name{f}#18]]
+     *       \_FieldExtractExec[last_name{f}#21, first_name{f}#18][]
+     *         \_EsQueryExec[test], indexMode[standard], query[{
+     *           "bool":{"must":[
+     *             {"esql_single_value":{
+     *               "field":"last_name",
+     *               "next":{"range":{"last_name":{"gt":"B","boost":1.0}}},
+     *               "source":"first_name &gt; \"B\"@3:9"
+     *             }},
+     *             {"exists":{"field":"first_name","boost":1.0}}
+     *           ],"boost":1.0}}][_doc{f}#40], limit[10], sort[[
+     *             FieldSort[field=last_name{f}#21, direction=ASC, nulls=LAST]
+     *           ]] estimatedRowSize[116]
+     * </code>
+     */
+    public void testPushDownEvalSwapFilter() {
+        var plan = physicalPlan("""
+            FROM test
+            | EVAL name = last_name, last_name = first_name, first_name = name
+            | WHERE first_name > "B" AND last_name IS NOT NULL
+            | SORT name
+            | LIMIT 10
+            | KEEP name, last_name, first_name
+            """);
+        var optimized = optimizedPlan(plan);
+
+        var topProject = as(optimized, ProjectExec.class);
+        var topN = as(topProject.child(), TopNExec.class);
+        var exchange = asRemoteExchange(topN.child());
+        var project = as(exchange.child(), ProjectExec.class);
+        var extract = as(project.child(), FieldExtractExec.class);
+        assertThat(
+            extract.attributesToExtract().stream().map(Attribute::name).collect(Collectors.toList()),
+            contains("last_name", "first_name")
+        );
+
+        // Now verify the correct Lucene push-down of both the filter and the sort
+        var source = source(extract.child());
+        QueryBuilder query = source.query();
+        assertNotNull(query);
+        assertThat(query, instanceOf(BoolQueryBuilder.class));
+        var boolQuery = (BoolQueryBuilder) query;
+        var must = boolQuery.must();
+        assertThat(must.size(), is(2));
+        var svq = (SingleValueQuery.Builder) must.get(0);
+        var range = (RangeQueryBuilder) svq.next();
+        assertThat(range.fieldName(), is("last_name"));
+        var exists = (ExistsQueryBuilder) must.get(1);
+        assertThat(exists.fieldName(), is("first_name"));
+        var sort = source.sorts();
+        assertThat(sort.size(), is(1));
+        assertThat(sort.get(0).field().fieldName(), is("last_name"));
     }
 
     /**
@@ -2376,6 +2518,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     /**
      * Expects
      * intermediate plan
+     * <code>
      * LimitExec[1000[INTEGER]]
      * \_AggregateExec[[],[COUNT(emp_no{f}#6) AS c],FINAL,null]
      *   \_ExchangeExec[[count{r}#16, seen{r}#17],true]
@@ -2383,12 +2526,14 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      * Aggregate[[],[COUNT(emp_no{f}#6) AS c]]
      * \_Filter[emp_no{f}#6 > 10[INTEGER]]
      *   \_EsRelation[test][_meta_field{f}#12, emp_no{f}#6, first_name{f}#7, ge..]]]
-     *
+     * </code>
      * and final plan is
+     * <code>
      * LimitExec[1000[INTEGER]]
      * \_AggregateExec[[],[COUNT(emp_no{f}#6) AS c],FINAL,8]
      *   \_ExchangeExec[[count{r}#16, seen{r}#17],true]
      *     \_LocalSourceExec[[count{r}#16, seen{r}#17],[LongVectorBlock[vector=ConstantLongVector[positions=1, value=0]]]]
+     * </code>
      */
     public void testPartialAggFoldingOutput() {
         var plan = physicalPlan("""
@@ -2411,7 +2556,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     /**
      * Checks that when the folding happens on the coordinator, the intermediate agg state
      * are not used anymore.
-     *
+     * <code>
      * Expects
      * LimitExec[10000[INTEGER]]
      * \_AggregateExec[[],[COUNT(emp_no{f}#5) AS c],FINAL,8]
@@ -2421,6 +2566,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      *         \_ProjectExec[[emp_no{r}#5]]
      *           \_EvalExec[[null[INTEGER] AS emp_no]]
      *             \_EsQueryExec[test], query[][_doc{f}#26], limit[10], sort[] estimatedRowSize[8]
+     * </code>
      */
     public void testGlobalAggFoldingOutput() {
         var plan = physicalPlan("""
@@ -2444,7 +2590,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
     /**
      * Checks the folded aggregation preserves the intermediate output.
-     *
+     * <code>
      * Expects
      * ProjectExec[[a{r}#5]]
      * \_EvalExec[[__a_SUM@734e2841{r}#16 / __a_COUNT@12536eab{r}#17 AS a]]
@@ -2456,6 +2602,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      * 0]], BooleanVectorBlock[vector=ConstantBooleanVector[positions=1, value=true]],
      *      LongVectorBlock[vector=ConstantLongVector[positions=1, value=0]],
      *      BooleanVectorBlock[vector=ConstantBooleanVector[positions=1, value=true]]]]
+     * </code>
      */
     public void testPartialAggFoldingOutputForSyntheticAgg() {
         var plan = physicalPlan("""
@@ -2480,16 +2627,16 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
     /**
      * Before local optimizations:
-     *
+     * <code>
      * LimitExec[1000[INTEGER]]
      * \_AggregateExec[[],[SPATIALCENTROID(location{f}#9) AS centroid],FINAL,null]
      *   \_ExchangeExec[[xVal{r}#10, xDel{r}#11, yVal{r}#12, yDel{r}#13, count{r}#14],true]
      *     \_FragmentExec[filter=null, estimatedRowSize=0, fragment=[
      * Aggregate[[],[SPATIALCENTROID(location{f}#9) AS centroid]]
      * \_EsRelation[airports][abbrev{f}#5, location{f}#9, name{f}#6, scalerank{f}..]]]
-     *
+     * </code>
      * After local optimizations:
-     *
+     * <code>
      * LimitExec[1000[INTEGER]]
      * \_AggregateExec[[],[SPATIALCENTROID(location{f}#9) AS centroid],FINAL,50]
      *   \_ExchangeExec[[xVal{r}#10, xDel{r}#11, yVal{r}#12, yDel{r}#13, count{r}#14],true]
@@ -2497,9 +2644,9 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      *       \_FilterExec[ISNOTNULL(location{f}#9)]
      *         \_FieldExtractExec[location{f}#9][location{f}#9]
      *           \_EsQueryExec[airports], query[][_doc{f}#26], limit[], sort[] estimatedRowSize[54]
-     *
+     * </code>
      * Note the FieldExtractExec has 'location' set for stats: FieldExtractExec[location{f}#9][location{f}#9]
-     *
+     * <p>
      * Also note that the type converting function is removed when it does not actually convert the type,
      * ensuring that ReferenceAttributes are not created for the same field, and the optimization can still work.
      */
@@ -2508,57 +2655,54 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             "from airports | stats centroid = st_centroid_agg(location)",
             "from airports | stats centroid = st_centroid_agg(to_geopoint(location))",
             "from airports | eval location = to_geopoint(location) | stats centroid = st_centroid_agg(location)" }) {
-            var plan = this.physicalPlan(query, airports);
+            for (boolean withDocValues : new boolean[] { false, true }) {
+                var plan = withDocValues ? physicalPlan(query, airports) : physicalPlan(query, airportsNoDocValues);
 
-            var limit = as(plan, LimitExec.class);
-            var agg = as(limit.child(), AggregateExec.class);
-            // Before optimization the aggregation does not use doc-values
-            assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_POINT, false);
+                var limit = as(plan, LimitExec.class);
+                var agg = as(limit.child(), AggregateExec.class);
+                // Before optimization the aggregation does not use doc-values
+                assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_POINT, false);
 
-            var exchange = as(agg.child(), ExchangeExec.class);
-            var fragment = as(exchange.child(), FragmentExec.class);
-            var fAgg = as(fragment.fragment(), Aggregate.class);
-            as(fAgg.child(), EsRelation.class);
+                var exchange = as(agg.child(), ExchangeExec.class);
+                var fragment = as(exchange.child(), FragmentExec.class);
+                var fAgg = as(fragment.fragment(), Aggregate.class);
+                as(fAgg.child(), EsRelation.class);
 
-            // Now optimize the plan and assert the aggregation uses doc-values
-            var optimized = optimizedPlan(plan);
-            limit = as(optimized, LimitExec.class);
-            agg = as(limit.child(), AggregateExec.class);
-            // Above the exchange (in coordinator) the aggregation is not using doc-values
-            assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_POINT, false);
-            exchange = as(agg.child(), ExchangeExec.class);
-            agg = as(exchange.child(), AggregateExec.class);
-            // below the exchange (in data node) the aggregation is using doc-values
-            assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_POINT, true);
-            var extract = as(agg.child(), FieldExtractExec.class);
-            source(extract.child());
-            assertTrue(
-                "Expect field attribute to be extracted as doc-values",
-                extract.attributesToExtract().stream().allMatch(attr -> extract.hasDocValuesAttribute(attr) && attr.dataType() == GEO_POINT)
-            );
+                // Now optimize the plan and assert the aggregation uses doc-values
+                var optimized = optimizedPlan(plan);
+                limit = as(optimized, LimitExec.class);
+                agg = as(limit.child(), AggregateExec.class);
+                // Above the exchange (in coordinator) the aggregation is not using doc-values
+                assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_POINT, false);
+                exchange = as(agg.child(), ExchangeExec.class);
+                agg = as(exchange.child(), AggregateExec.class);
+                // below the exchange (in data node) the aggregation is using doc-values
+                assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_POINT, withDocValues);
+                assertChildIsGeoPointExtract(withDocValues ? agg : as(agg.child(), FilterExec.class), withDocValues);
+            }
         }
     }
 
     /**
      * This test does not have real index fields, and therefor asserts that doc-values field extraction does NOT occur.
-     *
      * Before local optimizations:
-     *
+     * <code>
      * LimitExec[1000[INTEGER]]
      * \_AggregateExec[[],[SPATIALCENTROID(__centroid_SPATIALCENTROID@ec8dd77e{r}#7) AS centroid],FINAL,null]
      *   \_AggregateExec[[],[SPATIALCENTROID(__centroid_SPATIALCENTROID@ec8dd77e{r}#7) AS centroid],PARTIAL,null]
      *     \_EvalExec[[[1 1 0 0 0 0 0 30 e2 4c 7c 45 40 0 0 e0 92 b0 82 2d 40][GEO_POINT] AS __centroid_SPATIALCENTROID@ec8dd77e]]
      *       \_RowExec[[[50 4f 49 4e 54 28 34 32 2e 39 37 31 30 39 36 32 39 39 35 38 38 36 38 20 31 34 2e 37 35 35 32 35 33 34 30 30
      *       36 35 33 36 29][KEYWORD] AS wkt]]
-     *
+     * </code>
      * After local optimizations we expect no changes because field is extracted:
-     *
+     * <code>
      * LimitExec[1000[INTEGER]]
      * \_AggregateExec[[],[SPATIALCENTROID(__centroid_SPATIALCENTROID@7ff910a{r}#7) AS centroid],FINAL,50]
      *   \_AggregateExec[[],[SPATIALCENTROID(__centroid_SPATIALCENTROID@7ff910a{r}#7) AS centroid],PARTIAL,50]
      *     \_EvalExec[[[1 1 0 0 0 0 0 30 e2 4c 7c 45 40 0 0 e0 92 b0 82 2d 40][GEO_POINT] AS __centroid_SPATIALCENTROID@7ff910a]]
      *       \_RowExec[[[50 4f 49 4e 54 28 34 32 2e 39 37 31 30 39 36 32 39 39 35 38 38 36 38 20 31 34 2e 37 35 35 32 35 33 34 30 30
      *       36 35 33 36 29][KEYWORD] AS wkt]]
+     * </code>
      */
     public void testSpatialTypesAndStatsUseDocValuesNestedLiteral() {
         var plan = this.physicalPlan("""
@@ -2595,23 +2739,23 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
     /**
      * Before local optimizations:
-     *
+     * <code>
      * LimitExec[1000[INTEGER]]
      * \_AggregateExec[[],[SPATIALCENTROID(location{f}#11) AS centroid, COUNT([2a][KEYWORD]) AS count],FINAL,null]
      *   \_ExchangeExec[[xVal{r}#12, xDel{r}#13, yVal{r}#14, yDel{r}#15, count{r}#16, count{r}#17, seen{r}#18],true]
      *     \_FragmentExec[filter=null, estimatedRowSize=0, fragment=[
      * Aggregate[[],[SPATIALCENTROID(location{f}#11) AS centroid, COUNT([2a][KEYWORD]) AS count]]
      * \_EsRelation[airports][abbrev{f}#7, location{f}#11, name{f}#8, scalerank{f..]]]
-     *
+     * </code>
      * After local optimizations:
-     *
+     * <code>
      * LimitExec[1000[INTEGER]]
      * \_AggregateExec[[],[SPATIALCENTROID(location{f}#11) AS centroid, COUNT([2a][KEYWORD]) AS count],FINAL,58]
      *   \_ExchangeExec[[xVal{r}#12, xDel{r}#13, yVal{r}#14, yDel{r}#15, count{r}#16, count{r}#17, seen{r}#18],true]
      *     \_AggregateExec[[],[COUNT([2a][KEYWORD]) AS count, SPATIALCENTROID(location{f}#11) AS centroid],PARTIAL,58]
      *       \_FieldExtractExec[location{f}#11][location{f}#11]
      *         \_EsQueryExec[airports], query[][_doc{f}#33], limit[], sort[] estimatedRowSize[54]
-     *
+     * </code>
      * Note the FieldExtractExec has 'location' set for stats: FieldExtractExec[location{f}#9][location{f}#9]
      */
     public void testSpatialTypesAndStatsUseDocValuesMultiAggregations() {
@@ -2645,17 +2789,12 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         // below the exchange (in data node) the aggregation is using doc-values
         assertAggregation(agg, "count", Count.class);
         assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_POINT, true);
-        var extract = as(agg.child(), FieldExtractExec.class);
-        source(extract.child());
-        assertTrue(
-            "Expect field attribute to be extracted as doc-values",
-            extract.attributesToExtract().stream().allMatch(attr -> extract.hasDocValuesAttribute(attr) && attr.dataType() == GEO_POINT)
-        );
+        assertChildIsGeoPointExtract(agg, true);
     }
 
     /**
      * Before local optimizations:
-     *
+     * <code>
      * LimitExec[1000[INTEGER]]
      * \_AggregateExec[[],[SPATIALCENTROID(location{f}#14) AS airports, SPATIALCENTROID(city_location{f}#17) AS cities, COUNT([2a][KEY
      * WORD]) AS count],FINAL,null]
@@ -2665,9 +2804,9 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      * Aggregate[[],[SPATIALCENTROID(location{f}#14) AS airports, SPATIALCENTROID(city_location{f}#17) AS cities, COUNT([2a][KEY
      * WORD]) AS count]]
      * \_EsRelation[airports][abbrev{f}#10, city{f}#16, city_location{f}#17, coun..]]]
-     *
+     * </code>
      * After local optimizations:
-     *
+     * <code>
      * LimitExec[1000[INTEGER]]
      * \_AggregateExec[[],[SPATIALCENTROID(location{f}#14) AS airports, SPATIALCENTROID(city_location{f}#17) AS cities, COUNT([2a][KEY
      * WORD]) AS count],FINAL,108]
@@ -2677,7 +2816,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      * WORD]) AS count],PARTIAL,108]
      *       \_FieldExtractExec[location{f}#14, city_location{f}#17][location{f}#14, city_location{f}#17]
      *         \_EsQueryExec[airports], query[][_doc{f}#53], limit[], sort[] estimatedRowSize[104]
-     *
+     * </code>
      * Note the FieldExtractExec has 'location' set for stats: FieldExtractExec[location{f}#9][location{f}#9]
      */
     public void testSpatialTypesAndStatsUseDocValuesMultiSpatialAggregations() {
@@ -2714,17 +2853,12 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertAggregation(agg, "count", Count.class);
         assertAggregation(agg, "airports", SpatialCentroid.class, GEO_POINT, true);
         assertAggregation(agg, "cities", SpatialCentroid.class, GEO_POINT, true);
-        var extract = as(agg.child(), FieldExtractExec.class);
-        source(extract.child());
-        assertTrue(
-            "Expect field attribute to be extracted as doc-values",
-            extract.attributesToExtract().stream().allMatch(attr -> extract.hasDocValuesAttribute(attr) && attr.dataType() == GEO_POINT)
-        );
+        assertChildIsGeoPointExtract(agg, true);
     }
 
     /**
      * Before local optimizations:
-     *
+     * <code>
      * LimitExec[1000[INTEGER]]
      * \_AggregateExec[[],[SPATIALCENTROID(location{f}#12) AS centroid, COUNT([2a][KEYWORD]) AS count],FINAL,null]
      *   \_ExchangeExec[[xVal{r}#13, xDel{r}#14, yVal{r}#15, yDel{r}#16, count{r}#17, count{r}#18, seen{r}#19],true]
@@ -2732,9 +2866,9 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      * Aggregate[[],[SPATIALCENTROID(location{f}#12) AS centroid, COUNT([2a][KEYWORD]) AS count]]
      * \_Filter[scalerank{f}#10 == 9[INTEGER]]
      *   \_EsRelation[airports][abbrev{f}#8, location{f}#12, name{f}#9, scalerank{f..]]]
-     *
+     * </code>
      * After local optimizations:
-     *
+     * <code>
      * LimitExec[1000[INTEGER]]
      * \_AggregateExec[[],[SPATIALCENTROID(location{f}#11) AS centroid, COUNT([2a][KEYWORD]) AS count],FINAL,58]
      *   \_ExchangeExec[[xVal{r}#12, xDel{r}#13, yVal{r}#14, yDel{r}#15, count{r}#16, count{r}#17, seen{r}#18],true]
@@ -2742,7 +2876,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      *       \_FieldExtractExec[location{f}#11][location{f}#11]
      *         \_EsQueryExec[airports], query[{"esql_single_value":{"field":"scalerank","next":{"term":{"scalerank":{"value":9}}},
      *                                         "source":"scalerank == 9@2:9"}}][_doc{f}#34], limit[], sort[] estimatedRowSize[54]
-     *
+     * </code>
      * Note the FieldExtractExec has 'location' set for stats: FieldExtractExec[location{f}#9][location{f}#9]
      */
     public void testSpatialTypesAndStatsUseDocValuesMultiAggregationsFiltered() {
@@ -2779,19 +2913,14 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         // below the exchange (in data node) the aggregation is using doc-values
         assertAggregation(agg, "count", Count.class);
         assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_POINT, true);
-        var extract = as(agg.child(), FieldExtractExec.class);
-        assertTrue(
-            "Expect field attribute to be extracted as doc-values",
-            extract.attributesToExtract().stream().allMatch(attr -> extract.hasDocValuesAttribute(attr) && attr.dataType() == GEO_POINT)
-        );
-        var source = source(extract.child());
+        var source = assertChildIsGeoPointExtract(agg, true);
         var qb = as(source.query(), SingleValueQuery.Builder.class);
         assertThat("Expected predicate to be passed to Lucene query", qb.source().text(), equalTo("scalerank == 9"));
     }
 
     /**
      * Before local optimizations:
-     *
+     * <code>
      * LimitExec[1000[INTEGER]]
      * \_AggregateExec[[scalerank{f}#10],[SPATIALCENTROID(location{f}#12) AS centroid, COUNT([2a][KEYWORD]) AS count, scalerank{f}#10],
      * FINAL,null]
@@ -2799,9 +2928,9 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      *     \_FragmentExec[filter=null, estimatedRowSize=0, fragment=[
      * Aggregate[[scalerank{f}#10],[SPATIALCENTROID(location{f}#12) AS centroid, COUNT([2a][KEYWORD]) AS count, scalerank{f}#10]]
      * \_EsRelation[airports][abbrev{f}#8, location{f}#12, name{f}#9, scalerank{f..]]]
-     *
+     * </code>
      * After local optimizations:
-     *
+     * <code>
      * LimitExec[1000[INTEGER]]
      * \_AggregateExec[[scalerank{f}#10],[SPATIALCENTROID(location{f}#12) AS centroid, COUNT([2a][KEYWORD]) AS count, scalerank{f}#10],
      * FINAL,62]
@@ -2810,57 +2939,54 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      * PARTIAL,62]
      *       \_FieldExtractExec[location{f}#12][location{f}#12]
      *         \_EsQueryExec[airports], query[][_doc{f}#34], limit[], sort[] estimatedRowSize[54]
-     *
+     * </code>
      * Note the FieldExtractExec has 'location' set for stats: FieldExtractExec[location{f}#9][location{f}#9]
      */
     public void testSpatialTypesAndStatsUseDocValuesMultiAggregationsGrouped() {
-        var plan = this.physicalPlan("""
-            FROM airports
-            | STATS centroid=ST_CENTROID_AGG(location), count=COUNT() BY scalerank
-            """, airports);
+        for (boolean useDocValues : new boolean[] { true, false }) {
+            var plan = this.physicalPlan("""
+                FROM airports
+                | STATS centroid=ST_CENTROID_AGG(location), count=COUNT() BY scalerank
+                """, useDocValues ? airports : airportsNoDocValues);
 
-        var limit = as(plan, LimitExec.class);
-        var agg = as(limit.child(), AggregateExec.class);
-        assertThat("One grouping in aggregation", agg.groupings().size(), equalTo(1));
-        var att = as(agg.groupings().get(0), Attribute.class);
-        assertThat(att.name(), equalTo("scalerank"));
-        // Before optimization the aggregation does not use doc-values
-        assertAggregation(agg, "count", Count.class);
-        assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_POINT, false);
+            var limit = as(plan, LimitExec.class);
+            var agg = as(limit.child(), AggregateExec.class);
+            assertThat("One grouping in aggregation", agg.groupings().size(), equalTo(1));
+            var att = as(agg.groupings().get(0), Attribute.class);
+            assertThat(att.name(), equalTo("scalerank"));
+            // Before optimization the aggregation does not use doc-values
+            assertAggregation(agg, "count", Count.class);
+            assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_POINT, false);
 
-        var exchange = as(agg.child(), ExchangeExec.class);
-        var fragment = as(exchange.child(), FragmentExec.class);
-        var fAgg = as(fragment.fragment(), Aggregate.class);
-        as(fAgg.child(), EsRelation.class);
+            var exchange = as(agg.child(), ExchangeExec.class);
+            var fragment = as(exchange.child(), FragmentExec.class);
+            var fAgg = as(fragment.fragment(), Aggregate.class);
+            as(fAgg.child(), EsRelation.class);
 
-        // Now optimize the plan and assert the aggregation uses doc-values
-        var optimized = optimizedPlan(plan);
-        limit = as(optimized, LimitExec.class);
-        agg = as(limit.child(), AggregateExec.class);
-        att = as(agg.groupings().get(0), Attribute.class);
-        assertThat(att.name(), equalTo("scalerank"));
-        // Above the exchange (in coordinator) the aggregation is not using doc-values
-        assertAggregation(agg, "count", Count.class);
-        assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_POINT, false);
-        exchange = as(agg.child(), ExchangeExec.class);
-        agg = as(exchange.child(), AggregateExec.class);
-        assertThat("Aggregation is PARTIAL", agg.getMode(), equalTo(INITIAL));
-        att = as(agg.groupings().get(0), Attribute.class);
-        assertThat(att.name(), equalTo("scalerank"));
-        // below the exchange (in data node) the aggregation is using doc-values
-        assertAggregation(agg, "count", Count.class);
-        assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_POINT, true);
-        var extract = as(agg.child(), FieldExtractExec.class);
-        assertTrue(
-            "Expect field attribute to be extracted as doc-values",
-            extract.attributesToExtract().stream().allMatch(attr -> extract.hasDocValuesAttribute(attr) && attr.dataType() == GEO_POINT)
-        );
-        source(extract.child());
+            // Now optimize the plan and assert the aggregation uses doc-values
+            var optimized = optimizedPlan(plan);
+            limit = as(optimized, LimitExec.class);
+            agg = as(limit.child(), AggregateExec.class);
+            att = as(agg.groupings().get(0), Attribute.class);
+            assertThat(att.name(), equalTo("scalerank"));
+            // Above the exchange (in coordinator) the aggregation is not using doc-values
+            assertAggregation(agg, "count", Count.class);
+            assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_POINT, false);
+            exchange = as(agg.child(), ExchangeExec.class);
+            agg = as(exchange.child(), AggregateExec.class);
+            assertThat("Aggregation is PARTIAL", agg.getMode(), equalTo(INITIAL));
+            att = as(agg.groupings().get(0), Attribute.class);
+            assertThat(att.name(), equalTo("scalerank"));
+            // below the exchange (in data node) the aggregation is using doc-values
+            assertAggregation(agg, "count", Count.class);
+            assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_POINT, useDocValues);
+            assertChildIsGeoPointExtract(agg, useDocValues);
+        }
     }
 
     /**
      * Before local optimizations:
-     *
+     * <code>
      * LimitExec[1000[INTEGER]]
      * \_AggregateExec[[],[SPATIALCENTROID(centroid{r}#4) AS centroid, SUM(count{r}#6) AS count],FINAL,null]
      *   \_AggregateExec[[],[SPATIALCENTROID(centroid{r}#4) AS centroid, SUM(count{r}#6) AS count],PARTIAL,null]
@@ -2869,9 +2995,9 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      *         \_FragmentExec[filter=null, estimatedRowSize=0, fragment=[
      * Aggregate[[scalerank{f}#16],[SPATIALCENTROID(location{f}#18) AS centroid, COUNT([2a][KEYWORD]) AS count]]
      * \_EsRelation[airports][abbrev{f}#14, location{f}#18, name{f}#15, scalerank..]]]
-     *
+     * </code>
      * After local optimizations:
-     *
+     * <code>
      * LimitExec[1000[INTEGER]]
      * \_AggregateExec[[],[SPATIALCENTROID(centroid{r}#4) AS centroid, SUM(count{r}#6) AS count],FINAL,58]
      *   \_AggregateExec[[],[SPATIALCENTROID(centroid{r}#4) AS centroid, SUM(count{r}#6) AS count],PARTIAL,58]
@@ -2880,7 +3006,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      *         \_AggregateExec[[scalerank{f}#16],[SPATIALCENTROID(location{f}#18) AS centroid, COUNT([2a][KEYWORD]) AS count],PARTIAL,58]
      *           \_FieldExtractExec[location{f}#18][location{f}#18]
      *             \_EsQueryExec[airports], query[][_doc{f}#42], limit[], sort[] estimatedRowSize[54]
-     *
+     * </code>
      * Note the FieldExtractExec has 'location' set for stats: FieldExtractExec[location{f}#9][location{f}#9]
      */
     public void testSpatialTypesAndStatsUseDocValuesMultiAggregationsGroupedAggregated() {
@@ -2943,16 +3069,12 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertThat("Aggregation is PARTIAL", agg.getMode(), equalTo(INITIAL));
         assertAggregation(agg, "count", Count.class);
         assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_POINT, true);
-        var extract = as(agg.child(), FieldExtractExec.class);
-        assertTrue(
-            "Expect field attribute to be extracted as doc-values",
-            extract.attributesToExtract().stream().allMatch(attr -> extract.hasDocValuesAttribute(attr) && attr.dataType() == GEO_POINT)
-        );
-        source(extract.child());
+        assertChildIsGeoPointExtract(agg, true);
     }
 
     /**
      * Plan:
+     * <code>
      * LimitExec[1000[INTEGER]]
      * \_AggregateExec[[],[SPATIALCENTROID(city_location{f}#16) AS centroid],FINAL,null]
      *   \_ExchangeExec[[xVal{r}#24, xDel{r}#25, yVal{r}#26, yDel{r}#27, count{r}#28],true]
@@ -2962,8 +3084,9 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      * _field":"city_boundary","enrich_fields":["city","airport","region","city_boundary"]}},{=airport_city_boundaries
      * },[airport{r}#21, region{r}#22, city_boundary{r}#23]]
      *   \_EsRelation[airports][abbrev{f}#9, city{f}#15, city_location{f}#16, count..]]]
-     *
+     * </code>
      * Optimized:
+     * <code>
      * LimitExec[1000[INTEGER]]
      * \_AggregateExec[[],[SPATIALCENTROID(city_location{f}#16) AS centroid],FINAL,50]
      *   \_ExchangeExec[[xVal{r}#24, xDel{r}#25, yVal{r}#26, yDel{r}#27, count{r}#28],true]
@@ -2973,7 +3096,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      *         \_FieldExtractExec[city_location{f}#16][city_location{f}#16]
      *           \_EsQueryExec[airports], query[{"exists":{"field":"city_location","boost":1.0}}][_doc{f}#46], limit[], sort[]
      *                         estimatedRowSize[204]
-     *
+     * </code>
      * Note the FieldExtractExec has 'city_location' set for doc-values: FieldExtractExec[city_location{f}#16][city_location{f}#16]
      */
     public void testEnrichBeforeSpatialAggregationSupportsDocValues() {
@@ -3011,24 +3134,21 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertThat(enrichExec.mode(), equalTo(Enrich.Mode.ANY));
         assertThat(enrichExec.concreteIndices(), equalTo(Map.of("", "airport_city_boundaries")));
         assertThat(enrichExec.enrichFields().size(), equalTo(3));
-        var extract = as(enrichExec.child(), FieldExtractExec.class);
-        source(extract.child());
-        assertTrue(
-            "Expect field attribute to be extracted as doc-values",
-            extract.attributesToExtract().stream().allMatch(attr -> extract.hasDocValuesAttribute(attr) && attr.dataType() == GEO_POINT)
-        );
+        assertChildIsGeoPointExtract(enrichExec, true);
     }
 
     /**
      * Plan:
+     * <code>
      * LimitExec[500[INTEGER]]
      * \_ExchangeExec[[],false]
      *   \_FragmentExec[filter=null, estimatedRowSize=0, fragment=[
      * Limit[500[INTEGER]]
      * \_Filter[SPATIALINTERSECTS(location{f}#7,[50 4f 4c 59 47 4f 4e 28 29][KEYWORD])]
      *   \_EsRelation[airports][abbrev{f}#3, city{f}#9, city_location{f}#10, countr..]]]
-     *
+     * </code>
      * Optimized:
+     * <code>
      * LimitExec[500[INTEGER]]
      * \_ExchangeExec[[],false]
      *   \_ProjectExec[[abbrev{f}#3, city{f}#9, city_location{f}#10, country{f}#8, location{f}#7, name{f}#4, scalerank{f}#5, type{f}#
@@ -3053,6 +3173,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      *           "source":"ST_INTERSECTS(location, \"POLYGON((42 14, 43 14, 43 15, 42 15, 42 14))\")@2:9"
      *         }
      *       }][_doc{f}#19], limit[500], sort[] estimatedRowSize[358]
+     * </code>
      */
     public void testPushSpatialIntersectsStringToSource() {
         for (String query : new String[] { """
@@ -3077,8 +3198,105 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             var project = as(exchange.child(), ProjectExec.class);
             var fieldExtract = as(project.child(), FieldExtractExec.class);
             var source = source(fieldExtract.child());
-            // TODO: bring back SingleValueQuery once it can handle LeafShapeFieldData
-            // var condition = as(sv(source.query(), "location"), AbstractGeometryQueryBuilder.class);
+            var condition = as(source.query(), SpatialRelatesQuery.ShapeQueryBuilder.class);
+            assertThat("Geometry field name", condition.fieldName(), equalTo("location"));
+            assertThat("Spatial relationship", condition.relation(), equalTo(ShapeRelation.INTERSECTS));
+            assertThat("Geometry is Polygon", condition.shape().type(), equalTo(ShapeType.POLYGON));
+            var polygon = as(condition.shape(), Polygon.class);
+            assertThat("Polygon shell length", polygon.getPolygon().length(), equalTo(5));
+            assertThat("Polygon holes", polygon.getNumberOfHoles(), equalTo(0));
+        }
+    }
+
+    /**
+     * Plan:
+     * <code>
+     * EvalExec[[scalerank{f}#8 AS rank]]
+     * \_LimitExec[1000[INTEGER]]
+     *   \_ExchangeExec[[],false]
+     *     \_FragmentExec[filter=null, estimatedRowSize=0, reducer=[], fragment=[
+     * Limit[1000[INTEGER]]
+     * \_Filter[scalerank{f}#8 &lt; 4[INTEGER]]
+     *   \_EsRelation[airports][abbrev{f}#6, city{f}#12, city_location{f}#13, count..]]]
+     * </code>
+     * Optimized:
+     * <code>
+     * EvalExec[[scalerank{f}#8 AS rank]]
+     * \_LimitExec[1000[INTEGER]]
+     *   \_ExchangeExec[[abbrev{f}#6, city{f}#12, city_location{f}#13, country{f}#11, location{f}#10, name{f}#7, scalerank{f}#8,
+     *       type{f}#9],false
+     *     ]
+     *     \_ProjectExec[[abbrev{f}#6, city{f}#12, city_location{f}#13, country{f}#11, location{f}#10, name{f}#7, scalerank{f}#8,
+     *         type{f}#9]
+     *       ]
+     *       \_FieldExtractExec[abbrev{f}#6, city{f}#12, city_location{f}#13, count..][]
+     *         \_EsQueryExec[airports], indexMode[standard], query[{
+     *           "esql_single_value":{"field":"scalerank","next":{"range":{"scalerank":{"lt":4,"boost":1.0}}},"source":"rank &lt; 4@3:9"}
+     *          ][_doc{f}#23], limit[1000], sort[] estimatedRowSize[304]
+     * </code>
+     */
+    public void testPushWhereEvalToSource() {
+        String query = """
+            FROM airports
+            | EVAL rank = scalerank
+            | WHERE rank < 4
+            """;
+
+        var plan = this.physicalPlan(query, airports);
+        var eval = as(plan, EvalExec.class);
+        var limit = as(eval.child(), LimitExec.class);
+        var exchange = as(limit.child(), ExchangeExec.class);
+        var fragment = as(exchange.child(), FragmentExec.class);
+        var limit2 = as(fragment.fragment(), Limit.class);
+        var filter = as(limit2.child(), Filter.class);
+        assertThat("filter contains LessThan", filter.condition(), instanceOf(LessThan.class));
+
+        var optimized = optimizedPlan(plan);
+        eval = as(optimized, EvalExec.class);
+        var topLimit = as(eval.child(), LimitExec.class);
+        exchange = as(topLimit.child(), ExchangeExec.class);
+        var project = as(exchange.child(), ProjectExec.class);
+        var fieldExtract = as(project.child(), FieldExtractExec.class);
+        assertThat(fieldExtract.attributesToExtract().size(), greaterThan(5));
+        var source = source(fieldExtract.child());
+        assertThat(source.limit(), is(topLimit.limit()));
+        var condition = as(source.query(), SingleValueQuery.Builder.class);
+        assertThat("Expected predicate to be passed to Lucene query", condition.source().text(), equalTo("rank < 4"));
+        assertThat("Expected field to be passed to Lucene query", condition.field(), equalTo("scalerank"));
+        var range = as(condition.next(), RangeQueryBuilder.class);
+        assertThat("Expected range have no lower bound", range.from(), nullValue());
+        assertThat("Expected range to be less than 4", range.to(), equalTo(4));
+    }
+
+    public void testPushSpatialIntersectsEvalToSource() {
+        for (String query : new String[] { """
+            FROM airports
+            | EVAL point = location
+            | WHERE ST_INTERSECTS(point, TO_GEOSHAPE("POLYGON((42 14, 43 14, 43 15, 42 15, 42 14))"))
+            """, """
+            FROM airports
+            | EVAL point = location
+            | WHERE ST_INTERSECTS(TO_GEOSHAPE("POLYGON((42 14, 43 14, 43 15, 42 15, 42 14))"), point)
+            """ }) {
+
+            var plan = this.physicalPlan(query, airports);
+            var eval = as(plan, EvalExec.class);
+            var limit = as(eval.child(), LimitExec.class);
+            var exchange = as(limit.child(), ExchangeExec.class);
+            var fragment = as(exchange.child(), FragmentExec.class);
+            var limit2 = as(fragment.fragment(), Limit.class);
+            var filter = as(limit2.child(), Filter.class);
+            assertThat("filter contains ST_INTERSECTS", filter.condition(), instanceOf(SpatialIntersects.class));
+
+            var optimized = optimizedPlan(plan);
+            eval = as(optimized, EvalExec.class);
+            var topLimit = as(eval.child(), LimitExec.class);
+            exchange = as(topLimit.child(), ExchangeExec.class);
+            var project = as(exchange.child(), ProjectExec.class);
+            var fieldExtract = as(project.child(), FieldExtractExec.class);
+            assertThat(fieldExtract.attributesToExtract().size(), greaterThan(5));
+            var source = source(fieldExtract.child());
+            assertThat(source.limit(), is(topLimit.limit()));
             var condition = as(source.query(), SpatialRelatesQuery.ShapeQueryBuilder.class);
             assertThat("Geometry field name", condition.fieldName(), equalTo("location"));
             assertThat("Spatial relationship", condition.relation(), equalTo(ShapeRelation.INTERSECTS));
@@ -3167,8 +3385,6 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             var fieldExtract = as(project.child(), FieldExtractExec.class);
             if (test.canPushToSource) {
                 var source = source(fieldExtract.child());
-                // TODO: bring back SingleValueQuery once it can handle LeafShapeFieldData
-                // var condition = as(sv(source.query(), "location"), AbstractGeometryQueryBuilder.class);
                 var condition = as(source.query(), SpatialRelatesQuery.ShapeQueryBuilder.class);
                 assertThat("Geometry field name: " + test.predicate(), condition.fieldName(), equalTo("location"));
                 assertThat("Spatial relationship: " + test.predicate(), condition.relation(), equalTo(test.relationship()));
@@ -3239,16 +3455,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             assertAggregation(agg, "count", Count.class);
             assertAggregation(agg, "centroid", SpatialCentroid.class, test.locationType(), true);
             if (test.canPushToSource) {
-                var extract = as(agg.child(), FieldExtractExec.class);
-                assertTrue(
-                    "Expect field attribute to be extracted as doc-values",
-                    extract.attributesToExtract()
-                        .stream()
-                        .allMatch(attr -> extract.hasDocValuesAttribute(attr) && attr.dataType() == test.locationType())
-                );
-                var source = source(extract.child());
-                // TODO: bring back SingleValueQuery once it can handle LeafShapeFieldData
-                // var condition = as(sv(source.query(), "location"), AbstractGeometryQueryBuilder.class);
+                var source = assertChildIsExtractedAsDocValues(agg, true, test.locationType());
                 var condition = as(source.query(), SpatialRelatesQuery.ShapeQueryBuilder.class);
                 assertThat("Geometry field name: " + test.predicate(), condition.fieldName(), equalTo("location"));
                 assertThat("Spatial relationship: " + test.predicate(), condition.relation(), equalTo(test.relationship()));
@@ -3271,7 +3478,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
     /**
      * Plan:
-     * Plan:
+     * <code>
      * LimitExec[500[INTEGER]]
      * \_AggregateExec[[],[SPATIALCENTROID(location{f}#12) AS centroid, COUNT([2a][KEYWORD]) AS count],FINAL,null]
      *   \_ExchangeExec[[xVal{r}#16, xDel{r}#17, yVal{r}#18, yDel{r}#19, count{r}#20, count{r}#21, seen{r}#22],true]
@@ -3280,32 +3487,26 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      * \_Filter[SPATIALINTERSECTS(location{f}#12,[50 4f 4c 59 47 4f 4e 28 28 34 32 20 31 34 2c 20 34 33 20 31 34 2c 20 34 33 2
      * 0 31 35 2c 20 34 32 20 31 35 2c 20 34 32 20 31 34 29 29][KEYWORD])]
      *   \_EsRelation[airports][abbrev{f}#8, city{f}#14, city_location{f}#15, count..]]]
-     *
+     * </code>
      * Optimized:
-     * LimitExec[500[INTEGER]]
-     * \_AggregateExec[[],[SPATIALCENTROID(location{f}#12) AS centroid, COUNT([2a][KEYWORD]) AS count],FINAL,58]
+     * <code>
+     * LimitExec[1000[INTEGER]]
+     * \_AggregateExec[[],[SPATIALCENTROID(location{f}#12) AS centroid, COUNT([2a][KEYWORD]) AS count],FINAL,[...],29]
      *   \_ExchangeExec[[xVal{r}#16, xDel{r}#17, yVal{r}#18, yDel{r}#19, count{r}#20, count{r}#21, seen{r}#22],true]
-     *     \_AggregateExec[[],[SPATIALCENTROID(location{f}#12) AS centroid, COUNT([2a][KEYWORD]) AS count],PARTIAL,58]
+     *     \_AggregateExec[[],[SPATIALCENTROID(location{f}#12) AS centroid, COUNT([2a][KEYWORD]) AS count],INITIAL,[...],29]
      *       \_FieldExtractExec[location{f}#12][location{f}#12]
-     *         \_EsQueryExec[airports], query[{
-     *           "esql_single_value":{
-     *             "field":"location",
-     *             "next":{
-     *               "geo_shape":{
-     *                 "location":{
-     *                   "shape":{
-     *                     "type":"Polygon",
-     *                     "coordinates":[[[42.0,14.0],[43.0,14.0],[43.0,15.0],[42.0,15.0],[42.0,14.0]]]
-     *                   },
-     *                   "relation":"intersects"
-     *                 },
-     *                 "ignore_unmapped":false,
-     *                 "boost":1.0
+     *         \_EsQueryExec[airports], indexMode[standard], query[{
+     *           "geo_shape":{
+     *             "location":{
+     *               "relation":"INTERSECTS",
+     *               "shape":{
+     *                 "type":"Polygon",
+     *                 "coordinates":[[[42.0,14.0],[43.0,14.0],[43.0,15.0],[42.0,15.0],[42.0,14.0]]]
      *               }
-     *             },
-     *             "source":"ST_INTERSECTS(location, \"POLYGON((42 14, 43 14, 43 15, 42 15, 42 14))\")@2:9"
+     *             }
      *           }
-     *         }][_doc{f}#140, limit[], sort[] estimatedRowSize[54]
+     *         }][_doc{f}#47], limit[], sort[] estimatedRowSize[25]
+     * </code>
      */
     public void testPushSpatialIntersectsStringToSourceAndUseDocValuesForCentroid() {
         for (String query : new String[] { """
@@ -3318,48 +3519,46 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             | STATS centroid=ST_CENTROID_AGG(location), count=COUNT()
             """ }) {
 
-            var plan = this.physicalPlan(query, airports);
-            var limit = as(plan, LimitExec.class);
-            var agg = as(limit.child(), AggregateExec.class);
-            assertThat("No groupings in aggregation", agg.groupings().size(), equalTo(0));
-            // Before optimization the aggregation does not use doc-values
-            assertAggregation(agg, "count", Count.class);
-            assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_POINT, false);
+            for (boolean useDocValues : new boolean[] { true, false }) {
+                var plan = this.physicalPlan(query, useDocValues ? airports : airportsNoDocValues);
+                var limit = as(plan, LimitExec.class);
+                var agg = as(limit.child(), AggregateExec.class);
+                assertThat("No groupings in aggregation", agg.groupings().size(), equalTo(0));
+                // Before optimization the aggregation does not use doc-values
+                assertAggregation(agg, "count", Count.class);
+                assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_POINT, false);
 
-            var exchange = as(agg.child(), ExchangeExec.class);
-            var fragment = as(exchange.child(), FragmentExec.class);
-            var fAgg = as(fragment.fragment(), Aggregate.class);
-            var filter = as(fAgg.child(), Filter.class);
-            assertThat("filter contains ST_INTERSECTS", filter.condition(), instanceOf(SpatialIntersects.class));
+                var exchange = as(agg.child(), ExchangeExec.class);
+                var fragment = as(exchange.child(), FragmentExec.class);
+                var fAgg = as(fragment.fragment(), Aggregate.class);
+                var filter = as(fAgg.child(), Filter.class);
+                assertThat("filter contains ST_INTERSECTS", filter.condition(), instanceOf(SpatialIntersects.class));
 
-            // Now verify that optimization re-writes the ExchangeExec and pushed down the filter into the Lucene query
-            var optimized = optimizedPlan(plan);
-            limit = as(optimized, LimitExec.class);
-            agg = as(limit.child(), AggregateExec.class);
-            // Above the exchange (in coordinator) the aggregation is not using doc-values
-            assertAggregation(agg, "count", Count.class);
-            assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_POINT, false);
-            exchange = as(agg.child(), ExchangeExec.class);
-            agg = as(exchange.child(), AggregateExec.class);
-            assertThat("Aggregation is PARTIAL", agg.getMode(), equalTo(INITIAL));
-            // below the exchange (in data node) the aggregation is using doc-values
-            assertAggregation(agg, "count", Count.class);
-            assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_POINT, true);
-            var extract = as(agg.child(), FieldExtractExec.class);
-            assertTrue(
-                "Expect field attribute to be extracted as doc-values",
-                extract.attributesToExtract().stream().allMatch(attr -> extract.hasDocValuesAttribute(attr) && attr.dataType() == GEO_POINT)
-            );
-            var source = source(extract.child());
-            // TODO: bring back SingleValueQuery once it can handle LeafShapeFieldData
-            // var condition = as(sv(source.query(), "location"), AbstractGeometryQueryBuilder.class);
-            var condition = as(source.query(), SpatialRelatesQuery.ShapeQueryBuilder.class);
-            assertThat("Geometry field name", condition.fieldName(), equalTo("location"));
-            assertThat("Spatial relationship", condition.relation(), equalTo(ShapeRelation.INTERSECTS));
-            assertThat("Geometry is Polygon", condition.shape().type(), equalTo(ShapeType.POLYGON));
-            var polygon = as(condition.shape(), Polygon.class);
-            assertThat("Polygon shell length", polygon.getPolygon().length(), equalTo(5));
-            assertThat("Polygon holes", polygon.getNumberOfHoles(), equalTo(0));
+                // Now verify that optimization re-writes the ExchangeExec and pushed down the filter into the Lucene query
+                var optimized = optimizedPlan(plan);
+                limit = as(optimized, LimitExec.class);
+                agg = as(limit.child(), AggregateExec.class);
+                // Above the exchange (in coordinator) the aggregation is not using doc-values
+                assertAggregation(agg, "count", Count.class);
+                assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_POINT, false);
+                exchange = as(agg.child(), ExchangeExec.class);
+                agg = as(exchange.child(), AggregateExec.class);
+                assertThat("Aggregation is PARTIAL", agg.getMode(), equalTo(INITIAL));
+                // below the exchange (in data node) the aggregation is using doc-values
+                assertAggregation(agg, "count", Count.class);
+                assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_POINT, useDocValues);
+                var source = assertChildIsGeoPointExtract(useDocValues ? agg : as(agg.child(), FilterExec.class), useDocValues);
+                if (useDocValues) {
+                    // Query is only pushed to lucene if indexing/doc-values are enabled
+                    var condition = as(source.query(), SpatialRelatesQuery.ShapeQueryBuilder.class);
+                    assertThat("Geometry field name", condition.fieldName(), equalTo("location"));
+                    assertThat("Spatial relationship", condition.relation(), equalTo(ShapeRelation.INTERSECTS));
+                    assertThat("Geometry is Polygon", condition.shape().type(), equalTo(ShapeType.POLYGON));
+                    var polygon = as(condition.shape(), Polygon.class);
+                    assertThat("Polygon shell length", polygon.getPolygon().length(), equalTo(5));
+                    assertThat("Polygon holes", polygon.getNumberOfHoles(), equalTo(0));
+                }
+            }
         }
     }
 
@@ -3392,8 +3591,6 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             var project = as(exchange.child(), ProjectExec.class);
             var fieldExtract = as(project.child(), FieldExtractExec.class);
             var source = source(fieldExtract.child());
-            // TODO: bring back SingleValueQuery once it can handle LeafShapeFieldData
-            // var condition = as(sv(source.query(), "location"), AbstractGeometryQueryBuilder.class);
             var booleanQuery = as(source.query(), BoolQueryBuilder.class);
             assertThat("Expected boolean query of three predicates", booleanQuery.must().size(), equalTo(3));
             var condition = as(booleanQuery.must().get(1), SpatialRelatesQuery.ShapeQueryBuilder.class);
@@ -3450,14 +3647,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             // below the exchange (in data node) the aggregation is using doc-values
             assertAggregation(agg, "count", Count.class);
             assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_POINT, true);
-            var extract = as(agg.child(), FieldExtractExec.class);
-            assertTrue(
-                "Expect field attribute to be extracted as doc-values",
-                extract.attributesToExtract().stream().allMatch(attr -> extract.hasDocValuesAttribute(attr) && attr.dataType() == GEO_POINT)
-            );
-            var source = source(extract.child());
-            // TODO: bring back SingleValueQuery once it can handle LeafShapeFieldData
-            // var condition = as(sv(source.query(), "location"), AbstractGeometryQueryBuilder.class);
+            var source = assertChildIsGeoPointExtract(agg, true);
             var booleanQuery = as(source.query(), BoolQueryBuilder.class);
             assertThat("Expected boolean query of three predicates", booleanQuery.must().size(), equalTo(3));
             var condition = as(booleanQuery.must().get(1), SpatialRelatesQuery.ShapeQueryBuilder.class);
@@ -3627,8 +3817,6 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var extract = as(agg.child(), FieldExtractExec.class);
         assertFieldExtractionWithDocValues(extract, GEO_POINT, "location", "city_location");
         var source = source(extract.child());
-        // TODO: bring back SingleValueQuery once it can handle LeafShapeFieldData
-        // var condition = as(sv(source.query(), "location"), AbstractGeometryQueryBuilder.class);
         var booleanQuery = as(source.query(), BoolQueryBuilder.class);
         assertThat("Expected boolean query of two predicates", booleanQuery.must().size(), equalTo(2));
         String[] fieldNames = new String[] { "location", "city_location" };
@@ -3666,8 +3854,6 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             var project = as(exchange.child(), ProjectExec.class);
             var fieldExtract = as(project.child(), FieldExtractExec.class);
             var source = source(fieldExtract.child());
-            // TODO: bring back SingleValueQuery once it can handle LeafShapeFieldData
-            // var condition = as(sv(source.query(), "location"), AbstractGeometryQueryBuilder.class);
             var condition = as(source.query(), SpatialRelatesQuery.ShapeQueryBuilder.class);
             assertThat("Geometry field name", condition.fieldName(), equalTo("shape"));
             assertThat("Spatial relationship", condition.relation(), equalTo(ShapeRelation.INTERSECTS));
@@ -3771,6 +3957,167 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertShapeQueryRange(shapeQueryBuilders, 400000.0, 600000.0);
     }
 
+    /**
+     * Plan:
+     * <code>
+     * LimitExec[1000[INTEGER]]
+     * \_ExchangeExec[[],false]
+     *   \_FragmentExec[filter=null, estimatedRowSize=0, reducer=[], fragment=[
+     *     Limit[1000[INTEGER]]
+     *     \_Filter[distance{r}#4 le 600000[INTEGER] AND distance{r}#4 ge 400000[INTEGER]]
+     *        \_Eval[[STDISTANCE(location{f}#11,[1 1 0 0 0 e1 7a 14 ae 47 21 29 40 a0 1a 2f dd 24 d6 4b 40][GEO_POINT])
+     *          AS distance]]
+     *          \_EsRelation[airports][abbrev{f}#7, city{f}#13, city_location{f}#14, count..]]]
+     * </code>
+     * Optimized:
+     * <code>
+     * LimitExec[1000[INTEGER]]
+     * \_ExchangeExec[[abbrev{f}#7, city{f}#13, city_location{f}#14, country{f}#12, location{f}#11, name{f}#8, scalerank{f}#9, type{
+     * f}#10, distance{r}#4],false]
+     *   \_ProjectExec[[abbrev{f}#7, city{f}#13, city_location{f}#14, country{f}#12, location{f}#11, name{f}#8, scalerank{f}#9, type{
+     * f}#10, distance{r}#4]]
+     *     \_FieldExtractExec[abbrev{f}#7, city{f}#13, city_location{f}#14, count..][]
+     *       \_LimitExec[1000[INTEGER]]
+     *         \_EvalExec[[STDISTANCE(location{f}#11,[1 1 0 0 0 e1 7a 14 ae 47 21 29 40 a0 1a 2f dd 24 d6 4b 40][GEO_POINT])
+     *           AS distance]]
+     *           \_FieldExtractExec[location{f}#11][]
+     *             \_EsQueryExec[airports], indexMode[standard], query[{
+     *               "bool":{
+     *                 "must":[
+     *                   {
+     *                     "geo_shape":{
+     *                       "location":{
+     *                         "relation":"INTERSECTS",
+     *                         "shape":{
+     *                           "type":"Circle",
+     *                           "radius":"600000.0m",
+     *                           "coordinates":[12.565,55.673]
+     *                         }
+     *                       }
+     *                     }
+     *                   },
+     *                   {
+     *                     "geo_shape":{
+     *                       "location":{
+     *                         "relation":"DISJOINT",
+     *                         "shape":{
+     *                           "type":"Circle",
+     *                           "radius":"400000.0m",
+     *                           "coordinates":[12.565,55.673]
+     *                         }
+     *                       }
+     *                     }
+     *                   }
+     *                 ],
+     *                 "boost":1.0
+     *               }}][_doc{f}#24], limit[], sort[] estimatedRowSize[308]
+     * </code>
+     */
+    public void testPushSpatialDistanceEvalToSource() {
+        var query = """
+            FROM airports
+            | EVAL distance = ST_DISTANCE(location, TO_GEOPOINT("POINT(12.565 55.673)"))
+            | WHERE distance <= 600000
+                AND distance >= 400000
+            """;
+        var plan = this.physicalPlan(query, airports);
+        var limit = as(plan, LimitExec.class);
+        var exchange = as(limit.child(), ExchangeExec.class);
+        var fragment = as(exchange.child(), FragmentExec.class);
+        var limit2 = as(fragment.fragment(), Limit.class);
+        var filter = as(limit2.child(), Filter.class);
+
+        // Validate the EVAL expression
+        var eval = as(filter.child(), Eval.class);
+        var alias = as(eval.fields().get(0), Alias.class);
+        assertThat(alias.name(), is("distance"));
+        var stDistance = as(alias.child(), StDistance.class);
+        var location = as(stDistance.left(), FieldAttribute.class);
+        assertThat(location.fieldName(), is("location"));
+
+        // Validate the filter condition
+        var and = as(filter.condition(), And.class);
+        for (Expression expression : and.arguments()) {
+            var comp = as(expression, EsqlBinaryComparison.class);
+            var expectedComp = comp.equals(and.left()) ? LessThanOrEqual.class : GreaterThanOrEqual.class;
+            assertThat("filter contains expected binary comparison", comp, instanceOf(expectedComp));
+            var distance = as(comp.left(), ReferenceAttribute.class);
+            assertThat(distance.name(), is("distance"));
+        }
+
+        var optimized = optimizedPlan(plan);
+        var topLimit = as(optimized, LimitExec.class);
+        exchange = as(topLimit.child(), ExchangeExec.class);
+        var project = as(exchange.child(), ProjectExec.class);
+        var fieldExtract = as(project.child(), FieldExtractExec.class);
+        var limit3 = as(fieldExtract.child(), LimitExec.class);
+        var evalExec = as(limit3.child(), EvalExec.class);
+        var fieldExtract2 = as(evalExec.child(), FieldExtractExec.class);
+        var source = source(fieldExtract2.child());
+        var bool = as(source.query(), BoolQueryBuilder.class);
+        var rangeQueryBuilders = bool.filter().stream().filter(p -> p instanceof SingleValueQuery.Builder).toList();
+        assertThat("Expected zero range query builder", rangeQueryBuilders.size(), equalTo(0));
+        var shapeQueryBuilders = bool.must().stream().filter(p -> p instanceof SpatialRelatesQuery.ShapeQueryBuilder).toList();
+        assertShapeQueryRange(shapeQueryBuilders, 400000.0, 600000.0);
+    }
+
+    public void testPushSpatialDistanceMultiEvalToSource() {
+        var query = """
+            FROM airports
+            | EVAL poi = TO_GEOPOINT("POINT(12.565 55.673)")
+            | EVAL distance = ST_DISTANCE(location, poi)
+            | WHERE distance <= 600000
+                AND distance >= 400000
+            """;
+        var plan = this.physicalPlan(query, airports);
+        var limit = as(plan, LimitExec.class);
+        var exchange = as(limit.child(), ExchangeExec.class);
+        var fragment = as(exchange.child(), FragmentExec.class);
+        var limit2 = as(fragment.fragment(), Limit.class);
+        var filter = as(limit2.child(), Filter.class);
+
+        // Validate the EVAL expression
+        var eval = as(filter.child(), Eval.class);
+        assertThat(eval.fields().size(), is(2));
+        var alias1 = as(eval.fields().get(0), Alias.class);
+        assertThat(alias1.name(), is("poi"));
+        var poi = as(alias1.child(), Literal.class);
+        assertThat(poi.fold(), instanceOf(BytesRef.class));
+        var alias2 = as(eval.fields().get(1), Alias.class);
+        assertThat(alias2.name(), is("distance"));
+        var stDistance = as(alias2.child(), StDistance.class);
+        var location = as(stDistance.left(), FieldAttribute.class);
+        assertThat(location.fieldName(), is("location"));
+        var poiRef = as(stDistance.right(), Literal.class);
+        assertThat(poiRef.fold(), instanceOf(BytesRef.class));
+        assertThat(poiRef.fold().toString(), is(poi.fold().toString()));
+
+        // Validate the filter condition
+        var and = as(filter.condition(), And.class);
+        for (Expression expression : and.arguments()) {
+            var comp = as(expression, EsqlBinaryComparison.class);
+            var expectedComp = comp.equals(and.left()) ? LessThanOrEqual.class : GreaterThanOrEqual.class;
+            assertThat("filter contains expected binary comparison", comp, instanceOf(expectedComp));
+            var distance = as(comp.left(), ReferenceAttribute.class);
+            assertThat(distance.name(), is("distance"));
+        }
+
+        var optimized = optimizedPlan(plan);
+        var topLimit = as(optimized, LimitExec.class);
+        exchange = as(topLimit.child(), ExchangeExec.class);
+        var project = as(exchange.child(), ProjectExec.class);
+        var fieldExtract = as(project.child(), FieldExtractExec.class);
+        var limit3 = as(fieldExtract.child(), LimitExec.class);
+        var evalExec = as(limit3.child(), EvalExec.class);
+        var fieldExtract2 = as(evalExec.child(), FieldExtractExec.class);
+        var source = source(fieldExtract2.child());
+        var bool = as(source.query(), BoolQueryBuilder.class);
+        var rangeQueryBuilders = bool.filter().stream().filter(p -> p instanceof SingleValueQuery.Builder).toList();
+        assertThat("Expected zero range query builder", rangeQueryBuilders.size(), equalTo(0));
+        var shapeQueryBuilders = bool.must().stream().filter(p -> p instanceof SpatialRelatesQuery.ShapeQueryBuilder).toList();
+        assertShapeQueryRange(shapeQueryBuilders, 400000.0, 600000.0);
+    }
+
     public void testPushSpatialDistanceDisjointBandsToSource() {
         var query = """
             FROM airports
@@ -3865,6 +4212,1361 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         }
     }
 
+    /**
+     * <code>
+     * \_ExchangeExec[[abbrev{f}#22, city{f}#28, city_location{f}#29, country{f}#27, location{f}#26, name{f}#23, scalerank{f}#24,
+     *     type{f}#25, poi_x{r}#3, distance_x{r}#7, poi{r}#10, distance{r}#13],false]
+     *   \_ProjectExec[[abbrev{f}#22, city{f}#28, city_location{f}#29, country{f}#27, location{f}#26, name{f}#23, scalerank{f}#24,
+     *       type{f}#25, poi_x{r}#3, distance_x{r}#7, poi{r}#10, distance{r}#13]]
+     *     \_FieldExtractExec[abbrev{f}#22, city{f}#28, city_location{f}#29, coun..][]
+     *       \_LimitExec[1000[INTEGER]]
+     *         \_EvalExec[[
+     *             [1 1 0 0 0 e1 7a 14 ae 47 21 29 40 a0 1a 2f dd 24 d6 4b 40][GEO_POINT] AS poi_x,
+     *             DISTANCE(location{f}#26,[1 1 0 0 0 e1 7a 14 ae 47 21 29 40 a0 1a 2f dd 24 d6 4b 40][GEO_POINT]) AS distance_x,
+     *             [1 1 0 0 0 e1 7a 14 ae 47 21 29 40 a0 1a 2f dd 24 d6 4b 40][GEO_POINT] AS poi,
+     *             distance_x{r}#7 AS distance
+     *           ]]
+     *           \_FieldExtractExec[location{f}#26][]
+     *             \_EsQueryExec[airports], indexMode[standard], query[{
+     *               "bool":{
+     *                 "must":[
+     *                   {"esql_single_value":{
+     *                     "field":"abbrev",
+     *                     "next":{"bool":{"must_not":[{"term":{"abbrev":{"value":"PLQ"}}}],"boost":1.0}},
+     *                     "source":"NOT abbrev == \"PLQ\"@10:9"
+     *                   }},
+     *                   {"esql_single_value":{
+     *                     "field":"scalerank",
+     *                     "next":{"range":{"scalerank":{"lt":6,"boost":1.0}}},
+     *                     "source":"scalerank lt 6@11:9"
+     *                   }}
+     *                 ],
+     *                 "filter":[
+     *                   {"bool":{
+     *                     "should":[
+     *                       {"bool":{"must":[
+     *                         {"geo_shape":{"location":{"relation":"INTERSECTS","shape":{...}}}},
+     *                         {"geo_shape":{"location":{"relation":"DISJOINT","shape":{...}}}},
+     *                         {"bool":{"must_not":[
+     *                           {"bool":{"must":[
+     *                             {"geo_shape":{"location":{"relation":"INTERSECTS","shape":{...}}}},
+     *                             {"geo_shape":{"location":{"relation":"DISJOINT","shape":{...}}}}
+     *                           ],"boost":1.0}}
+     *                         ],"boost":1.0}}
+     *                       ],"boost":1.0}},
+     *                       {"bool":{"must":[
+     *                         {"geo_shape":{"location":{"relation":"INTERSECTS","shape":{...}}}},
+     *                         {"geo_shape":{"location":{"relation":"DISJOINT","shape":{...}}}}
+     *                       ],"boost":1.0}}
+     *                     ],"boost":1.0
+     *                   }}
+     *                 ],"boost":1.0}}][_doc{f}#34], limit[], sort[] estimatedRowSize[329]
+     * </code>
+     */
+    public void testPushSpatialDistanceComplexPredicateWithEvalToSource() {
+        var query = """
+            FROM airports
+            | EVAL poi_x = TO_GEOPOINT("POINT(12.565 55.673)")
+            | EVAL distance_x = ST_DISTANCE(location, poi_x)
+            | EVAL poi = poi_x
+            | EVAL distance = distance_x
+            | WHERE ((distance <= 600000
+                  AND distance >= 400000
+                  AND NOT (distance <= 500000
+                       AND distance >= 430000))
+                  OR (distance <= 300000
+                           AND distance >= 200000))
+                AND NOT abbrev == "PLQ"
+                AND scalerank < 6
+            """;
+        var plan = this.physicalPlan(query, airports);
+        var optimized = optimizedPlan(plan);
+        var topLimit = as(optimized, LimitExec.class);
+        var exchange = as(topLimit.child(), ExchangeExec.class);
+        var project = as(exchange.child(), ProjectExec.class);
+        var fieldExtract = as(project.child(), FieldExtractExec.class);
+        var limit2 = as(fieldExtract.child(), LimitExec.class);
+        var evalExec = as(limit2.child(), EvalExec.class);
+        var fieldExtract2 = as(evalExec.child(), FieldExtractExec.class);
+        var source = source(fieldExtract2.child());
+        var bool = as(source.query(), BoolQueryBuilder.class);
+        assertThat("Expected boolean query of three MUST clauses", bool.must().size(), equalTo(2));
+        assertThat("Expected boolean query of one FILTER clause", bool.filter().size(), equalTo(1));
+        var boolDisjuntive = as(bool.filter().get(0), BoolQueryBuilder.class);
+        var disjuntiveQueryBuilders = boolDisjuntive.should().stream().filter(p -> p instanceof BoolQueryBuilder).toList();
+        assertThat("Expected two disjunctive query builders", disjuntiveQueryBuilders.size(), equalTo(2));
+        for (int i = 0; i < disjuntiveQueryBuilders.size(); i++) {
+            var subRangeBool = as(disjuntiveQueryBuilders.get(i), BoolQueryBuilder.class);
+            var shapeQueryBuilders = subRangeBool.must().stream().filter(p -> p instanceof SpatialRelatesQuery.ShapeQueryBuilder).toList();
+            assertShapeQueryRange(shapeQueryBuilders, i == 0 ? 400000.0 : 200000.0, i == 0 ? 600000.0 : 300000.0);
+        }
+    }
+
+    /**
+     * Plan:
+     * <code>
+     * LimitExec[1000[INTEGER]]
+     * \_AggregateExec[[],[COUNT([2a][KEYWORD]) AS count],FINAL,[count{r}#17, seen{r}#18],null]
+     *   \_ExchangeExec[[count{r}#17, seen{r}#18],true]
+     *     \_FragmentExec[filter=null, estimatedRowSize=0, reducer=[], fragment=[
+     * Aggregate[STANDARD,[],[COUNT([2a][KEYWORD]) AS count]]
+     * \_Filter[distance{r}#4 lt 1000000[INTEGER] AND distance{r}#4 gt 10000[INTEGER]]
+     *   \_Eval[[
+     *       STDISTANCE(location{f}#13,[1 1 0 0 0 e1 7a 14 ae 47 21 29 40 a0 1a 2f dd 24 d6 4b 40][GEO_POINT]) AS distance
+     *     ]]
+     *     \_EsRelation[airports][abbrev{f}#9, city{f}#15, city_location{f}#16, count..]]]
+     * </code>
+     * Optimized:
+     * <code>
+     * LimitExec[1000[INTEGER]]
+     * \_AggregateExec[[],[COUNT([2a][KEYWORD]) AS count],FINAL,[count{r}#17, seen{r}#18],8]
+     *   \_ExchangeExec[[count{r}#17, seen{r}#18],true]
+     *     \_AggregateExec[[],[COUNT([2a][KEYWORD]) AS count],INITIAL,[count{r}#31, seen{r}#32],8]
+     *       \_EvalExec[[
+     *           STDISTANCE(location{f}#13,[1 1 0 0 0 e1 7a 14 ae 47 21 29 40 a0 1a 2f dd 24 d6 4b 40][GEO_POINT]) AS distance
+     *         ]]
+     *         \_FieldExtractExec[location{f}#13][]
+     *           \_EsQueryExec[airports], indexMode[standard], query[{
+     *             "bool":{
+     *               "must":[
+     *                 {"geo_shape":{"location":{"relation":"INTERSECTS","shape":{...}}}},
+     *                 {"geo_shape":{"location":{"relation":"DISJOINT","shape":{...}}}}
+     *               ],"boost":1.0}}][_doc{f}#33], limit[], sort[] estimatedRowSize[33]
+     * </code>
+     */
+    public void testPushSpatialDistanceEvalWithSimpleStatsToSource() {
+        var query = """
+            FROM airports
+            | EVAL distance = ST_DISTANCE(location, TO_GEOPOINT("POINT(12.565 55.673)"))
+            | WHERE distance < 1000000 AND distance > 10000
+            | STATS count=COUNT(*)
+            """;
+        var plan = this.physicalPlan(query, airports);
+        var limit = as(plan, LimitExec.class);
+        var agg = as(limit.child(), AggregateExec.class);
+        var exchange = as(agg.child(), ExchangeExec.class);
+        var fragment = as(exchange.child(), FragmentExec.class);
+        var agg2 = as(fragment.fragment(), Aggregate.class);
+        var filter = as(agg2.child(), Filter.class);
+
+        // Validate the filter condition (two distance filters)
+        var and = as(filter.condition(), And.class);
+        for (Expression expression : and.arguments()) {
+            var comp = as(expression, EsqlBinaryComparison.class);
+            var expectedComp = comp.equals(and.left()) ? LessThan.class : GreaterThan.class;
+            assertThat("filter contains expected binary comparison", comp, instanceOf(expectedComp));
+            var distance = as(comp.left(), ReferenceAttribute.class);
+            assertThat(distance.name(), is("distance"));
+        }
+
+        // Validate the eval (calculating distance)
+        var eval = as(filter.child(), Eval.class);
+        var alias = as(eval.fields().get(0), Alias.class);
+        assertThat(alias.name(), is("distance"));
+        as(eval.child(), EsRelation.class);
+
+        // Now optimize the plan
+        var optimized = optimizedPlan(plan);
+        var topLimit = as(optimized, LimitExec.class);
+        var aggExec = as(topLimit.child(), AggregateExec.class);
+        var exchangeExec = as(aggExec.child(), ExchangeExec.class);
+        var aggExec2 = as(exchangeExec.child(), AggregateExec.class);
+        // TODO: Remove the eval entirely, since the distance is no longer required after filter pushdown
+        // Right now we don't mark the distance field as doc-values, introducing a performance hit
+        // However, fixing this to doc-values is not as good as removing the EVAL entirely, which is a more sensible optimization
+        var evalExec = as(aggExec2.child(), EvalExec.class);
+        var stDistance = as(evalExec.fields().get(0).child(), StDistance.class);
+        assertThat("Expect distance function to expect doc-values", stDistance.leftDocValues(), is(false));
+        var source = assertChildIsGeoPointExtract(evalExec, false);
+
+        // No sort is pushed down
+        assertThat(source.limit(), nullValue());
+        assertThat(source.sorts(), nullValue());
+
+        // Fine-grained checks on the pushed down query
+        var bool = as(source.query(), BoolQueryBuilder.class);
+        var shapeQueryBuilders = bool.must().stream().filter(p -> p instanceof SpatialRelatesQuery.ShapeQueryBuilder).toList();
+        assertShapeQueryRange(shapeQueryBuilders, 10000.0, 1000000.0);
+    }
+
+    /**
+     * Plan:
+     * <code>
+     * TopNExec[[Order[count{r}#10,DESC,FIRST], Order[country{f}#21,ASC,LAST]],1000[INTEGER],null]
+     * \_AggregateExec[[country{f}#21],[COUNT([2a][KEYWORD]) AS count, SPATIALCENTROID(location{f}#20) AS centroid, country{f}#21],FINA
+     * L,[country{f}#21, count{r}#24, seen{r}#25, xVal{r}#26, xDel{r}#27, yVal{r}#28, yDel{r}#29, count{r}#30],null]
+     *   \_ExchangeExec[[country{f}#21, count{r}#24, seen{r}#25, xVal{r}#26, xDel{r}#27, yVal{r}#28, yDel{r}#29, count{r}#30],true]
+     *     \_FragmentExec[filter=null, estimatedRowSize=0, reducer=[], fragment=[
+     * Aggregate[STANDARD,[country{f}#21],[COUNT([2a][KEYWORD]) AS count, SPATIALCENTROID(location{f}#20) AS centroid, country{f}
+     * #21]]
+     * \_Filter[distance{r}#4 lt 1000000[INTEGER] AND distance{r}#4 gt 10000[INTEGER]]
+     *   \_Eval[[STDISTANCE(location{f}#20,[1 1 0 0 0 e1 7a 14 ae 47 21 29 40 a0 1a 2f dd 24 d6 4b 40][GEO_POINT])
+     *     AS distance]]
+     *     \_Filter[scalerank{f}#18 lt 6[INTEGER]]
+     *       \_EsRelation[airports][abbrev{f}#16, city{f}#22, city_location{f}#23, coun..]]]
+     * </code>
+     * Optimized:
+     * <code>
+     * TopNExec[[Order[count{r}#10,DESC,FIRST], Order[country{f}#21,ASC,LAST]],1000[INTEGER],0]
+     * \_AggregateExec[[country{f}#21],[COUNT([2a][KEYWORD]) AS count, SPATIALCENTROID(location{f}#20) AS centroid, country{f}#21],FINA
+     * L,[country{f}#21, count{r}#24, seen{r}#25, xVal{r}#26, xDel{r}#27, yVal{r}#28, yDel{r}#29, count{r}#30],79]
+     *   \_ExchangeExec[[country{f}#21, count{r}#24, seen{r}#25, xVal{r}#26, xDel{r}#27, yVal{r}#28, yDel{r}#29, count{r}#30],true]
+     *     \_AggregateExec[[country{f}#21],[COUNT([2a][KEYWORD]) AS count, SPATIALCENTROID(location{f}#20) AS centroid, country{f}#21],INIT
+     * IAL,[country{f}#21, count{r}#49, seen{r}#50, xVal{r}#51, xDel{r}#52, yVal{r}#53, yDel{r}#54, count{r}#55],79]
+     *       \_EvalExec[[STDISTANCE(location{f}#20,[1 1 0 0 0 e1 7a 14 ae 47 21 29 40 a0 1a 2f dd 24 d6 4b 40][GEO_POINT])
+     *         AS distance]]
+     *         \_FieldExtractExec[location{f}#20][location{f}#20]
+     *           \_EsQueryExec[airports], indexMode[standard], query[{
+     *               "bool":{
+     *                 "filter":[
+     *                   {
+     *                     "esql_single_value":{
+     *                       "field":"scalerank",
+     *                       "next":{"range":{"scalerank":{"lt":6,"boost":1.0}}},
+     *                       "source":"scalerank lt 6@3:31"
+     *                     }
+     *                   },
+     *                   {
+     *                     "bool":{
+     *                       "must":[
+     *                         {"geo_shape":{
+     *                           "location":{
+     *                             "relation":"INTERSECTS",
+     *                             "shape":{"type":"Circle","radius":"1000000m","coordinates":[12.565,55.673]}
+     *                           }
+     *                         }},
+     *                         {"geo_shape":{
+     *                           "location":{
+     *                             "relation":"DISJOINT",
+     *                             "shape":{"type":"Circle","radius":"10000m","coordinates":[12.565,55.673]}
+     *                           }
+     *                         }}
+     *                       ],
+     *                       "boost":1.0
+     *                     }
+     *                   }
+     *                 ],
+     *                 "boost":1.0
+     *             }}][_doc{f}#56], limit[], sort[] estimatedRowSize[33]
+     * </code>
+     */
+    public void testPushSpatialDistanceEvalWithStatsToSource() {
+        var query = """
+            FROM airports
+            | EVAL distance = ST_DISTANCE(location, TO_GEOPOINT("POINT(12.565 55.673)"))
+            | WHERE distance < 1000000 AND scalerank < 6 AND distance > 10000
+            | STATS count=COUNT(*), centroid=ST_CENTROID_AGG(location) BY country
+            | SORT count DESC, country ASC
+            """;
+        var plan = this.physicalPlan(query, airports);
+        var topN = as(plan, TopNExec.class);
+        var agg = as(topN.child(), AggregateExec.class);
+        var exchange = as(agg.child(), ExchangeExec.class);
+        var fragment = as(exchange.child(), FragmentExec.class);
+        var agg2 = as(fragment.fragment(), Aggregate.class);
+        var filter = as(agg2.child(), Filter.class);
+
+        // Validate the filter condition (two distance filters)
+        var and = as(filter.condition(), And.class);
+        for (Expression expression : and.arguments()) {
+            var comp = as(expression, EsqlBinaryComparison.class);
+            var expectedComp = comp.equals(and.left()) ? LessThan.class : GreaterThan.class;
+            assertThat("filter contains expected binary comparison", comp, instanceOf(expectedComp));
+            var distance = as(comp.left(), ReferenceAttribute.class);
+            assertThat(distance.name(), is("distance"));
+        }
+
+        // Validate the eval (calculating distance)
+        var eval = as(filter.child(), Eval.class);
+        var alias = as(eval.fields().get(0), Alias.class);
+        assertThat(alias.name(), is("distance"));
+        var filter2 = as(eval.child(), Filter.class);
+
+        // Now optimize the plan
+        var optimized = optimizedPlan(plan);
+        var topLimit = as(optimized, TopNExec.class);
+        var aggExec = as(topLimit.child(), AggregateExec.class);
+        var exchangeExec = as(aggExec.child(), ExchangeExec.class);
+        var aggExec2 = as(exchangeExec.child(), AggregateExec.class);
+        // TODO: Remove the eval entirely, since the distance is no longer required after filter pushdown
+        var evalExec = as(aggExec2.child(), EvalExec.class);
+        var stDistance = as(evalExec.fields().get(0).child(), StDistance.class);
+        assertThat("Expect distance function to expect doc-values", stDistance.leftDocValues(), is(true));
+        var source = assertChildIsGeoPointExtract(evalExec, true);
+
+        // No sort is pushed down
+        assertThat(source.limit(), nullValue());
+        assertThat(source.sorts(), nullValue());
+
+        // Fine-grained checks on the pushed down query
+        var bool = as(source.query(), BoolQueryBuilder.class);
+        var rangeQueryBuilders = bool.filter().stream().filter(p -> p instanceof SingleValueQuery.Builder).toList();
+        assertThat("Expected one range query builder", rangeQueryBuilders.size(), equalTo(1));
+        assertThat(((SingleValueQuery.Builder) rangeQueryBuilders.get(0)).field(), equalTo("scalerank"));
+        var filterBool = bool.filter().stream().filter(p -> p instanceof BoolQueryBuilder).toList();
+        var fb = as(filterBool.get(0), BoolQueryBuilder.class);
+        var shapeQueryBuilders = fb.must().stream().filter(p -> p instanceof SpatialRelatesQuery.ShapeQueryBuilder).toList();
+        assertShapeQueryRange(shapeQueryBuilders, 10000.0, 1000000.0);
+    }
+
+    /**
+     * ProjectExec[[languages{f}#8, salary{f}#10]]
+     * \_TopNExec[[Order[salary{f}#10,DESC,FIRST]],10[INTEGER],0]
+     *   \_ExchangeExec[[languages{f}#8, salary{f}#10],false]
+     *     \_ProjectExec[[languages{f}#8, salary{f}#10]]
+     *       \_FieldExtractExec[languages{f}#8, salary{f}#10][]
+     *         \_EsQueryExec[test],
+     *           indexMode[standard],
+     *           query[][_doc{f}#25],
+     *           limit[10],
+     *           sort[[FieldSort[field=salary{f}#10, direction=DESC, nulls=FIRST]]] estimatedRowSize[24]
+     */
+    public void testPushTopNToSource() {
+        var optimized = optimizedPlan(physicalPlan("""
+            FROM test
+            | SORT salary DESC
+            | LIMIT 10
+            | KEEP languages, salary
+            """));
+
+        var project = as(optimized, ProjectExec.class);
+        var topN = as(project.child(), TopNExec.class);
+        var exchange = asRemoteExchange(topN.child());
+
+        project = as(exchange.child(), ProjectExec.class);
+        assertThat(names(project.projections()), contains("languages", "salary"));
+        var extract = as(project.child(), FieldExtractExec.class);
+        assertThat(names(extract.attributesToExtract()), contains("languages", "salary"));
+        var source = source(extract.child());
+        assertThat(source.limit(), is(topN.limit()));
+        assertThat(source.sorts(), is(fieldSorts(topN.order())));
+
+        assertThat(source.limit(), is(l(10)));
+        assertThat(source.sorts().size(), is(1));
+        EsQueryExec.Sort sort = source.sorts().get(0);
+        assertThat(sort.direction(), is(Order.OrderDirection.DESC));
+        assertThat(name(sort.field()), is("salary"));
+        assertThat(sort.sortBuilder(), isA(FieldSortBuilder.class));
+        assertNull(source.query());
+    }
+
+    /**
+     * ProjectExec[[languages{f}#9, salary{f}#11]]
+     * \_TopNExec[[Order[salary{f}#11,DESC,FIRST]],10[INTEGER],0]
+     *   \_ExchangeExec[[languages{f}#9, salary{f}#11],false]
+     *     \_ProjectExec[[languages{f}#9, salary{f}#11]]
+     *       \_FieldExtractExec[languages{f}#9, salary{f}#11][]
+     *         \_EsQueryExec[test],
+     *           indexMode[standard],
+     *           query[{"esql_single_value":{
+     *             "field":"salary",
+     *             "next":{"range":{"salary":{"gt":50000,"boost":1.0}}},
+     *             "source":"salary > 50000@2:9"
+     *           }}][_doc{f}#26],
+     *           limit[10],
+     *           sort[[FieldSort[field=salary{f}#11, direction=DESC, nulls=FIRST]]] estimatedRowSize[24]
+     */
+    public void testPushTopNWithFilterToSource() {
+        var optimized = optimizedPlan(physicalPlan("""
+            FROM test
+            | WHERE salary > 50000
+            | SORT salary DESC
+            | LIMIT 10
+            | KEEP languages, salary
+            """));
+
+        var project = as(optimized, ProjectExec.class);
+        var topN = as(project.child(), TopNExec.class);
+        var exchange = asRemoteExchange(topN.child());
+
+        project = as(exchange.child(), ProjectExec.class);
+        assertThat(names(project.projections()), contains("languages", "salary"));
+        var extract = as(project.child(), FieldExtractExec.class);
+        assertThat(names(extract.attributesToExtract()), contains("languages", "salary"));
+        var source = source(extract.child());
+        assertThat(source.limit(), is(topN.limit()));
+        assertThat(source.sorts(), is(fieldSorts(topN.order())));
+
+        assertThat(source.limit(), is(l(10)));
+        assertThat(source.sorts().size(), is(1));
+        EsQueryExec.Sort sort = source.sorts().get(0);
+        assertThat(sort.direction(), is(Order.OrderDirection.DESC));
+        assertThat(name(sort.field()), is("salary"));
+        assertThat(sort.sortBuilder(), isA(FieldSortBuilder.class));
+        var rq = as(sv(source.query(), "salary"), RangeQueryBuilder.class);
+        assertThat(rq.fieldName(), equalTo("salary"));
+        assertThat(rq.from(), equalTo(50000));
+        assertThat(rq.includeLower(), equalTo(false));
+        assertThat(rq.to(), nullValue());
+    }
+
+    /**
+     * ProjectExec[[abbrev{f}#12321, name{f}#12322, location{f}#12325, country{f}#12326, city{f}#12327]]
+     * \_TopNExec[[Order[abbrev{f}#12321,ASC,LAST]],5[INTEGER],0]
+     *   \_ExchangeExec[[abbrev{f}#12321, name{f}#12322, location{f}#12325, country{f}#12326, city{f}#12327],false]
+     *     \_ProjectExec[[abbrev{f}#12321, name{f}#12322, location{f}#12325, country{f}#12326, city{f}#12327]]
+     *       \_FieldExtractExec[abbrev{f}#12321, name{f}#12322, location{f}#12325, ..][]
+     *         \_EsQueryExec[airports],
+     *           indexMode[standard],
+     *           query[][_doc{f}#12337],
+     *           limit[5],
+     *           sort[[FieldSort[field=abbrev{f}#12321, direction=ASC, nulls=LAST]]] estimatedRowSize[237]
+     */
+    public void testPushTopNKeywordToSource() {
+        var optimized = optimizedPlan(physicalPlan("""
+            FROM airports
+            | SORT abbrev
+            | LIMIT 5
+            | KEEP abbrev, name, location, country, city
+            """, airports));
+
+        var project = as(optimized, ProjectExec.class);
+        var topN = as(project.child(), TopNExec.class);
+        var exchange = asRemoteExchange(topN.child());
+
+        project = as(exchange.child(), ProjectExec.class);
+        assertThat(names(project.projections()), contains("abbrev", "name", "location", "country", "city"));
+        var extract = as(project.child(), FieldExtractExec.class);
+        assertThat(names(extract.attributesToExtract()), contains("abbrev", "name", "location", "country", "city"));
+        var source = source(extract.child());
+        assertThat(source.limit(), is(topN.limit()));
+        assertThat(source.sorts(), is(fieldSorts(topN.order())));
+
+        assertThat(source.limit(), is(l(5)));
+        assertThat(source.sorts().size(), is(1));
+        EsQueryExec.Sort sort = source.sorts().get(0);
+        assertThat(sort.direction(), is(Order.OrderDirection.ASC));
+        assertThat(name(sort.field()), is("abbrev"));
+        assertThat(sort.sortBuilder(), isA(FieldSortBuilder.class));
+        assertNull(source.query());
+    }
+
+    /**
+     * <code>
+     * ProjectExec[[abbrev{f}#12, name{f}#13, location{f}#16, country{f}#17, city{f}#18, abbrev{f}#12 AS code]]
+     * \_TopNExec[[Order[abbrev{f}#12,ASC,LAST]],5[INTEGER],0]
+     *   \_ExchangeExec[[abbrev{f}#12, name{f}#13, location{f}#16, country{f}#17, city{f}#18],false]
+     *     \_ProjectExec[[abbrev{f}#12, name{f}#13, location{f}#16, country{f}#17, city{f}#18]]
+     *       \_FieldExtractExec[abbrev{f}#12, name{f}#13, location{f}#16, country{f..][]
+     *         \_EsQueryExec[airports], indexMode[standard], query[][_doc{f}#29], limit[5],
+     *             sort[[FieldSort[field=abbrev{f}#12, direction=ASC, nulls=LAST]]] estimatedRowSize[237]
+     * </code>
+     */
+    public void testPushTopNAliasedKeywordToSource() {
+        var optimized = optimizedPlan(physicalPlan("""
+            FROM airports
+            | EVAL code = abbrev
+            | SORT code
+            | LIMIT 5
+            | KEEP abbrev, name, location, country, city, code
+            """, airports));
+
+        var project = as(optimized, ProjectExec.class);
+        assertThat(names(project.projections()), contains("abbrev", "name", "location", "country", "city", "code"));
+        var topN = as(project.child(), TopNExec.class);
+        var exchange = asRemoteExchange(topN.child());
+
+        project = as(exchange.child(), ProjectExec.class);
+        assertThat(names(project.projections()), contains("abbrev", "name", "location", "country", "city"));
+        var extract = as(project.child(), FieldExtractExec.class);
+        assertThat(names(extract.attributesToExtract()), contains("abbrev", "name", "location", "country", "city"));
+        var source = source(extract.child());
+        assertThat(source.limit(), is(topN.limit()));
+        assertThat(source.sorts(), is(fieldSorts(topN.order())));
+
+        assertThat(source.limit(), is(l(5)));
+        assertThat(source.sorts().size(), is(1));
+        EsQueryExec.Sort sort = source.sorts().get(0);
+        assertThat(sort.direction(), is(Order.OrderDirection.ASC));
+        assertThat(name(sort.field()), is("abbrev"));
+        assertThat(sort.sortBuilder(), isA(FieldSortBuilder.class));
+        assertNull(source.query());
+    }
+
+    /**
+     * ProjectExec[[abbrev{f}#11, name{f}#12, location{f}#15, country{f}#16, city{f}#17]]
+     * \_TopNExec[[Order[distance{r}#4,ASC,LAST]],5[INTEGER],0]
+     *   \_ExchangeExec[[abbrev{f}#11, name{f}#12, location{f}#15, country{f}#16, city{f}#17, distance{r}#4],false]
+     *     \_ProjectExec[[abbrev{f}#11, name{f}#12, location{f}#15, country{f}#16, city{f}#17, distance{r}#4]]
+     *       \_FieldExtractExec[abbrev{f}#11, name{f}#12, country{f}#16, city{f}#17][]
+     *         \_EvalExec[[STDISTANCE(location{f}#15,[1 1 0 0 0 e1 7a 14 ae 47 21 29 40 a0 1a 2f dd 24 d6 4b 40][GEO_POINT])
+     *             AS distance]]
+     *           \_FieldExtractExec[location{f}#15][]
+     *             \_EsQueryExec[airports],
+     *               indexMode[standard],
+     *               query[][_doc{f}#28],
+     *               limit[5],
+     *               sort[[GeoDistanceSort[field=location{f}#15, direction=ASC, lat=55.673, lon=12.565]]] estimatedRowSize[245]
+     */
+    public void testPushTopNDistanceToSource() {
+        var optimized = optimizedPlan(physicalPlan("""
+            FROM airports
+            | EVAL distance = ST_DISTANCE(location, TO_GEOPOINT("POINT(12.565 55.673)"))
+            | SORT distance ASC
+            | LIMIT 5
+            | KEEP abbrev, name, location, country, city
+            """, airports));
+
+        var project = as(optimized, ProjectExec.class);
+        var topN = as(project.child(), TopNExec.class);
+        var exchange = asRemoteExchange(topN.child());
+
+        project = as(exchange.child(), ProjectExec.class);
+        assertThat(names(project.projections()), contains("abbrev", "name", "location", "country", "city", "distance"));
+        var extract = as(project.child(), FieldExtractExec.class);
+        assertThat(names(extract.attributesToExtract()), contains("abbrev", "name", "country", "city"));
+        var evalExec = as(extract.child(), EvalExec.class);
+        var alias = as(evalExec.fields().get(0), Alias.class);
+        assertThat(alias.name(), is("distance"));
+        var stDistance = as(alias.child(), StDistance.class);
+        assertThat(stDistance.left().toString(), startsWith("location"));
+        extract = as(evalExec.child(), FieldExtractExec.class);
+        assertThat(names(extract.attributesToExtract()), contains("location"));
+        var source = source(extract.child());
+
+        // Assert that the TopN(distance) is pushed down as geo-sort(location)
+        assertThat(source.limit(), is(topN.limit()));
+        Set<String> orderSet = orderAsSet(topN.order());
+        Set<String> sortsSet = sortsAsSet(source.sorts(), Map.of("location", "distance"));
+        assertThat(orderSet, is(sortsSet));
+
+        // Fine-grained checks on the pushed down sort
+        assertThat(source.limit(), is(l(5)));
+        assertThat(source.sorts().size(), is(1));
+        EsQueryExec.Sort sort = source.sorts().get(0);
+        assertThat(sort.direction(), is(Order.OrderDirection.ASC));
+        assertThat(name(sort.field()), is("location"));
+        assertThat(sort.sortBuilder(), isA(GeoDistanceSortBuilder.class));
+        assertNull(source.query());
+    }
+
+    /**
+     * ProjectExec[[abbrev{f}#8, name{f}#9, location{f}#12, country{f}#13, city{f}#14]]
+     * \_TopNExec[[Order[$$order_by$0$0{r}#16,ASC,LAST]],5[INTEGER],0]
+     *   \_ExchangeExec[[abbrev{f}#8, name{f}#9, location{f}#12, country{f}#13, city{f}#14, $$order_by$0$0{r}#16],false]
+     *     \_ProjectExec[[abbrev{f}#8, name{f}#9, location{f}#12, country{f}#13, city{f}#14, $$order_by$0$0{r}#16]]
+     *       \_FieldExtractExec[abbrev{f}#8, name{f}#9, country{f}#13, city{f}#14][]
+     *         \_EvalExec[[
+     *             STDISTANCE(location{f}#12,[1 1 0 0 0 e1 7a 14 ae 47 21 29 40 a0 1a 2f dd 24 d6 4b 40][GEO_POINT]) AS $$order_by$0$0
+     *           ]]
+     *           \_FieldExtractExec[location{f}#12][]
+     *             \_EsQueryExec[airports],
+     *               indexMode[standard],
+     *               query[][_doc{f}#26],
+     *               limit[5],
+     *               sort[[GeoDistanceSort[field=location{f}#12, direction=ASC, lat=55.673, lon=12.565]]] estimatedRowSize[245]
+     */
+    public void testPushTopNInlineDistanceToSource() {
+        var optimized = optimizedPlan(physicalPlan("""
+            FROM airports
+            | SORT ST_DISTANCE(location, TO_GEOPOINT("POINT(12.565 55.673)")) ASC
+            | LIMIT 5
+            | KEEP abbrev, name, location, country, city
+            """, airports));
+
+        var project = as(optimized, ProjectExec.class);
+        var topN = as(project.child(), TopNExec.class);
+        var exchange = asRemoteExchange(topN.child());
+
+        project = as(exchange.child(), ProjectExec.class);
+        assertThat(names(project.projections()), contains("abbrev", "name", "location", "country", "city", "$$order_by$0$0"));
+        var extract = as(project.child(), FieldExtractExec.class);
+        assertThat(names(extract.attributesToExtract()), contains("abbrev", "name", "country", "city"));
+        var evalExec = as(extract.child(), EvalExec.class);
+        var alias = as(evalExec.fields().get(0), Alias.class);
+        assertThat(alias.name(), is("$$order_by$0$0"));
+        var stDistance = as(alias.child(), StDistance.class);
+        assertThat(stDistance.left().toString(), startsWith("location"));
+        extract = as(evalExec.child(), FieldExtractExec.class);
+        assertThat(names(extract.attributesToExtract()), contains("location"));
+        var source = source(extract.child());
+
+        // Assert that the TopN(distance) is pushed down as geo-sort(location)
+        assertThat(source.limit(), is(topN.limit()));
+        Set<String> orderSet = orderAsSet(topN.order());
+        Set<String> sortsSet = sortsAsSet(source.sorts(), Map.of("location", "$$order_by$0$0"));
+        assertThat(orderSet, is(sortsSet));
+
+        // Fine-grained checks on the pushed down sort
+        assertThat(source.limit(), is(l(5)));
+        assertThat(source.sorts().size(), is(1));
+        EsQueryExec.Sort sort = source.sorts().get(0);
+        assertThat(sort.direction(), is(Order.OrderDirection.ASC));
+        assertThat(name(sort.field()), is("location"));
+        assertThat(sort.sortBuilder(), isA(GeoDistanceSortBuilder.class));
+        assertNull(source.query());
+    }
+
+    /**
+     * <code>
+     * ProjectExec[[abbrev{f}#12, name{f}#13, location{f}#16, country{f}#17, city{f}#18]]
+     * \_TopNExec[[Order[distance{r}#4,ASC,LAST]],5[INTEGER],0]
+     *   \_ExchangeExec[[abbrev{f}#12, name{f}#13, location{f}#16, country{f}#17, city{f}#18, distance{r}#4],false]
+     *     \_ProjectExec[[abbrev{f}#12, name{f}#13, location{f}#16, country{f}#17, city{f}#18, distance{r}#4]]
+     *       \_FieldExtractExec[abbrev{f}#12, name{f}#13, country{f}#17, city{f}#18][]
+     *         \_EvalExec[[STDISTANCE(location{f}#16,[1 1 0 0 0 e1 7a 14 ae 47 21 29 40 a0 1a 2f dd 24 d6 4b 40][GEO_POINT]) AS distance
+     * ]]
+     *           \_FieldExtractExec[location{f}#16][]
+     *             \_EsQueryExec[airports], indexMode[standard], query[
+     * {
+     *   "geo_shape":{
+     *     "location":{
+     *       "relation":"DISJOINT",
+     *       "shape":{
+     *         "type":"Circle",
+     *         "radius":"50000.00000000001m",
+     *         "coordinates":[12.565,55.673]
+     *       }
+     *     }
+     *   }
+     * }][_doc{f}#29], limit[5], sort[[GeoDistanceSort[field=location{f}#16, direction=ASC, lat=55.673, lon=12.565]]] estimatedRowSize[245]
+     * </code>
+     */
+    public void testPushTopNDistanceWithFilterToSource() {
+        var optimized = optimizedPlan(physicalPlan("""
+            FROM airports
+            | EVAL distance = ST_DISTANCE(location, TO_GEOPOINT("POINT(12.565 55.673)"))
+            | WHERE distance > 50000
+            | SORT distance ASC
+            | LIMIT 5
+            | KEEP abbrev, name, location, country, city
+            """, airports));
+
+        var project = as(optimized, ProjectExec.class);
+        var topN = as(project.child(), TopNExec.class);
+        var exchange = asRemoteExchange(topN.child());
+
+        project = as(exchange.child(), ProjectExec.class);
+        assertThat(names(project.projections()), contains("abbrev", "name", "location", "country", "city", "distance"));
+        var extract = as(project.child(), FieldExtractExec.class);
+        assertThat(names(extract.attributesToExtract()), contains("abbrev", "name", "country", "city"));
+        var evalExec = as(extract.child(), EvalExec.class);
+        var alias = as(evalExec.fields().get(0), Alias.class);
+        assertThat(alias.name(), is("distance"));
+        var stDistance = as(alias.child(), StDistance.class);
+        assertThat(stDistance.left().toString(), startsWith("location"));
+        extract = as(evalExec.child(), FieldExtractExec.class);
+        assertThat(names(extract.attributesToExtract()), contains("location"));
+        var source = source(extract.child());
+
+        // Assert that the TopN(distance) is pushed down as geo-sort(location)
+        assertThat(source.limit(), is(topN.limit()));
+        Set<String> orderSet = orderAsSet(topN.order());
+        Set<String> sortsSet = sortsAsSet(source.sorts(), Map.of("location", "distance"));
+        assertThat(orderSet, is(sortsSet));
+
+        // Fine-grained checks on the pushed down sort
+        assertThat(source.limit(), is(l(5)));
+        assertThat(source.sorts().size(), is(1));
+        EsQueryExec.Sort sort = source.sorts().get(0);
+        assertThat(sort.direction(), is(Order.OrderDirection.ASC));
+        assertThat(name(sort.field()), is("location"));
+        assertThat(sort.sortBuilder(), isA(GeoDistanceSortBuilder.class));
+
+        var condition = as(source.query(), SpatialRelatesQuery.ShapeQueryBuilder.class);
+        assertThat("Geometry field name", condition.fieldName(), equalTo("location"));
+        assertThat("Spatial relationship", condition.relation(), equalTo(ShapeRelation.DISJOINT));
+        assertThat("Geometry is Circle", condition.shape().type(), equalTo(ShapeType.CIRCLE));
+        var circle = as(condition.shape(), Circle.class);
+        assertThat("Circle center-x", circle.getX(), equalTo(12.565));
+        assertThat("Circle center-y", circle.getY(), equalTo(55.673));
+        assertThat("Circle radius for predicate", circle.getRadiusMeters(), closeTo(50000.0, 1e-9));
+    }
+
+    /**
+     * <code>
+     * ProjectExec[[abbrev{f}#14, name{f}#15, location{f}#18, country{f}#19, city{f}#20]]
+     * \_TopNExec[[Order[distance{r}#4,ASC,LAST]],5[INTEGER],0]
+     *   \_ExchangeExec[[abbrev{f}#14, name{f}#15, location{f}#18, country{f}#19, city{f}#20, distance{r}#4],false]
+     *     \_ProjectExec[[abbrev{f}#14, name{f}#15, location{f}#18, country{f}#19, city{f}#20, distance{r}#4]]
+     *       \_FieldExtractExec[abbrev{f}#14, name{f}#15, country{f}#19, city{f}#20][]
+     *         \_EvalExec[[STDISTANCE(location{f}#18,[1 1 0 0 0 e1 7a 14 ae 47 21 29 40 a0 1a 2f dd 24 d6 4b 40][GEO_POINT])
+     *           AS distance]]
+     *           \_FieldExtractExec[location{f}#18][]
+     *             \_EsQueryExec[airports], indexMode[standard], query[{
+     *               "bool":{
+     *                 "filter":[
+     *                   {
+     *                     "esql_single_value":{
+     *                       "field":"scalerank",
+     *                       "next":{"range":{"scalerank":{"lt":6,"boost":1.0}}},
+     *                       "source":"scalerank lt 6@3:31"
+     *                     }
+     *                   },
+     *                   {
+     *                     "bool":{
+     *                       "must":[
+     *                         {"geo_shape":{
+     *                           "location":{
+     *                             "relation":"INTERSECTS",
+     *                             "shape":{"type":"Circle","radius":"499999.99999999994m","coordinates":[12.565,55.673]}
+     *                           }
+     *                         }},
+     *                         {"geo_shape":{
+     *                           "location":{
+     *                             "relation":"DISJOINT",
+     *                             "shape":{"type":"Circle","radius":"10000.000000000002m","coordinates":[12.565,55.673]}
+     *                           }
+     *                         }}
+     *                       ],
+     *                       "boost":1.0
+     *                     }
+     *                   }
+     *                 ],
+     *                 "boost":1.0
+     *               }}][_doc{f}#31], limit[5], sort[[
+     *                 GeoDistanceSort[field=location{f}#18, direction=ASC, lat=55.673, lon=12.565]
+     *               ]] estimatedRowSize[245]
+     * </code>
+     */
+    public void testPushTopNDistanceWithCompoundFilterToSource() {
+        var optimized = optimizedPlan(physicalPlan("""
+            FROM airports
+            | EVAL distance = ST_DISTANCE(location, TO_GEOPOINT("POINT(12.565 55.673)"))
+            | WHERE distance < 500000 AND scalerank < 6 AND distance > 10000
+            | SORT distance ASC
+            | LIMIT 5
+            | KEEP abbrev, name, location, country, city
+            """, airports));
+
+        var project = as(optimized, ProjectExec.class);
+        var topN = as(project.child(), TopNExec.class);
+        var exchange = asRemoteExchange(topN.child());
+
+        project = as(exchange.child(), ProjectExec.class);
+        assertThat(names(project.projections()), contains("abbrev", "name", "location", "country", "city", "distance"));
+        var extract = as(project.child(), FieldExtractExec.class);
+        assertThat(names(extract.attributesToExtract()), contains("abbrev", "name", "country", "city"));
+        var evalExec = as(extract.child(), EvalExec.class);
+        var alias = as(evalExec.fields().get(0), Alias.class);
+        assertThat(alias.name(), is("distance"));
+        var stDistance = as(alias.child(), StDistance.class);
+        assertThat(stDistance.left().toString(), startsWith("location"));
+        extract = as(evalExec.child(), FieldExtractExec.class);
+        assertThat(names(extract.attributesToExtract()), contains("location"));
+        var source = source(extract.child());
+
+        // Assert that the TopN(distance) is pushed down as geo-sort(location)
+        assertThat(source.limit(), is(topN.limit()));
+        Set<String> orderSet = orderAsSet(topN.order());
+        Set<String> sortsSet = sortsAsSet(source.sorts(), Map.of("location", "distance"));
+        assertThat(orderSet, is(sortsSet));
+
+        // Fine-grained checks on the pushed down sort
+        assertThat(source.limit(), is(l(5)));
+        assertThat(source.sorts().size(), is(1));
+        EsQueryExec.Sort sort = source.sorts().get(0);
+        assertThat(sort.direction(), is(Order.OrderDirection.ASC));
+        assertThat(name(sort.field()), is("location"));
+        assertThat(sort.sortBuilder(), isA(GeoDistanceSortBuilder.class));
+
+        // Fine-grained checks on the pushed down query
+        var bool = as(source.query(), BoolQueryBuilder.class);
+        var rangeQueryBuilders = bool.filter().stream().filter(p -> p instanceof SingleValueQuery.Builder).toList();
+        assertThat("Expected one range query builder", rangeQueryBuilders.size(), equalTo(1));
+        assertThat(((SingleValueQuery.Builder) rangeQueryBuilders.get(0)).field(), equalTo("scalerank"));
+        var filterBool = bool.filter().stream().filter(p -> p instanceof BoolQueryBuilder).toList();
+        var fb = as(filterBool.get(0), BoolQueryBuilder.class);
+        var shapeQueryBuilders = fb.must().stream().filter(p -> p instanceof SpatialRelatesQuery.ShapeQueryBuilder).toList();
+        assertShapeQueryRange(shapeQueryBuilders, 10000.0, 500000.0);
+    }
+
+    /**
+     * This test shows that with an additional EVAL used in the filter, we can no longer push down the SORT distance.
+     * TODO: This could be optimized in future work. Consider moving much of EnableSpatialDistancePushdown into logical planning.
+     * <code>
+     * ProjectExec[[abbrev{f}#23, name{f}#24, location{f}#27, country{f}#28, city{f}#29, scalerank{f}#25 AS scale]]
+     * \_TopNExec[[Order[distance{r}#4,ASC,LAST], Order[scalerank{f}#25,ASC,LAST]],5[INTEGER],0]
+     *   \_ExchangeExec[[abbrev{f}#23, name{f}#24, location{f}#27, country{f}#28, city{f}#29, scalerank{f}#25, distance{r}#4],false]
+     *     \_ProjectExec[[abbrev{f}#23, name{f}#24, location{f}#27, country{f}#28, city{f}#29, scalerank{f}#25, distance{r}#4]]
+     *       \_FieldExtractExec[abbrev{f}#23, name{f}#24, country{f}#28, city{f}#29][]
+     *         \_TopNExec[[Order[distance{r}#4,ASC,LAST], Order[scalerank{f}#25,ASC,LAST]],5[INTEGER],208]
+     *           \_FieldExtractExec[scalerank{f}#25][]
+     *             \_FilterExec[SUBSTRING(position{r}#7,1[INTEGER],5[INTEGER]) == [50 4f 49 4e 54][KEYWORD]]
+     *               \_EvalExec[[
+     *                   STDISTANCE(location{f}#27,[1 1 0 0 0 e1 7a 14 ae 47 21 29 40 a0 1a 2f dd 24 d6 4b 40][GEO_POINT]) AS distance,
+     *                   TOSTRING(location{f}#27) AS position
+     *                 ]]
+     *                 \_FieldExtractExec[location{f}#27][]
+     *                   \_EsQueryExec[airports], indexMode[standard], query[{
+     *                     "bool":{"filter":[
+     *                       {"esql_single_value":{"field":"scalerank","next":{"range":{"scalerank":{"lt":6,"boost":1.0}}},"source":...}},
+     *                       {"bool":{"must":[
+     *                         {"geo_shape":{"location":{"relation":"INTERSECTS","shape":{...}}}},
+     *                         {"geo_shape":{"location":{"relation":"DISJOINT","shape":{...}}}}
+     *                       ],"boost":1.0}}],"boost":1.0}}][_doc{f}#42], limit[], sort[] estimatedRowSize[87]
+     * </code>
+     */
+    public void testPushTopNDistanceAndNonPushableEvalWithCompoundFilterToSource() {
+        var optimized = optimizedPlan(physicalPlan("""
+            FROM airports
+            | EVAL distance = ST_DISTANCE(location, TO_GEOPOINT("POINT(12.565 55.673)")), position = location::keyword, scale = scalerank
+            | WHERE distance < 500000 AND SUBSTRING(position, 1, 5) == "POINT" AND distance > 10000 AND scale < 6
+            | SORT distance ASC, scale ASC
+            | LIMIT 5
+            | KEEP abbrev, name, location, country, city, scale
+            """, airports));
+
+        var project = as(optimized, ProjectExec.class);
+        var topN = as(project.child(), TopNExec.class);
+        var exchange = asRemoteExchange(topN.child());
+
+        project = as(exchange.child(), ProjectExec.class);
+        assertThat(names(project.projections()), contains("abbrev", "name", "location", "country", "city", "scalerank", "distance"));
+        var extract = as(project.child(), FieldExtractExec.class);
+        assertThat(names(extract.attributesToExtract()), contains("abbrev", "name", "country", "city"));
+        var topNChild = as(extract.child(), TopNExec.class);
+        extract = as(topNChild.child(), FieldExtractExec.class);
+        assertThat(names(extract.attributesToExtract()), contains("scalerank"));
+        var filter = as(extract.child(), FilterExec.class);
+        var evalExec = as(filter.child(), EvalExec.class);
+        assertThat(evalExec.fields().size(), is(2));
+        var aliasDistance = as(evalExec.fields().get(0), Alias.class);
+        assertThat(aliasDistance.name(), is("distance"));
+        var stDistance = as(aliasDistance.child(), StDistance.class);
+        assertThat(stDistance.left().toString(), startsWith("location"));
+        var aliasPosition = as(evalExec.fields().get(1), Alias.class);
+        assertThat(aliasPosition.name(), is("position"));
+        extract = as(evalExec.child(), FieldExtractExec.class);
+        assertThat(names(extract.attributesToExtract()), contains("location"));
+        var source = source(extract.child());
+
+        // In this example TopN is not pushed down (we can optimize that in later work)
+        assertThat(source.limit(), nullValue());
+        assertThat(source.sorts(), nullValue());
+
+        // Fine-grained checks on the pushed down query
+        var bool = as(source.query(), BoolQueryBuilder.class);
+        var rangeQueryBuilders = bool.filter().stream().filter(p -> p instanceof SingleValueQuery.Builder).toList();
+        assertThat("Expected one range query builder", rangeQueryBuilders.size(), equalTo(1));
+        assertThat(((SingleValueQuery.Builder) rangeQueryBuilders.get(0)).field(), equalTo("scalerank"));
+        var filterBool = bool.filter().stream().filter(p -> p instanceof BoolQueryBuilder).toList();
+        var fb = as(filterBool.get(0), BoolQueryBuilder.class);
+        var shapeQueryBuilders = fb.must().stream().filter(p -> p instanceof SpatialRelatesQuery.ShapeQueryBuilder).toList();
+        assertShapeQueryRange(shapeQueryBuilders, 10000.0, 500000.0);
+    }
+
+    /**
+     * This test further shows that with a non-aliasing function, with the same name, less gets pushed down.
+     * <code>
+     * ProjectExec[[abbrev{f}#23, name{f}#24, location{f}#27, country{f}#28, city{f}#29, scale{r}#10]]
+     * \_TopNExec[[Order[distance{r}#4,ASC,LAST], Order[scale{r}#10,ASC,LAST]],5[INTEGER],0]
+     *   \_ExchangeExec[[abbrev{f}#23, name{f}#24, location{f}#27, country{f}#28, city{f}#29, scale{r}#10, distance{r}#4],false]
+     *     \_ProjectExec[[abbrev{f}#23, name{f}#24, location{f}#27, country{f}#28, city{f}#29, scale{r}#10, distance{r}#4]]
+     *       \_FieldExtractExec[abbrev{f}#23, name{f}#24, country{f}#28, city{f}#29][]
+     *         \_TopNExec[[Order[distance{r}#4,ASC,LAST], Order[scale{r}#10,ASC,LAST]],5[INTEGER],208]
+     *           \_FilterExec[
+     *               SUBSTRING(position{r}#7,1[INTEGER],5[INTEGER]) == [50 4f 49 4e 54][KEYWORD]
+     *               AND scale{r}#10 &gt; 3[INTEGER]
+     *             ]
+     *             \_EvalExec[[
+     *                 STDISTANCE(location{f}#27,[1 1 0 0 0 e1 7a 14 ae 47 21 29 40 a0 1a 2f dd 24 d6 4b 40][GEO_POINT]) AS distance,
+     *                 TOSTRING(location{f}#27) AS position,
+     *                 10[INTEGER] - scalerank{f}#25 AS scale
+     *               ]]
+     *               \_FieldExtractExec[location{f}#27, scalerank{f}#25][]
+     *                 \_EsQueryExec[airports], indexMode[standard], query[{
+     *                   "bool":{"must":[
+     *                     {"geo_shape":{"location":{"relation":"INTERSECTS","shape":{...}}}},
+     *                     {"geo_shape":{"location":{"relation":"DISJOINT","shape":{...}}}}
+     *                   ],"boost":1.0}}][_doc{f}#42], limit[], sort[] estimatedRowSize[91]
+     * </code>
+     */
+    public void testPushTopNDistanceAndNonPushableEvalsWithCompoundFilterToSource() {
+        var optimized = optimizedPlan(physicalPlan("""
+            FROM airports
+            | EVAL distance = ST_DISTANCE(location, TO_GEOPOINT("POINT(12.565 55.673)")),
+                   position = location::keyword, scalerank = 10 - scalerank
+            | WHERE distance < 500000 AND SUBSTRING(position, 1, 5) == "POINT" AND distance > 10000 AND scalerank > 3
+            | SORT distance ASC, scalerank ASC
+            | LIMIT 5
+            | KEEP abbrev, name, location, country, city, scalerank
+            """, airports));
+        var project = as(optimized, ProjectExec.class);
+        var topN = as(project.child(), TopNExec.class);
+        var exchange = asRemoteExchange(topN.child());
+
+        project = as(exchange.child(), ProjectExec.class);
+        assertThat(names(project.projections()), contains("abbrev", "name", "location", "country", "city", "scalerank", "distance"));
+        var extract = as(project.child(), FieldExtractExec.class);
+        assertThat(names(extract.attributesToExtract()), contains("abbrev", "name", "country", "city"));
+        var topNChild = as(extract.child(), TopNExec.class);
+        var filter = as(topNChild.child(), FilterExec.class);
+        assertThat(filter.condition(), isA(And.class));
+        var and = (And) filter.condition();
+        assertThat(and.left(), isA(Equals.class));
+        assertThat(and.right(), isA(GreaterThan.class));
+        var evalExec = as(filter.child(), EvalExec.class);
+        assertThat(evalExec.fields().size(), is(3));
+        var aliasDistance = as(evalExec.fields().get(0), Alias.class);
+        assertThat(aliasDistance.name(), is("distance"));
+        var stDistance = as(aliasDistance.child(), StDistance.class);
+        assertThat(stDistance.left().toString(), startsWith("location"));
+        var aliasPosition = as(evalExec.fields().get(1), Alias.class);
+        assertThat(aliasPosition.name(), is("position"));
+        var aliasScale = as(evalExec.fields().get(2), Alias.class);
+        assertThat(aliasScale.name(), is("scalerank"));
+        extract = as(evalExec.child(), FieldExtractExec.class);
+        assertThat(names(extract.attributesToExtract()), contains("location", "scalerank"));
+        var source = source(extract.child());
+
+        // In this example TopN is not pushed down (we can optimize that in later work)
+        assertThat(source.limit(), nullValue());
+        assertThat(source.sorts(), nullValue());
+
+        // Fine-grained checks on the pushed down query, only the spatial distance gets pushed down, not the scale filter
+        var bool = as(source.query(), BoolQueryBuilder.class);
+        var shapeQueryBuilders = bool.must().stream().filter(p -> p instanceof SpatialRelatesQuery.ShapeQueryBuilder).toList();
+        assertShapeQueryRange(shapeQueryBuilders, 10000.0, 500000.0);
+    }
+
+    /**
+     * This test shows that with if the top level AND'd predicate contains a non-pushable component, we should not push anything.
+     * <code>
+     * ProjectExec[[abbrev{f}#8612, name{f}#8613, location{f}#8616, country{f}#8617, city{f}#8618, scalerank{f}#8614 AS scale]]
+     * \_TopNExec[[Order[distance{r}#8596,ASC,LAST], Order[scalerank{f}#8614,ASC,LAST]],5[INTEGER],0]
+     *   \_ExchangeExec[[abbrev{f}#8612, name{f}#8613, location{f}#8616, country{f}#8617, city{f}#8618,
+     *       scalerank{f}#8614, distance{r}#8596
+     *     ],false]
+     *     \_ProjectExec[[abbrev{f}#8612, name{f}#8613, location{f}#8616, country{f}#8617, city{f}#8618,
+     *         scalerank{f}#8614, distance{r}#8596
+     *       ]]
+     *       \_FieldExtractExec[abbrev{f}#8612, name{f}#8613, country{f}#8617, city..][]
+     *         \_TopNExec[[Order[distance{r}#8596,ASC,LAST], Order[scalerank{f}#8614,ASC,LAST]],5[INTEGER],208]
+     *           \_FilterExec[
+     *               distance{r}#8596 &lt; 500000[INTEGER]
+     *               AND distance{r}#8596 &gt; 10000[INTEGER]
+     *               AND scalerank{f}#8614 &lt; 6[INTEGER]
+     *               OR SUBSTRING(TOSTRING(location{f}#8616),1[INTEGER],5[INTEGER]) == [50 4f 49 4e 54][KEYWORD]
+     *             ]
+     *             \_FieldExtractExec[scalerank{f}#8614][]
+     *               \_EvalExec[[
+     *                   STDISTANCE(location{f}#8616,[1 1 0 0 0 e1 7a 14 ae 47 21 29 40 a0 1a 2f dd 24 d6 4b 40][GEO_POINT]) AS distance
+     *                 ]]
+     *                 \_FieldExtractExec[location{f}#8616][]
+     *                   \_EsQueryExec[airports], indexMode[standard], query[][_doc{f}#8630], limit[], sort[] estimatedRowSize[37]
+     * </code>
+     */
+    public void testPushTopNDistanceWithCompoundFilterToSourceAndDisjunctiveNonPushableEval() {
+        var optimized = optimizedPlan(physicalPlan("""
+            FROM airports
+            | EVAL distance = ST_DISTANCE(location, TO_GEOPOINT("POINT(12.565 55.673)")), scale = scalerank
+            | WHERE distance < 500000 AND distance > 10000 AND scale < 6 OR SUBSTRING(location::keyword, 1, 5) == "POINT"
+            | SORT distance ASC, scale ASC
+            | LIMIT 5
+            | KEEP abbrev, name, location, country, city, scale
+            """, airports));
+
+        var project = as(optimized, ProjectExec.class);
+        var topN = as(project.child(), TopNExec.class);
+        var exchange = asRemoteExchange(topN.child());
+
+        project = as(exchange.child(), ProjectExec.class);
+        assertThat(names(project.projections()), contains("abbrev", "name", "location", "country", "city", "scalerank", "distance"));
+        var extract = as(project.child(), FieldExtractExec.class);
+        assertThat(names(extract.attributesToExtract()), contains("abbrev", "name", "country", "city"));
+        var topNChild = as(extract.child(), TopNExec.class);
+        var filter = as(topNChild.child(), FilterExec.class);
+        assertThat(filter.condition(), isA(Or.class));
+        var filterOr = (Or) filter.condition();
+        assertThat(filterOr.left(), isA(And.class));
+        assertThat(filterOr.right(), isA(Equals.class));
+        extract = as(filter.child(), FieldExtractExec.class);
+        assertThat(names(extract.attributesToExtract()), contains("scalerank"));
+        var evalExec = as(extract.child(), EvalExec.class);
+        assertThat(evalExec.fields().size(), is(1));
+        var aliasDistance = as(evalExec.fields().get(0), Alias.class);
+        assertThat(aliasDistance.name(), is("distance"));
+        var stDistance = as(aliasDistance.child(), StDistance.class);
+        assertThat(stDistance.left().toString(), startsWith("location"));
+        extract = as(evalExec.child(), FieldExtractExec.class);
+        assertThat(names(extract.attributesToExtract()), contains("location"));
+        var source = source(extract.child());
+
+        // In this example neither TopN not filter is pushed down
+        assertThat(source.limit(), nullValue());
+        assertThat(source.sorts(), nullValue());
+        assertThat(source.query(), nullValue());
+    }
+
+    /**
+     * <code>
+     * ProjectExec[[abbrev{f}#15, name{f}#16, location{f}#19, country{f}#20, city{f}#21]]
+     * \_TopNExec[[Order[scalerank{f}#17,ASC,LAST], Order[distance{r}#4,ASC,LAST]],15[INTEGER],0]
+     *   \_ExchangeExec[[abbrev{f}#15, name{f}#16, location{f}#19, country{f}#20, city{f}#21, scalerank{f}#17, distance{r}#4],false]
+     *     \_ProjectExec[[abbrev{f}#15, name{f}#16, location{f}#19, country{f}#20, city{f}#21, scalerank{f}#17, distance{r}#4]]
+     *       \_FieldExtractExec[abbrev{f}#15, name{f}#16, country{f}#20, city{f}#21, ..][]
+     *         \_EvalExec[[STDISTANCE(location{f}#19,[1 1 0 0 0 e1 7a 14 ae 47 21 29 40 a0 1a 2f dd 24 d6 4b 40][GEO_POINT])
+     *           AS distance]]
+     *           \_FieldExtractExec[location{f}#19][]
+     *             \_EsQueryExec[airports], indexMode[standard], query[{
+     *               "bool":{
+     *                 "filter":[
+     *                   {"esql_single_value":{"field":"scalerank",...,"source":"scalerank lt 6@3:31"}},
+     *                   {"bool":{"must":[
+     *                     {"geo_shape":{"location":{"relation":"INTERSECTS","shape":{...}}}},
+     *                     {"geo_shape":{"location":{"relation":"DISJOINT","shape":{...}}}}
+     *                   ],"boost":1.0}}
+     *                 ],"boost":1.0
+     *               }
+     *             }][_doc{f}#32], limit[], sort[[
+     *               FieldSort[field=scalerank{f}#17, direction=ASC, nulls=LAST],
+     *               GeoDistanceSort[field=location{f}#19, direction=ASC, lat=55.673, lon=12.565]
+     *             ]] estimatedRowSize[37]
+     * </code>
+     */
+    public void testPushCompoundTopNDistanceWithCompoundFilterToSource() {
+        var optimized = optimizedPlan(physicalPlan("""
+            FROM airports
+            | EVAL distance = ST_DISTANCE(location, TO_GEOPOINT("POINT(12.565 55.673)"))
+            | WHERE distance < 500000 AND scalerank < 6 AND distance > 10000
+            | SORT scalerank, distance
+            | LIMIT 15
+            | KEEP abbrev, name, location, country, city
+            """, airports));
+
+        var project = as(optimized, ProjectExec.class);
+        assertThat(names(project.projections()), contains("abbrev", "name", "location", "country", "city"));
+        var topN = as(project.child(), TopNExec.class);
+        var exchange = asRemoteExchange(topN.child());
+
+        project = as(exchange.child(), ProjectExec.class);
+        assertThat(names(project.projections()), contains("abbrev", "name", "location", "country", "city", "scalerank", "distance"));
+        var extract = as(project.child(), FieldExtractExec.class);
+        assertThat(names(extract.attributesToExtract()), contains("abbrev", "name", "country", "city", "scalerank"));
+        var evalExec = as(extract.child(), EvalExec.class);
+        var alias = as(evalExec.fields().get(0), Alias.class);
+        assertThat(alias.name(), is("distance"));
+        var stDistance = as(alias.child(), StDistance.class);
+        assertThat(stDistance.left().toString(), startsWith("location"));
+        extract = as(evalExec.child(), FieldExtractExec.class);
+        assertThat(names(extract.attributesToExtract()), contains("location"));
+        var source = source(extract.child());
+
+        // Assert that the TopN(distance) is pushed down as geo-sort(location)
+        assertThat(source.limit(), is(topN.limit()));
+        Set<String> orderSet = orderAsSet(topN.order());
+        Set<String> sortsSet = sortsAsSet(source.sorts(), Map.of("location", "distance"));
+        assertThat(orderSet, is(sortsSet));
+
+        // Fine-grained checks on the pushed down sort
+        assertThat(source.limit(), is(l(15)));
+        assertThat(source.sorts().size(), is(2));
+        EsQueryExec.Sort fieldSort = source.sorts().get(0);
+        assertThat(fieldSort.direction(), is(Order.OrderDirection.ASC));
+        assertThat(name(fieldSort.field()), is("scalerank"));
+        assertThat(fieldSort.sortBuilder(), isA(FieldSortBuilder.class));
+        EsQueryExec.Sort distSort = source.sorts().get(1);
+        assertThat(distSort.direction(), is(Order.OrderDirection.ASC));
+        assertThat(name(distSort.field()), is("location"));
+        assertThat(distSort.sortBuilder(), isA(GeoDistanceSortBuilder.class));
+
+        // Fine-grained checks on the pushed down query
+        var bool = as(source.query(), BoolQueryBuilder.class);
+        var rangeQueryBuilders = bool.filter().stream().filter(p -> p instanceof SingleValueQuery.Builder).toList();
+        assertThat("Expected one range query builder", rangeQueryBuilders.size(), equalTo(1));
+        assertThat(((SingleValueQuery.Builder) rangeQueryBuilders.get(0)).field(), equalTo("scalerank"));
+        var filterBool = bool.filter().stream().filter(p -> p instanceof BoolQueryBuilder).toList();
+        var fb = as(filterBool.get(0), BoolQueryBuilder.class);
+        var shapeQueryBuilders = fb.must().stream().filter(p -> p instanceof SpatialRelatesQuery.ShapeQueryBuilder).toList();
+        assertShapeQueryRange(shapeQueryBuilders, 10000.0, 500000.0);
+    }
+
+    /**
+     * <code>
+     * TopNExec[[Order[scalerank{f}#15,ASC,LAST], Order[distance{r}#7,ASC,LAST]],15[INTEGER],0]
+     * \_ExchangeExec[[abbrev{f}#13, city{f}#19, city_location{f}#20, country{f}#18, location{f}#17, name{f}#14, scalerank{f}#15,
+     *     type{f}#16, poi{r}#3, distance{r}#7],false]
+     *   \_ProjectExec[[abbrev{f}#13, city{f}#19, city_location{f}#20, country{f}#18, location{f}#17, name{f}#14, scalerank{f}#15,
+     *       type{f}#16, poi{r}#3, distance{r}#7]]
+     *     \_FieldExtractExec[abbrev{f}#13, city{f}#19, city_location{f}#20, coun..][]
+     *       \_EvalExec[[
+     *           [1 1 0 0 0 e1 7a 14 ae 47 21 29 40 a0 1a 2f dd 24 d6 4b 40][GEO_POINT] AS poi,
+     *           STDISTANCE(location{f}#17,[1 1 0 0 0 e1 7a 14 ae 47 21 29 40 a0 1a 2f dd 24 d6 4b 40][GEO_POINT]) AS distance
+     *         ]]
+     *         \_FieldExtractExec[location{f}#17][]
+     *           \_EsQueryExec[airports], indexMode[standard], query[{
+     *             "bool":{
+     *               "filter":[
+     *                 {"esql_single_value":{"field":"scalerank",...,"source":"scalerank lt 6@4:31"}},
+     *                 {"bool":{"must":[
+     *                   {"geo_shape":{"location":{"relation":"INTERSECTS","shape":{...}}}},
+     *                   {"geo_shape":{"location":{"relation":"DISJOINT","shape":{...}}}}
+     *                 ],"boost":1.0}}
+     *               ],"boost":1.0
+     *             }
+     *           }][_doc{f}#31], limit[15], sort[[
+     *             FieldSort[field=scalerank{f}#15, direction=ASC, nulls=LAST],
+     *             GeoDistanceSort[field=location{f}#17, direction=ASC, lat=55.673, lon=12.565]
+     *           ]] estimatedRowSize[341]
+     * </code>
+     */
+    public void testPushCompoundTopNDistanceWithCompoundFilterAndCompoundEvalToSource() {
+        var optimized = optimizedPlan(physicalPlan("""
+            FROM airports
+            | EVAL poi = TO_GEOPOINT("POINT(12.565 55.673)")
+            | EVAL distance = ST_DISTANCE(location, poi)
+            | WHERE distance < 500000 AND scalerank < 6 AND distance > 10000
+            | SORT scalerank, distance
+            | LIMIT 15
+            """, airports));
+
+        var topN = as(optimized, TopNExec.class);
+        var exchange = asRemoteExchange(topN.child());
+
+        var project = as(exchange.child(), ProjectExec.class);
+        assertThat(
+            names(project.projections()),
+            containsInAnyOrder("abbrev", "name", "type", "location", "country", "city", "city_location", "scalerank", "poi", "distance")
+        );
+        var extract = as(project.child(), FieldExtractExec.class);
+        assertThat(
+            names(extract.attributesToExtract()),
+            containsInAnyOrder("abbrev", "name", "type", "country", "city", "city_location", "scalerank")
+        );
+        var evalExec = as(extract.child(), EvalExec.class);
+        assertThat(evalExec.fields().size(), is(2));
+        var alias1 = as(evalExec.fields().get(0), Alias.class);
+        assertThat(alias1.name(), is("poi"));
+        var poi = as(alias1.child(), Literal.class);
+        assertThat(poi.fold(), instanceOf(BytesRef.class));
+        var alias2 = as(evalExec.fields().get(1), Alias.class);
+        assertThat(alias2.name(), is("distance"));
+        var stDistance = as(alias2.child(), StDistance.class);
+        var location = as(stDistance.left(), FieldAttribute.class);
+        assertThat(location.fieldName(), is("location"));
+        var poiRef = as(stDistance.right(), Literal.class);
+        assertThat(poiRef.fold(), instanceOf(BytesRef.class));
+        assertThat(poiRef.fold().toString(), is(poi.fold().toString()));
+        extract = as(evalExec.child(), FieldExtractExec.class);
+        assertThat(names(extract.attributesToExtract()), contains("location"));
+        var source = source(extract.child());
+
+        // Assert that the TopN(distance) is pushed down as geo-sort(location)
+        assertThat(source.limit(), is(topN.limit()));
+        Set<String> orderSet = orderAsSet(topN.order());
+        Set<String> sortsSet = sortsAsSet(source.sorts(), Map.of("location", "distance"));
+        assertThat(orderSet, is(sortsSet));
+
+        // Fine-grained checks on the pushed down sort
+        assertThat(source.limit(), is(l(15)));
+        assertThat(source.sorts().size(), is(2));
+        EsQueryExec.Sort fieldSort = source.sorts().get(0);
+        assertThat(fieldSort.direction(), is(Order.OrderDirection.ASC));
+        assertThat(name(fieldSort.field()), is("scalerank"));
+        assertThat(fieldSort.sortBuilder(), isA(FieldSortBuilder.class));
+        EsQueryExec.Sort distSort = source.sorts().get(1);
+        assertThat(distSort.direction(), is(Order.OrderDirection.ASC));
+        assertThat(name(distSort.field()), is("location"));
+        assertThat(distSort.sortBuilder(), isA(GeoDistanceSortBuilder.class));
+
+        // Fine-grained checks on the pushed down query
+        var bool = as(source.query(), BoolQueryBuilder.class);
+        var rangeQueryBuilders = bool.filter().stream().filter(p -> p instanceof SingleValueQuery.Builder).toList();
+        assertThat("Expected one range query builder", rangeQueryBuilders.size(), equalTo(1));
+        assertThat(((SingleValueQuery.Builder) rangeQueryBuilders.get(0)).field(), equalTo("scalerank"));
+        var filterBool = bool.filter().stream().filter(p -> p instanceof BoolQueryBuilder).toList();
+        var fb = as(filterBool.get(0), BoolQueryBuilder.class);
+        var shapeQueryBuilders = fb.must().stream().filter(p -> p instanceof SpatialRelatesQuery.ShapeQueryBuilder).toList();
+        assertShapeQueryRange(shapeQueryBuilders, 10000.0, 500000.0);
+    }
+
+    public void testPushCompoundTopNDistanceWithDeeplyNestedCompoundEvalToSource() {
+        var optimized = optimizedPlan(physicalPlan("""
+            FROM airports
+            | EVAL poi = TO_GEOPOINT("POINT(12.565 55.673)")
+            | EVAL poi2 = poi, poi3 = poi2
+            | EVAL loc2 = location
+            | EVAL loc3 = loc2
+            | EVAL dist = ST_DISTANCE(loc3, poi3)
+            | EVAL distance = dist
+            | SORT scalerank, distance
+            | LIMIT 15
+            """, airports));
+
+        var topN = as(optimized, TopNExec.class);
+        var exchange = asRemoteExchange(topN.child());
+
+        var project = as(exchange.child(), ProjectExec.class);
+        assertThat(
+            names(project.projections()),
+            containsInAnyOrder(
+                "abbrev",
+                "name",
+                "type",
+                "location",
+                "country",
+                "city",
+                "city_location",
+                "scalerank",
+                "poi",
+                "poi2",
+                "poi3",
+                "loc2",
+                "loc3",
+                "dist",
+                "distance"
+            )
+        );
+        var extract = as(project.child(), FieldExtractExec.class);
+        assertThat(
+            names(extract.attributesToExtract()),
+            containsInAnyOrder("abbrev", "name", "type", "country", "city", "city_location", "scalerank")
+        );
+        var evalExec = as(extract.child(), EvalExec.class);
+        assertThat(evalExec.fields().size(), is(7));
+        var alias1 = as(evalExec.fields().get(0), Alias.class);
+        assertThat(alias1.name(), is("poi"));
+        var poi = as(alias1.child(), Literal.class);
+        assertThat(poi.fold(), instanceOf(BytesRef.class));
+        var alias4 = as(evalExec.fields().get(3), Alias.class);
+        assertThat(alias4.name(), is("loc2"));
+        as(alias4.child(), FieldAttribute.class);
+        var alias5 = as(evalExec.fields().get(4), Alias.class);
+        assertThat(alias5.name(), is("loc3"));
+        as(alias5.child(), ReferenceAttribute.class);
+        var alias6 = as(evalExec.fields().get(5), Alias.class);
+        assertThat(alias6.name(), is("dist"));
+        var stDistance = as(alias6.child(), StDistance.class);
+        var refLocation = as(stDistance.left(), ReferenceAttribute.class);
+        assertThat(refLocation.name(), is("loc3"));
+        var poiRef = as(stDistance.right(), Literal.class);
+        assertThat(poiRef.fold(), instanceOf(BytesRef.class));
+        assertThat(poiRef.fold().toString(), is(poi.fold().toString()));
+        var alias7 = as(evalExec.fields().get(6), Alias.class);
+        assertThat(alias7.name(), is("distance"));
+        as(alias7.child(), ReferenceAttribute.class);
+        extract = as(evalExec.child(), FieldExtractExec.class);
+        assertThat(names(extract.attributesToExtract()), contains("location"));
+        var source = source(extract.child());
+
+        // Assert that the TopN(distance) is pushed down as geo-sort(location)
+        assertThat(source.limit(), is(topN.limit()));
+        Set<String> orderSet = orderAsSet(topN.order());
+        Set<String> sortsSet = sortsAsSet(source.sorts(), Map.of("location", "distance"));
+        assertThat(orderSet, is(sortsSet));
+
+        // Fine-grained checks on the pushed down sort
+        assertThat(source.limit(), is(l(15)));
+        assertThat(source.sorts().size(), is(2));
+        EsQueryExec.Sort fieldSort = source.sorts().get(0);
+        assertThat(fieldSort.direction(), is(Order.OrderDirection.ASC));
+        assertThat(name(fieldSort.field()), is("scalerank"));
+        assertThat(fieldSort.sortBuilder(), isA(FieldSortBuilder.class));
+        EsQueryExec.Sort distSort = source.sorts().get(1);
+        assertThat(distSort.direction(), is(Order.OrderDirection.ASC));
+        assertThat(name(distSort.field()), is("location"));
+        assertThat(distSort.sortBuilder(), isA(GeoDistanceSortBuilder.class));
+
+        // No filter is pushed down
+        assertThat(source.query(), nullValue());
+    }
+
+    /**
+     * TopNExec[[Order[scalerank{f}#15,ASC,LAST], Order[distance{r}#7,ASC,LAST]],15[INTEGER],0]
+     * \_ExchangeExec[[abbrev{f}#13, city{f}#19, city_location{f}#20, country{f}#18, location{f}#17, name{f}#14, scalerank{f}#15,
+     *     type{f}#16, poi{r}#3, distance{r}#7],false]
+     *   \_ProjectExec[[abbrev{f}#13, city{f}#19, city_location{f}#20, country{f}#18, location{f}#17, name{f}#14, scalerank{f}#15,
+     *       type{f}#16, poi{r}#3, distance{r}#7]]
+     *     \_FieldExtractExec[abbrev{f}#13, city{f}#19, city_location{f}#20, coun..][]
+     *       \_EvalExec[[
+     *           [1 1 0 0 0 e1 7a 14 ae 47 21 29 40 a0 1a 2f dd 24 d6 4b 40][GEO_POINT] AS poi,
+     *           STDISTANCE(location{f}#17,[1 1 0 0 0 e1 7a 14 ae 47 21 29 40 a0 1a 2f dd 24 d6 4b 40][GEO_POINT]) AS distance]
+     *         ]
+     *         \_FieldExtractExec[location{f}#17][]
+     *           \_EsQueryExec[airports], indexMode[standard], query[{"bool":{
+     *             "filter":[
+     *               {"esql_single_value":{"field":"scalerank","next":{"range":{...}},"source":"scalerank lt 6@4:31"}},
+     *               {"bool":{"must":[
+     *                 {"geo_shape":{"location":{"relation":"INTERSECTS","shape":{...}}}},
+     *                 {"geo_shape":{"location":{"relation":"DISJOINT","shape":{...}}}}
+     *               ],"boost":1.0}}
+     *             ],"boost":1.0
+     *           }}][_doc{f}#31], limit[15], sort[[
+     *             FieldSort[field=scalerank{f}#15, direction=ASC, nulls=LAST],
+     *             GeoDistanceSort[field=location{f}#17, direction=ASC, lat=55.673, lon=12.565]
+     *           ]] estimatedRowSize[341]
+     */
+    public void testPushCompoundTopNDistanceWithCompoundFilterAndNestedCompoundEvalToSource() {
+        var optimized = optimizedPlan(physicalPlan("""
+            FROM airports
+            | EVAL poi = TO_GEOPOINT("POINT(12.565 55.673)")
+            | EVAL distance = ST_DISTANCE(location, poi)
+            | WHERE distance < 500000 AND scalerank < 6 AND distance > 10000
+            | SORT scalerank, distance
+            | LIMIT 15
+            """, airports));
+
+        var topN = as(optimized, TopNExec.class);
+        var exchange = asRemoteExchange(topN.child());
+
+        var project = as(exchange.child(), ProjectExec.class);
+        assertThat(
+            names(project.projections()),
+            containsInAnyOrder("abbrev", "name", "type", "location", "country", "city", "city_location", "scalerank", "poi", "distance")
+        );
+        var extract = as(project.child(), FieldExtractExec.class);
+        assertThat(
+            names(extract.attributesToExtract()),
+            containsInAnyOrder("abbrev", "name", "type", "country", "city", "city_location", "scalerank")
+        );
+        var evalExec = as(extract.child(), EvalExec.class);
+        assertThat(evalExec.fields().size(), is(2));
+        var alias1 = as(evalExec.fields().get(0), Alias.class);
+        assertThat(alias1.name(), is("poi"));
+        var poi = as(alias1.child(), Literal.class);
+        assertThat(poi.fold(), instanceOf(BytesRef.class));
+        var alias2 = as(evalExec.fields().get(1), Alias.class);
+        assertThat(alias2.name(), is("distance"));
+        var stDistance = as(alias2.child(), StDistance.class);
+        var location = as(stDistance.left(), FieldAttribute.class);
+        assertThat(location.fieldName(), is("location"));
+        var poiRef = as(stDistance.right(), Literal.class);
+        assertThat(poiRef.fold(), instanceOf(BytesRef.class));
+        assertThat(poiRef.fold().toString(), is(poi.fold().toString()));
+        extract = as(evalExec.child(), FieldExtractExec.class);
+        assertThat(names(extract.attributesToExtract()), contains("location"));
+        var source = source(extract.child());
+
+        // Assert that the TopN(distance) is pushed down as geo-sort(location)
+        assertThat(source.limit(), is(topN.limit()));
+        Set<String> orderSet = orderAsSet(topN.order());
+        Set<String> sortsSet = sortsAsSet(source.sorts(), Map.of("location", "distance"));
+        assertThat(orderSet, is(sortsSet));
+
+        // Fine-grained checks on the pushed down sort
+        assertThat(source.limit(), is(l(15)));
+        assertThat(source.sorts().size(), is(2));
+        EsQueryExec.Sort fieldSort = source.sorts().get(0);
+        assertThat(fieldSort.direction(), is(Order.OrderDirection.ASC));
+        assertThat(name(fieldSort.field()), is("scalerank"));
+        assertThat(fieldSort.sortBuilder(), isA(FieldSortBuilder.class));
+        EsQueryExec.Sort distSort = source.sorts().get(1);
+        assertThat(distSort.direction(), is(Order.OrderDirection.ASC));
+        assertThat(name(distSort.field()), is("location"));
+        assertThat(distSort.sortBuilder(), isA(GeoDistanceSortBuilder.class));
+
+        // Fine-grained checks on the pushed down query
+        var bool = as(source.query(), BoolQueryBuilder.class);
+        var rangeQueryBuilders = bool.filter().stream().filter(p -> p instanceof SingleValueQuery.Builder).toList();
+        assertThat("Expected one range query builder", rangeQueryBuilders.size(), equalTo(1));
+        assertThat(((SingleValueQuery.Builder) rangeQueryBuilders.get(0)).field(), equalTo("scalerank"));
+        var filterBool = bool.filter().stream().filter(p -> p instanceof BoolQueryBuilder).toList();
+        var fb = as(filterBool.get(0), BoolQueryBuilder.class);
+        var shapeQueryBuilders = fb.must().stream().filter(p -> p instanceof SpatialRelatesQuery.ShapeQueryBuilder).toList();
+        assertShapeQueryRange(shapeQueryBuilders, 10000.0, 500000.0);
+    }
+
+    private Set<String> orderAsSet(List<Order> sorts) {
+        return sorts.stream().map(o -> ((Attribute) o.child()).name() + "->" + o.direction()).collect(Collectors.toSet());
+    }
+
+    private Set<String> sortsAsSet(List<EsQueryExec.Sort> sorts, Map<String, String> fieldMap) {
+        return sorts.stream()
+            .map(s -> fieldMap.getOrDefault(s.field().name(), s.field().name()) + "->" + s.direction())
+            .collect(Collectors.toSet());
+    }
+
     private void assertShapeQueryRange(List<QueryBuilder> shapeQueryBuilders, double min, double max) {
         assertThat("Expected two shape query builders", shapeQueryBuilders.size(), equalTo(2));
         var relationStats = new HashMap<ShapeRelation, Integer>();
@@ -3877,7 +5579,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             var circle = as(condition.shape(), Circle.class);
             assertThat("Circle center-x", circle.getX(), equalTo(12.565));
             assertThat("Circle center-y", circle.getY(), equalTo(55.673));
-            assertThat("Circle radius for shape relation " + condition.relation(), circle.getRadiusMeters(), equalTo(expected));
+            assertThat("Circle radius for shape relation " + condition.relation(), circle.getRadiusMeters(), closeTo(expected, 1e-9));
         }
         assertThat("Expected one INTERSECTS and one DISJOINT", relationStats.size(), equalTo(2));
         assertThat("Expected one INTERSECTS", relationStats.get(ShapeRelation.INTERSECTS), equalTo(1));
@@ -3935,8 +5637,6 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             var project = as(exchange.child(), ProjectExec.class);
             var fieldExtract = as(project.child(), FieldExtractExec.class);
             var source = source(fieldExtract.child());
-            // TODO: bring back SingleValueQuery once it can handle LeafShapeFieldData
-            // var condition = as(sv(source.query(), "location"), AbstractGeometryQueryBuilder.class);
             var condition = as(source.query(), SpatialRelatesQuery.ShapeQueryBuilder.class);
             assertThat("Geometry field name", condition.fieldName(), equalTo("location"));
             assertThat("Spatial relationship", condition.relation(), equalTo(ShapeRelation.INTERSECTS));
@@ -3981,8 +5681,6 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             var project = as(exchange.child(), ProjectExec.class);
             var fieldExtract = as(project.child(), FieldExtractExec.class);
             var source = source(fieldExtract.child());
-            // TODO: bring back SingleValueQuery once it can handle LeafShapeFieldData
-            // var condition = as(sv(source.query(), "location"), AbstractGeometryQueryBuilder.class);
             var condition = as(source.query(), SpatialRelatesQuery.ShapeQueryBuilder.class);
             assertThat("Geometry field name", condition.fieldName(), equalTo("shape"));
             assertThat("Spatial relationship", condition.relation(), equalTo(ShapeRelation.INTERSECTS));
@@ -4527,9 +6225,9 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             FROM test
             | RENAME languages AS int
             | LOOKUP int_number_names ON int""";
-        if (Build.current().isProductionRelease()) {
+        if (Build.current().isSnapshot() == false) {
             var e = expectThrows(ParsingException.class, () -> analyze(query));
-            assertThat(e.getMessage(), containsString("line 3:4: LOOKUP is in preview and only available in SNAPSHOT build"));
+            assertThat(e.getMessage(), containsString("line 3:3: mismatched input 'LOOKUP' expecting {"));
             return;
         }
         PhysicalPlan plan = physicalPlan(query);
@@ -4576,9 +6274,9 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             | LOOKUP int_number_names ON int
             | RENAME int AS languages, name AS lang_name
             | KEEP emp_no, languages, lang_name""";
-        if (Build.current().isProductionRelease()) {
+        if (Build.current().isSnapshot() == false) {
             var e = expectThrows(ParsingException.class, () -> analyze(query));
-            assertThat(e.getMessage(), containsString("line 5:4: LOOKUP is in preview and only available in SNAPSHOT build"));
+            assertThat(e.getMessage(), containsString("line 5:3: mismatched input 'LOOKUP' expecting {"));
             return;
         }
         PhysicalPlan plan = optimizedPlan(physicalPlan(query));
@@ -4633,9 +6331,9 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             | RENAME name AS languages
             | KEEP languages, emp_no
             | SORT languages ASC, emp_no ASC""";
-        if (Build.current().isProductionRelease()) {
+        if (Build.current().isSnapshot() == false) {
             var e = expectThrows(ParsingException.class, () -> analyze(query));
-            assertThat(e.getMessage(), containsString("line 3:4: LOOKUP is in preview and only available in SNAPSHOT build"));
+            assertThat(e.getMessage(), containsString("line 3:3: mismatched input 'LOOKUP' expecting {"));
             return;
         }
         var plan = physicalPlan(query);
@@ -4690,6 +6388,21 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertThat("Expected filter field", field.name(), equalTo(fieldName));
         var value = as(condition.right(), Literal.class);
         assertThat("Expected filter value", value.value(), equalTo(expected));
+    }
+
+    private EsQueryExec assertChildIsGeoPointExtract(UnaryExec parent, boolean useDocValues) {
+        return assertChildIsExtractedAsDocValues(parent, useDocValues, GEO_POINT);
+    }
+
+    private EsQueryExec assertChildIsExtractedAsDocValues(UnaryExec parent, boolean useDocValues, DataType dataType) {
+        var extract = as(parent.child(), FieldExtractExec.class);
+        assertTrue(
+            "Expect field attribute to be extracted as " + (useDocValues ? "doc-values" : "source"),
+            extract.attributesToExtract()
+                .stream()
+                .allMatch(attr -> extract.hasDocValuesAttribute(attr) == useDocValues && attr.dataType() == dataType)
+        );
+        return source(extract.child());
     }
 
     private static void assertAggregation(
@@ -4824,7 +6537,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         return physical;
     }
 
-    private List<FieldSort> sorts(List<Order> orders) {
+    private List<FieldSort> fieldSorts(List<Order> orders) {
         return orders.stream().map(o -> new FieldSort((FieldAttribute) o.child(), o.direction(), o.nullsPosition())).toList();
     }
 

@@ -1,0 +1,38 @@
+{
+  "query_rules.test": {
+    "documentation": {
+      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/master/test-query-ruleset.html",
+      "description": "Tests a query ruleset to identify the rules that would match input criteria"
+    },
+    "stability": "experimental",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ],
+      "content_type": [
+        "application/json"
+      ]
+    },
+    "url": {
+      "paths": [
+        {
+          "path": "/_query_rules/{ruleset_id}/_test",
+          "methods": [
+            "POST"
+          ],
+          "parts": {
+            "ruleset_id": {
+              "type": "string",
+              "description": "The unique identifier of the ruleset to test."
+            }
+          }
+        }
+      ]
+    },
+    "body": {
+      "description": "The match criteria to test against the ruleset",
+      "required": true
+    }
+  }
+}

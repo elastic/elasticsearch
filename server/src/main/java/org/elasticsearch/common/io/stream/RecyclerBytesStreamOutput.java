@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.io.stream;
@@ -174,6 +175,38 @@ public class RecyclerBytesStreamOutput extends BytesStream implements Releasable
                 tmpPage++;
             }
         }
+    }
+
+    // overridden with some code duplication the same way other write methods in this class are overridden to bypass StreamOutput's
+    // intermediary buffers
+    @Override
+    public void writeString(String str) throws IOException {
+        final int currentPageOffset = this.currentPageOffset;
+        final int charCount = str.length();
+        // maximum serialized length is 3 bytes per char + 5 bytes for the longest possible vint
+        if (charCount * 3 + 5 > (pageSize - currentPageOffset)) {
+            super.writeString(str);
+            return;
+        }
+        BytesRef currentPage = pages.get(pageIndex).v();
+        int off = currentPage.offset + currentPageOffset;
+        byte[] buffer = currentPage.bytes;
+        // mostly duplicated from StreamOutput.writeString to to get more reliable compilation of this very hot loop
+        int offset = off + putVInt(buffer, charCount, off);
+        for (int i = 0; i < charCount; i++) {
+            final int c = str.charAt(i);
+            if (c <= 0x007F) {
+                buffer[offset++] = ((byte) c);
+            } else if (c > 0x07FF) {
+                buffer[offset++] = ((byte) (0xE0 | c >> 12 & 0x0F));
+                buffer[offset++] = ((byte) (0x80 | c >> 6 & 0x3F));
+                buffer[offset++] = ((byte) (0x80 | c >> 0 & 0x3F));
+            } else {
+                buffer[offset++] = ((byte) (0xC0 | c >> 6 & 0x1F));
+                buffer[offset++] = ((byte) (0x80 | c >> 0 & 0x3F));
+            }
+        }
+        this.currentPageOffset = offset - currentPage.offset;
     }
 
     @Override

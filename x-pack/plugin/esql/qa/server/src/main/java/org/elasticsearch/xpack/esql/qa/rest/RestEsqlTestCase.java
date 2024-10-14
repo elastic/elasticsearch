@@ -55,6 +55,7 @@ import java.util.function.IntFunction;
 import java.util.regex.Pattern;
 
 import static java.util.Collections.emptySet;
+import static java.util.Map.entry;
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.test.ListMatcher.matchesList;
 import static org.elasticsearch.test.MapMatcher.assertMap;
@@ -127,6 +128,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         private Boolean keepOnCompletion = null;
 
         private Boolean profile = null;
+        private Boolean includeCCSMetadata = null;
 
         private CheckedConsumer<XContentBuilder, IOException> filter;
 
@@ -196,6 +198,11 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
             return this;
         }
 
+        public RequestObjectBuilder includeCCSMetadata(boolean includeCCSMetadata) {
+            this.includeCCSMetadata = includeCCSMetadata;
+            return this;
+        }
+
         public RequestObjectBuilder filter(CheckedConsumer<XContentBuilder, IOException> filter) {
             this.filter = filter;
             return this;
@@ -218,6 +225,9 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
                 }
                 if (profile != null) {
                     builder.field("profile", profile);
+                }
+                if (includeCCSMetadata != null) {
+                    builder.field("include_ccs_metadata", includeCCSMetadata);
                 }
                 if (filter != null) {
                     builder.startObject("filter");
@@ -249,7 +259,8 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
 
     public void testGetAnswer() throws IOException {
         Map<String, Object> answer = runEsql(requestObjectBuilder().query("row a = 1, b = 2"));
-        assertEquals(2, answer.size());
+        assertEquals(3, answer.size());
+        assertThat(((Integer) answer.get("took")).intValue(), greaterThanOrEqualTo(0));
         Map<String, String> colA = Map.of("name", "a", "type", "integer");
         Map<String, String> colB = Map.of("name", "b", "type", "integer");
         assertEquals(List.of(colA, colB), answer.get("columns"));
@@ -290,7 +301,9 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         Map<String, Object> result = runEsql(builder);
         assertMap(
             result,
-            matchesMap().entry("values", List.of(List.of(1))).entry("columns", List.of(Map.of("name", "min(value)", "type", "long")))
+            matchesMap().entry("values", List.of(List.of(1)))
+                .entry("columns", List.of(Map.of("name", "min(value)", "type", "long")))
+                .entry("took", greaterThanOrEqualTo(0))
         );
 
         builder = requestObjectBuilder().query(fromIndex() + " | stats min(value) by group | sort group, `min(value)`");
@@ -299,6 +312,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
             result,
             matchesMap().entry("values", List.of(List.of(2, 0), List.of(1, 1)))
                 .entry("columns", List.of(Map.of("name", "min(value)", "type", "long"), Map.of("name", "group", "type", "long")))
+                .entry("took", greaterThanOrEqualTo(0))
         );
     }
 
@@ -556,7 +570,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         );
         var values = List.of(List.of(3, testIndexName() + "-2", 1, "id-2"), List.of(2, testIndexName() + "-1", 2, "id-1"));
 
-        assertMap(result, matchesMap().entry("columns", columns).entry("values", values));
+        assertMap(result, matchesMap().entry("columns", columns).entry("values", values).entry("took", greaterThanOrEqualTo(0)));
 
         assertThat(deleteIndex(testIndexName() + "-1").isAcknowledged(), is(true)); // clean up
         assertThat(deleteIndex(testIndexName() + "-2").isAcknowledged(), is(true)); // clean up
@@ -609,6 +623,169 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         assertThat(EntityUtils.toString(re.getResponse().getEntity()), containsString("Unknown query parameter [n0], did you mean [n1]"));
     }
 
+    public void testErrorMessageForInvalidIntervalParams() throws IOException {
+        ResponseException re = expectThrows(
+            ResponseException.class,
+            () -> runEsqlSync(
+                requestObjectBuilder().query("row x = ?n1::datetime | eval y = x + ?n2::time_duration")
+                    .params("[{\"n1\": \"2024-01-01\"}, {\"n2\": \"3 days\"}]")
+            )
+        );
+
+        String error = re.getMessage().replaceAll("\\\\\n\s+\\\\", "");
+        assertThat(
+            error,
+            containsString(
+                "Invalid interval value in [?n2::time_duration], expected integer followed by one of "
+                    + "[MILLISECOND, MILLISECONDS, MS, SECOND, SECONDS, SEC, S, MINUTE, MINUTES, MIN, HOUR, HOURS, H] but got [3 days]"
+            )
+        );
+
+        re = expectThrows(
+            ResponseException.class,
+            () -> runEsqlSync(
+                requestObjectBuilder().query("row x = ?n1::datetime | eval y = x - ?n2::date_period")
+                    .params("[{\"n1\": \"2024-01-01\"}, {\"n2\": \"3 hours\"}]")
+            )
+        );
+        error = re.getMessage().replaceAll("\\\\\n\s+\\\\", "");
+        assertThat(
+            error,
+            containsString(
+                "Invalid interval value in [?n2::date_period], expected integer followed by one of "
+                    + "[DAY, DAYS, D, WEEK, WEEKS, W, MONTH, MONTHS, MO, QUARTER, QUARTERS, Q, YEAR, YEARS, YR, Y] but got [3 hours]"
+            )
+        );
+    }
+
+    public void testErrorMessageForArrayValuesInParams() throws IOException {
+        ResponseException re = expectThrows(
+            ResponseException.class,
+            () -> runEsql(RequestObjectBuilder.jsonBuilder().query("row a = 1 | eval x = ?").params("[{\"n1\": [5, 6, 7]}]"))
+        );
+        assertThat(
+            EntityUtils.toString(re.getResponse().getEntity()),
+            containsString("Failed to parse params: [1:45] n1=[5, 6, 7] is not supported as a parameter")
+        );
+    }
+
+    public void testNamedParamsForIdentifierAndIdentifierPatterns() throws IOException {
+        bulkLoadTestData(10);
+        // positive
+        var query = requestObjectBuilder().query(
+            format(
+                null,
+                "from {} | eval x1 = ?n1 | where ?n2 == x1 | stats xx2 = ?fn1(?n3) by ?n4 | keep ?n4, ?n5 | sort ?n4",
+                testIndexName()
+            )
+        )
+            .params(
+                "[{\"n1\" : {\"value\" : \"integer\" , \"kind\" : \"identifier\"}},"
+                    + "{\"n2\" : {\"value\" : \"short\" , \"kind\" : \"identifier\"}}, "
+                    + "{\"n3\" : {\"value\" : \"double\" , \"kind\" : \"identifier\"}},"
+                    + "{\"n4\" : {\"value\" : \"boolean\" , \"kind\" : \"identifier\"}}, "
+                    + "{\"n5\" : {\"value\" : \"xx*\" , \"kind\" : \"pattern\"}}, "
+                    + "{\"fn1\" : {\"value\" : \"max\" , \"kind\" : \"identifier\"}}]"
+            );
+        Map<String, Object> result = runEsql(query);
+        Map<String, String> colA = Map.of("name", "boolean", "type", "boolean");
+        Map<String, String> colB = Map.of("name", "xx2", "type", "double");
+        assertEquals(List.of(colA, colB), result.get("columns"));
+        assertEquals(List.of(List.of(false, 9.1), List.of(true, 8.1)), result.get("values"));
+
+        // missing params
+        ResponseException re = expectThrows(
+            ResponseException.class,
+            () -> runEsqlSync(
+                requestObjectBuilder().query(
+                    format(
+                        null,
+                        "from {} | eval x1 = ?n1 | where ?n2 == x1 | stats xx2 = max(?n3) by ?n4 | keep ?n4, ?n5 | sort ?n4",
+                        testIndexName()
+                    )
+                ).params("[]")
+            )
+        );
+        String error = re.getMessage();
+        assertThat(error, containsString("ParsingException"));
+        assertThat(error, containsString("Unknown query parameter [n1]"));
+
+        // param inside backquote is not recognized as a param
+        Map<String, Integer> commandsWithLineNumber = Map.ofEntries(
+            entry("eval x1 = `?n1`", 33),
+            entry("where `?n1` == 1", 29),
+            entry("stats x = max(n2) by `?n1`", 44),
+            entry("stats x = max(`?n1`) by n2", 37),
+            entry("keep `?n1`", 28),
+            entry("sort `?n1`", 28)
+        );
+        for (Map.Entry<String, Integer> command : commandsWithLineNumber.entrySet()) {
+            re = expectThrows(
+                ResponseException.class,
+                () -> runEsqlSync(
+                    requestObjectBuilder().query(format(null, "from {} | {}", testIndexName(), command.getKey()))
+                        .params(
+                            "[{\"n1\" : {\"value\" : \"integer\" , \"kind\" : \"identifier\"}},"
+                                + "{\"n2\" : {\"value\" : \"short\" , \"kind\" : \"identifier\"}}]"
+                        )
+                )
+            );
+            error = re.getMessage();
+            assertThat(error, containsString("VerificationException"));
+            assertThat(error, containsString("line 1:" + command.getValue() + ": Unknown column [?n1]"));
+        }
+
+        commandsWithLineNumber = Map.ofEntries(
+            entry("rename ?n1 as ?n2", 30),
+            entry("enrich idx2 ON ?n1 WITH ?n2 = ?n3", 38),
+            entry("keep ?n1", 28),
+            entry("drop ?n1", 28)
+        );
+        for (Map.Entry<String, Integer> command : commandsWithLineNumber.entrySet()) {
+            re = expectThrows(
+                ResponseException.class,
+                () -> runEsqlSync(
+                    requestObjectBuilder().query(format(null, "from {} | {}", testIndexName(), command.getKey()))
+                        .params(
+                            "[{\"n1\" : {\"value\" : \"`n1`\" , \"kind\" : \"identifier\"}},"
+                                + "{\"n2\" : {\"value\" : \"`n2`\" , \"kind\" : \"identifier\"}}, "
+                                + "{\"n3\" : {\"value\" : \"`n3`\" , \"kind\" : \"identifier\"}}]"
+                        )
+                )
+            );
+            error = re.getMessage();
+            assertThat(error, containsString("VerificationException"));
+            assertThat(error, containsString("line 1:" + command.getValue() + ": Unknown column [`n1`]"));
+        }
+
+        // param cannot be used as a command name
+        Map<String, String> paramsAsCommandNames = Map.ofEntries(
+            entry("eval", "x = 1"),
+            entry("where", "x == 1"),
+            entry("stats", "x = count(*)"),
+            entry("keep", "x"),
+            entry("drop", "x"),
+            entry("rename", "x as y"),
+            entry("sort", "x"),
+            entry("dissect", "x \"%{foo}\""),
+            entry("grok", "x \"%{WORD:foo}\""),
+            entry("enrich", "idx2 ON x"),
+            entry("mvExpand", "x")
+        );
+        for (Map.Entry<String, String> command : paramsAsCommandNames.entrySet()) {
+            re = expectThrows(
+                ResponseException.class,
+                () -> runEsqlSync(
+                    requestObjectBuilder().query(format(null, "from {} | ?cmd {}", testIndexName(), command.getValue()))
+                        .params("[{\"cmd\" : {\"value\" : \"" + command.getKey() + "\", \"kind\" : \"identifier\"}}]")
+                )
+            );
+            error = re.getMessage();
+            assertThat(error, containsString("ParsingException"));
+            assertThat(error, containsString("line 1:23: mismatched input '?cmd' expecting {'dissect', 'drop'"));
+        }
+    }
+
     public void testErrorMessageForLiteralDateMathOverflow() throws IOException {
         List<String> dateMathOverflowExpressions = List.of(
             "2147483647 day + 1 day",
@@ -646,14 +823,6 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         assertThat(responseMessage, containsString(errorSubstring));
 
         assertThat(re.getResponse().getStatusLine().getStatusCode(), equalTo(400));
-    }
-
-    public void testErrorMessageForArrayValuesInParams() throws IOException {
-        ResponseException re = expectThrows(
-            ResponseException.class,
-            () -> runEsql(requestObjectBuilder().query("row a = 1 | eval x = ?").params("[{\"n1\": [5, 6, 7]}]"))
-        );
-        assertThat(EntityUtils.toString(re.getResponse().getEntity()), containsString("n1=[5, 6, 7] is not supported as a parameter"));
     }
 
     public void testComplexFieldNames() throws IOException {
@@ -711,7 +880,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
                     .item(matchesMap().entry("name", "value").entry("type", "long"))
                     .item(matchesMap().entry("name", "now").entry("type", "date"))
                     .item(matchesMap().entry("name", "AVG(value)").entry("type", "double"))
-            ).entry("values", values)
+            ).entry("values", values).entry("took", greaterThanOrEqualTo(0))
         );
     }
 
@@ -725,10 +894,13 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
             }
             b.endObject();
         }).query(fromIndex() + " | STATS SUM(value)");
+
+        Map<String, Object> result = runEsql(builder);
         assertMap(
-            runEsql(builder),
+            result,
             matchesMap().entry("columns", matchesList().item(matchesMap().entry("name", "SUM(value)").entry("type", "long")))
                 .entry("values", List.of(List.of(499500)))
+                .entry("took", greaterThanOrEqualTo(0))
         );
     }
 
@@ -742,10 +914,12 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
             }
             b.endObject();
         }).query(fromIndex() + " | WHERE value == 12 | STATS SUM(value)");
+        Map<String, Object> result = runEsql(builder);
         assertMap(
-            runEsql(builder),
+            result,
             matchesMap().entry("columns", matchesList().item(matchesMap().entry("name", "SUM(value)").entry("type", "long")))
                 .entry("values", List.of(List.of(12)))
+                .entry("took", greaterThanOrEqualTo(0))
         );
     }
 
@@ -774,10 +948,12 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
                 }
                 b.endObject();
             }).query(fromIndex() + " | WHERE @timestamp > \"2010-01-01\" | STATS SUM(value)");
+            Map<String, Object> result = runEsql(builder);
             assertMap(
-                runEsql(builder),
+                result,
                 matchesMap().entry("columns", matchesList().item(matchesMap().entry("name", "SUM(value)").entry("type", "long")))
                     .entry("values", List.of(List.of(12)))
+                    .entry("took", greaterThanOrEqualTo(0))
             );
         }
     }

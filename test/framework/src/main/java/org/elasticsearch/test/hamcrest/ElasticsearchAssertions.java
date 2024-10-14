@@ -916,7 +916,7 @@ public class ElasticsearchAssertions {
         ActionRequestBuilder<?, T> requestBuilder,
         Matcher<? super List<String>> matcher
     ) throws InterruptedException {
-        CountDownLatch latch = new CountDownLatch(2);
+        CountDownLatch latch = new CountDownLatch(1);
         requestBuilder.execute(new ActionListener<>() {
             @Override
             public void onResponse(T response) {
@@ -937,7 +937,6 @@ public class ElasticsearchAssertions {
                 }
             }
         });
-        latch.countDown();
         if (latch.await(10, TimeUnit.SECONDS) == false) {
             fail("Did not receive request response before timeout");
         }

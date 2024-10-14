@@ -1362,7 +1362,7 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
         assertAcked(
             client.execute(
                 DeleteDataStreamAction.INSTANCE,
-                new DeleteDataStreamAction.Request(TEST_REQUEST_TIMEOUT, datastreamName, "other-ds", "with-fs")
+                new DeleteDataStreamAction.Request(TEST_REQUEST_TIMEOUT, datastreamName, "other-ds")
             )
         );
 
@@ -1370,13 +1370,6 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
             client.execute(
                 TransportDeleteComposableIndexTemplateAction.TYPE,
                 new TransportDeleteComposableIndexTemplateAction.Request(TEMPLATE_1_ID)
-            ).get()
-        );
-
-        assertAcked(
-            client.execute(
-                TransportDeleteComposableIndexTemplateAction.TYPE,
-                new TransportDeleteComposableIndexTemplateAction.Request(TEMPLATE_2_ID)
             ).get()
         );
 

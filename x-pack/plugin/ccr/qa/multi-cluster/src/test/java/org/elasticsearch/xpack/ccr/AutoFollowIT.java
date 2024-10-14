@@ -1125,23 +1125,23 @@ public class AutoFollowIT extends ESCCRRestTestCase {
         if ("follow".equals(targetCluster) == false) {
             return;
         }
-        testDatastreamPromotionWarnings(true);
+        testDataStreamPromotionWarnings(true);
     }
 
     public void testWarningOnPromoteDatastreamWhenTemplateDoesNotExistsOnFollower() {
         if ("follow".equals(targetCluster) == false) {
             return;
         }
-        WarningFailureException exception = assertThrows(WarningFailureException.class, () -> testDatastreamPromotionWarnings(false));
+        WarningFailureException exception = assertThrows(WarningFailureException.class, () -> testDataStreamPromotionWarnings(false));
         assertThat(
             exception.getMessage(),
             containsString(
-                "does not have a matching index template. " + "This will cause rollover to fail until a matching index template is created]"
+                "does not have a matching index template. This will cause rollover to fail until a matching index template is created]"
             )
         );
     }
 
-    private void testDatastreamPromotionWarnings(Boolean createFollowerTemplate) throws Exception {
+    private void testDataStreamPromotionWarnings(Boolean createFollowerTemplate) throws Exception {
         final int numDocs = 64;
         final String dataStreamName = getTestName().toLowerCase(Locale.ROOT) + "-dopromo";
         final String autoFollowPatternName = getTestName().toLowerCase(Locale.ROOT);

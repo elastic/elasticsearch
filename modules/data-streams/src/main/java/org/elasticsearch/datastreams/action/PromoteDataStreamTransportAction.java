@@ -86,7 +86,7 @@ public class PromoteDataStreamTransportAction extends AcknowledgedTransportMaste
 
                 @Override
                 public ClusterState execute(ClusterState currentState) {
-                    return promoteDataStream(currentState, request, clusterService);
+                    return promoteDataStream(currentState, request);
                 }
 
                 @Override
@@ -104,8 +104,7 @@ public class PromoteDataStreamTransportAction extends AcknowledgedTransportMaste
 
     static ClusterState promoteDataStream(
         ClusterState currentState,
-        PromoteDataStreamAction.Request request,
-        ClusterService clusterService
+        PromoteDataStreamAction.Request request
     ) {
         DataStream dataStream = currentState.getMetadata().dataStreams().get(request.getName());
 
@@ -113,7 +112,7 @@ public class PromoteDataStreamTransportAction extends AcknowledgedTransportMaste
             throw new ResourceNotFoundException("data stream [" + request.getName() + "] does not exist");
         }
 
-        warnIfTemplateMissingForDatastream(dataStream, clusterService);
+        warnIfTemplateMissingForDatastream(dataStream, currentState);
 
         DataStream promotedDataStream = dataStream.promoteDataStream();
         Metadata.Builder metadata = Metadata.builder(currentState.metadata());
@@ -121,10 +120,10 @@ public class PromoteDataStreamTransportAction extends AcknowledgedTransportMaste
         return ClusterState.builder(currentState).metadata(metadata).build();
     }
 
-    private static void warnIfTemplateMissingForDatastream(DataStream dataStream, ClusterService clusterService) {
+    private static void warnIfTemplateMissingForDatastream(DataStream dataStream, ClusterState currentState) {
         var datastreamName = dataStream.getName();
 
-        var matchingIndex = clusterService.state()
+        var matchingIndex = currentState
             .metadata()
             .templatesV2()
             .values()

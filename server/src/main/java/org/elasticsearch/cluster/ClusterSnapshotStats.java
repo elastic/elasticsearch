@@ -228,7 +228,7 @@ public record ClusterSnapshotStats(
             builder.endObject();
             builder.endObject();
 
-            builder.timeField("oldest_start_time_millis", "oldest_start_time", firstStartTimeMillis);
+            builder.timestampFieldsFromUnixEpochMillis("oldest_start_time_millis", "oldest_start_time", firstStartTimeMillis);
 
             return builder.endObject();
         }

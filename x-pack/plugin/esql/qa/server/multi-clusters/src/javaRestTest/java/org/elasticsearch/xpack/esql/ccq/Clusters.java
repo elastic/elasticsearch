@@ -12,34 +12,25 @@ import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.cluster.util.Version;
 
 public class Clusters {
-
     static final String REMOTE_CLUSTER_NAME = "remote_cluster";
     static final String LOCAL_CLUSTER_NAME = "local_cluster";
 
     public static ElasticsearchCluster remoteCluster() {
-        Version oldVersion = Version.fromString(System.getProperty("tests.old_cluster_version"));
-
-        var cluster = ElasticsearchCluster.local()
+        return ElasticsearchCluster.local()
             .name(REMOTE_CLUSTER_NAME)
             .distribution(DistributionType.DEFAULT)
-            .version(oldVersion)
+            .version(Version.fromString(System.getProperty("tests.old_cluster_version")))
             .nodes(2)
             .setting("node.roles", "[data,ingest,master]")
             .setting("xpack.security.enabled", "false")
             .setting("xpack.license.self_generated.type", "trial")
             .shared(true)
-            .setting("cluster.routing.rebalance.enable", "none");
-
-        // The plugin cannot be loaded on cluster with versions on 8.x
-        if (oldVersion.onOrAfter("9.0.0")) {
-            cluster = cluster.plugin("inference-service-test");
-        }
-
-        return cluster.build();
+            .setting("cluster.routing.rebalance.enable", "none")
+            .build();
     }
 
     public static ElasticsearchCluster localCluster(ElasticsearchCluster remoteCluster) {
-        var cluster = ElasticsearchCluster.local()
+        return ElasticsearchCluster.local()
             .name(LOCAL_CLUSTER_NAME)
             .distribution(DistributionType.DEFAULT)
             .version(Version.CURRENT)
@@ -50,13 +41,8 @@ public class Clusters {
             .setting("cluster.remote.remote_cluster.seeds", () -> "\"" + remoteCluster.getTransportEndpoint(0) + "\"")
             .setting("cluster.remote.connections_per_cluster", "1")
             .shared(true)
-            .setting("cluster.routing.rebalance.enable", "none");
-
-        if (Version.CURRENT.onOrAfter("9.0.0")) {
-            cluster = cluster.plugin("inference-service-test");
-        }
-
-        return cluster.build();
+            .setting("cluster.routing.rebalance.enable", "none")
+            .build();
     }
 
     public static org.elasticsearch.Version oldVersion() {

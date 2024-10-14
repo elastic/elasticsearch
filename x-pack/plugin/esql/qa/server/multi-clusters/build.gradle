@@ -15,8 +15,6 @@ apply plugin: 'elasticsearch.bwc-test'
 dependencies {
   javaRestTestImplementation project(xpackModule('esql:qa:testFixtures'))
   javaRestTestImplementation project(xpackModule('esql:qa:server'))
-
-  clusterPlugins project(':x-pack:plugin:inference:qa:test-service-plugin')
 }
 
 def supportedVersion = bwcVersion -> {

@@ -14,8 +14,7 @@ import org.elasticsearch.test.cluster.util.Version;
 public class Clusters {
     public static ElasticsearchCluster mixedVersionCluster() {
         Version oldVersion = Version.fromString(System.getProperty("tests.old_cluster_version"));
-
-        var cluster = ElasticsearchCluster.local()
+        return ElasticsearchCluster.local()
             .distribution(DistributionType.DEFAULT)
             .withNode(node -> node.version(oldVersion))
             .withNode(node -> node.version(Version.CURRENT))
@@ -23,12 +22,7 @@ public class Clusters {
             .withNode(node -> node.version(Version.CURRENT))
             .setting("xpack.security.enabled", "false")
             .setting("xpack.license.self_generated.type", "trial")
-            .setting("cluster.routing.rebalance.enable", "none"); // disable relocation until we have retry in ESQL
-
-        // The plugin cannot be loaded on mixed version clusters with versions on 8.x
-        if (oldVersion.onOrAfter("9.0.0")) {
-            cluster = cluster.plugin("inference-service-test");
-        }
-        return cluster.build();
+            .setting("cluster.routing.rebalance.enable", "none") // disable relocation until we have retry in ESQL
+            .build();
     }
 }

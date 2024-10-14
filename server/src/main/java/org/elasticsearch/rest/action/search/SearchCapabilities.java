@@ -20,6 +20,11 @@ public final class SearchCapabilities {
 
     /** Support regex and range match rules in interval queries. */
     private static final String RANGE_REGEX_INTERVAL_QUERY_CAPABILITY = "range_regexp_interval_queries";
+    /** Support docvalue_fields parameter for `dense_vector` field. */
+    private static final String DENSE_VECTOR_DOCVALUE_FIELDS = "dense_vector_docvalue_fields";
 
-    public static final Set<String> CAPABILITIES = Set.of(RANGE_REGEX_INTERVAL_QUERY_CAPABILITY);
+    public static final Set<String> CAPABILITIES = Set.of(
+        RANGE_REGEX_INTERVAL_QUERY_CAPABILITY,
+        DENSE_VECTOR_DOCVALUE_FIELDS
+    );
 }

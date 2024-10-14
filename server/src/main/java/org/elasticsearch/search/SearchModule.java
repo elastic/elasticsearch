@@ -1020,6 +1020,7 @@ public class SearchModule {
         registerValueFormat(DocValueFormat.IP.getWriteableName(), in -> DocValueFormat.IP);
         registerValueFormat(DocValueFormat.RAW.getWriteableName(), in -> DocValueFormat.RAW);
         registerValueFormat(DocValueFormat.BINARY.getWriteableName(), in -> DocValueFormat.BINARY);
+        registerValueFormat(DocValueFormat.DENSE.getWriteableName(), in -> DocValueFormat.DENSE);
         registerValueFormat(DocValueFormat.UNSIGNED_LONG_SHIFTED.getWriteableName(), in -> DocValueFormat.UNSIGNED_LONG_SHIFTED);
         registerValueFormat(DocValueFormat.TIME_SERIES_ID.getWriteableName(), in -> DocValueFormat.TIME_SERIES_ID);
         registerValueFormat(TS_ROUTING_HASH_DOC_VALUE_FORMAT.getWriteableName(), in -> TS_ROUTING_HASH_DOC_VALUE_FORMAT);

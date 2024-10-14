@@ -1,0 +1,137 @@
+---
+setup:
+  - requires:
+      cluster_features:
+        - "put_database_configuration_action.ipinfo"
+      reason: "ip location downloader database configuration APIs added in 8.16 to support more types"
+
+---
+teardown:
+  - do:
+      ingest.delete_ip_location_database:
+        id: "my_database_1"
+        ignore: 404
+  - do:
+      ingest.delete_ip_location_database:
+        id: "my_database_2"
+        ignore: 404
+  - do:
+      ingest.delete_ip_location_database:
+        id: "my_database_3"
+        ignore: 404
+
+---
+"Test adding, getting, and removing ip location databases":
+  - do:
+      ingest.put_ip_location_database:
+        id: "my_database_1"
+        body:  >
+          {
+            "name": "GeoIP2-City",
+            "maxmind": {
+              "account_id": "1234"
+            }
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      ingest.put_ip_location_database:
+        id: "my_database_1"
+        body:  >
+          {
+            "name": "GeoIP2-Country",
+            "maxmind": {
+              "account_id": "4321"
+            }
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      ingest.put_ip_location_database:
+        id: "my_database_2"
+        body:  >
+          {
+            "name": "GeoIP2-City",
+            "maxmind": {
+              "account_id": "1234"
+            }
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      catch: /illegal_argument_exception/
+      ingest.put_ip_location_database:
+        id: "_web_TXlDdXN0b21HZW9MaXRlMi1DaXR5Lm1tZGI="
+        body:  >
+          {
+            "name": "GeoIP2-City",
+            "web": {
+            }
+          }
+
+  - do:
+      ingest.put_ip_location_database:
+        id: "my_database_3"
+        body:  >
+          {
+            "name": "standard_privacy",
+            "ipinfo": {
+            }
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      ingest.get_ip_location_database:
+        id: "my_database_1"
+  - length: { databases: 1 }
+  - match: { databases.0.id: "my_database_1" }
+  - gte: { databases.0.modified_date_millis: 0 }
+  - match: { databases.0.database.name: "GeoIP2-Country" }
+  - match: { databases.0.database.maxmind.account_id: "4321" }
+
+  - do:
+      ingest.get_ip_location_database: {}
+  - length: { databases: 7 }
+
+  - do:
+      ingest.get_ip_location_database:
+        id: "my_database_1,my_database_2"
+  - length: { databases: 2 }
+
+  - do:
+      ingest.get_ip_location_database:
+        id: "_web_TXlDdXN0b21HZW9MaXRlMi1DaXR5Lm1tZGI="
+  - length: { databases: 1 }
+  - match: { databases.0.id: "_web_TXlDdXN0b21HZW9MaXRlMi1DaXR5Lm1tZGI=" }
+  - gte: { databases.0.modified_date_millis: -1 }
+  - match: { databases.0.database.name: "MyCustomGeoLite2-City" }
+
+  - do:
+      ingest.delete_ip_location_database:
+        id: "my_database_1"
+
+  - do:
+      catch: /resource_not_found_exception/
+      ingest.delete_ip_location_database:
+        id: "_web_TXlDdXN0b21HZW9MaXRlMi1DaXR5Lm1tZGI="
+
+  - do:
+      ingest.get_ip_location_database: {}
+  - length: { databases: 6 }
+
+  - do:
+      ingest.get_ip_location_database:
+        id: "my_database_2"
+  - length: { databases: 1 }
+  - match: { databases.0.id: "my_database_2" }
+  - gte: { databases.0.modified_date_millis: 0 }
+  - match: { databases.0.database.name: "GeoIP2-City" }
+  - match: { databases.0.database.maxmind.account_id: "1234" }
+
+  - do:
+      ingest.get_ip_location_database:
+        id: "my_database_3"
+  - length: { databases: 1 }
+  - match: { databases.0.id: "my_database_3" }
+  - gte: { databases.0.modified_date_millis: 0 }
+  - match: { databases.0.database.name: "standard_privacy" }

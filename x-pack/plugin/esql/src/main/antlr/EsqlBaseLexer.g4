@@ -86,7 +86,6 @@ WHERE : 'where'               -> pushMode(EXPRESSION_MODE);
 // MYCOMMAND : 'mycommand' -> ...
 DEV_INLINESTATS : {this.isDevVersion()}? 'inlinestats'   -> pushMode(EXPRESSION_MODE);
 DEV_LOOKUP :      {this.isDevVersion()}? 'lookup'        -> pushMode(LOOKUP_MODE);
-DEV_MATCH :       {this.isDevVersion()}? 'match'         -> pushMode(EXPRESSION_MODE);
 DEV_METRICS :     {this.isDevVersion()}? 'metrics'       -> pushMode(METRICS_MODE);
 
 //
@@ -209,8 +208,7 @@ ASTERISK : '*';
 SLASH : '/';
 PERCENT : '%';
 
-// move it in the main section if the feature gets promoted
-DEV_MATCH_OP : {this.isDevVersion()}? DEV_MATCH -> type(DEV_MATCH);
+DEV_MATCH : {this.isDevVersion()}? 'match';
 
 NAMED_OR_POSITIONAL_PARAM
     : PARAM (LETTER | UNDERSCORE) UNQUOTED_ID_BODY*

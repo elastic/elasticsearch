@@ -68,12 +68,6 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/111448
 - class: org.elasticsearch.search.SearchServiceTests
   issue: https://github.com/elastic/elasticsearch/issues/111529
-- class: org.elasticsearch.xpack.test.rest.XPackRestIT
-  method: test {p0=rollup/security_tests/Index-based access}
-  issue: https://github.com/elastic/elasticsearch/issues/111631
-- class: org.elasticsearch.tdigest.ComparisonTests
-  method: testSparseGaussianDistribution
-  issue: https://github.com/elastic/elasticsearch/issues/111721
 - class: org.elasticsearch.upgrades.FullClusterRestartIT
   method: testSnapshotRestore {cluster=OLD}
   issue: https://github.com/elastic/elasticsearch/issues/111777
@@ -244,12 +238,6 @@ tests:
 - class: org.elasticsearch.ingest.geoip.DatabaseNodeServiceIT
   method: testGzippedDatabase
   issue: https://github.com/elastic/elasticsearch/issues/113752
-- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
-  method: test {p0=indices.split/40_routing_partition_size/more than 1}
-  issue: https://github.com/elastic/elasticsearch/issues/113841
-- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
-  method: test {p0=indices.split/40_routing_partition_size/nested}
-  issue: https://github.com/elastic/elasticsearch/issues/113842
 - class: org.elasticsearch.threadpool.SimpleThreadPoolIT
   method: testThreadPoolMetrics
   issue: https://github.com/elastic/elasticsearch/issues/108320
@@ -283,8 +271,6 @@ tests:
 - class: org.elasticsearch.action.bulk.IncrementalBulkIT
   method: testIncrementalBulkLowWatermarkBackOff
   issue: https://github.com/elastic/elasticsearch/issues/114182
-- class: org.elasticsearch.xpack.esql.action.EsqlActionBreakerIT
-  issue: https://github.com/elastic/elasticsearch/issues/114194
 - class: org.elasticsearch.xpack.ilm.ExplainLifecycleIT
   method: testStepInfoPreservedOnAutoRetry
   issue: https://github.com/elastic/elasticsearch/issues/114220
@@ -300,9 +286,6 @@ tests:
 - class: org.elasticsearch.xpack.security.CoreWithSecurityClientYamlTestSuiteIT
   method: test {yaml=cluster.stats/30_ccs_stats/cross-cluster search stats search}
   issue: https://github.com/elastic/elasticsearch/issues/114371
-- class: org.elasticsearch.xpack.esql.qa.single_node.RestEsqlIT
-  method: testProfileOrdinalsGroupingOperator {SYNC}
-  issue: https://github.com/elastic/elasticsearch/issues/114380
 - class: org.elasticsearch.xpack.inference.services.cohere.CohereServiceTests
   method: testInfer_StreamRequest
   issue: https://github.com/elastic/elasticsearch/issues/114385
@@ -315,8 +298,6 @@ tests:
 - class: org.elasticsearch.search.retriever.RankDocsRetrieverBuilderTests
   method: testRewrite
   issue: https://github.com/elastic/elasticsearch/issues/114467
-- class: org.elasticsearch.xpack.logsdb.LogsdbTestSuiteIT
-  issue: https://github.com/elastic/elasticsearch/issues/114471
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test022InstallPluginsFromLocalArchive
   issue: https://github.com/elastic/elasticsearch/issues/111063
@@ -337,6 +318,30 @@ tests:
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=synonyms/60_synonym_rule_get/Synonym rule not found}
   issue: https://github.com/elastic/elasticsearch/issues/114444
+- class: org.elasticsearch.xpack.inference.integration.ModelRegistryIT
+  method: testGetModel
+  issue: https://github.com/elastic/elasticsearch/issues/114657
+- class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
+  method: test {yaml=reference/rest-api/usage/line_38}
+  issue: https://github.com/elastic/elasticsearch/issues/113694
+- class: org.elasticsearch.xpack.enrich.EnrichRestIT
+  method: test {p0=enrich/10_basic/Test using the deprecated elasticsearch_version field results in a warning}
+  issue: https://github.com/elastic/elasticsearch/issues/114748
+- class: org.elasticsearch.xpack.eql.EqlRestIT
+  method: testIndexWildcardPatterns
+  issue: https://github.com/elastic/elasticsearch/issues/114749
+- class: org.elasticsearch.xpack.eql.EqlRestIT
+  method: testBadRequests
+  issue: https://github.com/elastic/elasticsearch/issues/114752
+- class: org.elasticsearch.xpack.enrich.EnrichRestIT
+  method: test {p0=enrich/20_standard_index/enrich stats REST response structure}
+  issue: https://github.com/elastic/elasticsearch/issues/114753
+- class: org.elasticsearch.xpack.rank.rrf.RRFRankClientYamlTestSuiteIT
+  method: test {yaml=rrf/800_rrf_with_text_similarity_reranker_retriever/explain using rrf retriever and text-similarity}
+  issue: https://github.com/elastic/elasticsearch/issues/114757
+- class: org.elasticsearch.xpack.enrich.EnrichRestIT
+  method: test {p0=enrich/30_tsdb_index/enrich documents over _bulk}
+  issue: https://github.com/elastic/elasticsearch/issues/114761
 
 # Examples:
 #

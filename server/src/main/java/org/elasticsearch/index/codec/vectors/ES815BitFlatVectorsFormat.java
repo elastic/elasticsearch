@@ -25,6 +25,8 @@ import org.apache.lucene.util.quantization.RandomAccessQuantizedByteVectorValues
 
 import java.io.IOException;
 
+import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.MAX_DIMS_COUNT;
+
 class ES815BitFlatVectorsFormat extends FlatVectorsFormat {
 
     private static final FlatVectorsFormat delegate = new Lucene99FlatVectorsFormat(FlatBitVectorScorer.INSTANCE);
@@ -41,6 +43,11 @@ class ES815BitFlatVectorsFormat extends FlatVectorsFormat {
     @Override
     public FlatVectorsReader fieldsReader(SegmentReadState segmentReadState) throws IOException {
         return delegate.fieldsReader(segmentReadState);
+    }
+
+    @Override
+    public int getMaxDimensions(String fieldName) {
+        return MAX_DIMS_COUNT;
     }
 
     static class FlatBitVectorScorer implements FlatVectorsScorer {

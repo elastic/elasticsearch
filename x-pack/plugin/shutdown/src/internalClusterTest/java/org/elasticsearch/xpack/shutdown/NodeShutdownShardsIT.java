@@ -327,11 +327,8 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
         ensureGreen("myindex");
 
         putNodeShutdown(primaryNodeId, SingleNodeShutdownMetadata.Type.RESTART, null);
-        // registering node shutdown entry does not perform reroute, neither should it.
-        // we provoke it here in the test to ensure that auto-expansion has run.
-        updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude.name", "non-existent"), "myindex");
 
-        assertBusy(() -> assertIndexSetting("myindex", "index.number_of_replicas", "1"));
+        assertIndexSetting("myindex", "index.number_of_replicas", "1");
         indexRandomData("myindex");
 
         internalCluster().restartNode(primaryNode, new InternalTestCluster.RestartCallback() {
@@ -361,9 +358,6 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
         var replacementNodeName = "node_t2";
 
         putNodeShutdown(nodeIdToReplace, SingleNodeShutdownMetadata.Type.REPLACE, replacementNodeName);
-        // registering node shutdown entry does not perform reroute, neither should it.
-        // we provoke it here in the test to ensure that auto-expansion has run.
-        updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude.name", "non-existent"), "index");
 
         ensureGreen("index");
         assertIndexSetting("index", "index.number_of_replicas", "1");

@@ -7,32 +7,27 @@
 
 package org.elasticsearch.xpack.esql.expression.function.fulltext;
 
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.querydsl.query.QueryStringQuery;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.Map;
 
 /**
  * Full text function that performs a {@link QueryStringQuery} .
  */
-public class QueryStringFunction extends FullTextFunction {
+public class QueryString extends FullTextFunction {
 
-    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
-        Expression.class,
-        "QStr",
-        QueryStringFunction::new
-    );
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "QStr", QueryString::new);
 
     @FunctionInfo(
         returnType = "boolean",
@@ -40,7 +35,7 @@ public class QueryStringFunction extends FullTextFunction {
         description = "Performs a query string query. Returns true if the provided query string matches the row.",
         examples = { @Example(file = "qstr-function", tag = "qstr-with-field") }
     )
-    public QueryStringFunction(
+    public QueryString(
         Source source,
         @Param(
             name = "query",
@@ -48,11 +43,22 @@ public class QueryStringFunction extends FullTextFunction {
             description = "Query string in Lucene query string format."
         ) Expression queryString
     ) {
-        super(source, queryString);
+        super(source, queryString, List.of(queryString));
     }
 
-    private QueryStringFunction(StreamInput in) throws IOException {
-        super(in);
+    private QueryString(StreamInput in) throws IOException {
+        this(Source.readFrom((PlanStreamInput) in), in.readNamedWriteable(Expression.class));
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        source().writeTo(out);
+        out.writeNamedWriteable(query());
+    }
+
+    @Override
+    public String getWriteableName() {
+        return ENTRY.name;
     }
 
     @Override
@@ -61,27 +67,13 @@ public class QueryStringFunction extends FullTextFunction {
     }
 
     @Override
-    public Query asQuery() {
-        Object queryAsObject = query().fold();
-        if (queryAsObject instanceof BytesRef queryAsBytesRef) {
-            return new QueryStringQuery(source(), queryAsBytesRef.utf8ToString(), Map.of(), null);
-        } else {
-            throw new IllegalArgumentException("Query in QSTR needs to be resolved to a string");
-        }
-    }
-
-    @Override
     public Expression replaceChildren(List<Expression> newChildren) {
-        return new QueryStringFunction(source(), newChildren.get(0));
+        return new QueryString(source(), newChildren.get(0));
     }
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, QueryStringFunction::new, query());
+        return NodeInfo.create(this, QueryString::new, query());
     }
 
-    @Override
-    public String getWriteableName() {
-        return ENTRY.name;
-    }
 }

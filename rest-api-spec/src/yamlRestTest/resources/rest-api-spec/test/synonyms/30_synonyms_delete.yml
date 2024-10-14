@@ -12,13 +12,14 @@ setup:
             - synonyms: "bye => goodbye"
               id: "test-id-2"
 
-  # This is to ensure that all index shards (write and read) are available. In serverless this can take some time.
+  # This is to ensure that at least two index shards (write and read) are available. In serverless this can take some time.
   - do:
       cluster.health:
         index: .synonyms-2
         level: shards
+        wait_for_active_shards: 2
         timeout: 1m
-        wait_for_status: green
+        wait_for_status: yellow
 
 ---
 "Delete synonyms set":

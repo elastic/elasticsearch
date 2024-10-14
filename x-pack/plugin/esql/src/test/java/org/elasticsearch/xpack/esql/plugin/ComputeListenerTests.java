@@ -261,6 +261,7 @@ public class ComputeListenerTests extends ESTestCase {
                 10,
                 3,
                 0,
+                null,
                 null  // to be filled in the acquireCompute listener
             )
         );

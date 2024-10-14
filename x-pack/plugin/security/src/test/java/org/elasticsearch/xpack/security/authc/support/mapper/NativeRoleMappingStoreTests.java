@@ -119,7 +119,7 @@ public class NativeRoleMappingStoreTests extends ESTestCase {
         SecurityIndexManager securityIndex = mock(SecurityIndexManager.class);
         ScriptService scriptService = new ScriptService(
             Settings.EMPTY,
-            Collections.singletonMap(MustacheScriptEngine.NAME, new MustacheScriptEngine()),
+            Collections.singletonMap(MustacheScriptEngine.NAME, new MustacheScriptEngine(Settings.EMPTY)),
             ScriptModule.CORE_CONTEXTS
         );
         when(securityIndex.isAvailable()).thenReturn(true);

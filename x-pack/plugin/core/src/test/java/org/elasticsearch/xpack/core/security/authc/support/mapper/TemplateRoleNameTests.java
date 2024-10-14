@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.core.security.authc.support.mapper;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
+
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -93,7 +94,7 @@ public class TemplateRoleNameTests extends ESTestCase {
     public void testEvaluateRoles() throws Exception {
         final ScriptService scriptService = new ScriptService(
             Settings.EMPTY,
-            Collections.singletonMap(MustacheScriptEngine.NAME, new MustacheScriptEngine()),
+            Collections.singletonMap(MustacheScriptEngine.NAME, new MustacheScriptEngine(Settings.EMPTY)),
             ScriptModule.CORE_CONTEXTS
         );
         final ExpressionModel model = new ExpressionModel();
@@ -149,7 +150,7 @@ public class TemplateRoleNameTests extends ESTestCase {
     public void testValidate() {
         final ScriptService scriptService = new ScriptService(
             Settings.EMPTY,
-            Collections.singletonMap(MustacheScriptEngine.NAME, new MustacheScriptEngine()),
+            Collections.singletonMap(MustacheScriptEngine.NAME, new MustacheScriptEngine(Settings.EMPTY)),
             ScriptModule.CORE_CONTEXTS
         );
 
@@ -175,7 +176,7 @@ public class TemplateRoleNameTests extends ESTestCase {
     public void testValidateWillPassWithEmptyContext() {
         final ScriptService scriptService = new ScriptService(
             Settings.EMPTY,
-            Collections.singletonMap(MustacheScriptEngine.NAME, new MustacheScriptEngine()),
+            Collections.singletonMap(MustacheScriptEngine.NAME, new MustacheScriptEngine(Settings.EMPTY)),
             ScriptModule.CORE_CONTEXTS
         );
 
@@ -205,7 +206,7 @@ public class TemplateRoleNameTests extends ESTestCase {
     public void testValidateWillFailForSyntaxError() {
         final ScriptService scriptService = new ScriptService(
             Settings.EMPTY,
-            Collections.singletonMap(MustacheScriptEngine.NAME, new MustacheScriptEngine()),
+            Collections.singletonMap(MustacheScriptEngine.NAME, new MustacheScriptEngine(Settings.EMPTY)),
             ScriptModule.CORE_CONTEXTS
         );
 
@@ -267,7 +268,7 @@ public class TemplateRoleNameTests extends ESTestCase {
         final Settings settings = Settings.builder().put("script.allowed_types", ScriptService.ALLOW_NONE).build();
         final ScriptService scriptService = new ScriptService(
             settings,
-            Collections.singletonMap(MustacheScriptEngine.NAME, new MustacheScriptEngine()),
+            Collections.singletonMap(MustacheScriptEngine.NAME, new MustacheScriptEngine(Settings.EMPTY)),
             ScriptModule.CORE_CONTEXTS
         );
         final BytesReference inlineScript = new BytesArray("{ \"source\":\"\" }");
@@ -282,7 +283,7 @@ public class TemplateRoleNameTests extends ESTestCase {
         final Settings settings = Settings.builder().put("script.allowed_types", ScriptService.ALLOW_NONE).build();
         final ScriptService scriptService = new ScriptService(
             settings,
-            Collections.singletonMap(MustacheScriptEngine.NAME, new MustacheScriptEngine()),
+            Collections.singletonMap(MustacheScriptEngine.NAME, new MustacheScriptEngine(Settings.EMPTY)),
             ScriptModule.CORE_CONTEXTS
         );
         final ClusterChangedEvent clusterChangedEvent = mock(ClusterChangedEvent.class);
@@ -309,7 +310,7 @@ public class TemplateRoleNameTests extends ESTestCase {
     public void testValidateWillFailWhenStoredScriptIsNotFound() {
         final ScriptService scriptService = new ScriptService(
             Settings.EMPTY,
-            Collections.singletonMap(MustacheScriptEngine.NAME, new MustacheScriptEngine()),
+            Collections.singletonMap(MustacheScriptEngine.NAME, new MustacheScriptEngine(Settings.EMPTY)),
             ScriptModule.CORE_CONTEXTS
         );
         final ClusterChangedEvent clusterChangedEvent = mock(ClusterChangedEvent.class);

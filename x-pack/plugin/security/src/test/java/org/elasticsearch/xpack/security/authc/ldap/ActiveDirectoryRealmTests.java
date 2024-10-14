@@ -401,7 +401,7 @@ public class ActiveDirectoryRealmTests extends ESTestCase {
 
         final ScriptService scriptService = new ScriptService(
             settings,
-            Collections.singletonMap(MustacheScriptEngine.NAME, new MustacheScriptEngine()),
+            Collections.singletonMap(MustacheScriptEngine.NAME, new MustacheScriptEngine(Settings.EMPTY)),
             ScriptModule.CORE_CONTEXTS
         );
         NativeRoleMappingStore roleMapper = new NativeRoleMappingStore(settings, mockClient, mockSecurityIndex, scriptService) {

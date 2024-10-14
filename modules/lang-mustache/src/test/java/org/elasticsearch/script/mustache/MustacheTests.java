@@ -7,6 +7,7 @@
  */
 package org.elasticsearch.script.mustache;
 
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.script.ScriptEngine;
@@ -38,7 +39,7 @@ import static org.hamcrest.Matchers.not;
 
 public class MustacheTests extends ESTestCase {
 
-    private ScriptEngine engine = new MustacheScriptEngine();
+    private ScriptEngine engine = new MustacheScriptEngine(Settings.EMPTY);
 
     public void testBasics() {
         String template = "GET _search {\"query\": "

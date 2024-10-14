@@ -25,7 +25,6 @@ import org.elasticsearch.rest.action.RestResponseListener;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.Locale;
 
 import static org.elasticsearch.rest.ChunkedRestResponseBodyPart.fromTextChunks;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
@@ -34,41 +33,6 @@ import static org.elasticsearch.rest.RestUtils.getTimeout;
 
 @ServerlessScope(Scope.INTERNAL)
 public class RestNodesHotThreadsAction extends BaseRestHandler {
-
-    private static final String formatDeprecatedMessageWithoutNodeID = "[%s] is a deprecated endpoint. "
-        + "Please use [/_nodes/hot_threads] instead.";
-    private static final String formatDeprecatedMessageWithNodeID = "[%s] is a deprecated endpoint. "
-        + "Please use [/_nodes/{nodeId}/hot_threads] instead.";
-    private static final String DEPRECATED_MESSAGE_CLUSTER_NODES_HOT_THREADS = String.format(
-        Locale.ROOT,
-        formatDeprecatedMessageWithoutNodeID,
-        "/_cluster/nodes/hot_threads"
-    );
-    private static final String DEPRECATED_MESSAGE_CLUSTER_NODES_NODEID_HOT_THREADS = String.format(
-        Locale.ROOT,
-        formatDeprecatedMessageWithNodeID,
-        "/_cluster/nodes/{nodeId}/hot_threads"
-    );
-    private static final String DEPRECATED_MESSAGE_CLUSTER_NODES_HOTTHREADS = String.format(
-        Locale.ROOT,
-        formatDeprecatedMessageWithoutNodeID,
-        "/_cluster/nodes/hotthreads"
-    );
-    private static final String DEPRECATED_MESSAGE_CLUSTER_NODES_NODEID_HOTTHREADS = String.format(
-        Locale.ROOT,
-        formatDeprecatedMessageWithNodeID,
-        "/_cluster/nodes/{nodeId}/hotthreads"
-    );
-    private static final String DEPRECATED_MESSAGE_NODES_HOTTHREADS = String.format(
-        Locale.ROOT,
-        formatDeprecatedMessageWithoutNodeID,
-        "/_nodes/hotthreads"
-    );
-    private static final String DEPRECATED_MESSAGE_NODES_NODEID_HOTTHREADS = String.format(
-        Locale.ROOT,
-        formatDeprecatedMessageWithNodeID,
-        "/_nodes/{nodeId}/hotthreads"
-    );
 
     @Override
     public List<Route> routes() {

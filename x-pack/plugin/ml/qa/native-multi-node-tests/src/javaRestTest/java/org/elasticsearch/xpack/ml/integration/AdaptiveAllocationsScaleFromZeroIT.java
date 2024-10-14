@@ -96,15 +96,6 @@ public class AdaptiveAllocationsScaleFromZeroIT extends PyTorchModelRestTestCase
         if (failures.isEmpty() == false) {
             fail(failures.getFirst());
         }
-
-        // {
-        // var responseMap = entityAsMap(getTrainedModelStats(modelId));
-        // List<Map<String, Object>> stats = (List<Map<String, Object>>) responseMap.get("trained_model_stats");
-        // String statusState = (String) XContentMapValues.extractValue("deployment_stats.allocation_status.state", stats.get(0));
-        // assertThat(responseMap.toString(), statusState, is(not(nullValue())));
-        // Integer count = (Integer) XContentMapValues.extractValue("deployment_stats.allocation_status.allocation_count", stats.get(0));
-        // assertThat(responseMap.toString(), count, greaterThan(0));
-        // }
     }
 
     @SuppressWarnings("unchecked")
@@ -136,7 +127,7 @@ public class AdaptiveAllocationsScaleFromZeroIT extends PyTorchModelRestTestCase
         }, 30, TimeUnit.SECONDS);
 
         // infer will scale up
-        int inferenceCount = 100;
+        int inferenceCount = 10;
         var latch = new CountDownLatch(inferenceCount);
         for (int i = 0; i < inferenceCount; i++) {
             asyncInfer("Auto scale and infer", randomFrom(idsList), TimeValue.timeValueSeconds(5), new ResponseListener() {

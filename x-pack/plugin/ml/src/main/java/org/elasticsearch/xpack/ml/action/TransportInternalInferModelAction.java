@@ -293,6 +293,7 @@ public class TransportInternalInferModelAction extends HandledTransportAction<Re
 
         assert nodes.stream().mapToInt(Tuple::v2).sum() == request.numberOfDocuments()
             : "mismatch; sum of node requests does not match number of documents in request";
+        inferOnAssignmentNodes(nodes, request, responseBuilder, parentTaskId, listener);
     }
 
     private void inferOnBlockedRequest(InferenceWaitForAllocation.WaitingRequest request, TrainedModelAssignment assignment) {

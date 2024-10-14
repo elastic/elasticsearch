@@ -97,13 +97,13 @@ public class InferenceWaitForAllocation {
         }
 
         pendingRequestCount.incrementAndGet();
-        var prediate = new DeploymentHasAtLeastOneAllocation(request.deploymentId());
+        var predicate = new DeploymentHasAtLeastOneAllocation(request.deploymentId());
 
         assignmentService.waitForAssignmentCondition(
             request.deploymentId(),
-            prediate,
+            predicate,
             request.request().getInferenceTimeout(),
-            new WaitingListener(request.deploymentId(), request, prediate)
+            new WaitingListener(request.deploymentId(), request, predicate)
         );
     }
 

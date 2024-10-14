@@ -84,16 +84,15 @@ final class IpinfoIpDataLookups {
 
         // early detection on any of the 'extended' types
         if (databaseType.contains("extended")) {
-            // which are not currently supported, so log and return null
+            // which are not currently supported
             logger.trace("returning null for unsupported database_type [{}]", databaseType);
             return null;
         }
 
         // early detection on 'country_asn' so the 'country' and 'asn' checks don't get faked out
         if (cleanedType.contains("country_asn")) {
-            // which are not currently supported, so log and return null
+            // but it's not currently supported
             logger.trace("returning null for unsupported database_type [{}]", databaseType);
-            // but it's not currently supported, so return null
             return null;
         }
 
@@ -106,7 +105,7 @@ final class IpinfoIpDataLookups {
         } else if (cleanedType.contains("privacy")) {
             return Database.PrivacyDetection;
         } else {
-            // no match was found, so log and return null
+            // no match was found
             logger.trace("returning null for unsupported database_type [{}]", databaseType);
             return null;
         }

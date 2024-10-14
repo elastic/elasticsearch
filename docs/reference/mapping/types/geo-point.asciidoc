@@ -229,8 +229,16 @@ longitude) and reduces them to their stored precision. For example:
 ----
 PUT idx
 {
+  "settings": {
+    "index": {
+      "mapping": {
+        "source": {
+          "mode": "synthetic"
+        }
+      }
+    }
+  },
   "mappings": {
-    "_source": { "mode": "synthetic" },
     "properties": {
       "point": { "type": "geo_point" }
     }

@@ -160,8 +160,16 @@ Synthetic source always sorts `date_nanos` fields. For example:
 ----
 PUT idx
 {
+  "settings": {
+    "index": {
+      "mapping": {
+        "source": {
+          "mode": "synthetic"
+        }
+      }
+    }
+  },
   "mappings": {
-    "_source": { "mode": "synthetic" },
     "properties": {
       "date": { "type": "date_nanos" }
     }

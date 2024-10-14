@@ -31,45 +31,45 @@ import java.util.LinkedHashSet;
 import java.util.Objects;
 import java.util.Set;
 
+import static org.elasticsearch.TransportVersions.ADD_VERSION_TO_ROLE_MAPPING_METADATA;
 import static org.elasticsearch.cluster.metadata.Metadata.ALL_CONTEXTS;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
 public final class RoleMappingMetadata extends AbstractNamedDiffable<Metadata.Custom> implements Metadata.Custom {
 
     public static final String TYPE = "role_mappings";
+    public static final String VERSION_FIELD = "version";
+    private static final int ROLE_MAPPING_METADATA_VERSION_SERIALIZE_NAME = 1;
 
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<RoleMappingMetadata, Void> PARSER = new ConstructingObjectParser<>(
         TYPE,
         // serialization tests rely on the order of the ExpressionRoleMapping
-        args -> new RoleMappingMetadata(new LinkedHashSet<>((Collection<ExpressionRoleMapping>) args[0]))
+        args -> new RoleMappingMetadata(new LinkedHashSet<>((Collection<ExpressionRoleMapping>) args[0]), (int) args[1])
     );
 
     static {
-        PARSER.declareObjectArray(constructorArg(), (p, c) -> ExpressionRoleMapping.parse(null, p), new ParseField(TYPE));
+        PARSER.declareObjectArray(constructorArg(), (p, c) -> ExpressionRoleMapping.parse(p), new ParseField(TYPE));
+        PARSER.declareIntOrNull(constructorArg(), 0, new ParseField(VERSION_FIELD));
     }
 
-    private static final RoleMappingMetadata EMPTY = new RoleMappingMetadata(Set.of());
+    private static final RoleMappingMetadata EMPTY = new RoleMappingMetadata(Set.of(), 0);
 
     public static RoleMappingMetadata getFromClusterState(ClusterState clusterState) {
         return clusterState.metadata().custom(RoleMappingMetadata.TYPE, RoleMappingMetadata.EMPTY);
     }
 
     private final Set<ExpressionRoleMapping> roleMappings;
-    private final boolean xContentNameSupported;
+    private final Integer version;
 
-    public RoleMappingMetadata(Set<ExpressionRoleMapping> roleMappings) {
-        this(roleMappings, true);
-    }
-
-    public RoleMappingMetadata(Set<ExpressionRoleMapping> roleMappings, boolean xContentNameSupported) {
+    public RoleMappingMetadata(Set<ExpressionRoleMapping> roleMappings, int version) {
         this.roleMappings = roleMappings;
-        this.xContentNameSupported = xContentNameSupported;
+        this.version = version;
     }
 
     public RoleMappingMetadata(StreamInput input) throws IOException {
         this.roleMappings = input.readCollectionAsSet(ExpressionRoleMapping::new);
-        this.xContentNameSupported = input.readBoolean();
+        this.version = input.readOptionalInt();
     }
 
     public Set<ExpressionRoleMapping> getRoleMappings() {
@@ -106,10 +106,14 @@ public final class RoleMappingMetadata extends AbstractNamedDiffable<Metadata.Cu
                     builder,
                     params,
                     false,
-                    xContentNameSupported ? roleMapping.getName() : null
+                    shouldSerializeName() ? roleMapping.getName() : null
                 )
             )
             .iterator();
+    }
+
+    private boolean shouldSerializeName() {
+        return this.version >= ROLE_MAPPING_METADATA_VERSION_SERIALIZE_NAME;
     }
 
     public static RoleMappingMetadata fromXContent(XContentParser parser) throws IOException {
@@ -129,7 +133,9 @@ public final class RoleMappingMetadata extends AbstractNamedDiffable<Metadata.Cu
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeCollection(roleMappings);
-        out.writeBoolean(xContentNameSupported);
+        if (out.getTransportVersion().onOrAfter(ADD_VERSION_TO_ROLE_MAPPING_METADATA)) {
+            out.writeInt(version);
+        }
     }
 
     @Override
@@ -137,12 +143,12 @@ public final class RoleMappingMetadata extends AbstractNamedDiffable<Metadata.Cu
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         final var other = (RoleMappingMetadata) o;
-        return Objects.equals(roleMappings, other.roleMappings);
+        return Objects.equals(roleMappings, other.roleMappings) && Objects.equals(version, other.version);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(roleMappings);
+        return Objects.hash(roleMappings, version);
     }
 
     @Override
@@ -157,7 +163,7 @@ public final class RoleMappingMetadata extends AbstractNamedDiffable<Metadata.Cu
             builder.append(entryList.next().toString());
             firstEntry = false;
         }
-        return builder.append("]]").toString();
+        return builder.append("], version=[").append(version).append("]]").toString();
     }
 
     @Override

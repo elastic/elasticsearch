@@ -243,17 +243,16 @@ public class ExpressionRoleMapping implements ToXContentObject, Writeable {
         }
     }
 
+    public static ExpressionRoleMapping parse(XContentParser parser) throws IOException {
+        return parse(null, parser);
+    }
+
     /**
      * Parse an {@link ExpressionRoleMapping} from the provided <em>XContent</em>
      */
     public static ExpressionRoleMapping parse(String name, XContentParser parser) throws IOException {
         try {
-            final Builder builder = PARSER.parse(parser, name);
-            if (builder.name == null) {
-                return builder.build("name_not_available_after_deserialization");
-            } else {
-                return builder.build();
-            }
+            return PARSER.parse(parser, name).build();
         } catch (IllegalArgumentException | IllegalStateException e) {
             throw new ParsingException(parser.getTokenLocation(), e.getMessage(), e);
         }

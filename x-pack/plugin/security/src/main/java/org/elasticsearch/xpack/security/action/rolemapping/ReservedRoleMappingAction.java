@@ -54,8 +54,8 @@ public class ReservedRoleMappingAction implements ReservedClusterStateHandler<Li
         // RoleMappingMetadata is written to cluster state, so make sure all nodes can parse the new format (with name), if they
         // can't, write the old format (exclude name)
         RoleMappingMetadata newRoleMappingMetadata = featureService.clusterHasFeature(prevState.state(), SECURITY_ROLE_MAPPING_NAME_FIELD)
-            ? new RoleMappingMetadata(roleMappings)
-            : new RoleMappingMetadata(roleMappings, false);
+            ? new RoleMappingMetadata(roleMappings, )
+            : new RoleMappingMetadata(roleMappings);
 
         if (newRoleMappingMetadata.equals(RoleMappingMetadata.getFromClusterState(prevState.state()))) {
             return prevState;

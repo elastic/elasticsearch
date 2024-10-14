@@ -98,7 +98,8 @@ public class FileSettingsRoleMappingUpgradeIT extends ParameterizedRollingUpgrad
             );
             assertThat(roleMappings, is(nullValue()));
         } else if (isUpgradedCluster()) {
-            // the nodes have all been upgraded. Check they re-processed the role mappings in the settings file on upgrade
+            // the nodes have all been upgraded. Check they re-processed the role mappings in the settings file on
+            // upgrade
             Request clusterStateRequest = new Request("GET", "/_cluster/state/metadata");
             List<Object> roleMappings = new XContentTestUtils.JsonMapView(entityAsMap(client().performRequest(clusterStateRequest))).get(
                 "metadata.role_mappings.role_mappings"

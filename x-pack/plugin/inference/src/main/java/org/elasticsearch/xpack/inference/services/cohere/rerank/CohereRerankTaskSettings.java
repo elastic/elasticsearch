@@ -20,6 +20,7 @@ import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
@@ -186,4 +187,9 @@ public class CohereRerankTaskSettings implements TaskSettings {
         return maxChunksPerDoc;
     }
 
+    @Override
+    public TaskSettings updatedTaskSettings(Map<String, Object> newSettings) {
+        CohereRerankTaskSettings updatedSettings = CohereRerankTaskSettings.fromMap(new HashMap<>(newSettings));
+        return CohereRerankTaskSettings.of(this, updatedSettings);
+    }
 }

@@ -11,10 +11,9 @@ console. They are _not_ intended for use by applications. For application
 consumption, use the <<indices-recovery,index recovery API>>.
 ====
 
-Returns information about ongoing and completed shard recoveries,
-similar to the <<indices-recovery, index recovery>> API.
+Returns information about ongoing and completed <<shard-allocation-relocation-recovery,shard recoveries>>.
 
-For data streams, the API returns information about the stream's backing
+For <<data-streams,data streams>>, the API returns information about the stream's backing
 indices.
 
 [[cat-recovery-api-request]]

@@ -206,7 +206,7 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
                 b.append(ResponseXContentUtils.allColumns(columns, "columns"));
             }
             b.array("values", ResponseXContentUtils.columnValues(this.columns, this.pages, columnar, nullColumns));
-            if (executionInfo != null && executionInfo.isCrossClusterSearch()) {
+            if (executionInfo != null && executionInfo.isCrossClusterSearch() && executionInfo.includeCCSMetadata()) {
                 b.field("_clusters", executionInfo);
             }
             if (profile != null) {

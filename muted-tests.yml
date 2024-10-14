@@ -342,6 +342,8 @@ tests:
 - class: org.elasticsearch.action.search.SearchQueryThenFetchAsyncActionTests
   method: testMinimumVersionShardDuringPhaseExecution
   issue: https://github.com/elastic/elasticsearch/issues/114611
+- class: org.elasticsearch.xpack.test.rest.XPackRestIT
+  issue: https://github.com/elastic/elasticsearch/issues/114723
 
 # Examples:
 #

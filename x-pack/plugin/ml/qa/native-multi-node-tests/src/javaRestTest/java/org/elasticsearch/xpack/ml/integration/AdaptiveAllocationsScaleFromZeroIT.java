@@ -23,6 +23,7 @@ import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
@@ -93,9 +94,7 @@ public class AdaptiveAllocationsScaleFromZeroIT extends PyTorchModelRestTestCase
         }
 
         latch.await();
-        if (failures.isEmpty() == false) {
-            fail(failures.getFirst());
-        }
+        assertThat(failures, empty());
     }
 
     @SuppressWarnings("unchecked")

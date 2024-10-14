@@ -384,7 +384,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             super.onScriptError = onScriptError.getValue();
 
             BinaryFieldMapper offsetsFieldMapper;
-            if (context.isSourceSynthetic() && fieldtype.stored() == false && copyTo.copyToFields().isEmpty() && leafName().equals("id") == false) {
+            if (context.isSourceSynthetic() && fieldtype.stored() == false && copyTo.copyToFields().isEmpty()) {
                 // Skip stored, we will be synthesizing from stored fields, no point to keep track of the offsets
                 // Skip copy_to, supporting that requires more work. However, copy_to usage is rare in metrics and logging use cases
 

@@ -293,7 +293,7 @@ public class TransportInternalInferModelAction extends HandledTransportAction<Re
 
         assert nodes.stream().mapToInt(Tuple::v2).sum() == request.numberOfDocuments()
             : "mismatch; sum of node requests does not match number of documents in request";
-        inferOnAssignmentNodes(nodes, request, responseBuilder, parentTaskId, listener);
+        inferOnAssignmentNodes(assignment.getDeploymentId(), nodes, request, responseBuilder, parentTaskId, listener);
     }
 
     private void inferOnBlockedRequest(InferenceWaitForAllocation.WaitingRequest request, TrainedModelAssignment assignment) {
@@ -313,11 +313,19 @@ public class TransportInternalInferModelAction extends HandledTransportAction<Re
                     );
             }
 
-            inferOnAssignmentNodes(nodes, request.request(), request.responseBuilder(), request.parentTaskId(), request.listener());
+            inferOnAssignmentNodes(
+                assignment.getDeploymentId(),
+                nodes,
+                request.request(),
+                request.responseBuilder(),
+                request.parentTaskId(),
+                request.listener()
+            );
         });
     }
 
     private void inferOnAssignmentNodes(
+        String deploymentId,
         List<Tuple<String, Integer>> nodes,
         Request request,
         Response.Builder responseBuilder,
@@ -334,14 +342,14 @@ public class TransportInternalInferModelAction extends HandledTransportAction<Re
             InferTrainedModelDeploymentAction.Request deploymentRequest;
             if (request.getTextInput() == null) {
                 deploymentRequest = InferTrainedModelDeploymentAction.Request.forDocs(
-                    request.getId(),
+                    deploymentId,
                     request.getUpdate(),
                     request.getObjectsToInfer().subList(startPos, startPos + node.v2()),
                     request.getInferenceTimeout()
                 );
             } else {
                 deploymentRequest = InferTrainedModelDeploymentAction.Request.forTextInput(
-                    request.getId(),
+                    deploymentId,
                     request.getUpdate(),
                     request.getTextInput().subList(startPos, startPos + node.v2()),
                     request.getInferenceTimeout()

@@ -18,7 +18,6 @@ import org.elasticsearch.common.network.HandlingTimeTracker;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -166,24 +165,13 @@ public class TransportStats implements Writeable, ChunkedToXContent {
         return transportActionStats;
     }
 
-    @UpdateForV9(owner = UpdateForV9.Owner.DISTRIBUTED_COORDINATION)
-    // Review and simplify the if-else blocks containing this symbol once v9 is released
-    private static final boolean IMPOSSIBLE_IN_V9 = true;
-
     private boolean assertHistogramsConsistent() {
         assert inboundHandlingTimeBucketFrequencies.length == outboundHandlingTimeBucketFrequencies.length;
-        if (inboundHandlingTimeBucketFrequencies.length == 0) {
-            // Stats came from before v8.1
-            assert IMPOSSIBLE_IN_V9;
-        } else {
-            assert inboundHandlingTimeBucketFrequencies.length == HandlingTimeTracker.BUCKET_COUNT;
-        }
+        assert inboundHandlingTimeBucketFrequencies.length == HandlingTimeTracker.BUCKET_COUNT;
         return true;
     }
 
     @Override
-    @UpdateForV9(owner = UpdateForV9.Owner.DISTRIBUTED_COORDINATION)
-    // review the "if" blocks checking for non-empty once we have
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params outerParams) {
         return Iterators.concat(Iterators.single((builder, params) -> {
             builder.startObject(Fields.TRANSPORT);
@@ -193,19 +181,9 @@ public class TransportStats implements Writeable, ChunkedToXContent {
             builder.humanReadableField(Fields.RX_SIZE_IN_BYTES, Fields.RX_SIZE, ByteSizeValue.ofBytes(rxSize));
             builder.field(Fields.TX_COUNT, txCount);
             builder.humanReadableField(Fields.TX_SIZE_IN_BYTES, Fields.TX_SIZE, ByteSizeValue.ofBytes(txSize));
-            if (inboundHandlingTimeBucketFrequencies.length > 0) {
-                histogramToXContent(builder, inboundHandlingTimeBucketFrequencies, Fields.INBOUND_HANDLING_TIME_HISTOGRAM);
-                histogramToXContent(builder, outboundHandlingTimeBucketFrequencies, Fields.OUTBOUND_HANDLING_TIME_HISTOGRAM);
-            } else {
-                // Stats came from before v8.1
-                assert IMPOSSIBLE_IN_V9;
-            }
-            if (transportActionStats.isEmpty() == false) {
-                builder.startObject(Fields.ACTIONS);
-            } else {
-                // Stats came from before v8.8
-                assert IMPOSSIBLE_IN_V9;
-            }
+            histogramToXContent(builder, inboundHandlingTimeBucketFrequencies, Fields.INBOUND_HANDLING_TIME_HISTOGRAM);
+            histogramToXContent(builder, outboundHandlingTimeBucketFrequencies, Fields.OUTBOUND_HANDLING_TIME_HISTOGRAM);
+            builder.startObject(Fields.ACTIONS);
             return builder;
         }),
 

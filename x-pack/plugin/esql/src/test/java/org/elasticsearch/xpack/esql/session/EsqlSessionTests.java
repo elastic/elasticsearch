@@ -30,7 +30,7 @@ public class EsqlSessionTests extends ESTestCase {
             final String localClusterAlias = RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
             final String remote1Alias = "remote1";
             final String remote2Alias = "remote2";
-            EsqlExecutionInfo executionInfo = new EsqlExecutionInfo();
+            EsqlExecutionInfo executionInfo = new EsqlExecutionInfo(true);
             executionInfo.swapCluster(localClusterAlias, (k, v) -> new EsqlExecutionInfo.Cluster(localClusterAlias, "logs*", false));
             executionInfo.swapCluster(remote1Alias, (k, v) -> new EsqlExecutionInfo.Cluster(remote1Alias, "*", true));
             executionInfo.swapCluster(remote2Alias, (k, v) -> new EsqlExecutionInfo.Cluster(remote2Alias, "mylogs1,mylogs2,logs*", true));
@@ -59,7 +59,7 @@ public class EsqlSessionTests extends ESTestCase {
             final String localClusterAlias = RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
             final String remote1Alias = "remote1";
             final String remote2Alias = "remote2";
-            EsqlExecutionInfo executionInfo = new EsqlExecutionInfo();
+            EsqlExecutionInfo executionInfo = new EsqlExecutionInfo(true);
             executionInfo.swapCluster(localClusterAlias, (k, v) -> new EsqlExecutionInfo.Cluster(localClusterAlias, "logs*", false));
             executionInfo.swapCluster(remote1Alias, (k, v) -> new EsqlExecutionInfo.Cluster(remote1Alias, "*", true));
             executionInfo.swapCluster(remote2Alias, (k, v) -> new EsqlExecutionInfo.Cluster(remote2Alias, "mylogs1,mylogs2,logs*", false));
@@ -87,7 +87,7 @@ public class EsqlSessionTests extends ESTestCase {
             final String localClusterAlias = RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
             final String remote1Alias = "remote1";
             final String remote2Alias = "remote2";
-            EsqlExecutionInfo executionInfo = new EsqlExecutionInfo();
+            EsqlExecutionInfo executionInfo = new EsqlExecutionInfo(true);
             executionInfo.swapCluster(localClusterAlias, (k, v) -> new EsqlExecutionInfo.Cluster(localClusterAlias, "logs*", false));
             executionInfo.swapCluster(remote1Alias, (k, v) -> new EsqlExecutionInfo.Cluster(remote1Alias, "*", true));
             executionInfo.swapCluster(remote2Alias, (k, v) -> new EsqlExecutionInfo.Cluster(remote2Alias, "mylogs1,mylogs2,logs*", false));
@@ -117,7 +117,7 @@ public class EsqlSessionTests extends ESTestCase {
             final String localClusterAlias = RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
             final String remote1Alias = "remote1";
             final String remote2Alias = "remote2";
-            EsqlExecutionInfo executionInfo = new EsqlExecutionInfo();
+            EsqlExecutionInfo executionInfo = new EsqlExecutionInfo(true);
             executionInfo.swapCluster(localClusterAlias, (k, v) -> new EsqlExecutionInfo.Cluster(localClusterAlias, "logs*", false));
             executionInfo.swapCluster(remote1Alias, (k, v) -> new EsqlExecutionInfo.Cluster(remote1Alias, "*", true));
             executionInfo.swapCluster(remote2Alias, (k, v) -> new EsqlExecutionInfo.Cluster(remote2Alias, "mylogs1,mylogs2,logs*", false));
@@ -160,7 +160,7 @@ public class EsqlSessionTests extends ESTestCase {
             final String localClusterAlias = RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
             final String remote1Alias = "remote1";
             final String remote2Alias = "remote2";
-            EsqlExecutionInfo executionInfo = new EsqlExecutionInfo();
+            EsqlExecutionInfo executionInfo = new EsqlExecutionInfo(true);
             executionInfo.swapCluster(localClusterAlias, (k, v) -> new EsqlExecutionInfo.Cluster(localClusterAlias, "logs*", false));
             executionInfo.swapCluster(remote1Alias, (k, v) -> new EsqlExecutionInfo.Cluster(remote1Alias, "*", true));
             executionInfo.swapCluster(remote2Alias, (k, v) -> new EsqlExecutionInfo.Cluster(remote2Alias, "mylogs1,mylogs2,logs*", false));
@@ -206,7 +206,7 @@ public class EsqlSessionTests extends ESTestCase {
             final String localClusterAlias = RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
             final String remote1Alias = "remote1";
             final String remote2Alias = "remote2";
-            EsqlExecutionInfo executionInfo = new EsqlExecutionInfo();
+            EsqlExecutionInfo executionInfo = new EsqlExecutionInfo(true);
             executionInfo.swapCluster(localClusterAlias, (k, v) -> new EsqlExecutionInfo.Cluster(localClusterAlias, "logs*", false));
             executionInfo.swapCluster(remote1Alias, (k, v) -> new EsqlExecutionInfo.Cluster(remote1Alias, "*", true));
             executionInfo.swapCluster(remote2Alias, (k, v) -> new EsqlExecutionInfo.Cluster(remote2Alias, "mylogs1,mylogs2,logs*", false));

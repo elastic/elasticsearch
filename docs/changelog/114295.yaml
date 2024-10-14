@@ -1,5 +1,5 @@
 pr: 114295
-summary: Reprocess file settings on service start
+summary: "Reprocess operator file settings when settings service starts, due to node restart or master node change"
 area: Infra/Settings
 type: enhancement
-issues: []
+issues: [ ]

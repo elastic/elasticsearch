@@ -7,7 +7,7 @@ the input table for which the provided condition evaluates to `true`.
 
 [TIP]
 ====
-Docs with `null` field values will be excluded from search results where you are excluding a specific value from that field. For example: `WHERE field != "value"` will be interpreted as `WHERE field != "value" and field is not null`.
+In case of value exclusions, fields with `null` values (a `null` means either there is an explicit `null` value in the document or there is no value at all) will be excluded from search results. For example: `WHERE field != "value"` will be interpreted as `WHERE field != "value" AND field IS NOT NULL`.
 ====
 
 **Syntax**

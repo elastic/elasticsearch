@@ -652,6 +652,13 @@ public final class IndexSettings {
         Property.Final
     );
 
+    public static final Setting<Boolean> SYNTHETIC_SOURCE_SECOND_DOC_PARSING_PASS_SETTING = Setting.boolSetting(
+        "index.synthetic_source.enable_second_doc_parsing_pass",
+        true,
+        Property.IndexScope,
+        Property.Dynamic
+    );
+
     /**
      * Returns <code>true</code> if TSDB encoding is enabled. The default is <code>true</code>
      */
@@ -821,6 +828,7 @@ public final class IndexSettings {
     private volatile long mappingDimensionFieldsLimit;
     private volatile boolean skipIgnoredSourceWrite;
     private volatile boolean skipIgnoredSourceRead;
+    private volatile boolean syntheticSourceSecondDocParsingPassEnabled;
     private final SourceFieldMapper.Mode indexMappingSourceMode;
 
     /**
@@ -982,6 +990,7 @@ public final class IndexSettings {
         es87TSDBCodecEnabled = scopedSettings.get(TIME_SERIES_ES87TSDB_CODEC_ENABLED_SETTING);
         skipIgnoredSourceWrite = scopedSettings.get(IgnoredSourceFieldMapper.SKIP_IGNORED_SOURCE_WRITE_SETTING);
         skipIgnoredSourceRead = scopedSettings.get(IgnoredSourceFieldMapper.SKIP_IGNORED_SOURCE_READ_SETTING);
+        syntheticSourceSecondDocParsingPassEnabled = scopedSettings.get(SYNTHETIC_SOURCE_SECOND_DOC_PARSING_PASS_SETTING);
         indexMappingSourceMode = scopedSettings.get(SourceFieldMapper.INDEX_MAPPER_SOURCE_MODE_SETTING);
 
         scopedSettings.addSettingsUpdateConsumer(
@@ -1070,6 +1079,10 @@ public final class IndexSettings {
             this::setSkipIgnoredSourceWrite
         );
         scopedSettings.addSettingsUpdateConsumer(IgnoredSourceFieldMapper.SKIP_IGNORED_SOURCE_READ_SETTING, this::setSkipIgnoredSourceRead);
+        scopedSettings.addSettingsUpdateConsumer(
+            SYNTHETIC_SOURCE_SECOND_DOC_PARSING_PASS_SETTING,
+            this::setSyntheticSourceSecondDocParsingPassEnabled
+        );
     }
 
     private void setSearchIdleAfter(TimeValue searchIdleAfter) {
@@ -1660,6 +1673,14 @@ public final class IndexSettings {
 
     private void setSkipIgnoredSourceRead(boolean value) {
         this.skipIgnoredSourceRead = value;
+    }
+
+    private void setSyntheticSourceSecondDocParsingPassEnabled(boolean syntheticSourceSecondDocParsingPassEnabled) {
+        this.syntheticSourceSecondDocParsingPassEnabled = syntheticSourceSecondDocParsingPassEnabled;
+    }
+
+    public boolean isSyntheticSourceSecondDocParsingPassEnabled() {
+        return syntheticSourceSecondDocParsingPassEnabled;
     }
 
     public SourceFieldMapper.Mode getIndexMappingSourceMode() {

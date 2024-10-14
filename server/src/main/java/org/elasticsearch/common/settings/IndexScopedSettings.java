@@ -35,6 +35,7 @@ import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.index.store.FsDirectoryFactory;
 import org.elasticsearch.index.store.Store;
@@ -187,6 +188,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
         IgnoredSourceFieldMapper.SKIP_IGNORED_SOURCE_WRITE_SETTING,
         IgnoredSourceFieldMapper.SKIP_IGNORED_SOURCE_READ_SETTING,
         IndexSettings.SYNTHETIC_SOURCE_SECOND_DOC_PARSING_PASS_SETTING,
+        SourceFieldMapper.INDEX_MAPPER_SOURCE_MODE_SETTING,
 
         // validate that built-in similarities don't get redefined
         Setting.groupSetting("index.similarity.", (s) -> {

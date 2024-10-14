@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
+import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -41,6 +42,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.Executor;
@@ -180,12 +182,56 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
     private boolean applyPipelines(Task task, BulkRequest bulkRequest, Executor executor, ActionListener<BulkResponse> listener)
         throws IOException {
         boolean hasIndexRequestsWithPipelines = false;
-        final Metadata metadata = clusterService.state().getMetadata();
-        Map<String, ComponentTemplate> templateSubstitutions = bulkRequest.getComponentTemplateSubstitutions();
+        final Metadata metadata;
+        Map<String, ComponentTemplate> componentTemplateSubstitutions = bulkRequest.getComponentTemplateSubstitutions();
+        Map<String, ComposableIndexTemplate> indexTemplateSubstitutions = bulkRequest.getIndexTemplateSubstitutions();
+        if (bulkRequest.isSimulated()
+            && (componentTemplateSubstitutions.isEmpty() == false || indexTemplateSubstitutions.isEmpty() == false)) {
+            /*
+             * If this is a simulated request, and there are template substitutions, then we want to create and use a new metadata that has
+             * those templates. That is, we want to add the new templates (which will replace any that already existed with the same name),
+             * and remove the indices and data streams that are referred to from the bulkRequest so that we get settings from the templates
+             * rather than from the indices/data streams.
+             */
+            Metadata.Builder simulatedMetadataBuilder = Metadata.builder(clusterService.state().getMetadata());
+            if (componentTemplateSubstitutions.isEmpty() == false) {
+                Map<String, ComponentTemplate> updatedComponentTemplates = new HashMap<>();
+                updatedComponentTemplates.putAll(clusterService.state().metadata().componentTemplates());
+                updatedComponentTemplates.putAll(componentTemplateSubstitutions);
+                simulatedMetadataBuilder.componentTemplates(updatedComponentTemplates);
+            }
+            if (indexTemplateSubstitutions.isEmpty() == false) {
+                Map<String, ComposableIndexTemplate> updatedIndexTemplates = new HashMap<>();
+                updatedIndexTemplates.putAll(clusterService.state().metadata().templatesV2());
+                updatedIndexTemplates.putAll(indexTemplateSubstitutions);
+                simulatedMetadataBuilder.indexTemplates(updatedIndexTemplates);
+            }
+            /*
+             * We now remove the index from the simulated metadata to force the templates to be used. Note that simulated requests are
+             * always index requests -- no other type of request is supported.
+             */
+            for (DocWriteRequest<?> actionRequest : bulkRequest.requests) {
+                assert actionRequest != null : "Requests cannot be null in simulate mode";
+                assert actionRequest instanceof IndexRequest
+                    : "Only IndexRequests are supported in simulate mode, but got " + actionRequest.getClass();
+                if (actionRequest != null) {
+                    IndexRequest indexRequest = (IndexRequest) actionRequest;
+                    String indexName = indexRequest.index();
+                    if (indexName != null) {
+                        simulatedMetadataBuilder.remove(indexName);
+                        simulatedMetadataBuilder.removeDataStream(indexName);
+                    }
+                }
+            }
+            metadata = simulatedMetadataBuilder.build();
+        } else {
+            metadata = clusterService.state().getMetadata();
+        }
+
         for (DocWriteRequest<?> actionRequest : bulkRequest.requests) {
             IndexRequest indexRequest = getIndexWriteRequest(actionRequest);
             if (indexRequest != null) {
-                IngestService.resolvePipelinesAndUpdateIndexRequest(actionRequest, indexRequest, metadata, templateSubstitutions);
+                IngestService.resolvePipelinesAndUpdateIndexRequest(actionRequest, indexRequest, metadata);
                 hasIndexRequestsWithPipelines |= IngestService.hasPipeline(indexRequest);
             }
 

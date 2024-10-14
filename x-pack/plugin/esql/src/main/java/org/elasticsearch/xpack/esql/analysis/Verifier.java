@@ -32,8 +32,8 @@ import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Rate;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.FullTextFunction;
-import org.elasticsearch.xpack.esql.expression.function.fulltext.MatchFunction;
-import org.elasticsearch.xpack.esql.expression.function.fulltext.QueryStringFunction;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.QueryString;
 import org.elasticsearch.xpack.esql.expression.function.grouping.GroupingFunction;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Neg;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
@@ -61,6 +61,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.stream.Stream;
 
@@ -189,7 +190,7 @@ public class Verifier {
 
             checkOperationsOnUnsignedLong(p, failures);
             checkBinaryComparison(p, failures);
-            checkForSortOnSpatialTypes(p, failures);
+            checkForSortableDataTypes(p, failures);
 
             checkFilterMatchConditions(p, failures);
             checkFullTextQueryFunctions(p, failures);
@@ -554,14 +555,13 @@ public class Verifier {
     }
 
     /**
-     * Makes sure that spatial types do not appear in sorting contexts.
+     * Some datatypes are not sortable
      */
-    private static void checkForSortOnSpatialTypes(LogicalPlan p, Set<Failure> localFailures) {
+    private static void checkForSortableDataTypes(LogicalPlan p, Set<Failure> localFailures) {
         if (p instanceof OrderBy ob) {
-            ob.forEachExpression(Attribute.class, attr -> {
-                DataType dataType = attr.dataType();
-                if (DataType.isSpatial(dataType)) {
-                    localFailures.add(fail(attr, "cannot sort on " + dataType.typeName()));
+            ob.order().forEach(order -> {
+                if (DataType.isSortable(order.dataType()) == false) {
+                    localFailures.add(fail(order, "cannot sort on " + order.dataType().typeName()));
                 }
             });
         }
@@ -657,13 +657,13 @@ public class Verifier {
             checkFullTextFunctionsParents(condition, failures);
         } else {
             plan.forEachExpression(FullTextFunction.class, ftf -> {
-                failures.add(fail(ftf, "[{}] " + ftf.functionType() + " is only supported in WHERE commands", ftf.functionName()));
+                failures.add(fail(ftf, "[{}] is only supported in WHERE commands", ftf.functionName(), ftf.functionType());
             });
         }
     }
 
     private static void checkCommandsBeforeQueryStringFunction(LogicalPlan plan, Expression condition, Set<Failure> failures) {
-        condition.forEachDown(QueryStringFunction.class, qsf -> {
+        condition.forEachDown(QueryString.class, qsf -> {
             plan.forEachDown(LogicalPlan.class, lp -> {
                 if ((lp instanceof Filter || lp instanceof OrderBy || lp instanceof EsRelation) == false) {
                     failures.add(
@@ -681,14 +681,15 @@ public class Verifier {
     }
 
     private static void checkCommandsBeforeMatchFunction(LogicalPlan plan, Expression condition, Set<Failure> failures) {
-        condition.forEachDown(MatchFunction.class, qsf -> {
+        condition.forEachDown(Match.class, qsf -> {
             plan.forEachDown(LogicalPlan.class, lp -> {
                 if (lp instanceof Limit) {
                     failures.add(
                         fail(
                             plan,
-                            "[{}] function cannot be used after {}",
+                            "[{}] {} cannot be used after {}",
                             qsf.functionName(),
+                            qsf.functionType(),
                             lp.sourceText().split(" ")[0].toUpperCase(Locale.ROOT)
                         )
                     );
@@ -699,32 +700,27 @@ public class Verifier {
 
     private static void checkFullTextFunctionsConditions(Expression condition, Set<Failure> failures) {
         condition.forEachUp(Or.class, or -> {
-            Expression left = or.left();
-            Expression right = or.right();
-            checkDisjunction(failures, or, left, right);
-            checkDisjunction(failures, or, right, left);
+            checkFullTextFunctionInDisjunction(failures, or, or.left());
+            checkFullTextFunctionInDisjunction(failures, or, or.right());
         });
     }
 
-    private static void checkDisjunction(Set<Failure> failures, Or or, Expression left, Expression right) {
+    private static void checkFullTextFunctionInDisjunction(Set<Failure> failures, Or or, Expression left) {
         left.forEachDown(FullTextFunction.class, ftf -> {
-            if (canPushToSource(right, x -> false) == false) {
-                failures.add(
-                    fail(
-                        or,
-                        "Invalid condition [{}]. [{}] {} can't be used as part of an or condition that includes [{}]",
-                        or.sourceText(),
-                        ftf.functionName(),
-                        ftf.functionType(),
-                        right.sourceText()
-                    )
-                );
-            }
+            failures.add(
+                fail(
+                    or,
+                    "Invalid condition [{}]. Function [{}] {} can't be used as part of an or condition",
+                    or.sourceText(),
+                    ftf.functionName(),
+                    ftf.functionType()
+                )
+            );
         });
     }
 
     private static void checkFullTextFunctionsParents(Expression condition, Set<Failure> failures) {
-        condition.forEachParent(FullTextFunction.class, (ftf, parent) -> {
+        forEachFullTextFunctionParent(condition, (ftf, parent) -> {
             if ((parent instanceof FullTextFunction == false)
                 && (parent instanceof BinaryLogic == false)
                 && (parent instanceof Not == false)) {
@@ -740,5 +736,24 @@ public class Verifier {
                 );
             }
         });
+    }
+
+    /**
+     * Executes the action on every parent of a FullTextFunction in the condition if it is found
+     *
+     * @param action the action to execute for each parent of a FullTextFunction
+     */
+    private static FullTextFunction forEachFullTextFunctionParent(Expression condition, BiConsumer<FullTextFunction, Expression> action) {
+        if (condition instanceof FullTextFunction ftf) {
+            return ftf;
+        }
+        for (Expression child : condition.children()) {
+            FullTextFunction foundMatchingChild = forEachFullTextFunctionParent(child, action);
+            if (foundMatchingChild != null) {
+                action.accept(foundMatchingChild, condition);
+                return foundMatchingChild;
+            }
+        }
+        return null;
     }
 }

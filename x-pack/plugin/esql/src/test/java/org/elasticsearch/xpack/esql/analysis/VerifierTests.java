@@ -26,13 +26,16 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.paramAsConstant;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.loadMapping;
-import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
-import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
+import static org.elasticsearch.xpack.esql.core.type.DataType.COUNTER_DOUBLE;
+import static org.elasticsearch.xpack.esql.core.type.DataType.COUNTER_INTEGER;
+import static org.elasticsearch.xpack.esql.core.type.DataType.COUNTER_LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -910,6 +913,25 @@ public class VerifierTests extends ESTestCase {
         assertEquals("1:42: cannot sort on cartesian_shape", error("FROM countries_bbox_web | LIMIT 5 | sort shape", countriesBboxWeb));
     }
 
+    public void testSourceSorting() {
+        assertEquals("1:35: cannot sort on _source", error("from test metadata _source | sort _source"));
+    }
+
+    public void testCountersSorting() {
+        Map<DataType, String> counterDataTypes = Map.of(
+            COUNTER_DOUBLE,
+            "network.message_in",
+            COUNTER_INTEGER,
+            "network.message_out",
+            COUNTER_LONG,
+            "network.bytes_out"
+        );
+        for (DataType counterDT : counterDataTypes.keySet()) {
+            var fieldName = counterDataTypes.get(counterDT);
+            assertEquals("1:18: cannot sort on " + counterDT.name().toLowerCase(Locale.ROOT), error("from test | sort " + fieldName, tsdb));
+        }
+    }
+
     public void testInlineImpossibleConvert() {
         assertEquals("1:5: argument of [false::ip] must be [ip or string], found value [false] type [boolean]", error("ROW false::ip"));
     }
@@ -1089,6 +1111,8 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testMatchFunctionNotAllowedAfterCommands() throws Exception {
+        assumeTrue("skipping because MATCH is not enabled", EsqlCapabilities.Cap.MATCH_FUNCTION.isEnabled());
+
         assertEquals(
             "1:24: [MATCH] function cannot be used after LIMIT",
             error("from test | limit 10 | where match(first_name, \"Anna\")")
@@ -1194,20 +1218,23 @@ public class VerifierTests extends ESTestCase {
         // Other value types are tested in QueryStringFunctionTests
     }
 
-    public void testQueryStringWithDisjunctionsThatCannotBePushedDown() {
-        checkWithDisjunctionsThatCannotBePushedDown("QSTR", "qstr(\"first_name: Anna\")");
+    public void testQueryStringWithDisjunctions() {
+        assumeTrue("skipping because QSTR is not enabled", EsqlCapabilities.Cap.QSTR_FUNCTION.isEnabled());
+
+        checkWithDisjunctions("QSTR", "qstr(\"first_name: Anna\")");
     }
 
-    public void testMatchWithDisjunctionsThatCannotBePushedDown() {
-        checkWithDisjunctionsThatCannotBePushedDown("MATCH", "match(first_name, \"Anna\")");
+    public void testMatchWithDisjunctions() {
+        assumeTrue("skipping because MATCH is not enabled", EsqlCapabilities.Cap.MATCH_FUNCTION.isEnabled());
+
+        checkWithDisjunctions("MATCH", "match(first_name, \"Anna\")");
     }
 
-    private void checkWithDisjunctionsThatCannotBePushedDown(String functionName, String functionInvocation) {
+    private void checkWithDisjunctions(String functionName, String functionInvocation) {
         assertEquals(
             LoggerMessageFormat.format(
                 null,
-                "1:19: Invalid condition [{} or length(first_name) > 12]. "
-                    + "Function {} can't be used as part of an or condition that includes [length(first_name) > 12]",
+                "1:19: Invalid condition [{} or length(first_name) > 12]. " + "Function {} can't be used as part of an or condition",
                 functionInvocation,
                 functionName
             ),
@@ -1217,7 +1244,7 @@ public class VerifierTests extends ESTestCase {
             LoggerMessageFormat.format(
                 null,
                 "1:19: Invalid condition [({} and first_name is not null) or (length(first_name) > 12 and first_name is null)]. "
-                    + "Function {} can't be used as part of an or condition that includes [length(first_name) > 12 and first_name is null]",
+                    + "Function {} can't be used as part of an or condition",
                 functionInvocation,
                 functionName
             ),
@@ -1227,13 +1254,27 @@ public class VerifierTests extends ESTestCase {
                     + " and first_name is not null) or (length(first_name) > 12 and first_name is null)"
             )
         );
+        assertEquals(
+            LoggerMessageFormat.format(
+                null,
+                "1:19: Invalid condition [({} and first_name is not null) or first_name is null]. "
+                    + "Function {} can't be used as part of an or condition",
+                functionInvocation,
+                functionName
+            ),
+            error("from test | where (" + functionInvocation + " and first_name is not null) or first_name is null")
+        );
     }
 
     public void testQueryStringFunctionWithNonBooleanFunctions() {
+        assumeTrue("skipping because QSTR is not enabled", EsqlCapabilities.Cap.QSTR_FUNCTION.isEnabled());
+
         checkFullTextFunctionsWithNonBooleanFunctions("QSTR", "qstr(\"first_name: Anna\")");
     }
 
     public void testMatchFunctionWithNonBooleanFunctions() {
+        assumeTrue("skipping because MATCH is not enabled", EsqlCapabilities.Cap.MATCH_FUNCTION.isEnabled());
+
         checkFullTextFunctionsWithNonBooleanFunctions("MATCH", "match(first_name, \"Anna\")");
     }
 
@@ -1256,17 +1297,9 @@ public class VerifierTests extends ESTestCase {
         );
     }
 
-    public void testMatchFunctionArgNotNullOrConstant() throws Exception {
+    public void testMatchFunctionArgNotConstant() throws Exception {
         assumeTrue("skipping because MATCH is not enabled", EsqlCapabilities.Cap.MATCH_FUNCTION.isEnabled());
 
-        assertEquals(
-            "1:19: first argument of [match(null, \"Anna\")] cannot be null, received [null]",
-            error("from test | where match(null, \"Anna\")")
-        );
-        assertEquals(
-            "1:19: second argument of [match(first_name, null)] cannot be null, received [null]",
-            error("from test | where match(first_name, null)")
-        );
         assertEquals(
             "1:19: second argument of [match(first_name, first_name)] must be a constant, received [first_name]",
             error("from test | where match(first_name, first_name)")
@@ -1299,17 +1332,12 @@ public class VerifierTests extends ESTestCase {
             "1:19: second argument of [match(first_name, null)] cannot be null, received [null]",
             error("from test | where match(first_name, null)")
         );
-
-        assertEquals(
-            "1:19: second argument of [match(first_name, null)] cannot be null, received [null]",
-            error("from test | where match(first_name, null)")
-        );
     }
 
     public void testMatchFunctionTargetsExistingField() throws Exception {
         assumeTrue("skipping because MATCH is not enabled", EsqlCapabilities.Cap.MATCH_FUNCTION.isEnabled());
 
-        assertEquals("1:39: Unknown column [first_name]", error("from test | keep emp_no | where match(first_name, \"Anna\"" + ")"));
+        assertEquals("1:39: Unknown column [first_name]", error("from test | keep emp_no | where match(first_name, \"Anna\")"));
     }
 
     public void testCoalesceWithMixedNumericTypes() {
@@ -1521,11 +1549,11 @@ public class VerifierTests extends ESTestCase {
         List<QueryParam> parameters = new ArrayList<>();
         for (Object param : params) {
             if (param == null) {
-                parameters.add(new QueryParam(null, null, NULL));
+                parameters.add(paramAsConstant(null, null));
             } else if (param instanceof String) {
-                parameters.add(new QueryParam(null, param, KEYWORD));
+                parameters.add(paramAsConstant(null, param));
             } else if (param instanceof Number) {
-                parameters.add(new QueryParam(null, param, DataType.fromJava(param)));
+                parameters.add(paramAsConstant(null, param));
             } else {
                 throw new IllegalArgumentException("VerifierTests don't support params of type " + param.getClass());
             }

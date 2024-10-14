@@ -11,9 +11,9 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.expression.function.Function;
-import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 
@@ -34,10 +34,10 @@ public abstract class FullTextFunction extends Function {
     public static List<NamedWriteableRegistry.Entry> getNamedWriteables() {
         List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
         if (EsqlCapabilities.Cap.QSTR_FUNCTION.isEnabled()) {
-            entries.add(QueryStringFunction.ENTRY);
+            entries.add(QueryString.ENTRY);
         }
         if (EsqlCapabilities.Cap.MATCH_FUNCTION.isEnabled()) {
-            entries.add(MatchFunction.ENTRY);
+            entries.add(Match.ENTRY);
         }
         return entries;
     }
@@ -86,27 +86,20 @@ public abstract class FullTextFunction extends Function {
     }
 
     /**
-     * Returns the resulting Query for the function parameters so it can be pushed down to Lucene
+     * Returns the resulting query as a String
      *
-     * @return Lucene query
+     * @return query expression as a string
      */
-    public final Query asQuery() {
+    public final String queryAsText() {
         Object queryAsObject = query().fold();
         if (queryAsObject instanceof BytesRef bytesRef) {
-            return asQuery(bytesRef.utf8ToString());
+            return bytesRef.utf8ToString();
         }
 
         throw new IllegalArgumentException(
             format(null, "{} argument in {} function needs to be resolved to a string", queryParamOrdinal(), functionName())
         );
     }
-
-    /**
-     * Overriden by subclasses to return the corresponding Lucene query from a query text
-     *
-     * @return corresponding query for the query text
-     */
-    protected abstract Query asQuery(String queryText);
 
     /**
      * Returns the param ordinal for the query parameter so it can be used in error messages
@@ -117,7 +110,8 @@ public abstract class FullTextFunction extends Function {
         return DEFAULT;
     }
 
-    public String functionType() {
-        return "function";
+    @Override
+    public Nullability nullable() {
+        return Nullability.FALSE;
     }
 }

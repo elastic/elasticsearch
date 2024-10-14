@@ -509,7 +509,11 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
         if (params.paramAsBoolean(EXCLUDE_GENERATED, false) == false) {
             builder.field(CREATED_BY.getPreferredName(), createdBy);
             builder.field(VERSION.getPreferredName(), version.toString());
-            builder.timeField(CREATE_TIME.getPreferredName(), CREATE_TIME.getPreferredName() + "_string", createTime.toEpochMilli());
+            builder.timestampFieldsFromUnixEpochMillis(
+                CREATE_TIME.getPreferredName(),
+                CREATE_TIME.getPreferredName() + "_string",
+                createTime.toEpochMilli()
+            );
             // If we are NOT storing the model, we should return the deprecated field name
             if (params.paramAsBoolean(ToXContentParams.FOR_INTERNAL_STORAGE, false) == false
                 && builder.getRestApiVersion().matches(RestApiVersion.equalTo(RestApiVersion.V_7))) {

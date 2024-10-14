@@ -102,21 +102,6 @@ book_no:keyword | author:text                                           | stars:
 3293            | Danny Faulkner                                        | 2
 ;
 
-matchWithPushableDisjunction
-required_capability: match_function
-
-from books 
-| where match(title, "Return") or book_no == "7140" or year > 2020
-| keep book_no, title;
-ignoreOrder:true
-
-book_no:keyword | title:text
-2714            | Return of the King Being the Third Part of The Lord of the Rings
-7350            | Return of the Shadow         
-7140            | The Lord of the Rings Poster Collection: Six Paintings by Alan Lee (No. 1)                                   
-6818            | Hadji Murad                  
-;
-
 matchWithConjunction
 required_capability: match_function
 
@@ -151,7 +136,7 @@ from books
 ignoreOrder:true
 
 book_no:keyword | title:text
-4023            |A Tolkien Compass: Including J. R. R. Tolkien's Guide to the Names in The Lord of the Rings
+4023            | A Tolkien Compass: Including J. R. R. Tolkien's Guide to the Names in The Lord of the Rings
 ;
 
 matchWithMultipleWhereClauses
@@ -191,16 +176,12 @@ testMultiValuedFieldWithConjunction
 required_capability: match_function
 
 from employees 
-| where (match(job_positions, "Data Scientist") or match(job_positions, "Support Engineer")) and gender == "F"
+| where match(job_positions, "Data Scientist") and match(job_positions, "Support Engineer")
 | keep emp_no, first_name, last_name;
 ignoreOrder:true
 
 emp_no:integer | first_name:keyword | last_name:keyword  
-10023          | Bojan              | Montemayor
-10041          | Uri                | Lenart
-10044          | Mingsen            | Casley
-10053          | Sanjiv             | Zschoche
-10069          | Margareta          | Bierman
+10043          | Yishay             | Tzvieli      
 ;
 
 testMatchAndQueryStringFunctions

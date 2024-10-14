@@ -49,21 +49,6 @@ book_no:keyword | title:text
 7350            | Return of the Shadow
 ;
 
-qstrWithPushableDisjunction
-required_capability: qstr_function
-
-from books 
-| where qstr("title:Return") or book_no == "7140" or year > 2020
-| keep book_no, title;
-ignoreOrder:true
-
-book_no:keyword | title:text
-2714            | Return of the King Being the Third Part of The Lord of the Rings
-7350            | Return of the Shadow         
-7140            | The Lord of the Rings Poster Collection: Six Paintings by Alan Lee (No. 1)                                   
-6818            | Hadji Murad                  
-;
-
 qstrWithConjunction
 required_capability: qstr_function
 

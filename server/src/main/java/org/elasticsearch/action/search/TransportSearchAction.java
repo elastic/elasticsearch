@@ -37,6 +37,7 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.ResolvedExpression;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
@@ -52,9 +53,9 @@ import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.ArrayUtils;
 import org.elasticsearch.common.util.CollectionUtils;
-import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -110,6 +111,7 @@ import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.action.search.SearchType.DFS_QUERY_THEN_FETCH;
 import static org.elasticsearch.action.search.SearchType.QUERY_THEN_FETCH;
@@ -127,8 +129,6 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(TransportSearchAction.class);
     public static final String FROZEN_INDICES_DEPRECATION_MESSAGE = "Searching frozen indices [{}] is deprecated."
         + " Consider cold or frozen tiers in place of frozen indices. The frozen feature will be removed in a feature release.";
-
-    public static final FeatureFlag CCS_TELEMETRY_FEATURE_FLAG = new FeatureFlag("ccs_telemetry");
 
     /** The maximum number of shards for a single search request. */
     public static final Setting<Long> SHARD_COUNT_LIMIT_SETTING = Setting.longSetting(
@@ -162,6 +162,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     private final SearchResponseMetrics searchResponseMetrics;
     private final Client client;
     private final UsageService usageService;
+    private final Settings settings;
 
     @Inject
     public TransportSearchAction(
@@ -194,8 +195,9 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.namedWriteableRegistry = namedWriteableRegistry;
         this.executorSelector = executorSelector;
-        this.defaultPreFilterShardSize = DEFAULT_PRE_FILTER_SHARD_SIZE.get(clusterService.getSettings());
-        this.ccsCheckCompatibility = SearchService.CCS_VERSION_CHECK_SETTING.get(clusterService.getSettings());
+        this.settings = clusterService.getSettings();
+        this.defaultPreFilterShardSize = DEFAULT_PRE_FILTER_SHARD_SIZE.get(settings);
+        this.ccsCheckCompatibility = SearchService.CCS_VERSION_CHECK_SETTING.get(settings);
         this.searchResponseMetrics = searchResponseMetrics;
         this.client = client;
         this.usageService = usageService;
@@ -203,7 +205,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
 
     private Map<String, OriginalIndices> buildPerIndexOriginalIndices(
         ClusterState clusterState,
-        Set<String> indicesAndAliases,
+        Set<ResolvedExpression> indicesAndAliases,
         String[] indices,
         IndicesOptions indicesOptions
     ) {
@@ -211,6 +213,9 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         var blocks = clusterState.blocks();
         // optimization: mostly we do not have any blocks so there's no point in the expensive per-index checking
         boolean hasBlocks = blocks.global().isEmpty() == false || blocks.indices().isEmpty() == false;
+        // Get a distinct set of index abstraction names present from the resolved expressions to help with the reverse resolution from
+        // concrete index to the expression that produced it.
+        Set<String> indicesAndAliasesResources = indicesAndAliases.stream().map(ResolvedExpression::resource).collect(Collectors.toSet());
         for (String index : indices) {
             if (hasBlocks) {
                 blocks.indexBlockedRaiseException(ClusterBlockLevel.READ, index);
@@ -227,8 +232,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             String[] finalIndices = Strings.EMPTY_ARRAY;
             if (aliases == null
                 || aliases.length == 0
-                || indicesAndAliases.contains(index)
-                || hasDataStreamRef(clusterState, indicesAndAliases, index)) {
+                || indicesAndAliasesResources.contains(index)
+                || hasDataStreamRef(clusterState, indicesAndAliasesResources, index)) {
                 finalIndices = new String[] { index };
             }
             if (aliases != null) {
@@ -247,7 +252,11 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         return indicesAndAliases.contains(ret.getParentDataStream().getName());
     }
 
-    Map<String, AliasFilter> buildIndexAliasFilters(ClusterState clusterState, Set<String> indicesAndAliases, Index[] concreteIndices) {
+    Map<String, AliasFilter> buildIndexAliasFilters(
+        ClusterState clusterState,
+        Set<ResolvedExpression> indicesAndAliases,
+        Index[] concreteIndices
+    ) {
         final Map<String, AliasFilter> aliasFilterMap = new HashMap<>();
         for (Index index : concreteIndices) {
             clusterState.blocks().indexBlockedRaiseException(ClusterBlockLevel.READ, index.getName());
@@ -372,7 +381,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     searchPhaseProvider.apply(delegate)
                 );
             } else {
-                if ((listener instanceof TelemetryListener tl) && CCS_TELEMETRY_FEATURE_FLAG.isEnabled()) {
+                if (listener instanceof TelemetryListener tl) {
                     tl.setRemotes(resolvedIndices.getRemoteClusterIndices().size());
                     if (task.isAsync()) {
                         tl.setFeature(CCSUsageTelemetry.ASYNC_FEATURE);
@@ -398,7 +407,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 }
                 final TaskId parentTaskId = task.taskInfo(clusterService.localNode().getId(), false).taskId();
                 if (shouldMinimizeRoundtrips(rewritten)) {
-                    if ((listener instanceof TelemetryListener tl) && CCS_TELEMETRY_FEATURE_FLAG.isEnabled()) {
+                    if (listener instanceof TelemetryListener tl) {
                         tl.setFeature(CCSUsageTelemetry.MRT_FEATURE);
                     }
                     final AggregationReduceContext.Builder aggregationReduceContextBuilder = rewritten.source() != null
@@ -1237,7 +1246,10 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         } else {
             final Index[] indices = resolvedIndices.getConcreteLocalIndices();
             concreteLocalIndices = Arrays.stream(indices).map(Index::getName).toArray(String[]::new);
-            final Set<String> indicesAndAliases = indexNameExpressionResolver.resolveExpressions(clusterState, searchRequest.indices());
+            final Set<ResolvedExpression> indicesAndAliases = indexNameExpressionResolver.resolveExpressions(
+                clusterState,
+                searchRequest.indices()
+            );
             aliasFilter = buildIndexAliasFilters(clusterState, indicesAndAliases, indices);
             aliasFilter.putAll(remoteAliasMap);
             localShardIterators = getLocalShardsIterator(
@@ -1810,7 +1822,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         ClusterState clusterState,
         SearchRequest searchRequest,
         String clusterAlias,
-        Set<String> indicesAndAliases,
+        Set<ResolvedExpression> indicesAndAliases,
         String[] concreteIndices
     ) {
         var routingMap = indexNameExpressionResolver.resolveSearchRouting(clusterState, searchRequest.routing(), searchRequest.indices());
@@ -1868,7 +1880,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
          * Should we collect telemetry for this search?
          */
         private boolean collectTelemetry() {
-            return CCS_TELEMETRY_FEATURE_FLAG.isEnabled() && usageBuilder.getRemotesCount() > 0;
+            return SearchService.CCS_COLLECT_TELEMETRY.get(settings) && usageBuilder.getRemotesCount() > 0;
         }
 
         public void setRemotes(int count) {

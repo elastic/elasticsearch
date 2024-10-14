@@ -709,13 +709,13 @@ public class EsqlBaseParserBaseListener implements EsqlBaseParserListener {
    *
    * <p>The default implementation does nothing.</p>
    */
-  @Override public void enterInputParams(EsqlBaseParser.InputParamsContext ctx) { }
+  @Override public void enterInputParameter(EsqlBaseParser.InputParameterContext ctx) { }
   /**
    * {@inheritDoc}
    *
    * <p>The default implementation does nothing.</p>
    */
-  @Override public void exitInputParams(EsqlBaseParser.InputParamsContext ctx) { }
+  @Override public void exitInputParameter(EsqlBaseParser.InputParameterContext ctx) { }
   /**
    * {@inheritDoc}
    *
@@ -788,6 +788,18 @@ public class EsqlBaseParserBaseListener implements EsqlBaseParserListener {
    * <p>The default implementation does nothing.</p>
    */
   @Override public void exitInputNamedOrPositionalParam(EsqlBaseParser.InputNamedOrPositionalParamContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void enterIdentifierOrParameter(EsqlBaseParser.IdentifierOrParameterContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitIdentifierOrParameter(EsqlBaseParser.IdentifierOrParameterContext ctx) { }
   /**
    * {@inheritDoc}
    *
@@ -1040,18 +1052,6 @@ public class EsqlBaseParserBaseListener implements EsqlBaseParserListener {
    * <p>The default implementation does nothing.</p>
    */
   @Override public void exitShowInfo(EsqlBaseParser.ShowInfoContext ctx) { }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation does nothing.</p>
-   */
-  @Override public void enterMetaFunctions(EsqlBaseParser.MetaFunctionsContext ctx) { }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation does nothing.</p>
-   */
-  @Override public void exitMetaFunctions(EsqlBaseParser.MetaFunctionsContext ctx) { }
   /**
    * {@inheritDoc}
    *

@@ -437,7 +437,7 @@ public class CsvTests extends ESTestCase {
 
         session.executeOptimizedPlan(
             new EsqlQueryRequest(),
-            new EsqlExecutionInfo(),
+            new EsqlExecutionInfo(randomBoolean()),
             runPhase(bigArrays, physicalOperationProviders),
             session.optimizedPlan(analyzed),
             listener.delegateFailureAndWrap(

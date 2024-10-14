@@ -65,7 +65,7 @@ class StreamingHttpResultPublisher implements HttpAsyncResponseConsumer<HttpResp
 
     StreamingHttpResultPublisher(ThreadPool threadPool, HttpSettings settings, ActionListener<Flow.Publisher<HttpResult>> listener) {
         this.settings = Objects.requireNonNull(settings);
-        this.listener = Objects.requireNonNull(listener);
+        this.listener = ActionListener.notifyOnce(Objects.requireNonNull(listener));
 
         this.taskRunner = new RequestBasedTaskRunner(new OffloadThread(), threadPool, UTILITY_THREAD_POOL_NAME);
     }
@@ -152,9 +152,13 @@ class StreamingHttpResultPublisher implements HttpAsyncResponseConsumer<HttpResp
     @Override
     public void failed(Exception e) {
         if (this.isDone.compareAndSet(false, true)) {
-            ex = e;
-            queue.offer(() -> subscriber.onError(e));
-            taskRunner.requestNextRun();
+            if (listenerCalled.compareAndSet(false, true)) {
+                listener.onFailure(e);
+            } else {
+                ex = e;
+                queue.offer(() -> subscriber.onError(e));
+                taskRunner.requestNextRun();
+            }
         }
     }
 

@@ -56,7 +56,7 @@ public class SearchableSnapshotShutdownIntegTests extends BaseSearchableSnapshot
         final List<String> restoredIndexNames = setupMountedIndices();
         final String[] restoredIndexNamesArray = restoredIndexNames.toArray(String[]::new);
         final Set<String> indexNodes = restoredIndexNames.stream()
-            .flatMap(index -> internalCluster().nodesInclude(index).stream())
+            .flatMap(index -> internalCluster().nodesByNameThatIncludeIndex(index).stream())
             .collect(Collectors.toSet());
         final ClusterState state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT)
             .clear()

@@ -159,7 +159,7 @@ public class IndicesShardStoreRequestIT extends ESIntegTestCase {
         logger.info("--> corrupt random shard copies");
         Map<Integer, Set<String>> corruptedShardIDMap = new HashMap<>();
         Index idx = resolveIndex(index);
-        for (String node : internalCluster().nodesInclude(index)) {
+        for (String node : internalCluster().nodesByNameThatIncludeIndex(index)) {
             IndicesService indexServices = internalCluster().getInstance(IndicesService.class, node);
             IndexService indexShards = indexServices.indexServiceSafe(idx);
             for (Integer shardId : indexShards.shardIds()) {

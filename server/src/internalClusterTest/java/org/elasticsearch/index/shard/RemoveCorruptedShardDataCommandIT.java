@@ -391,7 +391,7 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
         logger.info("--> starting the replica node to test recovery");
         internalCluster().startNode(node2PathSettings);
         ensureGreen(indexName);
-        for (String node : internalCluster().nodesInclude(indexName)) {
+        for (String node : internalCluster().nodesByNameThatIncludeIndex(indexName)) {
             SearchRequestBuilder q = prepareSearch(indexName).setPreference("_only_nodes:" + node).setQuery(matchAllQuery());
             assertHitCount(q, numDocsToKeep);
         }
@@ -495,7 +495,7 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
         logger.info("--> starting the replica node to test recovery");
         internalCluster().startNode(node2PathSettings);
         ensureGreen(indexName);
-        for (String node : internalCluster().nodesInclude(indexName)) {
+        for (String node : internalCluster().nodesByNameThatIncludeIndex(indexName)) {
             assertHitCount(prepareSearch(indexName).setPreference("_only_nodes:" + node).setQuery(matchAllQuery()), totalDocs);
         }
 

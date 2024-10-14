@@ -1350,7 +1350,7 @@ public class IndexStatsIT extends ESIntegTestCase {
      * This makes sure that the persisted global checkpoint on those shards will equal to the in-memory value.
      */
     private void persistGlobalCheckpoint(String index) throws Exception {
-        final Set<String> nodes = internalCluster().nodesInclude(index);
+        final Set<String> nodes = internalCluster().nodesByNameThatIncludeIndex(index);
         for (String node : nodes) {
             final IndicesService indexServices = internalCluster().getInstance(IndicesService.class, node);
             for (IndexService indexService : indexServices) {

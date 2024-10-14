@@ -34,7 +34,7 @@ public class SearchableSnapshotEnableAllocationDeciderIntegTests extends BaseSea
         if (randomBoolean()) {
             setAllocateOnRollingRestart(false);
         }
-        Set<String> indexNodes = internalCluster().nodesInclude(restoredIndexName);
+        Set<String> indexNodes = internalCluster().nodesByNameThatIncludeIndex(restoredIndexName);
         for (String indexNode : indexNodes) {
             internalCluster().restartNode(indexNode);
         }
@@ -53,7 +53,7 @@ public class SearchableSnapshotEnableAllocationDeciderIntegTests extends BaseSea
             setEnableAllocation(EnableAllocationDecider.Allocation.PRIMARIES);
         }
         setAllocateOnRollingRestart(true);
-        Set<String> indexNodes = internalCluster().nodesInclude(restoredIndexName);
+        Set<String> indexNodes = internalCluster().nodesByNameThatIncludeIndex(restoredIndexName);
         for (String indexNode : indexNodes) {
             internalCluster().restartNode(indexNode);
         }

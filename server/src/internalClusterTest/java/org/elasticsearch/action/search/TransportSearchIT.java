@@ -418,7 +418,7 @@ public class TransportSearchIT extends ESIntegTestCase {
             {"properties":{"created_date":{"type": "date", "format": "yyyy-MM-dd"}}}"""));
         ensureGreen("test");
         assertBusy(() -> {
-            for (String node : internalCluster().nodesInclude("test")) {
+            for (String node : internalCluster().nodesByNameThatIncludeIndex("test")) {
                 final IndicesService indicesService = internalCluster().getInstance(IndicesService.class, node);
                 for (IndexShard indexShard : indicesService.indexServiceSafe(resolveIndex("test"))) {
                     assertTrue(indexShard.isSearchIdle());

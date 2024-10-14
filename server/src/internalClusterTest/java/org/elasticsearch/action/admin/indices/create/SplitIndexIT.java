@@ -285,7 +285,7 @@ public class SplitIndexIT extends ESIntegTestCase {
         final Index source = resolveIndex("source");
         final int iterations = scaledRandomIntBetween(0, 16);
         for (int i = 0; i < iterations; i++) {
-            final String node = randomSubsetOf(1, internalCluster().nodesInclude("source")).get(0);
+            final String node = randomSubsetOf(1, internalCluster().nodesByNameThatIncludeIndex("source")).get(0);
             final IndicesService indexServices = internalCluster().getInstance(IndicesService.class, node);
             final IndexService indexShards = indexServices.indexServiceSafe(source);
             for (final Integer shardId : indexShards.shardIds()) {

@@ -265,7 +265,7 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
      * started shards and checks for concrete mappings.
      */
     private void assertConcreteMappingsOnAll(final String index, final String... fieldNames) {
-        Set<String> nodes = internalCluster().nodesInclude(index);
+        Set<String> nodes = internalCluster().nodesByNameThatIncludeIndex(index);
         assertThat(nodes, Matchers.not(Matchers.emptyIterable()));
         for (String node : nodes) {
             IndicesService indicesService = internalCluster().getInstance(IndicesService.class, node);

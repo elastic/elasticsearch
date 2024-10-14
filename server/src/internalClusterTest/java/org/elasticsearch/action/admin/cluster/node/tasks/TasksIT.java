@@ -195,7 +195,10 @@ public class TasksIT extends ESIntegTestCase {
         // the percolate operation should produce one main task
         assertEquals(1, numberOfEvents(ForceMergeAction.NAME, Tuple::v1));
         // and then one operation per each node where shards are located
-        assertEquals(internalCluster().nodesInclude("test").size(), numberOfEvents(ForceMergeAction.NAME + "[n]", Tuple::v1));
+        assertEquals(
+            internalCluster().nodesByNameThatIncludeIndex("test").size(),
+            numberOfEvents(ForceMergeAction.NAME + "[n]", Tuple::v1)
+        );
 
         // all node level tasks should have the main task as a parent
         assertParentTask(findEvents(ForceMergeAction.NAME + "[n]", Tuple::v1), findEvents(ForceMergeAction.NAME, Tuple::v1).get(0));
@@ -232,7 +235,7 @@ public class TasksIT extends ESIntegTestCase {
         logger.debug("main event node {}", findEvents(RefreshAction.NAME, Tuple::v1).get(0).taskId().getNodeId());
         logger.debug("[s] events {}", numberOfEvents(RefreshAction.NAME + "[s]", Tuple::v1));
         logger.debug("[s][*] events {}", numberOfEvents(RefreshAction.NAME + "[s][*]", Tuple::v1));
-        logger.debug("nodes with the index {}", internalCluster().nodesInclude("test"));
+        logger.debug("nodes with the index {}", internalCluster().nodesByNameThatIncludeIndex("test"));
 
         assertEquals(1, numberOfEvents(RefreshAction.NAME, Tuple::v1));
         // Because it's broadcast replication action we will have as many [s] level requests

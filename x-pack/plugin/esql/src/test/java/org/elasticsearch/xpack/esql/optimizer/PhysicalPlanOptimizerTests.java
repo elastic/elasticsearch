@@ -3259,6 +3259,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var fieldExtract = as(project.child(), FieldExtractExec.class);
         assertThat(fieldExtract.attributesToExtract().size(), greaterThan(5));
         var source = source(fieldExtract.child());
+        assertThat(source.limit(), is(topLimit.limit()));
         var condition = as(source.query(), SingleValueQuery.Builder.class);
         assertThat("Expected predicate to be passed to Lucene query", condition.source().text(), equalTo("rank < 4"));
         assertThat("Expected field to be passed to Lucene query", condition.field(), equalTo("scalerank"));
@@ -3295,6 +3296,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             var fieldExtract = as(project.child(), FieldExtractExec.class);
             assertThat(fieldExtract.attributesToExtract().size(), greaterThan(5));
             var source = source(fieldExtract.child());
+            assertThat(source.limit(), is(topLimit.limit()));
             var condition = as(source.query(), SpatialRelatesQuery.ShapeQueryBuilder.class);
             assertThat("Geometry field name", condition.fieldName(), equalTo("location"));
             assertThat("Spatial relationship", condition.relation(), equalTo(ShapeRelation.INTERSECTS));

@@ -1316,23 +1316,6 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
             .orElse(Collections.emptyMap());
     }
 
-    // TODO: remove this method:
-    public boolean isTimeSeriesTemplate(ComposableIndexTemplate indexTemplate) {
-        var indexModeFromTemplate = retrieveIndexModeFromTemplate(indexTemplate);
-        if (indexModeFromTemplate == IndexMode.TIME_SERIES) {
-            // No need to check for the existence of index.routing_path here, because index.mode=time_series can't be specified without it.
-            // Setting validation takes care of this.
-            // Also no need to validate that the fields defined in index.routing_path are keyword fields with time_series_dimension
-            // attribute enabled. This is validated elsewhere (DocumentMapper).
-            return true;
-        }
-
-        // in a followup change: check the existence of keyword fields of type keyword and time_series_dimension attribute enabled in
-        // the template. In this case the index.routing_path setting can be generated from the mapping.
-
-        return false;
-    }
-
     public IndexMode retrieveIndexModeFromTemplate(ComposableIndexTemplate indexTemplate) {
         if (indexTemplate.getDataStreamTemplate() == null) {
             return null;

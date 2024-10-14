@@ -2496,7 +2496,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
                 )
             )
         );
-        indexNameExpressionResolver = new IndexNameExpressionResolver(threadContext, systemIndices);
+        indexNameExpressionResolver = TestIndexNameExpressionResolver.newInstance(threadContext, systemIndices);
 
         {
             try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
@@ -3452,7 +3452,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
                 new Feature("watcher", "watcher indices", List.of(SystemIndexDescriptorUtils.createUnmanaged(".watches*", "watches index")))
             )
         );
-        indexNameExpressionResolver = new IndexNameExpressionResolver(threadContext, systemIndices);
+        indexNameExpressionResolver = TestIndexNameExpressionResolver.newInstance(threadContext, systemIndices);
         return ClusterState.builder(new ClusterName("_name")).putProjectMetadata(project).build();
     }
 

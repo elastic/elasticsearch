@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.PlainShardIterator;
 import org.elasticsearch.cluster.routing.ShardIterator;
@@ -293,7 +294,11 @@ public class TransportAnalyzeIndexDiskUsageActionTests extends ESTestCase {
             transportService,
             mock(IndicesService.class),
             new ActionFilters(new HashSet<>()),
-            new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY), EmptySystemIndices.INSTANCE) {
+            new IndexNameExpressionResolver(
+                new ThreadContext(Settings.EMPTY),
+                EmptySystemIndices.INSTANCE,
+                TestProjectResolvers.singleProjectOnly()
+            ) {
                 @Override
                 public String[] concreteIndexNames(ProjectMetadata project, IndicesRequest request) {
                     return request.indices();

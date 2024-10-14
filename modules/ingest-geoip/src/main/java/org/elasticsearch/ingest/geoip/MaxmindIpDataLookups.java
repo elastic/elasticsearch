@@ -26,6 +26,8 @@ import com.maxmind.geoip2.record.Location;
 import com.maxmind.geoip2.record.Postal;
 import com.maxmind.geoip2.record.Subdivision;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.core.Nullable;
@@ -47,11 +49,14 @@ final class MaxmindIpDataLookups {
         // utility class
     }
 
+    private static final Logger logger = LogManager.getLogger(MaxmindIpDataLookups.class);
+
     // the actual prefixes from the metadata are cased like the literal strings, but
     // prefix dispatch and checks case-insensitive, so the actual constants are lowercase
     static final String GEOIP2_PREFIX = "GeoIP2".toLowerCase(Locale.ROOT);
     static final String GEOLITE2_PREFIX = "GeoLite2".toLowerCase(Locale.ROOT);
 
+    // note: the secondary dispatch on suffix happens to be case sensitive
     private static final String CITY_DB_SUFFIX = "-City";
     private static final String COUNTRY_DB_SUFFIX = "-Country";
     private static final String ASN_DB_SUFFIX = "-ASN";
@@ -80,6 +85,8 @@ final class MaxmindIpDataLookups {
         } else if (databaseType.endsWith(ISP_DB_SUFFIX)) {
             return Database.Isp;
         } else {
+            // no match was found, so log and return null
+            logger.trace("returning null for unsupported database_type [{}]", databaseType);
             return null; // no match was found
         }
     }

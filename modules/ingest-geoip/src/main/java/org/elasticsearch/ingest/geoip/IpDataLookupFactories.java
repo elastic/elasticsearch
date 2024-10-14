@@ -33,7 +33,7 @@ final class IpDataLookupFactories {
      * associated with that databaseType.
      *
      * @param databaseType the database type String from the metadata of the database file
-     * @return the Database instance that is associated with the databaseType
+     * @return the Database instance that is associated with the databaseType (or null)
      */
     @Nullable
     static Database getDatabase(final String databaseType) {

@@ -652,6 +652,13 @@ public final class IndexSettings {
         Property.Final
     );
 
+    public static final Setting<Boolean> SYNTHETIC_SOURCE_SECOND_DOC_PARSING_PASS_SETTING = Setting.boolSetting(
+        "index.synthetic_source.enable_second_doc_parsing_pass",
+        true,
+        Property.IndexScope,
+        Property.Dynamic
+    );
+
     /**
      * Returns <code>true</code> if TSDB encoding is enabled. The default is <code>true</code>
      */
@@ -1072,6 +1079,10 @@ public final class IndexSettings {
             this::setSkipIgnoredSourceWrite
         );
         scopedSettings.addSettingsUpdateConsumer(IgnoredSourceFieldMapper.SKIP_IGNORED_SOURCE_READ_SETTING, this::setSkipIgnoredSourceRead);
+        scopedSettings.addSettingsUpdateConsumer(
+            SYNTHETIC_SOURCE_SECOND_DOC_PARSING_PASS_SETTING,
+            this::setSyntheticSourceSecondDocParsingPassEnabled
+        );
     }
 
     private void setSearchIdleAfter(TimeValue searchIdleAfter) {

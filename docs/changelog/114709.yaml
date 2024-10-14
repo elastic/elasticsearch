@@ -1,0 +1,12 @@
+pr: 114709
+summary: Remove support for wait_for_active_shards=index-setting in index close API
+area: Distributed
+type: breaking
+issues: []
+breaking:
+  title: Remove support for wait_for_active_shards=index-setting in index close API
+  area: Distributed
+  details: Please describe the details of this change for the release notes. You can
+    use asciidoc.
+  impact: Please describe the impact of this change to users
+  notable: false

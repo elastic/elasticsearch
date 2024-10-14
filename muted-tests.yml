@@ -378,6 +378,9 @@ tests:
 - class: org.elasticsearch.xpack.eql.EqlRestIT
   method: testBadRequests
   issue: https://github.com/elastic/elasticsearch/issues/114752
+- class: org.elasticsearch.xpack.enrich.EnrichRestIT
+  method: test {p0=enrich/20_standard_index/enrich stats REST response structure}
+  issue: https://github.com/elastic/elasticsearch/issues/114753
 
 # Examples:
 #

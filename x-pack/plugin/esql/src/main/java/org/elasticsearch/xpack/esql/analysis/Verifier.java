@@ -548,7 +548,7 @@ public class Verifier {
     }
 
     /**
-     * Some datatypes care not sortable
+     * Some datatypes are not sortable
      */
     private static void checkForSortableDataTypes(LogicalPlan p, Set<Failure> localFailures) {
         if (p instanceof OrderBy ob) {

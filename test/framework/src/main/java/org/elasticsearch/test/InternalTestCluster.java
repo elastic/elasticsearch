@@ -2049,6 +2049,14 @@ public final class InternalTestCluster extends TestCluster {
     }
 
     /**
+     * Temporarily retained for compatibility with Serverless code: must update serverless code to use {@link #nodesByNameThatIncludeIndex}
+     * before removal.
+     */
+    public synchronized Set<String> nodesInclude(String index) {
+        return nodesByNameThatIncludeIndex(index);
+    }
+
+    /**
      * Returns a set of names of nodes that have at least one shard of the given index.
      */
     public synchronized Set<String> nodesByNameThatIncludeIndex(String index) {

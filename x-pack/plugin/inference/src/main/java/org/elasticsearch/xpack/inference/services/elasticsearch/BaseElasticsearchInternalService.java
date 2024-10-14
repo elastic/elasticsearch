@@ -240,7 +240,6 @@ public abstract class BaseElasticsearchInternalService implements InferenceServi
 
     static boolean clusterIsInElasticCloud() {
         // use a heuristic to determine if in Elastic cloud.
-        // MAX_LAZY_ML_NODES ??
         return true; // TODO
     }
 

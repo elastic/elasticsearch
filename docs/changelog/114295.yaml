@@ -1,0 +1,5 @@
+pr: 114295
+summary: Reprocess file settings on service start
+area: Infra/Settings
+type: enhancement
+issues: []

@@ -702,11 +702,10 @@ public class MetadataIndexTemplateService {
         // First apply settings sourced from index setting providers:
         var finalSettings = Settings.builder();
         for (var provider : indexSettingProviders) {
-            var newAdditionalSettings =
-                provider.getAdditionalIndexSettings(
-                    "validate-index-name",
-                    indexTemplate.getDataStreamTemplate() != null ? "validate-data-stream-name" : null,
-                    metadata.retrieveIndexModeFromTemplate(indexTemplate),
+            var newAdditionalSettings = provider.getAdditionalIndexSettings(
+                "validate-index-name",
+                indexTemplate.getDataStreamTemplate() != null ? "validate-data-stream-name" : null,
+                metadata.retrieveIndexModeFromTemplate(indexTemplate),
                 currentState.getMetadata(),
                 now,
                 combinedSettings,

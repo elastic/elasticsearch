@@ -24,18 +24,21 @@ public class FoldNull extends OptimizerRules.OptimizerExpressionRule<Expression>
     @Override
     public Expression rule(Expression e) {
         Expression result = tryReplaceIsNullIsNotNull(e);
+
+        // convert an aggregate null filter into a false
+        // perform this early to prevent the rule from converting the null filter into nullifying the whole expression
+        // P.S. this could be done inside the Aggregate but this place better centralizes the logic
+        if (e instanceof AggregateFunction agg) {
+            if (Expressions.isNull(agg.filter())) {
+                return agg.withFilter(Literal.of(agg.filter(), false));
+            }
+        }
+
         if (result != e) {
             return result;
         } else if (e instanceof In in) {
             if (Expressions.isNull(in.value())) {
                 return Literal.of(in, null);
-            }
-        }
-        // convert an aggregate null filter into a false
-        // this could be done inside the Aggregate but this place better centralizes the logic
-        else if (e instanceof AggregateFunction agg) {
-            if (Expressions.isNull(agg.filter())) {
-                return agg.withFilter(Literal.of(agg.filter(), false));
             }
         } else if (e instanceof Alias == false
             && e.nullable() == Nullability.TRUE

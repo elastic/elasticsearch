@@ -164,8 +164,7 @@ public class Node implements Closeable {
 
     public static final Setting<TimeValue> MAXIMUM_SHUTDOWN_TIMEOUT_SETTING = Setting.positiveTimeSetting(
         "node.maximum_shutdown_grace_period",
-        // TimeValue.ZERO,
-        TimeValue.timeValueMillis(1),
+        TimeValue.ZERO,
         Setting.Property.NodeScope
     );
 

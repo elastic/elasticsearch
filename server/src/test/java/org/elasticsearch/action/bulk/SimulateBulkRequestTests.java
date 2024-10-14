@@ -22,32 +22,42 @@ import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
 
+import static java.util.Map.entry;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class SimulateBulkRequestTests extends ESTestCase {
 
     public void testSerialization() throws Exception {
-        testSerialization(getTestPipelineSubstitutions(), getTestComponentTemplateSubstitutions(), getTestIndexTemplateSubstitutions());
-        testSerialization(getTestPipelineSubstitutions(), null, null);
-        testSerialization(getTestPipelineSubstitutions(), getTestComponentTemplateSubstitutions(), null);
-        testSerialization(getTestPipelineSubstitutions(), null, getTestIndexTemplateSubstitutions());
-        testSerialization(null, getTestComponentTemplateSubstitutions(), getTestIndexTemplateSubstitutions());
-        testSerialization(null, getTestComponentTemplateSubstitutions(), null);
-        testSerialization(null, null, getTestIndexTemplateSubstitutions());
-        testSerialization(null, null, null);
-        testSerialization(Map.of(), Map.of(), Map.of());
+        testSerialization(
+            getMapOrEmptyOrNull(getTestPipelineSubstitutions()),
+            getMapOrEmptyOrNull(getTestComponentTemplateSubstitutions()),
+            getMapOrEmptyOrNull(getTestIndexTemplateSubstitutions()),
+            getMapOrEmptyOrNull(getTestMappingAddition())
+        );
+    }
+
+    private <K, V> Map<K, V> getMapOrEmptyOrNull(Map<K, V> map) {
+        if (randomBoolean()) {
+            return map;
+        } else if (randomBoolean()) {
+            return Map.of();
+        } else {
+            return null;
+        }
     }
 
     private void testSerialization(
         Map<String, Map<String, Object>> pipelineSubstitutions,
         Map<String, Map<String, Object>> componentTemplateSubstitutions,
-        Map<String, Map<String, Object>> indexTemplateSubstitutions
+        Map<String, Map<String, Object>> indexTemplateSubstitutions,
+        Map<String, Object> mappingAddition
     ) throws IOException {
         SimulateBulkRequest simulateBulkRequest = new SimulateBulkRequest(
             pipelineSubstitutions,
             componentTemplateSubstitutions,
-            indexTemplateSubstitutions
+            indexTemplateSubstitutions,
+            mappingAddition
         );
         /*
          * Note: SimulateBulkRequest does not implement equals or hashCode, so we can't test serialization in the usual way for a
@@ -59,7 +69,7 @@ public class SimulateBulkRequestTests extends ESTestCase {
 
     @SuppressWarnings({ "unchecked", "rawtypes" })
     public void testGetComponentTemplateSubstitutions() throws IOException {
-        SimulateBulkRequest simulateBulkRequest = new SimulateBulkRequest(Map.of(), Map.of(), Map.of());
+        SimulateBulkRequest simulateBulkRequest = new SimulateBulkRequest(Map.of(), Map.of(), Map.of(), Map.of());
         assertThat(simulateBulkRequest.getComponentTemplateSubstitutions(), equalTo(Map.of()));
         String substituteComponentTemplatesString = """
               {
@@ -93,7 +103,7 @@ public class SimulateBulkRequestTests extends ESTestCase {
             XContentType.JSON
         ).v2();
         Map<String, Map<String, Object>> substituteComponentTemplates = (Map<String, Map<String, Object>>) tempMap;
-        simulateBulkRequest = new SimulateBulkRequest(Map.of(), substituteComponentTemplates, Map.of());
+        simulateBulkRequest = new SimulateBulkRequest(Map.of(), substituteComponentTemplates, Map.of(), Map.of());
         Map<String, ComponentTemplate> componentTemplateSubstitutions = simulateBulkRequest.getComponentTemplateSubstitutions();
         assertThat(componentTemplateSubstitutions.size(), equalTo(2));
         assertThat(
@@ -118,7 +128,7 @@ public class SimulateBulkRequestTests extends ESTestCase {
     }
 
     public void testGetIndexTemplateSubstitutions() throws IOException {
-        SimulateBulkRequest simulateBulkRequest = new SimulateBulkRequest(Map.of(), Map.of(), Map.of());
+        SimulateBulkRequest simulateBulkRequest = new SimulateBulkRequest(Map.of(), Map.of(), Map.of(), Map.of());
         assertThat(simulateBulkRequest.getIndexTemplateSubstitutions(), equalTo(Map.of()));
         String substituteIndexTemplatesString = """
               {
@@ -154,7 +164,7 @@ public class SimulateBulkRequestTests extends ESTestCase {
             randomBoolean(),
             XContentType.JSON
         ).v2();
-        simulateBulkRequest = new SimulateBulkRequest(Map.of(), Map.of(), substituteIndexTemplates);
+        simulateBulkRequest = new SimulateBulkRequest(Map.of(), Map.of(), substituteIndexTemplates, Map.of());
         Map<String, ComposableIndexTemplate> indexTemplateSubstitutions = simulateBulkRequest.getIndexTemplateSubstitutions();
         assertThat(indexTemplateSubstitutions.size(), equalTo(2));
         assertThat(
@@ -179,7 +189,8 @@ public class SimulateBulkRequestTests extends ESTestCase {
         SimulateBulkRequest simulateBulkRequest = new SimulateBulkRequest(
             getTestPipelineSubstitutions(),
             getTestComponentTemplateSubstitutions(),
-            getTestIndexTemplateSubstitutions()
+            getTestIndexTemplateSubstitutions(),
+            getTestMappingAddition()
         );
         simulateBulkRequest.setRefreshPolicy(randomFrom(WriteRequest.RefreshPolicy.values()));
         simulateBulkRequest.waitForActiveShards(randomIntBetween(1, 10));
@@ -204,7 +215,6 @@ public class SimulateBulkRequestTests extends ESTestCase {
         assertThat(shallowCopy.routing(), equalTo(simulateBulkRequest.routing()));
         assertThat(shallowCopy.requireAlias(), equalTo(simulateBulkRequest.requireAlias()));
         assertThat(shallowCopy.requireDataStream(), equalTo(simulateBulkRequest.requireDataStream()));
-
     }
 
     private static Map<String, Map<String, Object>> getTestPipelineSubstitutions() {
@@ -246,6 +256,24 @@ public class SimulateBulkRequestTests extends ESTestCase {
             ),
             "template2",
             Map.of("template", Map.of("index_patterns", List.of("foo*", "bar*"), "mappings", Map.of(), "settings", Map.of()))
+        );
+    }
+
+    private static Map<String, Object> getTestMappingAddition() {
+        return Map.ofEntries(
+            entry(
+                "_doc",
+                Map.ofEntries(
+                    entry("dynamic", "strict"),
+                    entry(
+                        "properties",
+                        Map.ofEntries(
+                            entry("foo", Map.ofEntries(entry("type", "keyword"))),
+                            entry("bar", Map.ofEntries(entry("type", "boolean")))
+                        )
+                    )
+                )
+            )
         );
     }
 }

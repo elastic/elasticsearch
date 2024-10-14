@@ -30,13 +30,17 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.features.NodeFeature;
+import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettingProvider;
 import org.elasticsearch.index.IndexSettingProviders;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexShard;
@@ -50,6 +54,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -122,11 +127,17 @@ public class TransportSimulateBulkAction extends TransportAbstractBulkAction {
         final AtomicArray<BulkItemResponse> responses = new AtomicArray<>(bulkRequest.requests.size());
         Map<String, ComponentTemplate> componentTemplateSubstitutions = bulkRequest.getComponentTemplateSubstitutions();
         Map<String, ComposableIndexTemplate> indexTemplateSubstitutions = bulkRequest.getIndexTemplateSubstitutions();
+        CompressedXContent mappingAddition = ((SimulateBulkRequest) bulkRequest).getMappingAddition();
         for (int i = 0; i < bulkRequest.requests.size(); i++) {
             DocWriteRequest<?> docRequest = bulkRequest.requests.get(i);
             assert docRequest instanceof IndexRequest : "TransportSimulateBulkAction should only ever be called with IndexRequests";
             IndexRequest request = (IndexRequest) docRequest;
-            Exception mappingValidationException = validateMappings(componentTemplateSubstitutions, indexTemplateSubstitutions, request);
+            Exception mappingValidationException = validateMappings(
+                componentTemplateSubstitutions,
+                indexTemplateSubstitutions,
+                mappingAddition,
+                request
+            );
             responses.set(
                 i,
                 BulkItemResponse.success(
@@ -159,6 +170,7 @@ public class TransportSimulateBulkAction extends TransportAbstractBulkAction {
     private Exception validateMappings(
         Map<String, ComponentTemplate> componentTemplateSubstitutions,
         Map<String, ComposableIndexTemplate> indexTemplateSubstitutions,
+        CompressedXContent mappingAddition,
         IndexRequest request
     ) {
         final SourceToParse sourceToParse = new SourceToParse(
@@ -174,7 +186,10 @@ public class TransportSimulateBulkAction extends TransportAbstractBulkAction {
         Exception mappingValidationException = null;
         IndexAbstraction indexAbstraction = state.metadata().getIndicesLookup().get(request.index());
         try {
-            if (indexAbstraction != null && componentTemplateSubstitutions.isEmpty() && indexTemplateSubstitutions.isEmpty()) {
+            if (indexAbstraction != null
+                && componentTemplateSubstitutions.isEmpty()
+                && indexTemplateSubstitutions.isEmpty()
+                && mappingAddition == null) {
                 /*
                  * In this case the index exists and we don't have any component template overrides. So we can just use withTempIndexService
                  * to do the mapping validation, using all the existing logic for validation.
@@ -250,8 +265,9 @@ public class TransportSimulateBulkAction extends TransportAbstractBulkAction {
                         indexSettingProviders
                     );
                     CompressedXContent mappings = template.mappings();
-                    if (mappings != null) {
-                        MappingMetadata mappingMetadata = new MappingMetadata(mappings);
+                    if (mappings != null || mappingAddition != null) {
+                        CompressedXContent mergedMappings = mergeCompressedXContents(mappings, mappingAddition);
+                        MappingMetadata mappingMetadata = new MappingMetadata(mergedMappings);
                         Settings dummySettings = Settings.builder()
                             .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
                             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
@@ -263,7 +279,7 @@ public class TransportSimulateBulkAction extends TransportAbstractBulkAction {
                             .putMapping(mappingMetadata)
                             .build();
                         indicesService.withTempIndexService(imd, indexService -> {
-                            indexService.mapperService().updateMapping(null, imd);
+                            indexService.mapperService().updateMapping(null, reSortMappingXContent(indexService, imd));
                             return IndexShard.prepareIndex(
                                 indexService.mapperService(),
                                 sourceToParse,
@@ -287,12 +303,10 @@ public class TransportSimulateBulkAction extends TransportAbstractBulkAction {
                         matchingTemplates.stream().map(IndexTemplateMetadata::getMappings).collect(toList()),
                         xContentRegistry
                     );
-                    final CompressedXContent combinedMappings;
-                    if (mappingsMap.isEmpty()) {
-                        combinedMappings = null;
-                    } else {
-                        combinedMappings = new CompressedXContent(mappingsMap);
-                    }
+                    final CompressedXContent combinedMappings = mergeCompressedXContents(
+                        new CompressedXContent(mappingsMap),
+                        mappingAddition
+                    );
                     Settings dummySettings = Settings.builder()
                         .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
                         .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
@@ -305,7 +319,7 @@ public class TransportSimulateBulkAction extends TransportAbstractBulkAction {
                         .settings(dummySettings)
                         .build();
                     indicesService.withTempIndexService(imd, indexService -> {
-                        indexService.mapperService().updateMapping(null, imd);
+                        indexService.mapperService().updateMapping(null, reSortMappingXContent(indexService, imd));
                         return IndexShard.prepareIndex(
                             indexService.mapperService(),
                             sourceToParse,
@@ -327,6 +341,59 @@ public class TransportSimulateBulkAction extends TransportAbstractBulkAction {
             mappingValidationException = e;
         }
         return mappingValidationException;
+    }
+
+    private static CompressedXContent mergeCompressedXContents(
+        @Nullable CompressedXContent compressedXContent1,
+        @Nullable CompressedXContent compressedXContent2
+    ) throws IOException {
+        // if (compressedXContent1 == null) {
+        // return compressedXContent2;
+        // } else if (compressedXContent2 == null) {
+        // return compressedXContent1;
+        // }
+        Map<String, Object> map1;
+        if (compressedXContent1 == null) {
+            map1 = new HashMap<>();
+        } else {
+            map1 = XContentHelper.convertToMap(compressedXContent1.uncompressed(), true, XContentType.JSON).v2();
+        }
+        Map<String, Object> map2;
+        if (compressedXContent2 == null) {
+            map2 = new HashMap<>();
+        } else {
+            map2 = XContentHelper.convertToMap(compressedXContent2.uncompressed(), true, XContentType.JSON).v2();
+        }
+        XContentHelper.update(map1, map2, true);
+        if (map1.isEmpty()) {
+            return null;
+        } else {
+            return SimulateBulkRequest.convertRawAdditionalMappingToXContent(map1);
+        }
+    }
+
+    private static IndexMetadata reSortMappingXContent(IndexService indexService, IndexMetadata originalIndexMetadata) {
+        /*
+         * This is needed because DocumentMapper asserts that if you create a Mapping from CompressedXContent, then you can get that same
+         * CompressedXContent back out of the Mapping. But the Mapping orders the map keys in its toXContent the natural order of their
+         * full paths (see ObjectMapper::serializeMappers). XContentParser (used to create the initial CompressedXContent) only supports
+         * ordering by insertion order though! So this method rewrites the map ordered by Mapping.parseMapping. This way when the
+         * XContentParser reads them, they are inserted in the correct order, and the roundtrip to Mapping works.
+         */
+        if (originalIndexMetadata.mapping() == null) {
+            return originalIndexMetadata;
+        }
+        CompressedXContent compressedXContent = indexService.mapperService()
+            .parseMapping(
+                originalIndexMetadata.mapping().type(),
+                MapperService.MergeReason.MAPPING_UPDATE,
+                originalIndexMetadata.mapping().source()
+            )
+            .toCompressedXContent();
+        return IndexMetadata.builder(originalIndexMetadata.getIndex().getName())
+            .settings(originalIndexMetadata.getSettings())
+            .putMapping(new MappingMetadata(compressedXContent))
+            .build();
     }
 
     /*

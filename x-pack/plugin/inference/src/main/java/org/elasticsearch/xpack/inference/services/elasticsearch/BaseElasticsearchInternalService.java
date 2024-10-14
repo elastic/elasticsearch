@@ -15,6 +15,7 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.client.internal.OriginSettingClient;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceExtension;
@@ -22,6 +23,7 @@ import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.core.ClientHelper;
+import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
 import org.elasticsearch.xpack.core.ml.action.InferModelAction;
 import org.elasticsearch.xpack.core.ml.action.PutTrainedModelAction;
@@ -38,7 +40,6 @@ import org.elasticsearch.xpack.inference.InferencePlugin;
 import java.io.IOException;
 import java.util.EnumSet;
 import java.util.List;
-import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.function.Consumer;
 
@@ -49,14 +50,21 @@ public abstract class BaseElasticsearchInternalService implements InferenceServi
 
     protected final OriginSettingClient client;
     protected final ExecutorService inferenceExecutor;
-    protected final Consumer<ActionListener<Set<String>>> platformArch;
+    protected final Consumer<ActionListener<PreferredModelVariant>> preferredModelVariantFn;
+    private final ClusterService clusterService;
+
+    public enum PreferredModelVariant {
+        LINUX_X86_OPTIMIZED,
+        PLATFORM_AGNOSTIC
+    };
 
     private static final Logger logger = LogManager.getLogger(BaseElasticsearchInternalService.class);
 
     public BaseElasticsearchInternalService(InferenceServiceExtension.InferenceServiceFactoryContext context) {
         this.client = new OriginSettingClient(context.client(), ClientHelper.INFERENCE_ORIGIN);
         this.inferenceExecutor = context.threadPool().executor(InferencePlugin.UTILITY_THREAD_POOL_NAME);
-        this.platformArch = this::platformArchitecture;
+        this.preferredModelVariantFn = this::preferredVariantFromPlatformArchitecture;
+        this.clusterService = context.clusterService();
     }
 
     // For testing.
@@ -66,11 +74,12 @@ public abstract class BaseElasticsearchInternalService implements InferenceServi
     // service package.
     public BaseElasticsearchInternalService(
         InferenceServiceExtension.InferenceServiceFactoryContext context,
-        Consumer<ActionListener<Set<String>>> platformArchFn
+        Consumer<ActionListener<PreferredModelVariant>> preferredModelVariantFn
     ) {
         this.client = new OriginSettingClient(context.client(), ClientHelper.INFERENCE_ORIGIN);
         this.inferenceExecutor = context.threadPool().executor(InferencePlugin.UTILITY_THREAD_POOL_NAME);
-        this.platformArch = platformArchFn;
+        this.preferredModelVariantFn = preferredModelVariantFn;
+        this.clusterService = context.clusterService();
     }
 
     /**
@@ -206,31 +215,31 @@ public abstract class BaseElasticsearchInternalService implements InferenceServi
     public void close() throws IOException {}
 
     public static String selectDefaultModelVariantBasedOnClusterArchitecture(
-        Set<String> modelArchitectures,
-        String linuxX86OptimisedModel,
+        PreferredModelVariant preferredModelVariant,
+        String linuxX86OptimizedModel,
         String platformAgnosticModel
     ) {
         // choose a default model version based on the cluster architecture
-        boolean homogenous = modelArchitectures.size() == 1;
-        if (homogenous && modelArchitectures.iterator().next().equals("linux-x86_64")) {
+        if (PreferredModelVariant.LINUX_X86_OPTIMIZED.equals(preferredModelVariant)) {
             // Use the hardware optimized model
-            return linuxX86OptimisedModel;
+            return linuxX86OptimizedModel;
         } else {
             // default to the platform-agnostic model
             return platformAgnosticModel;
         }
     }
 
-    private void platformArchitecture(ActionListener<Set<String>> platformArchitectureListener) {
+    private void preferredVariantFromPlatformArchitecture(ActionListener<PreferredModelVariant> preferredVariantListener) {
         // Find the cluster platform as the service may need that
         // information when creating the model
         MlPlatformArchitecturesUtil.getMlNodesArchitecturesSet(
-            platformArchitectureListener.delegateFailureAndWrap((delegate, architectures) -> {
-                if (architectures.isEmpty() && clusterIsInElasticCloud()) {
-                    // In Elastic cloud ml nodes run on Linux x86
-                    delegate.onResponse(Set.of("linux-x86_64"));
+            preferredVariantListener.delegateFailureAndWrap((delegate, architectures) -> {
+                if (architectures.isEmpty() && isClusterInElasticCloud()) {
+                    // There are no ml nodes to check the current arch.
+                    // However, in Elastic cloud ml nodes run on Linux x86
+                    delegate.onResponse(PreferredModelVariant.LINUX_X86_OPTIMIZED);
                 } else {
-                    delegate.onResponse(architectures);
+                    delegate.onResponse(PreferredModelVariant.PLATFORM_AGNOSTIC);
                 }
             }),
             client,
@@ -238,9 +247,11 @@ public abstract class BaseElasticsearchInternalService implements InferenceServi
         );
     }
 
-    static boolean clusterIsInElasticCloud() {
-        // use a heuristic to determine if in Elastic cloud.
-        return true; // TODO
+    boolean isClusterInElasticCloud() {
+        // Use the ml lazy node count as a heuristic to determine if in Elastic cloud.
+        // A value > 0 means scaling should be available for ml nodes
+        var maxMlLazyNodes = clusterService.getClusterSettings().get(MachineLearningField.MAX_LAZY_ML_NODES);
+        return maxMlLazyNodes > 0;
     }
 
     public static InferModelAction.Request buildInferenceRequest(

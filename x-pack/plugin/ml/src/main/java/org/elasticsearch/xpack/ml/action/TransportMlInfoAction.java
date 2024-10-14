@@ -22,6 +22,7 @@ import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.action.MlInfoAction;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
@@ -162,7 +163,7 @@ public class TransportMlInfoAction extends HandledTransportAction<MlInfoAction.R
                 clusterSettings.get(MachineLearning.ALLOCATED_PROCESSORS_SCALE)
             );
             if (totalMlProcessors.count() > 0) {
-                int potentialExtraProcessors = Math.max(0, clusterSettings.get(MachineLearning.MAX_LAZY_ML_NODES) - mlNodes.size())
+                int potentialExtraProcessors = Math.max(0, clusterSettings.get(MachineLearningField.MAX_LAZY_ML_NODES) - mlNodes.size())
                     * singleNodeProcessors.roundUp();
                 limits.put("total_ml_processors", totalMlProcessors.roundUp() + potentialExtraProcessors);
             }

@@ -24,7 +24,6 @@ import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerRules;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
-import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 
@@ -82,17 +81,6 @@ public class PushTopNToSource extends PhysicalOptimizerRules.ParameterizedOptimi
         }
     }
 
-    /**
-     * TODO: Consider deleting this case entirely. We do not know if this is ever hit.
-     */
-    record PushableExchangeExec(ExchangeExec exchangeExec, EsQueryExec queryExec) implements Pushable {
-        public PhysicalPlan rewrite(TopNExec topNExec) {
-            var sorts = buildFieldSorts(topNExec.order());
-            var limit = topNExec.limit();
-            return exchangeExec.replaceChild(queryExec.withSorts(sorts).withLimit(limit));
-        }
-    }
-
     record PushableQueryExec(EsQueryExec queryExec) implements Pushable {
         public PhysicalPlan rewrite(TopNExec topNExec) {
             var sorts = buildFieldSorts(topNExec.order());
@@ -140,13 +128,6 @@ public class PushTopNToSource extends PhysicalOptimizerRules.ParameterizedOptimi
             && canPushDownOrders(topNExec.order(), hasIdenticalDelegate)) {
             // With the simplest case of `FROM index | SORT ...` we only allow pushing down if the sort is on a field
             return new PushableQueryExec(queryExec);
-        }
-        if (child instanceof ExchangeExec exchangeExec
-            && exchangeExec.child() instanceof EsQueryExec queryExec
-            && queryExec.canPushSorts()
-            && canPushDownOrders(topNExec.order(), hasIdenticalDelegate)) {
-            // When we have an exchange between the FROM and the SORT, we also only allow pushing down if the sort is on a field
-            return new PushableExchangeExec(exchangeExec, queryExec);
         }
         if (child instanceof EvalExec evalExec && evalExec.child() instanceof EsQueryExec queryExec && queryExec.canPushSorts()) {
             // When we have an EVAL between the FROM and the SORT, we consider pushing down if the sort is on a field and/or

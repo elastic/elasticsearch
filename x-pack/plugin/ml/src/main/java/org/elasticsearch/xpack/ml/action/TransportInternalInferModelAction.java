@@ -43,12 +43,12 @@ import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignme
 import org.elasticsearch.xpack.core.ml.inference.results.ErrorInferenceResults;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.MachineLearning;
+import org.elasticsearch.xpack.ml.inference.InferenceWaitForAllocation;
 import org.elasticsearch.xpack.ml.inference.adaptiveallocations.AdaptiveAllocationsScalerService;
 import org.elasticsearch.xpack.ml.inference.assignment.TrainedModelAssignmentService;
 import org.elasticsearch.xpack.ml.inference.loadingservice.LocalModel;
 import org.elasticsearch.xpack.ml.inference.loadingservice.ModelLoadingService;
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
-import org.elasticsearch.xpack.ml.inference.waitforallocations.ScalingInference;
 import org.elasticsearch.xpack.ml.utils.TypedChainTaskExecutor;
 
 import java.util.Collections;
@@ -71,7 +71,7 @@ public class TransportInternalInferModelAction extends HandledTransportAction<Re
     private final XPackLicenseState licenseState;
     private final TrainedModelProvider trainedModelProvider;
     private final AdaptiveAllocationsScalerService adaptiveAllocationsScalerService;
-    private final ScalingInference scalingInference;
+    private final InferenceWaitForAllocation scalingInference;
     private final ThreadPool threadPool;
 
     TransportInternalInferModelAction(
@@ -94,7 +94,7 @@ public class TransportInternalInferModelAction extends HandledTransportAction<Re
         this.licenseState = licenseState;
         this.trainedModelProvider = trainedModelProvider;
         this.adaptiveAllocationsScalerService = adaptiveAllocationsScalerService;
-        this.scalingInference = new ScalingInference(assignmentService, this::inferOnBlockedRequest);
+        this.scalingInference = new InferenceWaitForAllocation(assignmentService, this::inferOnBlockedRequest);
         this.threadPool = threadPool;
     }
 
@@ -280,7 +280,9 @@ public class TransportInternalInferModelAction extends HandledTransportAction<Re
             if (starting) {
                 message += "; starting deployment of one allocation";
                 logger.info(message);
-                scalingInference.waitForAssignment(new ScalingInference.WaitingRequest(request, responseBuilder, parentTaskId, listener));
+                scalingInference.waitForAssignment(
+                    new InferenceWaitForAllocation.WaitingRequest(request, responseBuilder, parentTaskId, listener)
+                );
                 return;
             }
 
@@ -293,7 +295,7 @@ public class TransportInternalInferModelAction extends HandledTransportAction<Re
             : "mismatch; sum of node requests does not match number of documents in request";
     }
 
-    private void inferOnBlockedRequest(ScalingInference.WaitingRequest request, TrainedModelAssignment assignment) {
+    private void inferOnBlockedRequest(InferenceWaitForAllocation.WaitingRequest request, TrainedModelAssignment assignment) {
         threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME).execute(() -> {
 
             var nodes = assignment.selectRandomNodesWeighedOnAllocationsForNRequestsAndState(

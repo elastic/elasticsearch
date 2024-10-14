@@ -44,7 +44,7 @@ import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import static org.elasticsearch.xpack.ml.MachineLearning.ADAPTIVE_ALLOCATIONS_SCALE_TO_ZERO_TIME;
+import static org.elasticsearch.xpack.ml.MachineLearning.ADAPTIVE_ALLOCATIONS_SCALE_TO_ZERO_INTERVAL;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.same;
@@ -74,7 +74,7 @@ public class AdaptiveAllocationsScalerServiceTests extends ESTestCase {
         clusterService = mock(ClusterService.class);
         when(clusterService.getSettings()).thenReturn(Settings.EMPTY);
         when(clusterService.getClusterSettings()).thenReturn(
-            new ClusterSettings(Settings.EMPTY, Set.of(ADAPTIVE_ALLOCATIONS_SCALE_TO_ZERO_TIME))
+            new ClusterSettings(Settings.EMPTY, Set.of(ADAPTIVE_ALLOCATIONS_SCALE_TO_ZERO_INTERVAL))
         );
         client = mock(Client.class);
         inferenceAuditor = mock(InferenceAuditor.class);

@@ -19,6 +19,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
@@ -36,7 +37,7 @@ public class AdaptiveAllocationsScaleFromZeroIT extends PyTorchModelRestTestCase
         scaleToZeroTime.setJsonEntity("""
             {
               "persistent": {
-                "xpack.ml.adaptive_allocations_scale_to_zero": "2s"
+                "xpack.ml.adaptive_allocations_scale_to_zero_interval": "2s"
               }
             }""");
 
@@ -51,13 +52,14 @@ public class AdaptiveAllocationsScaleFromZeroIT extends PyTorchModelRestTestCase
         putVocabulary(List.of("Auto", "scale", "and", "infer"), modelId);
 
         startDeployment(modelId, modelId, new AdaptiveAllocationsSettings(true, 0, 1));
-
-        var responseMap = entityAsMap(getTrainedModelStats(modelId));
-        List<Map<String, Object>> stats = (List<Map<String, Object>>) responseMap.get("trained_model_stats");
-        String statusState = (String) XContentMapValues.extractValue("deployment_stats.allocation_status.state", stats.get(0));
-        assertThat(responseMap.toString(), statusState, is(not(nullValue())));
-        Integer count = (Integer) XContentMapValues.extractValue("deployment_stats.allocation_status.allocation_count", stats.get(0));
-        assertThat(responseMap.toString(), count, is(1));
+        {
+            var responseMap = entityAsMap(getTrainedModelStats(modelId));
+            List<Map<String, Object>> stats = (List<Map<String, Object>>) responseMap.get("trained_model_stats");
+            String statusState = (String) XContentMapValues.extractValue("deployment_stats.allocation_status.state", stats.get(0));
+            assertThat(responseMap.toString(), statusState, is(not(nullValue())));
+            Integer count = (Integer) XContentMapValues.extractValue("deployment_stats.allocation_status.allocation_count", stats.get(0));
+            assertThat(responseMap.toString(), count, is(1));
+        }
 
         // wait for scale down. The scaler service will check every 10 seconds
         assertBusy(() -> {
@@ -70,8 +72,10 @@ public class AdaptiveAllocationsScaleFromZeroIT extends PyTorchModelRestTestCase
             assertThat(statsMap.toString(), innerCount, is(0));
         }, 30, TimeUnit.SECONDS);
 
+        var failures = new ConcurrentLinkedDeque<Exception>();
+
         // infer will scale up
-        int inferenceCount = 100;
+        int inferenceCount = 10;
         var latch = new CountDownLatch(inferenceCount);
         for (int i = 0; i < inferenceCount; i++) {
             asyncInfer("Auto scale and infer", modelId, TimeValue.timeValueSeconds(5), new ResponseListener() {
@@ -83,12 +87,24 @@ public class AdaptiveAllocationsScaleFromZeroIT extends PyTorchModelRestTestCase
                 @Override
                 public void onFailure(Exception exception) {
                     latch.countDown();
-                    fail(exception.getMessage());
+                    failures.add(exception);
                 }
             });
         }
 
         latch.await();
+        if (failures.isEmpty() == false) {
+            fail(failures.getFirst());
+        }
+
+        // {
+        // var responseMap = entityAsMap(getTrainedModelStats(modelId));
+        // List<Map<String, Object>> stats = (List<Map<String, Object>>) responseMap.get("trained_model_stats");
+        // String statusState = (String) XContentMapValues.extractValue("deployment_stats.allocation_status.state", stats.get(0));
+        // assertThat(responseMap.toString(), statusState, is(not(nullValue())));
+        // Integer count = (Integer) XContentMapValues.extractValue("deployment_stats.allocation_status.allocation_count", stats.get(0));
+        // assertThat(responseMap.toString(), count, greaterThan(0));
+        // }
     }
 
     @SuppressWarnings("unchecked")

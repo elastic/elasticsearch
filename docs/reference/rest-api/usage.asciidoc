@@ -256,15 +256,7 @@ GET /_xpack/usage
      }
    },
     "functions": {
-      "ADD" : 2,
-      "EQUALS" : 2,
-      "MAX" : 1,
-      "AND" : 2,
-      "DATETRUNC" : 1,
-      "COUNT" : 2,
-      "DATEEXTRACT" : 2,
-      "MVMIN" : 1,
-      "GREATERTHAN" : 2
+      ...
     }
   },
   "sql" : {

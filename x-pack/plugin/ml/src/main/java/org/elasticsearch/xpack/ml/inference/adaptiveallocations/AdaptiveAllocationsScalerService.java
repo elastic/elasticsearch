@@ -171,17 +171,6 @@ public class AdaptiveAllocationsScalerService implements ClusterStateListener {
             }
             return observations;
         }
-
-        void close() {
-            for (AutoCloseable metric : metrics) {
-                try {
-                    metric.close();
-                } catch (Exception e) {
-                    // do nothing
-                }
-            }
-            metrics.clear();
-        }
     }
 
     /**
@@ -261,7 +250,7 @@ public class AdaptiveAllocationsScalerService implements ClusterStateListener {
     public synchronized void stop() {
         clusterService.removeListener(this);
         stopScheduling();
-        metrics.close();
+        scalers.clear();
     }
 
     @Override

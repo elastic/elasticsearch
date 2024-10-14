@@ -29,6 +29,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
@@ -109,6 +110,17 @@ final class IpinfoIpDataLookups {
             logger.trace("returning null for unsupported database_type [{}]", databaseType);
             return null;
         }
+    }
+
+    @Nullable
+    static Function<Set<Database.Property>, IpDataLookup> getIpinfoLookup(final Database database) {
+        return switch (database) {
+            case Database.AsnV2 -> IpinfoIpDataLookups.Asn::new;
+            case Database.CountryV2 -> IpinfoIpDataLookups.Country::new;
+            case Database.CityV2 -> IpinfoIpDataLookups.Geolocation::new;
+            case Database.PrivacyDetection -> IpinfoIpDataLookups.PrivacyDetection::new;
+            default -> null;
+        };
     }
 
     /**

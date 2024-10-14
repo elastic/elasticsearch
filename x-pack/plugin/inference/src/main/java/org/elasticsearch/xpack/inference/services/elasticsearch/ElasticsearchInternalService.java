@@ -144,7 +144,7 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
                         "Putting elasticsearch service inference endpoints (including elser service) without a model_id field is"
                             + " deprecated and will be removed in a future release. Please specify a model_id field."
                     );
-                    platformArch.accept(
+                    preferredModelVariantFn.accept(
                         modelListener.delegateFailureAndWrap(
                             (delegate, preferredModelVariant) -> elserCase(
                                 inferenceEntityId,
@@ -161,7 +161,7 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
                     throw new IllegalArgumentException("Error parsing service settings, model_id must be provided");
                 }
             } else if (MULTILINGUAL_E5_SMALL_VALID_IDS.contains(modelId)) {
-                platformArch.accept(
+                preferredModelVariantFn.accept(
                     modelListener.delegateFailureAndWrap(
                         (delegate, preferredModelVariant) -> e5Case(
                             inferenceEntityId,
@@ -175,7 +175,7 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
                     )
                 );
             } else if (ElserModels.isValidModel(modelId)) {
-                platformArch.accept(
+                preferredModelVariantFn.accept(
                     modelListener.delegateFailureAndWrap(
                         (delegate, preferredModelVariant) -> elserCase(
                             inferenceEntityId,
@@ -802,16 +802,16 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
      */
     @Override
     public void defaultConfigs(ActionListener<List<Model>> defaultsListener) {
-        platformArch.accept(defaultsListener.delegateFailureAndWrap((delegate, preferredModelVariant) -> {
+        preferredModelVariantFn.accept(defaultsListener.delegateFailureAndWrap((delegate, preferredModelVariant) -> {
             if (PreferredModelVariant.LINUX_X86_OPTIMIZED.equals(preferredModelVariant)) {
-                defaultsListener.onResponse(defaultConfigsLinuxOptimised());
+                defaultsListener.onResponse(defaultConfigsLinuxOptimized());
             } else {
                 defaultsListener.onResponse(defaultConfigsPlatfromAgnostic());
             }
         }));
     }
 
-    private List<Model> defaultConfigsLinuxOptimised() {
+    private List<Model> defaultConfigsLinuxOptimized() {
         return defaultConfigs(true);
     }
 

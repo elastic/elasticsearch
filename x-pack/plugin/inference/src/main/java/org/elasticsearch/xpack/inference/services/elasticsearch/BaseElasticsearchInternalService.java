@@ -50,7 +50,7 @@ public abstract class BaseElasticsearchInternalService implements InferenceServi
 
     protected final OriginSettingClient client;
     protected final ExecutorService inferenceExecutor;
-    protected final Consumer<ActionListener<PreferredModelVariant>> platformArch;
+    protected final Consumer<ActionListener<PreferredModelVariant>> preferredModelVariantFn;
     private final ClusterService clusterService;
 
     public enum PreferredModelVariant {
@@ -63,7 +63,7 @@ public abstract class BaseElasticsearchInternalService implements InferenceServi
     public BaseElasticsearchInternalService(InferenceServiceExtension.InferenceServiceFactoryContext context) {
         this.client = new OriginSettingClient(context.client(), ClientHelper.INFERENCE_ORIGIN);
         this.inferenceExecutor = context.threadPool().executor(InferencePlugin.UTILITY_THREAD_POOL_NAME);
-        this.platformArch = this::platformArchitecture;
+        this.preferredModelVariantFn = this::preferredVariantFromPlatformArchitecture;
         this.clusterService = context.clusterService();
     }
 
@@ -74,11 +74,11 @@ public abstract class BaseElasticsearchInternalService implements InferenceServi
     // service package.
     public BaseElasticsearchInternalService(
         InferenceServiceExtension.InferenceServiceFactoryContext context,
-        Consumer<ActionListener<PreferredModelVariant>> platformArchFn
+        Consumer<ActionListener<PreferredModelVariant>> preferredModelVariantFn
     ) {
         this.client = new OriginSettingClient(context.client(), ClientHelper.INFERENCE_ORIGIN);
         this.inferenceExecutor = context.threadPool().executor(InferencePlugin.UTILITY_THREAD_POOL_NAME);
-        this.platformArch = platformArchFn;
+        this.preferredModelVariantFn = preferredModelVariantFn;
         this.clusterService = context.clusterService();
     }
 
@@ -216,24 +216,24 @@ public abstract class BaseElasticsearchInternalService implements InferenceServi
 
     public static String selectDefaultModelVariantBasedOnClusterArchitecture(
         PreferredModelVariant preferredModelVariant,
-        String linuxX86OptimisedModel,
+        String linuxX86OptimizedModel,
         String platformAgnosticModel
     ) {
         // choose a default model version based on the cluster architecture
         if (PreferredModelVariant.LINUX_X86_OPTIMIZED.equals(preferredModelVariant)) {
             // Use the hardware optimized model
-            return linuxX86OptimisedModel;
+            return linuxX86OptimizedModel;
         } else {
             // default to the platform-agnostic model
             return platformAgnosticModel;
         }
     }
 
-    private void platformArchitecture(ActionListener<PreferredModelVariant> platformArchitectureListener) {
+    private void preferredVariantFromPlatformArchitecture(ActionListener<PreferredModelVariant> preferredVariantListener) {
         // Find the cluster platform as the service may need that
         // information when creating the model
         MlPlatformArchitecturesUtil.getMlNodesArchitecturesSet(
-            platformArchitectureListener.delegateFailureAndWrap((delegate, architectures) -> {
+            preferredVariantListener.delegateFailureAndWrap((delegate, architectures) -> {
                 if (architectures.isEmpty() && isClusterInElasticCloud()) {
                     // There are no ml nodes to check the current arch.
                     // However, in Elastic cloud ml nodes run on Linux x86
@@ -248,8 +248,8 @@ public abstract class BaseElasticsearchInternalService implements InferenceServi
     }
 
     boolean isClusterInElasticCloud() {
-        // Use the ml lazy node count as a heuristic
-        // to determine if in Elastic cloud.
+        // Use the ml lazy node count as a heuristic to determine if in Elastic cloud.
+        // A value > 0 means scaling should be available for ml nodes
         var maxMlLazyNodes = clusterService.getClusterSettings().get(MachineLearningField.MAX_LAZY_ML_NODES);
         return maxMlLazyNodes > 0;
     }

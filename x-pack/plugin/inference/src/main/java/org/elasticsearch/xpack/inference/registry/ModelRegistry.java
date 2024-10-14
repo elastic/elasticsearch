@@ -246,11 +246,7 @@ public class ModelRegistry {
         ActionListener<List<UnparsedModel>> listener
     ) {
         var foundIds = foundConfigs.stream().map(UnparsedModel::inferenceEntityId).collect(Collectors.toSet());
-        logger.error("found " + foundIds.size());
-        logger.error("defaults " + matchedDefaults.size());
-
         var missing = matchedDefaults.stream().filter(d -> foundIds.contains(d.inferenceId()) == false).toList();
-        logger.error("missing " + missing.size());
 
         if (missing.isEmpty()) {
             listener.onResponse(foundConfigs);

@@ -63,10 +63,14 @@ public class SourceFieldMapper extends MetadataFieldMapper {
 
     public static final Setting<Mode> INDEX_MAPPER_SOURCE_MODE_SETTING = Setting.enumSetting(SourceFieldMapper.Mode.class, settings -> {
         final IndexMode indexMode = IndexSettings.MODE.get(settings);
-        return switch (indexMode) {
-            case IndexMode.LOGSDB, IndexMode.TIME_SERIES -> Mode.SYNTHETIC.name();
-            default -> Mode.STORED.name();
-        };
+
+        switch (indexMode) {
+            case LOGSDB:
+            case TIME_SERIES:
+                return Mode.SYNTHETIC.name();
+            default:
+                return Mode.STORED.name();
+        }
     }, "index.mapping.source.mode", value -> {}, Setting.Property.Final, Setting.Property.IndexScope);
 
     /** The source mode */
@@ -352,13 +356,16 @@ public class SourceFieldMapper extends MetadataFieldMapper {
             : LOGSDB_DEFAULT_NO_RECOVERY_SOURCE_STORED;
         final SourceFieldMapper storedWithRecoverySource = indexMode == IndexMode.TIME_SERIES ? TSDB_DEFAULT_STORED : LOGSDB_DEFAULT_STORED;
 
-        return switch (sourceMode) {
-            case SYNTHETIC -> enableRecoverySource ? syntheticWithRecoverySource : syntheticWithoutRecoverySource;
-            case STORED -> enableRecoverySource ? storedWithRecoverySource : storedWithoutRecoverySource;
-            case DISABLED -> throw new IllegalArgumentException(
-                "_source can not be disabled in index using [" + indexMode + "] index mode"
-            );
-        };
+        switch (sourceMode) {
+            case SYNTHETIC:
+                return enableRecoverySource ? syntheticWithRecoverySource : syntheticWithoutRecoverySource;
+            case STORED:
+                return enableRecoverySource ? storedWithRecoverySource : storedWithoutRecoverySource;
+            case DISABLED:
+                throw new IllegalArgumentException("_source cannot be disabled in index using [" + indexMode + "] index mode");
+            default:
+                throw new IllegalStateException("Unexpected value: " + sourceMode);
+        }
     }
 
     public static final TypeParser PARSER = new ConfigurableTypeParser(c -> {

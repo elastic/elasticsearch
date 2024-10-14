@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 
 import java.io.IOException;
+import java.time.Clock;
 import java.util.Objects;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -42,7 +43,10 @@ public class AmazonBedrockRequestSender implements Sender {
         }
 
         public Sender createSender() {
-            var clientCache = new AmazonBedrockInferenceClientCache(AmazonBedrockInferenceClient::create, null);
+            var clientCache = new AmazonBedrockInferenceClientCache(
+                (model, timeout) -> AmazonBedrockInferenceClient.create(model, timeout, serviceComponents.threadPool()),
+                Clock.systemUTC()
+            );
             return createSender(new AmazonBedrockExecuteOnlyRequestSender(clientCache, serviceComponents.throttlerManager()));
         }
 

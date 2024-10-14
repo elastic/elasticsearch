@@ -384,6 +384,9 @@ tests:
 - class: org.elasticsearch.xpack.rank.rrf.RRFRankClientYamlTestSuiteIT
   method: test {yaml=rrf/800_rrf_with_text_similarity_reranker_retriever/explain using rrf retriever and text-similarity}
   issue: https://github.com/elastic/elasticsearch/issues/114757
+- class: org.elasticsearch.xpack.enrich.EnrichRestIT
+  method: test {p0=enrich/30_tsdb_index/enrich documents over _bulk}
+  issue: https://github.com/elastic/elasticsearch/issues/114761
 
 # Examples:
 #

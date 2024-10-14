@@ -694,25 +694,26 @@ public class MetadataIndexTemplateService {
         // Workaround for the fact that start_time and end_time are injected by the MetadataCreateDataStreamService upon creation,
         // but when validating templates that create data streams the MetadataCreateDataStreamService isn't used.
         var finalTemplate = indexTemplate.template();
-        var finalSettings = Settings.builder();
         final var now = Instant.now();
         final var metadata = currentState.getMetadata();
 
         final var combinedMappings = collectMappings(indexTemplate, metadata.componentTemplates(), "tmp_idx");
         final var combinedSettings = resolveSettings(indexTemplate, metadata.componentTemplates());
         // First apply settings sourced from index setting providers:
+        var finalSettings = Settings.builder();
         for (var provider : indexSettingProviders) {
-            finalSettings.put(
+            var newAdditionalSettings =
                 provider.getAdditionalIndexSettings(
                     "validate-index-name",
                     indexTemplate.getDataStreamTemplate() != null ? "validate-data-stream-name" : null,
                     metadata.retrieveIndexModeFromTemplate(indexTemplate),
-                    currentState.getMetadata(),
-                    now,
-                    combinedSettings,
-                    combinedMappings
-                )
+                currentState.getMetadata(),
+                now,
+                combinedSettings,
+                combinedMappings
             );
+            MetadataCreateIndexService.validateAdditionalSettings(provider, newAdditionalSettings, finalSettings);
+            finalSettings.put(newAdditionalSettings);
         }
         // Then apply setting from component templates:
         finalSettings.put(combinedSettings);

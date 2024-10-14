@@ -79,15 +79,17 @@ final class SyntheticSourceIndexSettingsProvider implements IndexSettingProvider
             return false;
         }
 
-        var tmpIndexMetadata = buildIndexMetadataForMapperService(indexName, templateIndexMode, indexTemplateAndCreateRequestSettings);
-        try (var mapperService = mapperServiceFactory.apply(tmpIndexMetadata)) {
-            // combinedTemplateMappings can be null when creating system indices
-            // combinedTemplateMappings can be empty when creating a normal index that doesn't match any template and without mapping.
-            if (combinedTemplateMappings == null || combinedTemplateMappings.isEmpty()) {
-                combinedTemplateMappings = List.of(new CompressedXContent("{}"));
+        try {
+            var tmpIndexMetadata = buildIndexMetadataForMapperService(indexName, templateIndexMode, indexTemplateAndCreateRequestSettings);
+            try (var mapperService = mapperServiceFactory.apply(tmpIndexMetadata)) {
+                // combinedTemplateMappings can be null when creating system indices
+                // combinedTemplateMappings can be empty when creating a normal index that doesn't match any template and without mapping.
+                if (combinedTemplateMappings == null || combinedTemplateMappings.isEmpty()) {
+                    combinedTemplateMappings = List.of(new CompressedXContent("{}"));
+                }
+                mapperService.merge(MapperService.SINGLE_MAPPING_NAME, combinedTemplateMappings, MapperService.MergeReason.INDEX_TEMPLATE);
+                return mapperService.documentMapper().sourceMapper().isSynthetic();
             }
-            mapperService.merge(MapperService.SINGLE_MAPPING_NAME, combinedTemplateMappings, MapperService.MergeReason.INDEX_TEMPLATE);
-            return mapperService.documentMapper().sourceMapper().isSynthetic();
         } catch (AssertionError | Exception e) {
             // In case invalid mappings or setting are provided, then mapper service creation can fail.
             // In that case it is ok to return false here. The index creation will fail anyway later, so need to fallback to stored source.

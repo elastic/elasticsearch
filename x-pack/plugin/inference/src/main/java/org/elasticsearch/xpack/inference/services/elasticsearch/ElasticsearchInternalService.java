@@ -812,17 +812,25 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
             }
         }
 
+        if (modelsByDeploymentIds.isEmpty()) {
+            listener.onResponse(models);
+            return;
+        }
+
         String deploymentIds = String.join(",", modelsByDeploymentIds.keySet());
         client.execute(
             GetDeploymentStatsAction.INSTANCE,
             new GetDeploymentStatsAction.Request(deploymentIds),
-            listener.delegateFailureAndWrap((l, stats) -> {
+            ActionListener.wrap(stats -> {
                 for (var deploymentStats : stats.getStats().results()) {
                     var model = modelsByDeploymentIds.get(deploymentStats.getDeploymentId());
                     model.updateNumAllocation(deploymentStats.getNumberOfAllocations());
                 }
-
-                l.onResponse(new ArrayList<>(modelsByDeploymentIds.values()));
+                listener.onResponse(new ArrayList<>(modelsByDeploymentIds.values()));
+            }, e -> {
+                logger.warn("Get deployment stats failed, cannot update the endpoint's number of allocations", e);
+                // continue with the original response
+                listener.onResponse(models);
             })
         );
     }

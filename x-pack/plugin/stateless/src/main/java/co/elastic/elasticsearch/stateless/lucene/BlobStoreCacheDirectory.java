@@ -310,6 +310,13 @@ public abstract class BlobStoreCacheDirectory extends ByteSizeDirectory {
         return currentDataSetSizeInBytes;
     }
 
+    /**
+     * @return the {@link BlobStoreCacheDirectory} to use for prewarming purpose.
+     */
+    public BlobStoreCacheDirectory createPreWarmingInstance() {
+        return this;
+    }
+
     private static UnsupportedOperationException unsupportedException() {
         assert false : "this operation is not supported and should have not be called";
         return new UnsupportedOperationException("stateless directory does not support this operation");

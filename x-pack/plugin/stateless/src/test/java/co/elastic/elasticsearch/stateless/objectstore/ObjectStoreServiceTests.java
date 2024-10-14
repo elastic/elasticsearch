@@ -22,11 +22,14 @@ package co.elastic.elasticsearch.stateless.objectstore;
 import co.elastic.elasticsearch.stateless.action.NewCommitNotificationRequest;
 import co.elastic.elasticsearch.stateless.action.NewCommitNotificationResponse;
 import co.elastic.elasticsearch.stateless.action.TransportNewCommitNotificationAction;
+import co.elastic.elasticsearch.stateless.cache.SharedBlobCacheWarmingService;
 import co.elastic.elasticsearch.stateless.commits.BatchedCompoundCommit;
+import co.elastic.elasticsearch.stateless.commits.BatchedCompoundCommitTestUtils;
 import co.elastic.elasticsearch.stateless.commits.BlobLocation;
 import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
 import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
 import co.elastic.elasticsearch.stateless.commits.VirtualBatchedCompoundCommit;
+import co.elastic.elasticsearch.stateless.lucene.IndexBlobStoreCacheDirectory;
 import co.elastic.elasticsearch.stateless.lucene.SearchDirectory;
 import co.elastic.elasticsearch.stateless.lucene.StatelessCommitRef;
 import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService.ObjectStoreType;
@@ -39,10 +42,13 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
+import org.elasticsearch.blobcache.shared.SharedBytes;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
@@ -50,12 +56,17 @@ import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.blobstore.support.FilterBlobContainer;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.PathUtils;
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpNodeClient;
+import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -68,6 +79,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService.BUCKET_SETTING;
@@ -75,8 +87,10 @@ import static co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService.
 import static co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService.ObjectStoreType.FS;
 import static co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService.ObjectStoreType.GCS;
 import static co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService.ObjectStoreType.S3;
+import static org.elasticsearch.blobcache.BlobCacheUtils.toPageAlignedSize;
 import static org.hamcrest.Matchers.equalTo;
 
+@LuceneTestCase.SuppressFileSystems(value = "ExtrasFS")
 public class ObjectStoreServiceTests extends ESTestCase {
 
     public void testNoBucket() {
@@ -375,5 +389,119 @@ public class ObjectStoreServiceTests extends ESTestCase {
                 equalTo(expectedNewestBatchedCompoundCommit.get())
             );
         }
+    }
+
+    public void testReadLatestBccPopulatesCache() throws Exception {
+        final Map<String, BlobLocation> uploadedBlobs = ConcurrentCollections.newConcurrentMap();
+        var primaryTerm = randomLongBetween(1, 42);
+        var useReplicatedRanges = false;
+        randomBoolean();
+
+        var cacheSize = ByteSizeValue.ofMb(1L);
+        var regionSize = ByteSizeValue.ofBytes((long) randomIntBetween(1, 3) * SharedBytes.PAGE_SIZE);
+        try (
+            var testHarness = new FakeStatelessNode(
+                TestEnvironment::newEnvironment,
+                settings -> new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings)),
+                xContentRegistry(),
+                primaryTerm
+            ) {
+                @Override
+                protected Settings nodeSettings() {
+                    return Settings.builder()
+                        .put(super.nodeSettings())
+                        .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
+                        .putList(Environment.PATH_DATA_SETTING.getKey(), createTempDir().toAbsolutePath().toString())
+                        .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), cacheSize)
+                        .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), regionSize)
+                        .put(SharedBlobCacheService.SHARED_CACHE_RANGE_SIZE_SETTING.getKey(), regionSize)
+                        .put(SharedBlobCacheWarmingService.PREWARMING_RANGE_MINIMIZATION_STEP.getKey(), regionSize)
+                        .put(StatelessCommitService.STATELESS_COMMIT_USE_INTERNAL_FILES_REPLICATED_CONTENT.getKey(), useReplicatedRanges)
+                        .build();
+                }
+            };
+            // Disable the assertion when reading batched compound commit blobs that verifies the padding at the end of the compound commits
+            // because it triggers more cache misses and populates the cache for regions that do not include the header.
+            var ignored = BatchedCompoundCommitTestUtils.disablePaddingAsserter();
+        ) {
+            BatchedCompoundCommit latestBcc = null;
+            var nbBlobs = randomIntBetween(0, 10);
+            for (int i = 0; i < nbBlobs; i++) {
+                int nbCommits = randomIntBetween(1, 10);
+                // generate commits with ~2KiB to ~10KiB of additional files each
+                var indexCommits = testHarness.generateIndexCommitsWithoutMergeOrDeletion(nbCommits);
+                try (
+                    var virtualBatchedCompoundCommit = new VirtualBatchedCompoundCommit(
+                        testHarness.shardId,
+                        "node-id",
+                        primaryTerm,
+                        indexCommits.getFirst().getGeneration(),
+                        uploadedBlobs::get,
+                        ESTestCase::randomNonNegativeLong
+                    )
+                ) {
+                    for (var indexCommit : indexCommits) {
+                        assertTrue(virtualBatchedCompoundCommit.appendCommit(indexCommit, useReplicatedRanges));
+                    }
+                    virtualBatchedCompoundCommit.freeze();
+
+                    try (var stream = virtualBatchedCompoundCommit.getFrozenInputStreamForUpload()) {
+                        var shardContainer = testHarness.objectStoreService.getBlobContainer(testHarness.shardId, primaryTerm);
+                        shardContainer.writeBlobAtomic(
+                            OperationPurpose.INDICES,
+                            virtualBatchedCompoundCommit.getBlobName(),
+                            stream,
+                            virtualBatchedCompoundCommit.getTotalSizeInBytes(),
+                            true
+                        );
+                    }
+                    latestBcc = virtualBatchedCompoundCommit.getFrozenBatchedCompoundCommit();
+                    latestBcc.compoundCommits().forEach(compoundCommit -> uploadedBlobs.putAll(compoundCommit.commitFiles()));
+                }
+            }
+
+            var directory = IndexBlobStoreCacheDirectory.unwrapDirectory(testHarness.indexingDirectory);
+            var blobs = ObjectStoreService.listBlobs(primaryTerm, directory.getBlobContainer(primaryTerm));
+            assertThat(blobs.size(), equalTo(nbBlobs));
+            assertThat(ObjectStoreService.readLatestBcc(directory, blobs), equalTo(latestBcc));
+
+            long writeCount = getWriteCount(latestBcc, regionSize);
+            assertTrue(TestThreadPool.terminate(testHarness.threadPool, 10L, TimeUnit.SECONDS));
+
+            var cacheStats = testHarness.sharedCacheService.getStats();
+            assertThat(cacheStats.writeCount(), equalTo(writeCount));
+            assertThat(cacheStats.evictCount(), equalTo(0L));
+        }
+    }
+
+    private static long getWriteCount(BatchedCompoundCommit latestBcc, ByteSizeValue regionSize) {
+        long writeCount = 0L;
+        if (latestBcc != null) {
+            int lastRegion = -1;
+            long offset = 0L;
+            for (var compoundCommit : latestBcc.compoundCommits()) {
+                // region where the header starts
+                int regionStart = (int) (offset / regionSize.getBytes());
+                if (regionStart != lastRegion) {
+                    writeCount += 1L;
+                }
+
+                // offset & region where the header ends
+                long endOffset = offset + compoundCommit.headerSizeInBytes();
+                int regionEnd;
+                if (endOffset % regionSize.getBytes() == 0) {
+                    regionEnd = (int) ((endOffset - 1L) / regionSize.getBytes());
+                } else {
+                    regionEnd = (int) (endOffset / regionSize.getBytes());
+                }
+                // number of regions over which the header spans
+                int regions = (regionEnd - regionStart);
+                writeCount += regions;
+
+                offset += toPageAlignedSize(compoundCommit.sizeInBytes());
+                lastRegion = regionEnd;
+            }
+        }
+        return writeCount;
     }
 }

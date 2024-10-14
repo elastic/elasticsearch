@@ -2022,24 +2022,27 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
 
     private static class DenseVectorSyntheticSourceSupport implements SyntheticSourceSupport {
         private final int dims = between(5, 1000);
-        private final ElementType elementType = randomFrom(ElementType.BYTE, ElementType.FLOAT);
+        private final ElementType elementType = randomFrom(ElementType.BYTE, ElementType.FLOAT, ElementType.BIT);
         private final boolean indexed = randomBoolean();
         private final boolean indexOptionsSet = indexed && randomBoolean();
 
         @Override
         public SyntheticSourceExample example(int maxValues) throws IOException {
-            Object value = elementType == ElementType.BYTE
-                ? randomList(dims, dims, ESTestCase::randomByte)
-                : randomList(dims, dims, ESTestCase::randomFloat);
+            Object value = switch (elementType) {
+                case BYTE, BIT:
+                    yield randomList(dims, dims, ESTestCase::randomByte);
+                case FLOAT:
+                    yield randomList(dims, dims, ESTestCase::randomFloat);
+            };
             return new SyntheticSourceExample(value, value, this::mapping);
         }
 
         private void mapping(XContentBuilder b) throws IOException {
             b.field("type", "dense_vector");
-            b.field("dims", dims);
-            if (elementType == ElementType.BYTE || randomBoolean()) {
+            if (elementType == ElementType.BYTE || elementType == ElementType.BIT || randomBoolean()) {
                 b.field("element_type", elementType.toString());
             }
+            b.field("dims", elementType == ElementType.BIT ? dims * Byte.SIZE : dims);
             if (indexed) {
                 b.field("index", true);
                 b.field("similarity", "l2_norm");

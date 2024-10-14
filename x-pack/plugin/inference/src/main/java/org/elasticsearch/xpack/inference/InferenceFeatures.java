@@ -13,7 +13,6 @@ import org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper;
 import org.elasticsearch.xpack.inference.rank.random.RandomRankRetrieverBuilder;
 import org.elasticsearch.xpack.inference.rank.textsimilarity.TextSimilarityRankRetrieverBuilder;
 
-import java.util.HashSet;
 import java.util.Set;
 
 /**
@@ -23,15 +22,13 @@ public class InferenceFeatures implements FeatureSpecification {
 
     @Override
     public Set<NodeFeature> getFeatures() {
-        var features = new HashSet<NodeFeature>();
-        features.add(TextSimilarityRankRetrieverBuilder.TEXT_SIMILARITY_RERANKER_RETRIEVER_SUPPORTED);
-        features.add(RandomRankRetrieverBuilder.RANDOM_RERANKER_RETRIEVER_SUPPORTED);
-        features.add(SemanticTextFieldMapper.SEMANTIC_TEXT_SEARCH_INFERENCE_ID);
-        features.add(TextSimilarityRankRetrieverBuilder.TEXT_SIMILARITY_RERANKER_COMPOSITION_SUPPORTED);
-        if (DefaultElserFeatureFlag.isEnabled()) {
-            features.add(SemanticTextFieldMapper.SEMANTIC_TEXT_DEFAULT_ELSER_2);
-        }
-        return Set.copyOf(features);
+        return Set.of(
+            TextSimilarityRankRetrieverBuilder.TEXT_SIMILARITY_RERANKER_RETRIEVER_SUPPORTED,
+            RandomRankRetrieverBuilder.RANDOM_RERANKER_RETRIEVER_SUPPORTED,
+            SemanticTextFieldMapper.SEMANTIC_TEXT_SEARCH_INFERENCE_ID,
+            SemanticTextFieldMapper.SEMANTIC_TEXT_DEFAULT_ELSER_2,
+            TextSimilarityRankRetrieverBuilder.TEXT_SIMILARITY_RERANKER_COMPOSITION_SUPPORTED
+        );
     }
 
 }

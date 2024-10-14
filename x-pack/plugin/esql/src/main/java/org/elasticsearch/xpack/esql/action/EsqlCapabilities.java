@@ -368,6 +368,11 @@ public class EsqlCapabilities {
         NAMED_PARAMETER_FOR_FIELD_AND_FUNCTION_NAMES,
 
         /**
+         * Fix sorting not allowed on _source and counters.
+         */
+        SORTING_ON_SOURCE_AND_COUNTERS_FORBIDDEN,
+
+        /**
          * Support for semantic_text field mapping
          */
         SEMANTIC_TEXT_TYPE(EsqlCorePlugin.SEMANTIC_TEXT_FEATURE_FLAG);

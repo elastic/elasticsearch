@@ -316,7 +316,7 @@ public class AzureHttpHandler implements HttpHandler {
                                         RequestId:%s
                                         Time:%s</Message></Error>""",
                                     requestId,
-                                    DateTimeFormatter.ISO_DATE_TIME.format(ZonedDateTime.now(ZoneId.of("UTC")))
+                                    DateTimeFormatter.ISO_OFFSET_DATE_TIME.format(ZonedDateTime.now(ZoneId.of("UTC")))
                                 );
                                 final String notFoundPart = Strings.format("""
                                     --%s

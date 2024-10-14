@@ -149,7 +149,7 @@ POST _tasks/<task_id>/_cancel
 [[hybrid-search-perform-search]]
 ==== Perform hybrid search
 
-After reindexing the data into the `semantic-hybrid-embeddings` index, you can perform hybrid search, which combines both semantic and lexical search. You can perform hybrid search using <<rrf,reciprocal rank fusion (RRF)>>. RRF is a technique that merges the rankings from both semantic and lexical queries, giving more weight to results that rank high in either search. This ensures that the final results are balanced and relevant.
+After reindexing the data into the `semantic-embeddings` index, you can perform hybrid search by using <<rrf,reciprocal rank fusion (RRF)>>. RRF is a technique that merges the rankings from both semantic and lexical queries, giving more weight to results that rank high in either search. This ensures that the final results are balanced and relevant.
 
 [source,console]
 ------------------------------------------------------------

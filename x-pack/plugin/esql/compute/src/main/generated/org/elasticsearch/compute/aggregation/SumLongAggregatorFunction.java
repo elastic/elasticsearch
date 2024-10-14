@@ -18,6 +18,7 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.compute.operator.Warnings;
 
 /**
  * {@link AggregatorFunction} implementation for {@link SumLongAggregator}.
@@ -64,11 +65,11 @@ public final class SumLongAggregatorFunction implements AggregatorFunction {
     if (state.failed()) {
       return;
     }
-    if (mask.isConstant()) {
-      if (mask.getBoolean(0) == false) {
-        // Entire page masked away
-        return;
-      }
+    if (mask.allFalse()) {
+      // Entire page masked away
+      return;
+    }
+    if (mask.allTrue()) {
       // No masking
       LongBlock block = page.getBlock(channels.get(0));
       LongVector vector = block.asVector();

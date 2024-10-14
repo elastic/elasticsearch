@@ -20,6 +20,8 @@ import org.apache.lucene.index.SegmentWriteState;
 
 import java.io.IOException;
 
+import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.MAX_DIMS_COUNT;
+
 public class ES815HnswBitVectorsFormat extends KnnVectorsFormat {
 
     static final String NAME = "ES815HnswBitVectorsFormat";
@@ -30,7 +32,7 @@ public class ES815HnswBitVectorsFormat extends KnnVectorsFormat {
     private final int maxConn;
     private final int beamWidth;
 
-    private final FlatVectorsFormat flatVectorsFormat = new ES815BitFlatVectorsFormat();
+    private static final FlatVectorsFormat flatVectorsFormat = new ES815BitFlatVectorsFormat();
 
     public ES815HnswBitVectorsFormat() {
         this(16, 100);
@@ -71,5 +73,10 @@ public class ES815HnswBitVectorsFormat extends KnnVectorsFormat {
             + ", flatVectorFormat="
             + flatVectorsFormat
             + ")";
+    }
+
+    @Override
+    public int getMaxDimensions(String fieldName) {
+        return MAX_DIMS_COUNT;
     }
 }

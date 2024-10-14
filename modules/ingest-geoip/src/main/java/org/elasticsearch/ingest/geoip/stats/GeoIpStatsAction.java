@@ -37,7 +37,7 @@ public class GeoIpStatsAction {
 
     private GeoIpStatsAction() {/* no instances */}
 
-    public static class Request extends BaseNodesRequest<Request> implements ToXContentObject {
+    public static class Request extends BaseNodesRequest implements ToXContentObject {
 
         public Request() {
             super((String[]) null);

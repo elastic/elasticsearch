@@ -23,6 +23,7 @@ import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xpack.core.inference.results.ErrorChunkedInferenceResults;
 import org.elasticsearch.xpack.core.inference.results.InferenceChunkedSparseEmbeddingResults;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
@@ -34,10 +35,10 @@ import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.SenderService;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
+import org.elasticsearch.xpack.inference.telemetry.TraceContext;
 
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 import static org.elasticsearch.xpack.core.inference.results.ResultUtils.createInvalidChunkedResultException;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInvalidModelException;
@@ -75,8 +76,13 @@ public class ElasticInferenceService extends SenderService {
             return;
         }
 
+        // We extract the trace context here as it's sufficient to propagate the trace information of the REST request,
+        // which handles the request to the inference API overall (including the outgoing request, which is started in a new thread
+        // generating a different "traceparent" as every task and every REST request creates a new span).
+        var currentTraceInfo = getCurrentTraceInfo();
+
         ElasticInferenceServiceModel elasticInferenceServiceModel = (ElasticInferenceServiceModel) model;
-        var actionCreator = new ElasticInferenceServiceActionCreator(getSender(), getServiceComponents());
+        var actionCreator = new ElasticInferenceServiceActionCreator(getSender(), getServiceComponents(), currentTraceInfo);
 
         var action = elasticInferenceServiceModel.accept(actionCreator, taskSettings);
         action.execute(inputs, timeout, listener);
@@ -110,7 +116,6 @@ public class ElasticInferenceService extends SenderService {
         String inferenceEntityId,
         TaskType taskType,
         Map<String, Object> config,
-        Set<String> platformArchitectures,
         ActionListener<Model> parsedModelListener
     ) {
         try {
@@ -171,7 +176,7 @@ public class ElasticInferenceService extends SenderService {
         Map<String, Object> secrets
     ) {
         Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
-        Map<String, Object> taskSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.TASK_SETTINGS);
+        Map<String, Object> taskSettingsMap = removeFromMapOrDefaultEmpty(config, ModelConfigurations.TASK_SETTINGS);
         Map<String, Object> secretSettingsMap = removeFromMapOrDefaultEmpty(secrets, ModelSecrets.SECRET_SETTINGS);
 
         return createModelFromPersistent(
@@ -257,5 +262,14 @@ public class ElasticInferenceService extends SenderService {
         );
 
         return new ElasticInferenceServiceSparseEmbeddingsModel(model, serviceSettings);
+    }
+
+    private TraceContext getCurrentTraceInfo() {
+        var threadPool = getServiceComponents().threadPool();
+
+        var traceParent = threadPool.getThreadContext().getHeader(Task.TRACE_PARENT);
+        var traceState = threadPool.getThreadContext().getHeader(Task.TRACE_STATE);
+
+        return new TraceContext(traceParent, traceState);
     }
 }

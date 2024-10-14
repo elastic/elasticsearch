@@ -83,7 +83,7 @@ public class ElasticsearchInternalServiceSettings implements ServiceSettings {
             validationException
         );
 
-        // model id is optional as the ELSER and E5 service will default it
+        // model id is optional as the ELSER service will default it. TODO make this a required field once the elser service is removed
         String modelId = extractOptionalString(map, MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
 
         if (numAllocations == null && adaptiveAllocationsSettings == null) {
@@ -117,6 +117,18 @@ public class ElasticsearchInternalServiceSettings implements ServiceSettings {
 
     protected ElasticsearchInternalServiceSettings(ElasticsearchInternalServiceSettings other) {
         this.numAllocations = other.numAllocations;
+        this.numThreads = other.numThreads;
+        this.modelId = other.modelId;
+        this.adaptiveAllocationsSettings = other.adaptiveAllocationsSettings;
+    }
+
+    /**
+     * Copy constructor with the ability to set the number of allocations. Used for Update API.
+     * @param other the existing settings
+     * @param numAllocations the new number of allocations
+     */
+    public ElasticsearchInternalServiceSettings(ElasticsearchInternalServiceSettings other, int numAllocations) {
+        this.numAllocations = numAllocations;
         this.numThreads = other.numThreads;
         this.modelId = other.modelId;
         this.adaptiveAllocationsSettings = other.adaptiveAllocationsSettings;

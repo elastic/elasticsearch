@@ -36,6 +36,7 @@ import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.search.rank.RankBuilder;
+import org.elasticsearch.search.rank.RankDoc;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.ScalingExecutorBuilder;
 import org.elasticsearch.xcontent.ParseField;
@@ -46,12 +47,14 @@ import org.elasticsearch.xpack.core.inference.action.GetInferenceDiagnosticsActi
 import org.elasticsearch.xpack.core.inference.action.GetInferenceModelAction;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.action.PutInferenceModelAction;
+import org.elasticsearch.xpack.core.inference.action.UpdateInferenceModelAction;
 import org.elasticsearch.xpack.inference.action.TransportDeleteInferenceEndpointAction;
 import org.elasticsearch.xpack.inference.action.TransportGetInferenceDiagnosticsAction;
 import org.elasticsearch.xpack.inference.action.TransportGetInferenceModelAction;
 import org.elasticsearch.xpack.inference.action.TransportInferenceAction;
 import org.elasticsearch.xpack.inference.action.TransportInferenceUsageAction;
 import org.elasticsearch.xpack.inference.action.TransportPutInferenceModelAction;
+import org.elasticsearch.xpack.inference.action.TransportUpdateInferenceModelAction;
 import org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilter;
 import org.elasticsearch.xpack.inference.common.Truncator;
 import org.elasticsearch.xpack.inference.external.amazonbedrock.AmazonBedrockRequestSender;
@@ -66,6 +69,7 @@ import org.elasticsearch.xpack.inference.queries.SemanticQueryBuilder;
 import org.elasticsearch.xpack.inference.rank.random.RandomRankBuilder;
 import org.elasticsearch.xpack.inference.rank.random.RandomRankRetrieverBuilder;
 import org.elasticsearch.xpack.inference.rank.textsimilarity.TextSimilarityRankBuilder;
+import org.elasticsearch.xpack.inference.rank.textsimilarity.TextSimilarityRankDoc;
 import org.elasticsearch.xpack.inference.rank.textsimilarity.TextSimilarityRankRetrieverBuilder;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 import org.elasticsearch.xpack.inference.rest.RestDeleteInferenceEndpointAction;
@@ -74,6 +78,7 @@ import org.elasticsearch.xpack.inference.rest.RestGetInferenceModelAction;
 import org.elasticsearch.xpack.inference.rest.RestInferenceAction;
 import org.elasticsearch.xpack.inference.rest.RestPutInferenceModelAction;
 import org.elasticsearch.xpack.inference.rest.RestStreamInferenceAction;
+import org.elasticsearch.xpack.inference.rest.RestUpdateInferenceModelAction;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.alibabacloudsearch.AlibabaCloudSearchService;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockService;
@@ -86,7 +91,6 @@ import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServic
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceFeature;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSettings;
 import org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalService;
-import org.elasticsearch.xpack.inference.services.elser.ElserInternalService;
 import org.elasticsearch.xpack.inference.services.googleaistudio.GoogleAiStudioService;
 import org.elasticsearch.xpack.inference.services.googlevertexai.GoogleVertexAiService;
 import org.elasticsearch.xpack.inference.services.huggingface.HuggingFaceService;
@@ -148,6 +152,7 @@ public class InferencePlugin extends Plugin implements ActionPlugin, ExtensibleP
             new ActionHandler<>(InferenceAction.INSTANCE, TransportInferenceAction.class),
             new ActionHandler<>(GetInferenceModelAction.INSTANCE, TransportGetInferenceModelAction.class),
             new ActionHandler<>(PutInferenceModelAction.INSTANCE, TransportPutInferenceModelAction.class),
+            new ActionHandler<>(UpdateInferenceModelAction.INSTANCE, TransportUpdateInferenceModelAction.class),
             new ActionHandler<>(DeleteInferenceEndpointAction.INSTANCE, TransportDeleteInferenceEndpointAction.class),
             new ActionHandler<>(XPackUsageFeatureAction.INFERENCE, TransportInferenceUsageAction.class),
             new ActionHandler<>(GetInferenceDiagnosticsAction.INSTANCE, TransportGetInferenceDiagnosticsAction.class)
@@ -171,6 +176,7 @@ public class InferencePlugin extends Plugin implements ActionPlugin, ExtensibleP
             new RestStreamInferenceAction(),
             new RestGetInferenceModelAction(),
             new RestPutInferenceModelAction(),
+            new RestUpdateInferenceModelAction(),
             new RestDeleteInferenceEndpointAction(),
             new RestGetInferenceDiagnosticsAction()
         );
@@ -206,11 +212,16 @@ public class InferencePlugin extends Plugin implements ActionPlugin, ExtensibleP
             );
         }
 
-        var factoryContext = new InferenceServiceExtension.InferenceServiceFactoryContext(services.client());
+        var factoryContext = new InferenceServiceExtension.InferenceServiceFactoryContext(services.client(), services.threadPool());
         // This must be done after the HttpRequestSenderFactory is created so that the services can get the
         // reference correctly
         var registry = new InferenceServiceRegistry(inferenceServices, factoryContext);
         registry.init(services.client());
+        if (DefaultElserFeatureFlag.isEnabled()) {
+            for (var service : registry.getServices().values()) {
+                service.defaultConfigs().forEach(modelRegistry::addDefaultConfiguration);
+            }
+        }
         inferenceServiceRegistry.set(registry);
 
         var actionFilter = new ShardBulkInferenceActionFilter(registry, modelRegistry);
@@ -229,7 +240,6 @@ public class InferencePlugin extends Plugin implements ActionPlugin, ExtensibleP
 
     public List<InferenceServiceExtension.Factory> getInferenceServiceFactories() {
         return List.of(
-            ElserInternalService::new,
             context -> new HuggingFaceElserService(httpFactory.get(), serviceComponents.get()),
             context -> new HuggingFaceService(httpFactory.get(), serviceComponents.get()),
             context -> new OpenAiService(httpFactory.get(), serviceComponents.get()),
@@ -252,6 +262,7 @@ public class InferencePlugin extends Plugin implements ActionPlugin, ExtensibleP
         var entries = new ArrayList<>(InferenceNamedWriteablesProvider.getNamedWriteables());
         entries.add(new NamedWriteableRegistry.Entry(RankBuilder.class, TextSimilarityRankBuilder.NAME, TextSimilarityRankBuilder::new));
         entries.add(new NamedWriteableRegistry.Entry(RankBuilder.class, RandomRankBuilder.NAME, RandomRankBuilder::new));
+        entries.add(new NamedWriteableRegistry.Entry(RankDoc.class, TextSimilarityRankDoc.NAME, TextSimilarityRankDoc::new));
         return entries;
     }
 
@@ -299,15 +310,17 @@ public class InferencePlugin extends Plugin implements ActionPlugin, ExtensibleP
 
     @Override
     public List<ExecutorBuilder<?>> getExecutorBuilders(Settings settingsToUse) {
-        return List.of(
-            new ScalingExecutorBuilder(
-                UTILITY_THREAD_POOL_NAME,
-                0,
-                10,
-                TimeValue.timeValueMinutes(10),
-                false,
-                "xpack.inference.utility_thread_pool"
-            )
+        return List.of(inferenceUtilityExecutor(settings));
+    }
+
+    public static ExecutorBuilder<?> inferenceUtilityExecutor(Settings settings) {
+        return new ScalingExecutorBuilder(
+            UTILITY_THREAD_POOL_NAME,
+            0,
+            10,
+            TimeValue.timeValueMinutes(10),
+            false,
+            "xpack.inference.utility_thread_pool"
         );
     }
 

@@ -107,6 +107,21 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
         assertThat(factory.limit(), equalTo(10));
     }
 
+    public void testLuceneTopNSourceOperatorDistanceSort() throws IOException {
+        int estimatedRowSize = randomEstimatedRowSize(estimatedRowSizeIsHuge);
+        FieldAttribute sortField = new FieldAttribute(Source.EMPTY, "point", new EsField("point", DataType.GEO_POINT, Map.of(), true));
+        EsQueryExec.GeoDistanceSort sort = new EsQueryExec.GeoDistanceSort(sortField, Order.OrderDirection.ASC, 1, -1);
+        Literal limit = new Literal(Source.EMPTY, 10, DataType.INTEGER);
+        LocalExecutionPlanner.LocalExecutionPlan plan = planner().plan(
+            new EsQueryExec(Source.EMPTY, index(), IndexMode.STANDARD, List.of(), null, limit, List.of(sort), estimatedRowSize)
+        );
+        assertThat(plan.driverFactories.size(), lessThanOrEqualTo(pragmas.taskConcurrency()));
+        LocalExecutionPlanner.DriverSupplier supplier = plan.driverFactories.get(0).driverSupplier();
+        var factory = (LuceneTopNSourceOperator.Factory) supplier.physicalOperation().sourceOperatorFactory;
+        assertThat(factory.maxPageSize(), maxPageSizeMatcher(estimatedRowSizeIsHuge, estimatedRowSize));
+        assertThat(factory.limit(), equalTo(10));
+    }
+
     private int randomEstimatedRowSize(boolean huge) {
         int hugeBoundary = SourceOperator.MIN_TARGET_PAGE_SIZE * 10;
         return huge ? between(hugeBoundary, Integer.MAX_VALUE) : between(1, hugeBoundary);
@@ -146,7 +161,8 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             EsqlPlugin.QUERY_RESULT_TRUNCATION_DEFAULT_SIZE.getDefault(null),
             StringUtils.EMPTY,
             false,
-            Map.of()
+            Map.of(),
+            System.nanoTime()
         );
     }
 

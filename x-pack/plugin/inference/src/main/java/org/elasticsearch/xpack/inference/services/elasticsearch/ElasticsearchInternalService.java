@@ -146,7 +146,16 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
             String modelId = (String) serviceSettingsMap.get(ElasticsearchInternalServiceSettings.MODEL_ID);
             String deploymentId = (String) serviceSettingsMap.get(ElasticsearchInternalServiceSettings.DEPLOYMENT_ID);
             if (deploymentId != null) {
-                validateAgainstDeployment(modelId, deploymentId, taskType, ) // TODO create model
+                validateAgainstDeployment(modelId, deploymentId, taskType, modelListener.delegateFailureAndWrap((l, settings) -> {
+                   l.onResponse(new ElasticDeployedModel(
+                       inferenceEntityId,
+                       taskType,
+                       NAME,
+                       new ElserInternalServiceSettings(settings.build()),
+                       ElserMlNodeTaskSettings.DEFAULT,
+                       chunkingSettings
+                   ));
+                }));
             } else if (modelId == null) {
                 if (OLD_ELSER_SERVICE_NAME.equals(serviceName)) {
                     // TODO complete deprecation of null model ID

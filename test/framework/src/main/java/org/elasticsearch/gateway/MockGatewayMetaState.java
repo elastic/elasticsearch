@@ -70,11 +70,6 @@ public class MockGatewayMetaState extends GatewayMetaState {
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
         );
         final MetaStateService metaStateService = mock(MetaStateService.class);
-        try {
-            when(metaStateService.loadFullState()).thenReturn(new Tuple<>(Manifest.empty(), Metadata.builder().build()));
-        } catch (IOException e) {
-            throw new AssertionError(e);
-        }
         start(
             settings,
             transportService,

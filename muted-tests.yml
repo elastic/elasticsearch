@@ -366,6 +366,9 @@ tests:
 - class: org.elasticsearch.xpack.inference.integration.ModelRegistryIT
   method: testGetModel
   issue: https://github.com/elastic/elasticsearch/issues/114657
+- class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
+  method: test {yaml=reference/rest-api/usage/line_38}
+  issue: https://github.com/elastic/elasticsearch/issues/113694
 
 # Examples:
 #

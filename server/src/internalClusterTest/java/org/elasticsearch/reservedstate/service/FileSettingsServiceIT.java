@@ -393,8 +393,7 @@ public class FileSettingsServiceIT extends ESIntegTestCase {
         writeJSONFile(masterNode, testErrorJSON, versionCounter, logger);
         AtomicLong metadataVersion = savedClusterState.v2();
         assertClusterStateNotSaved(savedClusterState.v1(), metadataVersion);
-        logger.info("returned version: [{}] version counter: [{}]", metadataVersion, versionCounter);
-        assertHasErrors(versionCounter.get(), "not_cluster_settings");
+        assertHasErrors(metadataVersion, "not_cluster_settings");
 
         // write valid json without version increment to simulate ES being able to process settings after a restart (usually, this would be
         // due to a code change)
@@ -402,9 +401,9 @@ public class FileSettingsServiceIT extends ESIntegTestCase {
         internalCluster().restartNode(masterNode);
         ensureGreen();
 
-        assertBusy(() -> assertExpectedRecoveryBytesSettingAndVersion(versionCounter, "50mb"));
-        // ensure error got cleared
-        assertNoErrors(versionCounter.get());
+        // we don't know the exact metadata version to wait for so rely on an assertBusy instead
+        assertBusy(() -> assertExpectedRecoveryBytesSettingAndVersion(metadataVersion, "50mb"));
+        assertBusy(() -> assertNoErrors(metadataVersion));
     }
 
     public void testNewErrorOnRestartReprocessing() throws Exception {
@@ -430,17 +429,16 @@ public class FileSettingsServiceIT extends ESIntegTestCase {
         writeJSONFile(masterNode, testErrorJSON, versionCounter, logger);
         AtomicLong metadataVersion = savedClusterState.v2();
         assertClusterStateNotSaved(savedClusterState.v1(), metadataVersion);
-        logger.info("returned version: [{}] version counter: [{}]", metadataVersion, versionCounter);
-        assertHasErrors(versionCounter.get(), "not_cluster_settings");
+        assertHasErrors(metadataVersion, "not_cluster_settings");
 
         // write json with new error without version increment to simulate ES failing to process settings after a restart for a new reason
         // (usually, this would be due to a code change)
         writeJSONFileWithoutVersionIncrement(masterNode, testOtherErrorJSON, versionCounter, logger);
-        assertHasErrors(versionCounter.get(), "not_cluster_settings");
+        assertHasErrors(metadataVersion, "not_cluster_settings");
         internalCluster().restartNode(masterNode);
         ensureGreen();
 
-        assertHasErrors(versionCounter.get(), "bad_cluster_settings");
+        assertBusy(() -> assertHasErrors(metadataVersion, "bad_cluster_settings"));
     }
 
     public void testSettingsAppliedOnMasterReElection() throws Exception {
@@ -489,20 +487,20 @@ public class FileSettingsServiceIT extends ESIntegTestCase {
         assertClusterStateSaveOK(savedClusterState.v1(), savedClusterState.v2(), "43mb");
     }
 
-    private void assertHasErrors(long waitForMetadataVersion, String expectedError) {
+    private void assertHasErrors(AtomicLong waitForMetadataVersion, String expectedError) {
         var errorMetadata = getErrorMetadata(waitForMetadataVersion);
         assertThat(errorMetadata, is(notNullValue()));
         assertThat(errorMetadata.errors(), containsInAnyOrder(containsString(expectedError)));
     }
 
-    private void assertNoErrors(long waitForMetadataVersion) {
+    private void assertNoErrors(AtomicLong waitForMetadataVersion) {
         var errorMetadata = getErrorMetadata(waitForMetadataVersion);
         assertThat(errorMetadata, is(nullValue()));
     }
 
-    private ReservedStateErrorMetadata getErrorMetadata(long waitForMetadataVersion) {
+    private ReservedStateErrorMetadata getErrorMetadata(AtomicLong waitForMetadataVersion) {
         final ClusterStateResponse clusterStateResponse = clusterAdmin().state(
-            new ClusterStateRequest(TEST_REQUEST_TIMEOUT).waitForMetadataVersion(waitForMetadataVersion)
+            new ClusterStateRequest(TEST_REQUEST_TIMEOUT).waitForMetadataVersion(waitForMetadataVersion.get())
         ).actionGet();
         return clusterStateResponse.getState().getMetadata().reservedStateMetadata().get(FileSettingsService.NAMESPACE).errorMetadata();
     }

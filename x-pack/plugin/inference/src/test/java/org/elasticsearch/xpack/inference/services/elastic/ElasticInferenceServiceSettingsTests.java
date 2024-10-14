@@ -8,11 +8,9 @@
 package org.elasticsearch.xpack.inference.services.elastic;
 
 import org.elasticsearch.test.ESTestCase;
-import org.junit.Test;
 
 public class ElasticInferenceServiceSettingsTests extends ESTestCase {
 
-    @Test
     public void testEisGatewayURLValidator_Validate_ThrowError_OnMissingURIScheme() {
         expectThrows(
             IllegalArgumentException.class,
@@ -20,7 +18,6 @@ public class ElasticInferenceServiceSettingsTests extends ESTestCase {
         );
     }
 
-    @Test
     public void testEisGatewayURLValidator_Validate_ThrowError_OnWrongURIScheme() {
         expectThrows(
             IllegalArgumentException.class,
@@ -28,7 +25,6 @@ public class ElasticInferenceServiceSettingsTests extends ESTestCase {
         );
     }
 
-    @Test
     public void testEisGatewayURLValidator_Validate_DoesNotThrowError_ForHTTP() {
         var scheme = "http";
 
@@ -39,7 +35,6 @@ public class ElasticInferenceServiceSettingsTests extends ESTestCase {
         }
     }
 
-    @Test
     public void testEisGatewayURLValidator_Validate_DoesNotThrowError_ForHTTPS() {
         var scheme = "https";
 
@@ -50,7 +45,6 @@ public class ElasticInferenceServiceSettingsTests extends ESTestCase {
         }
     }
 
-    @Test
     public void testEisGatewayURLValidator_Validate_DoesNotThrowError_IfURLNull() {
         try {
             new ElasticInferenceServiceSettings.EisGatewayURLValidator().validate(null);
@@ -59,7 +53,6 @@ public class ElasticInferenceServiceSettingsTests extends ESTestCase {
         }
     }
 
-    @Test
     public void testEisGatewayURLValidator_Validate_DoesNotThrowError_IfURLEmpty() {
         try {
             new ElasticInferenceServiceSettings.EisGatewayURLValidator().validate("");

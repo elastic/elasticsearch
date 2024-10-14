@@ -12,21 +12,17 @@ import org.elasticsearch.inference.EmptyTaskSettings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.inference.services.elasticsearch.ElserModels;
-import org.junit.Test;
 
 public class ElasticInferenceServiceSparseEmbeddingsModelTests extends ESTestCase {
 
-    @Test
     public void testCreateURI_ThrowError_OnMissingURIScheme() {
         expectThrows(IllegalArgumentException.class, () -> createModel("www.missing-scheme-gateway-url.com"));
     }
 
-    @Test
     public void testCreateURI_ThrowError_OnWrongURIScheme() {
         expectThrows(IllegalArgumentException.class, () -> createModel("file://www.missing-scheme-gateway-url.com"));
     }
 
-    @Test
     public void testCreateURI_DoesNotThrowError_ForHTTP() {
         var scheme = "http";
 
@@ -37,7 +33,6 @@ public class ElasticInferenceServiceSparseEmbeddingsModelTests extends ESTestCas
         }
     }
 
-    @Test
     public void testCreateURI_DoesNotThrowError_ForHTTPS() {
         var scheme = "https";
 

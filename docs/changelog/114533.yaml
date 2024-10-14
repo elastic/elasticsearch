@@ -1,0 +1,5 @@
+pr: 114533
+summary: Fix dim validation for bit `element_type`
+area: Vector Search
+type: bug
+issues: []

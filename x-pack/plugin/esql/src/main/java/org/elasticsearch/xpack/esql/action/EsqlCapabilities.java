@@ -38,6 +38,11 @@ public class EsqlCapabilities {
         FN_CBRT,
 
         /**
+         * Support for function {@code HYPOT}.
+         */
+        FN_HYPOT,
+
+        /**
          * Support for {@code MV_APPEND} function. #107001
          */
         FN_MV_APPEND,
@@ -164,6 +169,11 @@ public class EsqlCapabilities {
          * Enable spatial predicate functions to support multi-values. Done in #112063.
          */
         SPATIAL_PREDICATES_SUPPORT_MULTIVALUES,
+
+        /**
+         * Support a number of fixes and enhancements to spatial distance pushdown. Done in #112938.
+         */
+        SPATIAL_DISTANCE_PUSHDOWN_ENHANCEMENTS,
 
         /**
          * Fix to GROK and DISSECT that allows extracting attributes with the same name as the input
@@ -335,6 +345,11 @@ public class EsqlCapabilities {
          * QSTR function
          */
         QSTR_FUNCTION(true),
+
+        /**
+         * MATCH function
+         */
+        MATCH_FUNCTION(true),
 
         /**
          * Don't optimize CASE IS NOT NULL function by not requiring the fields to be not null as well.

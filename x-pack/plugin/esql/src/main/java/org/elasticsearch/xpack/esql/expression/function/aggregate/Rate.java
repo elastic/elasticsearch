@@ -115,7 +115,7 @@ public class Rate extends AggregateFunction implements OptionalArgument, ToAggre
     protected TypeResolution resolveType() {
         TypeResolution resolution = isType(
             field(),
-            dt -> dt == DataType.COUNTER_LONG || dt == DataType.COUNTER_INTEGER || dt == DataType.COUNTER_DOUBLE,
+            dt -> DataType.isCounter(dt),
             sourceText(),
             FIRST,
             "counter_long",

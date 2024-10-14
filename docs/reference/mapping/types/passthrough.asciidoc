@@ -119,8 +119,8 @@ PUT my-index-000002
 --------------------------------------------------
 
 In this case, param `priority` is used for conflict resolution, with the higher values taking precedence. In the
-example above, `attributes` has higher priority than `resource-attributes`, so references to `id` point to the field
-within `attributes`. `resource-attributes.id` can still be accessed using its full path.
+example above, `attributes` has higher priority than `resource.attributes`, so references to `id` point to the field
+within `attributes`. `resource.attributes.id` can still be accessed using its full path.
 
 [[passthrough-dimensions]]
 ==== Defining sub-fields as time-series dimensions

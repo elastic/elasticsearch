@@ -34,7 +34,7 @@ public class MustachePlugin extends Plugin implements ScriptPlugin, ActionPlugin
 
     @Override
     public ScriptEngine getScriptEngine(Settings settings, Collection<ScriptContext<?>> contexts) {
-        return new MustacheScriptEngine();
+        return new MustacheScriptEngine(settings);
     }
 
     @Override

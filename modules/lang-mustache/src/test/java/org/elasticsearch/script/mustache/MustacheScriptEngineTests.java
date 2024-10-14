@@ -9,6 +9,7 @@ package org.elasticsearch.script.mustache;
 
 import com.github.mustachejava.MustacheFactory;
 
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.TemplateScript;
 import org.elasticsearch.test.ESTestCase;
@@ -33,7 +34,7 @@ public class MustacheScriptEngineTests extends ESTestCase {
 
     @Before
     public void setup() {
-        qe = new MustacheScriptEngine();
+        qe = new MustacheScriptEngine(Settings.EMPTY);
         factory = new CustomMustacheFactory();
     }
 

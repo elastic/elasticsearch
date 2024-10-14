@@ -174,6 +174,7 @@ public class Constants {
         "cluster:admin/xpack/enrich/reindex",
         "cluster:admin/xpack/inference/delete",
         "cluster:admin/xpack/inference/put",
+        "cluster:admin/xpack/inference/update",
         "cluster:admin/xpack/license/basic_status",
         // "cluster:admin/xpack/license/delete",
         "cluster:admin/xpack/license/feature_usage",

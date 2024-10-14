@@ -4,7 +4,7 @@
 <titleabbrev>Hybrid search with `semantic_text`</titleabbrev>
 ++++
 
-This tutorial demonstrates how to perform **hybrid search**, combining semantic search with traditional full-text search.
+This tutorial demonstrates how to perform hybrid search, combining semantic search with traditional full-text search.
 
 In hybrid search, semantic search retrieves results based on the meaning of the text, while full-text search focuses on exact word matches. By combining both methods, hybrid search delivers more relevant results, particularly in cases where relying on a single approach may not be sufficient.
 

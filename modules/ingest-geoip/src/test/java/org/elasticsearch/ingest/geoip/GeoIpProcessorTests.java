@@ -204,11 +204,11 @@ public class GeoIpProcessorTests extends ESTestCase {
         processor.execute(ingestDocument);
 
         @SuppressWarnings("unchecked")
-        List<Map<String, Object>> geoData = (List<Map<String, Object>>) ingestDocument.getSourceAndMetadata().get("target_field");
-        assertThat(geoData, notNullValue());
-        assertThat(geoData.size(), equalTo(2));
-        assertThat(geoData.get(0).get("location"), equalTo(Map.of("lat", 37.751d, "lon", -97.822d)));
-        assertThat(geoData.get(1).get("city_name"), equalTo("Hoensbroek"));
+        List<Map<String, Object>> data = (List<Map<String, Object>>) ingestDocument.getSourceAndMetadata().get("target_field");
+        assertThat(data, notNullValue());
+        assertThat(data.size(), equalTo(2));
+        assertThat(data.get(0).get("location"), equalTo(Map.of("lat", 37.751d, "lon", -97.822d)));
+        assertThat(data.get(1).get("city_name"), equalTo("Hoensbroek"));
     }
 
     public void testListPartiallyValid() throws Exception {
@@ -232,11 +232,11 @@ public class GeoIpProcessorTests extends ESTestCase {
         processor.execute(ingestDocument);
 
         @SuppressWarnings("unchecked")
-        List<Map<String, Object>> geoData = (List<Map<String, Object>>) ingestDocument.getSourceAndMetadata().get("target_field");
-        assertThat(geoData, notNullValue());
-        assertThat(geoData.size(), equalTo(2));
-        assertThat(geoData.get(0).get("location"), equalTo(Map.of("lat", 37.751d, "lon", -97.822d)));
-        assertThat(geoData.get(1), nullValue());
+        List<Map<String, Object>> data = (List<Map<String, Object>>) ingestDocument.getSourceAndMetadata().get("target_field");
+        assertThat(data, notNullValue());
+        assertThat(data.size(), equalTo(2));
+        assertThat(data.get(0).get("location"), equalTo(Map.of("lat", 37.751d, "lon", -97.822d)));
+        assertThat(data.get(1), nullValue());
     }
 
     public void testListNoMatches() throws Exception {
@@ -276,11 +276,11 @@ public class GeoIpProcessorTests extends ESTestCase {
         processor.execute(ingestDocument);
 
         @SuppressWarnings("unchecked")
-        List<Map<String, Object>> geoData = (List<Map<String, Object>>) ingestDocument.getSourceAndMetadata().get("target_field");
-        assertThat(geoData, notNullValue());
-        assertThat(geoData.size(), equalTo(2));
-        assertThat(geoData.get(0).get("location"), equalTo(Map.of("lat", 37.751d, "lon", -97.822d)));
-        assertThat(geoData.get(1).get("city_name"), equalTo("Hoensbroek"));
+        List<Map<String, Object>> data = (List<Map<String, Object>>) ingestDocument.getSourceAndMetadata().get("target_field");
+        assertThat(data, notNullValue());
+        assertThat(data.size(), equalTo(2));
+        assertThat(data.get(0).get("location"), equalTo(Map.of("lat", 37.751d, "lon", -97.822d)));
+        assertThat(data.get(1).get("city_name"), equalTo("Hoensbroek"));
 
         // Check the loader's reference count and attempt to close
         assertThat(loader.current(), equalTo(0));
@@ -309,9 +309,9 @@ public class GeoIpProcessorTests extends ESTestCase {
         processor.execute(ingestDocument);
 
         @SuppressWarnings("unchecked")
-        Map<String, Object> geoData = (Map<String, Object>) ingestDocument.getSourceAndMetadata().get("target_field");
-        assertThat(geoData, notNullValue());
-        assertThat(geoData.get("location"), equalTo(Map.of("lat", 37.751d, "lon", -97.822d)));
+        Map<String, Object> data = (Map<String, Object>) ingestDocument.getSourceAndMetadata().get("target_field");
+        assertThat(data, notNullValue());
+        assertThat(data.get("location"), equalTo(Map.of("lat", 37.751d, "lon", -97.822d)));
     }
 
     public void testListFirstOnlyNoMatches() throws Exception {

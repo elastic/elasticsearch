@@ -102,10 +102,7 @@ public class PromoteDataStreamTransportAction extends AcknowledgedTransportMaste
         clusterService.submitUnbatchedStateUpdateTask(source, task);
     }
 
-    static ClusterState promoteDataStream(
-        ClusterState currentState,
-        PromoteDataStreamAction.Request request
-    ) {
+    static ClusterState promoteDataStream(ClusterState currentState, PromoteDataStreamAction.Request request) {
         DataStream dataStream = currentState.getMetadata().dataStreams().get(request.getName());
 
         if (dataStream == null) {
@@ -123,8 +120,7 @@ public class PromoteDataStreamTransportAction extends AcknowledgedTransportMaste
     private static void warnIfTemplateMissingForDatastream(DataStream dataStream, ClusterState currentState) {
         var datastreamName = dataStream.getName();
 
-        var matchingIndex = currentState
-            .metadata()
+        var matchingIndex = currentState.metadata()
             .templatesV2()
             .values()
             .stream()

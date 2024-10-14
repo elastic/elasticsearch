@@ -1430,4 +1430,60 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
         );
 
     }
+
+    /**
+     * This test is muted as it's awaiting the same fix as {@link #testPartialRestoreSnapshotThatIncludesDataStreamWithGlobalState()}
+     */
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/107515")
+    public void testWarningHeaderOnRestoreTemplateFromSnapshot() throws Exception {
+        String datastreamName = "ds";
+
+        CreateSnapshotResponse createSnapshotResponse = client.admin()
+            .cluster()
+            .prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, REPO, SNAPSHOT)
+            .setWaitForCompletion(true)
+            .setIndices(datastreamName)
+            .setIncludeGlobalState(true)
+            .get();
+
+        RestStatus status = createSnapshotResponse.getSnapshotInfo().status();
+        SnapshotId snapshotId = createSnapshotResponse.getSnapshotInfo().snapshotId();
+        assertEquals(RestStatus.OK, status);
+
+        assertEquals(Collections.singletonList(dsBackingIndexName), getSnapshot(REPO, SNAPSHOT).indices());
+
+        assertAcked(
+            client.execute(
+                DeleteDataStreamAction.INSTANCE,
+                new DeleteDataStreamAction.Request(TEST_REQUEST_TIMEOUT, datastreamName, "other-ds")
+            )
+        );
+
+        assertAcked(
+            client.execute(
+                TransportDeleteComposableIndexTemplateAction.TYPE,
+                new TransportDeleteComposableIndexTemplateAction.Request(TEMPLATE_1_ID)
+            ).get()
+        );
+
+        RestoreSnapshotRequestBuilder request = client.admin()
+            .cluster()
+            .prepareRestoreSnapshot(TEST_REQUEST_TIMEOUT, REPO, SNAPSHOT)
+            .setWaitForCompletion(true)
+            .setRestoreGlobalState(true)
+            .setIndices(datastreamName);
+
+        assertNoWarningHeaderOnResponse(
+            client,
+            request,
+            "Snapshot ["
+                + snapshotId
+                + "] contains data stream ["
+                + datastreamName
+                + "] but custer does not have a matching index "
+                + "template. This will cause rollover to fail until a matching index template is created"
+        );
+
+    }
+
 }

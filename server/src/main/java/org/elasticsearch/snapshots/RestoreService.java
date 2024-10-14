@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.RestoreInProgress.ShardRestoreStatus;
 import org.elasticsearch.cluster.SnapshotDeletionsInProgress;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
+import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamAlias;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -399,7 +400,7 @@ public final class RestoreService implements ClusterStateApplier {
         Map<String, DataStream> dataStreamsToRestore = result.v1();
         Map<String, DataStreamAlias> dataStreamAliasesToRestore = result.v2();
 
-        validateDatastreamTemplatesExistAndWarnIfMissing(dataStreamsToRestore, snapshotInfo);
+        validateDataStreamTemplatesExistAndWarnIfMissing(dataStreamsToRestore, snapshotInfo, globalMetadata);
 
         // Remove the data streams from the list of requested indices
         requestIndices.removeAll(dataStreamsToRestore.keySet());
@@ -513,13 +514,18 @@ public final class RestoreService implements ClusterStateApplier {
         );
     }
 
-    private void validateDatastreamTemplatesExistAndWarnIfMissing(Map<String, DataStream> dataStreamsToRestore, SnapshotInfo snapshotInfo) {
-        var templatePatterns = clusterService.state()
-            .metadata()
-            .templatesV2()
-            .values()
-            .stream()
-            .filter(cit -> cit.getDataStreamTemplate() != null)
+    private void validateDataStreamTemplatesExistAndWarnIfMissing(
+        Map<String, DataStream> dataStreamsToRestore,
+        SnapshotInfo snapshotInfo,
+        Metadata globalMetadata
+    ) {
+
+        Stream<ComposableIndexTemplate> streams = Stream.concat(
+            clusterService.state().metadata().templatesV2().values().stream(),
+            globalMetadata == null ? Stream.empty() : globalMetadata.templatesV2().values().stream()
+        );
+
+        Set<String> templatePatterns = streams.filter(cit -> cit.getDataStreamTemplate() != null)
             .flatMap(cit -> cit.indexPatterns().stream())
             .collect(Collectors.toSet());
 

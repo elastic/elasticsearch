@@ -319,7 +319,7 @@ public class AzureBlobStore implements BlobStore {
                 }
             }
         } catch (Exception e) {
-            throw new IOException("Unable to delete blobs");
+            throw new IOException("Unable to delete blobs", e);
         }
     }
 

@@ -29,6 +29,17 @@ import static org.hamcrest.Matchers.is;
 
 public class AmazonBedrockSecretSettingsTests extends AbstractBWCWireSerializationTestCase<AmazonBedrockSecretSettings> {
 
+    public void testNewSecretSettings() {
+        AmazonBedrockSecretSettings initialSettings = createRandom();
+        AmazonBedrockSecretSettings newSettings = createRandom();
+
+        AmazonBedrockSecretSettings finalSettings = (AmazonBedrockSecretSettings) initialSettings.newSecretSettings(
+            Map.of(ACCESS_KEY_FIELD, newSettings.accessKey.toString(), SECRET_KEY_FIELD, newSettings.secretKey.toString())
+        );
+
+        assertEquals(newSettings, finalSettings);
+    }
+
     public void testIt_CreatesSettings_ReturnsNullFromMap_null() {
         var secrets = AmazonBedrockSecretSettings.fromMap(null);
         assertNull(secrets);

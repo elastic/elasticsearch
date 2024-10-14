@@ -354,3 +354,54 @@ setup:
               dims: 40
               index: true
               similarity: max_inner_product
+
+
+---
+"Search with synthetic source":
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_search
+          capabilities: [ bit_dense_vector_synthetic_source ]
+      test_runner_features: capabilities
+      reason: "Support for bit dense vector synthetic source capability required"
+  - do:
+      indices.create:
+        index: test_synthetic_source
+        body:
+          mappings:
+            properties:
+              name:
+                type: keyword
+              vector1:
+                type: dense_vector
+                element_type: bit
+                dims: 40
+                index: false
+              vector2:
+                type: dense_vector
+                element_type: bit
+                dims: 40
+                index: true
+                similarity: l2_norm
+
+  - do:
+      index:
+        index: test_synthetic_source
+        id: "1"
+        body:
+          name: cow.jpg
+          vector1: [2, -1, 1, 4, -3]
+          vector2: [2, -1, 1, 4, -3]
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        force_synthetic_source: true
+        index: test_synthetic_source
+
+  - match: {hits.hits.0._id: "1"}
+  - match: {hits.hits.0._source.vector1: [2, -1, 1, 4, -3]}
+  - match: {hits.hits.0._source.vector2: [2, -1, 1, 4, -3]}

@@ -375,6 +375,15 @@ tests:
 - class: org.elasticsearch.xpack.eql.EqlRestIT
   method: testIndexWildcardPatterns
   issue: https://github.com/elastic/elasticsearch/issues/114749
+- class: org.elasticsearch.xpack.eql.EqlRestIT
+  method: testBadRequests
+  issue: https://github.com/elastic/elasticsearch/issues/114752
+- class: org.elasticsearch.xpack.enrich.EnrichRestIT
+  method: test {p0=enrich/20_standard_index/enrich stats REST response structure}
+  issue: https://github.com/elastic/elasticsearch/issues/114753
+- class: org.elasticsearch.xpack.rank.rrf.RRFRankClientYamlTestSuiteIT
+  method: test {yaml=rrf/800_rrf_with_text_similarity_reranker_retriever/explain using rrf retriever and text-similarity}
+  issue: https://github.com/elastic/elasticsearch/issues/114757
 
 # Examples:
 #

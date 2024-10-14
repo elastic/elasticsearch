@@ -403,12 +403,12 @@ public class IpinfoIpDataLookupsTests extends ESTestCase {
         assertThat(parseDatabaseFromType("privacy_detection_sample.mmdb"), is(Database.PrivacyDetection));
 
         // additional cases where we're bailing early on types we don't support
-        assertThat(IpinfoIpDataLookups.getIpinfoDatabase("ipinfo ip_country_asn_sample.mmdb"), nullValue());
-        assertThat(IpinfoIpDataLookups.getIpinfoDatabase("ipinfo privacy_detection_extended_sample.mmdb"), nullValue());
+        assertThat(IpDataLookupFactories.getDatabase("ipinfo ip_country_asn_sample.mmdb"), nullValue());
+        assertThat(IpDataLookupFactories.getDatabase("ipinfo privacy_detection_extended_sample.mmdb"), nullValue());
     }
 
     private Database parseDatabaseFromType(String databaseFile) throws IOException {
-        return IpinfoIpDataLookups.getIpinfoDatabase(MMDBUtil.getDatabaseType(tmpDir.resolve(databaseFile)));
+        return IpDataLookupFactories.getDatabase(MMDBUtil.getDatabaseType(tmpDir.resolve(databaseFile)));
     }
 
     private static void assertDatabaseInvariants(final Path databasePath, final BiConsumer<InetAddress, Map<String, Object>> rowConsumer) {

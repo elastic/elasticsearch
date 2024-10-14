@@ -13,9 +13,13 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Nullable;
 
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 import java.util.function.Function;
 
+import static org.elasticsearch.ingest.geoip.IpinfoIpDataLookups.IPINFO_PREFIX;
+import static org.elasticsearch.ingest.geoip.IpinfoIpDataLookups.getIpinfoDatabase;
+import static org.elasticsearch.ingest.geoip.IpinfoIpDataLookups.getIpinfoLookup;
 import static org.elasticsearch.ingest.geoip.MaxmindIpDataLookups.getMaxmindDatabase;
 import static org.elasticsearch.ingest.geoip.MaxmindIpDataLookups.getMaxmindLookup;
 
@@ -41,7 +45,13 @@ final class IpDataLookupFactories {
         Database database = null;
 
         if (Strings.hasText(databaseType)) {
-            database = getMaxmindDatabase(databaseType);
+            final String databaseTypeLowerCase = databaseType.toLowerCase(Locale.ROOT);
+            if (databaseTypeLowerCase.startsWith(IPINFO_PREFIX)) {
+                database = getIpinfoDatabase(databaseTypeLowerCase); // all lower case!
+            } else {
+                // for historical reasons, fall back to assuming maxmind-like type parsing
+                database = getMaxmindDatabase(databaseType);
+            }
         }
 
         return database;
@@ -53,7 +63,14 @@ final class IpDataLookupFactories {
             throw new IllegalArgumentException("Unsupported database type [" + databaseType + "] for file [" + databaseFile + "]");
         }
 
-        final Function<Set<Database.Property>, IpDataLookup> factoryMethod = getMaxmindLookup(database);
+        final Function<Set<Database.Property>, IpDataLookup> factoryMethod;
+        final String databaseTypeLowerCase = databaseType.toLowerCase(Locale.ROOT);
+        if (databaseTypeLowerCase.startsWith(IPINFO_PREFIX)) {
+            factoryMethod = getIpinfoLookup(database);
+        } else {
+            // for historical reasons, fall back to assuming maxmind-like types
+            factoryMethod = getMaxmindLookup(database);
+        }
 
         if (factoryMethod == null) {
             throw new IllegalArgumentException("Unsupported database type [" + databaseType + "] for file [" + databaseFile + "]");

@@ -18,9 +18,8 @@ import org.elasticsearch.cluster.metadata.ItemUsage;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.IndexVersion;
-import org.elasticsearch.indices.EmptySystemIndices;
+import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Arrays;
@@ -30,10 +29,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class LifecyclePolicyUtilsTests extends ESTestCase {
     public void testCalculateUsage() {
-        final IndexNameExpressionResolver iner = new IndexNameExpressionResolver(
-            new ThreadContext(Settings.EMPTY),
-            EmptySystemIndices.INSTANCE
-        );
+        final IndexNameExpressionResolver iner = TestIndexNameExpressionResolver.newInstance();
 
         {
             // Test where policy does not exist

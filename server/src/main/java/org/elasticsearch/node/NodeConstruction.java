@@ -756,6 +756,7 @@ class NodeConstruction {
             snapshotsInfoService,
             threadPool,
             systemIndices,
+            projectResolver,
             getWriteLoadForecaster(threadPool, settings, clusterService.getClusterSettings()),
             telemetryProvider
         );

@@ -30,6 +30,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.indices.SystemIndices;
+import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockUtils;
@@ -120,7 +121,10 @@ public class TransportCreateIndexActionTests extends ESTestCase {
     public void setUp() throws Exception {
         super.setUp();
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
-        IndexNameExpressionResolver indexNameExpressionResolver = new IndexNameExpressionResolver(threadContext, SYSTEM_INDICES);
+        IndexNameExpressionResolver indexNameExpressionResolver = TestIndexNameExpressionResolver.newInstance(
+            threadContext,
+            SYSTEM_INDICES
+        );
         this.metadataCreateIndexService = mock(MetadataCreateIndexService.class);
 
         final ThreadPool threadPool = mock(ThreadPool.class);

@@ -140,7 +140,7 @@ public class DiskThresholdDecider extends AllocationDecider {
                 // if we don't yet know the actual path of the incoming shard then conservatively assume
                 // it's going to the path with the least free space
                 if (actualPath == null || actualPath.equals(dataPath)) {
-                    ProjectId projectId = routingTable.getProjectLookup().project(routing.index());
+                    ProjectId projectId = routingTable.getProjectLookup().project(routing.index()).get();
                     totalSize += Math.max(
                         routing.getExpectedShardSize(),
                         getExpectedShardSize(
@@ -161,7 +161,7 @@ public class DiskThresholdDecider extends AllocationDecider {
         if (subtractShardsMovingAway) {
             for (ShardRouting routing : node.relocating()) {
                 if (dataPath.equals(clusterInfo.getDataPath(routing))) {
-                    ProjectId projectId = routingTable.getProjectLookup().project(routing.index());
+                    ProjectId projectId = routingTable.getProjectLookup().project(routing.index()).get();
                     totalSize -= getExpectedShardSize(
                         routing,
                         0L,

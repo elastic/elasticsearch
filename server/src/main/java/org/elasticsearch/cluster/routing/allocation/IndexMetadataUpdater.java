@@ -118,13 +118,14 @@ public class IndexMetadataUpdater implements RoutingChangesObserver {
             .collect(Collectors.groupingBy(e -> e.getKey().getIndex()));
 
         final GlobalRoutingTable.ProjectLookup projectLookup = newRoutingTable.getProjectLookup();
-        final Map<ProjectId, List<Index>> indicesByProject = changesGroupedByIndex.keySet().stream().collect(Collectors.groupingBy(idx -> {
-            final ProjectId projectId = projectLookup.project(idx);
-            if (projectId == null) {
-                throw new IllegalStateException("cannot find project for index [" + idx + "]");
-            }
-            return projectId;
-        }));
+        final Map<ProjectId, List<Index>> indicesByProject = changesGroupedByIndex.keySet()
+            .stream()
+            .collect(
+                Collectors.groupingBy(
+                    idx -> projectLookup.project(idx)
+                        .orElseThrow(() -> new IllegalStateException("cannot find project for index [" + idx + "]"))
+                )
+            );
 
         final Metadata.Builder updatedMetadata = Metadata.builder(oldMetadata);
         indicesByProject.forEach((projectId, indices) -> {

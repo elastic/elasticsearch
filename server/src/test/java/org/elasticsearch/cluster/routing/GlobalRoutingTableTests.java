@@ -48,6 +48,8 @@ import java.util.Set;
 import java.util.function.Function;
 
 import static org.elasticsearch.common.util.Maps.transformValues;
+import static org.elasticsearch.test.hamcrest.OptionalMatchers.isEmpty;
+import static org.elasticsearch.test.hamcrest.OptionalMatchers.isPresentWith;
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -56,7 +58,6 @@ import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
-import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
 public class GlobalRoutingTableTests extends AbstractWireSerializingTestCase<GlobalRoutingTable> {
@@ -352,13 +353,13 @@ public class GlobalRoutingTableTests extends AbstractWireSerializingTestCase<Glo
         assertThat(lookup, Matchers.instanceOf(GlobalRoutingTable.SingleProjectLookup.class));
         indices.forEach(im -> {
             final Index index = im.getIndex();
-            assertThat(lookup.project(index), equalTo(projectId));
+            assertThat(lookup.project(index), isPresentWith(projectId));
 
             Index alt1 = new Index(index.getName(), randomValueOtherThan(im.getIndexUUID(), ESTestCase::randomUUID));
-            assertThat(lookup.project(alt1), nullValue());
+            assertThat(lookup.project(alt1), isEmpty());
 
             Index alt2 = new Index(randomAlphaOfLength(8), im.getIndexUUID());
-            assertThat(lookup.project(alt2), nullValue());
+            assertThat(lookup.project(alt2), isEmpty());
         });
     }
 
@@ -392,13 +393,13 @@ public class GlobalRoutingTableTests extends AbstractWireSerializingTestCase<Glo
 
         indices.forEach((project, ix) -> ix.forEach(im -> {
             final Index index = im.getIndex();
-            assertThat(lookup.project(index), equalTo(project));
+            assertThat(lookup.project(index), isPresentWith(project));
 
             Index alt1 = new Index(index.getName(), randomValueOtherThan(im.getIndexUUID(), ESTestCase::randomUUID));
-            assertThat(lookup.project(alt1), nullValue());
+            assertThat(lookup.project(alt1), isEmpty());
 
             Index alt2 = new Index(randomAlphaOfLength(8), im.getIndexUUID());
-            assertThat(lookup.project(alt2), nullValue());
+            assertThat(lookup.project(alt2), isEmpty());
         }));
     }
 

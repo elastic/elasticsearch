@@ -485,7 +485,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
             }
             if ((routing.active() || isRestarting || isNew) == false) {
                 String indexName = routing.getIndexName();
-                ProjectId projectId = state.globalRoutingTable().getProjectLookup().project(routing.index());
+                ProjectId projectId = state.globalRoutingTable().getProjectLookup().project(routing.index()).get();
                 Settings indexSettings = state.getMetadata().getProject(projectId).index(indexName).getSettings();
                 if (SearchableSnapshotsSettings.isSearchableSnapshotStore(indexSettings)) {
                     searchableSnapshotsState.addSearchableSnapshotWithUnavailableShard(indexName);
@@ -704,7 +704,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
     }
 
     private static IndexMetadata indexMetadata(ClusterState state, ShardRouting shardRouting) {
-        final ProjectId projectId = state.globalRoutingTable().getProjectLookup().project(shardRouting.index());
+        final ProjectId projectId = state.globalRoutingTable().getProjectLookup().project(shardRouting.index()).get();
         return state.metadata().getProject(projectId).index(shardRouting.index());
     }
 

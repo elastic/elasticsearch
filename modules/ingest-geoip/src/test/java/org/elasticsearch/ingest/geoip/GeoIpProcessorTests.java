@@ -50,6 +50,36 @@ public class GeoIpProcessorTests extends ESTestCase {
         IOUtils.rm(tmpDir);
     }
 
+    public void testMaxmindCity() throws Exception {
+        String ip = "2602:306:33d3:8000::3257:9652";
+        GeoIpProcessor processor = new GeoIpProcessor(
+            GEOIP_TYPE, // n.b. this is a "geoip" processor
+            randomAlphaOfLength(10),
+            null,
+            "source_field",
+            loader("GeoLite2-City.mmdb"),
+            () -> true,
+            "target_field",
+            getMaxmindCityLookup(),
+            false,
+            false,
+            "filename"
+        );
+
+        Map<String, Object> document = new HashMap<>();
+        document.put("source_field", ip);
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
+        processor.execute(ingestDocument);
+
+        assertThat(ingestDocument.getSourceAndMetadata().get("source_field"), equalTo(ip));
+        @SuppressWarnings("unchecked")
+        Map<String, Object> data = (Map<String, Object>) ingestDocument.getSourceAndMetadata().get("target_field");
+        assertThat(data, notNullValue());
+        assertThat(data.get("ip"), equalTo(ip));
+        assertThat(data.get("city_name"), equalTo("Homestead"));
+        // see MaxmindIpDataLookupsTests for more tests of the data lookup behavior
+    }
+
     public void testNullValueWithIgnoreMissing() throws Exception {
         GeoIpProcessor processor = new GeoIpProcessor(
             GEOIP_TYPE,
@@ -409,7 +439,8 @@ public class GeoIpProcessorTests extends ESTestCase {
     }
 
     private static IpDataLookup getMaxmindCityLookup() {
-        return MaxmindIpDataLookups.getMaxmindLookup(Database.City).apply(Database.City.properties());
+        final var database = Database.City;
+        return MaxmindIpDataLookups.getMaxmindLookup(database).apply(database.properties());
     }
 
     private CheckedSupplier<IpDatabase, IOException> loader(final String path) {

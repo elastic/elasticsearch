@@ -104,7 +104,7 @@ public class DataFrameAnalyticsSourceTests extends AbstractBWCSerializationTestC
             IllegalArgumentException.class,
             () -> new DataFrameAnalyticsSource(new String[] { "index" }, null, FetchSourceContext.DO_NOT_FETCH_SOURCE, null)
         );
-        assertThat(e.getMessage(), equalTo("source._source can not be disabled"));
+        assertThat(e.getMessage(), equalTo("source._source cannot be disabled"));
     }
 
     public void testConstructor_GivenInvalidRuntimeMappings() {

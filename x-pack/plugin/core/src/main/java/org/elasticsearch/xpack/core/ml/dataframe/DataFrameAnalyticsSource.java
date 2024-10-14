@@ -96,7 +96,7 @@ public class DataFrameAnalyticsSource implements Writeable, ToXContentObject {
         }
         this.queryProvider = queryProvider == null ? QueryProvider.defaultQuery() : queryProvider;
         if (sourceFiltering != null && sourceFiltering.fetchSource() == false) {
-            throw new IllegalArgumentException("source._source can not be disabled");
+            throw new IllegalArgumentException("source._source cannot be disabled");
         }
         this.sourceFiltering = sourceFiltering;
         this.runtimeMappings = runtimeMappings == null ? Collections.emptyMap() : Collections.unmodifiableMap(runtimeMappings);

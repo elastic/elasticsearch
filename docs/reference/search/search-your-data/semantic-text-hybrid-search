@@ -215,7 +215,7 @@ After performing the hybrid search, the query will return the top 10 documents t
         "_score": 0.032786883,
         "_rank": 1,
         "_source": {
-          "semantic_text": { <4>
+          "semantic_text": {
             "inference": {
               "inference_id": "my-elser-endpoint",
               "model_settings": {

@@ -15,11 +15,7 @@ import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.MergeScheduler;
 import org.apache.lucene.util.SameThreadExecutorService;
 import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.common.metrics.CounterMetric;
-import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
@@ -29,8 +25,6 @@ import org.elasticsearch.index.merge.OnGoingMerge;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
-import java.util.Collections;
-import java.util.Locale;
 import java.util.Set;
 import java.util.concurrent.Executor;
 
@@ -38,23 +32,13 @@ import java.util.concurrent.Executor;
  * An extension to the {@link ConcurrentMergeScheduler} that provides tracking on merge times, total
  * and current merges.
  */
-class ElasticsearchConcurrentMergeScheduler extends ConcurrentMergeScheduler {
+public class ElasticsearchConcurrentMergeScheduler extends ConcurrentMergeScheduler implements ElasticsearchMergeScheduler {
 
     protected final Logger logger;
     private final Settings indexSettings;
     private final ShardId shardId;
 
-    private final MeanMetric totalMerges = new MeanMetric();
-    private final CounterMetric totalMergesNumDocs = new CounterMetric();
-    private final CounterMetric totalMergesSizeInBytes = new CounterMetric();
-    private final CounterMetric currentMerges = new CounterMetric();
-    private final CounterMetric currentMergesNumDocs = new CounterMetric();
-    private final CounterMetric currentMergesSizeInBytes = new CounterMetric();
-    private final CounterMetric totalMergeStoppedTime = new CounterMetric();
-    private final CounterMetric totalMergeThrottledTime = new CounterMetric();
-
-    private final Set<OnGoingMerge> onGoingMerges = ConcurrentCollections.newConcurrentSet();
-    private final Set<OnGoingMerge> readOnlyOnGoingMerges = Collections.unmodifiableSet(onGoingMerges);
+    private final MergeTracking mergeTracking;
     private final MergeSchedulerConfig config;
     private final SameThreadExecutorService sameThreadExecutorService = new SameThreadExecutorService();
 
@@ -63,11 +47,16 @@ class ElasticsearchConcurrentMergeScheduler extends ConcurrentMergeScheduler {
         this.shardId = shardId;
         this.indexSettings = indexSettings.getSettings();
         this.logger = Loggers.getLogger(getClass(), shardId);
+        this.mergeTracking = new MergeTracking(
+            logger,
+            () -> indexSettings.getMergeSchedulerConfig().isAutoThrottle() ? getIORateLimitMBPerSec() : Double.POSITIVE_INFINITY
+        );
         refreshConfig();
     }
 
+    @Override
     public Set<OnGoingMerge> onGoingMerges() {
-        return readOnlyOnGoingMerges;
+        return mergeTracking.onGoingMerges();
     }
 
     /** We're currently only interested in messages with this prefix. */
@@ -104,74 +93,21 @@ class ElasticsearchConcurrentMergeScheduler extends ConcurrentMergeScheduler {
         super.message(message);
     }
 
-    private static String getSegmentName(MergePolicy.OneMerge merge) {
-        return merge.getMergeInfo() != null ? merge.getMergeInfo().info.name : "_na_";
-    }
-
     @Override
     protected void doMerge(MergeSource mergeSource, MergePolicy.OneMerge merge) throws IOException {
-        int totalNumDocs = merge.totalNumDocs();
-        long totalSizeInBytes = merge.totalBytesSize();
         long timeNS = System.nanoTime();
-        currentMerges.inc();
-        currentMergesNumDocs.inc(totalNumDocs);
-        currentMergesSizeInBytes.inc(totalSizeInBytes);
-
         OnGoingMerge onGoingMerge = new OnGoingMerge(merge);
-        onGoingMerges.add(onGoingMerge);
-
-        if (logger.isTraceEnabled()) {
-            logger.trace(
-                "merge [{}] starting..., merging [{}] segments, [{}] docs, [{}] size, into [{}] estimated_size",
-                getSegmentName(merge),
-                merge.segments.size(),
-                totalNumDocs,
-                ByteSizeValue.ofBytes(totalSizeInBytes),
-                ByteSizeValue.ofBytes(merge.estimatedMergeBytes)
-            );
-        }
+        mergeTracking.mergeStarted(onGoingMerge);
         try {
             beforeMerge(onGoingMerge);
             super.doMerge(mergeSource, merge);
         } finally {
             long tookMS = TimeValue.nsecToMSec(System.nanoTime() - timeNS);
+            mergeTracking.mergeFinished(merge, onGoingMerge, tookMS);
 
-            onGoingMerges.remove(onGoingMerge);
             afterMerge(onGoingMerge);
-
-            currentMerges.dec();
-            currentMergesNumDocs.dec(totalNumDocs);
-            currentMergesSizeInBytes.dec(totalSizeInBytes);
-
-            totalMergesNumDocs.inc(totalNumDocs);
-            totalMergesSizeInBytes.inc(totalSizeInBytes);
-            totalMerges.inc(tookMS);
-            long stoppedMS = TimeValue.nsecToMSec(
-                merge.getMergeProgress().getPauseTimes().get(MergePolicy.OneMergeProgress.PauseReason.STOPPED)
-            );
-            long throttledMS = TimeValue.nsecToMSec(
-                merge.getMergeProgress().getPauseTimes().get(MergePolicy.OneMergeProgress.PauseReason.PAUSED)
-            );
-            totalMergeStoppedTime.inc(stoppedMS);
-            totalMergeThrottledTime.inc(throttledMS);
-
-            String message = String.format(
-                Locale.ROOT,
-                "merge segment [%s] done: took [%s], [%,.1f MB], [%,d docs], [%s stopped], [%s throttled]",
-                getSegmentName(merge),
-                TimeValue.timeValueMillis(tookMS),
-                totalSizeInBytes / 1024f / 1024f,
-                totalNumDocs,
-                TimeValue.timeValueMillis(stoppedMS),
-                TimeValue.timeValueMillis(throttledMS)
-            );
-
-            if (tookMS > 20000) { // if more than 20 seconds, DEBUG log it
-                logger.debug("{}", message);
-            } else if (logger.isTraceEnabled()) {
-                logger.trace("{}", message);
-            }
         }
+
     }
 
     /**
@@ -206,24 +142,13 @@ class ElasticsearchConcurrentMergeScheduler extends ConcurrentMergeScheduler {
         return thread;
     }
 
-    MergeStats stats() {
-        final MergeStats mergeStats = new MergeStats();
-        mergeStats.add(
-            totalMerges.count(),
-            totalMerges.sum(),
-            totalMergesNumDocs.count(),
-            totalMergesSizeInBytes.count(),
-            currentMerges.count(),
-            currentMergesNumDocs.count(),
-            currentMergesSizeInBytes.count(),
-            totalMergeStoppedTime.count(),
-            totalMergeThrottledTime.count(),
-            config.isAutoThrottle() ? getIORateLimitMBPerSec() : Double.POSITIVE_INFINITY
-        );
-        return mergeStats;
+    @Override
+    public MergeStats stats() {
+        return mergeTracking.stats();
     }
 
-    void refreshConfig() {
+    @Override
+    public void refreshConfig() {
         if (this.getMaxMergeCount() != config.getMaxMergeCount() || this.getMaxThreadCount() != config.getMaxThreadCount()) {
             this.setMaxMergesAndThreads(config.getMaxMergeCount(), config.getMaxThreadCount());
         }
@@ -233,5 +158,10 @@ class ElasticsearchConcurrentMergeScheduler extends ConcurrentMergeScheduler {
         } else if (config.isAutoThrottle() == false && isEnabled) {
             disableAutoIOThrottle();
         }
+    }
+
+    @Override
+    public MergeScheduler getMergeScheduler() {
+        return this;
     }
 }

@@ -23,6 +23,7 @@ import co.elastic.elasticsearch.stateless.action.TransportNewCommitNotificationA
 import co.elastic.elasticsearch.stateless.cache.SharedBlobCacheWarmingService;
 import co.elastic.elasticsearch.stateless.cluster.coordination.StatelessClusterConsistencyService;
 import co.elastic.elasticsearch.stateless.engine.PrimaryTermAndGeneration;
+import co.elastic.elasticsearch.stateless.lucene.IndexBlobStoreCacheDirectory;
 import co.elastic.elasticsearch.stateless.lucene.StatelessCommitRef;
 import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
 import co.elastic.elasticsearch.stateless.recovery.RegisterCommitResponse;
@@ -659,6 +660,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
             uploadedBlobs.clear();
 
             var indexingShardState = ObjectStoreService.readIndexingShardState(
+                IndexBlobStoreCacheDirectory.unwrapDirectory(testHarness.indexingDirectory),
                 testHarness.objectStoreService.getBlobContainer(testHarness.shardId),
                 primaryTerm
             );
@@ -1257,6 +1259,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
             waitUntilBCCIsUploaded(commitService, shardId, recoveryCommit.getGeneration());
 
             var indexingShardState = ObjectStoreService.readIndexingShardState(
+                IndexBlobStoreCacheDirectory.unwrapDirectory(testHarness.indexingDirectory),
                 testHarness.objectStoreService.getBlobContainer(testHarness.shardId),
                 primaryTerm
             );
@@ -1398,6 +1401,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
             testHarness.commitService.unregister(testHarness.shardId);
 
             var indexingShardState = ObjectStoreService.readIndexingShardState(
+                IndexBlobStoreCacheDirectory.unwrapDirectory(testHarness.indexingDirectory),
                 testHarness.objectStoreService.getBlobContainer(testHarness.shardId),
                 primaryTerm
             );

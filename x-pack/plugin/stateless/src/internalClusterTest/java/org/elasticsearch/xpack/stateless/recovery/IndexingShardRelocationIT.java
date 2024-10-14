@@ -1068,6 +1068,7 @@ public class IndexingShardRelocationIT extends AbstractStatelessIntegTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://elasticco.atlassian.net/browse/ES-9768") // Adjust the test once ES-9768 is merged
     public void testRelocatingIndexShardUsesOneCacheRegion() throws Exception {
         startMasterOnlyNode();
         final var indexNodesSettings = Settings.builder()

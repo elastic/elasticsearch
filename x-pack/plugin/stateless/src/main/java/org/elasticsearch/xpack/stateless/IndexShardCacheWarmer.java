@@ -25,11 +25,9 @@ import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
 
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardNotRecoveringException;
 import org.elasticsearch.index.shard.IndexShardState;
-import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.logging.Level;
 import org.elasticsearch.logging.LogManager;
@@ -78,21 +76,24 @@ public class IndexShardCacheWarmer {
     }
 
     private void doPreWarmIndexShardCache(IndexShard indexShard) {
+        assert indexShard.routingEntry().isPromotableToPrimary();
         final Store store = indexShard.store();
         if (store.tryIncRef()) {
             try {
                 final var blobStore = objectStoreService.blobStore();
-                final ShardId shardId = indexShard.shardId();
-                final var shardBasePath = objectStoreService.shardBasePath(shardId);
-                final BlobContainer existingBlobContainer = blobStore.blobContainer(shardBasePath);
+                final var shardBasePath = objectStoreService.shardBasePath(indexShard.shardId());
+                var indexDirectory = IndexDirectory.unwrapDirectory(store.directory());
+                var prewarmingDirectory = indexDirectory.getPreWarmingInstance();
+                prewarmingDirectory.setBlobContainer(
+                    primaryTerm -> blobStore.blobContainer(shardBasePath.add(String.valueOf(primaryTerm)))
+                );
                 final BatchedCompoundCommit batchedCompoundCommit = ObjectStoreService.readIndexingShardState(
-                    existingBlobContainer,
+                    prewarmingDirectory,
+                    blobStore.blobContainer(shardBasePath),
                     indexShard.getOperationPrimaryTerm()
                 ).latestCommit();
                 if (batchedCompoundCommit != null) {
-                    assert indexShard.routingEntry().isPromotableToPrimary();
                     StatelessCompoundCommit last = batchedCompoundCommit.lastCompoundCommit();
-                    var indexDirectory = IndexDirectory.unwrapDirectory(store.directory());
                     // We do not want to update the internal directory metadata this early as this gets dispatched
                     // into the GENERIC thread pool and, it can make the directory to go backwards if the recovery
                     // makes progress before this task gets executed, for that reason we create a new directory that

@@ -264,6 +264,7 @@ public class RecoveryMetricsIT extends AbstractStatelessIntegTestCase {
         });
     }
 
+    @AwaitsFix(bugUrl = "https://elasticco.atlassian.net/browse/ES-9768") // Adjust the test once ES-9768 is merged
     public void testRecoveryMetricPublicationBytesReadToCache() {
         startMasterOnlyNode();
         // in scenarios where cache is disabled (see AbstractStatelessIntegTestCase#settingsForRoles)

@@ -9,13 +9,11 @@
 
 package org.elasticsearch.rest.action.admin.indices;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -55,16 +53,7 @@ public class RestCloseIndexAction extends BaseRestHandler {
         closeIndexRequest.indicesOptions(IndicesOptions.fromRequest(request, closeIndexRequest.indicesOptions()));
         String waitForActiveShards = request.param("wait_for_active_shards");
         if ("index-setting".equalsIgnoreCase(waitForActiveShards)) {
-            deprecationLogger.warn(
-                DeprecationCategory.SETTINGS,
-                "close-index-wait_for_active_shards-index-setting",
-                "?wait_for_active_shards=index-setting is now the default behaviour; the 'index-setting' value for this parameter "
-                    + "should no longer be used since it will become unsupported in version "
-                    + (Version.V_8_0_0.major + 1)
-            );
-            // TODO in v9:
-            // - throw an IllegalArgumentException here
-            // - record the removal of support for this value as a breaking change
+            throw new IllegalArgumentException("wait_for_active_shards=index-setting shouldn't be used");
             // TODO in v10:
             // - remove the IllegalArgumentException here
         } else if (waitForActiveShards != null) {

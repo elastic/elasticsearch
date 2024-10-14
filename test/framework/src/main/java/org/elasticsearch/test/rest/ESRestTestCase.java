@@ -62,7 +62,6 @@ import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.features.FeatureSpecification;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.health.node.selection.HealthNode;
@@ -1900,19 +1899,8 @@ public abstract class ESRestTestCase extends ESTestCase {
         return RestStatus.OK.getStatus() == response.getStatusLine().getStatusCode();
     }
 
-    /**
-     * Deprecation message emitted since 7.12.0 for the rest of the 7.x series. Can be removed in v9 since it is not
-     * emitted in v8. Note that this message is also permitted in certain YAML test cases, it can be removed there too.
-     * See https://github.com/elastic/elasticsearch/issues/66419 for more details.
-     */
-    @UpdateForV9(owner = UpdateForV9.Owner.DISTRIBUTED_COORDINATION)
-    private static final String WAIT_FOR_ACTIVE_SHARDS_DEFAULT_DEPRECATION_MESSAGE = "the default value for the ?wait_for_active_shards "
-        + "parameter will change from '0' to 'index-setting' in version 8; specify '?wait_for_active_shards=index-setting' "
-        + "to adopt the future default behaviour, or '?wait_for_active_shards=0' to preserve today's behaviour";
-
     protected static void closeIndex(String index) throws IOException {
         final Request closeRequest = new Request(HttpPost.METHOD_NAME, "/" + index + "/_close");
-        closeRequest.setOptions(expectVersionSpecificWarnings(v -> v.compatible(WAIT_FOR_ACTIVE_SHARDS_DEFAULT_DEPRECATION_MESSAGE)));
         assertOK(client().performRequest(closeRequest));
     }
 

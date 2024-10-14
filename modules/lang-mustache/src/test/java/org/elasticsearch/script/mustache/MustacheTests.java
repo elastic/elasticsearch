@@ -7,8 +7,8 @@
  */
 package org.elasticsearch.script.mustache;
 
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.script.ScriptEngine;
 import org.elasticsearch.script.ScriptException;

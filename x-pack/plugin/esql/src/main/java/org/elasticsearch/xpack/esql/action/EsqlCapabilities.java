@@ -352,11 +352,6 @@ public class EsqlCapabilities {
         MATCH_FUNCTION,
 
         /**
-         * MATCH function
-         */
-        MATCH_FUNCTION(true),
-
-        /**
          * Don't optimize CASE IS NOT NULL function by not requiring the fields to be not null as well.
          * https://github.com/elastic/elasticsearch/issues/112704
          */

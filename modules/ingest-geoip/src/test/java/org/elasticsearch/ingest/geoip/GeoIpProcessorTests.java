@@ -27,6 +27,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.ingest.IngestDocumentMatcher.assertIngestDocument;
 import static org.elasticsearch.ingest.geoip.GeoIpProcessor.GEOIP_TYPE;
+import static org.elasticsearch.ingest.geoip.GeoIpProcessor.IP_LOCATION_TYPE;
 import static org.elasticsearch.ingest.geoip.GeoIpTestUtils.copyDatabase;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -78,6 +79,36 @@ public class GeoIpProcessorTests extends ESTestCase {
         assertThat(data.get("ip"), equalTo(ip));
         assertThat(data.get("city_name"), equalTo("Homestead"));
         // see MaxmindIpDataLookupsTests for more tests of the data lookup behavior
+    }
+
+    public void testIpinfoGeolocation() throws Exception {
+        String ip = "13.107.39.238";
+        GeoIpProcessor processor = new GeoIpProcessor(
+            IP_LOCATION_TYPE, // n.b. this is an "ip_location" processor
+            randomAlphaOfLength(10),
+            null,
+            "source_field",
+            loader("ipinfo/ip_geolocation_sample.mmdb"),
+            () -> true,
+            "target_field",
+            getIpinfoGeolocationLookup(),
+            false,
+            false,
+            "filename"
+        );
+
+        Map<String, Object> document = new HashMap<>();
+        document.put("source_field", ip);
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
+        processor.execute(ingestDocument);
+
+        assertThat(ingestDocument.getSourceAndMetadata().get("source_field"), equalTo(ip));
+        @SuppressWarnings("unchecked")
+        Map<String, Object> data = (Map<String, Object>) ingestDocument.getSourceAndMetadata().get("target_field");
+        assertThat(data, notNullValue());
+        assertThat(data.get("ip"), equalTo(ip));
+        assertThat(data.get("city_name"), equalTo("Des Moines"));
+        // see IpinfoIpDataLookupsTests for more tests of the data lookup behavior
     }
 
     public void testNullValueWithIgnoreMissing() throws Exception {
@@ -443,13 +474,19 @@ public class GeoIpProcessorTests extends ESTestCase {
         return MaxmindIpDataLookups.getMaxmindLookup(database).apply(database.properties());
     }
 
+    private static IpDataLookup getIpinfoGeolocationLookup() {
+        final var database = Database.CityV2;
+        return IpinfoIpDataLookups.getIpinfoLookup(database).apply(database.properties());
+    }
+
     private CheckedSupplier<IpDatabase, IOException> loader(final String path) {
         var loader = loader(path, null);
         return () -> loader;
     }
 
     private DatabaseReaderLazyLoader loader(final String databaseName, final AtomicBoolean closed) {
-        Path path = tmpDir.resolve(databaseName);
+        int last = databaseName.lastIndexOf("/");
+        final Path path = tmpDir.resolve(last == -1 ? databaseName : databaseName.substring(last + 1));
         copyDatabase(databaseName, path);
 
         final GeoIpCache cache = new GeoIpCache(1000);

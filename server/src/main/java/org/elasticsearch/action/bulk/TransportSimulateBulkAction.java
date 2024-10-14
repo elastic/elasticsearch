@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
@@ -54,6 +55,9 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
@@ -363,7 +367,7 @@ public class TransportSimulateBulkAction extends TransportAbstractBulkAction {
         if (map1.isEmpty()) {
             return null;
         } else {
-            return SimulateBulkRequest.convertRawAdditionalMappingToXContent(map1);
+            return convertRawAdditionalMappingToXContent(map1);
         }
     }
 
@@ -405,5 +409,26 @@ public class TransportSimulateBulkAction extends TransportAbstractBulkAction {
     protected Boolean resolveFailureStore(String indexName, Metadata metadata, long epochMillis) {
         // A simulate bulk request should not change any persistent state in the system, so we never write to the failure store
         return null;
+    }
+
+    public static CompressedXContent convertRawAdditionalMappingToXContent(Map<String, Object> rawAdditionalMapping) throws IOException {
+        CompressedXContent compressedXContent;
+        if (rawAdditionalMapping == null || rawAdditionalMapping.isEmpty()) {
+            compressedXContent = null;
+        } else {
+            try (var parser = XContentHelper.mapToXContentParser(XContentParserConfiguration.EMPTY, rawAdditionalMapping)) {
+                compressedXContent = mappingFromXContent(parser);
+            }
+        }
+        return compressedXContent;
+    }
+
+    private static CompressedXContent mappingFromXContent(XContentParser parser) throws IOException {
+        XContentParser.Token token = parser.nextToken();
+        if (token == XContentParser.Token.START_OBJECT) {
+            return new CompressedXContent(Strings.toString(XContentFactory.jsonBuilder().map(parser.mapOrdered())));
+        } else {
+            throw new IllegalArgumentException("Unexpected token: " + token);
+        }
     }
 }

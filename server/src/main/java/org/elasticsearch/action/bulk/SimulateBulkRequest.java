@@ -12,14 +12,11 @@ package org.elasticsearch.action.bulk;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.xcontent.XContentFactory;
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 
 import java.io.IOException;
@@ -192,7 +189,7 @@ public class SimulateBulkRequest extends BulkRequest {
     }
 
     public CompressedXContent getMappingAddition() throws IOException {
-        return convertRawAdditionalMappingToXContent(mappingAddition);
+        return TransportSimulateBulkAction.convertRawAdditionalMappingToXContent(mappingAddition);
     }
 
     private static ComponentTemplate convertRawTemplateToComponentTemplate(Map<String, Object> rawTemplate) throws IOException {
@@ -209,27 +206,6 @@ public class SimulateBulkRequest extends BulkRequest {
             indexTemplate = ComposableIndexTemplate.parse(parser);
         }
         return indexTemplate;
-    }
-
-    public static CompressedXContent convertRawAdditionalMappingToXContent(Map<String, Object> rawAdditionalMapping) throws IOException {
-        CompressedXContent compressedXContent;
-        if (rawAdditionalMapping == null || rawAdditionalMapping.isEmpty()) {
-            compressedXContent = null;
-        } else {
-            try (var parser = XContentHelper.mapToXContentParser(XContentParserConfiguration.EMPTY, rawAdditionalMapping)) {
-                compressedXContent = mappingFromXContent(parser);
-            }
-        }
-        return compressedXContent;
-    }
-
-    private static CompressedXContent mappingFromXContent(XContentParser parser) throws IOException {
-        XContentParser.Token token = parser.nextToken();
-        if (token == XContentParser.Token.START_OBJECT) {
-            return new CompressedXContent(Strings.toString(XContentFactory.jsonBuilder().map(parser.mapOrdered())));
-        } else {
-            throw new IllegalArgumentException("Unexpected token: " + token);
-        }
     }
 
     @Override

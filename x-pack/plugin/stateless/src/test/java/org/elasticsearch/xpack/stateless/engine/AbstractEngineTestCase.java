@@ -19,6 +19,7 @@
 
 package co.elastic.elasticsearch.stateless.engine;
 
+import co.elastic.elasticsearch.stateless.Stateless;
 import co.elastic.elasticsearch.stateless.cache.StatelessSharedBlobCacheService;
 import co.elastic.elasticsearch.stateless.cache.reader.CacheBlobReaderService;
 import co.elastic.elasticsearch.stateless.cache.reader.MutableObjectStoreUploadTracker;
@@ -279,7 +280,9 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
         var indexSettings = IndexSettingsModule.newIndexSettings(shardId.getIndex(), settings, nodeSettings);
         var translogConfig = new TranslogConfig(shardId, createTempDir(), indexSettings, BigArrays.NON_RECYCLING_INSTANCE);
         var indexWriterConfig = newIndexWriterConfig();
-        var threadPool = registerThreadPool(new TestThreadPool(getTestName() + "[" + shardId + "][index]"));
+        var threadPool = registerThreadPool(
+            new TestThreadPool(getTestName() + "[" + shardId + "][index]", Stateless.statelessExecutorBuilders(Settings.EMPTY, true))
+        );
         var directory = newDirectory();
         if (Lucene.indexExists(directory)) {
             throw new AssertionError("Lucene index already exist for shard " + shardId);

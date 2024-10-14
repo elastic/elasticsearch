@@ -41,6 +41,7 @@ import co.elastic.elasticsearch.stateless.engine.IndexEngine;
 import co.elastic.elasticsearch.stateless.engine.PrimaryTermAndGeneration;
 import co.elastic.elasticsearch.stateless.engine.SearchEngine;
 import co.elastic.elasticsearch.stateless.engine.SearchEngineTestUtils;
+import co.elastic.elasticsearch.stateless.engine.ThreadPoolMergeScheduler;
 import co.elastic.elasticsearch.stateless.lucene.stats.ShardSizeStatsClient;
 import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
 
@@ -454,6 +455,7 @@ public class GenerationalDocValuesIT extends AbstractStatelessIntegTestCase {
     @Override
     protected Settings.Builder nodeSettings() {
         return super.nodeSettings().put(ObjectStoreService.TYPE_SETTING.getKey(), ObjectStoreService.ObjectStoreType.MOCK)
+            .put(ThreadPoolMergeScheduler.MERGE_THREAD_POOL_SCHEDULER.getKey(), true)
             .put(disableIndexingDiskAndMemoryControllersNodeSettings());
     }
 
@@ -580,9 +582,9 @@ public class GenerationalDocValuesIT extends AbstractStatelessIntegTestCase {
             void maybeBlock(String blobName) {
                 if (blobName.equals(bccContainingFirstGenFile)) {
                     var currentThreadName = Thread.currentThread().getName();
-                    if (currentThreadName.contains("Lucene Merge Thread #0")) {
+                    if (currentThreadName.contains("stateless.merge][T#1")) {
                         blockRead(bccContainingFirstGenFileReadFirstMergeBlocked, blockBccContainingFirstGenFileReadByFirstMerge);
-                    } else if (currentThreadName.contains("Lucene Merge Thread #1")) {
+                    } else if (currentThreadName.contains("stateless.merge][T#2")) {
                         blockRead(bccContainingFirstGenFileReadSecondMergeBlocked, blockBccContainingFirstGenFileReadBySecondMerge);
                     }
                 }

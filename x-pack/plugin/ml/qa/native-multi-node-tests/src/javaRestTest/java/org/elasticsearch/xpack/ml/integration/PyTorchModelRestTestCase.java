@@ -12,11 +12,8 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseListener;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
-import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.SecuritySettingsSourceField;
@@ -298,12 +295,6 @@ public abstract class PyTorchModelRestTestCase extends ESRestTestCase {
             + deploymentId
             + "&threads_per_allocation=1"
             + "&wait_for=started";
-
-        ChunkedToXContentObject innerChunkedContent = params -> Iterators.concat(
-            ChunkedToXContentHelper.startObject(),
-            Iterators.single(((builder, p2) -> builder.field("adaptive_allocations", adaptiveAllocationsSettings))),
-            ChunkedToXContentHelper.endObject()
-        );
 
         XContentBuilder builder = JsonXContent.contentBuilder();
         builder.startObject();

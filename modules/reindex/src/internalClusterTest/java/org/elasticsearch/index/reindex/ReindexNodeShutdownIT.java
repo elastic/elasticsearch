@@ -47,7 +47,8 @@ public class ReindexNodeShutdownIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(ReindexPlugin.class, ShutdownPlugin.class);
+        return Arrays.asList(ReindexPlugin.class,
+            ShutdownPlugin.class);
     }
 
     protected ReindexRequestBuilder reindex(String nodeName) {

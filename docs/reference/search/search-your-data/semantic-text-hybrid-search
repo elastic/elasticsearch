@@ -153,7 +153,7 @@ After reindexing the data into the `semantic-embeddings` index, you can perform 
 
 [source,console]
 ------------------------------------------------------------
-GET semantic-hybrid-embeddings/_search
+GET semantic-embeddings/_search
 {
   "retriever": {
     "rrf": {

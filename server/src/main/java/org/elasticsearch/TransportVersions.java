@@ -242,6 +242,7 @@ public class TransportVersions {
     public static final TransportVersion ESQL_CACHED_STRING_SERIALIZATION = def(8_766_00_0);
     public static final TransportVersion CHUNK_SENTENCE_OVERLAP_SETTING_ADDED = def(8_767_00_0);
     public static final TransportVersion OPT_IN_ESQL_CCS_EXECUTION_INFO = def(8_768_00_0);
+    public static final TransportVersion QUERY_RULE_TEST_API = def(8_769_00_0);
 
     /*
      * STOP! READ THIS FIRST! No, really,

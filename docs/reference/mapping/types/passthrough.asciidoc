@@ -162,7 +162,7 @@ PUT _index_template/my-metrics
   }
 }
 
-POST metrics-test/_doc
+POST metrics-mymetrics-test/_doc
 {
   "@timestamp": "2020-01-01T00:00:00.000Z",
   "attributes" : {

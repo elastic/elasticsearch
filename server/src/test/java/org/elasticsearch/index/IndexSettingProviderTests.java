@@ -9,7 +9,7 @@
 
 package org.elasticsearch.index;
 
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
@@ -80,7 +80,7 @@ public class IndexSettingProviderTests extends ESSingleNodeTestCase {
             String indexName,
             String dataStreamName,
             boolean isTimeSeries,
-            Metadata metadata,
+            ProjectMetadata metadata,
             Instant resolvedAt,
             Settings indexTemplateAndCreateRequestSettings,
             List<CompressedXContent> combinedTemplateMappings

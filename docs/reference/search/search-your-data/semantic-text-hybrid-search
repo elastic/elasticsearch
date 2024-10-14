@@ -50,8 +50,7 @@ You can check the download progress in the {ml-app} UI.
 [[hybrid-search-create-index-mapping]]
 ==== Create an index mapping for hybrid search
 
-The destination index (where the search will be performed) should contain both the embeddings for semantic search and the original text field for full-text search. This structure enables the combination of semantic search and full-text search, allowing the search engine to consider both the 
-meaning and the exact words in the query.
+The destination index will contain both the embeddings for semantic search and the original text field for full-text search. This structure enables the combination of semantic search and full-text search.
 
 [source,console]
 ------------------------------------------------------------

@@ -101,7 +101,13 @@ primaryExpression
     ;
 
 functionExpression
-    : identifierOrParameter LP (ASTERISK | (booleanExpression (COMMA booleanExpression)*))? RP
+    : functionName LP (ASTERISK | (booleanExpression (COMMA booleanExpression)*))? RP
+    ;
+
+functionName
+    // Additional function identifiers that are already a reserved word in the language
+    : {this.isDevVersion()}? DEV_MATCH
+    | identifierOrParameter
     ;
 
 dataType

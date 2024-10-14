@@ -7,21 +7,21 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.gradle.internal.distribution;
+package org.elasticsearch.index.engine;
 
-import org.elasticsearch.gradle.ElasticsearchDistributionType;
+import org.apache.lucene.index.MergeScheduler;
+import org.elasticsearch.index.merge.MergeStats;
+import org.elasticsearch.index.merge.OnGoingMerge;
 
-public class DockerWolfiEssElasticsearchDistributionType implements ElasticsearchDistributionType {
+import java.util.Set;
 
-    DockerWolfiEssElasticsearchDistributionType() {}
+public interface ElasticsearchMergeScheduler {
 
-    @Override
-    public String getName() {
-        return "dockerWolfiEss";
-    }
+    Set<OnGoingMerge> onGoingMerges();
 
-    @Override
-    public boolean isDocker() {
-        return true;
-    }
+    MergeStats stats();
+
+    void refreshConfig();
+
+    MergeScheduler getMergeScheduler();
 }

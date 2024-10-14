@@ -344,6 +344,9 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/114611
 - class: org.elasticsearch.xpack.test.rest.XPackRestIT
   issue: https://github.com/elastic/elasticsearch/issues/114723
+- class: org.elasticsearch.kibana.KibanaThreadPoolIT
+  method: testBlockedThreadPoolsRejectUserRequests
+  issue: https://github.com/elastic/elasticsearch/issues/113939
 
 # Examples:
 #

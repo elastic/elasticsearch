@@ -191,7 +191,7 @@ GET semantic-embeddings/_search
 
 After performing the hybrid search, the query will return the top 10 documents that match both semantic and lexical search criteria. The results include detailed information about each document:
 
-[source,console]
+[source,console-result]
 ------------------------------------------------------------
 {
   "took": 107,

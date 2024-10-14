@@ -17,6 +17,7 @@ import java.util.Set;
 import java.util.function.Function;
 
 import static org.elasticsearch.ingest.geoip.MaxmindIpDataLookups.getMaxmindDatabase;
+import static org.elasticsearch.ingest.geoip.MaxmindIpDataLookups.getMaxmindLookup;
 
 final class IpDataLookupFactories {
 
@@ -44,21 +45,6 @@ final class IpDataLookupFactories {
         }
 
         return database;
-    }
-
-    @Nullable
-    static Function<Set<Database.Property>, IpDataLookup> getMaxmindLookup(final Database database) {
-        return switch (database) {
-            case City -> MaxmindIpDataLookups.City::new;
-            case Country -> MaxmindIpDataLookups.Country::new;
-            case Asn -> MaxmindIpDataLookups.Asn::new;
-            case AnonymousIp -> MaxmindIpDataLookups.AnonymousIp::new;
-            case ConnectionType -> MaxmindIpDataLookups.ConnectionType::new;
-            case Domain -> MaxmindIpDataLookups.Domain::new;
-            case Enterprise -> MaxmindIpDataLookups.Enterprise::new;
-            case Isp -> MaxmindIpDataLookups.Isp::new;
-            default -> null;
-        };
     }
 
     static IpDataLookupFactory get(final String databaseType, final String databaseFile) {

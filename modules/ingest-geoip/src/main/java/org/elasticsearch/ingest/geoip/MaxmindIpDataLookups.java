@@ -39,6 +39,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
 
 /**
  * A collection of {@link IpDataLookup} implementations for MaxMind databases
@@ -89,6 +90,21 @@ final class MaxmindIpDataLookups {
             logger.trace("returning null for unsupported database_type [{}]", databaseType);
             return null; // no match was found
         }
+    }
+
+    @Nullable
+    static Function<Set<Database.Property>, IpDataLookup> getMaxmindLookup(final Database database) {
+        return switch (database) {
+            case City -> MaxmindIpDataLookups.City::new;
+            case Country -> MaxmindIpDataLookups.Country::new;
+            case Asn -> MaxmindIpDataLookups.Asn::new;
+            case AnonymousIp -> MaxmindIpDataLookups.AnonymousIp::new;
+            case ConnectionType -> MaxmindIpDataLookups.ConnectionType::new;
+            case Domain -> MaxmindIpDataLookups.Domain::new;
+            case Enterprise -> MaxmindIpDataLookups.Enterprise::new;
+            case Isp -> MaxmindIpDataLookups.Isp::new;
+            default -> null;
+        };
     }
 
     static class AnonymousIp extends AbstractBase<AnonymousIpResponse> {

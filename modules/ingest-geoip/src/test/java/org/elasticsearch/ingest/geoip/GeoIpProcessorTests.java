@@ -38,7 +38,7 @@ import static org.hamcrest.Matchers.nullValue;
 public class GeoIpProcessorTests extends ESTestCase {
 
     private static IpDataLookup ipDataLookupAll(final Database database) {
-        return IpDataLookupFactories.getMaxmindLookup(database).apply(database.properties());
+        return MaxmindIpDataLookups.getMaxmindLookup(database).apply(database.properties());
     }
 
     // a temporary directory that mmdb files can be copied to and read from

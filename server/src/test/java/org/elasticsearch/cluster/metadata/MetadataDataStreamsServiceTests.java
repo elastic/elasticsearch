@@ -402,10 +402,7 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
         MetadataDataStreamsService service = new MetadataDataStreamsService(
             mock(ClusterService.class),
             mock(IndicesService.class),
-            DataStreamGlobalRetentionSettings.create(
-                ClusterSettings.createBuiltInClusterSettings(),
-                DataStreamFactoryRetention.emptyFactoryRetention()
-            )
+            DataStreamGlobalRetentionSettings.create(ClusterSettings.createBuiltInClusterSettings())
         );
         {
             // Remove lifecycle
@@ -423,6 +420,39 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
             assertNotNull(updatedDataStream);
             assertThat(updatedDataStream.getLifecycle(), equalTo(lifecycle));
         }
+    }
+
+    public void testUpdateDataStreamOptions() {
+        String dataStream = randomAlphaOfLength(5);
+        // we want the data stream options to be non-empty, so we can see the removal in action
+        DataStreamOptions dataStreamOptions = randomValueOtherThan(
+            DataStreamOptions.EMPTY,
+            DataStreamOptionsTests::randomDataStreamOptions
+        );
+        ClusterState before = DataStreamTestHelper.getClusterStateWithDataStreams(List.of(new Tuple<>(dataStream, 2)), List.of());
+        MetadataDataStreamsService service = new MetadataDataStreamsService(
+            mock(ClusterService.class),
+            mock(IndicesService.class),
+            DataStreamGlobalRetentionSettings.create(ClusterSettings.createBuiltInClusterSettings())
+        );
+
+        // Ensure no data stream options are stored
+        DataStream updatedDataStream = before.metadata().dataStreams().get(dataStream);
+        assertNotNull(updatedDataStream);
+        assertThat(updatedDataStream.getDataStreamOptions(), equalTo(DataStreamOptions.EMPTY));
+
+        // Set non-empty data stream options
+        ClusterState after = service.updateDataStreamOptions(before, List.of(dataStream), dataStreamOptions);
+        updatedDataStream = after.metadata().dataStreams().get(dataStream);
+        assertNotNull(updatedDataStream);
+        assertThat(updatedDataStream.getDataStreamOptions(), equalTo(dataStreamOptions));
+        before = after;
+
+        // Remove data stream options
+        after = service.updateDataStreamOptions(before, List.of(dataStream), null);
+        updatedDataStream = after.metadata().dataStreams().get(dataStream);
+        assertNotNull(updatedDataStream);
+        assertThat(updatedDataStream.getDataStreamOptions(), equalTo(DataStreamOptions.EMPTY));
     }
 
     private MapperService getMapperService(IndexMetadata im) {

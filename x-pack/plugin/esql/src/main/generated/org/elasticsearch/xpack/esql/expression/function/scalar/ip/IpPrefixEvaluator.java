@@ -17,16 +17,16 @@ import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.expression.function.Warnings;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link IpPrefix}.
  * This class is generated. Do not edit it.
  */
 public final class IpPrefixEvaluator implements EvalOperator.ExpressionEvaluator {
-  private final Warnings warnings;
+  private final Source source;
 
   private final EvalOperator.ExpressionEvaluator ip;
 
@@ -38,16 +38,18 @@ public final class IpPrefixEvaluator implements EvalOperator.ExpressionEvaluator
 
   private final DriverContext driverContext;
 
+  private Warnings warnings;
+
   public IpPrefixEvaluator(Source source, EvalOperator.ExpressionEvaluator ip,
       EvalOperator.ExpressionEvaluator prefixLengthV4,
       EvalOperator.ExpressionEvaluator prefixLengthV6, BytesRef scratch,
       DriverContext driverContext) {
+    this.source = source;
     this.ip = ip;
     this.prefixLengthV4 = prefixLengthV4;
     this.prefixLengthV6 = prefixLengthV6;
     this.scratch = scratch;
     this.driverContext = driverContext;
-    this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
   }
 
   @Override
@@ -84,7 +86,7 @@ public final class IpPrefixEvaluator implements EvalOperator.ExpressionEvaluator
         }
         if (ipBlock.getValueCount(p) != 1) {
           if (ipBlock.getValueCount(p) > 1) {
-            warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+            warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
           }
           result.appendNull();
           continue position;
@@ -95,7 +97,7 @@ public final class IpPrefixEvaluator implements EvalOperator.ExpressionEvaluator
         }
         if (prefixLengthV4Block.getValueCount(p) != 1) {
           if (prefixLengthV4Block.getValueCount(p) > 1) {
-            warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+            warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
           }
           result.appendNull();
           continue position;
@@ -106,7 +108,7 @@ public final class IpPrefixEvaluator implements EvalOperator.ExpressionEvaluator
         }
         if (prefixLengthV6Block.getValueCount(p) != 1) {
           if (prefixLengthV6Block.getValueCount(p) > 1) {
-            warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+            warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
           }
           result.appendNull();
           continue position;
@@ -114,7 +116,7 @@ public final class IpPrefixEvaluator implements EvalOperator.ExpressionEvaluator
         try {
           result.appendBytesRef(IpPrefix.process(ipBlock.getBytesRef(ipBlock.getFirstValueIndex(p), ipScratch), prefixLengthV4Block.getInt(prefixLengthV4Block.getFirstValueIndex(p)), prefixLengthV6Block.getInt(prefixLengthV6Block.getFirstValueIndex(p)), this.scratch));
         } catch (IllegalArgumentException e) {
-          warnings.registerException(e);
+          warnings().registerException(e);
           result.appendNull();
         }
       }
@@ -130,7 +132,7 @@ public final class IpPrefixEvaluator implements EvalOperator.ExpressionEvaluator
         try {
           result.appendBytesRef(IpPrefix.process(ipVector.getBytesRef(p, ipScratch), prefixLengthV4Vector.getInt(p), prefixLengthV6Vector.getInt(p), this.scratch));
         } catch (IllegalArgumentException e) {
-          warnings.registerException(e);
+          warnings().registerException(e);
           result.appendNull();
         }
       }
@@ -146,6 +148,18 @@ public final class IpPrefixEvaluator implements EvalOperator.ExpressionEvaluator
   @Override
   public void close() {
     Releasables.closeExpectNoException(ip, prefixLengthV4, prefixLengthV6);
+  }
+
+  private Warnings warnings() {
+    if (warnings == null) {
+      this.warnings = Warnings.createWarnings(
+              driverContext.warningsMode(),
+              source.source().getLineNumber(),
+              source.source().getColumnNumber(),
+              source.text()
+          );
+    }
+    return warnings;
   }
 
   static class Factory implements EvalOperator.ExpressionEvaluator.Factory {

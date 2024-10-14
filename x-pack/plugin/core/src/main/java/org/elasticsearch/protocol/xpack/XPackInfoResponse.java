@@ -226,7 +226,7 @@ public class XPackInfoResponse extends ActionResponse implements ToXContentObjec
 
             builder.field("status", status.label());
             if (expiryDate != BASIC_SELF_GENERATED_LICENSE_EXPIRATION_MILLIS) {
-                builder.timeField("expiry_date_in_millis", "expiry_date", expiryDate);
+                builder.timestampFieldsFromUnixEpochMillis("expiry_date_in_millis", "expiry_date", expiryDate);
             }
             return builder.endObject();
         }

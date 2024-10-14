@@ -145,3 +145,21 @@ Structured log body:
         index: $datastream-backing-index
   - is_true: $datastream-backing-index
   - match: { .$datastream-backing-index.mappings.properties.body.properties.flattened.type: "flattened" }
+---
+"event.dataset alias must point to data_stream.dataset":
+  - do:
+      bulk:
+        index: logs-generic.otel-default
+        refresh: true
+        body:
+          - create: {}
+          - '{"@timestamp":"2024-07-18T14:49:33.467654000Z","data_stream":{"dataset":"generic.otel","namespace":"default"}, "body_text":"error1"}'
+  - is_false: errors
+  - is_false: errors
+  - do:
+      search:
+        index: logs-generic.otel-default
+        body:
+          fields: ["event.dataset"]
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0.fields.event\.dataset: ["generic.otel"] }

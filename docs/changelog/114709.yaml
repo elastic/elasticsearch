@@ -1,6 +1,6 @@
 pr: 114709
 summary: Remove support for wait_for_active_shards=index-setting in index close API
-area: Distributed
+area: CRUD
 type: breaking
 issues: []
 breaking:

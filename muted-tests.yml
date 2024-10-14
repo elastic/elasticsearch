@@ -402,6 +402,9 @@ tests:
 - class: org.elasticsearch.xpack.eql.EqlRestValidationIT
   method: testDefaultIndicesOptions
   issue: https://github.com/elastic/elasticsearch/issues/114771
+- class: org.elasticsearch.xpack.enrich.EnrichIT
+  method: testEnrichSpecialTypes
+  issue: https://github.com/elastic/elasticsearch/issues/114773
 
 # Examples:
 #

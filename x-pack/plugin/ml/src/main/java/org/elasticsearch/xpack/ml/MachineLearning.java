@@ -762,8 +762,8 @@ public class MachineLearning extends Plugin
      * The time interval without any requests that has to pass, before scaling down
      * to zero allocations.
      */
-    public static final Setting<TimeValue> ADAPTIVE_ALLOCATIONS_SCALE_TO_ZERO_TIME = Setting.timeSetting(
-        "xpack.ml.adaptive_allocations_scale_to_zero",
+    public static final Setting<TimeValue> ADAPTIVE_ALLOCATIONS_SCALE_TO_ZERO_INTERVAL = Setting.timeSetting(
+        "xpack.ml.adaptive_allocations_scale_to_zero_interval",
         TimeValue.timeValueMinutes(15),
         TimeValue.timeValueSeconds(1),
         Property.Dynamic,
@@ -830,7 +830,7 @@ public class MachineLearning extends Plugin
             DELAYED_DATA_CHECK_FREQ,
             DUMMY_ENTITY_MEMORY,
             DUMMY_ENTITY_PROCESSORS,
-            ADAPTIVE_ALLOCATIONS_SCALE_TO_ZERO_TIME
+            ADAPTIVE_ALLOCATIONS_SCALE_TO_ZERO_INTERVAL
         );
     }
 

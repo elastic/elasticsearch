@@ -46,7 +46,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 
-import static org.elasticsearch.xpack.ml.MachineLearning.ADAPTIVE_ALLOCATIONS_SCALE_TO_ZERO_TIME;
+import static org.elasticsearch.xpack.ml.MachineLearning.ADAPTIVE_ALLOCATIONS_SCALE_TO_ZERO_INTERVAL;
 
 /**
  * Periodically schedules adaptive allocations scaling. This process consists
@@ -208,7 +208,7 @@ public class AdaptiveAllocationsScalerService implements ClusterStateListener {
 
     private final AtomicLong scaleToZeroAfterNoRequestsSeconds = new AtomicLong();
 
-    private final Set<String> inFlightScaleFromZeroRequests = new ConcurrentSkipListSet<>();
+    private final Set<String> deploymentIdsWithInFlightScaleFromZeroRequests = new ConcurrentSkipListSet<>();
 
     public AdaptiveAllocationsScalerService(
         ThreadPool threadPool,
@@ -246,8 +246,9 @@ public class AdaptiveAllocationsScalerService implements ClusterStateListener {
         metrics = new Metrics();
         busy = new AtomicBoolean(false);
 
-        setScaleToZeroPeriod(ADAPTIVE_ALLOCATIONS_SCALE_TO_ZERO_TIME.get(clusterService.getSettings()));
-        clusterService.getClusterSettings().addSettingsUpdateConsumer(ADAPTIVE_ALLOCATIONS_SCALE_TO_ZERO_TIME, this::setScaleToZeroPeriod);
+        setScaleToZeroPeriod(ADAPTIVE_ALLOCATIONS_SCALE_TO_ZERO_INTERVAL.get(clusterService.getSettings()));
+        clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(ADAPTIVE_ALLOCATIONS_SCALE_TO_ZERO_INTERVAL, this::setScaleToZeroPeriod);
     }
 
     public synchronized void start() {
@@ -302,7 +303,7 @@ public class AdaptiveAllocationsScalerService implements ClusterStateListener {
                     assignment.getAdaptiveAllocationsSettings().getMaxNumberOfAllocations()
                 );
             } else {
-                var scaler = scalers.remove(assignment.getDeploymentId());
+                scalers.remove(assignment.getDeploymentId());
                 lastInferenceStatsByDeploymentAndNode.remove(assignment.getDeploymentId());
             }
         }
@@ -438,15 +439,15 @@ public class AdaptiveAllocationsScalerService implements ClusterStateListener {
             && assignment.getAdaptiveAllocationsSettings().getMinNumberOfAllocations() == 0) {
 
             // Prevent against a flurry of scale up requests.
-            if (inFlightScaleFromZeroRequests.contains(assignment.getDeploymentId()) == false) {
+            if (deploymentIdsWithInFlightScaleFromZeroRequests.contains(assignment.getDeploymentId()) == false) {
                 lastScaleUpTimesMillis.put(assignment.getDeploymentId(), System.currentTimeMillis());
                 var updateListener = updateAssigmentListener(assignment.getDeploymentId(), 1);
                 var cleanUpListener = ActionListener.runAfter(
                     updateListener,
-                    () -> inFlightScaleFromZeroRequests.remove(assignment.getDeploymentId())
+                    () -> deploymentIdsWithInFlightScaleFromZeroRequests.remove(assignment.getDeploymentId())
                 );
 
-                inFlightScaleFromZeroRequests.add(assignment.getDeploymentId());
+                deploymentIdsWithInFlightScaleFromZeroRequests.add(assignment.getDeploymentId());
                 updateNumberOfAllocations(assignment.getDeploymentId(), 1, cleanUpListener);
             }
             return true;

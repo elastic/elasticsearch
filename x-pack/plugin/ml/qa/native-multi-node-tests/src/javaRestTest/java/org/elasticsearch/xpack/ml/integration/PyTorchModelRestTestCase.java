@@ -296,7 +296,8 @@ public abstract class PyTorchModelRestTestCase extends ESRestTestCase {
             + "/deployment/_start"
             + "?deployment_id="
             + deploymentId
-            + "&threads_per_allocation=1";
+            + "&threads_per_allocation=1"
+            + "&wait_for=started";
 
         ChunkedToXContentObject innerChunkedContent = params -> Iterators.concat(
             ChunkedToXContentHelper.startObject(),

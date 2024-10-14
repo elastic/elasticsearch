@@ -29,7 +29,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
-public class QueryStringFunctionIT extends AbstractEsqlIntegTestCase {
+public class QueryStringIT extends AbstractEsqlIntegTestCase {
 
     @Before
     public void setupIndex() {

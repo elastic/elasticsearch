@@ -101,7 +101,13 @@ primaryExpression
     ;
 
 functionExpression
-    : identifier LP (ASTERISK | (booleanExpression (COMMA booleanExpression)*))? RP
+    : functionName LP (ASTERISK | (booleanExpression (COMMA booleanExpression)*))? RP
+    ;
+
+functionName
+    // Additional function identifiers that are already a reserved word in the language
+    : {this.isDevVersion()}? DEV_MATCH
+    | identifierOrParameter
     ;
 
 dataType
@@ -165,7 +171,7 @@ statsCommand
     ;
 
 qualifiedName
-    : identifier (DOT identifier)*
+    : identifierOrParameter (DOT identifierOrParameter)*
     ;
 
 qualifiedNamePattern
@@ -183,6 +189,7 @@ identifier
 
 identifierPattern
     : ID_PATTERN
+    | parameter
     ;
 
 constant
@@ -191,16 +198,21 @@ constant
     | decimalValue                                                                      #decimalLiteral
     | integerValue                                                                      #integerLiteral
     | booleanValue                                                                      #booleanLiteral
-    | params                                                                            #inputParams
+    | parameter                                                                         #inputParameter
     | string                                                                            #stringLiteral
     | OPENING_BRACKET numericValue (COMMA numericValue)* CLOSING_BRACKET                #numericArrayLiteral
     | OPENING_BRACKET booleanValue (COMMA booleanValue)* CLOSING_BRACKET                #booleanArrayLiteral
     | OPENING_BRACKET string (COMMA string)* CLOSING_BRACKET                            #stringArrayLiteral
     ;
 
-params
+parameter
     : PARAM                        #inputParam
     | NAMED_OR_POSITIONAL_PARAM    #inputNamedOrPositionalParam
+    ;
+
+identifierOrParameter
+    : identifier
+    | parameter
     ;
 
 limitCommand

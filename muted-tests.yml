@@ -396,6 +396,9 @@ tests:
 - class: org.elasticsearch.xpack.enrich.EnrichRestIT
   method: test {p0=enrich/20_standard_index/enrich documents over _bulk}
   issue: https://github.com/elastic/elasticsearch/issues/114768
+- class: org.elasticsearch.xpack.enrich.EnrichRestIT
+  method: test {p0=enrich/50_data_stream/enrich documents over _bulk via a data stream}
+  issue: https://github.com/elastic/elasticsearch/issues/114769
 
 # Examples:
 #

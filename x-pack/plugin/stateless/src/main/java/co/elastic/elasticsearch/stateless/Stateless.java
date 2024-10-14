@@ -73,6 +73,7 @@ import co.elastic.elasticsearch.stateless.engine.IndexEngine;
 import co.elastic.elasticsearch.stateless.engine.RefreshThrottler;
 import co.elastic.elasticsearch.stateless.engine.RefreshThrottlingService;
 import co.elastic.elasticsearch.stateless.engine.SearchEngine;
+import co.elastic.elasticsearch.stateless.engine.ThreadPoolMergeScheduler;
 import co.elastic.elasticsearch.stateless.engine.translog.TranslogRecoveryMetrics;
 import co.elastic.elasticsearch.stateless.engine.translog.TranslogReplicator;
 import co.elastic.elasticsearch.stateless.lucene.IndexBlobStoreCacheDirectory;
@@ -275,6 +276,8 @@ public class Stateless extends Plugin
         + "_thread_pool";
     public static final String PREWARM_THREAD_POOL = BlobStoreRepository.STATELESS_SHARD_PREWARMING_THREAD_NAME;
     public static final String PREWARM_THREAD_POOL_SETTING = "stateless." + PREWARM_THREAD_POOL + "_thread_pool";
+    public static final String MERGE_THREAD_POOL = "stateless.merge";
+    public static final String MERGE_THREAD_POOL_SETTING = "stateless." + MERGE_THREAD_POOL + "_thread_pool";
 
     public static final Set<DiscoveryNodeRole> STATELESS_ROLES = Set.of(DiscoveryNodeRole.INDEX_ROLE, DiscoveryNodeRole.SEARCH_ROLE);
     private final SetOnce<StatelessCommitService> commitService = new SetOnce<>();
@@ -670,6 +673,8 @@ public class Stateless extends Plugin
         final int fillVirtualBatchedCompoundCommitCacheCoreThreads;
         final int fillVirtualBatchedCompoundCommitCacheMaxThreads;
         final int prewarmMaxThreads = Math.min(processors * 4, 32);
+        final int mergeCoreThreads;
+        final int mergeMaxThreads;
 
         if (hasIndexRole) {
             shardReadMaxThreads = Math.min(processors * 4, 10);
@@ -683,6 +688,8 @@ public class Stateless extends Plugin
             getVirtualBatchedCompoundCommitChunkMaxThreads = Math.min(processors, 4);
             fillVirtualBatchedCompoundCommitCacheCoreThreads = 0;
             fillVirtualBatchedCompoundCommitCacheMaxThreads = 1;
+            mergeCoreThreads = 1;
+            mergeMaxThreads = Math.max(processors * 2, 2);
         } else {
             shardReadMaxThreads = Math.min(processors * 4, 28);
             translogCoreThreads = 0;
@@ -697,6 +704,8 @@ public class Stateless extends Plugin
             // threads around to reduce churn and re-use the existing buffers more
             fillVirtualBatchedCompoundCommitCacheCoreThreads = Math.max(processors / 2, 2);
             fillVirtualBatchedCompoundCommitCacheMaxThreads = Math.max(processors, 2);
+            mergeCoreThreads = 0;
+            mergeMaxThreads = 1;
         }
 
         return new ExecutorBuilder<?>[] {
@@ -758,7 +767,15 @@ public class Stateless extends Plugin
                 TimeValue.timeValueMinutes(5),
                 true,
                 PREWARM_THREAD_POOL_SETTING
-            ) };
+            ),
+            new ScalingExecutorBuilder(
+                MERGE_THREAD_POOL,
+                mergeCoreThreads,
+                mergeMaxThreads,
+                TimeValue.timeValueMinutes(5),
+                true,
+                MERGE_THREAD_POOL_SETTING
+            ), };
     }
 
     /**
@@ -838,6 +855,7 @@ public class Stateless extends Plugin
             TranslogReplicator.FLUSH_RETRY_INITIAL_DELAY_SETTING,
             TranslogReplicator.FLUSH_INTERVAL_SETTING,
             TranslogReplicator.FLUSH_SIZE_SETTING,
+            ThreadPoolMergeScheduler.MERGE_THREAD_POOL_SCHEDULER,
             StatelessClusterConsistencyService.DELAYED_CLUSTER_CONSISTENCY_INTERVAL_SETTING,
             StoreHeartbeatService.HEARTBEAT_FREQUENCY,
             StoreHeartbeatService.MAX_MISSED_HEARTBEATS,

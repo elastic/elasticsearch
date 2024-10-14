@@ -396,6 +396,21 @@ tests:
 - class: org.elasticsearch.xpack.enrich.EnrichRestIT
   method: test {p0=enrich/20_standard_index/enrich documents over _bulk}
   issue: https://github.com/elastic/elasticsearch/issues/114768
+- class: org.elasticsearch.xpack.enrich.EnrichRestIT
+  method: test {p0=enrich/50_data_stream/enrich documents over _bulk via a data stream}
+  issue: https://github.com/elastic/elasticsearch/issues/114769
+- class: org.elasticsearch.xpack.eql.EqlRestValidationIT
+  method: testDefaultIndicesOptions
+  issue: https://github.com/elastic/elasticsearch/issues/114771
+- class: org.elasticsearch.xpack.enrich.EnrichIT
+  method: testEnrichSpecialTypes
+  issue: https://github.com/elastic/elasticsearch/issues/114773
+- class: org.elasticsearch.xpack.security.operator.OperatorPrivilegesIT
+  method: testEveryActionIsEitherOperatorOnlyOrNonOperator
+  issue: https://github.com/elastic/elasticsearch/issues/102992
+- class: org.elasticsearch.xpack.enrich.EnrichIT
+  method: testDeleteExistingPipeline
+  issue: https://github.com/elastic/elasticsearch/issues/114775
 
 # Examples:
 #

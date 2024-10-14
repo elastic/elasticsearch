@@ -37,7 +37,7 @@ public class AmazonBedrockChatCompletionEntityFactoryTests extends ESTestCase {
         List.of(AI21LABS, AMAZONTITAN, META).forEach(provider -> {
             var expectedTemp = randomDoubleBetween(1, 10, true);
             var expectedTopP = randomDoubleBetween(1, 10, true);
-            ;
+
             var expectedMaxToken = randomIntBetween(1, 10);
             var expectedMessage = List.of(randomIdentifier());
             var model = model(provider, expectedTemp, expectedTopP, expectedMaxToken);

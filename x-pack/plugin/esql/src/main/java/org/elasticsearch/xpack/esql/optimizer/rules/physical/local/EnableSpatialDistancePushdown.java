@@ -216,31 +216,40 @@ public class EnableSpatialDistancePushdown extends PhysicalOptimizerRules.Parame
         Number number,
         ComparisonType comparisonType
     ) {
+        DataType shapeDataType = getShapeDataType(spatialExp);
         Geometry geometry = SpatialRelatesUtils.makeGeometryFromLiteral(literalExp);
         if (geometry instanceof Point point) {
             double distance = number.doubleValue();
             Source source = comparison.source();
             if (comparisonType.lt) {
                 distance = comparisonType.eq ? distance : Math.nextDown(distance);
-                return new SpatialIntersects(source, spatialExp, makeCircleLiteral(point, distance, literalExp));
+                return new SpatialIntersects(source, spatialExp, makeCircleLiteral(point, distance, literalExp, shapeDataType));
             } else if (comparisonType.gt) {
                 distance = comparisonType.eq ? distance : Math.nextUp(distance);
-                return new SpatialDisjoint(source, spatialExp, makeCircleLiteral(point, distance, literalExp));
+                return new SpatialDisjoint(source, spatialExp, makeCircleLiteral(point, distance, literalExp, shapeDataType));
             } else if (comparisonType.eq) {
                 return new And(
                     source,
-                    new SpatialIntersects(source, spatialExp, makeCircleLiteral(point, distance, literalExp)),
-                    new SpatialDisjoint(source, spatialExp, makeCircleLiteral(point, Math.nextDown(distance), literalExp))
+                    new SpatialIntersects(source, spatialExp, makeCircleLiteral(point, distance, literalExp, shapeDataType)),
+                    new SpatialDisjoint(source, spatialExp, makeCircleLiteral(point, Math.nextDown(distance), literalExp, shapeDataType))
                 );
             }
         }
         return comparison;
     }
 
-    private Literal makeCircleLiteral(Point point, double distance, Expression literalExpression) {
+    private Literal makeCircleLiteral(Point point, double distance, Expression literalExpression, DataType shapeDataType) {
         var circle = new Circle(point.getX(), point.getY(), distance);
         var wkb = WellKnownBinary.toWKB(circle, ByteOrder.LITTLE_ENDIAN);
-        return new Literal(literalExpression.source(), new BytesRef(wkb), DataType.GEO_SHAPE);
+        return new Literal(literalExpression.source(), new BytesRef(wkb), shapeDataType);
+    }
+
+    private DataType getShapeDataType(Expression expression) {
+        return switch (expression.dataType()) {
+            case GEO_POINT, GEO_SHAPE -> DataType.GEO_SHAPE;
+            case CARTESIAN_POINT, CARTESIAN_SHAPE -> DataType.CARTESIAN_SHAPE;
+            default -> throw new IllegalArgumentException("Unsupported spatial data type: " + expression.dataType());
+        };
     }
 
     /**

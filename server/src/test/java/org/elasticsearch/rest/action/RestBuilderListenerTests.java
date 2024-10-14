@@ -26,7 +26,7 @@ public class RestBuilderListenerTests extends ESTestCase {
     public void testXContentBuilderClosedInBuildResponse() throws Exception {
         AtomicReference<XContentBuilder> builderAtomicReference = new AtomicReference<>();
         RestBuilderListener<TransportResponse.Empty> builderListener = new RestBuilderListener<Empty>(
-            new FakeRestChannel(new FakeRestRequest(), randomBoolean(), 1)
+            new FakeRestChannel(new FakeRestRequest(), true, 1)
         ) {
             @Override
             public RestResponse buildResponse(Empty empty, XContentBuilder builder) throws Exception {

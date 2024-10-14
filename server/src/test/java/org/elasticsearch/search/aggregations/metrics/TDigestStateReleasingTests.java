@@ -13,9 +13,14 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.indices.CrankyCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
 
+import java.io.IOException;
 import java.util.Arrays;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -32,28 +37,84 @@ public class TDigestStateReleasingTests extends ESTestCase {
         this.digestType = digestType;
     }
 
+    public void testCreateOfType() {
+        testCircuitBreakerTrip(circuitBreaker -> TDigestState.createOfType(circuitBreaker, digestType, 100));
+    }
+
+    public void testCreateUsingParamsFrom() {
+        testCircuitBreakerTrip(circuitBreaker -> {
+            try (TDigestState example = TDigestState.createOfType(newLimitedBreaker(ByteSizeValue.ofMb(100)), digestType, 100)) {
+                return TDigestState.createUsingParamsFrom(example);
+            }
+        });
+    }
+
+    /**
+     * This test doesn't use the {@code digestType} param.
+     */
+    public void testCreate() {
+        testCircuitBreakerTrip(circuitBreaker -> TDigestState.create(circuitBreaker, 100));
+    }
+
+    /**
+     * This test doesn't use the {@code digestType} param.
+     */
+    public void testCreateOptimizedForAccuracy() {
+        testCircuitBreakerTrip(circuitBreaker -> TDigestState.createOptimizedForAccuracy(circuitBreaker, 100));
+    }
+
+    public void testRead() throws IOException {
+        try (
+            TDigestState state = TDigestState.createOfType(newLimitedBreaker(ByteSizeValue.ofMb(100)), digestType, 100);
+            BytesStreamOutput output = new BytesStreamOutput()
+        ) {
+            TDigestState.write(state, output);
+
+            testCircuitBreakerTrip(circuitBreaker -> {
+                try (StreamInput input = output.bytes().streamInput()) {
+                    return TDigestState.read(circuitBreaker, input);
+                }
+            });
+        }
+    }
+
+    public void testReadWithData() throws IOException {
+        try (
+            TDigestState state = TDigestState.createOfType(newLimitedBreaker(ByteSizeValue.ofMb(100)), digestType, 100);
+            BytesStreamOutput output = new BytesStreamOutput()
+        ) {
+            for (int i = 0; i < 1000; i++) {
+                state.add(randomDoubleBetween(-Double.MAX_VALUE, Double.MAX_VALUE, true));
+            }
+
+            TDigestState.write(state, output);
+
+            testCircuitBreakerTrip(circuitBreaker -> {
+                try (StreamInput input = output.bytes().streamInput()) {
+                    return TDigestState.read(circuitBreaker, input);
+                }
+            });
+        }
+    }
+
     /**
      * Tests that a circuit breaker trip leaves no unreleased memory.
      */
-    public void testCircuitBreakerTrip() {
-        for (int bytes = randomIntBetween(0, 16); bytes < 50_000; bytes += 17) {
-            CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofBytes(bytes));
+    public <E extends Exception> void testCircuitBreakerTrip(CheckedFunction<CircuitBreaker, TDigestState, E> tDigestStateFactory)
+        throws E {
+        try (CrankyCircuitBreakerService circuitBreakerService = new CrankyCircuitBreakerService()) {
+            CircuitBreaker breaker = circuitBreakerService.getBreaker("test");
 
-            try (TDigestState state = TDigestState.create(breaker, digestType, 100)) {
+            try (TDigestState state = tDigestStateFactory.apply(breaker)) {
                 // Add some data to make it trip. It won't work in all digest types
-                for (int i = 0; i < 100; i++) {
+                for (int i = 0; i < 10; i++) {
                     state.add(randomDoubleBetween(-Double.MAX_VALUE, Double.MAX_VALUE, true));
                 }
-
-                // Testing with more memory shouldn't change anything, we finished the test
-                return;
             } catch (CircuitBreakingException e) {
                 // Expected
             } finally {
-                assertThat("unreleased bytes with a " + bytes + " bytes limit", breaker.getUsed(), equalTo(0L));
+                assertThat("unreleased bytes", breaker.getUsed(), equalTo(0L));
             }
         }
-
-        fail("Test case didn't reach a non-tripping breaker limit");
     }
 }

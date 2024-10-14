@@ -295,18 +295,18 @@ public class AzureBlobStore implements BlobStore {
         // We need to use a container-scoped BlobBatchClient, so the restype=container parameter
         // is sent, and we can support all SAS token types
         // See https://learn.microsoft.com/en-us/rest/api/storageservices/blob-batch?tabs=shared-access-signatures#authorization
-        BlobBatchClient batchAsyncClient = new BlobBatchClientBuilder(
+        BlobBatchClient batchClient = new BlobBatchClientBuilder(
             azureBlobServiceClient.getAsyncClient().getBlobContainerAsyncClient(container)
         ).buildClient();
         while (blobNames.hasNext()) {
-            final BlobBatch currentBatch = batchAsyncClient.getBlobBatch();
+            final BlobBatch currentBatch = batchClient.getBlobBatch();
             int counter = 0;
             while (counter < MAX_ELEMENTS_PER_BATCH && blobNames.hasNext()) {
                 currentBatch.deleteBlob(container, blobNames.next());
                 counter++;
             }
             try {
-                batchAsyncClient.submitBatch(currentBatch);
+                batchClient.submitBatch(currentBatch);
             } catch (BlobBatchStorageException bbse) {
                 final Iterable<BlobStorageException> batchExceptions = bbse.getBatchExceptions();
                 for (BlobStorageException bse : batchExceptions) {

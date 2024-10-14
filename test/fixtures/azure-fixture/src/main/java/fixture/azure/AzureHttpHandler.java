@@ -297,48 +297,44 @@ public class AzureHttpHandler implements HttpHandler {
 
                             // Process the deletion
                             if (blobs.remove("/" + account + toDelete) != null) {
-                                response.append("--")
-                                    .append(responseBoundary)
-                                    .append("\r\n")
-                                    .append("Content-Type: application/http\r\n")
-                                    .append("Content-ID: ")
-                                    .append(contentId)
-                                    .append("\r\n\r\n")
-                                    .append("HTTP/1.1 202 Accepted\r\n")
-                                    .append("x-ms-delete-type-permanent: true\r\n")
-                                    .append("x-ms-request-id: ")
-                                    .append(requestId)
-                                    .append("\r\n")
-                                    .append("x-ms-version: 2018-11-09\r\n\r\n");
+                                final String acceptedPart = Strings.format("""
+                                    --%s
+                                    Content-Type: application/http
+                                    Content-ID: %s
+
+                                    HTTP/1.1 202 Accepted
+                                    x-ms-delete-type-permanent: true
+                                    x-ms-request-id: %s
+                                    x-ms-version: 2018-11-09
+
+                                    """, responseBoundary, contentId, requestId).replaceAll("\n", "\r\n");
+                                response.append(acceptedPart);
                             } else {
-                                String notFoundResponse = Strings.format(
+                                final String notFoundBody = Strings.format(
                                     """
-                                        <?xml version="1.0" encoding="utf-8"?>\r
-                                        <Error><Code>BlobNotFound</Code><Message>The specified blob does not exist.\r
-                                        RequestId:%s\r
+                                        <?xml version="1.0" encoding="utf-8"?>
+                                        <Error><Code>BlobNotFound</Code><Message>The specified blob does not exist.
+                                        RequestId:%s
                                         Time:%s</Message></Error>""",
                                     requestId,
                                     DateTimeFormatter.ISO_DATE_TIME.format(ZonedDateTime.now(ZoneId.of("UTC")))
                                 );
-                                response.append("--")
-                                    .append(responseBoundary)
-                                    .append("\r\n")
-                                    .append("Content-Type: application/http\r\n")
-                                    .append("Content-ID: ")
-                                    .append(contentId)
-                                    .append("\r\n\r\n")
-                                    .append("HTTP/1.1 404 The specified blob does not exist.\r\n")
-                                    .append("x-ms-error-code: BlobNotFound\r\n")
-                                    .append("x-ms-request-id: ")
-                                    .append(requestId)
-                                    .append("\r\n")
-                                    .append("x-ms-version: 2018-11-09\r\n")
-                                    .append("Content-Length: ")
-                                    .append(notFoundResponse.length())
-                                    .append("\r\n")
-                                    .append("Content-Type: application/xml\r\n\r\n")
-                                    .append(notFoundResponse)
-                                    .append("\r\n");
+                                final String notFoundPart = Strings.format("""
+                                    --%s
+                                    Content-Type: application/http
+                                    Content-ID: %s
+
+                                    HTTP/1.1 404 The specified blob does not exist.
+                                    x-ms-error-code: BlobNotFound
+                                    x-ms-request-id: %s
+                                    x-ms-version: 2018-11-09
+                                    Content-Length: %d
+                                    Content-Type: application/xml
+
+                                    %s
+                                    """, responseBoundary, contentId, requestId, notFoundBody.length(), notFoundBody)
+                                    .replaceAll("\n", "\r\n");
+                                response.append(notFoundPart);
                             }
 
                             // Clear the state

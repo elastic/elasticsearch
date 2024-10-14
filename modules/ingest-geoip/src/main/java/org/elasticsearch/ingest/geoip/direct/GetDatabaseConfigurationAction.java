@@ -110,7 +110,11 @@ public class GetDatabaseConfigurationAction extends ActionType<Response> {
                 builder.startObject();
                 builder.field("id", database.id()); // serialize including the id -- this is get response serialization
                 builder.field(VERSION.getPreferredName(), item.version());
-                builder.timeField(MODIFIED_DATE_MILLIS.getPreferredName(), MODIFIED_DATE.getPreferredName(), item.modifiedDate());
+                builder.timestampFieldsFromUnixEpochMillis(
+                    MODIFIED_DATE_MILLIS.getPreferredName(),
+                    MODIFIED_DATE.getPreferredName(),
+                    item.modifiedDate()
+                );
                 builder.field(DATABASE.getPreferredName(), database);
                 builder.endObject();
             }

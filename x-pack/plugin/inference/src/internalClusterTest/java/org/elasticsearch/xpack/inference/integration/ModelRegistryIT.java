@@ -27,7 +27,6 @@ import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.core.inference.ChunkingSettingsFeatureFlag;
 import org.elasticsearch.xpack.inference.InferencePlugin;
 import org.elasticsearch.xpack.inference.chunking.ChunkingSettingsTests;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
@@ -486,7 +485,7 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
                 ElasticsearchInternalService.NAME,
                 ElserInternalServiceSettingsTests.createRandom(),
                 ElserMlNodeTaskSettingsTests.createRandom(),
-                ChunkingSettingsFeatureFlag.isEnabled() && randomBoolean() ? ChunkingSettingsTests.createRandomChunkingSettings() : null
+                randomBoolean() ? ChunkingSettingsTests.createRandomChunkingSettings() : null
             );
             default -> throw new IllegalArgumentException("task type " + taskType + " is not supported");
         };
@@ -600,6 +599,10 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
             public boolean isEmpty() {
                 return true;
             }
+
+            public TaskSettings updatedTaskSettings(Map<String, Object> newSettings) {
+                return this;
+            }
         }
 
         record TestSecretSettings(String key) implements SecretSettings {
@@ -624,6 +627,11 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
                 builder.field("secret", key);
                 builder.endObject();
                 return builder;
+            }
+
+            @Override
+            public SecretSettings newSecretSettings(Map<String, Object> newSecrets) {
+                return new TestSecretSettings(newSecrets.get("secret").toString());
             }
         }
 

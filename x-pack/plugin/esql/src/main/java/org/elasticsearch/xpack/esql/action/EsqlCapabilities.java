@@ -38,6 +38,11 @@ public class EsqlCapabilities {
         FN_CBRT,
 
         /**
+         * Support for function {@code HYPOT}.
+         */
+        FN_HYPOT,
+
+        /**
          * Support for {@code MV_APPEND} function. #107001
          */
         FN_MV_APPEND,
@@ -342,6 +347,11 @@ public class EsqlCapabilities {
         QSTR_FUNCTION(true),
 
         /**
+         * MATCH function
+         */
+        MATCH_FUNCTION(true),
+
+        /**
          * Don't optimize CASE IS NOT NULL function by not requiring the fields to be not null as well.
          * https://github.com/elastic/elasticsearch/issues/112704
          */
@@ -350,7 +360,17 @@ public class EsqlCapabilities {
         /**
          * Compute year differences in full calendar years.
          */
-        DATE_DIFF_YEAR_CALENDARIAL;
+        DATE_DIFF_YEAR_CALENDARIAL,
+
+        /**
+         * Support named parameters for field names.
+         */
+        NAMED_PARAMETER_FOR_FIELD_AND_FUNCTION_NAMES,
+
+        /**
+         * Fix sorting not allowed on _source and counters.
+         */
+        SORTING_ON_SOURCE_AND_COUNTERS_FORBIDDEN;
 
         private final boolean snapshotOnly;
         private final FeatureFlag featureFlag;

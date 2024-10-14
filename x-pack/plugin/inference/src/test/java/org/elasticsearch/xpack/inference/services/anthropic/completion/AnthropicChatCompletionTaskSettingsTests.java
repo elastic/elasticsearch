@@ -24,6 +24,25 @@ import static org.hamcrest.Matchers.is;
 
 public class AnthropicChatCompletionTaskSettingsTests extends AbstractBWCWireSerializationTestCase<AnthropicChatCompletionTaskSettings> {
 
+    public void testUpdatedTaskSettings() {
+        var initialSettings = createRandom();
+        var newSettings = createRandom();
+        AnthropicChatCompletionTaskSettings updatedSettings = (AnthropicChatCompletionTaskSettings) initialSettings.updatedTaskSettings(
+            Map.of(
+                AnthropicServiceFields.MAX_TOKENS,
+                newSettings.maxTokens(),
+                AnthropicServiceFields.TEMPERATURE_FIELD,
+                newSettings.temperature(),
+                AnthropicServiceFields.TOP_P_FIELD,
+                newSettings.topP(),
+                AnthropicServiceFields.TOP_K_FIELD,
+                newSettings.topK()
+            )
+        );
+
+        assertEquals(newSettings, updatedSettings);
+    }
+
     public static Map<String, Object> getChatCompletionTaskSettingsMap(
         @Nullable Integer maxTokens,
         @Nullable Double temperature,

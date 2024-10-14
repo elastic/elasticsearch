@@ -278,6 +278,7 @@ public class TransportSimulateIndexTemplateAction extends TransportMasterNodeRea
                 templateSettings,
                 mappings
             );
+            MetadataCreateIndexService.validateAdditionalSettings(provider, result, additionalSettings);
             dummySettings.put(result);
             additionalSettings.put(result);
         }

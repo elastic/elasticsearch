@@ -14,6 +14,7 @@ import com.sun.net.httpserver.HttpHandler;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Streams;
@@ -31,6 +32,9 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -292,20 +296,50 @@ public class AzureHttpHandler implements HttpHandler {
                             }
 
                             // Process the deletion
-                            blobs.remove("/" + account + toDelete);
-                            response.append("--")
-                                .append(responseBoundary)
-                                .append("\r\n")
-                                .append("Content-Type: application/http\r\n")
-                                .append("Content-ID: ")
-                                .append(contentId)
-                                .append("\r\n\r\n")
-                                .append("HTTP/1.1 202 Accepted\r\n")
-                                .append("x-ms-delete-type-permanent: true\r\n")
-                                .append("x-ms-request-id: ")
-                                .append(requestId)
-                                .append("\r\n")
-                                .append("x-ms-version: 2018-11-09\r\n\r\n");
+                            if (blobs.remove("/" + account + toDelete) != null) {
+                                response.append("--")
+                                    .append(responseBoundary)
+                                    .append("\r\n")
+                                    .append("Content-Type: application/http\r\n")
+                                    .append("Content-ID: ")
+                                    .append(contentId)
+                                    .append("\r\n\r\n")
+                                    .append("HTTP/1.1 202 Accepted\r\n")
+                                    .append("x-ms-delete-type-permanent: true\r\n")
+                                    .append("x-ms-request-id: ")
+                                    .append(requestId)
+                                    .append("\r\n")
+                                    .append("x-ms-version: 2018-11-09\r\n\r\n");
+                            } else {
+                                String notFoundResponse = Strings.format(
+                                    """
+                                        <?xml version="1.0" encoding="utf-8"?>\r
+                                        <Error><Code>BlobNotFound</Code><Message>The specified blob does not exist.\r
+                                        RequestId:%s\r
+                                        Time:%s</Message></Error>""",
+                                    requestId,
+                                    DateTimeFormatter.ISO_DATE_TIME.format(ZonedDateTime.now(ZoneId.of("UTC")))
+                                );
+                                response.append("--")
+                                    .append(responseBoundary)
+                                    .append("\r\n")
+                                    .append("Content-Type: application/http\r\n")
+                                    .append("Content-ID: ")
+                                    .append(contentId)
+                                    .append("\r\n\r\n")
+                                    .append("HTTP/1.1 404 The specified blob does not exist.\r\n")
+                                    .append("x-ms-error-code: BlobNotFound\r\n")
+                                    .append("x-ms-request-id: ")
+                                    .append(requestId)
+                                    .append("\r\n")
+                                    .append("x-ms-version: 2018-11-09\r\n")
+                                    .append("Content-Length: ")
+                                    .append(notFoundResponse.length())
+                                    .append("\r\n")
+                                    .append("Content-Type: application/xml\r\n\r\n")
+                                    .append(notFoundResponse)
+                                    .append("\r\n");
+                            }
 
                             // Clear the state
                             toDelete = null;

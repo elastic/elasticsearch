@@ -28,6 +28,7 @@ import com.azure.storage.blob.BlobServiceClient;
 import com.azure.storage.blob.batch.BlobBatch;
 import com.azure.storage.blob.batch.BlobBatchClient;
 import com.azure.storage.blob.batch.BlobBatchClientBuilder;
+import com.azure.storage.blob.batch.BlobBatchStorageException;
 import com.azure.storage.blob.models.BlobErrorCode;
 import com.azure.storage.blob.models.BlobItem;
 import com.azure.storage.blob.models.BlobItemProperties;
@@ -149,7 +150,8 @@ public class AzureBlobStore implements BlobStore {
                     && isPutBlockRequest(httpMethod, url) == false
                     && isPutBlockListRequest(httpMethod, url) == false,
                 Operation.PUT_BLOB
-            )
+            ),
+            new RequestMatcher(AzureBlobStore::isBatchDelete, Operation.BATCH_DELETE)
         );
 
         this.requestMetricsHandler = (purpose, method, url, metrics) -> {
@@ -172,6 +174,10 @@ public class AzureBlobStore implements BlobStore {
                 }
             }
         };
+    }
+
+    private static boolean isBatchDelete(HttpMethod method, URL url) {
+        return method == HttpMethod.POST && url.getQuery() != null && url.getQuery().contains("comp=batch");
     }
 
     private static boolean isListRequest(HttpMethod httpMethod, URL url) {
@@ -281,7 +287,7 @@ public class AzureBlobStore implements BlobStore {
     }
 
     @Override
-    public void deleteBlobsIgnoringIfNotExists(OperationPurpose purpose, Iterator<String> blobNames) {
+    public void deleteBlobsIgnoringIfNotExists(OperationPurpose purpose, Iterator<String> blobNames) throws IOException {
         if (blobNames.hasNext() == false) {
             return;
         }
@@ -300,7 +306,17 @@ public class AzureBlobStore implements BlobStore {
                     currentBatch.deleteBlob(container, blobNames.next());
                     counter++;
                 }
-                batchAsyncClient.submitBatch(currentBatch);
+                try {
+                    batchAsyncClient.submitBatch(currentBatch);
+                } catch (BlobBatchStorageException bbse) {
+                    final Iterable<BlobStorageException> batchExceptions = bbse.getBatchExceptions();
+                    for (BlobStorageException bse : batchExceptions) {
+                        // If one of the requests failed with something other than a 404, throw the encompassing exception
+                        if (bse.getStatusCode() != RestStatus.NOT_FOUND.getStatus()) {
+                            throw new IOException("Failed to delete batch", bbse);
+                        }
+                    }
+                }
             }
         });
     }
@@ -683,7 +699,8 @@ public class AzureBlobStore implements BlobStore {
         GET_BLOB_PROPERTIES("GetBlobProperties"),
         PUT_BLOB("PutBlob"),
         PUT_BLOCK("PutBlock"),
-        PUT_BLOCK_LIST("PutBlockList");
+        PUT_BLOCK_LIST("PutBlockList"),
+        BATCH_DELETE("BatchDelete");
 
         private final String key;
 

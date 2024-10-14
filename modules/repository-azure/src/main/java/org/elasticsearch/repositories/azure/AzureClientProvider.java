@@ -330,8 +330,10 @@ class AzureClientProvider extends AbstractLifecycleComponent {
                 logger.debug("Detected error in RetryMetricsTracker", throwable);
                 metrics.errorCount++;
             }).doOnSuccess(response -> {
-                metrics.totalRequestTimeNanos += System.nanoTime() - requestStartTimeNanos;
+                // Bulk deletes fire once for each of the constituent requests, and they have a null response. Ignore those, we'll track
+                // metrics at the bulk level.
                 if (response != null && RestStatus.isSuccessful(response.getStatusCode()) == false) {
+                    metrics.totalRequestTimeNanos += System.nanoTime() - requestStartTimeNanos;
                     metrics.errorCount++;
                     // Azure always throttles with a 429 response, see
                     // https://learn.microsoft.com/en-us/azure/azure-resource-manager/management/request-limits-and-throttling#error-code
@@ -364,6 +366,8 @@ class AzureClientProvider extends AbstractLifecycleComponent {
             final RequestMetrics requestMetrics = new RequestMetrics();
             context.setData(ES_REQUEST_METRICS_CONTEXT_KEY, requestMetrics);
             return next.process().doOnSuccess((httpResponse) -> {
+                // Bulk deletes fire once for each of the constituent requests, and they have a null response. Ignore those, we'll track
+                // metrics at the bulk level.
                 if (httpResponse != null) {
                     requestMetrics.statusCode = httpResponse.getStatusCode();
                     trackCompletedRequest(context.getHttpRequest(), requestMetrics);

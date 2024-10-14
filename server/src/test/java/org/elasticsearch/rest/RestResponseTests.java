@@ -495,6 +495,10 @@ public class RestResponseTests extends ESTestCase {
         Exception t = new ElasticsearchException("an error occurred reading data", new FileNotFoundException("/foo/bar"));
         RestResponse response = new RestResponse(channel, t);
         assertThat(response.contentType(), equalTo(mediaType));
+        assertWarnings(
+            "The JSON format of non-detailed errors will change in Elasticsearch 9.0"
+                + " to match the JSON structure used for detailed errors. To keep using the existing format, use the V8 REST API."
+        );
     }
 
     public void testSupressedLogging() throws IOException {

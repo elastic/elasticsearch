@@ -156,7 +156,7 @@ create an index with stored source mode and time series index mode without setti
                 time_series_dimension: true
 
   - match: { error.type: "mapper_parsing_exception" }
-  - match: { error.reason: "Failed to parse mapping: Indices with with index mode [logsdb] only support synthetic source" }
+  - match: { error.reason: "Failed to parse mapping: time series indices only support synthetic source" }
 
 
 ---
@@ -508,7 +508,7 @@ create an index with time_series index mode and stored source:
                 time_series_dimension: true
 
   - match: { error.type: "mapper_parsing_exception" }
-  - match: { error.reason: "Failed to parse mapping: Indices with with index mode [logsdb] only support synthetic source" }
+  - match: { error.reason: "Failed to parse mapping: time series indices only support synthetic source" }
 
 ---
 create an index with logsdb index mode and stored source:

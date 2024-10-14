@@ -68,7 +68,7 @@ Analysis happens at both <<analysis-index-search-time,index and search time>>.
 [[full-text-tutorial-index-data]]
 === Add sample blog posts to your index
 
-Next, index some example blog posts.
+Next, index some example blog posts using the <<bulk-docs>>:
 
 [source,console]
 ----
@@ -84,17 +84,23 @@ POST /cooking_blog/_bulk
 {"index":{"_id":"5"}}
 {"title":"Crispy Oven-Fried Chicken","description":"Get that perfect crunch without the deep fryer! This oven-fried chicken recipe delivers crispy, juicy results every time. A healthier take on the classic comfort food.","author":"Maria Rodriguez","date":"2023-05-20","category":"Main Course","tags":["chicken","oven-fried","healthy"],"rating":4.9}
 ----
+
+Text fields will be analyzed on document creation, and multi fields will be created as well so our content will be ready for search.
 // TEST
 
 [discrete]
 [[full-text-tutorial-match-query]]
 === Perform basic full-text searches
 
+Full text search consists of performing text queries on different document fields.
+These queries will score each document according to how the query text matches the document content.
+Different queries provide different ways of looking for the text information and scoring the document.
+
 [discrete]
 ==== `match` query
 
 The <<query-dsl-match-query, `match`>> query is the standard query for full-text AKA "lexical" search.
-Input is analyzed before performing the search by tokenizing text, removing possessives, converting to lowercase, filtering out stop words, and applying stemming.
+The query text will be analyzed according to the analyzer configuration specified on each field (or at query time). This provides an opportunity for filtering out stop words, applying stemming to look for different word variations, using synonyms, remove uppercase and lowercase distinctions, etc.
 
 Search the `description` field for "fluffy pancakes":
 
@@ -187,7 +193,7 @@ GET /cooking_blog/_search
 
 <<filter-context,Filtering>> allows you to narrow down your search results based on exact criteria.
 Unlike full-text searches, filters are binary (yes/no) and do not affect the relevance score.
-Filters execute faster than queries.
+Filters execute faster than queries as no scoring needs to be calculated for excluded results.
 
 This `bool` query will return only blog posts in the "Breakfast" category.
 
@@ -364,13 +370,13 @@ GET /cooking_blog/_search
 [discrete]
 === Perform basic aggregations
 
-Aggregations provide summary statistics and analytics on your data.
+Aggregations provide summary statistics and analytics on your search results.
 
 [source, console]
 ----
 GET /cooking_blog/_search
 {
-  "size": 0,
+  "size": 0, <1>
   "aggs": {
     "category_breakdown": {
       "terms": {
@@ -386,6 +392,7 @@ GET /cooking_blog/_search
 }
 ----
 // TEST[continued]
+<1> Here you just want the aggregated information on search results, and don't need to return the actual search results themselves.
 
 This query returns:
 1. Count of recipes per category

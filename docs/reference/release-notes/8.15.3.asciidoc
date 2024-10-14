@@ -1,0 +1,49 @@
+[[release-notes-8.15.3]]
+== {es} version 8.15.3
+
+coming[8.15.3]
+
+Also see <<breaking-changes-8.15,Breaking changes in 8.15>>.
+
+[[bug-8.15.3]]
+[float]
+=== Bug fixes
+
+Aggregations::
+* Don't validate internal stats if they are empty {es-pull}113846[#113846] (issue: {es-issue}113811[#113811])
+* Fix `needsScore` computation in `GlobalOrdCardinalityAggregator` {es-pull}113129[#113129] (issue: {es-issue}112975[#112975])
+
+Authentication::
+* Enables cluster state role mapper, to include ECK operator-defined role mappings in role resolution {es-pull}114337[#114337]
+
+ES|QL::
+* ES|QL: Ensure minimum capacity for `PlanStreamInput` caches {es-pull}114116[#114116]
+* ES|QL: Skip CASE function from `InferIsNotNull` rule checks {es-pull}113123[#113123] (issue: {es-issue}112704[#112704])
+* [ESQL] Fix init value in max float aggregation {es-pull}113699[#113699]
+* [ESQL] Support datetime data type in Least and Greatest functions {es-pull}113961[#113961]
+
+Machine Learning::
+* Fix check on E5 model platform compatibility {es-pull}113437[#113437] (issue: {es-issue}113577[#113577])
+* Handle parsing ingest processors where definition is not a object {es-pull}113697[#113697] (issue: {es-issue}113615[#113615])
+* [ML][backport] Warn for model load failures if they have a status code <500 {es-pull}113410[#113410]
+* [M] Fix error message formatting {es-pull}113266[#113266]
+
+Search::
+* Fix analyzed wildcard query in simple_query_string when disjunctions is empty {es-pull}114264[#114264] (issue: {es-issue}114185[#114185])
+* Fix collapse interaction with stored fields {es-pull}112761[#112761] (issue: {es-issue}112646[#112646])
+
+[[enhancement-8.15.3]]
+[float]
+=== Enhancements
+
+Machine Learning::
+* Write downloaded model parts async {es-pull}111684[#111684]
+
+[[upgrade-8.15.3]]
+[float]
+=== Upgrades
+
+Snapshot/Restore::
+* Upgrade protobufer to 3.25.5 {es-pull}113869[#113869]
+
+

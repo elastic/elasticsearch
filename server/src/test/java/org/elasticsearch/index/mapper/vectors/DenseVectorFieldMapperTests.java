@@ -9,7 +9,6 @@
 
 package org.elasticsearch.index.mapper.vectors;
 
-import com.carrotsearch.randomizedtesting.annotations.Repeat;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 
 import org.apache.lucene.codecs.Codec;

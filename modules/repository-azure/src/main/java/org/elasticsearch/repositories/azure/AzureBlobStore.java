@@ -25,7 +25,7 @@ import com.azure.storage.blob.BlobContainerClient;
 import com.azure.storage.blob.BlobServiceAsyncClient;
 import com.azure.storage.blob.BlobServiceClient;
 import com.azure.storage.blob.batch.BlobBatch;
-import com.azure.storage.blob.batch.BlobBatchClient;
+import com.azure.storage.blob.batch.BlobBatchAsyncClient;
 import com.azure.storage.blob.batch.BlobBatchClientBuilder;
 import com.azure.storage.blob.batch.BlobBatchStorageException;
 import com.azure.storage.blob.models.BlobErrorCode;
@@ -295,27 +295,31 @@ public class AzureBlobStore implements BlobStore {
         // We need to use a container-scoped BlobBatchClient, so the restype=container parameter
         // is sent, and we can support all SAS token types
         // See https://learn.microsoft.com/en-us/rest/api/storageservices/blob-batch?tabs=shared-access-signatures#authorization
-        BlobBatchClient batchClient = new BlobBatchClientBuilder(
+        final BlobBatchAsyncClient batchAsyncClient = new BlobBatchClientBuilder(
             azureBlobServiceClient.getAsyncClient().getBlobContainerAsyncClient(container)
-        ).buildClient();
+        ).buildAsyncClient();
+        final List<Mono<Void>> batchResponses = new ArrayList<>();
         while (blobNames.hasNext()) {
-            final BlobBatch currentBatch = batchClient.getBlobBatch();
+            final BlobBatch currentBatch = batchAsyncClient.getBlobBatch();
             int counter = 0;
             while (counter < MAX_ELEMENTS_PER_BATCH && blobNames.hasNext()) {
                 currentBatch.deleteBlob(container, blobNames.next());
                 counter++;
             }
-            try {
-                batchClient.submitBatch(currentBatch);
-            } catch (BlobBatchStorageException bbse) {
-                final Iterable<BlobStorageException> batchExceptions = bbse.getBatchExceptions();
-                for (BlobStorageException bse : batchExceptions) {
-                    // If one of the requests failed with something other than a 404, throw the encompassing exception
-                    if (bse.getStatusCode() != RestStatus.NOT_FOUND.getStatus()) {
-                        throw new IOException("Failed to delete batch", bbse);
-                    }
+            batchResponses.add(batchAsyncClient.submitBatch(currentBatch));
+        }
+        try {
+            Flux.merge(batchResponses).collectList().block();
+        } catch (BlobBatchStorageException bbse) {
+            final Iterable<BlobStorageException> batchExceptions = bbse.getBatchExceptions();
+            for (BlobStorageException bse : batchExceptions) {
+                // If one of the requests failed with something other than a BLOB_NOT_FOUND, throw the encompassing exception
+                if (BlobErrorCode.BLOB_NOT_FOUND.equals(bse.getErrorCode()) == false) {
+                    throw new IOException("Failed to delete batch", bbse);
                 }
             }
+        } catch (Exception e) {
+            throw new IOException("Unable to delete blobs");
         }
     }
 

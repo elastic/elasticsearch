@@ -13,9 +13,11 @@ import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.OperationPurpose;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.plugins.PluginsService;
@@ -31,6 +33,7 @@ import org.junit.After;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Queue;
@@ -43,6 +46,7 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static org.elasticsearch.repositories.azure.AbstractAzureServerTestCase.randomBlobContent;
+import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomPurpose;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
@@ -223,6 +227,34 @@ public class AzureBlobStoreRepositoryMetricsTests extends AzureBlobStoreReposito
         assertThat(recordedRequestTime, greaterThanOrEqualTo(totalDelayMillis.get()));
         // And <= the elapsed time for the request
         assertThat(recordedRequestTime, lessThanOrEqualTo(elapsedTimeMillis));
+    }
+
+    public void testBatchDeleteFailure() throws IOException {
+        final String repository = createRepository(randomRepositoryName());
+        final String dataNodeName = internalCluster().getNodeNameThat(DiscoveryNode::canContainData);
+        final BlobContainer container = getBlobContainer(dataNodeName, repository);
+
+        final List<String> blobsToDelete = new ArrayList<>();
+        for (int i = 0; i < 10; i++) {
+            byte[] bytes = randomBytes(randomInt(100));
+            String blobName = "index-" + randomAlphaOfLength(10);
+            container.writeBlob(randomPurpose(), blobName, new BytesArray(bytes), false);
+            blobsToDelete.add(blobName);
+        }
+        Randomness.shuffle(blobsToDelete);
+        clearMetrics(dataNodeName);
+
+        // Exhaust the retries
+        IntStream.range(0, MAX_RETRIES + 1).forEach(i -> requestHandlers.offer(new FixedRequestHandler(RestStatus.INTERNAL_SERVER_ERROR)));
+
+        final OperationPurpose deletePurpose = randomPurpose();
+        assertThrows(IOException.class, () -> container.deleteBlobsIgnoringIfNotExists(deletePurpose, blobsToDelete.iterator()));
+
+        metricsAsserter(dataNodeName, deletePurpose, AzureBlobStore.Operation.BLOB_BATCH, repository).expectMetrics()
+            .withRequests(MAX_RETRIES + 1)
+            .withExceptions(MAX_RETRIES + 1)
+            .withThrottles(0)
+            .forResult(MetricsAsserter.Result.Exception);
     }
 
     private void clearMetrics(String discoveryNode) {

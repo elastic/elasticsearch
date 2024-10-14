@@ -380,14 +380,6 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
             defaultModelId
         );
 
-        if (modelVariantDoesNotMatchArchitecturesAndIsNotPlatformAgnostic(preferredModelVariant, esServiceSettingsBuilder.getModelId())) {
-            throw new IllegalArgumentException(
-                "Error parsing request config, model id does not match any models available on this platform. Was ["
-                    + esServiceSettingsBuilder.getModelId()
-                    + "]"
-            );
-        }
-
         throwIfNotEmptyMap(config, name());
         throwIfNotEmptyMap(serviceSettingsMap, name());
 
@@ -399,19 +391,6 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
                 new ElserInternalServiceSettings(esServiceSettingsBuilder.build()),
                 ElserMlNodeTaskSettings.DEFAULT,
                 chunkingSettings
-            )
-        );
-    }
-
-    private static boolean modelVariantDoesNotMatchArchitecturesAndIsNotPlatformAgnostic(
-        PreferredModelVariant preferredModelVariant,
-        String modelId
-    ) {
-        return modelId.equals(
-            selectDefaultModelVariantBasedOnClusterArchitecture(
-                preferredModelVariant,
-                MULTILINGUAL_E5_SMALL_MODEL_ID_LINUX_X86,
-                MULTILINGUAL_E5_SMALL_MODEL_ID
             )
         );
     }

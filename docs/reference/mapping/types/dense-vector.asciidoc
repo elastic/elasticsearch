@@ -117,10 +117,9 @@ that sacrifices result accuracy for improved speed.
 The `dense_vector` type supports quantization to reduce the memory footprint required when <<approximate-knn, searching>> `float` vectors.
 The two following quantization strategies are supported:
 
-+
 --
-`int8` - Quantizes each dimension of the vector to 1-byte integers. This can reduce the memory footprint by 75% at the cost of some accuracy.
-`int4` - Quantizes each dimension of the vector to half-byte integers. This can reduce the memory footprint by 87% at the cost of some accuracy.
+- `int8` - Quantizes each dimension of the vector to 1-byte integers. This can reduce the memory footprint by 75% at the cost of some accuracy.
+- `int4` - Quantizes each dimension of the vector to half-byte integers. This can reduce the memory footprint by 87% at the cost of some accuracy.
 --
 
 To use a quantized index, you can set your index type to `int8_hnsw` or `int4_hnsw`. When indexing `float` vectors, the current default

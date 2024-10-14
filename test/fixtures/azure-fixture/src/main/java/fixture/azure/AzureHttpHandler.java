@@ -283,7 +283,6 @@ public class AzureHttpHandler implements HttpHandler {
                     String batchBoundary = requestReader.readLine();
                     String responseBoundary = "batch_" + UUID.randomUUID();
 
-                    logger.debug("Batch boundary: " + batchBoundary);
                     String line;
                     String contentId = null, requestId = null, toDelete = null;
                     while ((line = requestReader.readLine()) != null) {
@@ -341,37 +340,23 @@ public class AzureHttpHandler implements HttpHandler {
                             toDelete = null;
                             contentId = null;
                             requestId = null;
-
-                            logger.debug("--> Starting a new batch");
-                        } else if (line.startsWith("Content-Type")
-                            || line.startsWith("Content-Transfer-Encoding")
-                            || line.startsWith("Accept")
-                            || line.startsWith("Content-Length")
-                            || line.startsWith("User-Agent")
-                            || line.startsWith("Date")
-                            || line.isBlank()) {
-                                // Ignore
-                            } else if (Regex.simpleMatch("x-ms-client-request-id: *", line)) {
-                                if (requestId != null) {
-                                    throw new IllegalStateException("Got multiple request IDs in a single request?");
-                                }
-                                requestId = line.split("\\s")[1];
-                            } else if (Regex.simpleMatch("Content-ID: *", line)) {
-                                if (contentId != null) {
-                                    throw new IllegalStateException("Got multiple content IDs in a single request?");
-                                }
-                                contentId = line.split("\\s")[1];
-                            } else if (Regex.simpleMatch("DELETE /" + container + "/*", line)) {
-                                logger.debug("--> Got delete line: " + line);
-                                String blobName = RestUtils.decodeComponent(line.split("(\\s|\\?)")[1]);
-                                logger.debug("--> Deleting blob: " + blobName);
-                                if (toDelete != null) {
-                                    throw new IllegalStateException("Got multiple deletes in a single request?");
-                                }
-                                toDelete = blobName;
-                            } else {
-                                logger.debug("--> Ignoring line: " + line);
+                        } else if (Regex.simpleMatch("x-ms-client-request-id: *", line)) {
+                            if (requestId != null) {
+                                throw new IllegalStateException("Got multiple request IDs in a single request?");
                             }
+                            requestId = line.split("\\s")[1];
+                        } else if (Regex.simpleMatch("Content-ID: *", line)) {
+                            if (contentId != null) {
+                                throw new IllegalStateException("Got multiple content IDs in a single request?");
+                            }
+                            contentId = line.split("\\s")[1];
+                        } else if (Regex.simpleMatch("DELETE /" + container + "/*", line)) {
+                            String blobName = RestUtils.decodeComponent(line.split("(\\s|\\?)")[1]);
+                            if (toDelete != null) {
+                                throw new IllegalStateException("Got multiple deletes in a single request?");
+                            }
+                            toDelete = blobName;
+                        }
                     }
                     response.append("--").append(responseBoundary).append("--\r\n0\r\n");
                     // Send the response

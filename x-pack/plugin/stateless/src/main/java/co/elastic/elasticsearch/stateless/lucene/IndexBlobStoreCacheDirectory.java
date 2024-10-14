@@ -45,7 +45,7 @@ public class IndexBlobStoreCacheDirectory extends BlobStoreCacheDirectory {
         super(cacheService, shardId);
     }
 
-    void updateMetadata(Map<String, BlobFileRanges> metadata, long dataSetSizeInBytes) {
+    public void updateMetadata(Map<String, BlobFileRanges> metadata, long dataSetSizeInBytes) {
         assert assertCompareAndSetUpdatingCommitThread(null, Thread.currentThread());
         try {
             currentMetadata = metadata;
@@ -119,6 +119,39 @@ public class IndexBlobStoreCacheDirectory extends BlobStoreCacheDirectory {
         preWarmDirectory.currentMetadata = Maps.transformValues(preWarmCommit.commitFiles(), BlobFileRanges::new);
         preWarmDirectory.currentDataSetSizeInBytes = preWarmCommit.getAllFilesSizeInBytes();
         return preWarmDirectory;
+    }
+
+    @Override
+    public IndexBlobStoreCacheDirectory createPreWarmingInstance() {
+        var instance = new IndexBlobStoreCacheDirectory(cacheService, shardId) {
+
+            @Override
+            protected CacheBlobReader getCacheBlobReader(BlobLocation blobLocation) {
+                return getCacheBlobReaderForWarming(blobLocation);
+            }
+
+            @Override
+            public CacheBlobReader getCacheBlobReaderForWarming(BlobLocation blobLocation) {
+                assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.GENERIC);
+                var blobContainer = getBlobContainer(blobLocation.primaryTerm());
+                return new MeteringCacheBlobReader(
+                    new ObjectStoreCacheBlobReader(
+                        blobContainer,
+                        blobLocation.blobName(),
+                        getCacheService().getRangeSize(),
+                        getCacheService().getShardReadThreadPoolExecutor()
+                    ),
+                    createReadCompleteCallback(
+                        IndexBlobStoreCacheDirectory.this.totalBytesWarmedFromObjectStore,
+                        BlobCacheMetrics.CachePopulationReason.Warming
+                    )
+                );
+            }
+        };
+        if (blobContainer.get() != null) {
+            instance.setBlobContainer(blobContainer.get());
+        }
+        return instance;
     }
 
     public static IndexBlobStoreCacheDirectory unwrapDirectory(final Directory directory) {

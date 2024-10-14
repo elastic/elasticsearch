@@ -155,23 +155,26 @@ class StatelessIndexEventListener implements IndexEventListener {
             : recoveryState.getRecoverySource().toString();
     }
 
-    private void beforeRecoveryOnIndexingShard(IndexShard indexShard, BlobContainer existingBlobContainer, ActionListener<Void> listener)
+    private void beforeRecoveryOnIndexingShard(IndexShard indexShard, BlobContainer shardContainer, ActionListener<Void> listener)
         throws IOException {
         assert indexShard.store().refCount() > 0 : indexShard.shardId();
         assert indexShard.routingEntry().isPromotableToPrimary();
 
+        final Store store = indexShard.store();
+        final var indexDirectory = IndexDirectory.unwrapDirectory(store.directory());
         final ObjectStoreService.IndexingShardState indexingShardState;
-        if (existingBlobContainer != null) {
-            indexingShardState = ObjectStoreService.readIndexingShardState(existingBlobContainer, indexShard.getOperationPrimaryTerm());
+        if (shardContainer != null) {
+            indexingShardState = ObjectStoreService.readIndexingShardState(
+                indexDirectory.getPreWarmingInstance(),
+                shardContainer,
+                indexShard.getOperationPrimaryTerm()
+            );
         } else {
             indexingShardState = ObjectStoreService.IndexingShardState.EMPTY;
         }
         logBootstrapping(indexShard, indexingShardState.latestCommit());
 
         ActionListener.completeWith(listener, () -> {
-            final Store store = indexShard.store();
-            final var indexDirectory = IndexDirectory.unwrapDirectory(store.directory());
-
             final var batchedCompoundCommit = indexingShardState.latestCommit();
             if (batchedCompoundCommit != null) {
                 var recoveryCommit = batchedCompoundCommit.lastCompoundCommit();

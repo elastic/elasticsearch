@@ -22,7 +22,11 @@ PUT _inference/sparse_embedding/my-elser-endpoint <1>
 {
   "service": "elser", <2>
   "service_settings": {
-    "num_allocations": 1,
+    "adaptive_allocations": { <3>
+      "enabled": true,
+      "min_number_of_allocations": 3,
+      "max_number_of_allocations": 10
+    },
     "num_threads": 1
   }
 }
@@ -32,6 +36,8 @@ PUT _inference/sparse_embedding/my-elser-endpoint <1>
 be used and ELSER creates sparse vectors. The `inference_id` is
 `my-elser-endpoint`.
 <2> The `elser` service is used in this example.
+<3> This setting enables and configures adaptive allocations.
+Adaptive allocations make it possible for ELSER to automatically scale up or down resources based on the current load on the process.
 
 [NOTE]
 ====

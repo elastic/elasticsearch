@@ -147,6 +147,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                 10,
                 3,
                 0,
+                null,
                 new TimeValue(4444L)
             )
         );
@@ -161,6 +162,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                 12,
                 5,
                 0,
+                null,
                 new TimeValue(4999L)
             )
         );
@@ -498,6 +500,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                 successfulShardsFinal,
                 skippedShardsFinal,
                 failedShardsFinal,
+                List.of(),
                 tookTimeValue
             );
         }

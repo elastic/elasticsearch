@@ -130,10 +130,13 @@ final class ComputeListener implements Releasable {
                 result = new ComputeResponse(collectedProfiles.isEmpty() ? List.of() : collectedProfiles.stream().toList());
                 if (coordinatingClusterIsSearchedInCCS()) {
                     // mark local cluster as finished once the coordinator and all data nodes have finished processing
-                    executionInfo.swapCluster(
-                        RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY,
-                        (k, v) -> new EsqlExecutionInfo.Cluster.Builder(v).setStatus(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL).build()
-                    );
+                    executionInfo.swapCluster(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY, (k, v) -> {
+                        if (v.getStatus() == EsqlExecutionInfo.Cluster.Status.SKIPPED) {
+                            // if already marked as SKIPPED, do not overwrite
+                            return v;
+                        }
+                        return new EsqlExecutionInfo.Cluster.Builder(v).setStatus(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL).build();
+                    });
                 }
             }
             delegate.onResponse(result);

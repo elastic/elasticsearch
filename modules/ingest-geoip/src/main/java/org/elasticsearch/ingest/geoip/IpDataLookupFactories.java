@@ -16,6 +16,8 @@ import java.util.List;
 import java.util.Set;
 import java.util.function.Function;
 
+import static org.elasticsearch.ingest.geoip.MaxmindIpDataLookups.getMaxmindDatabase;
+
 final class IpDataLookupFactories {
 
     private IpDataLookupFactories() {
@@ -24,38 +26,6 @@ final class IpDataLookupFactories {
 
     interface IpDataLookupFactory {
         IpDataLookup create(List<String> properties);
-    }
-
-    private static final String CITY_DB_SUFFIX = "-City";
-    private static final String COUNTRY_DB_SUFFIX = "-Country";
-    private static final String ASN_DB_SUFFIX = "-ASN";
-    private static final String ANONYMOUS_IP_DB_SUFFIX = "-Anonymous-IP";
-    private static final String CONNECTION_TYPE_DB_SUFFIX = "-Connection-Type";
-    private static final String DOMAIN_DB_SUFFIX = "-Domain";
-    private static final String ENTERPRISE_DB_SUFFIX = "-Enterprise";
-    private static final String ISP_DB_SUFFIX = "-ISP";
-
-    @Nullable
-    private static Database getMaxmindDatabase(final String databaseType) {
-        if (databaseType.endsWith(CITY_DB_SUFFIX)) {
-            return Database.City;
-        } else if (databaseType.endsWith(COUNTRY_DB_SUFFIX)) {
-            return Database.Country;
-        } else if (databaseType.endsWith(ASN_DB_SUFFIX)) {
-            return Database.Asn;
-        } else if (databaseType.endsWith(ANONYMOUS_IP_DB_SUFFIX)) {
-            return Database.AnonymousIp;
-        } else if (databaseType.endsWith(CONNECTION_TYPE_DB_SUFFIX)) {
-            return Database.ConnectionType;
-        } else if (databaseType.endsWith(DOMAIN_DB_SUFFIX)) {
-            return Database.Domain;
-        } else if (databaseType.endsWith(ENTERPRISE_DB_SUFFIX)) {
-            return Database.Enterprise;
-        } else if (databaseType.endsWith(ISP_DB_SUFFIX)) {
-            return Database.Isp;
-        } else {
-            return null; // no match was found
-        }
     }
 
     /**

@@ -10,6 +10,8 @@ package org.elasticsearch.xpack.esql.stats;
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.xpack.core.watcher.common.stats.Counters;
+import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -42,6 +44,20 @@ public class Metrics {
     protected static String FPREFIX = "features.";
     protected static String FUNC_PREFIX = "functions.";
 
+    private static final EsqlFunctionRegistry funcitonRegistry = new EsqlFunctionRegistry().snapshotRegistry();
+
+    private static final Map<Class<?>, String> classToFunctionName = initClassToFunctionType();
+
+    private static Map<Class<?>, String> initClassToFunctionType() {
+        Map<Class<?>, String> tmp = new HashMap<>();
+        for (FunctionDefinition func : funcitonRegistry.listFunctions()) {
+            if (tmp.containsKey(func.clazz()) == false) {
+                tmp.put(func.clazz(), func.name());
+            }
+        }
+        return Collections.unmodifiableMap(tmp);
+    }
+
     public Metrics() {
         Map<QueryMetric, Map<OperationType, CounterMetric>> qMap = new LinkedHashMap<>();
         for (QueryMetric metric : QueryMetric.values()) {
@@ -60,8 +76,15 @@ public class Metrics {
         }
         featuresMetrics = Collections.unmodifiableMap(fMap);
 
-        // we could pre-populate this map using FunctionRegistry
-        functionMetrics = Collections.synchronizedMap(new HashMap<>());
+        functionMetrics = initFunctionMetrics();
+    }
+
+    private static Map<String, CounterMetric> initFunctionMetrics() {
+        Map<String, CounterMetric> result = new LinkedHashMap<>();
+        for (var entry : classToFunctionName.entrySet()) {
+            result.put(entry.getValue(), new CounterMetric());
+        }
+        return Collections.unmodifiableMap(result);
     }
 
     /**
@@ -87,8 +110,11 @@ public class Metrics {
         this.featuresMetrics.get(metric).inc();
     }
 
-    public void incFunctionMetric(String functionName) {
-        functionMetrics.computeIfAbsent(functionName, c -> new CounterMetric()).inc();
+    public void incFunctionMetric(Class<?> functionType) {
+        String functionName = classToFunctionName.get(functionType);
+        if (functionName != null) {
+            functionMetrics.get(functionName).inc();
+        }
     }
 
     public Counters stats() {

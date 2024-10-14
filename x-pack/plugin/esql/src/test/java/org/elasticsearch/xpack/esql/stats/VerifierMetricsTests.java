@@ -10,9 +10,14 @@ package org.elasticsearch.xpack.esql.stats;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.watcher.common.stats.Counters;
 import org.elasticsearch.xpack.esql.analysis.Verifier;
+import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.analyzer;
@@ -56,7 +61,7 @@ public class VerifierMetricsTests extends ESTestCase {
         assertEquals(0, keep(c));
         assertEquals(0, rename(c));
 
-        assertEquals(1, function("CONCAT", c));
+        assertEquals(1, function("concat", c));
     }
 
     public void testEvalQuery() {
@@ -77,7 +82,7 @@ public class VerifierMetricsTests extends ESTestCase {
         assertEquals(0, keep(c));
         assertEquals(0, rename(c));
 
-        assertEquals(1, function("LENGTH", c));
+        assertEquals(1, function("length", c));
     }
 
     public void testGrokQuery() {
@@ -98,7 +103,7 @@ public class VerifierMetricsTests extends ESTestCase {
         assertEquals(0, keep(c));
         assertEquals(0, rename(c));
 
-        assertEquals(1, function("CONCAT", c));
+        assertEquals(1, function("concat", c));
     }
 
     public void testLimitQuery() {
@@ -157,7 +162,7 @@ public class VerifierMetricsTests extends ESTestCase {
         assertEquals(0, keep(c));
         assertEquals(0, rename(c));
 
-        assertEquals(1, function("MAX", c));
+        assertEquals(1, function("max", c));
     }
 
     public void testWhereQuery() {
@@ -196,9 +201,6 @@ public class VerifierMetricsTests extends ESTestCase {
         assertEquals(0, drop(c));
         assertEquals(0, keep(c));
         assertEquals(0, rename(c));
-
-        assertEquals(1, function("EQUALS", c));
-        assertEquals(1, function("GREATERTHAN", c));
     }
 
     public void testTwoQueriesExecuted() {
@@ -239,10 +241,61 @@ public class VerifierMetricsTests extends ESTestCase {
         assertEquals(0, keep(c));
         assertEquals(0, rename(c));
 
-        assertEquals(1, function("CONCAT", c));
-        assertEquals(1, function("MAX", c));
-        assertEquals(1, function("MIN", c));
-        assertEquals(2, function("GREATERTHAN", c));
+        assertEquals(1, function("length", c));
+        assertEquals(1, function("concat", c));
+        assertEquals(1, function("max", c));
+        assertEquals(1, function("min", c));
+
+        assertEquals(0, function("sin", c));
+        assertEquals(0, function("cos", c));
+    }
+
+    public void testMultipleFunctions() {
+        Metrics metrics = new Metrics();
+        Verifier verifier = new Verifier(metrics);
+        esqlWithVerifier("""
+               from employees
+               | where languages > 2
+               | limit 5
+               | eval name_len = length(first_name), surname_len = length(last_name)
+               | sort length(first_name)
+               | limit 3
+            """, verifier);
+
+        Counters c = metrics.stats();
+        assertEquals(1, function("length", c));
+        assertEquals(0, function("concat", c));
+
+        esqlWithVerifier("""
+              from employees
+              | where languages > 2
+              | sort first_name desc nulls first
+              | dissect concat(first_name, " ", last_name) "%{a} %{b}"
+              | grok concat(first_name, " ", last_name) "%{WORD:a} %{WORD:b}"
+              | eval name_len = length(first_name), surname_len = length(last_name)
+              | stats x = max(languages)
+              | sort x
+              | stats y = min(x) by x
+            """, verifier);
+        c = metrics.stats();
+
+        assertEquals(2, function("length", c));
+        assertEquals(1, function("concat", c));
+        assertEquals(1, function("max", c));
+        assertEquals(1, function("min", c));
+
+        EsqlFunctionRegistry fr = new EsqlFunctionRegistry().snapshotRegistry();
+        Map<Class<?>, String> functions = new HashMap<>();
+        for (FunctionDefinition func : fr.listFunctions()) {
+            if (functions.containsKey(func.clazz()) == false) {
+                functions.put(func.clazz(), func.name());
+            }
+        }
+        for (String value : functions.values()) {
+            if (Set.of("length", "concat", "max", "min").contains(value) == false) {
+                assertEquals(0, function(value, c));
+            }
+        }
     }
 
     public void testEnrich() {
@@ -269,7 +322,7 @@ public class VerifierMetricsTests extends ESTestCase {
         assertEquals(1L, keep(c));
         assertEquals(0, rename(c));
 
-        assertEquals(1, function("TOSTRING", c));
+        assertEquals(1, function("to_string", c));
     }
 
     public void testMvExpand() {
@@ -298,9 +351,6 @@ public class VerifierMetricsTests extends ESTestCase {
         assertEquals(0, drop(c));
         assertEquals(1L, keep(c));
         assertEquals(0, rename(c));
-
-        assertEquals(1, function("WILDCARDLIKE", c));
-        assertEquals(1, function("EQUALS", c));
     }
 
     public void testShowInfo() {
@@ -321,7 +371,7 @@ public class VerifierMetricsTests extends ESTestCase {
         assertEquals(0, keep(c));
         assertEquals(0, rename(c));
 
-        assertEquals(1, function("COUNT", c));
+        assertEquals(1, function("count", c));
     }
 
     public void testRow() {
@@ -341,8 +391,6 @@ public class VerifierMetricsTests extends ESTestCase {
         assertEquals(0, drop(c));
         assertEquals(0, keep(c));
         assertEquals(0, rename(c));
-
-        assertNullFunction("EQUALS", c);
     }
 
     public void testDropAndRename() {
@@ -363,7 +411,7 @@ public class VerifierMetricsTests extends ESTestCase {
         assertEquals(0, keep(c));
         assertEquals(1L, rename(c));
 
-        assertEquals(1, function("COUNT", c));
+        assertEquals(1, function("count", c));
     }
 
     public void testKeep() {
@@ -388,10 +436,6 @@ public class VerifierMetricsTests extends ESTestCase {
         assertEquals(0, drop(c));
         assertEquals(1L, keep(c));
         assertEquals(0, rename(c));
-
-        assertEquals(1, function("IN", c));
-        assertEquals(1, function("ISNULL", c));
-        assertEquals(1, function("LESSTHANOREQUAL", c));
     }
 
     private long dissect(Counters c) {

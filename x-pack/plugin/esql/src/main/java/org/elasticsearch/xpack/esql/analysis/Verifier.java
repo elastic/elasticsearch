@@ -451,9 +451,9 @@ public class Verifier {
         for (int i = b.nextSetBit(0); i >= 0; i = b.nextSetBit(i + 1)) {
             metrics.inc(FeatureMetric.values()[i]);
         }
-        Set<String> funcitons = new HashSet<>();
-        plan.forEachExpressionDown(Function.class, p -> funcitons.add(p.functionName()));
-        funcitons.forEach(f -> metrics.incFunctionMetric(f));
+        Set<Class<?>> functions = new HashSet<>();
+        plan.forEachExpressionDown(Function.class, p -> functions.add(p.getClass()));
+        functions.forEach(f -> metrics.incFunctionMetric(f));
     }
 
     /**

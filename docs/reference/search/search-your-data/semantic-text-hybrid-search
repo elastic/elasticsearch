@@ -98,7 +98,7 @@ Download the file and upload it to your cluster using the {kibana-ref}/connect-t
 [[hybrid-search-reindex-data]]
 ==== Reindex the data for hybrid search
 
-Reindex the data from the `test-data` index into the `semantic-hybrid-embeddings` index to enable both lexical and semantic search.
+Reindex the data from the `test-data` index into the `semantic-embeddings` index.
 The data in the `content` field of the source index is copied into the `content` field of the destination index. 
 The `copy_to` functionality ensures that the content is duplicated into the `semantic_text` field, where it will be processed by the inference endpoint to generate embeddings.
 

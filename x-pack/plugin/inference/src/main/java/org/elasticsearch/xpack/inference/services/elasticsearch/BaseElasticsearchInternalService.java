@@ -239,7 +239,12 @@ public abstract class BaseElasticsearchInternalService implements InferenceServi
                     // However, in Elastic cloud ml nodes run on Linux x86
                     delegate.onResponse(PreferredModelVariant.LINUX_X86_OPTIMIZED);
                 } else {
-                    delegate.onResponse(PreferredModelVariant.PLATFORM_AGNOSTIC);
+                    boolean homogenous = architectures.size() == 1;
+                    if (homogenous && architectures.iterator().next().equals("linux-x86_64")) {
+                        delegate.onResponse(PreferredModelVariant.LINUX_X86_OPTIMIZED);
+                    } else {
+                        delegate.onResponse(PreferredModelVariant.PLATFORM_AGNOSTIC);
+                    }
                 }
             }),
             client,
@@ -270,7 +275,7 @@ public abstract class BaseElasticsearchInternalService implements InferenceServi
         return request;
     }
 
-    protected abstract boolean isDefaultId(String inferenceId);
+    abstract boolean isDefaultId(String inferenceId);
 
     protected void maybeStartDeployment(
         ElasticsearchInternalModel model,

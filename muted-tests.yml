@@ -71,9 +71,6 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/111448
 - class: org.elasticsearch.search.SearchServiceTests
   issue: https://github.com/elastic/elasticsearch/issues/111529
-- class: org.elasticsearch.xpack.test.rest.XPackRestIT
-  method: test {p0=rollup/security_tests/Index-based access}
-  issue: https://github.com/elastic/elasticsearch/issues/111631
 - class: org.elasticsearch.upgrades.FullClusterRestartIT
   method: testSnapshotRestore {cluster=OLD}
   issue: https://github.com/elastic/elasticsearch/issues/111777
@@ -345,6 +342,12 @@ tests:
 - class: org.elasticsearch.action.search.SearchQueryThenFetchAsyncActionTests
   method: testMinimumVersionShardDuringPhaseExecution
   issue: https://github.com/elastic/elasticsearch/issues/114611
+- class: org.elasticsearch.xpack.esql.optimizer.PhysicalPlanOptimizerTests
+  method: testPushSpatialIntersectsEvalToSource {default}
+  issue: https://github.com/elastic/elasticsearch/issues/114627
+- class: org.elasticsearch.xpack.esql.optimizer.PhysicalPlanOptimizerTests
+  method: testPushWhereEvalToSource {default}
+  issue: https://github.com/elastic/elasticsearch/issues/114628
 
 # Examples:
 #

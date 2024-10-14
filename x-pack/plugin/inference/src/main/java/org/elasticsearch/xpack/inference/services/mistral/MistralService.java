@@ -23,7 +23,6 @@ import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.xpack.core.inference.ChunkingSettingsFeatureFlag;
 import org.elasticsearch.xpack.inference.chunking.ChunkingSettingsBuilder;
 import org.elasticsearch.xpack.inference.chunking.EmbeddingRequestChunker;
 import org.elasticsearch.xpack.inference.external.action.mistral.MistralActionCreator;
@@ -87,21 +86,12 @@ public class MistralService extends SenderService {
         var actionCreator = new MistralActionCreator(getSender(), getServiceComponents());
 
         if (model instanceof MistralEmbeddingsModel mistralEmbeddingsModel) {
-            List<EmbeddingRequestChunker.BatchRequestAndListener> batchedRequests;
-            if (ChunkingSettingsFeatureFlag.isEnabled()) {
-                batchedRequests = new EmbeddingRequestChunker(
-                    inputs.getInputs(),
-                    MistralConstants.MAX_BATCH_SIZE,
-                    EmbeddingRequestChunker.EmbeddingType.FLOAT,
-                    mistralEmbeddingsModel.getConfigurations().getChunkingSettings()
-                ).batchRequestsWithListeners(listener);
-            } else {
-                batchedRequests = new EmbeddingRequestChunker(
-                    inputs.getInputs(),
-                    MistralConstants.MAX_BATCH_SIZE,
-                    EmbeddingRequestChunker.EmbeddingType.FLOAT
-                ).batchRequestsWithListeners(listener);
-            }
+            List<EmbeddingRequestChunker.BatchRequestAndListener> batchedRequests = new EmbeddingRequestChunker(
+                inputs.getInputs(),
+                MistralConstants.MAX_BATCH_SIZE,
+                EmbeddingRequestChunker.EmbeddingType.FLOAT,
+                mistralEmbeddingsModel.getConfigurations().getChunkingSettings()
+            ).batchRequestsWithListeners(listener);
 
             for (var request : batchedRequests) {
                 var action = mistralEmbeddingsModel.accept(actionCreator, taskSettings);
@@ -129,7 +119,7 @@ public class MistralService extends SenderService {
             Map<String, Object> taskSettingsMap = removeFromMapOrDefaultEmpty(config, ModelConfigurations.TASK_SETTINGS);
 
             ChunkingSettings chunkingSettings = null;
-            if (ChunkingSettingsFeatureFlag.isEnabled() && TaskType.TEXT_EMBEDDING.equals(taskType)) {
+            if (TaskType.TEXT_EMBEDDING.equals(taskType)) {
                 chunkingSettings = ChunkingSettingsBuilder.fromMap(
                     removeFromMapOrDefaultEmpty(config, ModelConfigurations.CHUNKING_SETTINGS)
                 );
@@ -168,7 +158,7 @@ public class MistralService extends SenderService {
         Map<String, Object> secretSettingsMap = removeFromMapOrDefaultEmpty(secrets, ModelSecrets.SECRET_SETTINGS);
 
         ChunkingSettings chunkingSettings = null;
-        if (ChunkingSettingsFeatureFlag.isEnabled() && TaskType.TEXT_EMBEDDING.equals(taskType)) {
+        if (TaskType.TEXT_EMBEDDING.equals(taskType)) {
             chunkingSettings = ChunkingSettingsBuilder.fromMap(removeFromMapOrDefaultEmpty(config, ModelConfigurations.CHUNKING_SETTINGS));
         }
 
@@ -189,7 +179,7 @@ public class MistralService extends SenderService {
         Map<String, Object> taskSettingsMap = removeFromMapOrDefaultEmpty(config, ModelConfigurations.TASK_SETTINGS);
 
         ChunkingSettings chunkingSettings = null;
-        if (ChunkingSettingsFeatureFlag.isEnabled() && TaskType.TEXT_EMBEDDING.equals(taskType)) {
+        if (TaskType.TEXT_EMBEDDING.equals(taskType)) {
             chunkingSettings = ChunkingSettingsBuilder.fromMap(removeFromMapOrDefaultEmpty(config, ModelConfigurations.CHUNKING_SETTINGS));
         }
 

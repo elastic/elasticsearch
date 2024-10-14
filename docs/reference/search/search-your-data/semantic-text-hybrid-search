@@ -118,7 +118,7 @@ POST _reindex?wait_for_completion=false
     "size": 10 <1>
   },
   "dest": {
-    "index": "semantic-hybrid-embeddings"
+    "index": "semantic-embeddings"
   }
 }
 ------------------------------------------------------------

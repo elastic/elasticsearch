@@ -84,9 +84,9 @@ POST /cooking_blog/_bulk
 {"index":{"_id":"5"}}
 {"title":"Crispy Oven-Fried Chicken","description":"Get that perfect crunch without the deep fryer! This oven-fried chicken recipe delivers crispy, juicy results every time. A healthier take on the classic comfort food.","author":"Maria Rodriguez","date":"2023-05-20","category":"Main Course","tags":["chicken","oven-fried","healthy"],"rating":4.9}
 ----
-
-Text fields will be analyzed on document creation, and multi fields will be created as well so our content will be ready for search.
 // TEST
+
+Text fields are analyzed and multi-fields are generated when a document is created.
 
 [discrete]
 [[full-text-tutorial-match-query]]

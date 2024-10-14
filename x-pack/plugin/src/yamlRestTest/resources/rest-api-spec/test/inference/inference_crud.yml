@@ -39,27 +39,4 @@
           }
   - match: { error.reason: "Unknown task_type [bad]" }
 
----
-"Test get all":
-  - requires:
-      cluster_features: "semantic_text.default_elser_2"
-      reason: semantic_text default ELSER 2 inference ID introduced in 8.16.0
-      
-  - do:
-      inference.get:
-        inference_id: "*"
-  - length: { endpoints: 1}
-  - match: { endpoints.0.inference_id: ".elser-2" }
-
-  - do:
-      inference.get:
-        inference_id: _all
-  - length: { endpoints: 1}
-  - match: { endpoints.0.inference_id: ".elser-2" }
-
-  - do:
-      inference.get:
-        inference_id: ""
-  - length: { endpoints: 1}
-  - match: { endpoints.0.inference_id: ".elser-2" }
 

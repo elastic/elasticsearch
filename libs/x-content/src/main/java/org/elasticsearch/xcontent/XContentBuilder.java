@@ -40,6 +40,7 @@ import java.util.Objects;
 import java.util.ServiceLoader;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.function.LongFunction;
 
 /**
  * A utility to build XContent (ie json).
@@ -107,13 +108,15 @@ public final class XContentBuilder implements Closeable, Flushable {
     private static final Map<Class<?>, Writer> WRITERS;
     private static final Map<Class<?>, HumanReadableTransformer> HUMAN_READABLE_TRANSFORMERS;
     private static final Map<Class<?>, Function<Object, Object>> DATE_TRANSFORMERS;
+    private static final LongFunction<String> UNIX_EPOCH_MILLIS_FORMATTER;
+
     static {
         Map<Class<?>, Writer> writers = new HashMap<>();
         writers.put(Boolean.class, (b, v) -> b.value((Boolean) v));
         writers.put(boolean[].class, (b, v) -> b.values((boolean[]) v));
         writers.put(Byte.class, (b, v) -> b.value((Byte) v));
         writers.put(byte[].class, (b, v) -> b.value((byte[]) v));
-        writers.put(Date.class, XContentBuilder::timeValue);
+        writers.put(Date.class, XContentBuilder::timestampValue);
         writers.put(Double.class, (b, v) -> b.value((Double) v));
         writers.put(double[].class, (b, v) -> b.values((double[]) v));
         writers.put(Float.class, (b, v) -> b.value((Float) v));
@@ -129,8 +132,8 @@ public final class XContentBuilder implements Closeable, Flushable {
         writers.put(Locale.class, (b, v) -> b.value(v.toString()));
         writers.put(Class.class, (b, v) -> b.value(v.toString()));
         writers.put(ZonedDateTime.class, (b, v) -> b.value(v.toString()));
-        writers.put(Calendar.class, XContentBuilder::timeValue);
-        writers.put(GregorianCalendar.class, XContentBuilder::timeValue);
+        writers.put(Calendar.class, XContentBuilder::timestampValue);
+        writers.put(GregorianCalendar.class, XContentBuilder::timestampValue);
         writers.put(BigInteger.class, (b, v) -> b.value((BigInteger) v));
         writers.put(BigDecimal.class, (b, v) -> b.value((BigDecimal) v));
 
@@ -139,6 +142,8 @@ public final class XContentBuilder implements Closeable, Flushable {
 
         // treat strings as already converted
         dateTransformers.put(String.class, Function.identity());
+
+        LongFunction<String> unixEpochMillisFormatter = Long::toString;
 
         // Load pluggable extensions
         for (XContentBuilderExtension service : ServiceLoader.load(XContentBuilderExtension.class)) {
@@ -157,11 +162,14 @@ public final class XContentBuilder implements Closeable, Flushable {
             writers.putAll(addlWriters);
             humanReadableTransformer.putAll(addlTransformers);
             dateTransformers.putAll(addlDateTransformers);
+
+            unixEpochMillisFormatter = service::formatUnixEpochMillis;
         }
 
         WRITERS = Map.copyOf(writers);
         HUMAN_READABLE_TRANSFORMERS = Map.copyOf(humanReadableTransformer);
         DATE_TRANSFORMERS = Map.copyOf(dateTransformers);
+        UNIX_EPOCH_MILLIS_FORMATTER = unixEpochMillisFormatter;
     }
 
     @FunctionalInterface
@@ -797,52 +805,53 @@ public final class XContentBuilder implements Closeable, Flushable {
     }
 
     ////////////////////////////////////////////////////////////////////////////
-    // Date
+    // Timestamps
     //////////////////////////////////
 
     /**
-     * Write a time-based field and value, if the passed timeValue is null a
-     * null value is written, otherwise a date transformers lookup is performed.
-
-     * @throws IllegalArgumentException if there is no transformers for the type of object
+     * Write a field with a timestamp value: if the passed timestamp is null then writes null, otherwise looks up the date transformer
+     * for the type of {@code timestamp} and uses it to format the value.
+     *
+     * @throws IllegalArgumentException if there is no transformer for the given value type
      */
-    public XContentBuilder timeField(String name, Object timeValue) throws IOException {
-        return field(name).timeValue(timeValue);
+    public XContentBuilder timestampField(String name, Object timestamp) throws IOException {
+        return field(name).timestampValue(timestamp);
     }
 
     /**
-     * If the {@code humanReadable} flag is set, writes both a formatted and
-     * unformatted version of the time value using the date transformer for the
-     * {@link Long} class.
+     * Writes a field containing the raw number of milliseconds since the unix epoch, and also if the {@code humanReadable} flag is set,
+     * writes a formatted representation of this value using the UNIX_EPOCH_MILLIS_FORMATTER.
      */
-    public XContentBuilder timeField(String name, String readableName, long value) throws IOException {
-        assert name.equals(readableName) == false : "expected raw and readable field names to differ, but they were both: " + name;
+    public XContentBuilder timestampFieldsFromUnixEpochMillis(String rawFieldName, String humanReadableFieldName, long unixEpochMillis)
+        throws IOException {
+        assert rawFieldName.equals(humanReadableFieldName) == false
+            : "expected raw and readable field names to differ, but they were both: " + rawFieldName;
         if (humanReadable) {
-            Function<Object, Object> longTransformer = DATE_TRANSFORMERS.get(Long.class);
-            if (longTransformer == null) {
-                throw new IllegalArgumentException("cannot write time value xcontent for unknown value of type Long");
-            }
-            field(readableName).value(longTransformer.apply(value));
+            field(humanReadableFieldName, UNIX_EPOCH_MILLIS_FORMATTER.apply(unixEpochMillis));
         }
-        field(name, value);
+        field(rawFieldName, unixEpochMillis);
         return this;
     }
 
     /**
-     * Write a time-based value, if the value is null a null value is written,
-     * otherwise a date transformers lookup is performed.
-
-     * @throws IllegalArgumentException if there is no transformers for the type of object
+     * Write a timestamp value: if the passed timestamp is null then writes null, otherwise looks up the date transformer for the type of
+     * {@code timestamp} and uses it to format the value.
+     *
+     * @throws IllegalArgumentException if there is no transformer for the given value type
      */
-    public XContentBuilder timeValue(Object timeValue) throws IOException {
-        if (timeValue == null) {
+    public XContentBuilder timestampValue(Object timestamp) throws IOException {
+        if (timestamp == null) {
             return nullValue();
         } else {
-            Function<Object, Object> transformer = DATE_TRANSFORMERS.get(timeValue.getClass());
+            Function<Object, Object> transformer = DATE_TRANSFORMERS.get(timestamp.getClass());
             if (transformer == null) {
-                throw new IllegalArgumentException("cannot write time value xcontent for unknown value of type " + timeValue.getClass());
+                final var exception = new IllegalArgumentException(
+                    "cannot write timestamp value xcontent for value of unknown type " + timestamp.getClass()
+                );
+                assert false : exception;
+                throw exception;
             }
-            return value(transformer.apply(timeValue));
+            return value(transformer.apply(timestamp));
         }
     }
 

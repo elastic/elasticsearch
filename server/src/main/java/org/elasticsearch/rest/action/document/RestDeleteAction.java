@@ -29,15 +29,10 @@ import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 
 @ServerlessScope(Scope.PUBLIC)
 public class RestDeleteAction extends BaseRestHandler {
-    public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Specifying types in "
-        + "document index requests is deprecated, use the /{index}/_doc/{id} endpoint instead.";
 
     @Override
     public List<Route> routes() {
-        return List.of(
-            new Route(DELETE, "/{index}/_doc/{id}"),
-            Route.builder(DELETE, "/{index}/{type}/{id}").deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7).build()
-        );
+        return List.of(new Route(DELETE, "/{index}/_doc/{id}"));
     }
 
     @Override

@@ -46,7 +46,6 @@ public final class RestFreezeIndexAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         return List.of(
-            Route.builder(POST, "/{index}/_freeze").deprecated(FREEZE_REMOVED, RestApiVersion.V_7).build(),
             // Route.builder(POST, "/{index}/_unfreeze").deprecated(UNFREEZE_DEPRECATED, RestApiVersion.V_8).build()
             Route.builder(POST, "/{index}/_unfreeze").deprecateAndKeep(UNFREEZE_DEPRECATED).build()
         );

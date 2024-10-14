@@ -32,9 +32,6 @@ import static org.elasticsearch.rest.RestStatus.OK;
 
 @ServerlessScope(Scope.PUBLIC)
 public class RestGetAction extends BaseRestHandler {
-    static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Specifying types in "
-        + "document get requests is deprecated, use the /{index}/_doc/{id} endpoint instead.";
-
     @Override
     public String getName() {
         return "document_get_action";
@@ -42,12 +39,7 @@ public class RestGetAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(
-            new Route(GET, "/{index}/_doc/{id}"),
-            new Route(HEAD, "/{index}/_doc/{id}"),
-            Route.builder(GET, "/{index}/{type}/{id}").deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7).build(),
-            Route.builder(HEAD, "/{index}/{type}/{id}").deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7).build()
-        );
+        return List.of(new Route(GET, "/{index}/_doc/{id}"), new Route(HEAD, "/{index}/_doc/{id}"));
     }
 
     @Override

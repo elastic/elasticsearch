@@ -46,13 +46,8 @@ public class RestGetMappingAction extends BaseRestHandler {
         return List.of(
             new Route(GET, "/_mapping"),
             new Route(GET, "/_mappings"),
-            Route.builder(GET, "/{index}/{type}/_mapping").deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7).build(),
             new Route(GET, "/{index}/_mapping"),
-            new Route(GET, "/{index}/_mappings"),
-            Route.builder(GET, "/{index}/_mappings/{type}").deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7).build(),
-            Route.builder(GET, "/{index}/_mapping/{type}").deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7).build(),
-            Route.builder(HEAD, "/{index}/_mapping/{type}").deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7).build(),
-            Route.builder(GET, "/_mapping/{type}").deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7).build()
+            new Route(GET, "/{index}/_mappings")
         );
     }
 

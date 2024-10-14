@@ -30,6 +30,7 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettingProvider;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -80,11 +81,10 @@ public class StatelessIndexSettingProvider implements IndexSettingProvider {
         systemNamePredicate = systemNameRunAutomaton::run;
     }
 
-    @Override
     public Settings getAdditionalIndexSettings(
         String indexName,
         @Nullable String dataStreamName,
-        boolean isTimeSeries,
+        IndexMode templateIndexMode,
         Metadata metadata,
         Instant resolvedAt,
         Settings indexTemplateAndCreateRequestSettings,

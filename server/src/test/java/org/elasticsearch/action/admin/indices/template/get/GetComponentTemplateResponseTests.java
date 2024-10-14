@@ -67,7 +67,7 @@ public class GetComponentTemplateResponseTests extends AbstractWireSerializingTe
         CompressedXContent mappings = null;
         Map<String, AliasMetadata> aliases = null;
         DataStreamLifecycle lifecycle = new DataStreamLifecycle();
-        DataStreamOptions dataStreamOptions = new DataStreamOptions();
+        DataStreamOptions dataStreamOptions = null;
         if (randomBoolean()) {
             settings = randomSettings();
         }

@@ -11,12 +11,14 @@ package org.elasticsearch.datastreams;
 
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.client.ResponseException;
 import org.junit.Before;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
@@ -40,11 +42,14 @@ public class DataStreamOptionsIT extends DisabledSecurityDataStreamTestCase {
               "template": {
                 "settings": {
                   "number_of_replicas": 0
+                },
+                "data_stream_options": {
+                  "failure_store": {
+                    "enabled": true
+                  }
                 }
               },
-              "data_stream": {
-                "failure_store": true
-              }
+              "data_stream": { }
             }
             """);
         assertOK(client().performRequest(putComposableIndexTemplateRequest));
@@ -59,6 +64,7 @@ public class DataStreamOptionsIT extends DisabledSecurityDataStreamTestCase {
         assertThat(dataStreams.size(), is(1));
         Map<String, Object> dataStream = (Map<String, Object>) dataStreams.get(0);
         assertThat(dataStream.get("name"), equalTo(DATA_STREAM_NAME));
+        assertThat(((Map<String, Object>) dataStream.get("failure_store")).get("enabled"), is(true));
         List<String> backingIndices = getIndices(dataStream);
         assertThat(backingIndices.size(), is(1));
         List<String> failureStore = getFailureStore(dataStream);
@@ -96,6 +102,56 @@ public class DataStreamOptionsIT extends DisabledSecurityDataStreamTestCase {
             assertFailureStore(false, 1);
             assertDataStreamOptions(false);
         }
+    }
+
+    public void testExplicitlyNullifiedDataStream() throws IOException {
+        Request putComponentTemplateRequest = new Request("POST", "/_component_template/with-options");
+        putComponentTemplateRequest.setJsonEntity("""
+            {
+              "template": {
+                "data_stream_options": {
+                  "failure_store": {
+                      "enabled": true
+                  }
+                }
+              }
+            }
+            """);
+        assertOK(client().performRequest(putComponentTemplateRequest));
+
+        Request invalidRequest = new Request("POST", "/_index_template/other-template");
+        invalidRequest.setJsonEntity("""
+            {
+              "index_patterns": ["something-else"],
+              "composed_of" : ["with-options"],
+              "template": {
+                "settings": {
+                  "number_of_replicas": 0
+                }
+              }
+            }
+            """);
+        Exception error = expectThrows(ResponseException.class, () -> client().performRequest(invalidRequest));
+        assertThat(
+            error.getMessage(),
+            containsString("specifies data stream options that can only be used in combination with a data stream")
+        );
+
+        // Check that when we nullify the data stream options we can create use any component template in a non data stream template
+        Request otherRequest = new Request("POST", "/_index_template/other-template");
+        otherRequest.setJsonEntity("""
+            {
+              "index_patterns": ["something-else"],
+              "composed_of" : ["with-options"],
+              "template": {
+                "settings": {
+                  "number_of_replicas": 0
+                },
+                "data_stream_options": null
+              }
+            }
+            """);
+        assertOK(client().performRequest(otherRequest));
     }
 
     @SuppressWarnings("unchecked")

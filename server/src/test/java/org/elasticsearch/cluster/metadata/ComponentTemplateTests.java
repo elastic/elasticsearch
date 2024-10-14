@@ -105,7 +105,9 @@ public class ComponentTemplateTests extends SimpleDiffableSerializationTestCase<
     }
 
     private static DataStreamOptions randomDataStreamOptions() {
-        return randomBoolean() ? DataStreamOptionsTests.randomDataStreamOptions() : new DataStreamOptions(DataStreamFailureStore.NULL);
+        return rarely() ? Template.NO_DATA_STREAM_OPTIONS
+            : randomBoolean() ? DataStreamOptionsTests.randomDataStreamOptions()
+            : new DataStreamOptions(DataStreamFailureStore.NULL);
     }
 
     public static Map<String, AliasMetadata> randomAliases() {
@@ -279,7 +281,7 @@ public class ComponentTemplateTests extends SimpleDiffableSerializationTestCase<
             aliases = randomAliases();
         }
         if (randomBoolean()) {
-            dataStreamOptions = DataStreamOptionsTests.randomDataStreamOptions();
+            dataStreamOptions = randomDataStreamOptions();
         }
         DataStreamLifecycle lifecycle = new DataStreamLifecycle();
         ComponentTemplate template = new ComponentTemplate(

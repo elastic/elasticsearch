@@ -22,16 +22,14 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.Objects;
 
 /**
  * Holds data stream dedicated configuration options such as failure store, (in the future lifecycle). Currently, it
  * supports the following configurations:
  * - failure store
  */
-public record DataStreamOptions(@Nullable DataStreamFailureStore failureStore)
-    implements
-        SimpleDiffable<DataStreamOptions>,
-        ToXContentObject {
+public class DataStreamOptions implements SimpleDiffable<DataStreamOptions>, ToXContentObject {
 
     public static final ParseField FAILURE_STORE_FIELD = new ParseField("failure_store");
     public static final DataStreamOptions FAILURE_STORE_ENABLED = new DataStreamOptions(new DataStreamFailureStore(true));
@@ -43,6 +41,12 @@ public record DataStreamOptions(@Nullable DataStreamFailureStore failureStore)
         false,
         (args, unused) -> new DataStreamOptions((DataStreamFailureStore) args[0])
     );
+    @Nullable
+    private final DataStreamFailureStore failureStore;
+
+    public DataStreamOptions(@Nullable DataStreamFailureStore failureStore) {
+        this.failureStore = failureStore;
+    }
 
     static {
         PARSER.declareObjectOrNull(
@@ -75,7 +79,7 @@ public record DataStreamOptions(@Nullable DataStreamFailureStore failureStore)
      * @return true, if the user has explicitly enabled the failure store.
      */
     public boolean isFailureStoreEnabled() {
-        return failureStore != null && failureStore.enabled() != null && failureStore.enabled();
+        return failureStore != null && Boolean.TRUE.equals(failureStore.enabled());
     }
 
     @Override
@@ -107,6 +111,24 @@ public record DataStreamOptions(@Nullable DataStreamFailureStore failureStore)
      */
     public static Composer composer(DataStreamOptions options) {
         return new Composer(options);
+    }
+
+    @Nullable
+    public DataStreamFailureStore failureStore() {
+        return failureStore;
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (obj == this) return true;
+        if (obj == null || obj.getClass() != this.getClass()) return false;
+        var that = (DataStreamOptions) obj;
+        return Objects.equals(this.failureStore, that.failureStore);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(failureStore);
     }
 
     /**

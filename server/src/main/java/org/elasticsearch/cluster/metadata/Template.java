@@ -43,6 +43,16 @@ import java.util.Objects;
  */
 public class Template implements SimpleDiffable<Template>, ToXContentObject {
 
+    // This represents when the data stream options were explicitly set to be null, meaning
+    // the user wants to remove any related configuration.
+    public static final DataStreamOptions NO_DATA_STREAM_OPTIONS = new DataStreamOptions() {
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            return builder.nullValue();
+        }
+    };
+
     private static final ParseField SETTINGS = new ParseField("settings");
     private static final ParseField MAPPINGS = new ParseField("mappings");
     private static final ParseField ALIASES = new ParseField("aliases");
@@ -89,9 +99,10 @@ public class Template implements SimpleDiffable<Template>, ToXContentObject {
             return aliasMap;
         }, ALIASES);
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> DataStreamLifecycle.fromXContent(p), LIFECYCLE);
-        PARSER.declareObject(
+        PARSER.declareObjectOrNull(
             ConstructingObjectParser.optionalConstructorArg(),
             (p, c) -> DataStreamOptions.fromXContent(p),
+            NO_DATA_STREAM_OPTIONS,
             DATA_STREAM_OPTIONS
         );
     }
@@ -155,7 +166,12 @@ public class Template implements SimpleDiffable<Template>, ToXContentObject {
             this.lifecycle = null;
         }
         if (in.getTransportVersion().onOrAfter(TransportVersions.ADD_DATA_STREAM_OPTIONS_TO_TEMPLATES)) {
-            this.dataStreamOptions = in.readOptionalWriteable(DataStreamOptions::read);
+            boolean isExplicitNull = in.readBoolean();
+            if (isExplicitNull) {
+                this.dataStreamOptions = NO_DATA_STREAM_OPTIONS;
+            } else {
+                this.dataStreamOptions = in.readOptionalWriteable(DataStreamOptions::read);
+            }
         } else {
             // We default to no data stream options since failure store is behind a feature flag up to this version
             this.dataStreamOptions = null;
@@ -217,7 +233,11 @@ public class Template implements SimpleDiffable<Template>, ToXContentObject {
             }
         }
         if (out.getTransportVersion().onOrAfter(TransportVersions.ADD_DATA_STREAM_OPTIONS_TO_TEMPLATES)) {
-            out.writeOptionalWriteable(dataStreamOptions);
+            boolean isExplicitNull = dataStreamOptions == NO_DATA_STREAM_OPTIONS;
+            out.writeBoolean(isExplicitNull);
+            if (isExplicitNull == false) {
+                out.writeOptionalWriteable(dataStreamOptions);
+            }
         }
     }
 

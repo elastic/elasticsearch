@@ -1685,13 +1685,15 @@ public class MetadataIndexTemplateService {
         }
         DataStreamOptions.Composer composer = null;
         for (DataStreamOptions current : dataStreamOptionsList) {
-            if (composer == null) {
+            if (current == Template.NO_DATA_STREAM_OPTIONS) {
+                composer = null;
+            } else if (composer == null) {
                 composer = DataStreamOptions.composer(current);
             } else {
                 composer.apply(current);
             }
         }
-        return composer.compose();
+        return composer == null ? null : composer.compose();
     }
 
     /**

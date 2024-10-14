@@ -317,6 +317,11 @@ class AzureClientProvider extends AbstractLifecycleComponent {
 
         @Override
         public Mono<HttpResponse> process(HttpPipelineCallContext context, HttpPipelineNextPolicy next) {
+            if (requestIsPartOfABatch(context)) {
+                // Batch deletes fire once for each of the constituent requests, and they have a null response. Ignore those, we'll track
+                // metrics at the bulk level.
+                return next.process();
+            }
             Optional<Object> metricsData = context.getData(RequestMetricsTracker.ES_REQUEST_METRICS_CONTEXT_KEY);
             if (metricsData.isPresent() == false) {
                 assert false : "No metrics object associated with request " + context.getHttpRequest();
@@ -330,9 +335,7 @@ class AzureClientProvider extends AbstractLifecycleComponent {
                 logger.debug("Detected error in RetryMetricsTracker", throwable);
                 metrics.errorCount++;
             }).doOnSuccess(response -> {
-                // Bulk deletes fire once for each of the constituent requests, and they have a null response. Ignore those, we'll track
-                // metrics at the bulk level.
-                if (response != null && RestStatus.isSuccessful(response.getStatusCode()) == false) {
+                if (RestStatus.isSuccessful(response.getStatusCode()) == false) {
                     metrics.totalRequestTimeNanos += System.nanoTime() - requestStartTimeNanos;
                     metrics.errorCount++;
                     // Azure always throttles with a 429 response, see
@@ -363,15 +366,16 @@ class AzureClientProvider extends AbstractLifecycleComponent {
 
         @Override
         public Mono<HttpResponse> process(HttpPipelineCallContext context, HttpPipelineNextPolicy next) {
+            if (requestIsPartOfABatch(context)) {
+                // Batch deletes fire once for each of the constituent requests, and they have a null response. Ignore those, we'll track
+                // metrics at the bulk level.
+                return next.process();
+            }
             final RequestMetrics requestMetrics = new RequestMetrics();
             context.setData(ES_REQUEST_METRICS_CONTEXT_KEY, requestMetrics);
             return next.process().doOnSuccess((httpResponse) -> {
-                // Bulk deletes fire once for each of the constituent requests, and they have a null response. Ignore those, we'll track
-                // metrics at the bulk level.
-                if (httpResponse != null) {
-                    requestMetrics.statusCode = httpResponse.getStatusCode();
-                    trackCompletedRequest(context.getHttpRequest(), requestMetrics);
-                }
+                requestMetrics.statusCode = httpResponse.getStatusCode();
+                trackCompletedRequest(context.getHttpRequest(), requestMetrics);
             }).doOnError(throwable -> {
                 logger.debug("Detected error in RequestMetricsTracker", throwable);
                 trackCompletedRequest(context.getHttpRequest(), requestMetrics);
@@ -393,6 +397,10 @@ class AzureClientProvider extends AbstractLifecycleComponent {
         public HttpPipelinePosition getPipelinePosition() {
             return HttpPipelinePosition.PER_CALL;
         }
+    }
+
+    private static boolean requestIsPartOfABatch(HttpPipelineCallContext context) {
+        return context.getData("Batch-Operation-Info").isPresent();
     }
 
     /**

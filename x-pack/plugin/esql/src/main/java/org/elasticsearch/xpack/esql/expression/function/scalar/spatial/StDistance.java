@@ -81,8 +81,8 @@ public class StDistance extends BinarySpatialFunction implements EvaluatorMapper
         @Override
         protected double distance(Point left, Point right) {
             // Cast coordinates to float to mimic Lucene behaviour, so we get identical results
-            final double diffX = (float) left.getX() - (float) right.getX();
-            final double diffY = (float) left.getY() - (float) right.getY();
+            final double diffX = (double) ((float) left.getX()) - (double) ((float) right.getX());
+            final double diffY = (double) ((float) left.getY()) - (double) ((float) right.getY());
             return Math.sqrt(diffX * diffX + diffY * diffY);
         }
     }

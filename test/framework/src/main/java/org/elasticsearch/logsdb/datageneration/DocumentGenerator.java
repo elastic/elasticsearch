@@ -43,11 +43,11 @@ public class DocumentGenerator {
             documentMap.put(predefinedField.name(), predefinedField.generator(specification.dataSource()).generateValue());
         }
 
-        generateDocument(documentMap, template.template(), new Context("", mapping.lookup()));
+        generateFields(documentMap, template.template(), new Context("", mapping.lookup()));
         return documentMap;
     }
 
-    private void generateDocument(Map<String, Object> document, Map<String, Template.Entry> template, Context context) {
+    private void generateFields(Map<String, Object> document, Map<String, Template.Entry> template, Context context) {
         for (var entry : template.entrySet()) {
             String fieldName = entry.getKey();
             Template.Entry templateEntry = entry.getValue();
@@ -82,7 +82,7 @@ public class DocumentGenerator {
 
     private Map<String, Object> generateObject(Template.Object object, Context context) {
         var children = new TreeMap<String, Object>();
-        generateDocument(children, object.children(), context.stepIntoObject(object.name()));
+        generateFields(children, object.children(), context.stepIntoObject(object.name()));
         return children;
     }
 

@@ -492,7 +492,7 @@ public class ElasticInferenceServiceTests extends ESTestCase {
         return new ElasticInferenceService(
             mock(HttpRequestSender.Factory.class),
             createWithEmptySettings(threadPool),
-            new ElasticInferenceServiceComponents("http://valid-eis-gateway-url.com")
+            new ElasticInferenceServiceComponents(null)
         );
     }
 }

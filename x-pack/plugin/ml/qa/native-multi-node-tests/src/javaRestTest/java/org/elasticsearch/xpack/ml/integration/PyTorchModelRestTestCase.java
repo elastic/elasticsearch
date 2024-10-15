@@ -10,13 +10,17 @@ package org.elasticsearch.xpack.ml.integration;
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.client.ResponseListener;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
-import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.core.ml.inference.assignment.AdaptiveAllocationsSettings;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AllocationStatus;
 import org.elasticsearch.xpack.core.ml.inference.assignment.Priority;
 import org.elasticsearch.xpack.core.ml.integration.MlRestTestStateCleaner;
@@ -282,6 +286,27 @@ public abstract class PyTorchModelRestTestCase extends ESRestTestCase {
         return client().performRequest(request);
     }
 
+    protected Response startDeployment(String modelId, String deploymentId, AdaptiveAllocationsSettings adaptiveAllocationsSettings)
+        throws IOException {
+        String endPoint = "/_ml/trained_models/"
+            + modelId
+            + "/deployment/_start"
+            + "?deployment_id="
+            + deploymentId
+            + "&threads_per_allocation=1"
+            + "&wait_for=started";
+
+        XContentBuilder builder = JsonXContent.contentBuilder();
+        builder.startObject();
+        builder.field("adaptive_allocations", adaptiveAllocationsSettings);
+        builder.endObject();
+        var body = Strings.toString(builder);
+
+        Request request = new Request("POST", endPoint);
+        request.setJsonEntity(body);
+        return client().performRequest(request);
+    }
+
     protected void stopDeployment(String modelId) throws IOException {
         stopDeployment(modelId, false, false);
     }
@@ -323,6 +348,14 @@ public abstract class PyTorchModelRestTestCase extends ESRestTestCase {
             {  "docs": [{"input":"%s"}] }
             """, input));
         return client().performRequest(request);
+    }
+
+    protected void asyncInfer(String input, String modelId, TimeValue timeout, ResponseListener responseListener) throws IOException {
+        Request request = new Request("POST", "/_ml/trained_models/" + modelId + "/_infer?timeout=" + timeout.toString());
+        request.setJsonEntity(Strings.format("""
+            {  "docs": [{"input":"%s"}] }
+            """, input));
+        client().performRequestAsync(request, responseListener);
     }
 
     protected Response infer(String input, String modelId) throws IOException {

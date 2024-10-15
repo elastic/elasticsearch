@@ -446,8 +446,8 @@ public class EnterpriseGeoIpDownloader extends AllocatedPersistentTask {
 
     @Nullable
     private ProviderDownload downloaderFor(DatabaseConfiguration database) {
-        if (database.provider() instanceof DatabaseConfiguration.Maxmind) {
-            return new MaxmindDownload(database.name(), (DatabaseConfiguration.Maxmind) database.provider());
+        if (database.provider() instanceof DatabaseConfiguration.Maxmind maxmind) {
+            return new MaxmindDownload(database.name(), maxmind);
         } else if (database.provider() instanceof DatabaseConfiguration.Ipinfo) {
             // as a temporary implementation detail, null here means 'not actually supported *just yet*'
             return null;

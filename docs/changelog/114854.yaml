@@ -1,0 +1,11 @@
+pr: 114854
+summary: Adding deprecation warnings for rank and `sub_searches`
+area: Search
+type: deprecation
+issues: []
+deprecation:
+  title: Adding deprecation warnings for rank and `sub_searches`
+  area: Search
+  details: Please describe the details of this change for the release notes. You can
+    use asciidoc.
+  impact: Please describe the impact of this change to users

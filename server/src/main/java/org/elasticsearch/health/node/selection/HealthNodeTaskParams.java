@@ -68,4 +68,9 @@ public class HealthNodeTaskParams implements PersistentTaskParams {
     public boolean equals(Object obj) {
         return obj instanceof HealthNodeTaskParams;
     }
+
+    @Override
+    public boolean isLightweight() {
+        return true;
+    }
 }

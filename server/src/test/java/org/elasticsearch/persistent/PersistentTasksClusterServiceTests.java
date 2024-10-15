@@ -712,6 +712,81 @@ public class PersistentTasksClusterServiceTests extends ESTestCase {
         verifyNoMoreInteractions(recheckTestClusterService);
     }
 
+    public void testLightWeightTaskAssignedIfAllNodesMarkedForShutdown() throws Exception {
+        for (SingleNodeShutdownMetadata.Type type : List.of(
+            SingleNodeShutdownMetadata.Type.RESTART,
+            SingleNodeShutdownMetadata.Type.REMOVE,
+            SingleNodeShutdownMetadata.Type.SIGTERM
+        )) {
+            ClusterState clusterState = initialState();
+            ClusterState.Builder builder = ClusterState.builder(clusterState);
+            PersistentTasksCustomMetadata.Builder tasks = PersistentTasksCustomMetadata.builder(
+                clusterState.metadata().custom(PersistentTasksCustomMetadata.TYPE)
+            );
+            DiscoveryNodes.Builder nodes = DiscoveryNodes.builder(clusterState.nodes());
+            addTestNodes(nodes, randomIntBetween(2, 10));
+            int numberOfTasks = randomIntBetween(20, 40);
+            for (int i = 0; i < numberOfTasks; i++) {
+                addLightweightTask(
+                    tasks,
+                    randomFrom("assign_me", "assign_one", "assign_based_on_non_cluster_state_condition"),
+                    randomBoolean() ? null : "no_longer_exists"
+                );
+            }
+
+            Metadata.Builder metadata = Metadata.builder(clusterState.metadata())
+                .putCustom(PersistentTasksCustomMetadata.TYPE, tasks.build());
+            clusterState = builder.metadata(metadata).nodes(nodes).build();
+
+            // Now that we have a bunch of tasks that need to be assigned, let's
+            // mark all the nodes as shut down and make sure the tasks are still assigned
+            var allNodes = clusterState.nodes();
+            var shutdownMetadataMap = allNodes.stream()
+                .collect(
+                    toMap(
+                        DiscoveryNode::getId,
+                        node -> SingleNodeShutdownMetadata.builder()
+                            .setNodeId(node.getId())
+                            .setReason("shutdown for a unit test")
+                            .setType(type)
+                            .setStartedAtMillis(randomNonNegativeLong())
+                            .setGracePeriod(type == SIGTERM ? randomTimeValue() : null)
+                            .build()
+                    )
+                );
+            logger.info("--> all nodes marked as shutting down: {}", shutdownMetadataMap.keySet());
+
+            ClusterState shutdownState = ClusterState.builder(clusterState)
+                .metadata(
+                    Metadata.builder(clusterState.metadata())
+                        .putCustom(NodesShutdownMetadata.TYPE, new NodesShutdownMetadata(shutdownMetadataMap))
+                        .build()
+                )
+                .build();
+
+            logger.info("--> assigning after marking all nodes as shutting down");
+            nonClusterStateCondition = randomBoolean();
+            clusterState = reassign(shutdownState, true);
+            PersistentTasksCustomMetadata tasksInProgress = clusterState.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
+            assertThat(tasksInProgress, notNullValue());
+            Set<String> nodesWithTasks = tasksInProgress.tasks()
+                .stream()
+                .map(PersistentTask::getAssignment)
+                .map(Assignment::getExecutorNode)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+            Set<String> shutdownNodes = shutdownMetadataMap.keySet();
+
+            assertTrue(
+                "expected shut down nodes: "
+                    + shutdownNodes
+                    + " to have more than zero nodes in common with nodes assigned tasks: "
+                    + nodesWithTasks,
+                Sets.haveNonEmptyIntersection(shutdownNodes, nodesWithTasks)
+            );
+        }
+    }
+
     private ClusterService createStateUpdateClusterState(ClusterState initialState, boolean shouldSimulateFailure) {
         return createStateUpdateClusterState(initialState, shouldSimulateFailure, null);
     }
@@ -750,6 +825,10 @@ public class PersistentTasksClusterServiceTests extends ESTestCase {
     }
 
     private ClusterState reassign(ClusterState clusterState) {
+        return reassign(clusterState, false);
+    }
+
+    private ClusterState reassign(ClusterState clusterState, boolean allowLightweightAssignmentsToNodesShuttingDownFlag) {
         PersistentTasksClusterService service = createService((params, candidateNodes, currentState) -> {
             TestParams testParams = (TestParams) params;
             switch (testParams.getTestParam()) {
@@ -784,6 +863,7 @@ public class PersistentTasksClusterServiceTests extends ESTestCase {
             return NO_NODE_FOUND;
         });
 
+        service.setAllowLightweightAssignmentsToNodesShuttingDownFlag(allowLightweightAssignmentsToNodesShuttingDownFlag);
         return service.reassignTasks(clusterState);
     }
 
@@ -1019,6 +1099,12 @@ public class PersistentTasksClusterServiceTests extends ESTestCase {
     private String addTask(PersistentTasksCustomMetadata.Builder tasks, String param, String node) {
         String id = UUIDs.base64UUID();
         tasks.addTask(id, TestPersistentTasksExecutor.NAME, new TestParams(param), new Assignment(node, "explanation: " + param));
+        return id;
+    }
+
+    private String addLightweightTask(PersistentTasksCustomMetadata.Builder tasks, String param, String node) {
+        String id = UUIDs.base64UUID();
+        tasks.addTask(id, TestPersistentTasksExecutor.NAME, new TestParams(param, true), new Assignment(node, "explanation: " + param));
         return id;
     }
 

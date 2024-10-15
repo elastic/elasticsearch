@@ -500,7 +500,7 @@ public class EnterpriseGeoIpDownloader extends AllocatedPersistentTask {
 
         @Override
         public boolean validCredentials() {
-            return auth.get() != null;
+            return auth != null && auth.get() != null;
         }
 
         @Override
@@ -541,7 +541,7 @@ public class EnterpriseGeoIpDownloader extends AllocatedPersistentTask {
 
         @Override
         public void close() throws IOException {
-            auth.close();
+            if (auth != null) auth.close();
         }
     }
 
@@ -572,7 +572,7 @@ public class EnterpriseGeoIpDownloader extends AllocatedPersistentTask {
 
         @Override
         public boolean validCredentials() {
-            return auth.get() != null;
+            return auth != null && auth.get() != null;
         }
 
         private static final Set<String> FREE_DATABASES = Set.of("asn", "country", "country_asn");
@@ -635,7 +635,7 @@ public class EnterpriseGeoIpDownloader extends AllocatedPersistentTask {
 
         @Override
         public void close() throws IOException {
-            auth.close();
+            if (auth != null) auth.close();
         }
     }
 

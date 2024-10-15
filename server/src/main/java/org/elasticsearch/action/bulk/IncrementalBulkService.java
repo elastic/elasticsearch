@@ -141,8 +141,7 @@ public class IncrementalBulkService {
                     if (shouldBackOff()) {
                         final boolean isFirstRequest = incrementalRequestSubmitted == false;
                         incrementalRequestSubmitted = true;
-                        try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
-                            requestContext.restore();
+                        try (var ignored = threadContext.restoreExistingContext(requestContext)) {
                             final ArrayList<Releasable> toRelease = new ArrayList<>(releasables);
                             releasables.clear();
                             bulkInProgress = true;
@@ -188,8 +187,7 @@ public class IncrementalBulkService {
             } else {
                 assert bulkRequest != null;
                 if (internalAddItems(items, releasable)) {
-                    try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
-                        requestContext.restore();
+                    try (var ignored = threadContext.restoreExistingContext(requestContext)) {
                         final ArrayList<Releasable> toRelease = new ArrayList<>(releasables);
                         releasables.clear();
                         // We do not need to set this back to false as this will be the last request.

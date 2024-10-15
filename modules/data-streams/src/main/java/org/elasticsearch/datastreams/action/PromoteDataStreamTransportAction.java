@@ -42,7 +42,6 @@ public class PromoteDataStreamTransportAction extends AcknowledgedTransportMaste
     private static final Logger logger = LogManager.getLogger(PromoteDataStreamTransportAction.class);
 
     private final SystemIndices systemIndices;
-    private final ClusterService clusterService;
 
     @Inject
     public PromoteDataStreamTransportAction(
@@ -64,7 +63,6 @@ public class PromoteDataStreamTransportAction extends AcknowledgedTransportMaste
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.systemIndices = systemIndices;
-        this.clusterService = clusterService;
     }
 
     @Override

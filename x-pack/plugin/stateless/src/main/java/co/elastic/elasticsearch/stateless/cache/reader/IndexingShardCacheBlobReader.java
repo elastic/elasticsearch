@@ -32,6 +32,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.io.stream.FilterStreamInput;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.logging.LogManager;
@@ -41,6 +42,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Objects;
+import java.util.concurrent.ExecutorService;
 
 /**
  * A {@link CacheBlobReader} that fetches page-aligned data from the indexing node. May throw
@@ -57,7 +59,7 @@ public class IndexingShardCacheBlobReader implements CacheBlobReader {
     private final String preferredNodeId;
     private final Client client;
     private final long chunkSizeBytes;
-    private final ThreadPool threadPool;
+    private final ExecutorService fillVBCCExecutor;
 
     public IndexingShardCacheBlobReader(
         ShardId shardId,
@@ -72,7 +74,7 @@ public class IndexingShardCacheBlobReader implements CacheBlobReader {
         this.preferredNodeId = preferredNodeId;
         this.client = client;
         this.chunkSizeBytes = chunkSize.getBytes();
-        this.threadPool = threadPool;
+        this.fillVBCCExecutor = threadPool.executor(Stateless.FILL_VIRTUAL_BATCHED_COMPOUND_COMMIT_CACHE_THREAD_POOL);
     }
 
     @Override
@@ -94,7 +96,7 @@ public class IndexingShardCacheBlobReader implements CacheBlobReader {
     public void getRangeInputStream(long position, int length, ActionListener<InputStream> listener) {
         assert Objects.equals(EsExecutors.executorName(Thread.currentThread().getName()), Stateless.SHARD_READ_THREAD_POOL) == false
             : Thread.currentThread().getName() + " is a shard read thread";
-        getVirtualBatchedCompoundCommitChunk(bccTermAndGen, position, length, preferredNodeId, listener.delegateFailureAndWrap((l, rbr) -> {
+        getVirtualBatchedCompoundCommitChunk(bccTermAndGen, position, length, preferredNodeId, ActionListener.wrap(rbr -> {
             // The InboundHandler decrements the GetVirtualBatchedCompoundCommitChunkResponse (and thus the data). So we need to retain the
             // data, which is later decrementing in the close function of the getRangeInputStream()'s InputStream.
             ReleasableBytesReference reference = rbr.retain();
@@ -112,10 +114,26 @@ public class IndexingShardCacheBlobReader implements CacheBlobReader {
                     }
                 }
             };
-            threadPool.executor(Stateless.FILL_VIRTUAL_BATCHED_COMPOUND_COMMIT_CACHE_THREAD_POOL)
-                .execute(ActionRunnable.supply(ActionListener.runAfter(l, () -> {
-                    assert streamInput.closed;
-                }), () -> streamInput));
+            fillVBCCExecutor.execute(
+                ActionRunnable.supply(ActionListener.runAfter(listener, () -> { assert streamInput.closed; }), () -> streamInput)
+            );
+        }, originalException -> {
+            // It is possible that the executor for the failure path is the same as the one waiting for the future. This can happen
+            // when the action fails locally without the request being sent out.
+            // Complete exceptionally also with the dedicate executor to (1) avoid completing a future on the same thread pool and
+            // (2) potentially allow more future processing on the failure path so it does not hog a transport thread
+            fillVBCCExecutor.execute(new AbstractRunnable() {
+                @Override
+                protected void doRun() throws Exception {
+                    listener.onFailure(originalException);
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    originalException.addSuppressed(e);
+                    listener.onFailure(originalException);
+                }
+            });
         }));
     }
 

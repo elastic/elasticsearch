@@ -17,25 +17,81 @@
 
 package co.elastic.elasticsearch.stateless.cache.reader;
 
+import co.elastic.elasticsearch.stateless.Stateless;
 import co.elastic.elasticsearch.stateless.engine.PrimaryTermAndGeneration;
 
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.blobcache.common.ByteRange;
 import org.elasticsearch.blobcache.shared.SharedBytes;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.client.NoOpNodeClient;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.hamcrest.Matchers;
 import org.junit.After;
 
-public class IndexingShardBlobCacheReaderTests extends ESTestCase {
+import java.io.InputStream;
 
-    private final ThreadPool threadPool = new TestThreadPool(getClass().getName());
+import static org.hamcrest.Matchers.equalTo;
+
+public class IndexingShardCacheBlobReaderTests extends ESTestCase {
+
+    private final ThreadPool threadPool = new TestThreadPool(
+        getClass().getName(),
+        Stateless.statelessExecutorBuilders(Settings.EMPTY, false)
+    );
 
     @After
     public void stop() throws Exception {
         threadPool.shutdown();
+    }
+
+    public void testGetRangeInputStreamUsesDedicatedExecutorOnFailurePath() {
+        final var indexingShardCacheBlobReader = new IndexingShardCacheBlobReader(
+            new ShardId(new Index(randomIdentifier(), randomUUID()), randomNonNegativeInt()),
+            new PrimaryTermAndGeneration(randomNonNegativeLong(), randomNonNegativeLong()),
+            randomIdentifier(),
+            new NoOpNodeClient(threadPool) {
+                @Override
+                public <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
+                    ActionType<Response> action,
+                    Request request,
+                    ActionListener<Response> listener
+                ) {
+                    listener.onFailure(new RuntimeException("simulated"));
+                }
+            },
+            ByteSizeValue.ofBytes(1024),
+            threadPool
+        );
+
+        final Thread callerThread = Thread.currentThread();
+
+        safeAwaitFailure(
+            InputStream.class,
+            l -> indexingShardCacheBlobReader.getRangeInputStream(
+                randomNonNegativeLong(),
+                randomNonNegativeInt(),
+                l.delegateResponse((ll, e) -> {
+                    final Thread completingThread = Thread.currentThread();
+                    assertNotSame(callerThread, completingThread);
+                    assertThat(
+                        completingThread.getName(),
+                        EsExecutors.executorName(completingThread),
+                        equalTo(Stateless.FILL_VIRTUAL_BATCHED_COMPOUND_COMMIT_CACHE_THREAD_POOL)
+                    );
+                    ll.onFailure(e);
+                })
+            )
+        );
     }
 
     public void testChunkRounding() {

@@ -30,7 +30,6 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
@@ -194,9 +193,7 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
          * system context.
          */
         if (clusterService.localNode().isMasterNode() == false) {
-            final ThreadContext threadContext = transportService.getThreadPool().getThreadContext();
-            try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
-                threadContext.markAsSystemContext();
+            try (var ignored = transportService.getThreadPool().getThreadContext().newEmptySystemContext()) {
                 beginPollingRemoteMasterStabilityDiagnostic();
             }
         }

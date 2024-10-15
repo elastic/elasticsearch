@@ -334,8 +334,7 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
         final ThreadContext threadContext = threadPool.getThreadContext();
         final Supplier<ThreadContext.StoredContext> storedContextSupplier = threadContext.newRestorableContext(true);
 
-        try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
-            threadContext.markAsSystemContext();
+        try (var ignore = threadContext.newEmptySystemContext()) {
             threadPoolExecutor.execute(
                 new UpdateTask(
                     priority,

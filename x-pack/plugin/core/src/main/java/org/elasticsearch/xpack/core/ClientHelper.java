@@ -267,7 +267,7 @@ public final class ClientHelper {
                 return supplier.get();
             }
         } else {
-            try (ThreadContext.StoredContext ignore = client.threadPool().getThreadContext().stashContext()) {
+            try (var ignore = client.threadPool().getThreadContext().stashContext()) {
                 client.threadPool().getThreadContext().copyHeaders(filteredHeaders.entrySet());
                 return supplier.get();
             }

@@ -101,7 +101,7 @@ public final class ThreadContext implements Writeable, TraceContext {
     }
 
     /**
-     * Removes the current context and resets a default context. The removed context can be
+     * Removes the current context and resets a default context except for headers involved in task tracing. The removed context can be
      * restored by closing the returned {@link StoredContext}.
      * @return a stored context that will restore the current context to its state at the point this method was called
      */
@@ -157,6 +157,28 @@ public final class ThreadContext implements Writeable, TraceContext {
 
     public StoredContext stashContextPreservingRequestHeaders(final String... requestHeaders) {
         return stashContextPreservingRequestHeaders(Set.of(requestHeaders));
+    }
+
+    /**
+     * Removes the current context and replaces it with a completely empty default context, detaching execution entirely from the calling
+     * context. The calling context can be restored by closing the returned {@link StoredContext}. Similar to {@link #stashContext()} except
+     * that this method does not even preserve tracing-related headers.
+     */
+    public StoredContext newEmptyContext() {
+        final var callingContext = threadLocal.get();
+        threadLocal.set(DEFAULT_CONTEXT);
+        return storedOriginalContext(callingContext);
+    }
+
+    /**
+     * Removes the current context and replaces it with a completely empty system context, detaching execution entirely from the calling
+     * context. The calling context can be restored by closing the returned {@link StoredContext}. Similar to {@link #stashContext()} except
+     * that this method does not even preserve tracing-related headers.
+     */
+    public StoredContext newEmptySystemContext() {
+        final var callingContext = threadLocal.get();
+        threadLocal.set(DEFAULT_CONTEXT.setSystemContext());
+        return storedOriginalContext(callingContext);
     }
 
     /**
@@ -328,6 +350,16 @@ public final class ThreadContext implements Writeable, TraceContext {
                 threadLocal.set(originalContext.putResponseHeaders(found.responseHeaders));
             }
         };
+    }
+
+    /**
+     * Capture the current context and then restore the given context, returning a {@link StoredContext} that reverts back to the current
+     * context again. Equivalent to using {@link #newStoredContext()} and then calling {@code existingContext.restore()}.
+     */
+    public StoredContext restoreExistingContext(StoredContext existingContext) {
+        final var originalContext = threadLocal.get();
+        existingContext.restore();
+        return storedOriginalContext(originalContext);
     }
 
     /**
@@ -914,14 +946,13 @@ public final class ThreadContext implements Writeable, TraceContext {
         private final ThreadContext.StoredContext ctx;
 
         private ContextPreservingRunnable(Runnable in) {
-            ctx = newStoredContext();
+            this.ctx = newStoredContext();
             this.in = in;
         }
 
         @Override
         public void run() {
-            try (ThreadContext.StoredContext ignore = stashContext()) {
-                ctx.restore();
+            try (var ignore = restoreExistingContext(ctx)) {
                 in.run();
             }
         }

@@ -36,18 +36,21 @@ public class MatchQueryPredicate extends FullTextPredicate {
         this.field = field;
     }
 
-    public MatchQueryPredicate(Source source, Expression field, String query, Float boost, Fuzziness fuzziness) {
+    public MatchQueryPredicate(Source source, Expression field, String query, Double boost, Fuzziness fuzziness) {
         super(source, query, createOptions(boost, fuzziness), singletonList(field));
         this.field = field;
     }
 
-    private static String createOptions(Float boost, Fuzziness fuzziness) {
+    private static String createOptions(Double boost, Fuzziness fuzziness) {
         StringBuilder options = new StringBuilder();
         if (boost != null) {
-            options.append(BOOST_OPTION).append("=").append(boost).append(";");
+            options.append(BOOST_OPTION).append("=").append(boost);
         }
         if (fuzziness != null) {
-            options.append(FUZZINESS_OPTION).append("=").append(fuzziness.asString()).append(";");
+            if (boost != null) {
+                options.append(";");
+            }
+            options.append(FUZZINESS_OPTION).append("=").append(fuzziness.asString());
         }
         return options.toString();
     }

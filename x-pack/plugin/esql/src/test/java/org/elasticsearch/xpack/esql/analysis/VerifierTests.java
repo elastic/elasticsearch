@@ -1114,7 +1114,7 @@ public class VerifierTests extends ESTestCase {
 
         assertEquals(
             "1:36: [:] operator is only supported in WHERE commands",
-            error("row title = \"brown fox\" | eval x = title match \"fox\" ")
+            error("row title = \"brown fox\" | eval x = title:\"fox\" ")
         );
     }
 
@@ -1123,29 +1123,28 @@ public class VerifierTests extends ESTestCase {
 
         assertEquals(
             "1:63: [:] operator requires a mapped index field, found [name]",
-            error("from test | eval name = concat(first_name, last_name) | where name match \"Anna\"")
+            error("from test | eval name = concat(first_name, last_name) | where name:\"Anna\"")
         );
 
         assertEquals(
             "1:19: [:] operator requires a text or keyword field, but [salary] has type [integer]",
-            error("from test | where salary match \"100\"")
+            error("from test | where salary:\"100\"")
         );
 
         assertEquals(
-            "1:19: Invalid condition [first_name match \"Anna\" or starts_with(first_name, \"Anne\")]. "
+            "1:19: Invalid condition [first_name:\"Anna\" or starts_with(first_name, \"Anne\")]. "
                 + "[:] operator can't be used as part of an or condition",
-            error("from test | where first_name match \"Anna\" or starts_with(first_name, \"Anne\")")
+            error("from test | where first_name:\"Anna\" or starts_with(first_name, \"Anne\")")
         );
 
         assertEquals(
-            "1:51: Invalid condition [first_name match \"Anna\" OR new_salary > 100]. "
-                + "[:] operator can't be used as part of an or condition",
-            error("from test | eval new_salary = salary + 10 | where first_name match \"Anna\" OR new_salary > 100")
+            "1:51: Invalid condition [first_name:\"Anna\" OR new_salary > 100]. " + "[:] operator can't be used as part of an or condition",
+            error("from test | eval new_salary = salary + 10 | where first_name:\"Anna\" OR new_salary > 100")
         );
 
         assertEquals(
             "1:45: [:] operator requires a mapped index field, found [fn]",
-            error("from test | rename first_name as fn | where fn match \"Anna\"")
+            error("from test | rename first_name as fn | where fn:\"Anna\"")
         );
     }
 

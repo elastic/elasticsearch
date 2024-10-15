@@ -926,7 +926,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
     public Expression visitMatchOperatorExpression(EsqlBaseParser.MatchOperatorExpressionContext ctx) {
         EsqlBaseParser.MatchOptionsContext optionsCtx = ctx.matchOptions();
         Fuzziness fuzziness = null;
-        Float boost = null;
+        Double boost = null;
         if (optionsCtx != null) {
             fuzziness = visitFuzzinessExpression(optionsCtx.fuzzinessExpression());
             boost = visitBoostExpression(optionsCtx.boostExpression());
@@ -942,11 +942,11 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
     }
 
     @Override
-    public Float visitBoostExpression(EsqlBaseParser.BoostExpressionContext ctx) {
+    public Double visitBoostExpression(EsqlBaseParser.BoostExpressionContext ctx) {
         if (ctx == null) {
             return null;
         }
-        return (Float) visitDecimalValue(ctx.decimalValue()).value();
+        return (Double) visitDecimalValue(ctx.decimalValue()).value();
     }
 
     @Override

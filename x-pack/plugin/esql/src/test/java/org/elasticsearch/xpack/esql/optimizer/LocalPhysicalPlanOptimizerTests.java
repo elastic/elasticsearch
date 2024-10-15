@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.optimizer;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.search.IndexSearcher;
-import org.elasticsearch.Build;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.core.Tuple;
@@ -1197,11 +1196,11 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
      *       estimatedRowSize[324]
      */
     public void testSingleMatchFilterPushdown() {
-        assumeTrue("Match operator is available just for snapshots", Build.current().isSnapshot());
+        assumeTrue("skipping because MATCH operator is not enabled", EsqlCapabilities.Cap.MATCH_OPERATOR.isEnabled());
 
         var plan = plannerOptimizer.plan("""
             from test
-            | where first_name match "Anna"
+            | where first_name:"Anna"
             """);
 
         var limit = as(plan, LimitExec.class);
@@ -1229,15 +1228,15 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
      *         [_doc{f}#22], limit[1000], sort[[FieldSort[field=emp_no{f}#12, direction=ASC, nulls=LAST]]] estimatedRowSize[336]
      */
     public void testMultipleMatchFilterPushdown() {
-        assumeTrue("Match operator is available just for snapshots", Build.current().isSnapshot());
+        assumeTrue("skipping because MATCH operator is not enabled", EsqlCapabilities.Cap.MATCH_OPERATOR.isEnabled());
 
         String query = """
             from test
-            | where first_name match "Anna" OR first_name match "Anneke"
+            | where first_name:"Anna" and first_name:"Anneke"
             | sort emp_no
             | where emp_no > 10000
             | eval description = concat("emp_no: ", to_str(emp_no), ", name: ", first_name, " ", last_name)
-            | where last_name match "Xinglin"
+            | where last_name:"Xinglin"
             """;
         var plan = plannerOptimizer.plan(query);
 
@@ -1249,9 +1248,8 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         var actualLuceneQuery = as(fieldExtract.child(), EsQueryExec.class).query();
 
         Source filterSource = new Source(4, 8, "emp_no > 10000");
-        var expectedLuceneQuery = new BoolQueryBuilder().must(
-            new BoolQueryBuilder().should(new MatchQueryBuilder("first_name", "Anna")).should(new MatchQueryBuilder("first_name", "Anneke"))
-        )
+        var expectedLuceneQuery = new BoolQueryBuilder().must(new MatchQueryBuilder("first_name", "Anna"))
+            .must(new MatchQueryBuilder("first_name", "Anneke"))
             .must(wrapWithSingleQuery(query, QueryBuilders.rangeQuery("emp_no").gt(10000), "emp_no", filterSource))
             .must(new MatchQueryBuilder("last_name", "Xinglin"));
         assertThat(actualLuceneQuery.toString(), is(expectedLuceneQuery.toString()));

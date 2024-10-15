@@ -12,6 +12,9 @@
     "centroid": {
       "type": "geo_point"
     },
+    "lk": {
+      "type": "keyword"
+    },
     "location": {
       "type": "geo_point"
     },

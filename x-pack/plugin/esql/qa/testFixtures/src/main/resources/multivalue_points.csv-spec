@@ -108,6 +108,26 @@ id:l | location:geo_point
 12   | ["POINT(0 0)", "POINT(55 55)", "POINT(-55 -55)"]
 ;
 
+whereSpatialDistanceKeyword
+required_capability: st_distance
+required_capability: spatial_distance_supports_multivalues
+
+FROM multivalue_points
+| EVAL lk=lk::geo_point
+| WHERE ST_DISTANCE(lk, disjoint) < 6200000
+| KEEP id, location
+| SORT id
+;
+
+id:l | location:geo_point
+4    | ["POINT(5 5)", "POINT(15 15)"]
+7    | ["POINT(5 15)", "POINT(15 5)"]
+9    | "POINT(19 9)"
+10   | ["POINT(-9 -19)","POINT(19 9)"]
+11   | ["POINT(0 0)", "POINT(55 55)", "POINT(-55 -55)"]
+12   | ["POINT(0 0)", "POINT(55 55)", "POINT(-55 -55)"]
+;
+
 spatialDistanceFilterTwoFieldStats
 required_capability: st_distance
 required_capability: spatial_distance_supports_multivalues

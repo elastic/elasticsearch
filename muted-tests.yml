@@ -425,6 +425,9 @@ tests:
 - class: org.elasticsearch.xpack.eql.EqlRestIT
   method: testUnicodeChars
   issue: https://github.com/elastic/elasticsearch/issues/114791
+- class: org.elasticsearch.xpack.rank.rrf.RRFRetrieverBuilderNestedDocsIT
+  method: testRRFExplainWithNamedRetrievers
+  issue: https://github.com/elastic/elasticsearch/issues/114820
 
 # Examples:
 #

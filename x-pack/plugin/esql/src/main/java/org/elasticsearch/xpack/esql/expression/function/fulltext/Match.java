@@ -7,11 +7,9 @@
 
 package org.elasticsearch.xpack.esql.expression.function.fulltext;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.xpack.esql.capabilities.Validatable;
 import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.common.Failures;
@@ -39,19 +37,9 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isStr
  */
 public class Match extends FullTextFunction implements Validatable {
 
-    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
-        Expression.class,
-        "Match",
-        Match::fromStreamInput
-    );
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Match", Match::new);
 
     private final Expression field;
-
-    private final boolean isOperator;
-
-    private final Fuzziness fuzziness;
-
-    private final Double boost;
 
     @FunctionInfo(
         returnType = "boolean",
@@ -68,37 +56,12 @@ public class Match extends FullTextFunction implements Validatable {
             description = "Text you wish to find in the provided field."
         ) Expression matchQuery
     ) {
-        this(source, field, matchQuery, false, null, null);
-    }
-
-    private Match(Source source, Expression field, Expression matchQuery, boolean isOperator, Double boost, Fuzziness fuzziness) {
         super(source, matchQuery, List.of(field, matchQuery));
         this.field = field;
-        this.isOperator = isOperator;
-        this.fuzziness = fuzziness;
-        this.boost = boost;
     }
 
-    private static Match fromStreamInput(StreamInput in) throws IOException {
-        if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_MATCH_OPERATOR_AND_FUNCTION)) {
-            return new Match(
-                Source.readFrom((PlanStreamInput) in),
-                in.readNamedWriteable(Expression.class),
-                in.readNamedWriteable(Expression.class),
-                in.readBoolean(),
-                in.readOptionalDouble(),
-                in.readOptional(Fuzziness::new)
-            );
-        }
-        return new Match(
-            Source.readFrom((PlanStreamInput) in),
-            in.readNamedWriteable(Expression.class),
-            in.readNamedWriteable(Expression.class)
-        );
-    }
-
-    public static Match operator(Source source, Expression field, Expression matchQuery, Double boost, Fuzziness fuzziness) {
-        return new Match(source, field, matchQuery, true, boost, fuzziness);
+    private Match(StreamInput in) throws IOException {
+        this(Source.readFrom((PlanStreamInput) in), in.readNamedWriteable(Expression.class), in.readNamedWriteable(Expression.class));
     }
 
     @Override
@@ -106,11 +69,6 @@ public class Match extends FullTextFunction implements Validatable {
         source().writeTo(out);
         out.writeNamedWriteable(field);
         out.writeNamedWriteable(query());
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_MATCH_OPERATOR_AND_FUNCTION)) {
-            out.writeBoolean(isOperator);
-            out.writeOptionalWriteable(fuzziness);
-            out.writeOptionalDouble(boost);
-        }
     }
 
     @Override
@@ -140,7 +98,7 @@ public class Match extends FullTextFunction implements Validatable {
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
         // Query is the first child, field is the second child
-        return new Match(source(), newChildren.get(0), newChildren.get(1), isOperator, boost, fuzziness);
+        return new Match(source(), newChildren.get(0), newChildren.get(1));
     }
 
     @Override
@@ -154,23 +112,5 @@ public class Match extends FullTextFunction implements Validatable {
 
     public Expression field() {
         return field;
-    }
-
-    @Override
-    public String functionType() {
-        return isOperator ? "operator" : super.functionType();
-    }
-
-    public Fuzziness fuzziness() {
-        return fuzziness;
-    }
-
-    @Override
-    public String functionName() {
-        return isOperator ? ":" : super.functionName();
-    }
-
-    public Double boost() {
-        return boost;
     }
 }

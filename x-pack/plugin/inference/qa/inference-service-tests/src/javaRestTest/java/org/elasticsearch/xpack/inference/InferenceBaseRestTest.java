@@ -81,6 +81,21 @@ public class InferenceBaseRestTest extends ESRestTestCase {
             """, taskType);
     }
 
+    static String updateConfig(@Nullable TaskType taskTypeInBody, String apiKey, int temperature) {
+        var taskType = taskTypeInBody == null ? "" : "\"task_type\": \"" + taskTypeInBody + "\",";
+        return Strings.format("""
+            {
+              %s
+              "service_settings": {
+                "api_key": "%s"
+              },
+              "task_settings": {
+                "temperature": %d
+              }
+            }
+            """, taskType, apiKey, temperature);
+    }
+
     static String mockCompletionServiceModelConfig(@Nullable TaskType taskTypeInBody) {
         var taskType = taskTypeInBody == null ? "" : "\"task_type\": \"" + taskTypeInBody + "\",";
         return Strings.format("""
@@ -193,6 +208,11 @@ public class InferenceBaseRestTest extends ESRestTestCase {
 
     protected Map<String, Object> putModel(String modelId, String modelConfig, TaskType taskType) throws IOException {
         String endpoint = Strings.format("_inference/%s/%s", taskType, modelId);
+        return putRequest(endpoint, modelConfig);
+    }
+
+    protected Map<String, Object> updateEndpoint(String inferenceID, String modelConfig, TaskType taskType) throws IOException {
+        String endpoint = Strings.format("_inference/%s/%s/_update", taskType, inferenceID);
         return putRequest(endpoint, modelConfig);
     }
 

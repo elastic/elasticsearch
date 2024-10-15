@@ -1,6 +1,10 @@
 setup:
   - requires:
-      cluster_features: "mapper.vectors.bbq"
+      capabilities:
+        - method: POST
+          path: /_search
+          capabilities: [ bbq_indices ]
+      test_runner_features: capabilities
       reason: 'kNN float to better-binary quantization is required'
   - do:
       indices.create:

@@ -9,7 +9,6 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.features.FeatureSpecification;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.IndexSettings;
@@ -29,7 +28,7 @@ public class MapperFeatures implements FeatureSpecification {
 
     @Override
     public Set<NodeFeature> getFeatures() {
-        Set<NodeFeature> features = Set.of(
+        return Set.of(
             BWC_WORKAROUND_9_0,
             IgnoredSourceFieldMapper.TRACK_IGNORED_SOURCE,
             PassThroughObjectMapper.PASS_THROUGH_PRIORITY,
@@ -55,11 +54,6 @@ public class MapperFeatures implements FeatureSpecification {
             TimeSeriesRoutingHashFieldMapper.TS_ROUTING_HASH_FIELD_PARSES_BYTES_REF,
             FlattenedFieldMapper.IGNORE_ABOVE_WITH_ARRAYS_SUPPORT
         );
-        // BBQ is currently behind a feature flag for testing
-        if (DenseVectorFieldMapper.BBQ_FEATURE_FLAG.isEnabled()) {
-            return Sets.union(features, Set.of(DenseVectorFieldMapper.BBQ_FORMAT));
-        }
-        return features;
     }
 
     @Override

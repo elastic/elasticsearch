@@ -109,7 +109,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
     public static final NodeFeature INT4_QUANTIZATION = new NodeFeature("mapper.vectors.int4_quantization");
     public static final NodeFeature BIT_VECTORS = new NodeFeature("mapper.vectors.bit_vectors");
-    public static final NodeFeature BBQ_FORMAT = new NodeFeature("mapper.vectors.bbq");
     public static final FeatureFlag BBQ_FEATURE_FLAG = new FeatureFlag("bbq_index_format");
 
     public static final IndexVersion MAGNITUDE_STORED_INDEX_VERSION = IndexVersions.V_7_5_0;

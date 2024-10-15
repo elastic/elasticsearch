@@ -370,7 +370,12 @@ public class EsqlCapabilities {
         /**
          * Fix sorting not allowed on _source and counters.
          */
-        SORTING_ON_SOURCE_AND_COUNTERS_FORBIDDEN;
+        SORTING_ON_SOURCE_AND_COUNTERS_FORBIDDEN,
+
+        /**
+         * Allow filter per individual aggregation.
+         */
+        PER_AGG_FILTERING;
 
         private final boolean snapshotOnly;
         private final FeatureFlag featureFlag;

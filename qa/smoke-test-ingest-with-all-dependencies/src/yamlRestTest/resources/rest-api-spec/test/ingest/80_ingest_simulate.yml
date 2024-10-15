@@ -1228,8 +1228,8 @@ setup:
         - allowed_warnings
 
   - requires:
-      cluster_features: ["simulate.index.template.substitutions"]
-      reason: "ingest simulate component template substitutions added in 8.16"
+      cluster_features: ["simulate.mapping.addition"]
+      reason: "ingest simulate mapping addition added in 8.16"
 
   - do:
       headers:

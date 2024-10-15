@@ -84,6 +84,7 @@ public class TransportSimulateBulkAction extends TransportAbstractBulkAction {
         "simulate.component.template.substitutions"
     );
     public static final NodeFeature SIMULATE_INDEX_TEMPLATE_SUBSTITUTIONS = new NodeFeature("simulate.index.template.substitutions");
+    public static final NodeFeature SIMULATE_MAPPING_ADDITION = new NodeFeature("simulate.mapping.addition");
     private final IndicesService indicesService;
     private final NamedXContentRegistry xContentRegistry;
     private final Set<IndexSettingProvider> indexSettingProviders;

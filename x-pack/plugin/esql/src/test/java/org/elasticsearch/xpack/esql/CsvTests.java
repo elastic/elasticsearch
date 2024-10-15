@@ -252,6 +252,10 @@ public class CsvTests extends ESTestCase {
                 "can't use MATCH function in csv tests",
                 testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.MATCH_FUNCTION.capabilityName())
             );
+            assumeFalse(
+                "can't use MATCH colon operator in csv tests",
+                testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.MATCH_OPERATOR_COLON.capabilityName())
+            );
 
             if (Build.current().isSnapshot()) {
                 assertThat(

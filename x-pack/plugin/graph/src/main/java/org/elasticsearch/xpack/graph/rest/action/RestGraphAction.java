@@ -69,12 +69,8 @@ public class RestGraphAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         return List.of(
-            Route.builder(GET, "/{index}/_graph/explore")
-                .replaces(GET, "/{index}" + URI_BASE + "/graph/_explore", RestApiVersion.V_7)
-                .build(),
-            Route.builder(POST, "/{index}/_graph/explore")
-                .replaces(POST, "/{index}" + URI_BASE + "/graph/_explore", RestApiVersion.V_7)
-                .build(),
+            new Route(GET, "/{index}/_graph/explore"),
+            new Route(POST, "/{index}/_graph/explore"),
             Route.builder(GET, "/{index}/{type}/_graph/explore").deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7).build(),
             Route.builder(GET, "/{index}/{type}" + URI_BASE + "/graph/_explore")
                 .deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7)

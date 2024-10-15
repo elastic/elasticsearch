@@ -196,3 +196,52 @@ IP dimensions:
       search:
         index: metrics-generic.otel-default
   - length: { hits.hits: 1 }
+---
+"Dynamic templates":
+  - do:
+      bulk:
+        index: metrics-generic.otel-default
+        refresh: true
+        body:
+          - create: {"dynamic_templates":{"metrics.counter_long":"counter_long","metrics.gauge_long":"gauge_long","metrics.counter_double":"counter_double","metrics.gauge_double":"gauge_double","metrics.summary":"summary","metrics.summary_minmax":"summary_minmax","metrics.histogram":"histogram"}}
+          - "@timestamp": 2024-07-18T14:48:33.467654000Z
+            attributes:
+              foo: bar
+            metrics:
+              counter_long: 42
+              gauge_long: 42
+              counter_double: 42.42
+              gauge_double: 42.42
+              summary:
+                sum: 42.42
+                value_count: 42
+              summary_minmax:
+                sum: 42.42
+                value_count: 42
+                min: 0.42
+                max: 4.2
+              histogram:
+                counts: [1,2]
+                values: [42,4242]
+  - is_false: errors
+  - do:
+      search:
+        index: metrics-generic.otel-default
+  - length: { hits.hits: 1 }
+
+  - do:
+      indices.get_data_stream:
+        name: metrics-generic.otel-default
+  - set: { data_streams.0.indices.0.index_name: idx0name }
+
+  - do:
+      indices.get_mapping:
+        index: $idx0name
+        expand_wildcards: hidden
+  - match: { .$idx0name.mappings.properties.metrics.properties.counter_long.type: 'long' }
+  - match: { .$idx0name.mappings.properties.metrics.properties.gauge_long.type: 'long' }
+  - match: { .$idx0name.mappings.properties.metrics.properties.counter_double.type: 'double' }
+  - match: { .$idx0name.mappings.properties.metrics.properties.gauge_double.type: 'double' }
+  - match: { .$idx0name.mappings.properties.metrics.properties.summary.type: 'aggregate_metric_double' }
+  - match: { .$idx0name.mappings.properties.metrics.properties.summary_minmax.type: 'aggregate_metric_double' }
+  - match: { .$idx0name.mappings.properties.metrics.properties.histogram.type: 'histogram' }

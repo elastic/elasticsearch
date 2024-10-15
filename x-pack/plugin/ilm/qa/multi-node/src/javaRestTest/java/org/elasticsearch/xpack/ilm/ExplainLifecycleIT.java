@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.core.ilm.RolloverAction;
 import org.elasticsearch.xpack.core.ilm.ShrinkAction;
 import org.junit.Before;
 
+import java.util.Formatter;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
@@ -42,6 +43,7 @@ import static org.elasticsearch.xpack.TimeSeriesRestDriver.explain;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.explainIndex;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.is;
@@ -255,6 +257,64 @@ public class ExplainLifecycleIT extends ESRestTestCase {
                     + "\"order-ccc-foo\":{\"index\":\"order-ccc-foo\"}}}"
             )
         );
+    }
+
+    public void testStepInfoPreservedOnAutoRetry() throws Exception {
+        String policyName = "policy-" + randomAlphaOfLength(5).toLowerCase(Locale.ROOT);
+
+        Request createPolice = new Request("PUT", "_ilm/policy/" + policyName);
+        createPolice.setJsonEntity("""
+            {
+              "policy": {
+                "phases": {
+                  "hot": {
+                    "actions": {
+                      "rollover": {
+                        "max_docs": 1
+                      }
+                    }
+                  }
+                }
+              }
+            }
+            """);
+        assertOK(client().performRequest(createPolice));
+
+        String aliasName = "step-info-test";
+        String indexName = aliasName + "-" + randomAlphaOfLength(5).toLowerCase(Locale.ROOT);
+
+        Request templateRequest = new Request("PUT", "_index_template/template_" + policyName);
+
+        String templateBodyTemplate = """
+            {
+              "index_patterns": ["%s-*"],
+              "template": {
+                "settings": {
+                  "index.lifecycle.name": "%s",
+                  "index.lifecycle.rollover_alias": "%s"
+                }
+              }
+            }
+            """;
+        Formatter formatter = new Formatter(Locale.ROOT);
+        templateRequest.setJsonEntity(formatter.format(templateBodyTemplate, aliasName, policyName, aliasName).toString());
+
+        assertOK(client().performRequest(templateRequest));
+
+        Request indexRequest = new Request("POST", "/" + indexName + "/_doc/1");
+        indexRequest.setJsonEntity("{\"test\":\"value\"}");
+        assertOK(client().performRequest(indexRequest));
+
+        assertBusy(() -> {
+            Map<String, Object> explainIndex = explainIndex(client(), indexName);
+            assertThat(explainIndex.get("failed_step_retry_count"), notNullValue());
+            assertThat(explainIndex.get("previous_step_info"), notNullValue());
+            assertThat((int) explainIndex.get("failed_step_retry_count"), greaterThan(0));
+            assertThat(
+                explainIndex.get("previous_step_info").toString(),
+                containsString("rollover_alias [" + aliasName + "] does not point to index [" + indexName + "]")
+            );
+        });
     }
 
     private void assertUnmanagedIndex(Map<String, Object> explainIndexMap) {

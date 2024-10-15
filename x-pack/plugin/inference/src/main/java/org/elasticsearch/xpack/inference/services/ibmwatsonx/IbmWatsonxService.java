@@ -38,7 +38,6 @@ import org.elasticsearch.xpack.inference.services.ibmwatsonx.embeddings.IbmWatso
 
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInvalidModelException;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.parsePersistedConfigErrorMsg;
@@ -65,7 +64,6 @@ public class IbmWatsonxService extends SenderService {
         String inferenceEntityId,
         TaskType taskType,
         Map<String, Object> config,
-        Set<String> platformArchitectures,
         ActionListener<Model> parsedModelListener
     ) {
         try {
@@ -124,7 +122,7 @@ public class IbmWatsonxService extends SenderService {
         Map<String, Object> secrets
     ) {
         Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
-        Map<String, Object> taskSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.TASK_SETTINGS);
+        Map<String, Object> taskSettingsMap = removeFromMapOrDefaultEmpty(config, ModelConfigurations.TASK_SETTINGS);
         Map<String, Object> secretSettingsMap = removeFromMapOrDefaultEmpty(secrets, ModelSecrets.SECRET_SETTINGS);
 
         return createModelFromPersistent(
@@ -159,7 +157,7 @@ public class IbmWatsonxService extends SenderService {
     @Override
     public Model parsePersistedConfig(String inferenceEntityId, TaskType taskType, Map<String, Object> config) {
         Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
-        Map<String, Object> taskSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.TASK_SETTINGS);
+        Map<String, Object> taskSettingsMap = removeFromMapOrDefaultEmpty(config, ModelConfigurations.TASK_SETTINGS);
 
         return createModelFromPersistent(
             inferenceEntityId,

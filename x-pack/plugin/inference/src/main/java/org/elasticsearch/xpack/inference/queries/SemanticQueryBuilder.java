@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.InferenceFieldMetadata;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
@@ -49,6 +50,9 @@ import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
 public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuilder> {
+    // **** THE semantic_text.inner_hits CLUSTER FEATURE IS DEFUNCT, NEVER USE IT ****
+    public static final NodeFeature SEMANTIC_TEXT_INNER_HITS = new NodeFeature("semantic_text.inner_hits");
+
     public static final String NAME = "semantic";
 
     private static final ParseField FIELD_FIELD = new ParseField("field");

@@ -13,6 +13,8 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.CharArraySet;
 import org.elasticsearch.test.ESTokenStreamTestCase;
 
+import static org.apache.lucene.tests.analysis.BaseTokenStreamTestCase.assertAnalyzesTo;
+
 public class FingerprintAnalyzerTests extends ESTokenStreamTestCase {
 
     public void testFingerprint() throws Exception {

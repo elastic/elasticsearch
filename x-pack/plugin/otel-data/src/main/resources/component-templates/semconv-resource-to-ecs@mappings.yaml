@@ -1,7 +1,7 @@
 ---
 version: ${xpack.oteldata.template.version}
 _meta:
-  description: Aliases from OpenTelemetry SemConv fields to ECS (and some non-ECS) fields
+  description: Aliases from OpenTelemetry SemConv resource attribute fields to ECS (and some non-ECS) fields
   managed: true
 template:
   mappings:
@@ -11,7 +11,7 @@ template:
           attributes:
             type: passthrough
             dynamic: true
-            priority: 30
+            priority: 40
             time_series_dimension: true
             properties:
               host.name:

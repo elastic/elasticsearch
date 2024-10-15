@@ -10,8 +10,10 @@
 package org.elasticsearch.datastreams.logsdb;
 
 import org.elasticsearch.client.Response;
+import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.hamcrest.Matchers;
@@ -179,7 +181,11 @@ public class LogsIndexModeEnabledRestTestIT extends LogsIndexModeRestTestIT {
     public void testCreateDataStream() throws IOException {
         assertOK(putComponentTemplate(client, "logs@custom", MAPPINGS));
         assertOK(createDataStream(client, "logs-custom-dev"));
-        final String indexMode = (String) getSetting(client, getDataStreamBackingIndex(client, "logs-custom-dev", 0), "index.mode");
+        final String indexMode = (String) getSetting(
+            client,
+            getDataStreamBackingIndex(client, "logs-custom-dev", 0),
+            IndexSettings.MODE.getKey()
+        );
         assertThat(indexMode, equalTo(IndexMode.LOGSDB.getName()));
     }
 
@@ -223,5 +229,84 @@ public class LogsIndexModeEnabledRestTestIT extends LogsIndexModeRestTestIT {
         final String secondBackingIndex = getDataStreamBackingIndex(client, "logs-custom-dev", 1);
         assertThat(firstBackingIndex, Matchers.not(equalTo(secondBackingIndex)));
         assertThat(getDataStreamBackingIndices(client, "logs-custom-dev").size(), equalTo(2));
+    }
+
+    public void testLogsAtSettingWithStandardOverride() throws IOException {
+        assertOK(putComponentTemplate(client, "logs@custom", """
+            {
+              "template": {
+                "settings": {
+                  "index": {
+                    "mode": "standard"
+                    }
+                  }
+                }
+              }
+            """));
+        assertOK(createDataStream(client, "logs-custom-dev"));
+        final String indexMode = (String) getSetting(
+            client,
+            getDataStreamBackingIndex(client, "logs-custom-dev", 0),
+            IndexSettings.MODE.getKey()
+        );
+        assertThat(indexMode, equalTo(IndexMode.STANDARD.getName()));
+    }
+
+    public void testLogsAtSettingWithTimeSeriesOverride() throws IOException {
+        assertOK(putComponentTemplate(client, "logs@custom", """
+            {
+              "template": {
+                "settings": {
+                  "index": {
+                    "routing_path": [ "hostname" ],
+                    "mode": "time_series",
+                    "sort.field": [],
+                    "sort.order": []
+                  }
+                },
+                "mappings": {
+                  "properties": {
+                    "hostname": {
+                       "type": "keyword",
+                       "time_series_dimension": true
+                    }
+                  }
+                }
+              }
+            }
+            """));
+        assertOK(createDataStream(client, "logs-custom-dev"));
+        final String indexMode = (String) getSetting(
+            client,
+            getDataStreamBackingIndex(client, "logs-custom-dev", 0),
+            IndexSettings.MODE.getKey()
+        );
+        assertThat(indexMode, equalTo(IndexMode.TIME_SERIES.getName()));
+    }
+
+    public void testLogsAtSettingWithTimeSeriesOverrideFailure() {
+        // NOTE: apm@settings defines sorting on @timestamp and template composition results in index.mode "time_series"
+        // with a non-allowed index.sort.field '@timestamp'. This fails at template composition stage before the index is even created.
+        final ResponseException ex = assertThrows(ResponseException.class, () -> putComponentTemplate(client, "logs@custom", """
+            {
+              "template": {
+                "settings": {
+                  "index": {
+                    "routing_path": [ "hostname" ],
+                    "mode": "time_series"
+                  }
+                },
+                "mappings": {
+                  "properties": {
+                    "hostname": {
+                       "type": "keyword",
+                       "time_series_dimension": true
+                    }
+                  }
+                }
+              }
+            }
+            """));
+        assertTrue(ex.getMessage().contains("[index.mode=time_series] is incompatible with [index.sort.field]"));
     }
 }

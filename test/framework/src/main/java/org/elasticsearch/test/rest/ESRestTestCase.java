@@ -719,10 +719,6 @@ public abstract class ESRestTestCase extends ESTestCase {
      * all feature states, deleting system indices, system associated indices, and system data streams.
      */
     protected boolean resetFeatureStates() {
-        if (clusterHasFeature(RestTestLegacyFeatures.FEATURE_STATE_RESET_SUPPORTED) == false) {
-            return false;
-        }
-
         // ML reset fails when ML is disabled in versions before 8.7
         if (isMlEnabled() == false && clusterHasFeature(RestTestLegacyFeatures.ML_STATE_RESET_FALLBACK_ON_DISABLED) == false) {
             return false;
@@ -917,22 +913,10 @@ public abstract class ESRestTestCase extends ESTestCase {
                             .filter(name -> isXPackTemplate(name) == false)
                             .collect(Collectors.toList());
                         if (names.isEmpty() == false) {
-                            // Ideally we would want to check if the elected master node supports this feature and send the delete request
-                            // directly to that node, but node-specific feature checks is something we want to avoid if possible.
-                            if (clusterHasFeature(RestTestLegacyFeatures.DELETE_TEMPLATE_MULTIPLE_NAMES_SUPPORTED)) {
-                                try {
-                                    adminClient().performRequest(new Request("DELETE", "_index_template/" + String.join(",", names)));
-                                } catch (ResponseException e) {
-                                    logger.warn(() -> format("unable to remove multiple composable index templates %s", names), e);
-                                }
-                            } else {
-                                for (String name : names) {
-                                    try {
-                                        adminClient().performRequest(new Request("DELETE", "_index_template/" + name));
-                                    } catch (ResponseException e) {
-                                        logger.warn(() -> format("unable to remove composable index template %s", name), e);
-                                    }
-                                }
+                            try {
+                                adminClient().performRequest(new Request("DELETE", "_index_template/" + String.join(",", names)));
+                            } catch (ResponseException e) {
+                                logger.warn(() -> format("unable to remove multiple composable index templates %s", names), e);
                             }
                         }
                     } catch (Exception e) {
@@ -948,22 +932,10 @@ public abstract class ESRestTestCase extends ESTestCase {
                             .filter(name -> isXPackTemplate(name) == false)
                             .collect(Collectors.toList());
                         if (names.isEmpty() == false) {
-                            // Ideally we would want to check if the elected master node supports this feature and send the delete request
-                            // directly to that node, but node-specific feature checks is something we want to avoid if possible.
-                            if (clusterHasFeature(RestTestLegacyFeatures.DELETE_TEMPLATE_MULTIPLE_NAMES_SUPPORTED)) {
-                                try {
-                                    adminClient().performRequest(new Request("DELETE", "_component_template/" + String.join(",", names)));
-                                } catch (ResponseException e) {
-                                    logger.warn(() -> format("unable to remove multiple component templates %s", names), e);
-                                }
-                            } else {
-                                for (String componentTemplate : names) {
-                                    try {
-                                        adminClient().performRequest(new Request("DELETE", "_component_template/" + componentTemplate));
-                                    } catch (ResponseException e) {
-                                        logger.warn(() -> format("unable to remove component template %s", componentTemplate), e);
-                                    }
-                                }
+                            try {
+                                adminClient().performRequest(new Request("DELETE", "_component_template/" + String.join(",", names)));
+                            } catch (ResponseException e) {
+                                logger.warn(() -> format("unable to remove multiple component templates %s", names), e);
                             }
                         }
                     } catch (Exception e) {
@@ -1141,7 +1113,6 @@ public abstract class ESRestTestCase extends ESTestCase {
     }
 
     protected static void wipeAllIndices(boolean preserveSecurityIndices) throws IOException {
-        boolean includeHidden = clusterHasFeature(RestTestLegacyFeatures.HIDDEN_INDICES_SUPPORTED);
         try {
             // remove all indices except some history indices which can pop up after deleting all data streams but shouldn't interfere
             final List<String> indexPatterns = new ArrayList<>(
@@ -1151,7 +1122,7 @@ public abstract class ESRestTestCase extends ESTestCase {
                 indexPatterns.add("-.security-*");
             }
             final Request deleteRequest = new Request("DELETE", Strings.collectionToCommaDelimitedString(indexPatterns));
-            deleteRequest.addParameter("expand_wildcards", "open,closed" + (includeHidden ? ",hidden" : ""));
+            deleteRequest.addParameter("expand_wildcards", "open,closed,hidden");
             final Response response = adminClient().performRequest(deleteRequest);
             try (InputStream is = response.getEntity().getContent()) {
                 assertTrue((boolean) XContentHelper.convertToMap(XContentType.JSON.xContent(), is, true).get("acknowledged"));
@@ -1179,7 +1150,14 @@ public abstract class ESRestTestCase extends ESTestCase {
                 // We hit a version of ES that doesn't serialize DeleteDataStreamAction.Request#wildcardExpressionsOriginallySpecified field
                 // or that doesn't support data streams so it's safe to ignore
                 int statusCode = ee.getResponse().getStatusLine().getStatusCode();
-                if (statusCode < 404 || statusCode > 405) {
+                if (statusCode == 400) {
+                    // the test cluster likely does not include the data streams module so we can ignore this error code
+                    // additionally there is an implementation gotcha that cause response code to be 400 or 405 dependent on if
+                    // "_data_stream/*" matches a registered index pattern such as {a}/{b} but not for the HTTP verb.
+                    // Prior to v9 POST {index}/{type} was registered as a compatible index pattern so the request would partially match
+                    // and return a 405, but without that pattern registered at all the return value is a 400.
+                    return;
+                } else if (statusCode < 404 || statusCode > 405) {
                     throw ee;
                 }
             }
@@ -1313,9 +1291,8 @@ public abstract class ESRestTestCase extends ESTestCase {
     }
 
     protected void refreshAllIndices() throws IOException {
-        boolean includeHidden = clusterHasFeature(RestTestLegacyFeatures.HIDDEN_INDICES_SUPPORTED);
         Request refreshRequest = new Request("POST", "/_refresh");
-        refreshRequest.addParameter("expand_wildcards", "open" + (includeHidden ? ",hidden" : ""));
+        refreshRequest.addParameter("expand_wildcards", "open,hidden");
         // Allow system index deprecation warnings
         refreshRequest.setOptions(RequestOptions.DEFAULT.toBuilder().setWarningsHandler(warnings -> {
             if (warnings.isEmpty()) {
@@ -1848,7 +1825,7 @@ public abstract class ESRestTestCase extends ESTestCase {
 
         final Response response = client.performRequest(request);
         try (var parser = responseAsParser(response)) {
-            return CreateIndexResponse.fromXContent(parser);
+            return TestResponseParsers.parseCreateIndexResponse(parser);
         }
     }
 
@@ -1860,7 +1837,7 @@ public abstract class ESRestTestCase extends ESTestCase {
         Request request = new Request("DELETE", "/" + name);
         Response response = restClient.performRequest(request);
         try (var parser = responseAsParser(response)) {
-            return AcknowledgedResponse.fromXContent(parser);
+            return TestResponseParsers.parseAcknowledgedResponse(parser);
         }
     }
 
@@ -1928,7 +1905,7 @@ public abstract class ESRestTestCase extends ESTestCase {
      * emitted in v8. Note that this message is also permitted in certain YAML test cases, it can be removed there too.
      * See https://github.com/elastic/elasticsearch/issues/66419 for more details.
      */
-    @UpdateForV9
+    @UpdateForV9(owner = UpdateForV9.Owner.DISTRIBUTED_COORDINATION)
     private static final String WAIT_FOR_ACTIVE_SHARDS_DEFAULT_DEPRECATION_MESSAGE = "the default value for the ?wait_for_active_shards "
         + "parameter will change from '0' to 'index-setting' in version 8; specify '?wait_for_active_shards=index-setting' "
         + "to adopt the future default behaviour, or '?wait_for_active_shards=0' to preserve today's behaviour";
@@ -2387,7 +2364,7 @@ public abstract class ESRestTestCase extends ESTestCase {
                 assertThat("Expecting non-null license status", status, notNullValue());
                 assertThat("Expecting active license", status, equalTo("active"));
             }
-        });
+        }, 10, TimeUnit.MINUTES);
     }
 
     // TODO: replace usages of this with warning_regex or allowed_warnings_regex
@@ -2481,18 +2458,6 @@ public abstract class ESRestTestCase extends ESTestCase {
     }
 
     private static XContentType randomSupportedContentType() {
-        if (clusterHasFeature(RestTestLegacyFeatures.SUPPORTS_TRUE_BINARY_RESPONSES) == false) {
-            // Very old versions encode binary stored fields using base64 in all formats, not just JSON, but we expect to see raw binary
-            // fields in non-JSON formats, so we stick to JSON in these cases.
-            return XContentType.JSON;
-        }
-
-        if (clusterHasFeature(RestTestLegacyFeatures.SUPPORTS_VENDOR_XCONTENT_TYPES) == false) {
-            // The VND_* formats were introduced part-way through the 7.x series for compatibility with 8.x, but are not supported by older
-            // 7.x versions.
-            return randomFrom(XContentType.JSON, XContentType.CBOR, XContentType.YAML, XContentType.SMILE);
-        }
-
         return randomFrom(XContentType.values());
     }
 

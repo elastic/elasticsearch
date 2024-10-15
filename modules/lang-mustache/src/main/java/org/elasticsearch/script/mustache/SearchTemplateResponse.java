@@ -107,7 +107,7 @@ public class SearchTemplateResponse extends ActionResponse implements ToXContent
 
     void innerToXContent(XContentBuilder builder, Params params) throws IOException {
         if (hasResponse()) {
-            ChunkedToXContent.wrapAsToXContent(p -> response.innerToXContentChunked(p)).toXContent(builder, params);
+            ChunkedToXContent.wrapAsToXContent(response::innerToXContentChunked).toXContent(builder, params);
         } else {
             // we can assume the template is always json as we convert it before compiling it
             try (InputStream stream = source.streamInput()) {

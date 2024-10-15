@@ -695,6 +695,11 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
         return this.version;
     }
 
+    /**
+     * @return A UUID which identifies this cluster. Nodes record the UUID of the cluster they first join on disk, and will then refuse to
+     * join clusters with different UUIDs. Note that when the cluster is forming for the first time this value may not yet be committed,
+     * and therefore it may change. Check {@link #clusterUUIDCommitted()} to verify that the value is committed if needed.
+     */
     public String clusterUUID() {
         return this.clusterUUID;
     }
@@ -855,7 +860,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
      *
      * @param aliases The aliases to look for. Might contain include or exclude wildcards.
      * @param possibleMatches The data streams or indices that the aliases must point to in order to be returned
-     * @param getter A function that is used to get the alises for a given data stream or index
+     * @param getter A function that is used to get the aliases for a given data stream or index
      * @param setter A function that is used to keep track of the found aliases
      */
     private void findAliasInfo(final String[] aliases, final String[] possibleMatches, AliasInfoGetter getter, AliasInfoSetter setter) {
@@ -881,24 +886,30 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
 
         boolean matchAllAliases = patterns.length == 0;
 
+        // memoize pattern match against aliases to avoid repeatedly matching when multiple indices share an alias
+        HashMap<String, Boolean> seenAliases = new HashMap<>();
+        Predicate<String> matcher = alias -> seenAliases.computeIfAbsent(alias, key -> {
+            boolean matched = matchAllAliases;
+            for (int i = 0; i < patterns.length; i++) {
+                if (include[i]) {
+                    if (matched == false) {
+                        String pattern = patterns[i];
+                        matched = ALL.equals(pattern) || Regex.simpleMatch(pattern, key);
+                    }
+                } else if (matched) {
+                    matched = Regex.simpleMatch(patterns[i], key) == false;
+                }
+            }
+
+            return matched;
+        });
+
         for (String index : possibleMatches) {
             List<AliasInfo> filteredValues = new ArrayList<>();
 
             List<? extends AliasInfo> entities = getter.get(index);
             for (AliasInfo aliasInfo : entities) {
-                boolean matched = matchAllAliases;
-                String alias = aliasInfo.getAlias();
-                for (int i = 0; i < patterns.length; i++) {
-                    if (include[i]) {
-                        if (matched == false) {
-                            String pattern = patterns[i];
-                            matched = ALL.equals(pattern) || Regex.simpleMatch(pattern, alias);
-                        }
-                    } else if (matched) {
-                        matched = Regex.simpleMatch(patterns[i], alias) == false;
-                    }
-                }
-                if (matched) {
+                if (matcher.test(aliasInfo.getAlias())) {
                     filteredValues.add(aliasInfo);
                 }
             }
@@ -1305,27 +1316,15 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
             .orElse(Collections.emptyMap());
     }
 
-    public boolean isTimeSeriesTemplate(ComposableIndexTemplate indexTemplate) {
+    public IndexMode retrieveIndexModeFromTemplate(ComposableIndexTemplate indexTemplate) {
         if (indexTemplate.getDataStreamTemplate() == null) {
-            return false;
+            return null;
         }
 
         var settings = MetadataIndexTemplateService.resolveSettings(indexTemplate, componentTemplates());
         // Not using IndexSettings.MODE.get() to avoid validation that may fail at this point.
         var rawIndexMode = settings.get(IndexSettings.MODE.getKey());
-        var indexMode = rawIndexMode != null ? Enum.valueOf(IndexMode.class, rawIndexMode.toUpperCase(Locale.ROOT)) : null;
-        if (indexMode == IndexMode.TIME_SERIES) {
-            // No need to check for the existence of index.routing_path here, because index.mode=time_series can't be specified without it.
-            // Setting validation takes care of this.
-            // Also no need to validate that the fields defined in index.routing_path are keyword fields with time_series_dimension
-            // attribute enabled. This is validated elsewhere (DocumentMapper).
-            return true;
-        }
-
-        // in a followup change: check the existence of keyword fields of type keyword and time_series_dimension attribute enabled in
-        // the template. In this case the index.routing_path setting can be generated from the mapping.
-
-        return false;
+        return rawIndexMode != null ? Enum.valueOf(IndexMode.class, rawIndexMode.toUpperCase(Locale.ROOT)) : null;
     }
 
     public Map<String, DataStream> dataStreams() {

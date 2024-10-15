@@ -11,6 +11,8 @@ may occur in {es} when resource utilizations are unevenly distributed across
 ongoing significantly unique utilization may lead to cluster bottlenecks 
 and should be reviewed. 
 
+See link:https://www.youtube.com/watch?v=Q5ODJ5nIKAM[this video] for a walkthrough of troubleshooting a hot spotting issue.
+
 [discrete]
 [[detect]]
 ==== Detect hot spotting

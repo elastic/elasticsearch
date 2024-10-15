@@ -19,6 +19,7 @@ import org.elasticsearch.compute.data.ToMask;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
+import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -31,7 +32,6 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
-import org.elasticsearch.xpack.esql.expression.function.Warnings;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
@@ -50,7 +50,7 @@ public final class Case extends EsqlScalarFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Case", Case::new);
 
     record Condition(Expression condition, Expression value) {
-        ConditionEvaluatorSupplier toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
+        ConditionEvaluatorSupplier toEvaluator(ToEvaluator toEvaluator) {
             return new ConditionEvaluatorSupplier(condition.source(), toEvaluator.apply(condition), toEvaluator.apply(value));
         }
     }
@@ -311,7 +311,7 @@ public final class Case extends EsqlScalarFunction {
     }
 
     @Override
-    public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
+    public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         List<ConditionEvaluatorSupplier> conditionsFactories = conditions.stream().map(c -> c.toEvaluator(toEvaluator)).toList();
         ExpressionEvaluator.Factory elseValueFactory = toEvaluator.apply(elseValue);
         ElementType resultType = PlannerUtils.toElementType(dataType());
@@ -341,7 +341,12 @@ public final class Case extends EsqlScalarFunction {
                  * Rather than go into depth about this in the warning message,
                  * we just say "false".
                  */
-                Warnings.createWarningsTreatedAsFalse(driverContext.warningsMode(), conditionSource),
+                Warnings.createWarningsTreatedAsFalse(
+                    driverContext.warningsMode(),
+                    conditionSource.source().getLineNumber(),
+                    conditionSource.source().getColumnNumber(),
+                    conditionSource.text()
+                ),
                 condition.get(driverContext),
                 value.get(driverContext)
             );

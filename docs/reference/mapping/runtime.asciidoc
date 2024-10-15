@@ -821,8 +821,6 @@ address.
 [[lookup-runtime-fields]]
 ==== Retrieve fields from related indices
 
-experimental[]
-
 The <<search-fields,`fields`>> parameter on the `_search` API can also be used to retrieve fields from
 the related indices via runtime fields with a type of `lookup`.
 

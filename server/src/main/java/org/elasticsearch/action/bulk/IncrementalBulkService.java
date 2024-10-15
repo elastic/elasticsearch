@@ -36,7 +36,7 @@ public class IncrementalBulkService {
 
     public static final Setting<Boolean> INCREMENTAL_BULK = boolSetting(
         "rest.incremental_bulk",
-        false,
+        true,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
@@ -105,8 +105,10 @@ public class IncrementalBulkService {
         private boolean closed = false;
         private boolean globalFailure = false;
         private boolean incrementalRequestSubmitted = false;
+        private boolean bulkInProgress = false;
         private ThreadContext.StoredContext requestContext;
         private Exception bulkActionLevelFailure = null;
+        private long currentBulkSize = 0L;
         private BulkRequest bulkRequest = null;
 
         protected Handler(
@@ -129,6 +131,7 @@ public class IncrementalBulkService {
 
         public void addItems(List<DocWriteRequest<?>> items, Releasable releasable, Runnable nextItems) {
             assert closed == false;
+            assert bulkInProgress == false;
             if (bulkActionLevelFailure != null) {
                 shortCircuitDueToTopLevelFailure(items, releasable);
                 nextItems.run();
@@ -142,6 +145,7 @@ public class IncrementalBulkService {
                             requestContext.restore();
                             final ArrayList<Releasable> toRelease = new ArrayList<>(releasables);
                             releasables.clear();
+                            bulkInProgress = true;
                             client.bulk(bulkRequest, ActionListener.runAfter(new ActionListener<>() {
 
                                 @Override
@@ -157,6 +161,7 @@ public class IncrementalBulkService {
                                     handleBulkFailure(isFirstRequest, e);
                                 }
                             }, () -> {
+                                bulkInProgress = false;
                                 requestContext = threadContext.newStoredContext();
                                 toRelease.forEach(Releasable::close);
                                 nextItems.run();
@@ -172,10 +177,11 @@ public class IncrementalBulkService {
         }
 
         private boolean shouldBackOff() {
-            return indexingPressure.shouldSplitBulks();
+            return indexingPressure.shouldSplitBulk(currentBulkSize);
         }
 
         public void lastItems(List<DocWriteRequest<?>> items, Releasable releasable, ActionListener<BulkResponse> listener) {
+            assert bulkInProgress == false;
             if (bulkActionLevelFailure != null) {
                 shortCircuitDueToTopLevelFailure(items, releasable);
                 errorResponse(listener);
@@ -186,6 +192,8 @@ public class IncrementalBulkService {
                         requestContext.restore();
                         final ArrayList<Releasable> toRelease = new ArrayList<>(releasables);
                         releasables.clear();
+                        // We do not need to set this back to false as this will be the last request.
+                        bulkInProgress = true;
                         client.bulk(bulkRequest, ActionListener.runBefore(new ActionListener<>() {
 
                             private final boolean isFirstRequest = incrementalRequestSubmitted == false;
@@ -235,6 +243,7 @@ public class IncrementalBulkService {
 
         private void handleBulkSuccess(BulkResponse bulkResponse) {
             responses.add(bulkResponse);
+            currentBulkSize = 0L;
             bulkRequest = null;
         }
 
@@ -243,6 +252,7 @@ public class IncrementalBulkService {
             globalFailure = isFirstRequest;
             bulkActionLevelFailure = e;
             addItemLevelFailures(bulkRequest.requests());
+            currentBulkSize = 0;
             bulkRequest = null;
         }
 
@@ -261,13 +271,9 @@ public class IncrementalBulkService {
             try {
                 bulkRequest.add(items);
                 releasables.add(releasable);
-                releasables.add(
-                    indexingPressure.markCoordinatingOperationStarted(
-                        items.size(),
-                        items.stream().mapToLong(Accountable::ramBytesUsed).sum(),
-                        false
-                    )
-                );
+                long size = items.stream().mapToLong(Accountable::ramBytesUsed).sum();
+                releasables.add(indexingPressure.markCoordinatingOperationStarted(items.size(), size, false));
+                currentBulkSize += size;
                 return true;
             } catch (EsRejectedExecutionException e) {
                 handleBulkFailure(incrementalRequestSubmitted == false, e);
@@ -278,6 +284,8 @@ public class IncrementalBulkService {
         }
 
         private void createNewBulkRequest(BulkRequest.IncrementalState incrementalState) {
+            assert currentBulkSize == 0L;
+            assert bulkRequest == null;
             bulkRequest = new BulkRequest();
             bulkRequest.incrementalState(incrementalState);
 
@@ -290,12 +298,6 @@ public class IncrementalBulkService {
             if (refresh != null) {
                 bulkRequest.setRefreshPolicy(refresh);
             }
-        }
-
-        private void releaseCurrentReferences() {
-            bulkRequest = null;
-            releasables.forEach(Releasable::close);
-            releasables.clear();
         }
 
         private BulkResponse combineResponses() {

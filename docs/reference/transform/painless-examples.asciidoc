@@ -5,6 +5,9 @@
 <titleabbrev>Painless examples</titleabbrev>
 ++++
 
+
+IMPORTANT: The examples that use the `scripted_metric` aggregation are not supported on {es} Serverless.
+
 These examples demonstrate how to use Painless in {transforms}. You can learn 
 more about the Painless scripting language in the 
 {painless}/painless-guide.html[Painless guide].
@@ -36,6 +39,8 @@ This snippet shows how to find the latest document, in other words the document
 with the latest timestamp. From a technical perspective, it helps to achieve 
 the function of a <<search-aggregations-metrics-top-hits-aggregation>> by using 
 scripted metric aggregation in a {transform}, which provides a metric output.
+
+IMPORTANT: This example uses a `scripted_metric` aggregation which is not supported on {es} Serverless.
 
 [source,js]
 --------------------------------------------------
@@ -453,6 +458,8 @@ example for details.
 The example below assumes that the HTTP response codes are stored as keywords in 
 the `response` field of the documents.
 
+IMPORTANT: This example uses a `scripted_metric` aggregation which is not supported on {es} Serverless.
+
 [source,js]
 --------------------------------------------------
 "aggregations": { <1>
@@ -507,7 +514,9 @@ Finally, returns the `counts` array with the response counts.
 == Comparing indices by using scripted metric aggregations
 
 This example shows how to compare the content of two indices by a {transform} 
-that uses a scripted metric aggregation. 
+that uses a scripted metric aggregation.
+
+IMPORTANT: This example uses a `scripted_metric` aggregation which is not supported on {es} Serverless.
 
 [source,console]
 --------------------------------------------------
@@ -622,6 +631,8 @@ Let's take a look on the example source document from the data:
 By using the `sessionid` as a group-by field, you are able to enumerate events 
 through the session and get more details of the session by using scripted metric 
 aggregation.
+
+IMPORTANT: This example uses a `scripted_metric` aggregation which is not supported on {es} Serverless.
 
 [source,js]
 --------------------------------------------------

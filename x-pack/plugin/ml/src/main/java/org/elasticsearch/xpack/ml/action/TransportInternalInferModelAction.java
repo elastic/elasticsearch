@@ -42,6 +42,7 @@ import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignme
 import org.elasticsearch.xpack.core.ml.inference.results.ErrorInferenceResults;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.MachineLearning;
+import org.elasticsearch.xpack.ml.inference.adaptiveallocations.AdaptiveAllocationsScalerService;
 import org.elasticsearch.xpack.ml.inference.loadingservice.LocalModel;
 import org.elasticsearch.xpack.ml.inference.loadingservice.ModelLoadingService;
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
@@ -66,6 +67,7 @@ public class TransportInternalInferModelAction extends HandledTransportAction<Re
     private final ClusterService clusterService;
     private final XPackLicenseState licenseState;
     private final TrainedModelProvider trainedModelProvider;
+    private final AdaptiveAllocationsScalerService adaptiveAllocationsScalerService;
 
     TransportInternalInferModelAction(
         String actionName,
@@ -75,7 +77,8 @@ public class TransportInternalInferModelAction extends HandledTransportAction<Re
         Client client,
         ClusterService clusterService,
         XPackLicenseState licenseState,
-        TrainedModelProvider trainedModelProvider
+        TrainedModelProvider trainedModelProvider,
+        AdaptiveAllocationsScalerService adaptiveAllocationsScalerService
     ) {
         super(actionName, transportService, actionFilters, InferModelAction.Request::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.modelLoadingService = modelLoadingService;
@@ -83,6 +86,7 @@ public class TransportInternalInferModelAction extends HandledTransportAction<Re
         this.clusterService = clusterService;
         this.licenseState = licenseState;
         this.trainedModelProvider = trainedModelProvider;
+        this.adaptiveAllocationsScalerService = adaptiveAllocationsScalerService;
     }
 
     @Inject
@@ -93,7 +97,8 @@ public class TransportInternalInferModelAction extends HandledTransportAction<Re
         Client client,
         ClusterService clusterService,
         XPackLicenseState licenseState,
-        TrainedModelProvider trainedModelProvider
+        TrainedModelProvider trainedModelProvider,
+        AdaptiveAllocationsScalerService adaptiveAllocationsScalerService
     ) {
         this(
             InferModelAction.NAME,
@@ -103,7 +108,8 @@ public class TransportInternalInferModelAction extends HandledTransportAction<Re
             client,
             clusterService,
             licenseState,
-            trainedModelProvider
+            trainedModelProvider,
+            adaptiveAllocationsScalerService
         );
     }
 
@@ -253,10 +259,13 @@ public class TransportInternalInferModelAction extends HandledTransportAction<Re
         }
 
         if (nodes.isEmpty()) {
-            logger.trace(() -> format("[%s] model deployment not allocated to any node", assignment.getDeploymentId()));
-            listener.onFailure(
-                ExceptionsHelper.conflictStatusException("Trained model deployment [" + request.getId() + "] is not allocated to any nodes")
-            );
+            String message = "Trained model deployment [" + request.getId() + "] is not allocated to any nodes";
+            boolean starting = adaptiveAllocationsScalerService.maybeStartAllocation(assignment);
+            if (starting) {
+                message += "; starting deployment of one allocation";
+            }
+            logger.debug(message);
+            listener.onFailure(ExceptionsHelper.conflictStatusException(message));
             return;
         }
 

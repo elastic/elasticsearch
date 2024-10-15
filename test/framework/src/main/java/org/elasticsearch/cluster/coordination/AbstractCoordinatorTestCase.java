@@ -1250,7 +1250,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                     .roles(localNode.isMasterNode() && DiscoveryNode.isMasterNode(settings) ? ALL_ROLES_EXCEPT_VOTING_ONLY : emptySet())
                     .build();
                 try {
-                    return new ClusterNode(
+                    final var restartedNode = new ClusterNode(
                         nodeIndex,
                         newLocalNode,
                         (node, threadPool) -> createPersistedStateFromExistingState(
@@ -1263,6 +1263,8 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                         settings,
                         nodeHealthService
                     );
+                    restartedNode.blackholedRegisterOperations.addAll(blackholedRegisterOperations);
+                    return restartedNode;
                 } finally {
                     clearableRecycler.clear();
                 }

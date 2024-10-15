@@ -141,6 +141,11 @@ class S3Repository extends MeteredBlobStoreRepository {
     );
 
     /**
+     * Maximum parts number for multipart upload. (see https://docs.aws.amazon.com/AmazonS3/latest/userguide/qfacts.html)
+     */
+    static final Setting<Integer> MAX_MULTIPART_PARTS = Setting.intSetting("max_multipart_parts", 10_000, 1, 10_000);
+
+    /**
      * Sets the S3 storage class type for the backup files. Values may be standard, reduced_redundancy,
      * standard_ia, onezone_ia and intelligent_tiering. Defaults to standard.
      */
@@ -253,7 +258,9 @@ class S3Repository extends MeteredBlobStoreRepository {
         }
 
         this.bufferSize = BUFFER_SIZE_SETTING.get(metadata.settings());
-        this.chunkSize = CHUNK_SIZE_SETTING.get(metadata.settings());
+        var maxChunkSize = CHUNK_SIZE_SETTING.get(metadata.settings());
+        var maxPartsNum = MAX_MULTIPART_PARTS.get(metadata.settings());
+        this.chunkSize = objectSizeLimit(maxChunkSize, bufferSize, maxPartsNum);
 
         // We make sure that chunkSize is bigger or equal than/to bufferSize
         if (this.chunkSize.getBytes() < bufferSize.getBytes()) {
@@ -300,6 +307,20 @@ class S3Repository extends MeteredBlobStoreRepository {
 
     private static Map<String, String> buildLocation(RepositoryMetadata metadata) {
         return Map.of("base_path", BASE_PATH_SETTING.get(metadata.settings()), "bucket", BUCKET_SETTING.get(metadata.settings()));
+    }
+
+    /**
+     * Calculates S3 object size limit based on 2 constraints: maximum object(chunk) size
+     * and maximum number of parts for multipart upload.
+     * https://docs.aws.amazon.com/AmazonS3/latest/userguide/qfacts.html
+     *
+     * @param chunkSize s3 object size
+     * @param bufferSize s3 multipart upload part size
+     * @param maxPartsNum s3 multipart upload max parts number
+     */
+    private static ByteSizeValue objectSizeLimit(ByteSizeValue chunkSize, ByteSizeValue bufferSize, int maxPartsNum) {
+        var bytes = Math.min(chunkSize.getBytes(), bufferSize.getBytes() * maxPartsNum);
+        return ByteSizeValue.ofBytes(bytes);
     }
 
     /**

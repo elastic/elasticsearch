@@ -170,5 +170,6 @@
   "examples" : [
     "ROW a = [4, 2, -3, 2]\n| EVAL sa = mv_sort(a), sd = mv_sort(a, \"DESC\")"
   ],
-  "preview" : false
+  "preview" : false,
+  "snapshot_only" : false
 }

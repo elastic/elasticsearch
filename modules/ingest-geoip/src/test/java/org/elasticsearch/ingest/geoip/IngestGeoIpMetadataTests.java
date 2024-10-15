@@ -9,6 +9,7 @@
 
 package org.elasticsearch.ingest.geoip;
 
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.ingest.geoip.direct.DatabaseConfiguration;
 import org.elasticsearch.ingest.geoip.direct.DatabaseConfigurationMetadata;
@@ -21,6 +22,12 @@ import java.util.HashMap;
 import java.util.Map;
 
 public class IngestGeoIpMetadataTests extends AbstractChunkedSerializingTestCase<IngestGeoIpMetadata> {
+
+    @Override
+    protected NamedWriteableRegistry getNamedWriteableRegistry() {
+        return new NamedWriteableRegistry(new IngestGeoIpPlugin().getNamedWriteables());
+    }
+
     @Override
     protected IngestGeoIpMetadata doParseInstance(XContentParser parser) throws IOException {
         return IngestGeoIpMetadata.fromXContent(parser);

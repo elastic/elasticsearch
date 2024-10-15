@@ -64,6 +64,7 @@ public class SimpleServiceIntegrationValidatorTests extends ESTestCase {
                 eq(mockModel),
                 eq(null),
                 eq(TEST_INPUT),
+                eq(false),
                 eq(Map.of()),
                 eq(InputType.INGEST),
                 eq(InferenceAction.Request.DEFAULT_TIMEOUT),
@@ -94,7 +95,7 @@ public class SimpleServiceIntegrationValidatorTests extends ESTestCase {
 
     private void mockSuccessfulCallToService(String query, InferenceServiceResults result) {
         doAnswer(ans -> {
-            ActionListener<InferenceServiceResults> responseListener = ans.getArgument(6);
+            ActionListener<InferenceServiceResults> responseListener = ans.getArgument(7);
             responseListener.onResponse(result);
             return null;
         }).when(mockInferenceService)
@@ -102,6 +103,7 @@ public class SimpleServiceIntegrationValidatorTests extends ESTestCase {
                 eq(mockModel),
                 eq(query),
                 eq(TEST_INPUT),
+                eq(false),
                 eq(Map.of()),
                 eq(InputType.INGEST),
                 eq(InferenceAction.Request.DEFAULT_TIMEOUT),
@@ -117,12 +119,12 @@ public class SimpleServiceIntegrationValidatorTests extends ESTestCase {
             eq(mockModel),
             eq(withQuery ? TEST_QUERY : null),
             eq(TEST_INPUT),
+            eq(false),
             eq(Map.of()),
             eq(InputType.INGEST),
             eq(InferenceAction.Request.DEFAULT_TIMEOUT),
             any()
         );
-        verify(mockActionListener).delegateFailureAndWrap(any());
         verifyNoMoreInteractions(mockInferenceService, mockModel, mockActionListener, mockInferenceServiceResults);
     }
 }

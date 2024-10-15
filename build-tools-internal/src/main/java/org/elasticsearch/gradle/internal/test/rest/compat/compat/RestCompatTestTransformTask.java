@@ -26,6 +26,7 @@ import org.elasticsearch.gradle.Version;
 import org.elasticsearch.gradle.VersionProperties;
 import org.elasticsearch.gradle.internal.test.rest.transform.RestTestTransform;
 import org.elasticsearch.gradle.internal.test.rest.transform.RestTestTransformer;
+import org.elasticsearch.gradle.internal.test.rest.transform.close_to.ReplaceValueInCloseTo;
 import org.elasticsearch.gradle.internal.test.rest.transform.do_.ReplaceKeyInDo;
 import org.elasticsearch.gradle.internal.test.rest.transform.headers.InjectHeaders;
 import org.elasticsearch.gradle.internal.test.rest.transform.length.ReplaceKeyInLength;
@@ -253,7 +254,30 @@ public abstract class RestCompatTestTransformTask extends DefaultTask {
     }
 
     /**
-     * Replaces all the values of a is_true assertion for all project REST tests.
+     * Replaces the value of the `value` of a close_to assertion for a given REST tests.
+     * For example: close_to:   { get.fields._routing: { value: 5.1, error: 0.00001 } }
+     * to           close_to:   { get.fields._routing: { value: 9.5, error: 0.00001 } }
+     * @param subKey the key name directly under close_to to replace. For example "get.fields._routing"
+     * @param newValue the value used in the replacement. For example 9.5
+     * @param testName the testName to apply replacement
+     */
+    public void replaceValueInCloseTo(String subKey, double newValue, String testName) {
+        getTransformations().add(new ReplaceValueInCloseTo(subKey, MAPPER.convertValue(newValue, NumericNode.class), testName));
+    }
+
+    /**
+     * Replaces the value of the `value` of a close_to assertion for all project REST tests.
+     * For example: close_to:   { get.fields._routing: { value: 5.1, error: 0.00001 } }
+     * to           close_to:   { get.fields._routing: { value: 9.5, error: 0.00001 } }
+     * @param subKey the key name directly under close_to to replace. For example "get.fields._routing"
+     * @param newValue the value used in the replacement. For example 9.5
+     */
+    public void replaceValueInCloseTo(String subKey, double newValue) {
+        getTransformations().add(new ReplaceValueInCloseTo(subKey, MAPPER.convertValue(newValue, NumericNode.class)));
+    }
+
+    /**
+     * Replaces all the values of is_true assertion for all project REST tests.
      * For example "is_true": "value_to_replace" to "is_true": "value_replaced"
      *
      * @param oldValue the value that has to match and will be replaced
@@ -261,6 +285,18 @@ public abstract class RestCompatTestTransformTask extends DefaultTask {
      */
     public void replaceIsTrue(String oldValue, Object newValue) {
         getTransformations().add(new ReplaceIsTrue(oldValue, MAPPER.convertValue(newValue, TextNode.class)));
+    }
+
+    /**
+     * Replaces all the values of is_true assertion for given REST test.
+     * For example "is_true": "value_to_replace" to "is_true": "value_replaced"
+     *
+     * @param oldValue the value that has to match and will be replaced
+     * @param newValue the value used in the replacement
+     * @param testName the testName to apply replacement
+     */
+    public void replaceIsTrue(String oldValue, Object newValue, String testName) {
+        getTransformations().add(new ReplaceIsTrue(oldValue, MAPPER.convertValue(newValue, TextNode.class), testName));
     }
 
     /**

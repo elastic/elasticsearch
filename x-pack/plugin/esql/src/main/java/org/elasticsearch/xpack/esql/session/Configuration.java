@@ -51,6 +51,7 @@ public class Configuration implements Writeable {
     private final boolean profile;
 
     private final Map<String, Map<String, Column>> tables;
+    private final long queryStartTimeNanos;
 
     public Configuration(
         ZoneId zi,
@@ -62,7 +63,8 @@ public class Configuration implements Writeable {
         int resultTruncationDefaultSize,
         String query,
         boolean profile,
-        Map<String, Map<String, Column>> tables
+        Map<String, Map<String, Column>> tables,
+        long queryStartTimeNanos
     ) {
         this.zoneId = zi.normalized();
         this.now = ZonedDateTime.now(Clock.tick(Clock.system(zoneId), Duration.ofNanos(1)));
@@ -76,6 +78,7 @@ public class Configuration implements Writeable {
         this.profile = profile;
         this.tables = tables;
         assert tables != null;
+        this.queryStartTimeNanos = queryStartTimeNanos;
     }
 
     public Configuration(BlockStreamInput in) throws IOException {
@@ -98,6 +101,11 @@ public class Configuration implements Writeable {
         } else {
             this.tables = Map.of();
         }
+        if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_CCS_EXECUTION_INFO)) {
+            this.queryStartTimeNanos = in.readLong();
+        } else {
+            this.queryStartTimeNanos = -1;
+        }
     }
 
     @Override
@@ -118,6 +126,9 @@ public class Configuration implements Writeable {
         }
         if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_REQUEST_TABLES)) {
             out.writeMap(tables, (o1, columns) -> o1.writeMap(columns, StreamOutput::writeWriteable));
+        }
+        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_CCS_EXECUTION_INFO)) {
+            out.writeLong(queryStartTimeNanos);
         }
     }
 
@@ -160,10 +171,16 @@ public class Configuration implements Writeable {
     /**
      * Returns the current time in milliseconds from the time epoch for the execution of this request.
      * It ensures consistency by using the same value on all nodes involved in the search request.
-     * Note: Currently, it returns {@link System#currentTimeMillis()}, but this value will be serialized between nodes.
      */
     public long absoluteStartedTimeInMillis() {
-        return System.currentTimeMillis();
+        return now.toInstant().toEpochMilli();
+    }
+
+    /**
+     * @return Start time of the ESQL query in nanos
+     */
+    public long getQueryStartTimeNanos() {
+        return queryStartTimeNanos;
     }
 
     /**

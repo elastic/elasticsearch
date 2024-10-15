@@ -85,7 +85,7 @@ POST /_security/role/remote1
       "privileges": [ "read","read_cross_cluster" ], <4>
       "clusters" : ["my_remote_cluster"] <5>
     }
-  ], 
+  ],
    "remote_cluster": [ <6>
         {
             "privileges": [
@@ -100,15 +100,23 @@ POST /_security/role/remote1
 ----
 
 <1> The `cross_cluster_search` cluster privilege is required for the _local_ cluster.
-<2> Typically, users will have permissions to read both local and remote indices. However, for cases where the role is intended to ONLY search the remote cluster, the `read` permission is still required for the local cluster. To provide read access to the local cluster, but disallow reading any indices in the local cluster, the `names` field may be an empty string.
-<3> The indices allowed read access to the remote cluster. The configured <<security-api-create-cross-cluster-api-key,cross-cluster API key>> must also allow this index to be read.
-<4> The `read_cross_cluster` privilege is always required when using {esql} across clusters with the API key based security model.
+<2> Typically, users will have permissions to read both local and remote indices. However, for cases where the role
+is intended to ONLY search the remote cluster, the `read` permission is still required for the local cluster.
+To provide read access to the local cluster, but disallow reading any indices in the local cluster, the `names`
+field may be an empty string.
+<3> The indices allowed read access to the remote cluster. The configured
+<<security-api-create-cross-cluster-api-key,cross-cluster API key>> must also allow this index to be read.
+<4> The `read_cross_cluster` privilege is always required when using {esql} across clusters with the API key based
+security model.
 <5> The remote clusters to which these privileges apply.
-This remote cluster must be configured with a <<security-api-create-cross-cluster-api-key,cross-cluster API key>> and connected to the remote cluster before the remote index can be queried.
+This remote cluster must be configured with a <<security-api-create-cross-cluster-api-key,cross-cluster API key>>
+and connected to the remote cluster before the remote index can be queried.
 Verify connection using the <<cluster-remote-info, Remote cluster info>> API.
-<6> Required to allow remote enrichment. Without this, the user cannot read from the `.enrich` indices on the remote cluster. The `remote_cluster` security privilege was introduced in version *8.15.0*.
+<6> Required to allow remote enrichment. Without this, the user cannot read from the `.enrich` indices on the
+remote cluster. The `remote_cluster` security privilege was introduced in version *8.15.0*.
 
-You will then need a user or API key with the permissions you created above. The following example API call creates a user with the `remote1` role.
+You will then need a user or API key with the permissions you created above. The following example API call creates
+a user with the `remote1` role.
 
 [source,console]
 ----
@@ -119,11 +127,13 @@ POST /_security/user/remote_user
 }
 ----
 
-Remember that all cross-cluster requests from the local cluster are bound by the cross cluster API key’s privileges, which are controlled by the remote cluster's administrator.
+Remember that all cross-cluster requests from the local cluster are bound by the cross cluster API key’s privileges,
+which are controlled by the remote cluster's administrator.
 
 [TIP]
 ====
-Cross cluster API keys created in versions prior to 8.15.0 will need to replaced or updated to add the new permissions required for {esql} with ENRICH.
+Cross cluster API keys created in versions prior to 8.15.0 will need to replaced or updated to add the new permissions
+required for {esql} with ENRICH.
 ====
 
 [discrete]
@@ -173,6 +183,189 @@ remote clusters (`cluster_one`, `cluster_two`, and `cluster_three`):
 FROM *:my-index-000001
 | LIMIT 10
 ----
+
+[discrete]
+[[ccq-cluster-details]]
+==== Cross-cluster metadata
+
+Using the `"include_ccs_metadata": true` option, users can request that
+ES|QL {ccs} responses include metadata about the search on each cluster (when the response format is JSON).
+Here we show an example using the async search endpoint. {ccs-cap} metadata is also present in the synchronous
+search endpoint response when requested.
+
+[source,console]
+----
+POST /_query/async?format=json
+{
+  "query": """
+    FROM my-index-000001,cluster_one:my-index-000001,cluster_two:my-index*
+    | STATS COUNT(http.response.status_code) BY user.id
+    | LIMIT 2
+  """,
+  "include_ccs_metadata": true
+}
+----
+// TEST[setup:my_index]
+// TEST[s/cluster_one:my-index-000001,cluster_two:my-index//]
+
+Which returns:
+
+[source,console-result]
+----
+{
+  "is_running": false,
+  "took": 42,  <1>
+  "columns" : [
+    {
+      "name" : "COUNT(http.response.status_code)",
+      "type" : "long"
+    },
+    {
+      "name" : "user.id",
+      "type" : "keyword"
+    }
+  ],
+  "values" : [
+    [4, "elkbee"],
+    [1, "kimchy"]
+  ],
+  "_clusters": {  <2>
+    "total": 3,
+    "successful": 3,
+    "running": 0,
+    "skipped": 0,
+    "partial": 0,
+    "failed": 0,
+    "details": { <3>
+      "(local)": { <4>
+        "status": "successful",
+        "indices": "blogs",
+        "took": 41,  <5>
+        "_shards": { <6>
+          "total": 13,
+          "successful": 13,
+          "skipped": 0,
+          "failed": 0
+        }
+      },
+      "cluster_one": {
+        "status": "successful",
+        "indices": "cluster_one:my-index-000001",
+        "took": 38,
+        "_shards": {
+          "total": 4,
+          "successful": 4,
+          "skipped": 0,
+          "failed": 0
+        }
+      },
+      "cluster_two": {
+        "status": "successful",
+        "indices": "cluster_two:my-index*",
+        "took": 40,
+        "_shards": {
+          "total": 18,
+          "successful": 18,
+          "skipped": 1,
+          "failed": 0
+        }
+      }
+    }
+  }
+}
+----
+// TEST[skip: cross-cluster testing env not set up]
+
+<1> How long the entire search (across all clusters) took, in milliseconds.
+<2> This section of counters shows all possible cluster search states and how many cluster
+searches are currently in that state. The clusters can have one of the following statuses: *running*,
+*successful* (searches on all shards were successful), *skipped* (the search
+failed on a cluster marked with `skip_unavailable`=`true`) or *failed* (the search
+failed on a cluster marked with `skip_unavailable`=`false`).
+<3> The `_clusters/details` section shows metadata about the search on each cluster.
+<4> If you included indices from the local cluster you sent the request to in your {ccs},
+it is identified as "(local)".
+<5> How long (in milliseconds) the search took on each cluster. This can be useful to determine
+which clusters have slower response times than others.
+<6> The shard details for the search on that cluster, including a count of shards that were
+skipped due to the can-match phase results. Shards are skipped when they cannot have any matching data
+and therefore are not included in the full ES|QL query.
+
+
+The cross-cluster metadata can be used to determine whether any data came back from a cluster.
+For instance, in the query below, the wildcard expression for `cluster-two` did not resolve
+to a concrete index (or indices). The cluster is, therefore, marked as 'skipped' and the total
+number of shards searched is set to zero.
+
+[source,console]
+----
+POST /_query/async?format=json
+{
+  "query": """
+    FROM cluster_one:my-index*,cluster_two:logs*
+    | STATS COUNT(http.response.status_code) BY user.id
+    | LIMIT 2
+  """,
+  "include_ccs_metadata": true
+}
+----
+// TEST[continued]
+// TEST[s/cluster_one:my-index\*,cluster_two:logs\*/my-index-000001/]
+
+Which returns:
+
+[source,console-result]
+----
+{
+  "is_running": false,
+  "took": 55,
+  "columns": [
+     ... // not shown
+  ],
+  "values": [
+     ... // not shown
+  ],
+  "_clusters": {
+    "total": 2,
+    "successful": 2,
+    "running": 0,
+    "skipped": 0,
+    "partial": 0,
+    "failed": 0,
+    "details": {
+      "cluster_one": {
+        "status": "successful",
+        "indices": "cluster_one:my-index*",
+        "took": 38,
+        "_shards": {
+          "total": 4,
+          "successful": 4,
+          "skipped": 0,
+          "failed": 0
+        }
+      },
+      "cluster_two": {
+        "status": "skipped", <1>
+        "indices": "cluster_two:logs*",
+        "took": 0,
+        "_shards": {
+          "total": 0, <2>
+          "successful": 0,
+          "skipped": 0,
+          "failed": 0
+        }
+      }
+    }
+  }
+}
+----
+// TEST[skip: cross-cluster testing env not set up]
+
+<1> This cluster is marked as 'skipped', since there were no matching indices on that cluster.
+<2> Indicates that no shards were searched (due to not having any matching indices).
+
+
+
 
 [discrete]
 [[ccq-enrich]]
@@ -331,8 +524,7 @@ setting. As a result, if a remote cluster specified in the request is
 unavailable or failed, {ccs} for {esql} queries will fail regardless of the setting.
 
 We are actively working to align the behavior of {ccs} for {esql} with other
-{ccs} APIs. This includes providing detailed execution information for each cluster
-in the response, such as execution time, selected target indices, and shards.
+{ccs} APIs.
 
 [discrete]
 [[ccq-during-upgrade]]

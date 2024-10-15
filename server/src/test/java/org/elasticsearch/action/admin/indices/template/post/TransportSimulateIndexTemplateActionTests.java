@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettingProvider;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.SystemIndices;
@@ -69,7 +70,7 @@ public class TransportSimulateIndexTemplateActionTests extends ESTestCase {
             public Settings getAdditionalIndexSettings(
                 String indexName,
                 String dataStreamName,
-                boolean timeSeries,
+                IndexMode templateIndexMode,
                 Metadata metadata,
                 Instant resolvedAt,
                 Settings allSettings,
@@ -87,8 +88,7 @@ public class TransportSimulateIndexTemplateActionTests extends ESTestCase {
             xContentRegistry(),
             indicesService,
             systemIndices,
-            indexSettingsProviders,
-            Map.of()
+            indexSettingsProviders
         );
 
         assertThat(resolvedTemplate.settings().getAsInt("test-setting", -1), is(1));

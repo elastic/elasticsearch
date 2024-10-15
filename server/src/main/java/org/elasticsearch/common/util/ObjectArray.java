@@ -20,8 +20,13 @@ public interface ObjectArray<T> extends BigArray {
     T get(long index);
 
     /**
+     * Set a value at the given index.
+     */
+    void set(long index, T value);
+
+    /**
      * Set a value at the given index and return the previous value.
      */
-    T set(long index, T value);
+    T getAndSet(long index, T value);
 
 }

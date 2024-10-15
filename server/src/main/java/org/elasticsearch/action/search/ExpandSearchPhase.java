@@ -10,6 +10,7 @@
 package org.elasticsearch.action.search;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.InnerHitBuilder;
@@ -82,8 +83,15 @@ final class ExpandSearchPhase extends SearchPhase {
                 CollapseBuilder innerCollapseBuilder = innerHitBuilder.getInnerCollapseBuilder();
                 SearchSourceBuilder sourceBuilder = buildExpandSearchSourceBuilder(innerHitBuilder, innerCollapseBuilder).query(groupQuery)
                     .postFilter(searchRequest.source().postFilter())
-                    .runtimeMappings(searchRequest.source().runtimeMappings());
+                    .runtimeMappings(searchRequest.source().runtimeMappings())
+                    .pointInTimeBuilder(searchRequest.source().pointInTimeBuilder());
                 SearchRequest groupRequest = new SearchRequest(searchRequest);
+                if (searchRequest.pointInTimeBuilder() != null) {
+                    // if the original request has a point in time, we propagate it to the inner search request
+                    // and clear the indices and preference from the inner search request
+                    groupRequest.indices(Strings.EMPTY_ARRAY);
+                    groupRequest.preference(null);
+                }
                 groupRequest.source(sourceBuilder);
                 multiRequest.add(groupRequest);
             }

@@ -10,12 +10,12 @@ package org.elasticsearch.xpack.application.rules.action;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.test.AbstractBWCSerializationTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.application.EnterpriseSearchModuleTestUtils;
 import org.elasticsearch.xpack.application.rules.QueryRule;
 import org.elasticsearch.xpack.application.rules.QueryRuleCriteria;
 import org.elasticsearch.xpack.application.rules.QueryRuleset;
-import org.elasticsearch.xpack.core.ml.AbstractBWCSerializationTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;

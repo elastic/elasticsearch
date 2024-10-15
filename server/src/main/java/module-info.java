@@ -7,8 +7,6 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-import org.elasticsearch.index.codec.Elasticsearch814Codec;
-import org.elasticsearch.index.codec.tsdb.ES87TSDBDocValuesFormat;
 import org.elasticsearch.plugins.internal.RestExtension;
 
 /** The Elasticsearch Server Module. */
@@ -417,7 +415,6 @@ module org.elasticsearch.server {
     uses org.elasticsearch.internal.BuildExtension;
     uses org.elasticsearch.features.FeatureSpecification;
     uses org.elasticsearch.plugins.internal.LoggingDataProvider;
-    uses org.elasticsearch.cluster.metadata.DataStreamFactoryRetention;
 
     provides org.elasticsearch.features.FeatureSpecification
         with
@@ -430,6 +427,7 @@ module org.elasticsearch.server {
             org.elasticsearch.indices.IndicesFeatures,
             org.elasticsearch.repositories.RepositoriesFeatures,
             org.elasticsearch.action.admin.cluster.allocation.AllocationStatsFeatures,
+            org.elasticsearch.rest.action.admin.cluster.ClusterRerouteFeatures,
             org.elasticsearch.index.mapper.MapperFeatures,
             org.elasticsearch.ingest.IngestGeoIpFeatures,
             org.elasticsearch.search.SearchFeatures,
@@ -446,16 +444,21 @@ module org.elasticsearch.server {
             org.elasticsearch.index.codec.bloomfilter.ES85BloomFilterPostingsFormat,
             org.elasticsearch.index.codec.bloomfilter.ES87BloomFilterPostingsFormat,
             org.elasticsearch.index.codec.postings.ES812PostingsFormat;
-    provides org.apache.lucene.codecs.DocValuesFormat with ES87TSDBDocValuesFormat;
+    provides org.apache.lucene.codecs.DocValuesFormat with org.elasticsearch.index.codec.tsdb.ES87TSDBDocValuesFormat;
     provides org.apache.lucene.codecs.KnnVectorsFormat
         with
             org.elasticsearch.index.codec.vectors.ES813FlatVectorFormat,
             org.elasticsearch.index.codec.vectors.ES813Int8FlatVectorFormat,
             org.elasticsearch.index.codec.vectors.ES814HnswScalarQuantizedVectorsFormat,
             org.elasticsearch.index.codec.vectors.ES815HnswBitVectorsFormat,
-            org.elasticsearch.index.codec.vectors.ES815BitFlatVectorFormat;
+            org.elasticsearch.index.codec.vectors.ES815BitFlatVectorFormat,
+            org.elasticsearch.index.codec.vectors.ES816BinaryQuantizedVectorsFormat,
+            org.elasticsearch.index.codec.vectors.ES816HnswBinaryQuantizedVectorsFormat;
 
-    provides org.apache.lucene.codecs.Codec with Elasticsearch814Codec;
+    provides org.apache.lucene.codecs.Codec
+        with
+            org.elasticsearch.index.codec.Elasticsearch814Codec,
+            org.elasticsearch.index.codec.Elasticsearch816Codec;
 
     provides org.apache.logging.log4j.core.util.ContextDataProvider with org.elasticsearch.common.logging.DynamicContextDataProvider;
 

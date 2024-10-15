@@ -114,31 +114,27 @@ public class ParentTaskAssigningClientTests extends ESTestCase {
             );
             assertEquals(
                 "fake remote-cluster client",
-                asInstanceOf(
+                safeAwaitFailure(
                     UnsupportedOperationException.class,
-                    safeAwaitFailure(
-                        ClusterStateResponse.class,
-                        listener -> remoteClusterClient.execute(
-                            ClusterStateAction.REMOTE_TYPE,
-                            new ClusterStateRequest(TEST_REQUEST_TIMEOUT),
-                            listener
-                        )
+                    ClusterStateResponse.class,
+                    listener -> remoteClusterClient.execute(
+                        ClusterStateAction.REMOTE_TYPE,
+                        new ClusterStateRequest(TEST_REQUEST_TIMEOUT),
+                        listener
                     )
                 ).getMessage()
             );
 
             assertEquals(
                 "fake remote-cluster client",
-                asInstanceOf(
+                safeAwaitFailure(
                     UnsupportedOperationException.class,
-                    safeAwaitFailure(
-                        ClusterStateResponse.class,
-                        listener -> remoteClusterClient.execute(
-                            null,
-                            ClusterStateAction.REMOTE_TYPE,
-                            new ClusterStateRequest(TEST_REQUEST_TIMEOUT),
-                            listener
-                        )
+                    ClusterStateResponse.class,
+                    listener -> remoteClusterClient.execute(
+                        null,
+                        ClusterStateAction.REMOTE_TYPE,
+                        new ClusterStateRequest(TEST_REQUEST_TIMEOUT),
+                        listener
                     )
                 ).getMessage()
             );

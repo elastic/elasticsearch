@@ -58,7 +58,7 @@ public final class DesiredNode implements Writeable, ToXContentObject, Comparabl
     private static final ParseField PROCESSORS_RANGE_FIELD = new ParseField("processors_range");
     private static final ParseField MEMORY_FIELD = new ParseField("memory");
     private static final ParseField STORAGE_FIELD = new ParseField("storage");
-    @UpdateForV9 // Remove deprecated field
+    @UpdateForV9(owner = UpdateForV9.Owner.DISTRIBUTED_COORDINATION) // Remove deprecated field
     private static final ParseField VERSION_FIELD = new ParseField("node_version");
 
     public static final ConstructingObjectParser<DesiredNode, Void> PARSER = new ConstructingObjectParser<>(
@@ -118,7 +118,7 @@ public final class DesiredNode implements Writeable, ToXContentObject, Comparabl
     private final ByteSizeValue memory;
     private final ByteSizeValue storage;
 
-    @UpdateForV9 // Remove deprecated version field
+    @UpdateForV9(owner = UpdateForV9.Owner.DISTRIBUTED_COORDINATION) // Remove deprecated version field
     private final String version;
     private final String externalId;
     private final Set<DiscoveryNodeRole> roles;
@@ -278,7 +278,7 @@ public final class DesiredNode implements Writeable, ToXContentObject, Comparabl
         addDeprecatedVersionField(builder);
     }
 
-    @UpdateForV9 // Remove deprecated field from response
+    @UpdateForV9(owner = UpdateForV9.Owner.DISTRIBUTED_COORDINATION) // Remove deprecated field from response
     private void addDeprecatedVersionField(XContentBuilder builder) throws IOException {
         if (version != null) {
             builder.field(VERSION_FIELD.getPreferredName(), version);

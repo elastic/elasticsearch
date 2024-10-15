@@ -20,6 +20,8 @@ import org.elasticsearch.test.IndexSettingsModule;
 import java.io.IOException;
 import java.io.StringReader;
 
+import static org.apache.lucene.tests.analysis.BaseTokenStreamTestCase.assertTokenStreamContents;
+
 public class PathHierarchyTokenizerFactoryTests extends ESTokenStreamTestCase {
 
     public void testDefaults() throws IOException {

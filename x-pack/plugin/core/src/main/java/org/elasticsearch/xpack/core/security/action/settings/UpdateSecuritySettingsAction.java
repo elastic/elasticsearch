@@ -116,7 +116,7 @@ public class UpdateSecuritySettingsAction {
             this.profilesIndexSettings = Objects.requireNonNullElse(profilesIndexSettings, Collections.emptyMap());
         }
 
-        @UpdateForV9 // no need for bwc any more, this can be inlined
+        @UpdateForV9(owner = UpdateForV9.Owner.SECURITY) // no need for bwc any more, this can be inlined
         public static Request readFrom(StreamInput in) throws IOException {
             if (in.getTransportVersion().onOrAfter(TransportVersions.SECURITY_SETTINGS_REQUEST_TIMEOUTS)) {
                 return new Request(in);

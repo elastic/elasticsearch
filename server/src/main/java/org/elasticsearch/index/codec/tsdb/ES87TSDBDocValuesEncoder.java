@@ -275,7 +275,7 @@ public class ES87TSDBDocValuesEncoder {
             Arrays.fill(out, runLen, out.length, v2);
         } else if (encoding == 2) {
             // bit-packed
-            forUtil.decode(bitsPerOrd, in, out);
+            DocValuesForUtil.decode(bitsPerOrd, in, out);
         } else if (encoding == 3) {
             // cycle encoding
             int cycleLength = (int) v1;
@@ -299,7 +299,7 @@ public class ES87TSDBDocValuesEncoder {
         final int bitsPerValue = token >>> 3;
 
         if (bitsPerValue != 0) {
-            forUtil.decode(bitsPerValue, in, out);
+            DocValuesForUtil.decode(bitsPerValue, in, out);
         } else {
             Arrays.fill(out, 0L);
         }

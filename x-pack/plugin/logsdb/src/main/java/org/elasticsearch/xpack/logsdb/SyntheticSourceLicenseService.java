@@ -16,7 +16,7 @@ import org.elasticsearch.license.XPackLicenseState;
 /**
  * Determines based on license and fallback setting whether synthetic source usages should fallback to stored source.
  */
-public final class SyntheticSourceLicenseService {
+final class SyntheticSourceLicenseService {
 
     private static final String MAPPINGS_FEATURE_FAMILY = "mappings";
 
@@ -39,19 +39,23 @@ public final class SyntheticSourceLicenseService {
     private XPackLicenseState licenseState;
     private volatile boolean syntheticSourceFallback;
 
-    public SyntheticSourceLicenseService(Settings settings) {
+    SyntheticSourceLicenseService(Settings settings) {
         syntheticSourceFallback = FALLBACK_SETTING.get(settings);
     }
 
     /**
      * @return whether synthetic source mode should fallback to stored source.
      */
-    public boolean fallbackToStoredSource() {
+    public boolean fallbackToStoredSource(boolean isTemplateValidation) {
         if (syntheticSourceFallback) {
             return true;
         }
 
-        return SYNTHETIC_SOURCE_FEATURE.check(licenseState) == false;
+        if (isTemplateValidation) {
+            return SYNTHETIC_SOURCE_FEATURE.checkWithoutTracking(licenseState) == false;
+        } else {
+            return SYNTHETIC_SOURCE_FEATURE.check(licenseState) == false;
+        }
     }
 
     void setSyntheticSourceFallback(boolean syntheticSourceFallback) {

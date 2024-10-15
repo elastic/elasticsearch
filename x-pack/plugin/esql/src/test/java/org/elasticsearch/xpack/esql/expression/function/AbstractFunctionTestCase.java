@@ -1284,13 +1284,6 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     }
 
     /**
-     * All string types (keyword, text, match_only_text, etc).
-     */
-    protected static DataType[] strings() {
-        return DataType.types().stream().filter(DataType::isString).toArray(DataType[]::new);
-    }
-
-    /**
      * Validate that we know the types for all the test cases already created
      * @param suppliers - list of suppliers before adding in the illegal type combinations
      */

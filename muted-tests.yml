@@ -413,6 +413,15 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/114775
 - class: org.elasticsearch.test.rest.ClientYamlTestSuiteIT
   issue: https://github.com/elastic/elasticsearch/issues/114787
+- class: org.elasticsearch.xpack.inference.rest.ServerSentEventsRestActionListenerTests
+  method: testNoStream
+  issue: https://github.com/elastic/elasticsearch/issues/114788
+- class: org.elasticsearch.xpack.eql.EqlRestValidationIT
+  method: testAllowNoIndicesOption
+  issue: https://github.com/elastic/elasticsearch/issues/114789
+- class: org.elasticsearch.xpack.eql.EqlStatsIT
+  method: testEqlRestUsage
+  issue: https://github.com/elastic/elasticsearch/issues/114790
 
 # Examples:
 #

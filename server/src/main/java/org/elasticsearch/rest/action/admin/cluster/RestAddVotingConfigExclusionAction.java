@@ -13,7 +13,6 @@ import org.elasticsearch.action.admin.cluster.configuration.AddVotingConfigExclu
 import org.elasticsearch.action.admin.cluster.configuration.TransportAddVotingConfigExclusionsAction;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
@@ -56,10 +55,6 @@ public class RestAddVotingConfigExclusionAction extends BaseRestHandler {
     static AddVotingConfigExclusionsRequest resolveVotingConfigExclusionsRequest(final RestRequest request) {
         String nodeIds = null;
         String nodeNames = null;
-
-        if (request.getRestApiVersion() == RestApiVersion.V_7 && request.hasParam("node_name")) {
-            throw new IllegalArgumentException("[node_name] has been removed, you must set [node_names] or [node_ids]");
-        }
 
         if (request.hasParam("node_ids")) {
             nodeIds = request.param("node_ids");

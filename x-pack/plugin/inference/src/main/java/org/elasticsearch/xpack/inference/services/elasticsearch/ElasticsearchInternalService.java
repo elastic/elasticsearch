@@ -842,7 +842,7 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
                 null,
                 1,
                 useLinuxOptimizedModel ? ELSER_V2_MODEL_LINUX_X86 : ELSER_V2_MODEL,
-                new AdaptiveAllocationsSettings(Boolean.TRUE, 1, 8)
+                new AdaptiveAllocationsSettings(Boolean.TRUE, 0, 8)
             ),
             ElserMlNodeTaskSettings.DEFAULT,
             null // default chunking settings
@@ -855,7 +855,7 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
                 null,
                 1,
                 useLinuxOptimizedModel ? MULTILINGUAL_E5_SMALL_MODEL_ID_LINUX_X86 : MULTILINGUAL_E5_SMALL_MODEL_ID,
-                new AdaptiveAllocationsSettings(Boolean.TRUE, 1, 8)
+                new AdaptiveAllocationsSettings(Boolean.TRUE, 0, 8)
             ),
             null // default chunking settings
         );

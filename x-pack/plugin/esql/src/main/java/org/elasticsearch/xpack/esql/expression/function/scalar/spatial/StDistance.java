@@ -80,8 +80,9 @@ public class StDistance extends BinarySpatialFunction implements EvaluatorMapper
 
         @Override
         protected double distance(Point left, Point right) {
-            final double diffX = left.getX() - right.getX();
-            final double diffY = left.getY() - right.getY();
+            // Cast coordinates to float to mimic Lucene behaviour, so we get identical results
+            final double diffX = (float) left.getX() - (float) right.getX();
+            final double diffY = (float) left.getY() - (float) right.getY();
             return Math.sqrt(diffX * diffX + diffY * diffY);
         }
     }
@@ -121,11 +122,12 @@ public class StDistance extends BinarySpatialFunction implements EvaluatorMapper
                 double distance = Double.MAX_VALUE;
                 if (valueCount == 1) {
                     distance = distance(fromBytesRef(left.getBytesRef(firstValueIndex, scratch)), right);
-                }
-                for (int i = 0; i < valueCount; i++) {
-                    double value = distance(fromBytesRef(left.getBytesRef(firstValueIndex + i, scratch)), right);
-                    if (value < distance) {
-                        distance = value;
+                } else {
+                    for (int i = 0; i < valueCount; i++) {
+                        double value = distance(fromBytesRef(left.getBytesRef(firstValueIndex + i, scratch)), right);
+                        if (value < distance) {
+                            distance = value;
+                        }
                     }
                 }
                 results.appendDouble(distance);
@@ -148,15 +150,16 @@ public class StDistance extends BinarySpatialFunction implements EvaluatorMapper
                         fromBytesRef(left.getBytesRef(leftFirstValueIndex, scratchLeft)),
                         fromBytesRef(right.getBytesRef(rightFirstValueIndex, scratchRight))
                     );
-                }
-                for (int i = 0; i < leftCount; i++) {
-                    for (int j = 0; j < rightCount; j++) {
-                        double value = distance(
-                            fromBytesRef(left.getBytesRef(leftFirstValueIndex + i, scratchLeft)),
-                            fromBytesRef(right.getBytesRef(rightFirstValueIndex + j, scratchRight))
-                        );
-                        if (value < distance) {
-                            distance = value;
+                } else {
+                    for (int i = 0; i < leftCount; i++) {
+                        for (int j = 0; j < rightCount; j++) {
+                            double value = distance(
+                                fromBytesRef(left.getBytesRef(leftFirstValueIndex + i, scratchLeft)),
+                                fromBytesRef(right.getBytesRef(rightFirstValueIndex + j, scratchRight))
+                            );
+                            if (value < distance) {
+                                distance = value;
+                            }
                         }
                     }
                 }
@@ -173,11 +176,12 @@ public class StDistance extends BinarySpatialFunction implements EvaluatorMapper
                 double distance = Double.MAX_VALUE;
                 if (valueCount == 1) {
                     distance = distance(spatialCoordinateType.longAsPoint(left.getLong(firstValueIndex)), right);
-                }
-                for (int i = 0; i < valueCount; i++) {
-                    double value = distance(spatialCoordinateType.longAsPoint(left.getLong(firstValueIndex + i)), right);
-                    if (value < distance) {
-                        distance = value;
+                } else {
+                    for (int i = 0; i < valueCount; i++) {
+                        double value = distance(spatialCoordinateType.longAsPoint(left.getLong(firstValueIndex + i)), right);
+                        if (value < distance) {
+                            distance = value;
+                        }
                     }
                 }
                 results.appendDouble(distance);

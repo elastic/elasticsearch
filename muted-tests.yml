@@ -363,6 +363,9 @@ tests:
 - class: org.elasticsearch.xpack.eql.EqlRestValidationIT
   method: testDefaultIndicesOptions
   issue: https://github.com/elastic/elasticsearch/issues/114771
+- class: org.elasticsearch.xpack.enrich.EnrichRestIT
+  method: test {p0=enrich/10_basic/Test enrich crud apis}
+  issue: https://github.com/elastic/elasticsearch/issues/114766
 
 # Examples:
 #

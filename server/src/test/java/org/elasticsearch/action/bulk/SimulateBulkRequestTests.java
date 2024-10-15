@@ -30,21 +30,53 @@ public class SimulateBulkRequestTests extends ESTestCase {
 
     public void testSerialization() throws Exception {
         testSerialization(
-            getMapOrEmptyOrNull(getTestPipelineSubstitutions()),
-            getMapOrEmptyOrNull(getTestComponentTemplateSubstitutions()),
-            getMapOrEmptyOrNull(getTestIndexTemplateSubstitutions()),
-            getMapOrEmptyOrNull(getTestMappingAddition())
+            getMapOrEmpty(getTestPipelineSubstitutions()),
+            getMapOrEmpty(getTestComponentTemplateSubstitutions()),
+            getMapOrEmpty(getTestIndexTemplateSubstitutions()),
+            getMapOrEmpty(getTestMappingAddition())
         );
     }
 
-    private <K, V> Map<K, V> getMapOrEmptyOrNull(Map<K, V> map) {
+    private <K, V> Map<K, V> getMapOrEmpty(Map<K, V> map) {
         if (randomBoolean()) {
             return map;
-        } else if (randomBoolean()) {
-            return Map.of();
         } else {
-            return null;
+            return Map.of();
         }
+    }
+
+    public void testNullsNotAllowed() {
+        assertThrows(
+            NullPointerException.class,
+            () -> new SimulateBulkRequest(
+                null,
+                getTestPipelineSubstitutions(),
+                getTestComponentTemplateSubstitutions(),
+                getTestMappingAddition()
+            )
+        );
+        assertThrows(
+            NullPointerException.class,
+            () -> new SimulateBulkRequest(
+                getTestPipelineSubstitutions(),
+                null,
+                getTestComponentTemplateSubstitutions(),
+                getTestMappingAddition()
+            )
+        );
+        assertThrows(
+            NullPointerException.class,
+            () -> new SimulateBulkRequest(getTestPipelineSubstitutions(), getTestPipelineSubstitutions(), null, getTestMappingAddition())
+        );
+        assertThrows(
+            NullPointerException.class,
+            () -> new SimulateBulkRequest(
+                getTestPipelineSubstitutions(),
+                getTestPipelineSubstitutions(),
+                getTestComponentTemplateSubstitutions(),
+                null
+            )
+        );
     }
 
     private void testSerialization(

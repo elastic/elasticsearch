@@ -15,12 +15,12 @@ import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * This extends BulkRequest with support for providing substitute pipeline definitions, component template definitions, and index template
@@ -115,12 +115,16 @@ public class SimulateBulkRequest extends BulkRequest {
      * @param mappingAddition   A mapping that will be merged into the final index's mapping for mapping validation
      */
     public SimulateBulkRequest(
-        @Nullable Map<String, Map<String, Object>> pipelineSubstitutions,
-        @Nullable Map<String, Map<String, Object>> componentTemplateSubstitutions,
-        @Nullable Map<String, Map<String, Object>> indexTemplateSubstitutions,
-        @Nullable Map<String, Object> mappingAddition
+        Map<String, Map<String, Object>> pipelineSubstitutions,
+        Map<String, Map<String, Object>> componentTemplateSubstitutions,
+        Map<String, Map<String, Object>> indexTemplateSubstitutions,
+        Map<String, Object> mappingAddition
     ) {
         super();
+        Objects.requireNonNull(pipelineSubstitutions);
+        Objects.requireNonNull(componentTemplateSubstitutions);
+        Objects.requireNonNull(indexTemplateSubstitutions);
+        Objects.requireNonNull(mappingAddition);
         this.pipelineSubstitutions = pipelineSubstitutions;
         this.componentTemplateSubstitutions = componentTemplateSubstitutions;
         this.indexTemplateSubstitutions = indexTemplateSubstitutions;
@@ -174,9 +178,6 @@ public class SimulateBulkRequest extends BulkRequest {
 
     @Override
     public Map<String, ComponentTemplate> getComponentTemplateSubstitutions() throws IOException {
-        if (componentTemplateSubstitutions == null) {
-            return Map.of();
-        }
         Map<String, ComponentTemplate> result = new HashMap<>(componentTemplateSubstitutions.size());
         for (Map.Entry<String, Map<String, Object>> rawEntry : componentTemplateSubstitutions.entrySet()) {
             result.put(rawEntry.getKey(), convertRawTemplateToComponentTemplate(rawEntry.getValue()));
@@ -187,7 +188,7 @@ public class SimulateBulkRequest extends BulkRequest {
     @Override
     public Map<String, ComposableIndexTemplate> getIndexTemplateSubstitutions() throws IOException {
         if (indexTemplateSubstitutions == null) {
-            return Map.of();
+            return null;
         }
         Map<String, ComposableIndexTemplate> result = new HashMap<>(indexTemplateSubstitutions.size());
         for (Map.Entry<String, Map<String, Object>> rawEntry : indexTemplateSubstitutions.entrySet()) {

@@ -270,8 +270,8 @@ public class TransportSimulateBulkAction extends TransportAbstractBulkAction {
                         indexSettingProviders
                     );
                     CompressedXContent mappings = template.mappings();
-                    if (mappings != null || mappingAddition != null) {
-                        CompressedXContent mergedMappings = mergeMappings(mappings, mappingAddition);
+                    CompressedXContent mergedMappings = mergeMappings(mappings, mappingAddition);
+                    if (mergedMappings != null) {
                         MappingMetadata mappingMetadata = new MappingMetadata(mergedMappings);
                         Settings dummySettings = Settings.builder()
                             .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
@@ -309,34 +309,36 @@ public class TransportSimulateBulkAction extends TransportAbstractBulkAction {
                         xContentRegistry
                     );
                     final CompressedXContent combinedMappings = mergeMappings(new CompressedXContent(mappingsMap), mappingAddition);
-                    Settings dummySettings = Settings.builder()
-                        .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
-                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                        .put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
-                        .build();
-                    MappingMetadata mappingMetadata = combinedMappings == null ? null : new MappingMetadata(combinedMappings);
-                    final IndexMetadata imd = IndexMetadata.builder(request.index())
-                        .putMapping(mappingMetadata)
-                        .settings(dummySettings)
-                        .build();
-                    indicesService.withTempIndexService(imd, indexService -> {
-                        indexService.mapperService().updateMapping(null, reSortMappingXContent(indexService, imd));
-                        return IndexShard.prepareIndex(
-                            indexService.mapperService(),
-                            sourceToParse,
-                            SequenceNumbers.UNASSIGNED_SEQ_NO,
-                            -1,
-                            -1,
-                            VersionType.INTERNAL,
-                            Engine.Operation.Origin.PRIMARY,
-                            Long.MIN_VALUE,
-                            false,
-                            request.ifSeqNo(),
-                            request.ifPrimaryTerm(),
-                            0
-                        );
-                    });
+                    if (combinedMappings != null) {
+                        Settings dummySettings = Settings.builder()
+                            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+                            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                            .put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
+                            .build();
+                        MappingMetadata mappingMetadata = new MappingMetadata(combinedMappings);
+                        final IndexMetadata imd = IndexMetadata.builder(request.index())
+                            .putMapping(mappingMetadata)
+                            .settings(dummySettings)
+                            .build();
+                        indicesService.withTempIndexService(imd, indexService -> {
+                            indexService.mapperService().updateMapping(null, reSortMappingXContent(indexService, imd));
+                            return IndexShard.prepareIndex(
+                                indexService.mapperService(),
+                                sourceToParse,
+                                SequenceNumbers.UNASSIGNED_SEQ_NO,
+                                -1,
+                                -1,
+                                VersionType.INTERNAL,
+                                Engine.Operation.Origin.PRIMARY,
+                                Long.MIN_VALUE,
+                                false,
+                                request.ifSeqNo(),
+                                request.ifPrimaryTerm(),
+                                0
+                            );
+                        });
+                    }
                 }
             }
         } catch (Exception e) {
@@ -345,17 +347,15 @@ public class TransportSimulateBulkAction extends TransportAbstractBulkAction {
         return mappingValidationException;
     }
 
-    private static CompressedXContent mergeMappings(
-        @Nullable CompressedXContent originalMapping,
-        @Nullable Map<String, Object> mappingAddition
-    ) throws IOException {
+    private static CompressedXContent mergeMappings(@Nullable CompressedXContent originalMapping, Map<String, Object> mappingAddition)
+        throws IOException {
         Map<String, Object> combinedMappingMap;
         if (originalMapping == null) {
             combinedMappingMap = new HashMap<>();
         } else {
             combinedMappingMap = XContentHelper.convertToMap(originalMapping.uncompressed(), true, XContentType.JSON).v2();
         }
-        XContentHelper.update(combinedMappingMap, mappingAddition == null ? Map.of() : mappingAddition, true);
+        XContentHelper.update(combinedMappingMap, mappingAddition, true);
         if (combinedMappingMap.isEmpty()) {
             return null;
         } else {

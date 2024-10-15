@@ -11,6 +11,7 @@ package fixture.geoip;
 
 import com.sun.net.httpserver.HttpServer;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.hash.MessageDigests;
 import org.junit.rules.ExternalResource;
 
@@ -30,13 +31,16 @@ import java.util.Objects;
 public class EnterpriseGeoIpHttpFixture extends ExternalResource {
 
     private final List<String> maxmindDatabaseTypes;
+    private final List<String> ipinfoDatabaseTypes;
     private HttpServer server;
 
     /*
-     * The values in databaseTypes must be in DatabaseConfiguration.MAXMIND_NAMES.
+     * The values in maxmindDatabaseTypes must be in DatabaseConfiguration.MAXMIND_NAMES, and the ipinfoDatabaseTypes
+     * must be in DatabaseConfiguration.IPINFO_NAMES.
      */
-    public EnterpriseGeoIpHttpFixture(List<String> maxmindDatabaseTypes) {
+    public EnterpriseGeoIpHttpFixture(List<String> maxmindDatabaseTypes, List<String> ipinfoDatabaseTypes) {
         this.maxmindDatabaseTypes = List.copyOf(maxmindDatabaseTypes);
+        this.ipinfoDatabaseTypes = List.copyOf(ipinfoDatabaseTypes);
     }
 
     public String getAddress() {
@@ -61,6 +65,9 @@ public class EnterpriseGeoIpHttpFixture extends ExternalResource {
         // register the file types for the download fixture
         for (String databaseType : maxmindDatabaseTypes) {
             createContextForMaxmindDatabase(databaseType);
+        }
+        for (String databaseType : ipinfoDatabaseTypes) {
+            createContextForIpinfoDatabase(databaseType);
         }
 
         server.start();
@@ -88,6 +95,31 @@ public class EnterpriseGeoIpHttpFixture extends ExternalResource {
                 try (
                     OutputStream out = exchange.getResponseBody();
                     InputStream in = fixtureStream("/geoip-fixture/" + databaseType + ".tgz")
+                ) {
+                    in.transferTo(out);
+                }
+            }
+            exchange.getResponseBody().close();
+        });
+    }
+
+    private void createContextForIpinfoDatabase(String databaseType) {
+        this.server.createContext("/free/" + databaseType + ".mmdb", exchange -> {
+            exchange.sendResponseHeaders(200, 0);
+            if (exchange.getRequestURI().toString().contains("checksum")) {
+                MessageDigest md5 = MessageDigests.md5();
+                try (InputStream in = fixtureStream("/ipinfo-fixture/ip_" + databaseType + "_sample.mmdb")) {
+                    md5.update(in.readAllBytes());
+                }
+                exchange.getResponseBody()
+                    .write(Strings.format(
+                        """
+                        { "checksums": { "md5": "%s" } }
+                        """, MessageDigests.toHexString(md5.digest())).getBytes(StandardCharsets.UTF_8));
+            } else {
+                try (
+                    OutputStream out = exchange.getResponseBody();
+                    InputStream in = fixtureStream("/ipinfo-fixture/ip_" + databaseType + "_sample.mmdb")
                 ) {
                     in.transferTo(out);
                 }

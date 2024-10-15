@@ -45,15 +45,20 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.ingest.EnterpriseGeoIpTask.ENTERPRISE_GEOIP_DOWNLOADER;
+import static org.elasticsearch.ingest.geoip.EnterpriseGeoIpDownloaderTaskExecutor.IPINFO_TOKEN_SETTING;
 import static org.elasticsearch.ingest.geoip.EnterpriseGeoIpDownloaderTaskExecutor.MAXMIND_LICENSE_KEY_SETTING;
 import static org.hamcrest.Matchers.equalTo;
 
 public class EnterpriseGeoIpDownloaderIT extends ESIntegTestCase {
 
     private static final String MAXMIND_DATABASE_TYPE = "GeoIP2-City";
+    private static final String IPINFO_DATABASE_TYPE = "asn";
 
     @ClassRule
-    public static final EnterpriseGeoIpHttpFixture fixture = new EnterpriseGeoIpHttpFixture(List.of(MAXMIND_DATABASE_TYPE));
+    public static final EnterpriseGeoIpHttpFixture fixture = new EnterpriseGeoIpHttpFixture(
+        List.of(MAXMIND_DATABASE_TYPE),
+        List.of(IPINFO_DATABASE_TYPE)
+    );
 
     protected String getEndpoint() {
         return fixture.getAddress();
@@ -63,6 +68,7 @@ public class EnterpriseGeoIpDownloaderIT extends ESIntegTestCase {
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         MockSecureSettings secureSettings = new MockSecureSettings();
         secureSettings.setString(MAXMIND_LICENSE_KEY_SETTING.getKey(), "license_key");
+        secureSettings.setString(IPINFO_TOKEN_SETTING.getKey(), "token");
         Settings.Builder builder = Settings.builder();
         builder.setSecureSettings(secureSettings)
             .put(super.nodeSettings(nodeOrdinal, otherSettings))
@@ -89,6 +95,7 @@ public class EnterpriseGeoIpDownloaderIT extends ESIntegTestCase {
          * Note that the "enterprise database" is actually just a geolite database being loaded by the GeoIpHttpFixture.
          */
         EnterpriseGeoIpDownloader.DEFAULT_MAXMIND_ENDPOINT = getEndpoint();
+        EnterpriseGeoIpDownloader.DEFAULT_IPINFO_ENDPOINT = getEndpoint();
         final String indexName = "enterprise_geoip_test_index";
         final String geoipPipelineName = "enterprise_geoip_pipeline";
         final String sourceField = "ip";
@@ -96,6 +103,7 @@ public class EnterpriseGeoIpDownloaderIT extends ESIntegTestCase {
 
         startEnterpriseGeoIpDownloaderTask();
         configureMaxmindDatabase(MAXMIND_DATABASE_TYPE);
+        configureIpinfoDatabase(IPINFO_DATABASE_TYPE);
         waitAround();
         createPipeline(geoipPipelineName, "geoip", MAXMIND_DATABASE_TYPE, sourceField, targetField);
 
@@ -144,12 +152,25 @@ public class EnterpriseGeoIpDownloaderIT extends ESIntegTestCase {
             .actionGet();
     }
 
+    private void configureIpinfoDatabase(String databaseType) {
+        admin().cluster()
+            .execute(
+                PutDatabaseConfigurationAction.INSTANCE,
+                new PutDatabaseConfigurationAction.Request(
+                    TimeValue.MAX_VALUE,
+                    TimeValue.MAX_VALUE,
+                    new DatabaseConfiguration("test-2", databaseType, new DatabaseConfiguration.Ipinfo())
+                )
+            )
+            .actionGet();
+    }
+
     private void waitAround() throws Exception {
         ensureGreen(GeoIpDownloader.DATABASES_INDEX);
         assertBusy(() -> {
             SearchResponse searchResponse = client().search(new SearchRequest(GeoIpDownloader.DATABASES_INDEX)).actionGet();
             try {
-                assertThat(searchResponse.getHits().getHits().length, equalTo(1));
+                assertThat(searchResponse.getHits().getHits().length, equalTo(2));
             } finally {
                 searchResponse.decRef();
             }

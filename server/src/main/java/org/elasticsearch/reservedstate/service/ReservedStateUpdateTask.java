@@ -51,12 +51,10 @@ public class ReservedStateUpdateTask implements ClusterStateTaskListener {
     private final Collection<String> orderedHandlers;
     private final Consumer<ErrorState> errorReporter;
     private final ActionListener<ActionResponse.Empty> listener;
-    private final boolean allowSameVersion;
 
     public ReservedStateUpdateTask(
         String namespace,
         ReservedStateChunk stateChunk,
-        boolean allowSameVersion,
         Map<String, ReservedClusterStateHandler<?>> handlers,
         Collection<String> orderedHandlers,
         Consumer<ErrorState> errorReporter,
@@ -68,7 +66,6 @@ public class ReservedStateUpdateTask implements ClusterStateTaskListener {
         this.orderedHandlers = orderedHandlers;
         this.errorReporter = errorReporter;
         this.listener = listener;
-        this.allowSameVersion = allowSameVersion;
     }
 
     @Override
@@ -90,9 +87,10 @@ public class ReservedStateUpdateTask implements ClusterStateTaskListener {
 
         ReservedStateMetadata existingMetadata = currentState.metadata().reservedStateMetadata().get(namespace);
         Map<String, Object> reservedState = stateChunk.state();
-        ReservedStateVersion reservedStateVersion = stateChunk.metadata();
+        ReservedStateVersionMetadata reservedStateVersionMetadata = stateChunk.metadata();
+        ReservedStateVersion reservedStateVersion = reservedStateVersionMetadata.version();
 
-        if (checkMetadataVersion(namespace, existingMetadata, reservedStateVersion, allowSameVersion) == false) {
+        if (checkMetadataVersion(namespace, existingMetadata, reservedStateVersionMetadata) == false) {
             return currentState;
         }
 
@@ -158,9 +156,9 @@ public class ReservedStateUpdateTask implements ClusterStateTaskListener {
     static boolean checkMetadataVersion(
         String namespace,
         ReservedStateMetadata existingMetadata,
-        ReservedStateVersion reservedStateVersion,
-        boolean allowSameVersion
+        ReservedStateVersionMetadata reservedStateVersionMetadata
     ) {
+        ReservedStateVersion reservedStateVersion = reservedStateVersionMetadata.version();
         if (Version.CURRENT.before(reservedStateVersion.minCompatibleVersion())) {
             logger.warn(
                 () -> format(
@@ -188,27 +186,21 @@ public class ReservedStateUpdateTask implements ClusterStateTaskListener {
             return false;
         }
 
-        if (existingMetadata != null && existingMetadata.version() >= reservedStateVersion.version()) {
-            if (allowSameVersion && existingMetadata.version().equals(reservedStateVersion.version())) {
-                logger.debug(
-                    "Updating reserved cluster state for namespace [{}] and version [{}] matching current metadata version",
-                    namespace,
-                    reservedStateVersion.version()
-                );
-                return true;
-            }
-            logger.warn(
-                () -> format(
-                    "Not updating reserved cluster state for namespace [%s], because version [%s] is less or equal"
-                        + " to the current metadata version [%s]",
-                    namespace,
-                    reservedStateVersion.version(),
-                    existingMetadata.version()
-                )
-            );
-            return false;
+        if (existingMetadata == null
+            || existingMetadata.version() < reservedStateVersion.version()
+            || reservedStateVersionMetadata.reprocessSameVersion() && existingMetadata.version().equals(reservedStateVersion.version())) {
+            return true;
         }
 
-        return true;
+        logger.warn(
+            () -> format(
+                "Not updating reserved cluster state for namespace [%s], because version [%s] is less or equal"
+                    + " to the current metadata version [%s]",
+                namespace,
+                reservedStateVersion.version(),
+                existingMetadata.version()
+            )
+        );
+        return false;
     }
 }

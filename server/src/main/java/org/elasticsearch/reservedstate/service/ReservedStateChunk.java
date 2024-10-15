@@ -15,7 +15,15 @@ import java.util.Map;
  * A holder for the cluster state to be saved and reserved and the version info
  * <p>
  * Apart from the cluster state we want to store and reserve, the chunk requires that
- * you supply the version metadata. This version metadata (see {@link ReservedStateVersion}) is checked to ensure
+ * you supply the version metadata. This version metadata (see {@link ReservedStateVersionMetadata}) is checked to ensure
  * that the update is safe, and it's not unnecessarily repeated.
  */
-public record ReservedStateChunk(Map<String, Object> state, ReservedStateVersion metadata) {}
+public record ReservedStateChunk(Map<String, Object> state, ReservedStateVersionMetadata metadata) {
+    public ReservedStateChunk(Map<String, Object> state, ReservedStateVersion version) {
+        this(state, new ReservedStateVersionMetadata(version, false));
+    }
+
+    public ReservedStateChunk copyWithReprocessSameVersion(boolean reprocessSameVersion) {
+        return new ReservedStateChunk(state, new ReservedStateVersionMetadata(metadata.version(), reprocessSameVersion));
+    }
+}

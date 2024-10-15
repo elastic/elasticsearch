@@ -123,11 +123,11 @@ public class ReservedClusterStateService {
      *
      * @param namespace the namespace under which we'll store the reserved keys in the cluster state metadata
      * @param parser the XContentParser to process
-     * @param allowSameVersion whether processing should also run if the metadata version matches the file version
+     * @param reprocessSameVersion whether processing should also run if the metadata version matches the file version
      * @param errorListener a consumer called with {@link IllegalStateException} if the content has errors and the
      *        cluster state cannot be correctly applied, null if successful or state couldn't be applied because of incompatible version.
      */
-    public void process(String namespace, XContentParser parser, boolean allowSameVersion, Consumer<Exception> errorListener) {
+    public void process(String namespace, XContentParser parser, boolean reprocessSameVersion, Consumer<Exception> errorListener) {
         ReservedStateChunk stateChunk;
 
         try {
@@ -143,7 +143,7 @@ public class ReservedClusterStateService {
             return;
         }
 
-        process(namespace, stateChunk, allowSameVersion, errorListener);
+        process(namespace, stateChunk.copyWithReprocessSameVersion(reprocessSameVersion), errorListener);
     }
 
     public void initEmpty(String namespace, ActionListener<ActionResponse.Empty> listener) {
@@ -154,7 +154,6 @@ public class ReservedClusterStateService {
             new ReservedStateUpdateTask(
                 namespace,
                 emptyState,
-                false,
                 Map.of(),
                 List.of(),
                 // error state should not be possible since there is no metadata being parsed or processed
@@ -171,18 +170,13 @@ public class ReservedClusterStateService {
      *
      * @param namespace the namespace under which we'll store the reserved keys in the cluster state metadata
      * @param reservedStateChunk a {@link ReservedStateChunk} composite state object to process
-     * @param allowSameVersion whether processing should also run if the metadata version matches the file version
      * @param errorListener a consumer called with {@link IllegalStateException} if the content has errors and the
      *        cluster state cannot be correctly applied, null if successful or the state failed to apply because of incompatible version.
      */
-    public void process(
-        String namespace,
-        ReservedStateChunk reservedStateChunk,
-        boolean allowSameVersion,
-        Consumer<Exception> errorListener
-    ) {
+    public void process(String namespace, ReservedStateChunk reservedStateChunk, Consumer<Exception> errorListener) {
         Map<String, Object> reservedState = reservedStateChunk.state();
-        final ReservedStateVersion reservedStateVersion = reservedStateChunk.metadata();
+        ReservedStateVersionMetadata reservedStateVersionMetadata = reservedStateChunk.metadata();
+        ReservedStateVersion reservedStateVersion = reservedStateVersionMetadata.version();
 
         LinkedHashSet<String> orderedHandlers;
         try {
@@ -209,7 +203,7 @@ public class ReservedClusterStateService {
 
         // We check if we should exit early on the state version from clusterService. The ReservedStateUpdateTask
         // will check again with the most current state version if this continues.
-        if (checkMetadataVersion(namespace, existingMetadata, reservedStateVersion, allowSameVersion) == false) {
+        if (checkMetadataVersion(namespace, existingMetadata, reservedStateVersionMetadata) == false) {
             errorListener.accept(null);
             return;
         }
@@ -228,7 +222,6 @@ public class ReservedClusterStateService {
             new ReservedStateUpdateTask(
                 namespace,
                 reservedStateChunk,
-                allowSameVersion,
                 handlers,
                 orderedHandlers,
                 ReservedClusterStateService.this::updateErrorState,

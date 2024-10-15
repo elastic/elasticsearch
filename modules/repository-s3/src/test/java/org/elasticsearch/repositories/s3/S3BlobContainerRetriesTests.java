@@ -14,6 +14,7 @@ import com.amazonaws.DnsResolver;
 import com.amazonaws.SdkClientException;
 import com.amazonaws.services.s3.AmazonS3ClientBuilder;
 import com.amazonaws.services.s3.internal.MD5DigestCalculatingInputStream;
+import com.amazonaws.services.s3.model.AmazonS3Exception;
 import com.amazonaws.util.Base16;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
@@ -24,6 +25,7 @@ import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.OperationPurpose;
+import org.elasticsearch.common.blobstore.OptionalBytesReference;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.lucene.store.ByteArrayIndexInput;
@@ -183,7 +185,10 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
         final RepositoryMetadata repositoryMetadata = new RepositoryMetadata(
             "repository",
             S3Repository.TYPE,
-            Settings.builder().put(S3Repository.CLIENT_NAME.getKey(), clientName).build()
+            Settings.builder()
+                .put(S3Repository.CLIENT_NAME.getKey(), clientName)
+                .put(S3Repository.GET_REGISTER_RETRY_DELAY.getKey(), TimeValue.ZERO)
+                .build()
         );
 
         final S3BlobStore s3BlobStore = new S3BlobStore(
@@ -769,6 +774,75 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
         assertThat(getRetryStartedMeasurements(), empty());
         assertThat(getRetryCompletedMeasurements(), empty());
         assertThat(getRetryHistogramMeasurements(), empty());
+    }
+
+    public void testGetRegisterRetries() {
+        final var maxRetries = between(0, 3);
+        final BlobContainer blobContainer = createBlobContainer(maxRetries, null, null, null);
+
+        interface FailingHandlerFactory {
+            void addHandler(String blobName, Integer... responseCodes);
+        }
+
+        final var requestCounter = new AtomicInteger();
+        final FailingHandlerFactory countingFailingHandlerFactory = (blobName, responseCodes) -> httpServer.createContext(
+            downloadStorageEndpoint(blobContainer, blobName),
+            exchange -> {
+                requestCounter.incrementAndGet();
+                try (exchange) {
+                    exchange.sendResponseHeaders(randomFrom(responseCodes), -1);
+                }
+            }
+        );
+
+        countingFailingHandlerFactory.addHandler("test_register_no_internal_retries", HttpStatus.SC_UNPROCESSABLE_ENTITY);
+        countingFailingHandlerFactory.addHandler(
+            "test_register_internal_retries",
+            HttpStatus.SC_INTERNAL_SERVER_ERROR,
+            HttpStatus.SC_SERVICE_UNAVAILABLE
+        );
+        countingFailingHandlerFactory.addHandler("test_register_not_found", HttpStatus.SC_NOT_FOUND);
+
+        {
+            final var exceptionWithInternalRetries = safeAwaitFailure(
+                OptionalBytesReference.class,
+                l -> blobContainer.getRegister(randomRetryingPurpose(), "test_register_internal_retries", l)
+            );
+            assertThat(exceptionWithInternalRetries, instanceOf(AmazonS3Exception.class));
+            assertEquals((maxRetries + 1) * (maxRetries + 1), requestCounter.get());
+            assertEquals(maxRetries, exceptionWithInternalRetries.getSuppressed().length);
+        }
+
+        {
+            requestCounter.set(0);
+            final var exceptionWithoutInternalRetries = safeAwaitFailure(
+                OptionalBytesReference.class,
+                l -> blobContainer.getRegister(randomRetryingPurpose(), "test_register_no_internal_retries", l)
+            );
+            assertThat(exceptionWithoutInternalRetries, instanceOf(AmazonS3Exception.class));
+            assertEquals(maxRetries + 1, requestCounter.get());
+            assertEquals(maxRetries, exceptionWithoutInternalRetries.getSuppressed().length);
+        }
+
+        {
+            requestCounter.set(0);
+            final var repoAnalysisException = safeAwaitFailure(
+                OptionalBytesReference.class,
+                l -> blobContainer.getRegister(OperationPurpose.REPOSITORY_ANALYSIS, "test_register_no_internal_retries", l)
+            );
+            assertThat(repoAnalysisException, instanceOf(AmazonS3Exception.class));
+            assertEquals(1, requestCounter.get());
+            assertEquals(0, repoAnalysisException.getSuppressed().length);
+        }
+
+        {
+            requestCounter.set(0);
+            final OptionalBytesReference expectEmpty = safeAwait(
+                l -> blobContainer.getRegister(randomPurpose(), "test_register_not_found", l)
+            );
+            assertEquals(OptionalBytesReference.EMPTY, expectEmpty);
+            assertEquals(1, requestCounter.get());
+        }
     }
 
     @Override

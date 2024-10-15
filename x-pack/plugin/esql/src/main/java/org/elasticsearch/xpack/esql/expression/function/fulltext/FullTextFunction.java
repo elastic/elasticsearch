@@ -106,6 +106,11 @@ public abstract class FullTextFunction extends Function {
         return Nullability.FALSE;
     }
 
+    /**
+     * Used to differentiate error messages between functions and operators
+     *
+     * @return function type for error messages
+     */
     public String functionType() {
         return "function";
     }

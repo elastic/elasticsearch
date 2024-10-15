@@ -1217,6 +1217,8 @@ public class AutoFollowIT extends ESCCRRestTestCase {
                 backingIndexNames = List.of(backingIndexName(dataStreamName, 1), backingIndexName(dataStreamName, 2));
             }
 
+            // These cleanup methods are copied from the finally block of other Data Stream tests in this class however
+            // they may no longer be required but have been included for completeness
             cleanUpFollower(backingIndexNames, List.of(dataStreamName), List.of(autoFollowPatternName));
             cleanUpLeader(backingIndexNames.subList(0, 1), List.of(dataStreamName), List.of());
             Request deleteTemplateRequest = new Request("DELETE", "/_index_template/" + getTestName().toLowerCase(Locale.ROOT));

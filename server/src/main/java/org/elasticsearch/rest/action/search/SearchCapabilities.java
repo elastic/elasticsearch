@@ -9,10 +9,7 @@
 
 package org.elasticsearch.rest.action.search;
 
-import java.util.HashSet;
 import java.util.Set;
-
-import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.BBQ_FEATURE_FLAG;
 
 /**
  * A {@link Set} of "capabilities" supported by the {@link RestSearchAction}.
@@ -27,14 +24,9 @@ public final class SearchCapabilities {
     private static final String BIT_DENSE_VECTOR_SYNTHETIC_SOURCE_CAPABILITY = "bit_dense_vector_synthetic_source";
     private static final String BBQ_INDICES = "bbq_indices";
 
-    public static final Set<String> CAPABILITIES;
-    static {
-        HashSet<String> capabilities = new HashSet<>();
-        capabilities.add(RANGE_REGEX_INTERVAL_QUERY_CAPABILITY);
-        capabilities.add(BIT_DENSE_VECTOR_SYNTHETIC_SOURCE_CAPABILITY);
-        if (BBQ_FEATURE_FLAG.isEnabled()) {
-            capabilities.add(BBQ_INDICES);
-        }
-        CAPABILITIES = Set.copyOf(capabilities);
-    }
+    public static final Set<String> CAPABILITIES = Set.of(
+        RANGE_REGEX_INTERVAL_QUERY_CAPABILITY,
+        BIT_DENSE_VECTOR_SYNTHETIC_SOURCE_CAPABILITY,
+        BBQ_INDICES
+    );
 }

@@ -99,6 +99,12 @@ public abstract class BaseElasticsearchInternalService implements InferenceServi
                 return;
             }
 
+            if (esModel.usesExistingDeployment()) {
+                // don't start a deployment
+                finalListener.onResponse(Boolean.TRUE);
+                return;
+            }
+
             SubscribableListener.<Boolean>newForked(forkedListener -> { isBuiltinModelPut(model, forkedListener); })
                 .<Boolean>andThen((l, modelConfigExists) -> {
                     if (modelConfigExists == false) {
@@ -129,6 +135,7 @@ public abstract class BaseElasticsearchInternalService implements InferenceServi
             if (serviceSettings.getDeploymentId() != null) {
                 // configured with an existing deployment so do not stop it
                 listener.onResponse(Boolean.TRUE);
+                return;
             }
 
             var request = new StopTrainedModelDeploymentAction.Request(esModel.mlNodeDeploymentId());

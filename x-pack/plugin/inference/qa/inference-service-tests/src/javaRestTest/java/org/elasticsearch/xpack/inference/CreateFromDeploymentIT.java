@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference;
 
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.inference.TaskType;
 
@@ -16,16 +17,17 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
-public class CreateFromDeploymentIT extends CustomElandModelIT {
+public class CreateFromDeploymentIT extends InferenceBaseRestTest {
 
     @SuppressWarnings("unchecked")
     public void testAttachToDeployment() throws IOException {
         var modelId = "attach_to_deployment";
         var deploymentId = "existing_deployment";
 
-        createMlNodeTextExpansionModel(modelId);
+        CustomElandModelIT.createMlNodeTextExpansionModel(modelId, client());
         var response = startMlNodeDeploymemnt(modelId, deploymentId);
         assertOkOrCreated(response);
 
@@ -54,7 +56,7 @@ public class CreateFromDeploymentIT extends CustomElandModelIT {
         var modelId = "attach_with_model_id";
         var deploymentId = "existing_deployment_with_model_id";
 
-        createMlNodeTextExpansionModel(modelId);
+        CustomElandModelIT.createMlNodeTextExpansionModel(modelId, client());
         var response = startMlNodeDeploymemnt(modelId, deploymentId);
         assertOkOrCreated(response);
 
@@ -82,6 +84,29 @@ public class CreateFromDeploymentIT extends CustomElandModelIT {
         assertNotNull(results.get("sparse_embedding"));
 
         stopMlNodeDeployment(deploymentId);
+    }
+
+    public void testModelIdDoesNotMatch() throws IOException {
+        var modelId = "attach_with_model_id";
+        var deploymentId = "existing_deployment_with_model_id";
+        var aDifferentModelId = "not_the_same_as_the_one_used_in_the_deployment";
+
+        CustomElandModelIT.createMlNodeTextExpansionModel(modelId, client());
+        var response = startMlNodeDeploymemnt(modelId, deploymentId);
+        assertOkOrCreated(response);
+
+        var inferenceId = "inference_on_existing_deployment";
+        var e = expectThrows(
+            ResponseException.class,
+            () -> putModel(inferenceId, endpointConfig(aDifferentModelId, deploymentId), TaskType.SPARSE_EMBEDDING)
+        );
+        assertThat(
+            e.getMessage(),
+            containsString(
+                "Deployment [existing_deployment_with_model_id] uses model [attach_with_model_id] "
+                    + "which does not match the model [not_the_same_as_the_one_used_in_the_deployment] in the request."
+            )
+        );
     }
 
     private String endpointConfig(String deploymentId) {

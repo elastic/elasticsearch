@@ -1,0 +1,5 @@
+pr: 114849
+summary: "OTel mappings: allow `resource.attributes.host.name` to pass through"
+area: Mapping
+type: bug
+issues: []

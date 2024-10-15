@@ -411,6 +411,8 @@ tests:
 - class: org.elasticsearch.xpack.enrich.EnrichIT
   method: testDeleteExistingPipeline
   issue: https://github.com/elastic/elasticsearch/issues/114775
+- class: org.elasticsearch.test.rest.ClientYamlTestSuiteIT
+  issue: https://github.com/elastic/elasticsearch/issues/114787
 
 # Examples:
 #

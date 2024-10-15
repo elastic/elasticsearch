@@ -25,6 +25,7 @@ import org.elasticsearch.common.component.Lifecycle.State;
 import org.elasticsearch.common.scheduler.SchedulerEngine;
 import org.elasticsearch.common.scheduler.TimeValueSchedule;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
@@ -179,6 +180,7 @@ public class IndexLifecycleService
         maybeScheduleJob();
 
         // TODO multi-project: this probably needs a per-project iteration
+        @FixForMultiProject
         ProjectMetadata projectMetadata = clusterState.metadata().getSingleProjectWithCustom(IndexLifecycleMetadata.TYPE);
         if (projectMetadata != null) {
             OperationMode currentMode = currentILMMode(projectMetadata);
@@ -349,6 +351,7 @@ public class IndexLifecycleService
             return;
         }
 
+        @FixForMultiProject
         final ProjectMetadata project = event.state().metadata().getSingleProjectWithCustom(IndexLifecycleMetadata.TYPE);
         if (project == null) {
             return;
@@ -391,10 +394,12 @@ public class IndexLifecycleService
      * @param clusterState the current cluster state
      * @param fromClusterStateChange whether things are triggered from the cluster-state-listener or the scheduler
      */
+    @FixForMultiProject
     void triggerPolicies(ClusterState clusterState, boolean fromClusterStateChange) {
         ProjectMetadata projectMetadata = clusterState.metadata().getSingleProjectWithCustom(IndexLifecycleMetadata.TYPE);
 
         if (projectMetadata == null) {
+            @FixForMultiProject
             LifecycleOperationMetadata operationMetadata = clusterState.metadata().getSingleProjectCustom(LifecycleOperationMetadata.TYPE);
             OperationMode currentMode = operationMetadata == null ? EMPTY.getILMOperationMode() : operationMetadata.getILMOperationMode();
             if (currentMode == OperationMode.STOPPING) {

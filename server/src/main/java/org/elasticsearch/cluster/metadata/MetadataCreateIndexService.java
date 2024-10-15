@@ -49,6 +49,7 @@ import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
@@ -1303,6 +1304,7 @@ public class MetadataCreateIndexService {
      * Creates the index into the cluster state applying the provided blocks. The final cluster state will contain an updated routing
      * table based on the live nodes.
      */
+    @FixForMultiProject
     static ClusterState clusterStateCreateIndex(
         ClusterState currentState,
         IndexMetadata indexMetadata,

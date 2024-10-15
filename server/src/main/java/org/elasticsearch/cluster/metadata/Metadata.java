@@ -37,6 +37,7 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.core.Assertions;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.gateway.MetadataStateFormat;
@@ -257,6 +258,7 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
      * This can be used to filter out exceptions due to code not converted over yet.
      * To be removed when {@link #getSingleProject} is removed.
      */
+    @FixForMultiProject
     public static class MultiProjectPendingException extends UnsupportedOperationException {
         public MultiProjectPendingException(String message) {
             super(message);
@@ -267,6 +269,12 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
         return projectMetadata.size() == 1 && projectMetadata.containsKey(DEFAULT_PROJECT_ID);
     }
 
+    /**
+     * TODO: Revisit as part of multi-project (do we need it for BWC APIs / transport versions, or can we remove it)
+     * If we keep it, then we need to audit every case in which it is called to ensure they don't need to work in
+     * multi-project environments.
+     */
+    @FixForMultiProject
     private ProjectMetadata getSingleProject() {
         if (projectMetadata.isEmpty()) {
             throw new UnsupportedOperationException("There are no projects");
@@ -433,6 +441,10 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
         return this.projectMetadata;
     }
 
+    /**
+     * TODO: Remove as part of multi-project
+     */
+    @FixForMultiProject
     public ProjectMetadata getProject() {
         return getSingleProject();
     }
@@ -448,6 +460,7 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
      * Throws an exception when multiple projects have that {@link ProjectCustom}.
      * @return the {@link ProjectCustom} if and only if it's present in a single project. If it's not present in any project, returns null
      */
+    @FixForMultiProject
     @Nullable
     public <T extends ProjectCustom> T getSingleProjectCustom(String type) {
         var project = getSingleProjectWithCustom(type);
@@ -460,6 +473,7 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
      * @return the project that has the {@link ProjectCustom} if and only if it's present in a single project.
      *         If it's not present in any project, returns null
      */
+    @FixForMultiProject
     @Nullable
     public ProjectMetadata getSingleProjectWithCustom(String type) {
         ProjectMetadata resultingProject = null;
@@ -624,6 +638,8 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
                 }
             });
 
+        @FixForMultiProject
+        // Need to revisit whether this should be a param or something else.
         boolean multiProject = params.paramAsBoolean("multi-project", false);
         if (multiProject) {
             builder.array(
@@ -632,7 +648,11 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
                 (b, e) -> b.object(ob -> ob.field("id", e.getKey()).append(e.getValue()))
             );
         } else {
-            builder.append(getSingleProject());
+            // Even if we need to keep this one-project in XContent case, this isn't the right way to get it
+            // - we need to use the resolver or have the project id passed in as a param, or something
+            @FixForMultiProject
+            final ProjectMetadata project = getSingleProject();
+            builder.append(project);
         }
 
         return builder.forEach(customs.entrySet().iterator(), (b, e) -> {

@@ -10,6 +10,7 @@
 package org.elasticsearch;
 
 import org.elasticsearch.core.Assertions;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.UpdateForV9;
 
 import java.lang.reflect.Field;
@@ -252,6 +253,7 @@ public class TransportVersions {
      * this variable needs to be changed to a regular transport version following the same rules as above.
      */
     @UpdateForV9(owner = UpdateForV9.Owner.CORE_INFRA) // change to a v9 version number when bumping to 9.0
+    @FixForMultiProject
     public static final TransportVersion MULTI_PROJECT = def(8_999_999);
 
     /*

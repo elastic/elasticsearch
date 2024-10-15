@@ -353,6 +353,9 @@ tests:
 - class: org.elasticsearch.xpack.inference.TextEmbeddingCrudIT
   method: testPutE5WithTrainedModelAndInference
   issue: https://github.com/elastic/elasticsearch/issues/114023
+- class: org.elasticsearch.xpack.enrich.EnrichRestIT
+  method: test {p0=enrich/40_synthetic_source/enrich documents over _bulk}
+  issue: https://github.com/elastic/elasticsearch/issues/114825
 
 # Examples:
 #

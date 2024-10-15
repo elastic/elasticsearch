@@ -40,7 +40,7 @@ public class InferenceCrudIT extends InferenceBaseRestTest {
         }
 
         var getAllModels = getAllModels();
-        int numModels = DefaultElserFeatureFlag.isEnabled() ? 10 : 9;
+        int numModels = DefaultElserFeatureFlag.isEnabled() ? 11 : 9;
         assertThat(getAllModels, hasSize(numModels));
 
         var getSparseModels = getModels("_all", TaskType.SPARSE_EMBEDDING);
@@ -51,7 +51,8 @@ public class InferenceCrudIT extends InferenceBaseRestTest {
         }
 
         var getDenseModels = getModels("_all", TaskType.TEXT_EMBEDDING);
-        assertThat(getDenseModels, hasSize(4));
+        int numDenseModels = DefaultElserFeatureFlag.isEnabled() ? 5 : 4;
+        assertThat(getDenseModels, hasSize(numDenseModels));
         for (var denseModel : getDenseModels) {
             assertEquals("text_embedding", denseModel.get("task_type"));
         }

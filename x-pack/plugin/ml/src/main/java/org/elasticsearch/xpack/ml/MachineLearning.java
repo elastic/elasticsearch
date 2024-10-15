@@ -649,14 +649,6 @@ public class MachineLearning extends Plugin
         Property.NodeScope
     );
 
-    public static final Setting<Integer> MAX_LAZY_ML_NODES = Setting.intSetting(
-        "xpack.ml.max_lazy_ml_nodes",
-        0,
-        0,
-        Property.OperatorDynamic,
-        Property.NodeScope
-    );
-
     // Before 8.0.0 this needs to match the max allowed value for xpack.ml.max_open_jobs,
     // as the current node could be running in a cluster where some nodes are still using
     // that setting. From 8.0.0 onwards we have the flexibility to increase it...
@@ -810,7 +802,7 @@ public class MachineLearning extends Plugin
             PROCESS_CONNECT_TIMEOUT,
             CONCURRENT_JOB_ALLOCATIONS,
             MachineLearningField.MAX_MODEL_MEMORY_LIMIT,
-            MAX_LAZY_ML_NODES,
+            MachineLearningField.MAX_LAZY_ML_NODES,
             MAX_MACHINE_MEMORY_PERCENT,
             AutodetectBuilder.MAX_ANOMALY_RECORDS_SETTING_DYNAMIC,
             MAX_OPEN_JOBS_PER_NODE,

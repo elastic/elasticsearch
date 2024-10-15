@@ -29,7 +29,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.function.BiFunction;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.common.xcontent.XContentHelper.convertToMap;
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
@@ -855,7 +855,7 @@ public class XContentMapValuesTests extends AbstractFilteringTestCase {
 
     private static Object getMapValue(Map<String, Object> map, String key) {
         // Split the path on unescaped "." chars and then unescape the escaped "." chars
-        String[] pathElements = Arrays.stream(key.split("(?<!\\\\)\\.")).map(k -> k.replace("\\.", ".")).toArray(String[]::new);
+        final String[] pathElements = Arrays.stream(key.split("(?<!\\\\)\\.")).map(k -> k.replace("\\.", ".")).toArray(String[]::new);
 
         Object value = null;
         Object nextLayer = map;
@@ -865,6 +865,15 @@ public class XContentMapValuesTests extends AbstractFilteringTestCase {
             } else if (nextLayer instanceof List<?> nextList) {
                 final String pathElement = pathElements[i];
                 List<?> values = nextList.stream()
+                    .flatMap(v -> {
+                        Stream.Builder<Object> streamBuilder = Stream.builder();
+                        if (v instanceof List<?> innerList) {
+                            traverseList(innerList, streamBuilder);
+                        } else {
+                            streamBuilder.add(v);
+                        }
+                        return streamBuilder.build();
+                    })
                     .filter(v -> v instanceof Map<?, ?>)
                     .map(v -> ((Map<?, ?>) v).get(pathElement))
                     .filter(Objects::nonNull)
@@ -895,5 +904,15 @@ public class XContentMapValuesTests extends AbstractFilteringTestCase {
         }
 
         return value;
+    }
+
+    private static void traverseList(List<?> list, Stream.Builder<Object> streamBuilder) {
+        for (Object value : list) {
+            if (value instanceof List<?> innerList) {
+                traverseList(innerList, streamBuilder);
+            } else {
+                streamBuilder.add(value);
+            }
+        }
     }
 }

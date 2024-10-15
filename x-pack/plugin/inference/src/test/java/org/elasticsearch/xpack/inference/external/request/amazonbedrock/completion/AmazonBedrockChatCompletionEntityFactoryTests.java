@@ -71,7 +71,7 @@ public class AmazonBedrockChatCompletionEntityFactoryTests extends ESTestCase {
             assertThat(entity.messages(), equalTo(expectedMessage));
             assertThat(entity.additionalModelFields(), notNullValue());
             assertThat(entity.additionalModelFields().size(), equalTo(1));
-            try (var parser = XContentFactory.xContent(XContentType.JSON).createParser(EMPTY, entity.additionalModelFields().getFirst())) {
+            try (var parser = XContentFactory.xContent(XContentType.JSON).createParser(EMPTY, entity.additionalModelFields().get(0))) {
                 var additionalModelFields = parser.map();
                 assertThat((Double) additionalModelFields.get("top_k"), closeTo(expectedTopK, 0.1));
             } catch (IOException e) {

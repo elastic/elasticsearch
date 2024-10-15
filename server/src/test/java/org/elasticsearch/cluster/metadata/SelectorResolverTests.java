@@ -98,10 +98,7 @@ public class SelectorResolverTests extends ESTestCase {
         // Date math is left unprocessed (handled in date math resolver)
         assertThat(resolve(dataSelector, "<test-{now/d}>"), equalTo(List.of(new ResolvedExpression("<test-{now/d}>", DATA))));
         // Providing a selector requires adding after the date math brackets
-        assertThat(
-            resolve(dataSelector, "<test-{now/d}>::failures"),
-            equalTo(List.of(new ResolvedExpression("<test-{now/d}>", FAILURES)))
-        );
+        assertThat(resolve(dataSelector, "<test-{now/d}>::failures"), equalTo(List.of(new ResolvedExpression("<test-{now/d}>", FAILURES))));
         // Selectors inside of date math expressions will trip an exception because they do not match an existing component name exactly
         expectThrows(InvalidIndexNameException.class, () -> resolve(dataSelector, "<test-{now/d}::failures>"));
 

@@ -305,4 +305,9 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
     public int hashCode() {
         return Objects.hash(rolloverTarget, newIndexName, dryRun, conditions, createIndexRequest, lazy, indicesOptions);
     }
+
+    public boolean targetsFailureStore() {
+        // PRTODO: implement targeting failure store
+        return false;
+    }
 }

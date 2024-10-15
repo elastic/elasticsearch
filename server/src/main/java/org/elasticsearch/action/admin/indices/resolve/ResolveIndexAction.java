@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.ResolvedExpression;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
@@ -566,13 +567,8 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
             if (names.length == 1 && (Metadata.ALL.equals(names[0]) || Regex.isMatchAllPattern(names[0]))) {
                 names = new String[] { "**" };
             }
-            Set<IndexNameExpressionResolver.ResolvedExpression> resolvedIndexAbstractions = resolver.resolveExpressions(
-                clusterState,
-                indicesOptions,
-                true,
-                names
-            );
-            for (IndexNameExpressionResolver.ResolvedExpression s : resolvedIndexAbstractions) {
+            Set<ResolvedExpression> resolvedIndexAbstractions = resolver.resolveExpressions(clusterState, indicesOptions, true, names);
+            for (ResolvedExpression s : resolvedIndexAbstractions) {
                 enrichIndexAbstraction(clusterState, s, indices, aliases, dataStreams);
             }
             indices.sort(Comparator.comparing(ResolvedIndexAbstraction::getName));
@@ -603,7 +599,7 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
 
         private static void enrichIndexAbstraction(
             ClusterState clusterState,
-            IndexNameExpressionResolver.ResolvedExpression resolvedExpression,
+            ResolvedExpression resolvedExpression,
             List<ResolvedIndex> indices,
             List<ResolvedAlias> aliases,
             List<ResolvedDataStream> dataStreams
@@ -672,7 +668,8 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
                     case DATA -> ia.getIndices().stream();
                     case FAILURES -> {
                         assert ia.isDataStreamRelated() : "Illegal selector [failures] used on non data stream alias";
-                        yield ia.getIndices().stream()
+                        yield ia.getIndices()
+                            .stream()
                             .map(Index::getName)
                             .map(indicesLookup::get)
                             .map(IndexAbstraction::getParentDataStream)

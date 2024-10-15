@@ -37,6 +37,7 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.ResolvedExpression;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
@@ -204,7 +205,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
 
     private Map<String, OriginalIndices> buildPerIndexOriginalIndices(
         ClusterState clusterState,
-        Set<IndexNameExpressionResolver.ResolvedExpression> indicesAndAliases,
+        Set<ResolvedExpression> indicesAndAliases,
         String[] indices,
         IndicesOptions indicesOptions
     ) {
@@ -214,9 +215,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         boolean hasBlocks = blocks.global().isEmpty() == false || blocks.indices().isEmpty() == false;
         // Get a distinct set of index abstraction names present from the resolved expressions to help with the reverse resolution from
         // concrete index to the expression that produced it.
-        Set<String> indicesAndAliasesResources = indicesAndAliases.stream()
-            .map(IndexNameExpressionResolver.ResolvedExpression::resource)
-            .collect(Collectors.toSet());
+        Set<String> indicesAndAliasesResources = indicesAndAliases.stream().map(ResolvedExpression::resource).collect(Collectors.toSet());
         for (String index : indices) {
             if (hasBlocks) {
                 blocks.indexBlockedRaiseException(ClusterBlockLevel.READ, index);
@@ -255,7 +254,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
 
     Map<String, AliasFilter> buildIndexAliasFilters(
         ClusterState clusterState,
-        Set<IndexNameExpressionResolver.ResolvedExpression> indicesAndAliases,
+        Set<ResolvedExpression> indicesAndAliases,
         Index[] concreteIndices
     ) {
         final Map<String, AliasFilter> aliasFilterMap = new HashMap<>();
@@ -1247,7 +1246,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         } else {
             final Index[] indices = resolvedIndices.getConcreteLocalIndices();
             concreteLocalIndices = Arrays.stream(indices).map(Index::getName).toArray(String[]::new);
-            final Set<IndexNameExpressionResolver.ResolvedExpression> indicesAndAliases = indexNameExpressionResolver.resolveExpressions(
+            final Set<ResolvedExpression> indicesAndAliases = indexNameExpressionResolver.resolveExpressions(
                 clusterState,
                 searchRequest.indices()
             );
@@ -1823,7 +1822,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         ClusterState clusterState,
         SearchRequest searchRequest,
         String clusterAlias,
-        Set<IndexNameExpressionResolver.ResolvedExpression> indicesAndAliases,
+        Set<ResolvedExpression> indicesAndAliases,
         String[] concreteIndices
     ) {
         var routingMap = indexNameExpressionResolver.resolveSearchRouting(clusterState, searchRequest.routing(), searchRequest.indices());

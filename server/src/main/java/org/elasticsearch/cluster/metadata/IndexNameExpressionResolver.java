@@ -200,12 +200,10 @@ public class IndexNameExpressionResolver {
             getNetNewSystemIndexPredicate()
         );
         final Collection<ResolvedExpression> expressions = resolveExpressions(context, indexExpressions);
-        return expressions.stream()
-            .filter(expression -> {
-                IndexAbstraction ia = state.metadata().getIndicesLookup().get(expression.resource());
-                return ia != null && Type.DATA_STREAM == ia.getType();
-            })
-            .toList();
+        return expressions.stream().filter(expression -> {
+            IndexAbstraction ia = state.metadata().getIndicesLookup().get(expression.resource());
+            return ia != null && Type.DATA_STREAM == ia.getType();
+        }).toList();
     }
 
     /**
@@ -375,8 +373,8 @@ public class IndexNameExpressionResolver {
 
         final Set<Index> concreteIndicesResult = Sets.newLinkedHashSetWithExpectedSize(expressions.size());
         final Map<String, IndexAbstraction> indicesLookup = context.getState().metadata().getIndicesLookup();
-        for (ResolvedExpression expression : expressions) {
-            final IndexAbstraction indexAbstraction = indicesLookup.get(expression.resource());
+        for (ResolvedExpression resolvedExpression : expressions) {
+            final IndexAbstraction indexAbstraction = indicesLookup.get(resolvedExpression.resource());
             assert indexAbstraction != null;
             if (indexAbstraction.getType() == Type.ALIAS && context.isResolveToWriteIndex()) {
                 Index writeIndex = indexAbstraction.getWriteIndex();
@@ -391,16 +389,21 @@ public class IndexNameExpressionResolver {
                 }
                 if (indexAbstraction.isDataStreamRelated()) {
                     DataStream dataStream = indicesLookup.get(indexAbstraction.getWriteIndex().getName()).getParentDataStream();
-                    resolveWriteIndexForDataStreams(context, dataStream, concreteIndicesResult, expression.selector());
+                    resolveWriteIndexForDataStreams(context, dataStream, concreteIndicesResult, resolvedExpression.selector());
                 } else {
                     if (addIndex(writeIndex, null, context)) {
                         concreteIndicesResult.add(writeIndex);
                     }
                 }
             } else if (indexAbstraction.getType() == Type.DATA_STREAM && context.isResolveToWriteIndex()) {
-                resolveWriteIndexForDataStreams(context, (DataStream) indexAbstraction, concreteIndicesResult, expression.selector());
+                resolveWriteIndexForDataStreams(
+                    context,
+                    (DataStream) indexAbstraction,
+                    concreteIndicesResult,
+                    resolvedExpression.selector()
+                );
             } else {
-                if (resolvesToMoreThanOneIndex(indexAbstraction, context, expression)
+                if (resolvesToMoreThanOneIndex(indexAbstraction, context, resolvedExpression)
                     && context.getOptions().allowAliasesToMultipleIndices() == false) {
                     String[] indexNames = new String[indexAbstraction.getIndices().size()];
                     int i = 0;
@@ -410,7 +413,7 @@ public class IndexNameExpressionResolver {
                     throw new IllegalArgumentException(
                         indexAbstraction.getType().getDisplayName()
                             + " ["
-                            + expression
+                            + resolvedExpression
                             + "] has more than one index associated with it "
                             + Arrays.toString(indexNames)
                             + ", can't execute a single index op"
@@ -418,13 +421,18 @@ public class IndexNameExpressionResolver {
                 }
 
                 if (indexAbstraction.getType() == Type.DATA_STREAM) {
-                    resolveIndicesForDataStream(context, (DataStream) indexAbstraction, concreteIndicesResult, expression.selector());
+                    resolveIndicesForDataStream(
+                        context,
+                        (DataStream) indexAbstraction,
+                        concreteIndicesResult,
+                        resolvedExpression.selector()
+                    );
                 } else if (indexAbstraction.getType() == Type.ALIAS
                     && indexAbstraction.isDataStreamRelated()
                     && DataStream.isFailureStoreFeatureFlagEnabled()
-                    && IndexComponentSelector.FAILURES.equals(expression.selector())) {
+                    && IndexComponentSelector.FAILURES.equals(resolvedExpression.selector())) {
                         for (DataStream dataStream : getAliasDataStreams(indexAbstraction, indicesLookup)) {
-                            resolveIndicesForDataStream(context, dataStream, concreteIndicesResult, expression.selector());
+                            resolveIndicesForDataStream(context, dataStream, concreteIndicesResult, resolvedExpression.selector());
                         }
                     } else {
                         for (Index index : indexAbstraction.getIndices()) {
@@ -708,7 +716,7 @@ public class IndexNameExpressionResolver {
      * Utility method that allows to resolve an index expression to its corresponding single write index.
      *
      * @param state             the cluster state containing all the data to resolve to expression to a concrete index
-     * @param request           The request that defines how the an alias or an index need to be resolved to a concrete index
+     * @param request           The request that defines how an alias or an index need to be resolved to a concrete index
      *                          and the expression that can be resolved to an alias or an index name.
      * @throws IllegalArgumentException if the index resolution does not lead to an index, or leads to more than one index
      * @return the write index obtained as a result of the index resolution
@@ -1688,10 +1696,7 @@ public class IndexNameExpressionResolver {
             });
         }
 
-        private static List<ResolvedExpression> resolveEmptyOrTrivialWildcard(
-            Context context,
-            EnumSet<IndexComponentSelector> selectors
-        ) {
+        private static List<ResolvedExpression> resolveEmptyOrTrivialWildcard(Context context, EnumSet<IndexComponentSelector> selectors) {
             final String[] allIndices = resolveEmptyOrTrivialWildcardToAllIndices(
                 context.getOptions(),
                 context.getState().metadata(),
@@ -2158,16 +2163,13 @@ public class IndexNameExpressionResolver {
                 return false;
             }
             // We need to check if there was a selector present, and validate if it was allowed
-            return parseAndTransformSelector(
-                expression,
-                (base, selectors) -> {
-                    if (context.options.allowSelectors() == false) {
-                        // Ensure there is no selector if the API doesn't allow it.
-                        ensureNoSelectorsProvided(expression, selectors);
-                    }
-                    return predicate.test(base);
+            return parseAndTransformSelector(expression, (base, selectors) -> {
+                if (context.options.allowSelectors() == false) {
+                    // Ensure there is no selector if the API doesn't allow it.
+                    ensureNoSelectorsProvided(expression, selectors);
                 }
-            );
+                return predicate.test(base);
+            });
         }
 
         /**
@@ -2207,10 +2209,7 @@ public class IndexNameExpressionResolver {
          * @param <V> The type returned from the binding function
          * @throws InvalidIndexNameException In the event that the selector syntax is used incorrectly.
          */
-        private static <V> V splitSelectorExpression(
-            String expression,
-            BiFunction<String, String, V> bindFunction
-        ) {
+        private static <V> V splitSelectorExpression(String expression, BiFunction<String, String, V> bindFunction) {
             Objects.requireNonNull(expression, "expression cannot be null");
             int lastDoubleColon = expression.lastIndexOf(SELECTOR_SEPARATOR);
             if (lastDoubleColon >= 0) {
@@ -2251,9 +2250,7 @@ public class IndexNameExpressionResolver {
         private static void ensureNoSelectorsProvided(String expression, Collection<IndexComponentSelector> selectors) {
             if (selectors.isEmpty() == false) {
                 throw new IllegalArgumentException(
-                    "Index component selectors are not supported in this context but found selector in expression ["
-                        + expression
-                        + "]"
+                    "Index component selectors are not supported in this context but found selector in expression [" + expression + "]"
                 );
             }
         }

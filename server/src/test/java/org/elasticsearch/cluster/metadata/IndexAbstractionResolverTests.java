@@ -42,10 +42,7 @@ public class IndexAbstractionResolverTests extends ESTestCase {
     @Override
     public void setUp() throws Exception {
         super.setUp();
-        indexNameExpressionResolver = new IndexNameExpressionResolver(
-            new ThreadContext(Settings.EMPTY),
-            EmptySystemIndices.INSTANCE
-        );
+        indexNameExpressionResolver = new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY), EmptySystemIndices.INSTANCE);
         indexAbstractionResolver = new IndexAbstractionResolver(indexNameExpressionResolver);
 
         // Try to resist failing at midnight on the first/last day of the month. Time generally moves forward, so make a timestamp for

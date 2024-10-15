@@ -93,6 +93,10 @@ public class ExceptionsHelper {
         return new ElasticsearchStatusException(msg, RestStatus.BAD_REQUEST, args);
     }
 
+    public static ElasticsearchStatusException entityNotFoundException(String msg, Object... args) {
+        return new ElasticsearchStatusException(msg, RestStatus.NOT_FOUND, args);
+    }
+
     public static ElasticsearchStatusException taskOperationFailureToStatusException(TaskOperationFailure failure) {
         return new ElasticsearchStatusException(failure.getCause().getMessage(), failure.getStatus(), failure.getCause());
     }

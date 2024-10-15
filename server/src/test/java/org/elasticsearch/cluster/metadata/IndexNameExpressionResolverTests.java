@@ -1424,19 +1424,11 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
     }
 
     public void testIsAllIndicesExplicitAllPlusOther() throws Exception {
-        assertThat(
-            IndexNameExpressionResolver.isAllIndices(List.of("_all", "other")),
-            equalTo(false)
-        );
+        assertThat(IndexNameExpressionResolver.isAllIndices(List.of("_all", "other")), equalTo(false));
     }
 
     public void testIsAllIndicesNormalIndexes() throws Exception {
-        assertThat(
-            IndexNameExpressionResolver.isAllIndices(
-                List.of("index1", "index2", "index3")
-            ),
-            equalTo(false)
-        );
+        assertThat(IndexNameExpressionResolver.isAllIndices(List.of("index1", "index2", "index3")), equalTo(false));
     }
 
     public void testIsAllIndicesWildcard() throws Exception {
@@ -1456,19 +1448,11 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
     }
 
     public void testIsExplicitAllIndicesExplicitAllPlusOther() throws Exception {
-        assertThat(
-            IndexNameExpressionResolver.isExplicitAllPattern(List.of("_all", "other")),
-            equalTo(false)
-        );
+        assertThat(IndexNameExpressionResolver.isExplicitAllPattern(List.of("_all", "other")), equalTo(false));
     }
 
     public void testIsExplicitAllIndicesNormalIndexes() throws Exception {
-        assertThat(
-            IndexNameExpressionResolver.isExplicitAllPattern(
-                List.of("index1", "index2", "index3")
-            ),
-            equalTo(false)
-        );
+        assertThat(IndexNameExpressionResolver.isExplicitAllPattern(List.of("index1", "index2", "index3")), equalTo(false));
     }
 
     public void testIsExplicitAllIndicesWildcard() throws Exception {
@@ -1599,16 +1583,27 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
             .put(indexBuilder("test-1").state(State.OPEN).putAlias(AliasMetadata.builder("alias-1")));
         ClusterState state = ClusterState.builder(new ClusterName("_name")).metadata(mdBuilder).build();
 
-        assertEquals(new HashSet<>(Arrays.asList("alias-0", "alias-1")), indexNameExpressionResolver.resolveExpressions(state, "alias-*"));
         assertEquals(
-            new HashSet<>(Arrays.asList("test-0", "alias-0", "alias-1")),
+            Set.of(new ResolvedExpression("alias-0"), new ResolvedExpression("alias-1")),
+            indexNameExpressionResolver.resolveExpressions(state, "alias-*")
+        );
+        assertEquals(
+            Set.of(new ResolvedExpression("test-0"), new ResolvedExpression("alias-0"), new ResolvedExpression("alias-1")),
             indexNameExpressionResolver.resolveExpressions(state, "test-0", "alias-*")
         );
         assertEquals(
-            new HashSet<>(Arrays.asList("test-0", "test-1", "alias-0", "alias-1")),
+            Set.of(
+                new ResolvedExpression("test-0"),
+                new ResolvedExpression("test-1"),
+                new ResolvedExpression("alias-0"),
+                new ResolvedExpression("alias-1")
+            ),
             indexNameExpressionResolver.resolveExpressions(state, "test-*", "alias-*")
         );
-        assertEquals(new HashSet<>(Arrays.asList("test-1", "alias-1")), indexNameExpressionResolver.resolveExpressions(state, "*-1"));
+        assertEquals(
+            Set.of(new ResolvedExpression("test-1"), new ResolvedExpression("alias-1")),
+            indexNameExpressionResolver.resolveExpressions(state, "*-1")
+        );
     }
 
     public void testFilteringAliases() {
@@ -1617,30 +1612,24 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
             .put(indexBuilder("test-1").state(State.OPEN).putAlias(AliasMetadata.builder("alias-1")));
         ClusterState state = ClusterState.builder(new ClusterName("_name")).metadata(mdBuilder).build();
 
-        Set<ResolvedExpression> resolvedExpressions = new HashSet<>(
-            List.of(new ResolvedExpression("alias-0", DATA), new ResolvedExpression("alias-1", DATA))
-        );
+        Set<ResolvedExpression> resolvedExpressions = Set.of(new ResolvedExpression("alias-0"), new ResolvedExpression("alias-1"));
         String[] strings = indexNameExpressionResolver.filteringAliases(state, "test-0", resolvedExpressions);
         assertArrayEquals(new String[] { "alias-0" }, strings);
 
         // concrete index supersedes filtering alias
-        resolvedExpressions = new HashSet<>(
-            List.of(
-                new ResolvedExpression("test-0", DATA),
-                new ResolvedExpression("alias-0", DATA),
-                new ResolvedExpression("alias-1", DATA)
-            )
+        resolvedExpressions = Set.of(
+            new ResolvedExpression("test-0"),
+            new ResolvedExpression("alias-0"),
+            new ResolvedExpression("alias-1")
         );
         strings = indexNameExpressionResolver.filteringAliases(state, "test-0", resolvedExpressions);
         assertNull(strings);
 
-        resolvedExpressions = new HashSet<>(
-            List.of(
-                new ResolvedExpression("test-0", DATA),
-                new ResolvedExpression("test-1", DATA),
-                new ResolvedExpression("alias-0", DATA),
-                new ResolvedExpression("alias-1", DATA)
-            )
+        resolvedExpressions = Set.of(
+            new ResolvedExpression("test-0"),
+            new ResolvedExpression("test-1"),
+            new ResolvedExpression("alias-0"),
+            new ResolvedExpression("alias-1")
         );
         strings = indexNameExpressionResolver.filteringAliases(state, "test-0", resolvedExpressions);
         assertNull(strings);
@@ -1776,9 +1765,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
             );
         ClusterState state = ClusterState.builder(new ClusterName("_name")).metadata(mdBuilder).build();
 
-        Set<ResolvedExpression> resolvedExpressions = new HashSet<>(
-            List.of(new ResolvedExpression("test-0"), new ResolvedExpression("test-alias"))
-        );
+        Set<ResolvedExpression> resolvedExpressions = Set.of(new ResolvedExpression("test-0"), new ResolvedExpression("test-alias"));
         String[] aliases = indexNameExpressionResolver.indexAliases(state, "test-0", x -> true, x -> true, false, resolvedExpressions);
         assertNull(aliases);
         aliases = indexNameExpressionResolver.indexAliases(state, "test-0", x -> true, x -> true, true, resolvedExpressions);
@@ -1805,7 +1792,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
             x -> true,
             x -> true,
             true,
-            new HashSet<>(List.of(new ResolvedExpression("test-0", DATA), new ResolvedExpression("test-alias", DATA)))
+            Set.of(new ResolvedExpression("test-0"), new ResolvedExpression("test-alias"))
         );
         Arrays.sort(strings);
         assertArrayEquals(new String[] { "test-alias" }, strings);
@@ -1887,13 +1874,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
             x -> true,
             x -> true,
             true,
-            new HashSet<>(
-                List.of(
-                    new ResolvedExpression("test-0", DATA),
-                    new ResolvedExpression("test-1", DATA),
-                    new ResolvedExpression("test-alias", DATA)
-                )
-            )
+            Set.of(new ResolvedExpression("test-0"), new ResolvedExpression("test-1"), new ResolvedExpression("test-alias"))
         );
         Arrays.sort(strings);
         assertArrayEquals(new String[] { "test-alias" }, strings);
@@ -1931,7 +1912,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
             x -> true,
             x -> true,
             true,
-            new HashSet<>(List.of(new ResolvedExpression("test-0", DATA), new ResolvedExpression("test-alias", DATA)))
+            Set.of(new ResolvedExpression("test-0"), new ResolvedExpression("test-alias"))
         );
         Arrays.sort(strings);
         assertArrayEquals(new String[] { "test-alias" }, strings);
@@ -1967,13 +1948,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
             x -> true,
             x -> true,
             true,
-            new HashSet<>(
-                List.of(
-                    new ResolvedExpression("test-0", DATA),
-                    new ResolvedExpression("test-1", DATA),
-                    new ResolvedExpression("test-alias", DATA)
-                )
-            )
+            Set.of(new ResolvedExpression("test-0"), new ResolvedExpression("test-1"), new ResolvedExpression("test-alias"))
         );
         Arrays.sort(strings);
         assertArrayEquals(new String[] { "test-alias" }, strings);
@@ -2014,13 +1989,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
             x -> true,
             x -> true,
             true,
-            new HashSet<>(
-                List.of(
-                    new ResolvedExpression("test-0", DATA),
-                    new ResolvedExpression("test-1", DATA),
-                    new ResolvedExpression("test-alias", DATA)
-                )
-            )
+            Set.of(new ResolvedExpression("test-0"), new ResolvedExpression("test-1"), new ResolvedExpression("test-alias"))
         );
         Arrays.sort(strings);
         assertArrayEquals(new String[] { "test-alias" }, strings);

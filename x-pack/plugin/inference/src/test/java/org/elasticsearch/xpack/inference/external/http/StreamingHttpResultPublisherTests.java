@@ -17,6 +17,7 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.Before;
+import org.mockito.ArgumentCaptor;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -38,6 +39,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
@@ -59,7 +61,7 @@ public class StreamingHttpResultPublisherTests extends ESTestCase {
         super.setUp();
         threadPool = mock(ThreadPool.class);
         settings = mock(HttpSettings.class);
-        listener = ActionListener.noop();
+        listener = spy(ActionListener.noop());
 
         when(threadPool.executor(UTILITY_THREAD_POOL_NAME)).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
         when(settings.getMaxResponseSize()).thenReturn(ByteSizeValue.ofBytes(maxBytes));
@@ -235,33 +237,13 @@ public class StreamingHttpResultPublisherTests extends ESTestCase {
     }
 
     /**
-     * Given an error from Apache
-     * When the subscriber requests the next set of data
-     * Then the subscriber receives the error from Apache
+     * When there is an error from Apache before the publisher invokes the listener
+     * Then the publisher will forward the call to the listener's onFailure
      */
     public void testErrorBeforeRequest() {
-        var subscriber = subscribe();
         var exception = new NullPointerException("test");
-
         publisher.failed(exception);
-        assertThat("subscriber receives exception on next request", subscriber.throwable, nullValue());
-
-        subscriber.requestData();
-        assertThat("subscriber receives exception", subscriber.throwable, is(exception));
-    }
-
-    /**
-     * Given the subscriber is waiting for data
-     * When Apache sends an error
-     * Then the subscriber immediately receives the error
-     */
-    public void testErrorAfterRequest() {
-        var subscriber = subscribe();
-        var exception = new NullPointerException("test");
-
-        subscriber.requestData();
-        publisher.failed(exception);
-        assertThat("subscriber receives exception", subscriber.throwable, is(exception));
+        verify(listener).onFailure(exception);
     }
 
     /**
@@ -373,6 +355,76 @@ public class StreamingHttpResultPublisherTests extends ESTestCase {
         subscriber.requestData();
         publisher.cancel();
         assertTrue("onComplete should be called", subscriber.completed);
+    }
+
+    /**
+     * When cancel is called
+     * Then we only send onComplete once
+     */
+    public void testCancelIsIdempotent() throws IOException {
+        Flow.Subscriber<HttpResult> subscriber = mock();
+
+        var subscription = ArgumentCaptor.forClass(Flow.Subscription.class);
+        publisher.subscribe(subscriber);
+        verify(subscriber).onSubscribe(subscription.capture());
+
+        publisher.responseReceived(mock());
+        publisher.consumeContent(contentDecoder(message), mock(IOControl.class));
+        subscription.getValue().request(1);
+
+        subscription.getValue().request(1);
+        publisher.cancel();
+        verify(subscriber, times(1)).onComplete();
+        subscription.getValue().request(1);
+        publisher.cancel();
+        verify(subscriber, times(1)).onComplete();
+    }
+
+    /**
+     * When close is called
+     * Then we only send onComplete once
+     */
+    public void testCloseIsIdempotent() throws IOException {
+        Flow.Subscriber<HttpResult> subscriber = mock();
+
+        var subscription = ArgumentCaptor.forClass(Flow.Subscription.class);
+        publisher.subscribe(subscriber);
+        verify(subscriber).onSubscribe(subscription.capture());
+
+        publisher.responseReceived(mock());
+        publisher.consumeContent(contentDecoder(message), mock(IOControl.class));
+        subscription.getValue().request(1);
+
+        subscription.getValue().request(1);
+        publisher.close();
+        verify(subscriber, times(1)).onComplete();
+        subscription.getValue().request(1);
+        publisher.close();
+        verify(subscriber, times(1)).onComplete();
+    }
+
+    /**
+     * When failed is called
+     * Then we only send onError once
+     */
+    public void testFailedIsIdempotent() throws IOException {
+        var expectedException = new IllegalStateException("wow");
+        Flow.Subscriber<HttpResult> subscriber = mock();
+
+        var subscription = ArgumentCaptor.forClass(Flow.Subscription.class);
+        publisher.subscribe(subscriber);
+        verify(subscriber).onSubscribe(subscription.capture());
+
+        publisher.responseReceived(mock());
+        publisher.consumeContent(contentDecoder(message), mock(IOControl.class));
+        subscription.getValue().request(1);
+
+        subscription.getValue().request(1);
+        publisher.failed(expectedException);
+        verify(subscriber, times(1)).onError(eq(expectedException));
+        subscription.getValue().request(1);
+        publisher.failed(expectedException);
+        verify(subscriber, times(1)).onError(eq(expectedException));
     }
 
     /**

@@ -3211,28 +3211,28 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     /**
      * Plan:
      * <code>
-     * LimitExec[1000[INTEGER]]
-     * \_ExchangeExec[[],false]
-     *   \_FragmentExec[filter=null, estimatedRowSize=0, reducer=[], fragment=[
+     * EvalExec[[scalerank{f}#8 AS rank]]
+     * \_LimitExec[1000[INTEGER]]
+     *   \_ExchangeExec[[],false]
+     *     \_FragmentExec[filter=null, estimatedRowSize=0, reducer=[], fragment=[
      * Limit[1000[INTEGER]]
-     * \_Filter[rank{r}#4 lt 4[INTEGER]]
-     *   \_Eval[[scalerank{f}#8 AS rank]]
-     *     \_EsRelation[airports][abbrev{f}#6, city{f}#12, city_location{f}#13, count..]]]
+     * \_Filter[scalerank{f}#8 &lt; 4[INTEGER]]
+     *   \_EsRelation[airports][abbrev{f}#6, city{f}#12, city_location{f}#13, count..]]]
      * </code>
      * Optimized:
      * <code>
-     * LimitExec[1000[INTEGER]]
-     * \_ExchangeExec[[abbrev{f}#6, city{f}#12, city_location{f}#13, country{f}#11, location{f}#10, name{f}#7, scalerank{f}#8,
-     *     type{f}#9, rank{r}#4],false]
-     *   \_ProjectExec[[abbrev{f}#6, city{f}#12, city_location{f}#13, country{f}#11, location{f}#10, name{f}#7, scalerank{f}#8,
-     *       type{f}#9, rank{r}#4]]
-     *     \_FieldExtractExec[abbrev{f}#6, city{f}#12, city_location{f}#13, count..][]
-     *       \_LimitExec[1000[INTEGER]]
-     *         \_EvalExec[[scalerank{f}#8 AS rank]]
-     *           \_FieldExtractExec[scalerank{f}#8][]
-     *             \_EsQueryExec[airports], indexMode[standard], query[{"
-     *               esql_single_value":{"field":"scalerank","next":{"range":{"scalerank":{"lt":4,"boost":1.0}}},"source":"rank &lt; 4@3:9"}
-     *             }][_doc{f}#23], limit[], sort[] estimatedRowSize[304]
+     * EvalExec[[scalerank{f}#8 AS rank]]
+     * \_LimitExec[1000[INTEGER]]
+     *   \_ExchangeExec[[abbrev{f}#6, city{f}#12, city_location{f}#13, country{f}#11, location{f}#10, name{f}#7, scalerank{f}#8,
+     *       type{f}#9],false
+     *     ]
+     *     \_ProjectExec[[abbrev{f}#6, city{f}#12, city_location{f}#13, country{f}#11, location{f}#10, name{f}#7, scalerank{f}#8,
+     *         type{f}#9]
+     *       ]
+     *       \_FieldExtractExec[abbrev{f}#6, city{f}#12, city_location{f}#13, count..][]
+     *         \_EsQueryExec[airports], indexMode[standard], query[{
+     *           "esql_single_value":{"field":"scalerank","next":{"range":{"scalerank":{"lt":4,"boost":1.0}}},"source":"rank &lt; 4@3:9"}
+     *          ][_doc{f}#23], limit[1000], sort[] estimatedRowSize[304]
      * </code>
      */
     public void testPushWhereEvalToSource() {
@@ -3243,7 +3243,8 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             """;
 
         var plan = this.physicalPlan(query, airports);
-        var limit = as(plan, LimitExec.class);
+        var eval = as(plan, EvalExec.class);
+        var limit = as(eval.child(), LimitExec.class);
         var exchange = as(limit.child(), ExchangeExec.class);
         var fragment = as(exchange.child(), FragmentExec.class);
         var limit2 = as(fragment.fragment(), Limit.class);
@@ -3251,16 +3252,14 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertThat("filter contains LessThan", filter.condition(), instanceOf(LessThan.class));
 
         var optimized = optimizedPlan(plan);
-        var topLimit = as(optimized, LimitExec.class);
+        eval = as(optimized, EvalExec.class);
+        var topLimit = as(eval.child(), LimitExec.class);
         exchange = as(topLimit.child(), ExchangeExec.class);
         var project = as(exchange.child(), ProjectExec.class);
         var fieldExtract = as(project.child(), FieldExtractExec.class);
         assertThat(fieldExtract.attributesToExtract().size(), greaterThan(5));
-        limit = as(fieldExtract.child(), LimitExec.class);
-        var eval = as(limit.child(), EvalExec.class);
-        fieldExtract = as(eval.child(), FieldExtractExec.class);
-        assertThat(fieldExtract.attributesToExtract().stream().map(Attribute::name).collect(Collectors.toList()), contains("scalerank"));
         var source = source(fieldExtract.child());
+        assertThat(source.limit(), is(topLimit.limit()));
         var condition = as(source.query(), SingleValueQuery.Builder.class);
         assertThat("Expected predicate to be passed to Lucene query", condition.source().text(), equalTo("rank < 4"));
         assertThat("Expected field to be passed to Lucene query", condition.field(), equalTo("scalerank"));
@@ -3281,7 +3280,8 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             """ }) {
 
             var plan = this.physicalPlan(query, airports);
-            var limit = as(plan, LimitExec.class);
+            var eval = as(plan, EvalExec.class);
+            var limit = as(eval.child(), LimitExec.class);
             var exchange = as(limit.child(), ExchangeExec.class);
             var fragment = as(exchange.child(), FragmentExec.class);
             var limit2 = as(fragment.fragment(), Limit.class);
@@ -3289,16 +3289,14 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             assertThat("filter contains ST_INTERSECTS", filter.condition(), instanceOf(SpatialIntersects.class));
 
             var optimized = optimizedPlan(plan);
-            var topLimit = as(optimized, LimitExec.class);
+            eval = as(optimized, EvalExec.class);
+            var topLimit = as(eval.child(), LimitExec.class);
             exchange = as(topLimit.child(), ExchangeExec.class);
             var project = as(exchange.child(), ProjectExec.class);
             var fieldExtract = as(project.child(), FieldExtractExec.class);
             assertThat(fieldExtract.attributesToExtract().size(), greaterThan(5));
-            limit = as(fieldExtract.child(), LimitExec.class);
-            var eval = as(limit.child(), EvalExec.class);
-            fieldExtract = as(eval.child(), FieldExtractExec.class);
-            assertThat(fieldExtract.attributesToExtract().stream().map(Attribute::name).collect(Collectors.toList()), contains("location"));
             var source = source(fieldExtract.child());
+            assertThat(source.limit(), is(topLimit.limit()));
             var condition = as(source.query(), SpatialRelatesQuery.ShapeQueryBuilder.class);
             assertThat("Geometry field name", condition.fieldName(), equalTo("location"));
             assertThat("Spatial relationship", condition.relation(), equalTo(ShapeRelation.INTERSECTS));

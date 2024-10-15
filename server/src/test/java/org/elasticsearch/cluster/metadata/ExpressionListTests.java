@@ -18,11 +18,11 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.action.support.IndexComponentSelector.DATA;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -43,14 +43,11 @@ public class ExpressionListTests extends ESTestCase {
             for (String expressionString : List.of("non_wildcard", "-non_exclusion")) {
                 ExpressionList expressionList = new ExpressionList(
                     getContextWithOptions(indicesOptions),
-                    List.of(new ResolvedExpression(expressionString, DATA))
+                    resolvedExpressions(expressionString)
                 );
                 assertThat(expressionList.hasWildcard(), is(false));
                 if (randomBoolean()) {
-                    expressionList = new ExpressionList(
-                        getContextWithOptions(indicesOptions),
-                        List.of(new ResolvedExpression(expressionString, DATA))
-                    );
+                    expressionList = new ExpressionList(getContextWithOptions(indicesOptions), resolvedExpressions((expressionString)));
                 }
                 Iterator<Expression> expressionIterator = expressionList.iterator();
                 assertThat(expressionIterator.hasNext(), is(true));
@@ -70,13 +67,13 @@ public class ExpressionListTests extends ESTestCase {
         for (String wildcardTest : List.of("*", "a*", "*b", "a*b", "a-*b", "a*-b", "-*", "-a*", "-*b", "**", "*-*")) {
             ExpressionList expressionList = new ExpressionList(
                 getContextWithOptions(getExpandWildcardsIndicesOptions()),
-                List.of(new ResolvedExpression(wildcardTest, DATA))
+                resolvedExpressions(wildcardTest)
             );
             assertThat(expressionList.hasWildcard(), is(true));
             if (randomBoolean()) {
                 expressionList = new ExpressionList(
                     getContextWithOptions(getExpandWildcardsIndicesOptions()),
-                    List.of(new ResolvedExpression(wildcardTest, DATA))
+                    resolvedExpressions(wildcardTest)
                 );
             }
             Iterator<Expression> expressionIterator = expressionList.iterator();
@@ -93,15 +90,15 @@ public class ExpressionListTests extends ESTestCase {
     }
 
     public void testWildcardLongerExpression() {
-        List<String> onlyExplicits = randomList(7, () -> randomAlphaOfLengthBetween(0, 5));
-        String wildcard = randomFrom("*", "*b", "-*", "*-", "c*", "a*b", "**");
+        List<ResolvedExpression> onlyExplicits = randomList(7, () -> new ResolvedExpression(randomAlphaOfLengthBetween(0, 5)));
+        ResolvedExpression wildcard = new ResolvedExpression(randomFrom("*", "*b", "-*", "*-", "c*", "a*b", "**"));
         List<ResolvedExpression> expressionList = new ArrayList<>(onlyExplicits.size() + 1);
-        expressionList.addAll(randomSubsetOf(onlyExplicits).stream().map(rnd -> new ResolvedExpression(rnd, DATA)).toList());
+        expressionList.addAll(randomSubsetOf(onlyExplicits));
         int wildcardPos = expressionList.size();
-        expressionList.add(new ResolvedExpression(wildcard, DATA));
-        for (String item : onlyExplicits) {
-            if (expressionList.contains(new ResolvedExpression(item, DATA)) == false) {
-                expressionList.add(new ResolvedExpression(item, DATA));
+        expressionList.add(wildcard);
+        for (ResolvedExpression item : onlyExplicits) {
+            if (expressionList.contains(item) == false) {
+                expressionList.add(item);
             }
         }
         ExpressionList expressionIterable = new ExpressionList(getContextWithOptions(getExpandWildcardsIndicesOptions()), expressionList);
@@ -123,12 +120,12 @@ public class ExpressionListTests extends ESTestCase {
 
     public void testWildcardsNoExclusionExpressions() {
         for (List<ResolvedExpression> wildcardExpression : List.of(
-            List.of(new ResolvedExpression("*", DATA)),
-            List.of(new ResolvedExpression("a", DATA), new ResolvedExpression("*", DATA)),
-            List.of(new ResolvedExpression("-b", DATA), new ResolvedExpression("*c", DATA)),
-            List.of(new ResolvedExpression("-", DATA), new ResolvedExpression("a", DATA), new ResolvedExpression("c*", DATA)),
-            List.of(new ResolvedExpression("*", DATA), new ResolvedExpression("a*", DATA), new ResolvedExpression("*b", DATA)),
-            List.of(new ResolvedExpression("-*", DATA), new ResolvedExpression("a", DATA), new ResolvedExpression("b*", DATA))
+            resolvedExpressions("*"),
+            resolvedExpressions("a", "*"),
+            resolvedExpressions("-b", "*c"),
+            resolvedExpressions("-", "a", "c*"),
+            resolvedExpressions("*", "a*", "*b"),
+            resolvedExpressions("-*", "a", "b*")
         )) {
             ExpressionList expressionList = new ExpressionList(
                 getContextWithOptions(getExpandWildcardsIndicesOptions()),
@@ -153,13 +150,13 @@ public class ExpressionListTests extends ESTestCase {
 
     public void testWildcardExpressionNoExpandOptions() {
         for (List<ResolvedExpression> wildcardExpression : List.of(
-            List.of(new ResolvedExpression("*", DATA)),
-            List.of(new ResolvedExpression("a", DATA), new ResolvedExpression("*", DATA)),
-            List.of(new ResolvedExpression("-b", DATA), new ResolvedExpression("*c", DATA)),
-            List.of(new ResolvedExpression("*d", DATA), new ResolvedExpression("-", DATA)),
-            List.of(new ResolvedExpression("*", DATA), new ResolvedExpression("-*", DATA)),
-            List.of(new ResolvedExpression("-", DATA), new ResolvedExpression("a", DATA), new ResolvedExpression("c*", DATA)),
-            List.of(new ResolvedExpression("*", DATA), new ResolvedExpression("a*", DATA), new ResolvedExpression("*b", DATA))
+            resolvedExpressions("*"),
+            resolvedExpressions("a", "*"),
+            resolvedExpressions("-b", "*c"),
+            resolvedExpressions("*d", "-"),
+            resolvedExpressions("*", "-*"),
+            resolvedExpressions("-", "a", "c*"),
+            resolvedExpressions("*", "a*", "*b")
         )) {
             ExpressionList expressionList = new ExpressionList(
                 getContextWithOptions(getNoExpandWildcardsIndicesOptions()),
@@ -185,15 +182,15 @@ public class ExpressionListTests extends ESTestCase {
         int exclusionPos = randomIntBetween(wildcardPos + 1, 7);
         List<ResolvedExpression> exclusionExpression = new ArrayList<>();
         for (int i = 0; i < wildcardPos; i++) {
-            exclusionExpression.add(new ResolvedExpression(randomAlphaOfLengthBetween(0, 5), DATA));
+            exclusionExpression.add(new ResolvedExpression(randomAlphaOfLengthBetween(0, 5)));
         }
-        exclusionExpression.add(new ResolvedExpression(wildcard, DATA));
+        exclusionExpression.add(new ResolvedExpression(wildcard));
         for (int i = wildcardPos + 1; i < exclusionPos; i++) {
-            exclusionExpression.add(new ResolvedExpression(randomAlphaOfLengthBetween(0, 5), DATA));
+            exclusionExpression.add(new ResolvedExpression(randomAlphaOfLengthBetween(0, 5)));
         }
-        exclusionExpression.add(new ResolvedExpression(exclusion, DATA));
+        exclusionExpression.add(new ResolvedExpression(exclusion));
         for (int i = 0; i < randomIntBetween(0, 3); i++) {
-            exclusionExpression.add(new ResolvedExpression(randomAlphaOfLengthBetween(0, 5), DATA));
+            exclusionExpression.add(new ResolvedExpression(randomAlphaOfLengthBetween(0, 5)));
         }
         ExpressionList expressionList = new ExpressionList(getContextWithOptions(getExpandWildcardsIndicesOptions()), exclusionExpression);
         if (randomBoolean()) {
@@ -219,59 +216,13 @@ public class ExpressionListTests extends ESTestCase {
 
     public void testExclusionsExpression() {
         for (Tuple<List<ResolvedExpression>, List<Boolean>> exclusionExpression : List.of(
-            new Tuple<>(
-                List.of(new ResolvedExpression("-a", DATA), new ResolvedExpression("*", DATA), new ResolvedExpression("-a", DATA)),
-                List.of(false, false, true)
-            ),
-            new Tuple<>(
-                List.of(new ResolvedExpression("-b*", DATA), new ResolvedExpression("c", DATA), new ResolvedExpression("-a", DATA)),
-                List.of(false, false, true)
-            ),
-            new Tuple<>(
-                List.of(new ResolvedExpression("*d", DATA), new ResolvedExpression("-", DATA), new ResolvedExpression("*b", DATA)),
-                List.of(false, true, false)
-            ),
-            new Tuple<>(
-                List.of(
-                    new ResolvedExpression("-", DATA),
-                    new ResolvedExpression("--", DATA),
-                    new ResolvedExpression("-*", DATA),
-                    new ResolvedExpression("", DATA),
-                    new ResolvedExpression("-*", DATA)
-                ),
-                List.of(false, false, false, false, true)
-            ),
-            new Tuple<>(
-                List.of(
-                    new ResolvedExpression("*-", DATA),
-                    new ResolvedExpression("-*", DATA),
-                    new ResolvedExpression("a", DATA),
-                    new ResolvedExpression("-b", DATA)
-                ),
-                List.of(false, true, false, true)
-            ),
-            new Tuple<>(
-                List.of(
-                    new ResolvedExpression("a", DATA),
-                    new ResolvedExpression("-b", DATA),
-                    new ResolvedExpression("-*", DATA),
-                    new ResolvedExpression("-b", DATA),
-                    new ResolvedExpression("*", DATA),
-                    new ResolvedExpression("-b", DATA)
-                ),
-                List.of(false, false, false, true, false, true)
-            ),
-            new Tuple<>(
-                List.of(
-                    new ResolvedExpression("-a", DATA),
-                    new ResolvedExpression("*d", DATA),
-                    new ResolvedExpression("-a", DATA),
-                    new ResolvedExpression("-*b", DATA),
-                    new ResolvedExpression("-b", DATA),
-                    new ResolvedExpression("--", DATA)
-                ),
-                List.of(false, false, true, true, true, true)
-            )
+            new Tuple<>(resolvedExpressions("-a", "*", "-a"), List.of(false, false, true)),
+            new Tuple<>(resolvedExpressions("-b*", "c", "-a"), List.of(false, false, true)),
+            new Tuple<>(resolvedExpressions("*d", "-", "*b"), List.of(false, true, false)),
+            new Tuple<>(resolvedExpressions("-", "--", "-*", "", "-*"), List.of(false, false, false, false, true)),
+            new Tuple<>(resolvedExpressions("*-", "-*", "a", "-b"), List.of(false, true, false, true)),
+            new Tuple<>(resolvedExpressions("a", "-b", "-*", "-b", "*", "-b"), List.of(false, false, false, true, false, true)),
+            new Tuple<>(resolvedExpressions("-a", "*d", "-a", "-*b", "-b", "--"), List.of(false, false, true, true, true, true))
         )) {
             ExpressionList expressionList = new ExpressionList(
                 getContextWithOptions(getExpandWildcardsIndicesOptions()),
@@ -362,5 +313,9 @@ public class ExpressionListTests extends ESTestCase {
         Context context = mock(Context.class);
         when(context.getOptions()).thenReturn(indicesOptions);
         return context;
+    }
+
+    private List<ResolvedExpression> resolvedExpressions(String... expressions) {
+        return Arrays.stream(expressions).map(ResolvedExpression::new).toList();
     }
 }

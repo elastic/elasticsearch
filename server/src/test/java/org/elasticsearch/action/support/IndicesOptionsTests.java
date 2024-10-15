@@ -347,9 +347,7 @@ public class IndicesOptionsTests extends ESTestCase {
             randomBoolean()
         );
         GatekeeperOptions gatekeeperOptions = new GatekeeperOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean());
-        SelectorOptions selectorOptions = new SelectorOptions(
-            EnumSet.copyOf(randomSubsetOf(EnumSet.allOf(IndexComponentSelector.class)))
-        );
+        SelectorOptions selectorOptions = new SelectorOptions(EnumSet.copyOf(randomSubsetOf(EnumSet.allOf(IndexComponentSelector.class))));
 
         IndicesOptions indicesOptions = new IndicesOptions(concreteTargetOptions, wildcardOptions, gatekeeperOptions, selectorOptions);
 

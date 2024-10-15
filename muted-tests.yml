@@ -419,6 +419,9 @@ tests:
 - class: org.elasticsearch.xpack.eql.EqlRestValidationIT
   method: testAllowNoIndicesOption
   issue: https://github.com/elastic/elasticsearch/issues/114789
+- class: org.elasticsearch.xpack.eql.EqlStatsIT
+  method: testEqlRestUsage
+  issue: https://github.com/elastic/elasticsearch/issues/114790
 
 # Examples:
 #

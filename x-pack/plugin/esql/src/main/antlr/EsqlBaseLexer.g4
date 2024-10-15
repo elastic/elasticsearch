@@ -208,7 +208,7 @@ ASTERISK : '*';
 SLASH : '/';
 PERCENT : '%';
 
-DEV_MATCH : {this.isDevVersion()}? 'match';
+MATCH : 'match';
 
 NAMED_OR_POSITIONAL_PARAM
     : PARAM (LETTER | UNDERSCORE) UNQUOTED_ID_BODY*

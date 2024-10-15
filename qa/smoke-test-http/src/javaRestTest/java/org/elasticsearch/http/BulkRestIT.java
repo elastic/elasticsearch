@@ -37,7 +37,7 @@ public class BulkRestIT extends HttpSmokeTestCase {
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         return Settings.builder()
             .put(super.nodeSettings(nodeOrdinal, otherSettings))
-            .put(IncrementalBulkService.INCREMENTAL_BULK.getKey(), false)
+            .put(IncrementalBulkService.INCREMENTAL_BULK.getKey(), seventyFivePercentOfTheTime())
             .build();
     }
 

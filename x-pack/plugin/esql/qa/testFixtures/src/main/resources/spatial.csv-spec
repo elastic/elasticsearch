@@ -1203,7 +1203,7 @@ count:long | country:k
 1          | Poland
 ;
 
-airportsSortCityName
+airportsSortCityName#[skip:-8.13.3, reason:fixed in 8.13]
 FROM airports
 | SORT abbrev
 | LIMIT 5
@@ -2222,17 +2222,19 @@ wkt:keyword    | pt:cartesian_point  | distance:double
 
 twoCitiesPointDistanceCartesian
 required_capability: st_distance
+required_capability: spatial_distance_supports_multivalues
 
 ROW p1 = TO_CARTESIANPOINT("POINT(-90.82814 29.79511)"), p2 = TO_CARTESIANPOINT("POINT(-90.79731509999999 29.8835389)")
 | EVAL d = ST_DISTANCE(p1, p2)
 ;
 
 p1:cartesian_point          | p2:cartesian_point                     | d:double
-POINT (-90.82814 29.79511)  | POINT (-90.79731509999999 29.8835389)  | 0.09364744959271905
+POINT (-90.82814 29.79511)  | POINT (-90.79731509999999 29.8835389)  | 0.09364636296011444
 ;
 
 airportCartesianCityLocationPointDistance
 required_capability: st_distance
+required_capability: spatial_distance_supports_multivalues
 
 FROM airports_web
 | EVAL distance = ST_DISTANCE(location, TO_CARTESIANPOINT("POINT(1402900 7490000)"))
@@ -2240,12 +2242,13 @@ FROM airports_web
 | STATS distance=AVG(distance), min=min(distance), max=max(distance), count=COUNT()
 ;
 
-distance:double    | min:double       | max:double        | count:long
-676858.3463435044  | 7358.02077507206 | 971112.9731194031 | 12
+distance:double    | min:double        | max:double        | count:long
+676858.3629952326  | 7358.012830411482 | 971113.1663946278 | 12
 ;
 
 airportCartesianDistanceToCityCopenhagen
 required_capability: st_distance
+required_capability: spatial_distance_supports_multivalues
 
 // tag::st_distance-airports_web[]
 FROM airports_web
@@ -2257,7 +2260,7 @@ FROM airports_web
 
 // tag::st_distance-airports_web-result[]
 abbrev:k | name:text   | location:cartesian_point                   | distance:d
-CPH      | Copenhagen  | POINT(1408119.2975413958 7484813.53657096) | 7358.02077507206
+CPH      | Copenhagen  | POINT(1408119.2975413958 7484813.53657096) | 7358.012830411482
 // end::st_distance-airports_web-result[]
 ;
 

@@ -9,6 +9,15 @@ setup:
           synonyms_set:
             - synonyms: "hello, hi"
             - synonyms: "goodbye, bye"
+
+  # This is to ensure that at least two index shards (write and read) are available. In serverless this can take some time.
+  - do:
+      cluster.health:
+        index: .synonyms-2
+        level: shards
+        wait_for_active_shards: 2
+        timeout: 1m
+
   - do:
       synonyms.put_synonym:
         id: test-synonyms-1
@@ -29,16 +38,6 @@ setup:
         body:
           persistent:
             logger.org.elasticsearch.synonyms: DEBUG
-
-  # This is to ensure that at least two index shards (write and read) are available. In serverless this can take some time.
-  - do:
-      cluster.health:
-        index: .synonyms-2
-        level: shards
-        wait_for_active_shards: 2
-        timeout: 1m
-        wait_for_status: yellow
-
 
 ---
 teardown:

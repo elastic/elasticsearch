@@ -21,7 +21,6 @@ setup:
         level: shards
         wait_for_active_shards: 2
         timeout: 20s
-        wait_for_status: yellow
 
 ---
 "Get a synonym rule":

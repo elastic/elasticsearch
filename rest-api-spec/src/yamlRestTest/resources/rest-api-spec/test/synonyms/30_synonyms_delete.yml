@@ -19,7 +19,6 @@ setup:
         level: shards
         wait_for_active_shards: 2
         timeout: 1m
-        wait_for_status: yellow
 
 ---
 "Delete synonyms set":

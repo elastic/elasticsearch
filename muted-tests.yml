@@ -366,6 +366,9 @@ tests:
 - class: org.elasticsearch.xpack.enrich.EnrichRestIT
   method: test {p0=enrich/10_basic/Test enrich crud apis}
   issue: https://github.com/elastic/elasticsearch/issues/114766
+- class: org.elasticsearch.xpack.inference.TextEmbeddingCrudIT
+  method: testPutE5Small_withPlatformAgnosticVariant
+  issue: https://github.com/elastic/elasticsearch/issues/113983
 
 # Examples:
 #

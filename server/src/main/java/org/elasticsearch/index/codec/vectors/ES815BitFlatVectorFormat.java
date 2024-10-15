@@ -15,9 +15,10 @@ import org.apache.lucene.codecs.KnnVectorsWriter;
 import org.apache.lucene.codecs.hnsw.FlatVectorsFormat;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
-import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 
 import java.io.IOException;
+
+import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.MAX_DIMS_COUNT;
 
 public class ES815BitFlatVectorFormat extends KnnVectorsFormat {
 
@@ -43,12 +44,12 @@ public class ES815BitFlatVectorFormat extends KnnVectorsFormat {
     }
 
     @Override
-    public int getMaxDimensions(String s) {
-        return DenseVectorFieldMapper.MAX_DIMS_COUNT;
+    public String toString() {
+        return NAME;
     }
 
     @Override
-    public String toString() {
-        return NAME;
+    public int getMaxDimensions(String fieldName) {
+        return MAX_DIMS_COUNT;
     }
 }

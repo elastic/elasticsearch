@@ -21,6 +21,7 @@ import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * This fixture is used to simulate a maxmind-provided server for downloading maxmind geoip database files from the
@@ -52,8 +53,8 @@ public class EnterpriseGeoIpHttpFixture extends ExternalResource {
         this.server.createContext("/", exchange -> {
             String response = "[]"; // an empty json array
             exchange.sendResponseHeaders(200, response.length());
-            try (OutputStream os = exchange.getResponseBody()) {
-                os.write(response.getBytes(StandardCharsets.UTF_8));
+            try (OutputStream out = exchange.getResponseBody()) {
+                out.write(response.getBytes(StandardCharsets.UTF_8));
             }
         });
 
@@ -65,13 +66,17 @@ public class EnterpriseGeoIpHttpFixture extends ExternalResource {
         server.start();
     }
 
+    private static InputStream fixtureStream(String name) {
+        return Objects.requireNonNull(GeoIpHttpFixture.class.getResourceAsStream(name));
+    }
+
     private void createContextForMaxmindDatabase(String databaseType) {
         this.server.createContext("/" + databaseType + "/download", exchange -> {
             exchange.sendResponseHeaders(200, 0);
             if (exchange.getRequestURI().toString().contains("sha256")) {
                 MessageDigest sha256 = MessageDigests.sha256();
-                try (InputStream inputStream = GeoIpHttpFixture.class.getResourceAsStream("/geoip-fixture/" + databaseType + ".tgz")) {
-                    sha256.update(inputStream.readAllBytes());
+                try (InputStream in = fixtureStream("/geoip-fixture/" + databaseType + ".tgz")) {
+                    sha256.update(in.readAllBytes());
                 }
                 exchange.getResponseBody()
                     .write(
@@ -81,10 +86,10 @@ public class EnterpriseGeoIpHttpFixture extends ExternalResource {
                     );
             } else {
                 try (
-                    OutputStream outputStream = exchange.getResponseBody();
-                    InputStream inputStream = GeoIpHttpFixture.class.getResourceAsStream("/geoip-fixture/" + databaseType + ".tgz")
+                    OutputStream out = exchange.getResponseBody();
+                    InputStream in = fixtureStream("/geoip-fixture/" + databaseType + ".tgz")
                 ) {
-                    inputStream.transferTo(outputStream);
+                    in.transferTo(out);
                 }
             }
             exchange.getResponseBody().close();

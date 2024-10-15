@@ -120,11 +120,7 @@
   - match: { indices.index_3.closed: true }
 
 ---
-"?wait_for_active_shards=index-setting is deprecated":
-  - requires:
-      cluster_features: ["gte_v8.0.0"]
-      reason: "required deprecation warning is only emitted in 8.0 and later"
-      test_runner_features: ["warnings"]
+"?wait_for_active_shards=index-setting is not accepted":
 
   - do:
       indices.create:
@@ -134,8 +130,9 @@
             number_of_replicas: 0
 
   - do:
+      catch: bad_request
       indices.close:
         index: "index_*"
         wait_for_active_shards: index-setting
-      warnings:
-        - "?wait_for_active_shards=index-setting is now the default behaviour; the 'index-setting' value for this parameter should no longer be used since it will become unsupported in version 9"
+
+  - match: { status: 400 }

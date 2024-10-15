@@ -190,7 +190,7 @@ The following parameters are accepted by `passthrough` fields:
 
 [horizontal]
 
-<<priority,`priority`>>::
+<<passthrough-conflicts,`priority`>>::
 
     (Required) used for naming conflict resolution between pass-through fields. The field with the highest value wins.
     Accepts non-negative integer values.

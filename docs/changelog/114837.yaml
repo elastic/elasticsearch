@@ -1,5 +1,5 @@
 pr: 114837
-summary: Origin/104411-disallow-chars-in-pipeline-names
+summary: Add warning headers for ingest pipelines containing special characters
 area: Ingest Node
 type: bug
-issues: []
+issues: [ 104411 ]

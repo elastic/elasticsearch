@@ -20,7 +20,7 @@ import java.nio.charset.StandardCharsets;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
 
-public class AzureOpenAiCompletionResponseEntityTests extends ESTestCase {
+public class AzureOpenAiChatCompletionResponseEntityTests extends ESTestCase {
 
     public void testFromResponse_CreatesResultsForASingleItem() throws IOException {
         String responseJson = """
@@ -86,7 +86,7 @@ public class AzureOpenAiCompletionResponseEntityTests extends ESTestCase {
                  }
              }""";
 
-        ChatCompletionResults chatCompletionResults = AzureOpenAiCompletionResponseEntity.fromResponse(
+        ChatCompletionResults chatCompletionResults = AzureOpenAiChatCompletionResponseEntity.fromResponse(
             mock(Request.class),
             new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
         );
@@ -115,7 +115,7 @@ public class AzureOpenAiCompletionResponseEntityTests extends ESTestCase {
 
         var thrownException = expectThrows(
             IllegalStateException.class,
-            () -> AzureOpenAiCompletionResponseEntity.fromResponse(
+            () -> AzureOpenAiChatCompletionResponseEntity.fromResponse(
                 mock(Request.class),
                 new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
             )
@@ -143,7 +143,7 @@ public class AzureOpenAiCompletionResponseEntityTests extends ESTestCase {
 
         var thrownException = expectThrows(
             ParsingException.class,
-            () -> AzureOpenAiCompletionResponseEntity.fromResponse(
+            () -> AzureOpenAiChatCompletionResponseEntity.fromResponse(
                 mock(Request.class),
                 new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
             )
@@ -175,7 +175,7 @@ public class AzureOpenAiCompletionResponseEntityTests extends ESTestCase {
 
         var thrownException = expectThrows(
             IllegalStateException.class,
-            () -> AzureOpenAiCompletionResponseEntity.fromResponse(
+            () -> AzureOpenAiChatCompletionResponseEntity.fromResponse(
                 mock(Request.class),
                 new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
             )
@@ -202,7 +202,7 @@ public class AzureOpenAiCompletionResponseEntityTests extends ESTestCase {
 
         var thrownException = expectThrows(
             ParsingException.class,
-            () -> AzureOpenAiCompletionResponseEntity.fromResponse(
+            () -> AzureOpenAiChatCompletionResponseEntity.fromResponse(
                 mock(Request.class),
                 new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
             )

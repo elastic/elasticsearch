@@ -22,7 +22,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.sameInstance;
 
-public class AzureOpenAiCompletionModelTests extends ESTestCase {
+public class AzureOpenAiChatCompletionModelTests extends ESTestCase {
 
     public void testOverrideWith_UpdatedTaskSettings_OverridesUser() {
         var resource = "resource";
@@ -37,7 +37,7 @@ public class AzureOpenAiCompletionModelTests extends ESTestCase {
 
         var model = createCompletionModel(resource, deploymentId, apiVersion, user, apiKey, entraId, inferenceEntityId);
         var requestTaskSettingsMap = taskSettingsMap(userOverride);
-        var overriddenModel = AzureOpenAiCompletionModel.of(model, requestTaskSettingsMap);
+        var overriddenModel = AzureOpenAiChatCompletionModel.of(model, requestTaskSettingsMap);
 
         assertThat(
             overriddenModel,
@@ -48,14 +48,14 @@ public class AzureOpenAiCompletionModelTests extends ESTestCase {
     public void testOverrideWith_EmptyMap_OverridesNothing() {
         var model = createCompletionModel("resource", "deployment", "api version", "user", "api key", "entra id", "inference entity id");
         var requestTaskSettingsMap = Map.<String, Object>of();
-        var overriddenModel = AzureOpenAiCompletionModel.of(model, requestTaskSettingsMap);
+        var overriddenModel = AzureOpenAiChatCompletionModel.of(model, requestTaskSettingsMap);
 
         assertThat(overriddenModel, sameInstance(model));
     }
 
     public void testOverrideWith_NullMap_OverridesNothing() {
         var model = createCompletionModel("resource", "deployment", "api version", "user", "api key", "entra id", "inference entity id");
-        var overriddenModel = AzureOpenAiCompletionModel.of(model, null);
+        var overriddenModel = AzureOpenAiChatCompletionModel.of(model, null);
 
         assertThat(overriddenModel, sameInstance(model));
     }
@@ -71,10 +71,10 @@ public class AzureOpenAiCompletionModelTests extends ESTestCase {
         var apiVersion = "api version";
         var updatedApiVersion = "updated api version";
 
-        var updatedServiceSettings = new AzureOpenAiCompletionServiceSettings(resource, deploymentId, updatedApiVersion, null);
+        var updatedServiceSettings = new AzureOpenAiChatCompletionServiceSettings(resource, deploymentId, updatedApiVersion, null);
 
         var model = createCompletionModel(resource, deploymentId, apiVersion, user, apiKey, entraId, inferenceEntityId);
-        var overriddenModel = new AzureOpenAiCompletionModel(model, updatedServiceSettings);
+        var overriddenModel = new AzureOpenAiChatCompletionModel(model, updatedServiceSettings);
 
         assertThat(
             overriddenModel,
@@ -99,7 +99,7 @@ public class AzureOpenAiCompletionModelTests extends ESTestCase {
         );
     }
 
-    public static AzureOpenAiCompletionModel createModelWithRandomValues() {
+    public static AzureOpenAiChatCompletionModel createModelWithRandomValues() {
         return createCompletionModel(
             randomAlphaOfLength(10),
             randomAlphaOfLength(10),
@@ -111,7 +111,7 @@ public class AzureOpenAiCompletionModelTests extends ESTestCase {
         );
     }
 
-    public static AzureOpenAiCompletionModel createCompletionModel(
+    public static AzureOpenAiChatCompletionModel createCompletionModel(
         String resourceName,
         String deploymentId,
         String apiVersion,
@@ -123,12 +123,12 @@ public class AzureOpenAiCompletionModelTests extends ESTestCase {
         var secureApiKey = apiKey != null ? new SecureString(apiKey.toCharArray()) : null;
         var secureEntraId = entraId != null ? new SecureString(entraId.toCharArray()) : null;
 
-        return new AzureOpenAiCompletionModel(
+        return new AzureOpenAiChatCompletionModel(
             inferenceEntityId,
             TaskType.COMPLETION,
             "service",
-            new AzureOpenAiCompletionServiceSettings(resourceName, deploymentId, apiVersion, null),
-            new AzureOpenAiCompletionTaskSettings(user),
+            new AzureOpenAiChatCompletionServiceSettings(resourceName, deploymentId, apiVersion, null),
+            new AzureOpenAiChatCompletionTaskSettings(user),
             new AzureOpenAiSecretSettings(secureApiKey, secureEntraId)
         );
     }

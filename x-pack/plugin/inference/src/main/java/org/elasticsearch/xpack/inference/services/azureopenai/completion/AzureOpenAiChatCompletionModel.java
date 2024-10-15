@@ -21,18 +21,21 @@ import org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiSecretS
 import java.net.URISyntaxException;
 import java.util.Map;
 
-public class AzureOpenAiCompletionModel extends AzureOpenAiModel {
+public class AzureOpenAiChatCompletionModel extends AzureOpenAiModel {
 
-    public static AzureOpenAiCompletionModel of(AzureOpenAiCompletionModel model, Map<String, Object> taskSettings) {
+    public static AzureOpenAiChatCompletionModel of(AzureOpenAiChatCompletionModel model, Map<String, Object> taskSettings) {
         if (taskSettings == null || taskSettings.isEmpty()) {
             return model;
         }
 
-        var requestTaskSettings = AzureOpenAiCompletionRequestTaskSettings.fromMap(taskSettings);
-        return new AzureOpenAiCompletionModel(model, AzureOpenAiCompletionTaskSettings.of(model.getTaskSettings(), requestTaskSettings));
+        var requestTaskSettings = AzureOpenAiChatCompletionRequestTaskSettings.fromMap(taskSettings);
+        return new AzureOpenAiChatCompletionModel(
+            model,
+            AzureOpenAiChatCompletionTaskSettings.of(model.getTaskSettings(), requestTaskSettings)
+        );
     }
 
-    public AzureOpenAiCompletionModel(
+    public AzureOpenAiChatCompletionModel(
         String inferenceEntityId,
         TaskType taskType,
         String service,
@@ -45,19 +48,19 @@ public class AzureOpenAiCompletionModel extends AzureOpenAiModel {
             inferenceEntityId,
             taskType,
             service,
-            AzureOpenAiCompletionServiceSettings.fromMap(serviceSettings, context),
-            AzureOpenAiCompletionTaskSettings.fromMap(taskSettings),
+            AzureOpenAiChatCompletionServiceSettings.fromMap(serviceSettings, context),
+            AzureOpenAiChatCompletionTaskSettings.fromMap(taskSettings),
             AzureOpenAiSecretSettings.fromMap(secrets)
         );
     }
 
     // Should only be used directly for testing
-    AzureOpenAiCompletionModel(
+    AzureOpenAiChatCompletionModel(
         String inferenceEntityId,
         TaskType taskType,
         String service,
-        AzureOpenAiCompletionServiceSettings serviceSettings,
-        AzureOpenAiCompletionTaskSettings taskSettings,
+        AzureOpenAiChatCompletionServiceSettings serviceSettings,
+        AzureOpenAiChatCompletionTaskSettings taskSettings,
         @Nullable AzureOpenAiSecretSettings secrets
     ) {
         super(
@@ -72,22 +75,28 @@ public class AzureOpenAiCompletionModel extends AzureOpenAiModel {
         }
     }
 
-    public AzureOpenAiCompletionModel(AzureOpenAiCompletionModel originalModel, AzureOpenAiCompletionServiceSettings serviceSettings) {
+    public AzureOpenAiChatCompletionModel(
+        AzureOpenAiChatCompletionModel originalModel,
+        AzureOpenAiChatCompletionServiceSettings serviceSettings
+    ) {
         super(originalModel, serviceSettings);
     }
 
-    private AzureOpenAiCompletionModel(AzureOpenAiCompletionModel originalModel, AzureOpenAiCompletionTaskSettings taskSettings) {
+    private AzureOpenAiChatCompletionModel(
+        AzureOpenAiChatCompletionModel originalModel,
+        AzureOpenAiChatCompletionTaskSettings taskSettings
+    ) {
         super(originalModel, taskSettings);
     }
 
     @Override
-    public AzureOpenAiCompletionServiceSettings getServiceSettings() {
-        return (AzureOpenAiCompletionServiceSettings) super.getServiceSettings();
+    public AzureOpenAiChatCompletionServiceSettings getServiceSettings() {
+        return (AzureOpenAiChatCompletionServiceSettings) super.getServiceSettings();
     }
 
     @Override
-    public AzureOpenAiCompletionTaskSettings getTaskSettings() {
-        return (AzureOpenAiCompletionTaskSettings) super.getTaskSettings();
+    public AzureOpenAiChatCompletionTaskSettings getTaskSettings() {
+        return (AzureOpenAiChatCompletionTaskSettings) super.getTaskSettings();
     }
 
     @Override

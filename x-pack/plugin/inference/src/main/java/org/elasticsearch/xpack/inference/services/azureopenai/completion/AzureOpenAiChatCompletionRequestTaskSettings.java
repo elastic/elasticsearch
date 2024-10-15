@@ -16,13 +16,15 @@ import java.util.Map;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalString;
 import static org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiServiceFields.USER;
 
-public record AzureOpenAiCompletionRequestTaskSettings(@Nullable String user) {
+public record AzureOpenAiChatCompletionRequestTaskSettings(@Nullable String user) {
 
-    public static final AzureOpenAiCompletionRequestTaskSettings EMPTY_SETTINGS = new AzureOpenAiCompletionRequestTaskSettings(null);
+    public static final AzureOpenAiChatCompletionRequestTaskSettings EMPTY_SETTINGS = new AzureOpenAiChatCompletionRequestTaskSettings(
+        null
+    );
 
-    public static AzureOpenAiCompletionRequestTaskSettings fromMap(Map<String, Object> map) {
+    public static AzureOpenAiChatCompletionRequestTaskSettings fromMap(Map<String, Object> map) {
         if (map.isEmpty()) {
-            return AzureOpenAiCompletionRequestTaskSettings.EMPTY_SETTINGS;
+            return AzureOpenAiChatCompletionRequestTaskSettings.EMPTY_SETTINGS;
         }
 
         ValidationException validationException = new ValidationException();
@@ -33,6 +35,6 @@ public record AzureOpenAiCompletionRequestTaskSettings(@Nullable String user) {
             throw validationException;
         }
 
-        return new AzureOpenAiCompletionRequestTaskSettings(user);
+        return new AzureOpenAiChatCompletionRequestTaskSettings(user);
     }
 }

@@ -15,26 +15,26 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.external.azureopenai.AzureOpenAiResponseHandler;
 import org.elasticsearch.xpack.inference.external.http.retry.RequestSender;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
-import org.elasticsearch.xpack.inference.external.request.azureopenai.AzureOpenAiCompletionRequest;
-import org.elasticsearch.xpack.inference.external.response.azureopenai.AzureOpenAiCompletionResponseEntity;
-import org.elasticsearch.xpack.inference.services.azureopenai.completion.AzureOpenAiCompletionModel;
+import org.elasticsearch.xpack.inference.external.request.azureopenai.AzureOpenAiChatCompletionRequest;
+import org.elasticsearch.xpack.inference.external.response.azureopenai.AzureOpenAiChatCompletionResponseEntity;
+import org.elasticsearch.xpack.inference.services.azureopenai.completion.AzureOpenAiChatCompletionModel;
 
 import java.util.Objects;
 import java.util.function.Supplier;
 
-public class AzureOpenAiCompletionRequestManager extends AzureOpenAiRequestManager {
+public class AzureOpenAiChatCompletionRequestManager extends AzureOpenAiRequestManager {
 
-    private static final Logger logger = LogManager.getLogger(AzureOpenAiCompletionRequestManager.class);
+    private static final Logger logger = LogManager.getLogger(AzureOpenAiChatCompletionRequestManager.class);
 
     private static final ResponseHandler HANDLER = createCompletionHandler();
 
-    private final AzureOpenAiCompletionModel model;
+    private final AzureOpenAiChatCompletionModel model;
 
     private static ResponseHandler createCompletionHandler() {
-        return new AzureOpenAiResponseHandler("azure openai completion", AzureOpenAiCompletionResponseEntity::fromResponse, true);
+        return new AzureOpenAiResponseHandler("azure openai completion", AzureOpenAiChatCompletionResponseEntity::fromResponse, true);
     }
 
-    public AzureOpenAiCompletionRequestManager(AzureOpenAiCompletionModel model, ThreadPool threadPool) {
+    public AzureOpenAiChatCompletionRequestManager(AzureOpenAiChatCompletionModel model, ThreadPool threadPool) {
         super(threadPool, model);
         this.model = Objects.requireNonNull(model);
     }
@@ -49,7 +49,7 @@ public class AzureOpenAiCompletionRequestManager extends AzureOpenAiRequestManag
         var docsOnly = DocumentsOnlyInput.of(inferenceInputs);
         var docsInput = docsOnly.getInputs();
         var stream = docsOnly.stream();
-        AzureOpenAiCompletionRequest request = new AzureOpenAiCompletionRequest(docsInput, model, stream);
+        AzureOpenAiChatCompletionRequest request = new AzureOpenAiChatCompletionRequest(docsInput, model, stream);
         execute(new ExecutableInferenceRequest(requestSender, logger, request, HANDLER, hasRequestCompletedFunction, listener));
     }
 

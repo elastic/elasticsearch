@@ -25,7 +25,7 @@ import org.elasticsearch.xpack.core.inference.results.ChatCompletionResults;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.external.action.SingleInputSenderExecutableAction;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
-import org.elasticsearch.xpack.inference.external.http.sender.AzureOpenAiCompletionRequestManager;
+import org.elasticsearch.xpack.inference.external.http.sender.AzureOpenAiChatCompletionRequestManager;
 import org.elasticsearch.xpack.inference.external.http.sender.DocumentsOnlyInput;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
@@ -49,7 +49,7 @@ import static org.elasticsearch.xpack.inference.external.action.azureopenai.Azur
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
 import static org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests.createSender;
-import static org.elasticsearch.xpack.inference.services.azureopenai.completion.AzureOpenAiCompletionModelTests.createCompletionModel;
+import static org.elasticsearch.xpack.inference.services.azureopenai.completion.AzureOpenAiChatCompletionModelTests.createCompletionModel;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.any;
@@ -57,7 +57,7 @@ import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 
-public class AzureOpenAiCompletionActionTests extends ESTestCase {
+public class AzureOpenAiChatCompletionActionTests extends ESTestCase {
 
     private static final TimeValue TIMEOUT = new TimeValue(30, TimeUnit.SECONDS);
     private final MockWebServer webServer = new MockWebServer();
@@ -196,7 +196,7 @@ public class AzureOpenAiCompletionActionTests extends ESTestCase {
         try {
             var model = createCompletionModel(resourceName, deploymentId, apiVersion, user, apiKey, null, inferenceEntityId);
             model.setUri(new URI(getUrl(webServer)));
-            var requestCreator = new AzureOpenAiCompletionRequestManager(model, threadPool);
+            var requestCreator = new AzureOpenAiChatCompletionRequestManager(model, threadPool);
             var errorMessage = constructFailedToSendRequestMessage(model.getUri(), "Azure OpenAI completion");
             return new SingleInputSenderExecutableAction(sender, requestCreator, errorMessage, "Azure OpenAI completion");
         } catch (URISyntaxException e) {

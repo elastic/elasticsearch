@@ -24,13 +24,13 @@ import java.util.Objects;
 
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalString;
 
-public class AzureOpenAiCompletionTaskSettings implements TaskSettings {
+public class AzureOpenAiChatCompletionTaskSettings implements TaskSettings {
 
     public static final String NAME = "azure_openai_completion_task_settings";
 
     public static final String USER = "user";
 
-    public static AzureOpenAiCompletionTaskSettings fromMap(Map<String, Object> map) {
+    public static AzureOpenAiChatCompletionTaskSettings fromMap(Map<String, Object> map) {
         ValidationException validationException = new ValidationException();
 
         String user = extractOptionalString(map, USER, ModelConfigurations.TASK_SETTINGS, validationException);
@@ -39,24 +39,24 @@ public class AzureOpenAiCompletionTaskSettings implements TaskSettings {
             throw validationException;
         }
 
-        return new AzureOpenAiCompletionTaskSettings(user);
+        return new AzureOpenAiChatCompletionTaskSettings(user);
     }
 
     private final String user;
 
-    public static AzureOpenAiCompletionTaskSettings of(
-        AzureOpenAiCompletionTaskSettings originalSettings,
-        AzureOpenAiCompletionRequestTaskSettings requestSettings
+    public static AzureOpenAiChatCompletionTaskSettings of(
+        AzureOpenAiChatCompletionTaskSettings originalSettings,
+        AzureOpenAiChatCompletionRequestTaskSettings requestSettings
     ) {
         var userToUse = requestSettings.user() == null ? originalSettings.user : requestSettings.user();
-        return new AzureOpenAiCompletionTaskSettings(userToUse);
+        return new AzureOpenAiChatCompletionTaskSettings(userToUse);
     }
 
-    public AzureOpenAiCompletionTaskSettings(@Nullable String user) {
+    public AzureOpenAiChatCompletionTaskSettings(@Nullable String user) {
         this.user = user;
     }
 
-    public AzureOpenAiCompletionTaskSettings(StreamInput in) throws IOException {
+    public AzureOpenAiChatCompletionTaskSettings(StreamInput in) throws IOException {
         this.user = in.readOptionalString();
     }
 
@@ -100,7 +100,7 @@ public class AzureOpenAiCompletionTaskSettings implements TaskSettings {
     public boolean equals(Object object) {
         if (this == object) return true;
         if (object == null || getClass() != object.getClass()) return false;
-        AzureOpenAiCompletionTaskSettings that = (AzureOpenAiCompletionTaskSettings) object;
+        AzureOpenAiChatCompletionTaskSettings that = (AzureOpenAiChatCompletionTaskSettings) object;
         return Objects.equals(user, that.user);
     }
 
@@ -111,7 +111,7 @@ public class AzureOpenAiCompletionTaskSettings implements TaskSettings {
 
     @Override
     public TaskSettings updatedTaskSettings(Map<String, Object> newSettings) {
-        AzureOpenAiCompletionRequestTaskSettings updatedSettings = AzureOpenAiCompletionRequestTaskSettings.fromMap(
+        AzureOpenAiChatCompletionRequestTaskSettings updatedSettings = AzureOpenAiChatCompletionRequestTaskSettings.fromMap(
             new HashMap<>(newSettings)
         );
         return of(this, updatedSettings);

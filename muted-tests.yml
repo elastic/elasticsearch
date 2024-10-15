@@ -428,6 +428,8 @@ tests:
 - class: org.elasticsearch.xpack.rank.rrf.RRFRetrieverBuilderNestedDocsIT
   method: testRRFExplainWithNamedRetrievers
   issue: https://github.com/elastic/elasticsearch/issues/114820
+- class: org.elasticsearch.ingest.geoip.HttpClientTests
+  issue: https://github.com/elastic/elasticsearch/issues/112618
 
 # Examples:
 #

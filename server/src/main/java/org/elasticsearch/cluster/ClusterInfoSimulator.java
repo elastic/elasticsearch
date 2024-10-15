@@ -90,14 +90,14 @@ public class ClusterInfoSimulator {
         assert shard.initializing();
 
         var projectId = allocation.globalRoutingTable().getProjectLookup().project(shard.index());
-        assert projectId != null : "No project for " + shard;
+        assert projectId.isPresent() : "No project for " + shard;
         var size = getExpectedShardSize(
             shard,
             UNAVAILABLE_EXPECTED_SHARD_SIZE,
             getClusterInfo(),
             allocation.snapshotShardSizeInfo(),
-            allocation.metadata().getProject(projectId),
-            allocation.routingTable(projectId)
+            allocation.metadata().getProject(projectId.get()),
+            allocation.routingTable(projectId.get())
         );
         if (size != UNAVAILABLE_EXPECTED_SHARD_SIZE) {
             if (shard.relocatingNodeId() != null) {

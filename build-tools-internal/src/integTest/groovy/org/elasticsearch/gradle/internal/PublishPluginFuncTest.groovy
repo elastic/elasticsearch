@@ -70,13 +70,13 @@ class PublishPluginFuncTest extends AbstractGradleFuncTest {
       <distribution>repo</distribution>
     </license>
     <license>
-      <name>Server Side Public License, v 1</name>
-      <url>https://www.mongodb.com/licensing/server-side-public-license</url>
+      <name>GNU Affero General Public License Version 3</name>
+      <url>https://raw.githubusercontent.com/elastic/elasticsearch/v1.0/licenses/AGPL-3.0+SSPL-1.0+ELASTIC-LICENSE-2.0.txt</url>
       <distribution>repo</distribution>
     </license>
     <license>
-      <name>The OSI-approved Open Source license Version 3.0</name>
-      <url>https://raw.githubusercontent.com/elastic/elasticsearch/v1.0/licenses/AGPL-3.0+SSPL-1.0+ELASTIC-LICENSE-2.0.txt</url>
+      <name>Server Side Public License, v 1</name>
+      <url>https://www.mongodb.com/licensing/server-side-public-license</url>
       <distribution>repo</distribution>
     </license>
   </licenses>
@@ -150,13 +150,13 @@ class PublishPluginFuncTest extends AbstractGradleFuncTest {
                   <distribution>repo</distribution>
                 </license>
                 <license>
-                  <name>Server Side Public License, v 1</name>
-                  <url>https://www.mongodb.com/licensing/server-side-public-license</url>
+                  <name>GNU Affero General Public License Version 3</name>
+                  <url>https://raw.githubusercontent.com/elastic/elasticsearch/v1.0/licenses/AGPL-3.0+SSPL-1.0+ELASTIC-LICENSE-2.0.txt</url>
                   <distribution>repo</distribution>
                 </license>
                 <license>
-                  <name>The OSI-approved Open Source license Version 3.0</name>
-                  <url>https://raw.githubusercontent.com/elastic/elasticsearch/v1.0/licenses/AGPL-3.0+SSPL-1.0+ELASTIC-LICENSE-2.0.txt</url>
+                  <name>Server Side Public License, v 1</name>
+                  <url>https://www.mongodb.com/licensing/server-side-public-license</url>
                   <distribution>repo</distribution>
                 </license>
               </licenses>
@@ -239,13 +239,13 @@ class PublishPluginFuncTest extends AbstractGradleFuncTest {
                   <distribution>repo</distribution>
                 </license>
                 <license>
-                  <name>Server Side Public License, v 1</name>
-                  <url>https://www.mongodb.com/licensing/server-side-public-license</url>
+                  <name>GNU Affero General Public License Version 3</name>
+                  <url>https://raw.githubusercontent.com/elastic/elasticsearch/v1.0/licenses/AGPL-3.0+SSPL-1.0+ELASTIC-LICENSE-2.0.txt</url>
                   <distribution>repo</distribution>
                 </license>
                 <license>
-                  <name>The OSI-approved Open Source license Version 3.0</name>
-                  <url>https://raw.githubusercontent.com/elastic/elasticsearch/v1.0/licenses/AGPL-3.0+SSPL-1.0+ELASTIC-LICENSE-2.0.txt</url>
+                  <name>Server Side Public License, v 1</name>
+                  <url>https://www.mongodb.com/licensing/server-side-public-license</url>
                   <distribution>repo</distribution>
                 </license>
               </licenses>
@@ -337,13 +337,13 @@ class PublishPluginFuncTest extends AbstractGradleFuncTest {
                   <distribution>repo</distribution>
                 </license>
                 <license>
-                  <name>Server Side Public License, v 1</name>
-                  <url>https://www.mongodb.com/licensing/server-side-public-license</url>
+                  <name>GNU Affero General Public License Version 3</name>
+                  <url>https://raw.githubusercontent.com/elastic/elasticsearch/v1.0/licenses/AGPL-3.0+SSPL-1.0+ELASTIC-LICENSE-2.0.txt</url>
                   <distribution>repo</distribution>
                 </license>
                 <license>
-                  <name>The OSI-approved Open Source license Version 3.0</name>
-                  <url>https://raw.githubusercontent.com/elastic/elasticsearch/v1.0/licenses/AGPL-3.0+SSPL-1.0+ELASTIC-LICENSE-2.0.txt</url>
+                  <name>Server Side Public License, v 1</name>
+                  <url>https://www.mongodb.com/licensing/server-side-public-license</url>
                   <distribution>repo</distribution>
                 </license>
               </licenses>
@@ -415,13 +415,13 @@ class PublishPluginFuncTest extends AbstractGradleFuncTest {
                   <distribution>repo</distribution>
                 </license>
                 <license>
-                  <name>Server Side Public License, v 1</name>
-                  <url>https://www.mongodb.com/licensing/server-side-public-license</url>
+                  <name>GNU Affero General Public License Version 3</name>
+                  <url>https://raw.githubusercontent.com/elastic/elasticsearch/v2.0/licenses/AGPL-3.0+SSPL-1.0+ELASTIC-LICENSE-2.0.txt</url>
                   <distribution>repo</distribution>
                 </license>
                 <license>
-                  <name>The OSI-approved Open Source license Version 3.0</name>
-                  <url>https://raw.githubusercontent.com/elastic/elasticsearch/v2.0/licenses/AGPL-3.0+SSPL-1.0+ELASTIC-LICENSE-2.0.txt</url>
+                  <name>Server Side Public License, v 1</name>
+                  <url>https://www.mongodb.com/licensing/server-side-public-license</url>
                   <distribution>repo</distribution>
                 </license>
               </licenses>

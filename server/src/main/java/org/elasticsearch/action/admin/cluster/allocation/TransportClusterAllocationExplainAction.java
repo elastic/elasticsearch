@@ -169,7 +169,7 @@ public class TransportClusterAllocationExplainAction extends TransportMasterNode
         if (request.useAnyUnassignedShard()) {
             // If we can use any shard, return the first unassigned primary (if there is one) or the first unassigned replica (if not)
             for (ShardRouting unassigned : allocation.routingNodes().unassigned()) {
-                if (projectIds.contains(lookup.project(unassigned.index()))) {
+                if (projectIds.contains(lookup.project(unassigned.index()).orElse(null))) {
                     if (foundShard == null || unassigned.primary()) {
                         foundShard = unassigned;
                     }

@@ -26,6 +26,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 
 /**
@@ -89,14 +90,16 @@ public class ClusterChangedEvent {
      */
     public boolean indexRoutingTableChanged(Index index) {
         Objects.requireNonNull(index, "index must not be null");
-        ProjectId projectId = state.globalRoutingTable().getProjectLookup().project(index);
-        ProjectId previousProjectId = previousState.globalRoutingTable().getProjectLookup().project(index);
-        if (projectId == null && previousProjectId == null) {
+        Optional<ProjectId> projectId = state.globalRoutingTable().getProjectLookup().project(index);
+        Optional<ProjectId> previousProjectId = previousState.globalRoutingTable().getProjectLookup().project(index);
+        if (projectId.isEmpty() && previousProjectId.isEmpty()) {
             return false;
         }
-        if (projectId != null && previousProjectId != null) {
-            IndexRoutingTable previousIndexRoutingTable = previousState.globalRoutingTable().routingTable(previousProjectId).index(index);
-            return state.globalRoutingTable().routingTable(projectId).index(index) != previousIndexRoutingTable;
+        if (projectId.isPresent() && previousProjectId.isPresent()) {
+            IndexRoutingTable previousIndexRoutingTable = previousState.globalRoutingTable()
+                .routingTable(previousProjectId.get())
+                .index(index);
+            return state.globalRoutingTable().routingTable(projectId.get()).index(index) != previousIndexRoutingTable;
         }
         return true;
     }

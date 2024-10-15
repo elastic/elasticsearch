@@ -22,7 +22,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.iterable.Iterables;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
 
 import java.io.IOException;
@@ -30,6 +29,7 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 
 /**
@@ -103,12 +103,12 @@ public class GlobalRoutingTable implements Iterable<RoutingTable>, Diffable<Glob
         ProjectLookup lookup,
         String context
     ) {
-        ProjectId project = lookup.project(shardRouting.index());
-        if (project == null) {
-            throw new IllegalStateException(
-                "Found shard [" + shardRouting.shardId() + "] in " + context + ", but the index does not belong to any project"
+        ProjectId project = lookup.project(shardRouting.index())
+            .orElseThrow(
+                () -> new IllegalStateException(
+                    "Found shard [" + shardRouting.shardId() + "] in " + context + ", but the index does not belong to any project"
+                )
             );
-        }
         final List<ShardRouting> routingSet = projectRoutingLists.get(project);
         if (routingSet == null) {
             throw new IllegalStateException(
@@ -432,11 +432,9 @@ public class GlobalRoutingTable implements Iterable<RoutingTable>, Diffable<Glob
      */
     public interface ProjectLookup {
         /**
-         * Return the {@link ProjectId} for the provided {@link Index}.
-         * Returns {@code null} if the index does not existing in the routing table
+         * Return the {@link ProjectId} for the provided {@link Index}, if it exists
          */
-        @Nullable
-        ProjectId project(Index index);
+        Optional<ProjectId> project(Index index);
     }
 
     /**
@@ -454,11 +452,11 @@ public class GlobalRoutingTable implements Iterable<RoutingTable>, Diffable<Glob
         }
 
         @Override
-        public ProjectId project(Index index) {
+        public Optional<ProjectId> project(Index index) {
             if (routingTable.hasIndex(index)) {
-                return projectId;
+                return Optional.of(projectId);
             } else {
-                return null;
+                return Optional.empty();
             }
         }
     }
@@ -482,14 +480,13 @@ public class GlobalRoutingTable implements Iterable<RoutingTable>, Diffable<Glob
             }
         }
 
-        @Nullable
         @Override
-        public ProjectId project(Index index) {
+        public Optional<ProjectId> project(Index index) {
             final ProjectId projectId = lookup.get(index.getUUID());
             if (projectId != null && routingTables.get(projectId).hasIndex(index)) {
-                return projectId;
+                return Optional.of(projectId);
             } else {
-                return null;
+                return Optional.empty();
             }
         }
     }

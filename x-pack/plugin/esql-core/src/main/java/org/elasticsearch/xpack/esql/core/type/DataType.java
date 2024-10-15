@@ -14,6 +14,8 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.xpack.esql.core.plugin.EsqlCorePlugin;
+import org.elasticsearch.xpack.esql.core.util.PlanStreamInput;
+import org.elasticsearch.xpack.esql.core.util.PlanStreamOutput;
 
 import java.io.IOException;
 import java.math.BigInteger;
@@ -423,6 +425,10 @@ public enum DataType {
             && t.isCounter() == false;
     }
 
+    public static boolean isCounter(DataType t) {
+        return t == COUNTER_DOUBLE || t == COUNTER_INTEGER || t == COUNTER_LONG;
+    }
+
     public static boolean isSpatialPoint(DataType t) {
         return t == GEO_POINT || t == CARTESIAN_POINT;
     }
@@ -433,6 +439,10 @@ public enum DataType {
 
     public static boolean isSpatial(DataType t) {
         return t == GEO_POINT || t == CARTESIAN_POINT || t == GEO_SHAPE || t == CARTESIAN_SHAPE;
+    }
+
+    public static boolean isSortable(DataType t) {
+        return false == (t == SOURCE || isCounter(t) || isSpatial(t));
     }
 
     public String nameUpper() {
@@ -519,12 +529,12 @@ public enum DataType {
     }
 
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(typeName);
+        ((PlanStreamOutput) out).writeCachedString(typeName);
     }
 
     public static DataType readFrom(StreamInput in) throws IOException {
         // TODO: Use our normal enum serialization pattern
-        return readFrom(in.readString());
+        return readFrom(((PlanStreamInput) in).readCachedString());
     }
 
     /**

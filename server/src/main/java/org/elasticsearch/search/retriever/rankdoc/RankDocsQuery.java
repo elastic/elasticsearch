@@ -107,11 +107,10 @@ public class RankDocsQuery extends Query {
 
                 @Override
                 public Scorer scorer(LeafReaderContext context) {
-                    // Segment starts indicate how many docs are in the segment,
-                    // upper equalling lower indicates no documents for this segment
-                    if (segmentStarts[context.ord] == segmentStarts[context.ord + 1]) {
-                        return null;
-                    }
+                    /**
+                     * We return a scorer even if there are no ranked documents within the segment.
+                     * This ensures the correct propagation of the maximum score.
+                     */
                     return new Scorer(this) {
                         final int lower = segmentStarts[context.ord];
                         final int upper = segmentStarts[context.ord + 1];

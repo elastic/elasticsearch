@@ -11,6 +11,7 @@ package org.elasticsearch.cluster.project;
 
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.core.FixForMultiProject;
 
 /**
  * This is the {@link ProjectResolver} implementation that stateful uses.
@@ -20,6 +21,7 @@ public class DefaultProjectResolver implements ProjectResolver {
     public static final DefaultProjectResolver INSTANCE = new DefaultProjectResolver();
 
     @Override
+    @FixForMultiProject
     public ProjectMetadata getProjectMetadata(Metadata metadata) {
         // TODO-multi-project assert no specific project id is requested, and/or that a sole project exists in the cluster state
         return metadata.getProject();

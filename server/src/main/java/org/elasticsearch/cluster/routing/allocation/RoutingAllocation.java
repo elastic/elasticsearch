@@ -246,10 +246,9 @@ public class RoutingAllocation {
      * @return project-metadata for the project that contains the specified index
      */
     public ProjectMetadata getProject(Index index) {
-        var projectId = globalRoutingTable().getProjectLookup().project(index);
-        if (projectId == null) {
-            throw new IllegalArgumentException("cannot find project for index [" + index + "]");
-        }
+        var projectId = globalRoutingTable().getProjectLookup()
+            .project(index)
+            .orElseThrow(() -> new IllegalArgumentException("cannot find project for index [" + index + "]"));
         return metadata().getProject(projectId);
     }
 

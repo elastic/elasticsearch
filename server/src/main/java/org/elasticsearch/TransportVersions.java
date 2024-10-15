@@ -10,6 +10,7 @@
 package org.elasticsearch;
 
 import org.elasticsearch.core.Assertions;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.UpdateForV9;
 
 import java.lang.reflect.Field;
@@ -239,6 +240,10 @@ public class TransportVersions {
     public static final TransportVersion TEXT_SIMILARITY_RERANKER_QUERY_REWRITE = def(8_763_00_0);
     public static final TransportVersion SIMULATE_INDEX_TEMPLATES_SUBSTITUTIONS = def(8_764_00_0);
     public static final TransportVersion RETRIEVERS_TELEMETRY_ADDED = def(8_765_00_0);
+    public static final TransportVersion ESQL_CACHED_STRING_SERIALIZATION = def(8_766_00_0);
+    public static final TransportVersion CHUNK_SENTENCE_OVERLAP_SETTING_ADDED = def(8_767_00_0);
+    public static final TransportVersion OPT_IN_ESQL_CCS_EXECUTION_INFO = def(8_768_00_0);
+    public static final TransportVersion QUERY_RULE_TEST_API = def(8_769_00_0);
 
     /*
      * WARNING: DO NOT MERGE INTO MAIN!
@@ -248,6 +253,7 @@ public class TransportVersions {
      * this variable needs to be changed to a regular transport version following the same rules as above.
      */
     @UpdateForV9(owner = UpdateForV9.Owner.CORE_INFRA) // change to a v9 version number when bumping to 9.0
+    @FixForMultiProject
     public static final TransportVersion MULTI_PROJECT = def(8_999_999);
 
     /*

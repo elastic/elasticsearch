@@ -17,6 +17,7 @@ import org.elasticsearch.cli.UserException;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.gateway.PersistedClusterStateService;
@@ -66,6 +67,7 @@ public class RemoveCustomsCommand extends ElasticsearchNodeCommand {
         );
         final Metadata.Builder metadataBuilder = Metadata.builder(oldClusterState.metadata());
         for (String customToRemove : customsToRemove) {
+            @FixForMultiProject
             boolean matched = false;
             // TODO[MultiProject]: Should we add a scope flag to the command, or just iterate through both maps?
             for (String customKey : oldClusterState.metadata().customs().keySet()) {

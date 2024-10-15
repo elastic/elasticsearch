@@ -61,4 +61,6 @@ tasks.named("yamlRestCompatTestTransform").configure({task ->
     task.skipTest("logsdb/20_source_mapping/disabled _source is not supported", "temporary until backported")
     task.skipTest("tsdb/20_mapping/regular source", "temporary until backported")
     task.skipTest("logsdb/20_source_mapping/stored _source mode is not supported", "temporary until backported")
+    // breaking change in 9.0
+    task.skipTest("indices.open/10_basic/?wait_for_active_shards=index-setting is not accepted")
 })

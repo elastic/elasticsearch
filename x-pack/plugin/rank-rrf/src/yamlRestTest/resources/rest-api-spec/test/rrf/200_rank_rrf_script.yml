@@ -74,7 +74,7 @@ setup:
 
   - do:
       warnings:
-        - "Using [rank] is deprecated and will be removed in a future release"
+        - "Using [rank] for [rrf] is deprecated and will be removed in a future release"
       search:
         index: test
         body:
@@ -154,7 +154,7 @@ setup:
 
   - do:
       warnings:
-        - "Using [rank] is deprecated and will be removed in a future release"
+        - "Using [rank] for [rrf] is deprecated and will be removed in a future release"
       search:
         index: test
         body:
@@ -216,7 +216,7 @@ setup:
 
   - do:
       warnings:
-        - "Using [rank] is deprecated and will be removed in a future release"
+        - "Using [rank] for [rrf] is deprecated and will be removed in a future release"
       search:
         index: test
         body:

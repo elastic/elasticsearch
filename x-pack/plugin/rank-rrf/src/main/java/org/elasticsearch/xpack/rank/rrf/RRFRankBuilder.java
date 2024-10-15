@@ -64,7 +64,7 @@ public class RRFRankBuilder extends RankBuilder {
             deprecationLogger.warn(
                 DeprecationCategory.API,
                 "rank_api",
-                "Using [rank] is deprecated and will be removed in a future release"
+                "Using [rank] for [rrf] is deprecated and will be removed in a future release"
             );
         }
         if (RRFRankPlugin.RANK_RRF_FEATURE.check(XPackPlugin.getSharedLicenseState()) == false) {

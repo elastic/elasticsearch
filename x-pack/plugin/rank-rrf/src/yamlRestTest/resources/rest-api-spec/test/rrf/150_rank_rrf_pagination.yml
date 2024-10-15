@@ -70,7 +70,7 @@ setup:
 
   - do:
       warnings:
-        - "Using [rank] is deprecated and will be removed in a future release"
+        - "Using [rank] for [rrf] is deprecated and will be removed in a future release"
         - "Using [sub_searches] is deprecated and will be removed in a future release"
       search:
         index: test
@@ -185,7 +185,7 @@ setup:
 
   - do:
       warnings:
-        - "Using [rank] is deprecated and will be removed in a future release"
+        - "Using [rank] for [rrf] is deprecated and will be removed in a future release"
         - "Using [sub_searches] is deprecated and will be removed in a future release"
       search:
         index: test
@@ -297,7 +297,7 @@ setup:
 
   - do:
       warnings:
-        - "Using [rank] is deprecated and will be removed in a future release"
+        - "Using [rank] for [rrf] is deprecated and will be removed in a future release"
         - "Using [sub_searches] is deprecated and will be removed in a future release"
       search:
         index: test
@@ -415,7 +415,7 @@ setup:
 
   - do:
       warnings:
-        - "Using [rank] is deprecated and will be removed in a future release"
+        - "Using [rank] for [rrf] is deprecated and will be removed in a future release"
         - "Using [sub_searches] is deprecated and will be removed in a future release"
       search:
         index: test
@@ -521,7 +521,7 @@ setup:
 
   - do:
       warnings:
-        - "Using [rank] is deprecated and will be removed in a future release"
+        - "Using [rank] for [rrf] is deprecated and will be removed in a future release"
         - "Using [sub_searches] is deprecated and will be removed in a future release"
       search:
         index: test
@@ -639,7 +639,7 @@ setup:
 
   - do:
       warnings:
-        - "Using [rank] is deprecated and will be removed in a future release"
+        - "Using [rank] for [rrf] is deprecated and will be removed in a future release"
         - "Using [sub_searches] is deprecated and will be removed in a future release"
       search:
         index: test
@@ -729,7 +729,7 @@ setup:
 
   - do:
       warnings:
-        - "Using [rank] is deprecated and will be removed in a future release"
+        - "Using [rank] for [rrf] is deprecated and will be removed in a future release"
         - "Using [sub_searches] is deprecated and will be removed in a future release"
       search:
         index: test
@@ -819,7 +819,7 @@ setup:
 
   - do:
       warnings:
-        - "Using [rank] is deprecated and will be removed in a future release"
+        - "Using [rank] for [rrf] is deprecated and will be removed in a future release"
         - "Using [sub_searches] is deprecated and will be removed in a future release"
       search:
         index: test
@@ -923,7 +923,7 @@ setup:
 
   - do:
       warnings:
-        - "Using [rank] is deprecated and will be removed in a future release"
+        - "Using [rank] for [rrf] is deprecated and will be removed in a future release"
         - "Using [sub_searches] is deprecated and will be removed in a future release"
       search:
         index: test
@@ -1013,7 +1013,7 @@ setup:
 
   - do:
       warnings:
-        - "Using [rank] is deprecated and will be removed in a future release"
+        - "Using [rank] for [rrf] is deprecated and will be removed in a future release"
         - "Using [sub_searches] is deprecated and will be removed in a future release"
 
       search:

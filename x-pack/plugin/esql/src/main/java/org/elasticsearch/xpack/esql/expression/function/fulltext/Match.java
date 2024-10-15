@@ -165,6 +165,11 @@ public class Match extends FullTextFunction implements Validatable {
         return fuzziness;
     }
 
+    @Override
+    public String functionName() {
+        return isOperator ? ":" : super.functionName();
+    }
+
     public Double boost() {
         return boost;
     }

@@ -26,6 +26,7 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.EsqlTestUtils.TestSearchStats;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
@@ -560,8 +561,20 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         assertThat(query.query().toString(), is(expected.toString()));
     }
 
+    /**
+     * Expecting
+     * LimitExec[1000[INTEGER]]
+     * \_ExchangeExec[[_meta_field{f}#8, emp_no{f}#2, first_name{f}#3, gender{f}#4, job{f}#9, job.raw{f}#10, languages{f}#5, last_na
+     * me{f}#6, long_noidx{f}#11, salary{f}#7],false]
+     *   \_ProjectExec[[_meta_field{f}#8, emp_no{f}#2, first_name{f}#3, gender{f}#4, job{f}#9, job.raw{f}#10, languages{f}#5, last_na
+     * me{f}#6, long_noidx{f}#11, salary{f}#7]]
+     *     \_FieldExtractExec[_meta_field{f}#8, emp_no{f}#2, first_name{f}#3, gen]
+     *       \_EsQueryExec[test], indexMode[standard], EsQueryExec[test], indexMode[standard],
+     *       query[{"match":{"last_name":{"query":"Smith","fuzziness":"2"}}}]
+     */
     public void testMatchOperatorFuzzinessDefault() {
         assumeTrue("skipping because MATCH operator is not enabled", EsqlCapabilities.Cap.MATCH_OPERATOR.isEnabled());
+
         var plan = plannerOptimizer.plan("""
             from test
             | where last_name : "Smith"~
@@ -579,11 +592,24 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
 
     public void testMatchOperatorFuzzinessExplicit() {
         assumeTrue("skipping because MATCH operator is not enabled", EsqlCapabilities.Cap.MATCH_OPERATOR.isEnabled());
+
         var plan = plannerOptimizer.plan("""
             from test
             | where last_name : "Smith"~1
             """, IS_SV_STATS);
 
+        /**
+         * Expecting
+         *
+         * LimitExec[1000[INTEGER]]
+         * \_ExchangeExec[[_meta_field{f}#9, emp_no{f}#3, first_name{f}#4, gender{f}#5, job{f}#10, job.raw{f}#11, languages{f}#6, last_n
+         * ame{f}#7, long_noidx{f}#12, salary{f}#8],false]
+         *   \_ProjectExec[[_meta_field{f}#9, emp_no{f}#3, first_name{f}#4, gender{f}#5, job{f}#10, job.raw{f}#11, languages{f}#6, last_n
+         * ame{f}#7, long_noidx{f}#12, salary{f}#8]]
+         *     \_FieldExtractExec[_meta_field{f}#9, emp_no{f}#3, first_name{f}#4, gen]
+         *       \_EsQueryExec[test], indexMode[standard],
+         *          query[{"match":{"last_name":{"query":"Smith","fuzziness":"1"}}}]
+         */
         var limit = as(plan, LimitExec.class);
         var exchange = as(limit.child(), ExchangeExec.class);
         var project = as(exchange.child(), ProjectExec.class);
@@ -594,8 +620,20 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         assertThat(query.query().toString(), is(expected.toString()));
     }
 
+    /**
+     * Expecting
+     * LimitExec[1000[INTEGER]]
+     * \_ExchangeExec[[_meta_field{f}#1627, emp_no{f}#1621, first_name{f}#1622, gender{f}#1623, job{f}#1628, job.raw{f}#1629, langua
+     * ges{f}#1624, last_name{f}#1625, long_noidx{f}#1630, salary{f}#1626],false]
+     *   \_ProjectExec[[_meta_field{f}#1627, emp_no{f}#1621, first_name{f}#1622, gender{f}#1623, job{f}#1628, job.raw{f}#1629, langua
+     * ges{f}#1624, last_name{f}#1625, long_noidx{f}#1630, salary{f}#1626]]
+     *     \_FieldExtractExec[_meta_field{f}#1627, emp_no{f}#1621, first_name{f}#]
+     *       \_EsQueryExec[test], indexMode[standard],
+     *       query[{"match":{"last_name":{"query":"Smith","fuzziness":"AUTO:3,5"}}}]
+     */
     public void testMatchOperatorFuzzinessAuto() {
         assumeTrue("skipping because MATCH operator is not enabled", EsqlCapabilities.Cap.MATCH_OPERATOR.isEnabled());
+
         var plan = plannerOptimizer.plan("""
             from test
             | where last_name : "Smith"~AUTO:3,5
@@ -611,8 +649,20 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         assertThat(query.query().toString(), is(expected.toString()));
     }
 
+    /**
+     * Expecting
+     * LimitExec[1000[INTEGER]]
+     * \_ExchangeExec[[_meta_field{f}#417, emp_no{f}#411, first_name{f}#412, gender{f}#413, job{f}#418, job.raw{f}#419, languages{f}
+     * #414, last_name{f}#415, long_noidx{f}#420, salary{f}#416],false]
+     *   \_ProjectExec[[_meta_field{f}#417, emp_no{f}#411, first_name{f}#412, gender{f}#413, job{f}#418, job.raw{f}#419, languages{f}
+     * #414, last_name{f}#415, long_noidx{f}#420, salary{f}#416]]
+     *     \_FieldExtractExec[_meta_field{f}#417, emp_no{f}#411, first_name{f}#]
+     *       \_EsQueryExec[test], indexMode[standard],
+     *       query[{"match":{"last_name":{"query":"Smith","boost":3.2}}}]
+     */
     public void testMatchOperatorBoost() {
         assumeTrue("skipping because MATCH operator is not enabled", EsqlCapabilities.Cap.MATCH_OPERATOR.isEnabled());
+
         var plan = plannerOptimizer.plan("""
             from test
             | where last_name : "Smith"^3.2
@@ -628,8 +678,20 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         assertThat(query.query().toString(), is(expected.toString()));
     }
 
+    /**
+     * Expecting
+     * LimitExec[1000[INTEGER]]
+     * \_ExchangeExec[[_meta_field{f}#435, emp_no{f}#429, first_name{f}#430, gender{f}#431, job{f}#436, job.raw{f}#437, languages{f}
+     * #432, last_name{f}#433, long_noidx{f}#438, salary{f}#434],false]
+     *   \_ProjectExec[[_meta_field{f}#435, emp_no{f}#429, first_name{f}#430, gender{f}#431, job{f}#436, job.raw{f}#437, languages{f}
+     * #432, last_name{f}#433, long_noidx{f}#438, salary{f}#434]]
+     *     \_FieldExtractExec[_meta_field{f}#435, emp_no{f}#429, first_name{f}]
+     *       \_EsQueryExec[test], indexMode[standard],
+     *       query[{"match":{"last_name":{"query":"Smith","fuzziness":"1","boost":3.2}}}]
+     */
     public void testMatchOperatorBoostAndFuzziness() {
         assumeTrue("skipping because MATCH operator is not enabled", EsqlCapabilities.Cap.MATCH_OPERATOR.isEnabled());
+
         var plan = plannerOptimizer.plan("""
             from test
             | where last_name : "Smith"^3.2~1

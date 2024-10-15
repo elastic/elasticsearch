@@ -71,7 +71,7 @@ GET my-index-000001/_search
 It's possible for conflicting names to arise, for fields that are defined within different scopes:
 
 (a) A pass-through object is defined next to a field that has the same name as one of the pass-through object
- sub-fields, e.g.
+sub-fields, e.g.
 
 [source,console]
 --------------------------------------------------

@@ -17,7 +17,7 @@ import org.elasticsearch.test.XContentTestUtils;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.cluster.util.resource.Resource;
-import org.elasticsearch.test.junit.RunnableTestRuleAdapter;
+import org.junit.Before;
 import org.junit.ClassRule;
 import org.junit.rules.RuleChain;
 import org.junit.rules.TemporaryFolder;
@@ -33,13 +33,6 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
 public class FileSettingsRoleMappingUpgradeIT extends ParameterizedRollingUpgradeTestCase {
-
-    private static final RunnableTestRuleAdapter versionLimit = new RunnableTestRuleAdapter(
-        () -> assumeTrue(
-            "Only relevant when upgrading from a version before role mappings were stored in cluster state",
-            oldClusterHasFeature("gte_v8.4.0") && oldClusterHasFeature("gte_v8.15.0") == false
-        )
-    );
 
     private static final String settingsJSON = """
         {
@@ -78,7 +71,7 @@ public class FileSettingsRoleMappingUpgradeIT extends ParameterizedRollingUpgrad
         .build();
 
     @ClassRule
-    public static TestRule ruleChain = RuleChain.outerRule(versionLimit).around(repoDirectory).around(cluster);
+    public static TestRule ruleChain = RuleChain.outerRule(repoDirectory).around(cluster);
 
     public FileSettingsRoleMappingUpgradeIT(@Name("upgradedNodes") int upgradedNodes) {
         super(upgradedNodes);
@@ -87,6 +80,14 @@ public class FileSettingsRoleMappingUpgradeIT extends ParameterizedRollingUpgrad
     @Override
     protected ElasticsearchCluster getUpgradeCluster() {
         return cluster;
+    }
+
+    @Before
+    public void checkVersions() {
+        assumeTrue(
+            "Only relevant when upgrading from a version before role mappings were stored in cluster state",
+            oldClusterHasFeature("gte_v8.4.0") && oldClusterHasFeature("gte_v8.15.0") == false
+        );
     }
 
     public void testRoleMappingsAppliedOnUpgrade() throws IOException {

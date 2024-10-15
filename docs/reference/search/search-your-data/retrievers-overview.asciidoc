@@ -1,7 +1,7 @@
 [[retrievers-overview]]
 === Retrievers
 
-A retriever is an abstraction that was added to the Search API in *8.14.0* and was made GA in *8.16.0*.
+A retriever is an abstraction that was added to the Search API in *8.14.0* and was made generally available in *8.16.0*.
 This abstraction enables the configuration of multi-stage retrieval pipelines within a single `_search` call.
 This simplifies your search application logic, because you no longer need to configure complex searches via multiple {es} calls or implement additional client-side logic to combine results from different queries.
 

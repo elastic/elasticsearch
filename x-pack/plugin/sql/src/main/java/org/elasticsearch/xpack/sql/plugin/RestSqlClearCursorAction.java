@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.sql.plugin;
 
 import org.elasticsearch.client.internal.node.NodeClient;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
@@ -19,7 +18,6 @@ import org.elasticsearch.rest.action.RestResponseListener;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.sql.action.Protocol;
 import org.elasticsearch.xpack.sql.action.SqlClearCursorAction;
 import org.elasticsearch.xpack.sql.action.SqlClearCursorRequest;
 import org.elasticsearch.xpack.sql.action.SqlClearCursorResponse;
@@ -29,17 +27,14 @@ import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
+import static org.elasticsearch.xpack.sql.proto.CoreProtocol.CLEAR_CURSOR_REST_ENDPOINT;
 
 @ServerlessScope(Scope.PUBLIC)
 public class RestSqlClearCursorAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(
-            Route.builder(POST, Protocol.CLEAR_CURSOR_REST_ENDPOINT)
-                .replaces(POST, Protocol.CLEAR_CURSOR_DEPRECATED_REST_ENDPOINT, RestApiVersion.V_7)
-                .build()
-        );
+        return List.of(new Route(POST, CLEAR_CURSOR_REST_ENDPOINT));
     }
 
     @Override

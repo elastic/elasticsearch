@@ -6,9 +6,12 @@
  * your election, the "Elastic License 2.0", the "GNU Affero General Public
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
-apply plugin: 'elasticsearch.legacy-java-rest-test'
 
-testClusters.matching { it.name == "javaRestTest" }.configureEach {
-  setting 'xpack.security.enabled', 'true'
-  user username: 'admin', password: 'admin-password', role: 'superuser'
+import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
+
+apply plugin: 'elasticsearch.internal-java-rest-test'
+
+
+tasks.withType(StandaloneRestIntegTestTask).configureEach  {
+  usesDefaultDistribution()
 }

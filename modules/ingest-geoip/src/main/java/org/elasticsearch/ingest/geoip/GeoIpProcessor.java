@@ -196,13 +196,19 @@ public final class GeoIpProcessor extends AbstractProcessor {
             }
 
             if (Assertions.ENABLED) {
-                // Only check whether the suffix has changed and not the entire database type.
-                // To sanity check whether a city db isn't overwriting with a country or asn db.
-                // For example overwriting a geoip lite city db with geoip city db is a valid change, but the db type is slightly different,
-                // by checking just the suffix this assertion doesn't fail.
-                String expectedSuffix = databaseType.substring(databaseType.lastIndexOf('-'));
-                assert loader.getDatabaseType().endsWith(expectedSuffix)
-                    : "database type [" + loader.getDatabaseType() + "] doesn't match with expected suffix [" + expectedSuffix + "]";
+                // Note that the expected suffix might be null for providers that aren't amenable to using dashes as separator for
+                // determining the database type.
+                int last = databaseType.lastIndexOf('-');
+                final String expectedSuffix = last == -1 ? null : databaseType.substring(last);
+
+                // If the entire database type matches, then that's a match. Otherwise, if there's a suffix to compare on, then
+                // check whether the suffix has changed (not the entire database type).
+                // This is to sanity check, for example, that a city db isn't overwritten with a country or asn db.
+                // But there are permissible overwrites that make sense, for example overwriting a geolite city db with a geoip city db
+                // is a valid change, but the db type is slightly different -- by checking just the suffix this assertion won't fail.
+                final String loaderType = loader.getDatabaseType();
+                assert loaderType.equals(databaseType) || expectedSuffix == null || loaderType.endsWith(expectedSuffix)
+                    : "database type [" + loaderType + "] doesn't match with expected suffix [" + expectedSuffix + "]";
             }
             return loader;
         }

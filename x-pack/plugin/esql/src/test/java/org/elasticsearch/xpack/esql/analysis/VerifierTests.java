@@ -1112,7 +1112,10 @@ public class VerifierTests extends ESTestCase {
     public void testMatchInsideEval() throws Exception {
         assumeTrue("Match operator is available just for snapshots", Build.current().isSnapshot());
 
-        assertEquals("1:36: [:] operator is only supported in WHERE commands", error("row title = \"brown fox\" | eval x = title match \"fox\" "));
+        assertEquals(
+            "1:36: [:] operator is only supported in WHERE commands",
+            error("row title = \"brown fox\" | eval x = title match \"fox\" ")
+        );
     }
 
     public void testMatchFilter() throws Exception {
@@ -1129,12 +1132,14 @@ public class VerifierTests extends ESTestCase {
         );
 
         assertEquals(
-            "1:19: Invalid condition [first_name match \"Anna\" or starts_with(first_name, \"Anne\")]. [:] operator can't be used as part of an or condition",
+            "1:19: Invalid condition [first_name match \"Anna\" or starts_with(first_name, \"Anne\")]. "
+                + "[:] operator can't be used as part of an or condition",
             error("from test | where first_name match \"Anna\" or starts_with(first_name, \"Anne\")")
         );
 
         assertEquals(
-            "1:51: Invalid condition [first_name match \"Anna\" OR new_salary > 100]. [:] operator can't be used as part of an or condition",
+            "1:51: Invalid condition [first_name match \"Anna\" OR new_salary > 100]. "
+                + "[:] operator can't be used as part of an or condition",
             error("from test | eval new_salary = salary + 10 | where first_name match \"Anna\" OR new_salary > 100")
         );
 

@@ -12,7 +12,6 @@ package org.elasticsearch.action.bulk;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
-import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -74,7 +73,8 @@ import java.util.Map;
  *           }
  *         }
  *       }
- *     },
+ *     }
+ *   },
  *   "index_template_substitutions": {
  *     "my-index-template-1": {
  *       "template": {
@@ -85,6 +85,13 @@ import java.util.Map;
  *         ]
  *       }
  *     }
+ *   },
+ *   "mapping_addition": {
+ *     "dynamic": "strict",
+ *     "properties": {
+ *       "foo": {
+ *         "type": "keyword"
+ *       }
  *   }
  *
  *   The pipelineSubstitutions Map held by this class is intended to be the result of XContentHelper.convertToMap(). The top-level keys
@@ -105,6 +112,7 @@ public class SimulateBulkRequest extends BulkRequest {
      *                                       component template definitions with the same name.
      * @param indexTemplateSubstitutions The index template definitions that are to be used in place of any pre-existing
      *                                       index template definitions with the same name.
+     * @param mappingAddition   A mapping that will be merged into the final index's mapping for mapping validation
      */
     public SimulateBulkRequest(
         @Nullable Map<String, Map<String, Object>> pipelineSubstitutions,
@@ -188,8 +196,8 @@ public class SimulateBulkRequest extends BulkRequest {
         return result;
     }
 
-    public CompressedXContent getMappingAddition() throws IOException {
-        return TransportSimulateBulkAction.convertRawAdditionalMappingToXContent(mappingAddition);
+    public Map<String, Object> getMappingAddition() throws IOException {
+        return mappingAddition;
     }
 
     private static ComponentTemplate convertRawTemplateToComponentTemplate(Map<String, Object> rawTemplate) throws IOException {

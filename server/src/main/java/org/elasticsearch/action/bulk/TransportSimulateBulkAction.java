@@ -132,7 +132,7 @@ public class TransportSimulateBulkAction extends TransportAbstractBulkAction {
         final AtomicArray<BulkItemResponse> responses = new AtomicArray<>(bulkRequest.requests.size());
         Map<String, ComponentTemplate> componentTemplateSubstitutions = bulkRequest.getComponentTemplateSubstitutions();
         Map<String, ComposableIndexTemplate> indexTemplateSubstitutions = bulkRequest.getIndexTemplateSubstitutions();
-        CompressedXContent mappingAddition = ((SimulateBulkRequest) bulkRequest).getMappingAddition();
+        Map<String, Object> mappingAddition = ((SimulateBulkRequest) bulkRequest).getMappingAddition();
         for (int i = 0; i < bulkRequest.requests.size(); i++) {
             DocWriteRequest<?> docRequest = bulkRequest.requests.get(i);
             assert docRequest instanceof IndexRequest : "TransportSimulateBulkAction should only ever be called with IndexRequests";
@@ -175,7 +175,7 @@ public class TransportSimulateBulkAction extends TransportAbstractBulkAction {
     private Exception validateMappings(
         Map<String, ComponentTemplate> componentTemplateSubstitutions,
         Map<String, ComposableIndexTemplate> indexTemplateSubstitutions,
-        CompressedXContent mappingAddition,
+        Map<String, Object> mappingAddition,
         IndexRequest request
     ) {
         final SourceToParse sourceToParse = new SourceToParse(
@@ -194,7 +194,7 @@ public class TransportSimulateBulkAction extends TransportAbstractBulkAction {
             if (indexAbstraction != null
                 && componentTemplateSubstitutions.isEmpty()
                 && indexTemplateSubstitutions.isEmpty()
-                && mappingAddition == null) {
+                && mappingAddition.isEmpty()) {
                 /*
                  * In this case the index exists and we don't have any component template overrides. So we can just use withTempIndexService
                  * to do the mapping validation, using all the existing logic for validation.
@@ -271,7 +271,7 @@ public class TransportSimulateBulkAction extends TransportAbstractBulkAction {
                     );
                     CompressedXContent mappings = template.mappings();
                     if (mappings != null || mappingAddition != null) {
-                        CompressedXContent mergedMappings = mergeCompressedXContents(mappings, mappingAddition);
+                        CompressedXContent mergedMappings = mergeMappings(mappings, mappingAddition);
                         MappingMetadata mappingMetadata = new MappingMetadata(mergedMappings);
                         Settings dummySettings = Settings.builder()
                             .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
@@ -308,10 +308,7 @@ public class TransportSimulateBulkAction extends TransportAbstractBulkAction {
                         matchingTemplates.stream().map(IndexTemplateMetadata::getMappings).collect(toList()),
                         xContentRegistry
                     );
-                    final CompressedXContent combinedMappings = mergeCompressedXContents(
-                        new CompressedXContent(mappingsMap),
-                        mappingAddition
-                    );
+                    final CompressedXContent combinedMappings = mergeMappings(new CompressedXContent(mappingsMap), mappingAddition);
                     Settings dummySettings = Settings.builder()
                         .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
                         .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
@@ -348,27 +345,21 @@ public class TransportSimulateBulkAction extends TransportAbstractBulkAction {
         return mappingValidationException;
     }
 
-    private static CompressedXContent mergeCompressedXContents(
-        @Nullable CompressedXContent compressedXContent1,
-        @Nullable CompressedXContent compressedXContent2
+    private static CompressedXContent mergeMappings(
+        @Nullable CompressedXContent originalMapping,
+        @Nullable Map<String, Object> mappingAddition
     ) throws IOException {
-        Map<String, Object> map1;
-        if (compressedXContent1 == null) {
-            map1 = new HashMap<>();
+        Map<String, Object> combinedMappingMap;
+        if (originalMapping == null) {
+            combinedMappingMap = new HashMap<>();
         } else {
-            map1 = XContentHelper.convertToMap(compressedXContent1.uncompressed(), true, XContentType.JSON).v2();
+            combinedMappingMap = XContentHelper.convertToMap(originalMapping.uncompressed(), true, XContentType.JSON).v2();
         }
-        Map<String, Object> map2;
-        if (compressedXContent2 == null) {
-            map2 = new HashMap<>();
-        } else {
-            map2 = XContentHelper.convertToMap(compressedXContent2.uncompressed(), true, XContentType.JSON).v2();
-        }
-        XContentHelper.update(map1, map2, true);
-        if (map1.isEmpty()) {
+        XContentHelper.update(combinedMappingMap, mappingAddition == null ? Map.of() : mappingAddition, true);
+        if (combinedMappingMap.isEmpty()) {
             return null;
         } else {
-            return convertRawAdditionalMappingToXContent(map1);
+            return convertMappingMapToXContent(combinedMappingMap);
         }
     }
 
@@ -412,7 +403,7 @@ public class TransportSimulateBulkAction extends TransportAbstractBulkAction {
         return null;
     }
 
-    public static CompressedXContent convertRawAdditionalMappingToXContent(Map<String, Object> rawAdditionalMapping) throws IOException {
+    private static CompressedXContent convertMappingMapToXContent(Map<String, Object> rawAdditionalMapping) throws IOException {
         CompressedXContent compressedXContent;
         if (rawAdditionalMapping == null || rawAdditionalMapping.isEmpty()) {
             compressedXContent = null;

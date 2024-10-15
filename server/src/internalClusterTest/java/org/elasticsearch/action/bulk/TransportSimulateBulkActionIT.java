@@ -132,10 +132,10 @@ public class TransportSimulateBulkActionIT extends ESIntegTestCase {
 
         String indexName = "my-index-1";
         // First, run before the index is created:
-        assertMappingsUpdatedFromComponentTemplateSubstitutions(indexName, indexTemplateName);
+        assertMappingsUpdatedFromSubstitutions(indexName, indexTemplateName);
         // Now, create the index and make sure the component template substitutions work the same:
         indicesAdmin().create(new CreateIndexRequest(indexName)).actionGet();
-        assertMappingsUpdatedFromComponentTemplateSubstitutions(indexName, indexTemplateName);
+        assertMappingsUpdatedFromSubstitutions(indexName, indexTemplateName);
         // Now make sure nothing was actually changed:
         indicesAdmin().refresh(new RefreshRequest(indexName)).actionGet();
         SearchResponse searchResponse = client().search(new SearchRequest(indexName)).actionGet();
@@ -147,7 +147,7 @@ public class TransportSimulateBulkActionIT extends ESIntegTestCase {
         assertThat(fields.size(), equalTo(1));
     }
 
-    private void assertMappingsUpdatedFromComponentTemplateSubstitutions(String indexName, String indexTemplateName) {
+    private void assertMappingsUpdatedFromSubstitutions(String indexName, String indexTemplateName) {
         IndexRequest indexRequest1 = new IndexRequest(indexName).source("""
             {
               "foo1": "baz"
@@ -233,6 +233,29 @@ public class TransportSimulateBulkActionIT extends ESIntegTestCase {
                     Map.of("index_patterns", List.of(indexName), "composed_of", List.of("test-component-template-2"))
                 ),
                 Map.of()
+            );
+            bulkRequest.add(indexRequest1);
+            bulkRequest.add(indexRequest2);
+            BulkResponse response = client().execute(new ActionType<BulkResponse>(SimulateBulkAction.NAME), bulkRequest).actionGet();
+            assertThat(response.getItems().length, equalTo(2));
+            assertThat(response.getItems()[0].getResponse().getResult(), equalTo(DocWriteResponse.Result.CREATED));
+            assertNull(((SimulateIndexResponse) response.getItems()[0].getResponse()).getException());
+            assertThat(response.getItems()[1].getResponse().getResult(), equalTo(DocWriteResponse.Result.CREATED));
+            assertNull(((SimulateIndexResponse) response.getItems()[1].getResponse()).getException());
+        }
+
+        {
+            /*
+             * Now we mapping_addition that defines both fields, so we expect no exception:
+             */
+            BulkRequest bulkRequest = new SimulateBulkRequest(
+                Map.of(),
+                Map.of(),
+                Map.of(),
+                Map.of(
+                    "_doc",
+                    Map.of("dynamic", "strict", "properties", Map.of("foo1", Map.of("type", "text"), "foo3", Map.of("type", "text")))
+                )
             );
             bulkRequest.add(indexRequest1);
             bulkRequest.add(indexRequest2);

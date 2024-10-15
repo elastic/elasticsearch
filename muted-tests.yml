@@ -325,9 +325,6 @@ tests:
 - class: org.elasticsearch.xpack.inference.services.cohere.CohereServiceTests
   method: testInfer_StreamRequest_ErrorResponse
   issue: https://github.com/elastic/elasticsearch/issues/114327
-- class: org.elasticsearch.xpack.rank.rrf.RRFRankClientYamlTestSuiteIT
-  method: test {yaml=rrf/700_rrf_retriever_search_api_compatibility/rrf retriever with top-level collapse}
-  issue: https://github.com/elastic/elasticsearch/issues/114331
 - class: org.elasticsearch.xpack.security.CoreWithSecurityClientYamlTestSuiteIT
   method: test {yaml=cluster.stats/30_ccs_stats/cross-cluster search stats search}
   issue: https://github.com/elastic/elasticsearch/issues/114371
@@ -381,9 +378,6 @@ tests:
 - class: org.elasticsearch.xpack.enrich.EnrichRestIT
   method: test {p0=enrich/20_standard_index/enrich stats REST response structure}
   issue: https://github.com/elastic/elasticsearch/issues/114753
-- class: org.elasticsearch.xpack.rank.rrf.RRFRankClientYamlTestSuiteIT
-  method: test {yaml=rrf/800_rrf_with_text_similarity_reranker_retriever/explain using rrf retriever and text-similarity}
-  issue: https://github.com/elastic/elasticsearch/issues/114757
 - class: org.elasticsearch.xpack.enrich.EnrichRestIT
   method: test {p0=enrich/30_tsdb_index/enrich documents over _bulk}
   issue: https://github.com/elastic/elasticsearch/issues/114761
@@ -411,8 +405,6 @@ tests:
 - class: org.elasticsearch.xpack.enrich.EnrichIT
   method: testDeleteExistingPipeline
   issue: https://github.com/elastic/elasticsearch/issues/114775
-- class: org.elasticsearch.test.rest.ClientYamlTestSuiteIT
-  issue: https://github.com/elastic/elasticsearch/issues/114787
 - class: org.elasticsearch.xpack.inference.rest.ServerSentEventsRestActionListenerTests
   method: testNoStream
   issue: https://github.com/elastic/elasticsearch/issues/114788
@@ -425,6 +417,14 @@ tests:
 - class: org.elasticsearch.xpack.eql.EqlRestIT
   method: testUnicodeChars
   issue: https://github.com/elastic/elasticsearch/issues/114791
+- class: org.elasticsearch.ingest.geoip.HttpClientTests
+  issue: https://github.com/elastic/elasticsearch/issues/112618
+- class: org.elasticsearch.xpack.remotecluster.RemoteClusterSecurityWithApmTracingRestIT
+  method: testTracingCrossCluster
+  issue: https://github.com/elastic/elasticsearch/issues/112731
+- class: org.elasticsearch.xpack.enrich.EnrichIT
+  method: testImmutablePolicy
+  issue: https://github.com/elastic/elasticsearch/issues/114839
 
 # Examples:
 #

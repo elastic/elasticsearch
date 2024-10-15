@@ -65,9 +65,7 @@ public class RestMultiSearchAction extends BaseRestHandler {
             new Route(GET, "/_msearch"),
             new Route(POST, "/_msearch"),
             new Route(GET, "/{index}/_msearch"),
-            new Route(POST, "/{index}/_msearch"),
-            Route.builder(GET, "/{index}/{type}/_msearch").deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7).build(),
-            Route.builder(POST, "/{index}/{type}/_msearch").deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7).build()
+            new Route(POST, "/{index}/_msearch")
         );
     }
 

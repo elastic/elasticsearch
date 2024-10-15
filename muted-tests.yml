@@ -372,6 +372,65 @@ tests:
 - class: org.elasticsearch.xpack.enrich.EnrichRestIT
   method: test {p0=enrich/10_basic/Test using the deprecated elasticsearch_version field results in a warning}
   issue: https://github.com/elastic/elasticsearch/issues/114748
+- class: org.elasticsearch.xpack.eql.EqlRestIT
+  method: testIndexWildcardPatterns
+  issue: https://github.com/elastic/elasticsearch/issues/114749
+- class: org.elasticsearch.xpack.eql.EqlRestIT
+  method: testBadRequests
+  issue: https://github.com/elastic/elasticsearch/issues/114752
+- class: org.elasticsearch.xpack.enrich.EnrichRestIT
+  method: test {p0=enrich/20_standard_index/enrich stats REST response structure}
+  issue: https://github.com/elastic/elasticsearch/issues/114753
+- class: org.elasticsearch.xpack.enrich.EnrichRestIT
+  method: test {p0=enrich/30_tsdb_index/enrich documents over _bulk}
+  issue: https://github.com/elastic/elasticsearch/issues/114761
+- class: org.elasticsearch.xpack.enrich.EnrichRestIT
+  method: test {p0=enrich/20_standard_index/enrich documents over _bulk via an alias}
+  issue: https://github.com/elastic/elasticsearch/issues/114763
+- class: org.elasticsearch.xpack.enrich.EnrichRestIT
+  method: test {p0=enrich/10_basic/Test enrich crud apis}
+  issue: https://github.com/elastic/elasticsearch/issues/114766
+- class: org.elasticsearch.xpack.enrich.EnrichRestIT
+  method: test {p0=enrich/20_standard_index/enrich documents over _bulk}
+  issue: https://github.com/elastic/elasticsearch/issues/114768
+- class: org.elasticsearch.xpack.enrich.EnrichRestIT
+  method: test {p0=enrich/50_data_stream/enrich documents over _bulk via a data stream}
+  issue: https://github.com/elastic/elasticsearch/issues/114769
+- class: org.elasticsearch.xpack.eql.EqlRestValidationIT
+  method: testDefaultIndicesOptions
+  issue: https://github.com/elastic/elasticsearch/issues/114771
+- class: org.elasticsearch.xpack.enrich.EnrichIT
+  method: testEnrichSpecialTypes
+  issue: https://github.com/elastic/elasticsearch/issues/114773
+- class: org.elasticsearch.xpack.security.operator.OperatorPrivilegesIT
+  method: testEveryActionIsEitherOperatorOnlyOrNonOperator
+  issue: https://github.com/elastic/elasticsearch/issues/102992
+- class: org.elasticsearch.xpack.enrich.EnrichIT
+  method: testDeleteExistingPipeline
+  issue: https://github.com/elastic/elasticsearch/issues/114775
+- class: org.elasticsearch.xpack.inference.rest.ServerSentEventsRestActionListenerTests
+  method: testNoStream
+  issue: https://github.com/elastic/elasticsearch/issues/114788
+- class: org.elasticsearch.xpack.eql.EqlRestValidationIT
+  method: testAllowNoIndicesOption
+  issue: https://github.com/elastic/elasticsearch/issues/114789
+- class: org.elasticsearch.xpack.eql.EqlStatsIT
+  method: testEqlRestUsage
+  issue: https://github.com/elastic/elasticsearch/issues/114790
+- class: org.elasticsearch.xpack.eql.EqlRestIT
+  method: testUnicodeChars
+  issue: https://github.com/elastic/elasticsearch/issues/114791
+- class: org.elasticsearch.xpack.rank.rrf.RRFRetrieverBuilderNestedDocsIT
+  method: testRRFExplainWithNamedRetrievers
+  issue: https://github.com/elastic/elasticsearch/issues/114820
+- class: org.elasticsearch.ingest.geoip.HttpClientTests
+  issue: https://github.com/elastic/elasticsearch/issues/112618
+- class: org.elasticsearch.xpack.remotecluster.RemoteClusterSecurityWithApmTracingRestIT
+  method: testTracingCrossCluster
+  issue: https://github.com/elastic/elasticsearch/issues/112731
+- class: org.elasticsearch.xpack.enrich.EnrichIT
+  method: testImmutablePolicy
+  issue: https://github.com/elastic/elasticsearch/issues/114839
 
 # Examples:
 #

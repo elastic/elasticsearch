@@ -33,15 +33,9 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 @ServerlessScope(Scope.PUBLIC)
 public class RestUpdateAction extends BaseRestHandler {
-    public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Specifying types in "
-        + "document update requests is deprecated, use the endpoint /{index}/_update/{id} instead.";
-
     @Override
     public List<Route> routes() {
-        return List.of(
-            new Route(POST, "/{index}/_update/{id}"),
-            Route.builder(POST, "/{index}/{type}/{id}/_update").deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7).build()
-        );
+        return List.of(new Route(POST, "/{index}/_update/{id}"));
     }
 
     @Override

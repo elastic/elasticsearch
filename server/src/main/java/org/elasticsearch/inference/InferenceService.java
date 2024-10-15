@@ -210,4 +210,8 @@ public interface InferenceService extends Closeable {
     default void defaultConfigs(ActionListener<List<Model>> defaultsListener) {
         defaultsListener.onResponse(List.of());
     }
+
+    default void updateModelsWithDynamicFields(List<Model> model, ActionListener<List<Model>> listener) {
+        listener.onResponse(model);
+    }
 }

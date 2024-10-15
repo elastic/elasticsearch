@@ -23,10 +23,14 @@ import org.elasticsearch.core.Nullable;
 
 import java.io.IOException;
 import java.net.InetAddress;
+import java.util.Arrays;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 /**
  * A collection of {@link IpDataLookup} implementations for IPinfo databases
@@ -42,6 +46,81 @@ final class IpinfoIpDataLookups {
     // the actual prefix from the metadata is cased like the literal string, and
     // prefix dispatch and checks case-insensitive, so that works out nicely
     static final String IPINFO_PREFIX = "ipinfo";
+
+    private static final Set<String> IPINFO_TYPE_STOP_WORDS = Set.of(
+        "ipinfo",
+        "extended",
+        "free",
+        "generic",
+        "ip",
+        "sample",
+        "standard",
+        "mmdb"
+    );
+
+    /**
+     * Cleans up the database_type String from an ipinfo database by splitting on punctuation, removing stop words, and then joining
+     * with an underscore.
+     * <p>
+     * e.g. "ipinfo free_foo_sample.mmdb" -> "foo"
+     *
+     * @param type the database_type from an ipinfo database
+     * @return a cleaned up database_type string
+     */
+    // n.b. this is just based on observation of the types from a survey of such databases -- it's like browser user agent sniffing,
+    // there aren't necessarily any amazing guarantees about this behavior
+    static String ipinfoTypeCleanup(String type) {
+        List<String> parts = Arrays.asList(type.split("[ _.]"));
+        return parts.stream().filter((s) -> IPINFO_TYPE_STOP_WORDS.contains(s) == false).collect(Collectors.joining("_"));
+    }
+
+    @Nullable
+    static Database getIpinfoDatabase(final String databaseType) {
+        // for ipinfo the database selection is more along the lines of user-agent sniffing than
+        // string-based dispatch. the specific database_type strings could change in the future,
+        // hence the somewhat loose nature of this checking.
+
+        final String cleanedType = ipinfoTypeCleanup(databaseType);
+
+        // early detection on any of the 'extended' types
+        if (databaseType.contains("extended")) {
+            // which are not currently supported
+            logger.trace("returning null for unsupported database_type [{}]", databaseType);
+            return null;
+        }
+
+        // early detection on 'country_asn' so the 'country' and 'asn' checks don't get faked out
+        if (cleanedType.contains("country_asn")) {
+            // but it's not currently supported
+            logger.trace("returning null for unsupported database_type [{}]", databaseType);
+            return null;
+        }
+
+        if (cleanedType.contains("asn")) {
+            return Database.AsnV2;
+        } else if (cleanedType.contains("country")) {
+            return Database.CountryV2;
+        } else if (cleanedType.contains("location")) { // note: catches 'location' and 'geolocation' ;)
+            return Database.CityV2;
+        } else if (cleanedType.contains("privacy")) {
+            return Database.PrivacyDetection;
+        } else {
+            // no match was found
+            logger.trace("returning null for unsupported database_type [{}]", databaseType);
+            return null;
+        }
+    }
+
+    @Nullable
+    static Function<Set<Database.Property>, IpDataLookup> getIpinfoLookup(final Database database) {
+        return switch (database) {
+            case Database.AsnV2 -> IpinfoIpDataLookups.Asn::new;
+            case Database.CountryV2 -> IpinfoIpDataLookups.Country::new;
+            case Database.CityV2 -> IpinfoIpDataLookups.Geolocation::new;
+            case Database.PrivacyDetection -> IpinfoIpDataLookups.PrivacyDetection::new;
+            default -> null;
+        };
+    }
 
     /**
      * Lax-ly parses a string that (ideally) looks like 'AS123' into a Long like 123L (or null, if such parsing isn't possible).

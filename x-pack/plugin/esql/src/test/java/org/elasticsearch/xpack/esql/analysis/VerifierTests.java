@@ -360,6 +360,40 @@ public class VerifierTests extends ESTestCase {
         );
     }
 
+    public void testAggFilterOnNonAggregates() {
+        assertEquals(
+            "1:36: WHERE clause allowed only for aggregate functions, none found in [emp_no + 1 where languages > 1]",
+            error("from test | stats emp_no + 1 where languages > 1 by emp_no")
+        );
+        assertEquals(
+            "1:53: WHERE clause allowed only for aggregate functions, none found in [abs(emp_no + languages) % 2 WHERE languages > 1]",
+            error("from test | stats abs(emp_no + languages) % 2 WHERE languages > 1 by emp_no, languages")
+        );
+    }
+
+    public void testAggFilterOnBucketingOrAggFunctions() {
+        // query passes when the bucket function is part of the BY clause
+        query("from test | stats max(languages) WHERE bucket(salary, 10) > 1 by bucket(salary, 10)");
+
+        // but fails if it's different
+        assertEquals(
+            "1:40: can only use grouping function [bucket(salary, 10)] part of the BY clause",
+            error("from test | stats max(languages) WHERE bucket(salary, 10) > 1 by emp_no")
+        );
+
+        assertEquals(
+            "1:40: cannot use aggregate function [max(salary)] in aggregate WHERE clause [max(languages) WHERE max(salary) > 1]",
+            error("from test | stats max(languages) WHERE max(salary) > 1 by emp_no")
+        );
+
+        assertEquals(
+            "1:40: cannot use aggregate function [max(salary)] in aggregate WHERE clause [max(languages) WHERE max(salary) + 2 > 1]",
+            error("from test | stats max(languages) WHERE max(salary) + 2 > 1 by emp_no")
+        );
+
+        assertEquals("1:60: Unknown column [m]", error("from test | stats m = max(languages), min(languages) WHERE m + 2 > 1 by emp_no"));
+    }
+
     public void testGroupingInsideAggsAsAgg() {
         assertEquals(
             "1:18: can only use grouping function [bucket(emp_no, 5.)] part of the BY clause",
@@ -1111,8 +1145,6 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testMatchFunctionNotAllowedAfterCommands() throws Exception {
-        assumeTrue("skipping because MATCH is not enabled", EsqlCapabilities.Cap.MATCH_FUNCTION.isEnabled());
-
         assertEquals(
             "1:24: [MATCH] function cannot be used after LIMIT",
             error("from test | limit 10 | where match(first_name, \"Anna\")")
@@ -1120,8 +1152,6 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testQueryStringFunctionsNotAllowedAfterCommands() throws Exception {
-        assumeTrue("skipping because QSTR is not enabled", EsqlCapabilities.Cap.QSTR_FUNCTION.isEnabled());
-
         // Source commands
         assertEquals("1:13: [QSTR] function cannot be used after SHOW", error("show info | where qstr(\"8.16.0\")"));
         assertEquals("1:17: [QSTR] function cannot be used after ROW", error("row a= \"Anna\" | where qstr(\"Anna\")"));
@@ -1180,15 +1210,11 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testQueryStringFunctionOnlyAllowedInWhere() throws Exception {
-        assumeTrue("skipping because QSTR is not enabled", EsqlCapabilities.Cap.QSTR_FUNCTION.isEnabled());
-
         assertEquals("1:9: [QSTR] function is only supported in WHERE commands", error("row a = qstr(\"Anna\")"));
         checkFullTextFunctionsOnlyAllowedInWhere("QSTR", "qstr(\"Anna\")");
     }
 
     public void testMatchFunctionOnlyAllowedInWhere() throws Exception {
-        assumeTrue("skipping because MATCH is not enabled", EsqlCapabilities.Cap.MATCH_FUNCTION.isEnabled());
-
         checkFullTextFunctionsOnlyAllowedInWhere("MATCH", "match(first_name, \"Anna\")");
     }
 
@@ -1208,8 +1234,6 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testQueryStringFunctionArgNotNullOrConstant() throws Exception {
-        assumeTrue("skipping because QSTR is not enabled", EsqlCapabilities.Cap.QSTR_FUNCTION.isEnabled());
-
         assertEquals(
             "1:19: argument of [qstr(first_name)] must be a constant, received [first_name]",
             error("from test | where qstr(first_name)")
@@ -1219,14 +1243,10 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testQueryStringWithDisjunctions() {
-        assumeTrue("skipping because QSTR is not enabled", EsqlCapabilities.Cap.QSTR_FUNCTION.isEnabled());
-
         checkWithDisjunctions("QSTR", "qstr(\"first_name: Anna\")");
     }
 
     public void testMatchWithDisjunctions() {
-        assumeTrue("skipping because MATCH is not enabled", EsqlCapabilities.Cap.MATCH_FUNCTION.isEnabled());
-
         checkWithDisjunctions("MATCH", "match(first_name, \"Anna\")");
     }
 
@@ -1267,14 +1287,10 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testQueryStringFunctionWithNonBooleanFunctions() {
-        assumeTrue("skipping because QSTR is not enabled", EsqlCapabilities.Cap.QSTR_FUNCTION.isEnabled());
-
         checkFullTextFunctionsWithNonBooleanFunctions("QSTR", "qstr(\"first_name: Anna\")");
     }
 
     public void testMatchFunctionWithNonBooleanFunctions() {
-        assumeTrue("skipping because MATCH is not enabled", EsqlCapabilities.Cap.MATCH_FUNCTION.isEnabled());
-
         checkFullTextFunctionsWithNonBooleanFunctions("MATCH", "match(first_name, \"Anna\")");
     }
 
@@ -1298,8 +1314,6 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testMatchFunctionArgNotConstant() throws Exception {
-        assumeTrue("skipping because MATCH is not enabled", EsqlCapabilities.Cap.MATCH_FUNCTION.isEnabled());
-
         assertEquals(
             "1:19: second argument of [match(first_name, first_name)] must be a constant, received [first_name]",
             error("from test | where match(first_name, first_name)")
@@ -1313,8 +1327,6 @@ public class VerifierTests extends ESTestCase {
 
     // These should pass eventually once we lift some restrictions on match function
     public void testMatchFunctionCurrentlyUnsupportedBehaviour() throws Exception {
-        assumeTrue("skipping because MATCH is not enabled", EsqlCapabilities.Cap.MATCH_FUNCTION.isEnabled());
-
         assertEquals(
             "1:68: Unknown column [first_name]",
             error("from test | stats max_salary = max(salary) by emp_no | where match(first_name, \"Anna\")")
@@ -1322,8 +1334,6 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testMatchFunctionNullArgs() throws Exception {
-        assumeTrue("skipping because MATCH is not enabled", EsqlCapabilities.Cap.MATCH_FUNCTION.isEnabled());
-
         assertEquals(
             "1:19: first argument of [match(null, \"query\")] cannot be null, received [null]",
             error("from test | where match(null, \"query\")")
@@ -1335,8 +1345,6 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testMatchFunctionTargetsExistingField() throws Exception {
-        assumeTrue("skipping because MATCH is not enabled", EsqlCapabilities.Cap.MATCH_FUNCTION.isEnabled());
-
         assertEquals("1:39: Unknown column [first_name]", error("from test | keep emp_no | where match(first_name, \"Anna\")"));
     }
 
@@ -1531,6 +1539,10 @@ public class VerifierTests extends ESTestCase {
             "1:59: argument of [to_timeduration(x)] must be [time_duration or string], found value [x] type [ip]",
             error("from types  | EVAL x = \"2024-09-08\"::ip, y = birth_date - to_timeduration(x)")
         );
+    }
+
+    private void query(String query) {
+        defaultAnalyzer.analyze(parser.createStatement(query));
     }
 
     private String error(String query) {

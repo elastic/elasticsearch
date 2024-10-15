@@ -34,16 +34,10 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
  */
 @ServerlessScope(value = Scope.PUBLIC)
 public class RestExplainAction extends BaseRestHandler {
-    public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Specifying a type in explain requests is deprecated.";
 
     @Override
     public List<Route> routes() {
-        return List.of(
-            new Route(GET, "/{index}/_explain/{id}"),
-            new Route(POST, "/{index}/_explain/{id}"),
-            Route.builder(GET, "/{index}/{type}/{id}/_explain").deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7).build(),
-            Route.builder(POST, "/{index}/{type}/{id}/_explain").deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7).build()
-        );
+        return List.of(new Route(GET, "/{index}/_explain/{id}"), new Route(POST, "/{index}/_explain/{id}"));
     }
 
     @Override

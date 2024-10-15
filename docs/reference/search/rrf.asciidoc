@@ -1,8 +1,6 @@
 [[rrf]]
 === Reciprocal rank fusion
 
-preview::["This functionality is in technical preview and may be changed or removed in a future release. The syntax will likely change before GA. Elastic will work to fix any issues, but features in technical preview are not subject to the support SLA of official GA features."]
-
 https://plg.uwaterloo.ca/~gvcormac/cormacksigir09-rrf.pdf[Reciprocal rank fusion (RRF)]
 is a method for combining multiple result sets with different relevance indicators into a single result set.
 RRF requires no tuning, and the different relevance indicators do not have to be related to each other to achieve high-quality results.
@@ -99,13 +97,8 @@ The `rrf` retriever supports:
 The `rrf` retriever does not currently support:
 
 * <<search-api-scroll-query-param, scroll>>
-* <<search-api-pit, point in time>>
 * <<search-sort-param, sort>>
 * <<rescore, rescore>>
-* <<search-suggesters, suggesters>>
-* <<highlighting, highlighting>>
-* <<collapse-search-results, collapse>>
-* <<profiling-queries, profiling>>
 
 Using unsupported features as part of a search with an `rrf` retriever results in an exception.
 

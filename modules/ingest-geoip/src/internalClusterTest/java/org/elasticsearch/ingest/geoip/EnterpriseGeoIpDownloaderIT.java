@@ -98,6 +98,7 @@ public class EnterpriseGeoIpDownloaderIT extends ESIntegTestCase {
         EnterpriseGeoIpDownloader.DEFAULT_IPINFO_ENDPOINT = getEndpoint();
         final String indexName = "enterprise_geoip_test_index";
         final String geoipPipelineName = "enterprise_geoip_pipeline";
+        final String iplocationPipelineName = "enterprise_iplocation_pipeline";
         final String sourceField = "ip";
         final String targetField = "ip-result";
 
@@ -106,6 +107,7 @@ public class EnterpriseGeoIpDownloaderIT extends ESIntegTestCase {
         configureIpinfoDatabase(IPINFO_DATABASE_TYPE);
         waitAround();
         createPipeline(geoipPipelineName, "geoip", MAXMIND_DATABASE_TYPE, sourceField, targetField);
+        createPipeline(iplocationPipelineName, "ip_location", IPINFO_DATABASE_TYPE, sourceField, targetField);
 
         /*
          * We know that the databases index has been populated (because we waited around, :wink:), but we don't know for sure that
@@ -120,6 +122,16 @@ public class EnterpriseGeoIpDownloaderIT extends ESIntegTestCase {
             Object targetFieldValue = returnedSource.get(targetField);
             assertNotNull(targetFieldValue);
             assertThat(((Map<String, Object>) targetFieldValue).get("organization_name"), equalTo("Bredband2 AB"));
+        });
+        assertBusy(() -> {
+            logger.info("Ingesting another test document");
+            String documentId = ingestDocument(indexName, iplocationPipelineName, sourceField, "12.10.66.1");
+            GetResponse getResponse = client().get(new GetRequest(indexName, documentId)).actionGet();
+            Map<String, Object> returnedSource = getResponse.getSource();
+            assertNotNull(returnedSource);
+            Object targetFieldValue = returnedSource.get(targetField);
+            assertNotNull(targetFieldValue);
+            assertThat(((Map<String, Object>) targetFieldValue).get("organization_name"), equalTo("OAKLAWN JOCKEY CLUB, INC."));
         });
     }
 

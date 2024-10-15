@@ -344,12 +344,12 @@ public class EsqlCapabilities {
         /**
          * QSTR function
          */
-        QSTR_FUNCTION(true),
+        QSTR_FUNCTION,
 
         /**
          * MATCH function
          */
-        MATCH_FUNCTION(true),
+        MATCH_FUNCTION,
 
         /**
          * Don't optimize CASE IS NOT NULL function by not requiring the fields to be not null as well.
@@ -370,7 +370,12 @@ public class EsqlCapabilities {
         /**
          * Fix sorting not allowed on _source and counters.
          */
-        SORTING_ON_SOURCE_AND_COUNTERS_FORBIDDEN;
+        SORTING_ON_SOURCE_AND_COUNTERS_FORBIDDEN,
+
+        /**
+         * Allow filter per individual aggregation.
+         */
+        PER_AGG_FILTERING;
 
         private final boolean snapshotOnly;
         private final FeatureFlag featureFlag;

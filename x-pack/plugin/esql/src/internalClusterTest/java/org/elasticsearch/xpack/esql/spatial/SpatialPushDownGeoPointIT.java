@@ -36,4 +36,9 @@ public class SpatialPushDownGeoPointIT extends SpatialPushDownPointsTestCase {
     protected String castingFunction() {
         return "TO_GEOSHAPE";
     }
+
+    @Override
+    protected double searchDistance() {
+        return 10000000;
+    }
 }

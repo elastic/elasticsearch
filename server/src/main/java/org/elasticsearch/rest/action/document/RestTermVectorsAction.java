@@ -44,11 +44,7 @@ public class RestTermVectorsAction extends BaseRestHandler {
             new Route(GET, "/{index}/_termvectors"),
             new Route(POST, "/{index}/_termvectors"),
             new Route(GET, "/{index}/_termvectors/{id}"),
-            new Route(POST, "/{index}/_termvectors/{id}"),
-            Route.builder(GET, "/{index}/{type}/_termvectors").deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7).build(),
-            Route.builder(POST, "/{index}/{type}/_termvectors").deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7).build(),
-            Route.builder(GET, "/{index}/{type}/{id}/_termvectors").deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7).build(),
-            Route.builder(POST, "/{index}/{type}/{id}/_termvectors").deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7).build()
+            new Route(POST, "/{index}/_termvectors/{id}")
         );
     }
 

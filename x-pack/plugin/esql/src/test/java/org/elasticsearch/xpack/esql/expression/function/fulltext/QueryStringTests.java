@@ -18,23 +18,16 @@ import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase
 import org.elasticsearch.xpack.esql.expression.function.FunctionName;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.hamcrest.Matcher;
-import org.junit.BeforeClass;
 
 import java.util.Arrays;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.QSTR_FUNCTION;
 import static org.hamcrest.Matchers.equalTo;
 
 @FunctionName("qstr")
 public class QueryStringTests extends AbstractFunctionTestCase {
-
-    @BeforeClass
-    public static void checkFunctionEnabled() {
-        assumeTrue("QSTR capability should be enabled ", QSTR_FUNCTION.isEnabled());
-    }
 
     public QueryStringTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();

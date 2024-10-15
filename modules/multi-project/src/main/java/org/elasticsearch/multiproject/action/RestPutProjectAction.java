@@ -25,7 +25,7 @@ public class RestPutProjectAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(RestRequest.Method.PUT, "/_project"));
+        return List.of(new Route(RestRequest.Method.PUT, "/_project/{id}"));
     }
 
     @Override
@@ -35,17 +35,11 @@ public class RestPutProjectAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
-        final PutProjectAction.Request putProjectRequest;
-        try (var parser = restRequest.contentParser()) {
-            putProjectRequest = PutProjectAction.Request.parseRequest(
-                (ProjectId projectId) -> new PutProjectAction.Request(
-                    getMasterNodeTimeout(restRequest),
-                    getAckTimeout(restRequest),
-                    projectId
-                ),
-                parser
-            );
-        }
+        final PutProjectAction.Request putProjectRequest = new PutProjectAction.Request(
+            getMasterNodeTimeout(restRequest),
+            getAckTimeout(restRequest),
+            new ProjectId(restRequest.param("id"))
+        );
         return channel -> client.execute(PutProjectAction.INSTANCE, putProjectRequest, new RestToXContentListener<>(channel));
     }
 }

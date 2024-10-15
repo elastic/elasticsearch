@@ -35,10 +35,6 @@ import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xcontent.ConstructingObjectParser;
-import org.elasticsearch.xcontent.ObjectParser;
-import org.elasticsearch.xcontent.ParseField;
-import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.regex.Pattern;
@@ -131,26 +127,6 @@ public class PutProjectAction extends ActionType<AcknowledgedResponse> {
 
         private final ProjectId projectId;
 
-        public interface Factory {
-            Request create(ProjectId projectId);
-        }
-
-        public static final ParseField PROJECT_ID_FIELD = new ParseField("project_id");
-        private static final ConstructingObjectParser<Request, Request.Factory> PARSER = new ConstructingObjectParser<>(
-            "put_project_request",
-            false,
-            (a, factory) -> factory.create((ProjectId) a[0])
-        );
-
-        static {
-            PARSER.declareField(
-                ConstructingObjectParser.constructorArg(),
-                (p, c) -> ProjectId.fromXContent(p),
-                PROJECT_ID_FIELD,
-                ObjectParser.ValueType.STRING
-            );
-        }
-
         public Request(TimeValue masterNodeTimeout, TimeValue ackTimeout, ProjectId projectId) {
             super(masterNodeTimeout, ackTimeout);
             this.projectId = projectId;
@@ -173,10 +149,6 @@ public class PutProjectAction extends ActionType<AcknowledgedResponse> {
                 );
             }
             return validationException;
-        }
-
-        public static Request parseRequest(Request.Factory factory, XContentParser parser) {
-            return PARSER.apply(parser, factory);
         }
     }
 }

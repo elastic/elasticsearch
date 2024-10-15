@@ -28,14 +28,14 @@ import java.util.List;
  */
 public class EnterpriseGeoIpHttpFixture extends ExternalResource {
 
-    private final List<String> databaseTypes;
+    private final List<String> maxmindDatabaseTypes;
     private HttpServer server;
 
     /*
      * The values in databaseTypes must be in DatabaseConfiguration.MAXMIND_NAMES.
      */
-    public EnterpriseGeoIpHttpFixture(List<String> databaseTypes) {
-        this.databaseTypes = List.copyOf(databaseTypes);
+    public EnterpriseGeoIpHttpFixture(List<String> maxmindDatabaseTypes) {
+        this.maxmindDatabaseTypes = List.copyOf(maxmindDatabaseTypes);
     }
 
     public String getAddress() {
@@ -58,14 +58,14 @@ public class EnterpriseGeoIpHttpFixture extends ExternalResource {
         });
 
         // register the file types for the download fixture
-        for (String databaseType : databaseTypes) {
-            createContextForEnterpriseDatabase(databaseType);
+        for (String databaseType : maxmindDatabaseTypes) {
+            createContextForMaxmindDatabase(databaseType);
         }
 
         server.start();
     }
 
-    private void createContextForEnterpriseDatabase(String databaseType) {
+    private void createContextForMaxmindDatabase(String databaseType) {
         this.server.createContext("/" + databaseType + "/download", exchange -> {
             exchange.sendResponseHeaders(200, 0);
             if (exchange.getRequestURI().toString().contains("sha256")) {

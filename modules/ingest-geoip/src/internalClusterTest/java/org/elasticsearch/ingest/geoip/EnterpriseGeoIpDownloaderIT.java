@@ -49,10 +49,10 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class EnterpriseGeoIpDownloaderIT extends ESIntegTestCase {
 
-    private static final String DATABASE_TYPE = "GeoIP2-City";
+    private static final String MAXMIND_DATABASE_TYPE = "GeoIP2-City";
 
     @ClassRule
-    public static final EnterpriseGeoIpHttpFixture fixture = new EnterpriseGeoIpHttpFixture(List.of(DATABASE_TYPE));
+    public static final EnterpriseGeoIpHttpFixture fixture = new EnterpriseGeoIpHttpFixture(List.of(MAXMIND_DATABASE_TYPE));
 
     protected String getEndpoint() {
         return fixture.getAddress();
@@ -94,8 +94,8 @@ public class EnterpriseGeoIpDownloaderIT extends ESIntegTestCase {
         final String targetField = "ip-city";
 
         startEnterpriseGeoIpDownloaderTask();
-        configureDatabase(DATABASE_TYPE);
-        createGeoIpPipeline(pipelineName, DATABASE_TYPE, sourceField, targetField);
+        configureMaxmindDatabase(MAXMIND_DATABASE_TYPE);
+        createGeoIpPipeline(pipelineName, MAXMIND_DATABASE_TYPE, sourceField, targetField);
 
         assertBusy(() -> {
             /*
@@ -129,7 +129,7 @@ public class EnterpriseGeoIpDownloaderIT extends ESIntegTestCase {
         );
     }
 
-    private void configureDatabase(String databaseType) throws Exception {
+    private void configureMaxmindDatabase(String databaseType) throws Exception {
         admin().cluster()
             .execute(
                 PutDatabaseConfigurationAction.INSTANCE,

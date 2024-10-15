@@ -97,18 +97,6 @@ public class EsqlBaseParserBaseListener implements EsqlBaseParserListener {
    *
    * <p>The default implementation does nothing.</p>
    */
-  @Override public void enterMatchExpression(EsqlBaseParser.MatchExpressionContext ctx) { }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation does nothing.</p>
-   */
-  @Override public void exitMatchExpression(EsqlBaseParser.MatchExpressionContext ctx) { }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation does nothing.</p>
-   */
   @Override public void enterLogicalNot(EsqlBaseParser.LogicalNotContext ctx) { }
   /**
    * {@inheritDoc}
@@ -145,18 +133,6 @@ public class EsqlBaseParserBaseListener implements EsqlBaseParserListener {
    *
    * <p>The default implementation does nothing.</p>
    */
-  @Override public void enterMatchColonExpression(EsqlBaseParser.MatchColonExpressionContext ctx) { }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation does nothing.</p>
-   */
-  @Override public void exitMatchColonExpression(EsqlBaseParser.MatchColonExpressionContext ctx) { }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation does nothing.</p>
-   */
   @Override public void enterRegexExpression(EsqlBaseParser.RegexExpressionContext ctx) { }
   /**
    * {@inheritDoc}
@@ -164,6 +140,18 @@ public class EsqlBaseParserBaseListener implements EsqlBaseParserListener {
    * <p>The default implementation does nothing.</p>
    */
   @Override public void exitRegexExpression(EsqlBaseParser.RegexExpressionContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void enterMatchOpExpression(EsqlBaseParser.MatchOpExpressionContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitMatchOpExpression(EsqlBaseParser.MatchOpExpressionContext ctx) { }
   /**
    * {@inheritDoc}
    *
@@ -200,18 +188,6 @@ public class EsqlBaseParserBaseListener implements EsqlBaseParserListener {
    * <p>The default implementation does nothing.</p>
    */
   @Override public void exitRegexBooleanExpression(EsqlBaseParser.RegexBooleanExpressionContext ctx) { }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation does nothing.</p>
-   */
-  @Override public void enterMatchBooleanExpression(EsqlBaseParser.MatchBooleanExpressionContext ctx) { }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation does nothing.</p>
-   */
-  @Override public void exitMatchBooleanExpression(EsqlBaseParser.MatchBooleanExpressionContext ctx) { }
   /**
    * {@inheritDoc}
    *

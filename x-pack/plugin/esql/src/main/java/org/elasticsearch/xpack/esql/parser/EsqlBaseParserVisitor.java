@@ -57,13 +57,6 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitWhereCommand(EsqlBaseParser.WhereCommandContext ctx);
   /**
-   * Visit a parse tree produced by the {@code matchExpression}
-   * labeled alternative in {@link EsqlBaseParser#booleanExpression}.
-   * @param ctx the parse tree
-   * @return the visitor result
-   */
-  T visitMatchExpression(EsqlBaseParser.MatchExpressionContext ctx);
-  /**
    * Visit a parse tree produced by the {@code logicalNot}
    * labeled alternative in {@link EsqlBaseParser#booleanExpression}.
    * @param ctx the parse tree
@@ -85,19 +78,19 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitIsNull(EsqlBaseParser.IsNullContext ctx);
   /**
-   * Visit a parse tree produced by the {@code matchColonExpression}
-   * labeled alternative in {@link EsqlBaseParser#booleanExpression}.
-   * @param ctx the parse tree
-   * @return the visitor result
-   */
-  T visitMatchColonExpression(EsqlBaseParser.MatchColonExpressionContext ctx);
-  /**
    * Visit a parse tree produced by the {@code regexExpression}
    * labeled alternative in {@link EsqlBaseParser#booleanExpression}.
    * @param ctx the parse tree
    * @return the visitor result
    */
   T visitRegexExpression(EsqlBaseParser.RegexExpressionContext ctx);
+  /**
+   * Visit a parse tree produced by the {@code matchOpExpression}
+   * labeled alternative in {@link EsqlBaseParser#booleanExpression}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitMatchOpExpression(EsqlBaseParser.MatchOpExpressionContext ctx);
   /**
    * Visit a parse tree produced by the {@code logicalIn}
    * labeled alternative in {@link EsqlBaseParser#booleanExpression}.
@@ -118,12 +111,6 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    * @return the visitor result
    */
   T visitRegexBooleanExpression(EsqlBaseParser.RegexBooleanExpressionContext ctx);
-  /**
-   * Visit a parse tree produced by {@link EsqlBaseParser#matchBooleanExpression}.
-   * @param ctx the parse tree
-   * @return the visitor result
-   */
-  T visitMatchBooleanExpression(EsqlBaseParser.MatchBooleanExpressionContext ctx);
   /**
    * Visit a parse tree produced by {@link EsqlBaseParser#matchOperatorExpression}.
    * @param ctx the parse tree

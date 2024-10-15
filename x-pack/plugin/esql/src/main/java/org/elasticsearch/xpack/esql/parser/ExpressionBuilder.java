@@ -15,7 +15,6 @@ import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.apache.lucene.util.automaton.Operations;
-import org.elasticsearch.Build;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.unit.Fuzziness;
@@ -615,9 +614,6 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
 
     @Override
     public String visitFunctionName(EsqlBaseParser.FunctionNameContext ctx) {
-        if (ctx.MATCH() != null) {
-            return ctx.MATCH().getText();
-        }
         return visitIdentifierOrParameter(ctx.identifierOrParameter());
     }
 
@@ -927,23 +923,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
     }
 
     @Override
-    public Expression visitMatchBooleanExpression(EsqlBaseParser.MatchBooleanExpressionContext ctx) {
-        if (Build.current().isSnapshot() == false) {
-            throw new ParsingException(source(ctx), "MATCH operator currently requires a snapshot build");
-        }
-        return new MatchQueryPredicate(
-            source(ctx),
-            expression(ctx.valueExpression()),
-            visitString(ctx.queryString).fold().toString(),
-            null
-        );
-    }
-
-    @Override
     public Expression visitMatchOperatorExpression(EsqlBaseParser.MatchOperatorExpressionContext ctx) {
-        if (Build.current().isSnapshot() == false) {
-            throw new ParsingException(source(ctx), "[:] operator currently requires a snapshot build");
-        }
         EsqlBaseParser.MatchOptionsContext optionsCtx = ctx.matchOptions();
         Fuzziness fuzziness = null;
         Float boost = null;

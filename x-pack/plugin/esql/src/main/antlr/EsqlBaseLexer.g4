@@ -210,13 +210,12 @@ MINUS : '-';
 ASTERISK : '*';
 SLASH : '/';
 PERCENT : '%';
+DEV_MATCH_COLON : COLON -> type(COLON);
 CARET : '^';
 TILDE : '~';
 
 
-MATCH : 'match';
 NESTED_WHERE : {this.isDevVersion()}? WHERE -> type(WHERE);
-DEV_MATCH_COLON_OP : {this.isDevVersion()}? COLON -> type(COLON);
 
 NAMED_OR_POSITIONAL_PARAM
     : PARAM (LETTER | UNDERSCORE) UNQUOTED_ID_BODY*

@@ -373,11 +373,6 @@ public class EsqlCapabilities {
         SORTING_ON_SOURCE_AND_COUNTERS_FORBIDDEN,
 
         /**
-         * Match operator as a colon
-         */
-        MATCH_OPERATOR_COLON(true),
-
-        /**
          * Allow filter per individual aggregation.
          */
         PER_AGG_FILTERING;

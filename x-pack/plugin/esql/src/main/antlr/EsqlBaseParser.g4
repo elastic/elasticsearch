@@ -68,17 +68,12 @@ booleanExpression
     | left=booleanExpression operator=OR right=booleanExpression                 #logicalBinary
     | valueExpression (NOT)? IN LP valueExpression (COMMA valueExpression)* RP   #logicalIn
     | valueExpression IS NOT? NULL                                               #isNull
-    | {this.isDevVersion()}? matchBooleanExpression                              #matchExpression
-    | {this.isDevVersion()}? matchOperatorExpression                             #matchColonExpression
+    | {this.isDevVersion()}? matchOperatorExpression                             #matchOpExpression
     ;
 
 regexBooleanExpression
     : valueExpression (NOT)? kind=LIKE pattern=string
     | valueExpression (NOT)? kind=RLIKE pattern=string
-    ;
-
-matchBooleanExpression
-    : valueExpression MATCH queryString=string
     ;
 
 matchOperatorExpression
@@ -127,9 +122,7 @@ functionExpression
     ;
 
 functionName
-    // Additional function identifiers that are already a reserved word in the language
-    : MATCH
-    | identifierOrParameter
+    : identifierOrParameter
     ;
 
 dataType

@@ -108,19 +108,23 @@ public class RestBulkAction extends BaseRestHandler {
             boolean defaultRequireDataStream = request.paramAsBoolean(DocWriteRequest.REQUIRE_DATA_STREAM, false);
             bulkRequest.timeout(request.paramAsTime("timeout", BulkShardRequest.DEFAULT_TIMEOUT));
             bulkRequest.setRefreshPolicy(request.param("refresh"));
-            bulkRequest.add(
-                request.requiredContent(),
-                defaultIndex,
-                defaultRouting,
-                defaultFetchSourceContext,
-                defaultPipeline,
-                defaultRequireAlias,
-                defaultRequireDataStream,
-                defaultListExecutedPipelines,
-                allowExplicitIndex,
-                request.getXContentType(),
-                request.getRestApiVersion()
-            );
+            try {
+                bulkRequest.add(
+                    request.requiredContent(),
+                    defaultIndex,
+                    defaultRouting,
+                    defaultFetchSourceContext,
+                    defaultPipeline,
+                    defaultRequireAlias,
+                    defaultRequireDataStream,
+                    defaultListExecutedPipelines,
+                    allowExplicitIndex,
+                    request.getXContentType(),
+                    request.getRestApiVersion()
+                );
+            } catch (Exception e) {
+                return channel -> new RestToXContentListener<>(channel).onFailure(parseFailureException(e));
+            }
 
             return channel -> client.bulk(bulkRequest, new RestRefCountedChunkedToXContentListener<>(channel));
         } else {
@@ -133,6 +137,10 @@ public class RestBulkAction extends BaseRestHandler {
             String refresh = request.param("refresh");
             return new ChunkHandler(allowExplicitIndex, request, () -> bulkHandler.newBulkRequest(waitForActiveShards, timeout, refresh));
         }
+    }
+
+    private static ElasticsearchParseException parseFailureException(Exception e) {
+        return new ElasticsearchParseException("could not parse bulk request body", e);
     }
 
     static class ChunkHandler implements BaseRestHandler.RequestBodyChunkConsumer {
@@ -227,9 +235,7 @@ public class RestBulkAction extends BaseRestHandler {
 
                 } catch (Exception e) {
                     shortCircuit();
-                    new RestToXContentListener<>(channel).onFailure(
-                        new ElasticsearchParseException("could not parse bulk request body", e)
-                    );
+                    new RestToXContentListener<>(channel).onFailure(parseFailureException(e));
                     return;
                 }
             }

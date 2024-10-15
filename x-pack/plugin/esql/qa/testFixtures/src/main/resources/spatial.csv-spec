@@ -1203,7 +1203,7 @@ count:long | country:k
 1          | Poland
 ;
 
-airportsSortCityName
+airportsSortCityName#[skip:-8.13.3, reason:fixed in 8.13]
 FROM airports
 | SORT abbrev
 | LIMIT 5

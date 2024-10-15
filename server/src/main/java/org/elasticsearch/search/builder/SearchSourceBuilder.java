@@ -19,6 +19,7 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -26,6 +27,7 @@ import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -99,10 +101,11 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
     public static final ParseField TIMEOUT_FIELD = new ParseField("timeout");
     public static final ParseField TERMINATE_AFTER_FIELD = new ParseField("terminate_after");
     public static final ParseField QUERY_FIELD = new ParseField("query");
+    @UpdateForV10(owner = UpdateForV10.Owner.SEARCH_RELEVANCE) // remove RANK_FIELD AND SUB_SEARCHES_FIELD
     public static final ParseField SUB_SEARCHES_FIELD = new ParseField("sub_searches");
+    public static final ParseField RANK_FIELD = new ParseField("rank");
     public static final ParseField POST_FILTER_FIELD = new ParseField("post_filter");
     public static final ParseField KNN_FIELD = new ParseField("knn");
-    public static final ParseField RANK_FIELD = new ParseField("rank");
     public static final ParseField MIN_SCORE_FIELD = new ParseField("min_score");
     public static final ParseField VERSION_FIELD = new ParseField("version");
     public static final ParseField SEQ_NO_PRIMARY_TERM_FIELD = new ParseField("seq_no_primary_term");
@@ -1426,6 +1429,13 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                     knnBuilders = List.of(KnnSearchBuilder.fromXContent(parser));
                     searchUsage.trackSectionUsage(KNN_FIELD.getPreferredName());
                 } else if (RANK_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
+                    if (parser.getRestApiVersion().matches(RestApiVersion.onOrAfter(RestApiVersion.V_8))) {
+                        deprecationLogger.warn(
+                            DeprecationCategory.API,
+                            "rank_api",
+                            "Using [rank] is deprecated and will be removed in a future release"
+                        );
+                    }
                     if (RANK_SUPPORTED == false) {
                         throwUnknownKey(parser, token, currentFieldName);
                     }
@@ -1633,6 +1643,13 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                     }
                     searchUsage.trackSectionUsage(KNN_FIELD.getPreferredName());
                 } else if (SUB_SEARCHES_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
+                    if (parser.getRestApiVersion().matches(RestApiVersion.onOrAfter(RestApiVersion.V_8))) {
+                        deprecationLogger.warn(
+                            DeprecationCategory.API,
+                            "sub_searches_api",
+                            "Using [sub_searches] is deprecated and will be removed in a future release"
+                        );
+                    }
                     if (RANK_SUPPORTED == false) {
                         throwUnknownKey(parser, token, currentFieldName);
                     }

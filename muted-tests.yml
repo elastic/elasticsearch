@@ -416,6 +416,9 @@ tests:
 - class: org.elasticsearch.xpack.inference.rest.ServerSentEventsRestActionListenerTests
   method: testNoStream
   issue: https://github.com/elastic/elasticsearch/issues/114788
+- class: org.elasticsearch.xpack.eql.EqlRestValidationIT
+  method: testAllowNoIndicesOption
+  issue: https://github.com/elastic/elasticsearch/issues/114789
 
 # Examples:
 #

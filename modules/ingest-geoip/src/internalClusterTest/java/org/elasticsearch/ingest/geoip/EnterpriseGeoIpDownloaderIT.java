@@ -22,6 +22,7 @@ import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
@@ -104,7 +105,7 @@ public class EnterpriseGeoIpDownloaderIT extends ESIntegTestCase {
              * down and made available on all nodes. So we run this ingest-and-check step in an assertBusy.
              */
             logger.info("Ingesting a test document");
-            String documentId = ingestDocument(indexName, pipelineName, sourceField);
+            String documentId = ingestDocument(indexName, pipelineName, sourceField, "89.160.20.128");
             GetResponse getResponse = client().get(new GetRequest(indexName, documentId)).actionGet();
             Map<String, Object> returnedSource = getResponse.getSource();
             assertNotNull(returnedSource);
@@ -177,11 +178,11 @@ public class EnterpriseGeoIpDownloaderIT extends ESIntegTestCase {
         });
     }
 
-    private String ingestDocument(String indexName, String pipelineName, String sourceField) {
+    private String ingestDocument(String indexName, String pipelineName, String sourceField, String value) {
         BulkRequest bulkRequest = new BulkRequest();
-        bulkRequest.add(
-            new IndexRequest(indexName).source("{\"" + sourceField + "\": \"89.160.20.128\"}", XContentType.JSON).setPipeline(pipelineName)
-        );
+        bulkRequest.add(new IndexRequest(indexName).source(Strings.format("""
+            { "%s": "%s"}
+            """, sourceField, value), XContentType.JSON).setPipeline(pipelineName));
         BulkResponse response = client().bulk(bulkRequest).actionGet();
         BulkItemResponse[] bulkItemResponses = response.getItems();
         assertThat(bulkItemResponses.length, equalTo(1));

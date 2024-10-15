@@ -14,6 +14,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xpack.core.security.action.rolemapping.PutRoleMappingRequest;
 import org.elasticsearch.xpack.core.security.action.rolemapping.PutRoleMappingRequestBuilder;
+import org.elasticsearch.xpack.core.security.authc.support.mapper.ClusterStateRoleMapping;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.ExpressionRoleMapping;
 import org.elasticsearch.xpack.core.security.authz.RoleMappingMetadata;
 
@@ -43,8 +44,9 @@ public class ReservedRoleMappingAction implements ReservedClusterStateHandler<Li
     @Override
     public TransformState transform(Object source, TransformState prevState) throws Exception {
         @SuppressWarnings("unchecked")
-        Set<ExpressionRoleMapping> roleMappings = validate((List<PutRoleMappingRequest>) source);
-        RoleMappingMetadata newRoleMappingMetadata = new RoleMappingMetadata(roleMappings);
+        Set<ClusterStateRoleMapping> roleMappings = validate((List<PutRoleMappingRequest>) source);
+        RoleMappingMetadata newRoleMappingMetadata = new RoleMappingMetadata(roleMappings, true);
+        // check feature: if available, check if we need to re-write to cluster state. how -> put field in metadata...
         if (newRoleMappingMetadata.equals(RoleMappingMetadata.getFromClusterState(prevState.state()))) {
             return prevState;
         } else {
@@ -71,7 +73,7 @@ public class ReservedRoleMappingAction implements ReservedClusterStateHandler<Li
         return result;
     }
 
-    private Set<ExpressionRoleMapping> validate(List<PutRoleMappingRequest> roleMappings) {
+    private Set<ClusterStateRoleMapping> validate(List<PutRoleMappingRequest> roleMappings) {
         var exceptions = new ArrayList<Exception>();
         for (var roleMapping : roleMappings) {
             // File based defined role mappings are allowed to use MetadataUtils.RESERVED_PREFIX
@@ -85,6 +87,8 @@ public class ReservedRoleMappingAction implements ReservedClusterStateHandler<Li
             exceptions.forEach(illegalArgumentException::addSuppressed);
             throw illegalArgumentException;
         }
-        return roleMappings.stream().map(PutRoleMappingRequest::getMapping).collect(Collectors.toUnmodifiableSet());
+        return roleMappings.stream()
+            .map(putRoleMappingRequest -> new ClusterStateRoleMapping(putRoleMappingRequest.getMapping()))
+            .collect(Collectors.toUnmodifiableSet());
     }
 }

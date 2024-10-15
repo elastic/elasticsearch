@@ -1,11 +1,5 @@
 pr: 114837
 summary: Origin/104411-disallow-chars-in-pipeline-names
 area: Ingest Node
-type: "breaking, bug"
+type: "bug"
 issues: [ 104411 ]
-breaking:
-  title: Special characters in ingest pipeline names deprecated
-  area: Ingest Node
-  details: "The following characters that break the Ingest Pipeline GET APIs will now throw a critical deprecation warning when used in the name of an ingest pipeline: '\', '/', '*', '?', '\"', '<', '>', '|', ' ' & ','"
-  impact: "Users attempting create an ingest pipeline with a name containing any of the disallowed special characters will find a deprecation log message output and a warning header will be added to the PUT response"
-  notable: false

@@ -450,7 +450,7 @@ public class MvPercentileTests extends AbstractScalarFunctionTestCase {
                 expected = values[valueCount - 1];
             } else {
                 assert lowerIndex >= 0 && upperIndex < valueCount;
-                expected = calculatePercentile(fraction, BigDecimal.valueOf(values[lowerIndex]), BigDecimal.valueOf(values[upperIndex]))
+                expected = calculatePercentile(fraction, new BigDecimal(values[lowerIndex]), new BigDecimal(values[upperIndex]))
                     .doubleValue();
             }
 
@@ -462,7 +462,7 @@ public class MvPercentileTests extends AbstractScalarFunctionTestCase {
 
     private static BigDecimal calculatePercentile(double fraction, BigDecimal lowerValue, BigDecimal upperValue) {
         var difference = upperValue.subtract(lowerValue);
-        return lowerValue.add(BigDecimal.valueOf(fraction).multiply(difference));
+        return lowerValue.add(new BigDecimal(fraction).multiply(difference));
     }
 
     private static TestCaseSupplier.TypedData percentileWithType(Number value, DataType type) {

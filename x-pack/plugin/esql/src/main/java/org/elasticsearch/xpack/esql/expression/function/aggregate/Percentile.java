@@ -83,7 +83,7 @@ public class Percentile extends NumericAggregate implements SurrogateExpression 
         this(source, field, Literal.TRUE, percentile);
     }
 
-    private Percentile(Source source, Expression field, Expression filter, Expression percentile) {
+    public Percentile(Source source, Expression field, Expression filter, Expression percentile) {
         super(source, field, filter, singletonList(percentile));
         this.percentile = percentile;
     }

@@ -56,10 +56,10 @@ public class Median extends AggregateFunction implements SurrogateExpression {
             ), }
     )
     public Median(Source source, @Param(name = "number", type = { "double", "integer", "long" }) Expression field) {
-        super(source, field);
+        this(source, field, Literal.TRUE);
     }
 
-    private Median(Source source, Expression field, Expression filter) {
+    public Median(Source source, Expression field, Expression filter) {
         super(source, field, filter, emptyList());
     }
 

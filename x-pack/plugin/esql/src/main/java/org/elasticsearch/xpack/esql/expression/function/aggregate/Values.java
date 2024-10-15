@@ -17,6 +17,7 @@ import org.elasticsearch.compute.aggregation.ValuesIntAggregatorFunctionSupplier
 import org.elasticsearch.compute.aggregation.ValuesLongAggregatorFunctionSupplier;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -57,10 +58,10 @@ public class Values extends AggregateFunction implements ToAggregator {
         Source source,
         @Param(name = "field", type = { "boolean", "date", "double", "integer", "ip", "keyword", "long", "text", "version" }) Expression v
     ) {
-        super(source, v);
+        this(source, v, Literal.TRUE);
     }
 
-    private Values(Source source, Expression field, Expression filter) {
+    public Values(Source source, Expression field, Expression filter) {
         super(source, field, filter, emptyList());
     }
 

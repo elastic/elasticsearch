@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.expression.function.aggregate;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -45,10 +46,10 @@ public class Avg extends AggregateFunction implements SurrogateExpression {
             ) }
     )
     public Avg(Source source, @Param(name = "number", type = { "double", "integer", "long" }) Expression field) {
-        super(source, field);
+        this(source, field, Literal.TRUE);
     }
 
-    protected Avg(Source source, Expression field, Expression filter) {
+    public Avg(Source source, Expression field, Expression filter) {
         super(source, field, filter, emptyList());
     }
 

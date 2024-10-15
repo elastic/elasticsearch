@@ -59,7 +59,7 @@ public class WeightedAvg extends AggregateFunction implements SurrogateExpressio
         this(source, field, Literal.TRUE, weight);
     }
 
-    private WeightedAvg(Source source, Expression field, Expression filter, Expression weight) {
+    public WeightedAvg(Source source, Expression field, Expression filter, Expression weight) {
         super(source, field, filter, List.of(weight));
         this.weight = weight;
     }

@@ -73,7 +73,7 @@ public class Top extends AggregateFunction implements ToAggregator, SurrogateExp
         this(source, field, Literal.TRUE, limit, order);
     }
 
-    private Top(Source source, Expression field, Expression filter, Expression limit, Expression order) {
+    public Top(Source source, Expression field, Expression filter, Expression limit, Expression order) {
         super(source, field, filter, asList(limit, order));
     }
 

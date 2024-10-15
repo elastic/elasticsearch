@@ -44,6 +44,7 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.Param
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isFoldable;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isWholeNumber;
+import static org.elasticsearch.xpack.esql.core.util.CollectionUtils.nullSafeList;
 
 public class CountDistinct extends AggregateFunction implements OptionalArgument, ToAggregator, SurrogateExpression {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
@@ -116,7 +117,7 @@ public class CountDistinct extends AggregateFunction implements OptionalArgument
         this(source, field, Literal.TRUE, precision);
     }
 
-    private CountDistinct(Source source, Expression field, Expression filter, Expression precision) {
+    public CountDistinct(Source source, Expression field, Expression filter, Expression precision) {
         this(source, field, filter, precision != null ? List.of(precision) : List.of());
     }
 
@@ -134,7 +135,7 @@ public class CountDistinct extends AggregateFunction implements OptionalArgument
                 : Literal.TRUE,
             in.getTransportVersion().onOrAfter(TransportVersions.ESQL_PER_AGGREGATE_FILTER)
                 ? in.readNamedWriteableCollectionAsList(Expression.class)
-                : List.of(in.readOptionalNamedWriteable(Expression.class))
+                : nullSafeList(in.readOptionalNamedWriteable(Expression.class))
         );
     }
 

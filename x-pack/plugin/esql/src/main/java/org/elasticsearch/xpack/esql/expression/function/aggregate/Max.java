@@ -18,6 +18,7 @@ import org.elasticsearch.compute.aggregation.MaxIpAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.MaxLongAggregatorFunctionSupplier;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -62,10 +63,10 @@ public class Max extends AggregateFunction implements ToAggregator, SurrogateExp
             type = { "boolean", "double", "integer", "long", "date", "ip", "keyword", "text", "long", "version" }
         ) Expression field
     ) {
-        super(source, field);
+        this(source, field, Literal.TRUE);
     }
 
-    private Max(Source source, Expression field, Expression filter) {
+    public Max(Source source, Expression field, Expression filter) {
         super(source, field, filter, emptyList());
     }
 

@@ -14,6 +14,7 @@ import org.elasticsearch.compute.aggregation.MedianAbsoluteDeviationDoubleAggreg
 import org.elasticsearch.compute.aggregation.MedianAbsoluteDeviationIntAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.MedianAbsoluteDeviationLongAggregatorFunctionSupplier;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
@@ -66,10 +67,10 @@ public class MedianAbsoluteDeviation extends NumericAggregate implements Surroga
             ), }
     )
     public MedianAbsoluteDeviation(Source source, @Param(name = "number", type = { "double", "integer", "long" }) Expression field) {
-        super(source, field);
+        this(source, field, Literal.TRUE);
     }
 
-    protected MedianAbsoluteDeviation(Source source, Expression field, Expression filter) {
+    public MedianAbsoluteDeviation(Source source, Expression field, Expression filter) {
         super(source, field, filter, emptyList());
     }
 

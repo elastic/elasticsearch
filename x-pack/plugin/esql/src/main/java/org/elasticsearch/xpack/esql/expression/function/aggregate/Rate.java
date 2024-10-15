@@ -37,6 +37,7 @@ import static java.util.Arrays.asList;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
+import static org.elasticsearch.xpack.esql.core.util.CollectionUtils.nullSafeList;
 
 public class Rate extends AggregateFunction implements OptionalArgument, ToAggregator {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Rate", Rate::new);
@@ -79,7 +80,7 @@ public class Rate extends AggregateFunction implements OptionalArgument, ToAggre
                 : Literal.TRUE,
             in.getTransportVersion().onOrAfter(TransportVersions.ESQL_PER_AGGREGATE_FILTER)
                 ? in.readNamedWriteableCollectionAsList(Expression.class)
-                : asList(in.readNamedWriteable(Expression.class), in.readOptionalNamedWriteable(Expression.class))
+                : nullSafeList(in.readNamedWriteable(Expression.class), in.readOptionalNamedWriteable(Expression.class))
         );
     }
 

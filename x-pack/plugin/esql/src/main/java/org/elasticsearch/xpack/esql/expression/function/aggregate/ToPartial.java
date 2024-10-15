@@ -72,7 +72,7 @@ public class ToPartial extends AggregateFunction implements ToAggregator {
     }
 
     public ToPartial(Source source, Expression field, Expression filter, Expression function) {
-        super(source, field, List.of(function));
+        super(source, field, filter, List.of(function));
         this.function = function;
     }
 

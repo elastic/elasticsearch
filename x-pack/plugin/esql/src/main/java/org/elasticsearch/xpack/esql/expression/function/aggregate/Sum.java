@@ -54,10 +54,10 @@ public class Sum extends NumericAggregate implements SurrogateExpression {
             ) }
     )
     public Sum(Source source, @Param(name = "number", type = { "double", "integer", "long" }) Expression field) {
-        super(source, field);
+        this(source, field, Literal.TRUE);
     }
 
-    protected Sum(Source source, Expression field, Expression filter) {
+    public Sum(Source source, Expression field, Expression filter) {
         super(source, field, filter, emptyList());
     }
 

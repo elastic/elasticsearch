@@ -259,19 +259,21 @@ public class EsqlFunctionRegistry {
             // grouping functions
             new FunctionDefinition[] { def(Bucket.class, Bucket::new, "bucket", "bin"), },
             // aggregate functions
+            // since they declare two public constructors - one with filter (for nested where) and one without
+            // use casting to disambiguate between the two
             new FunctionDefinition[] {
-                def(Avg.class, Avg::new, "avg"),
-                def(Count.class, Count::new, "count"),
-                def(CountDistinct.class, CountDistinct::new, "count_distinct"),
-                def(Max.class, Max::new, "max"),
-                def(Median.class, Median::new, "median"),
-                def(MedianAbsoluteDeviation.class, MedianAbsoluteDeviation::new, "median_absolute_deviation"),
-                def(Min.class, Min::new, "min"),
-                def(Percentile.class, Percentile::new, "percentile"),
-                def(Sum.class, Sum::new, "sum"),
-                def(Top.class, Top::new, "top"),
-                def(Values.class, Values::new, "values"),
-                def(WeightedAvg.class, WeightedAvg::new, "weighted_avg") },
+                def(Avg.class, uni(Avg::new), "avg"),
+                def(Count.class, uni(Count::new), "count"),
+                def(CountDistinct.class, bi(CountDistinct::new), "count_distinct"),
+                def(Max.class, uni(Max::new), "max"),
+                def(Median.class, uni(Median::new), "median"),
+                def(MedianAbsoluteDeviation.class, uni(MedianAbsoluteDeviation::new), "median_absolute_deviation"),
+                def(Min.class, uni(Min::new), "min"),
+                def(Percentile.class, bi(Percentile::new), "percentile"),
+                def(Sum.class, uni(Sum::new), "sum"),
+                def(Top.class, tri(Top::new), "top"),
+                def(Values.class, uni(Values::new), "values"),
+                def(WeightedAvg.class, bi(WeightedAvg::new), "weighted_avg") },
             // math
             new FunctionDefinition[] {
                 def(Abs.class, Abs::new, "abs"),
@@ -914,15 +916,19 @@ public class EsqlFunctionRegistry {
     }
 
     //
-    // Utility method for extra argument extraction.
+    // Utility functions to help disambiguate the method handle passed in.
+    // They work by providing additional method information to help the compiler know which method to pick.
     //
-    protected static Boolean asBool(Object[] extras) {
-        if (CollectionUtils.isEmpty(extras)) {
-            return null;
-        }
-        if (extras.length != 1 || (extras[0] instanceof Boolean) == false) {
-            throw new QlIllegalArgumentException("Invalid number and types of arguments given to function definition");
-        }
-        return (Boolean) extras[0];
+    private static <T extends Function> BiFunction<Source, Expression, T> uni(BiFunction<Source, Expression, T> function) {
+        return function;
     }
+
+    private static <T extends Function> BinaryBuilder<T> bi(BinaryBuilder<T> function) {
+        return function;
+    }
+
+    private static <T extends Function> TernaryBuilder<T> tri(TernaryBuilder<T> function) {
+        return function;
+    }
+
 }

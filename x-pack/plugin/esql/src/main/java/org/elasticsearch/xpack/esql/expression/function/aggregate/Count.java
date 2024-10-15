@@ -84,10 +84,10 @@ public class Count extends AggregateFunction implements ToAggregator, SurrogateE
             description = "Expression that outputs values to be counted. If omitted, equivalent to `COUNT(*)` (the number of rows)."
         ) Expression field
     ) {
-        super(source, field);
+        this(source, field, Literal.TRUE);
     }
 
-    protected Count(Source source, Expression field, Expression filter) {
+    public Count(Source source, Expression field, Expression filter) {
         super(source, field, filter, emptyList());
     }
 

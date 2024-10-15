@@ -14,16 +14,11 @@ import com.sun.net.httpserver.HttpServer;
 import org.elasticsearch.common.hash.MessageDigests;
 import org.junit.rules.ExternalResource;
 
-import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.io.UncheckedIOException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
 import java.security.MessageDigest;
 import java.util.List;
 
@@ -33,21 +28,14 @@ import java.util.List;
  */
 public class EnterpriseGeoIpHttpFixture extends ExternalResource {
 
-    private final Path source;
     private final List<String> databaseTypes;
     private HttpServer server;
 
     /*
-     * The values in databaseTypes must be in DatabaseConfiguration.MAXMIND_NAMES, and must be one of the databases copied in the
-     * copyFiles method of thisi class.
+     * The values in databaseTypes must be in DatabaseConfiguration.MAXMIND_NAMES.
      */
     public EnterpriseGeoIpHttpFixture(List<String> databaseTypes) {
         this.databaseTypes = List.copyOf(databaseTypes);
-        try {
-            this.source = Files.createTempDirectory("source");
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
-        }
     }
 
     public String getAddress() {
@@ -56,7 +44,6 @@ public class EnterpriseGeoIpHttpFixture extends ExternalResource {
 
     @Override
     protected void before() throws Throwable {
-        copyFiles();
         this.server = HttpServer.create(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
 
         // for expediency reasons, it is handy to have this test fixture be able to serve the dual purpose of actually stubbing
@@ -107,15 +94,5 @@ public class EnterpriseGeoIpHttpFixture extends ExternalResource {
     @Override
     protected void after() {
         server.stop(0);
-    }
-
-    private void copyFiles() throws Exception {
-        for (String databaseType : databaseTypes) {
-            Files.copy(
-                GeoIpHttpFixture.class.getResourceAsStream("/geoip-fixture/GeoIP2-City.tgz"),
-                source.resolve(databaseType + ".tgz"),
-                StandardCopyOption.REPLACE_EXISTING
-            );
-        }
     }
 }

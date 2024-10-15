@@ -43,13 +43,16 @@ import org.apache.lucene.analysis.core.KeywordAnalyzer;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.KeywordField;
 import org.apache.lucene.document.NumericDocValuesField;
+import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.NoDeletionPolicy;
+import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.tests.util.LuceneTestCase;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
@@ -334,6 +337,57 @@ public class FakeStatelessNode implements Closeable {
 
     public List<StatelessCommitRef> generateIndexCommits(int commitsNumber, boolean merge) throws IOException {
         return generateIndexCommits(commitsNumber, merge, true, generation -> {});
+    }
+
+    /**
+     * Generates {@code commitsNumber} commits where each commit is composed of 1 or more segments whose cumulative files sizes is larger
+     * than {@code minSize}.
+     */
+    public List<StatelessCommitRef> generateIndexCommitsWithMinSegmentSize(int commitsNumber, long minSize) throws IOException {
+        List<StatelessCommitRef> commits = new ArrayList<>(commitsNumber);
+        Set<String> previousCommit;
+        final var indexWriterConfig = new IndexWriterConfig(new KeywordAnalyzer());
+        indexWriterConfig.setIndexDeletionPolicy(NoDeletionPolicy.INSTANCE);
+        indexWriterConfig.setMergePolicy(NoMergePolicy.INSTANCE);
+        indexWriterConfig.setRAMBufferSizeMB(1.0);
+        var indexDirectory = IndexDirectory.unwrapDirectory(indexingStore.directory());
+        try (var indexWriter = new IndexWriter(indexDirectory, indexWriterConfig)) {
+            try (var indexReader = DirectoryReader.open(indexingStore.directory())) {
+                previousCommit = new HashSet<>(indexReader.getIndexCommit().getFileNames());
+            }
+            for (int i = 0; i < commitsNumber; i++) {
+                final long initialSizeInBytes = indexDirectory.estimateSizeInBytes();
+
+                while (indexDirectory.estimateSizeInBytes() - initialSizeInBytes < minSize) {
+                    // generate a segment with files ~4KiB
+                    for (int doc = 0; doc < 1024; doc++) {
+                        LuceneDocument document = new LuceneDocument();
+                        document.add(new StringField("bytes", new BytesRef(ESTestCase.randomByteArrayOfLength(1)), Field.Store.NO));
+                        indexWriter.addDocument(document.getFields());
+                    }
+                    indexWriter.flush();
+                }
+                indexWriter.setLiveCommitData(Map.of(SequenceNumbers.MAX_SEQ_NO, Integer.toString(i)).entrySet());
+                indexWriter.commit();
+                try (var indexReader = DirectoryReader.open(indexingStore.directory())) {
+                    IndexCommit indexCommit = indexReader.getIndexCommit();
+                    Set<String> commitFiles = new HashSet<>(indexCommit.getFileNames());
+                    Set<String> additionalFiles = Sets.difference(commitFiles, previousCommit);
+                    previousCommit = commitFiles;
+
+                    StatelessCommitRef statelessCommitRef = new StatelessCommitRef(
+                        shardId,
+                        new Engine.IndexCommitRef(indexCommit, () -> {}),
+                        commitFiles,
+                        additionalFiles,
+                        primaryTerm,
+                        0
+                    );
+                    commits.add(statelessCommitRef);
+                }
+            }
+        }
+        return commits;
     }
 
     public List<StatelessCommitRef> generateIndexCommits(

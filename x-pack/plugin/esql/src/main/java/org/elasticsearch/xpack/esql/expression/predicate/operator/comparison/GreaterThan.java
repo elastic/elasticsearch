@@ -53,12 +53,12 @@ public class GreaterThan extends EsqlBinaryComparison implements Negatable<EsqlB
         Source source,
         @Param(
             name = "lhs",
-            type = { "boolean", "date", "double", "integer", "ip", "keyword", "long", "text", "unsigned_long", "version" },
+            type = { "boolean", "date", "double", "integer", "ip", "keyword", "long", "semantic_text", "text", "unsigned_long", "version" },
             description = "An expression."
         ) Expression left,
         @Param(
             name = "rhs",
-            type = { "boolean", "date", "double", "integer", "ip", "keyword", "long", "text", "unsigned_long", "version" },
+            type = { "boolean", "date", "double", "integer", "ip", "keyword", "long", "semantic_text", "text", "unsigned_long", "version" },
             description = "An expression."
         ) Expression right
     ) {

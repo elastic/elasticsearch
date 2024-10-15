@@ -42,7 +42,7 @@ public class SplitTests extends AbstractScalarFunctionTestCase {
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
         List<TestCaseSupplier> suppliers = new ArrayList<>();
-        List<DataType> supportedDataTyes = List.of(DataType.KEYWORD, DataType.TEXT);
+        List<DataType> supportedDataTyes = List.of(DataType.KEYWORD, DataType.TEXT, DataType.SEMANTIC_TEXT);
         for (DataType sType : supportedDataTyes) {
             for (DataType dType : supportedDataTyes) {
                 suppliers.add(new TestCaseSupplier("split test " + sType.toString() + " " + dType.toString(), List.of(sType, dType), () -> {

@@ -125,7 +125,7 @@ public class RLikeTests extends AbstractScalarFunctionTestCase {
     }
 
     private static void cases(List<TestCaseSupplier> cases, String title, Supplier<TextAndPattern> textAndPattern, boolean expected) {
-        for (DataType type : new DataType[] { DataType.KEYWORD, DataType.TEXT }) {
+        for (DataType type : new DataType[] { DataType.KEYWORD, DataType.TEXT, DataType.SEMANTIC_TEXT }) {
             cases.add(new TestCaseSupplier(title + " with " + type.esType(), List.of(type, type, DataType.BOOLEAN), () -> {
                 TextAndPattern v = textAndPattern.get();
                 return new TestCaseSupplier.TestCase(

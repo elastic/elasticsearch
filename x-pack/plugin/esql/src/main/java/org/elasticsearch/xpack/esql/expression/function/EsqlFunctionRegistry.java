@@ -32,7 +32,8 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Top;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Values;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.WeightedAvg;
-import org.elasticsearch.xpack.esql.expression.function.fulltext.QueryStringFunction;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.QueryString;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Categorize;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
@@ -385,17 +386,17 @@ public class EsqlFunctionRegistry {
                 def(MvSlice.class, MvSlice::new, "mv_slice"),
                 def(MvZip.class, MvZip::new, "mv_zip"),
                 def(MvSum.class, MvSum::new, "mv_sum"),
-                def(Split.class, Split::new, "split") } };
+                def(Split.class, Split::new, "split") },
+            // fulltext functions
+            new FunctionDefinition[] { def(Match.class, Match::new, "match"), def(QueryString.class, QueryString::new, "qstr") } };
 
     }
 
     private static FunctionDefinition[][] snapshotFunctions() {
         return new FunctionDefinition[][] {
             new FunctionDefinition[] {
-                def(Rate.class, Rate::withUnresolvedTimestamp, "rate"),
                 def(Categorize.class, Categorize::new, "categorize"),
-                // Full text functions
-                def(QueryStringFunction.class, QueryStringFunction::new, "qstr") } };
+                def(Rate.class, Rate::withUnresolvedTimestamp, "rate") } };
     }
 
     public EsqlFunctionRegistry snapshotRegistry() {

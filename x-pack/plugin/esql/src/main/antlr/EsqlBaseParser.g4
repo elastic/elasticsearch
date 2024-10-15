@@ -77,7 +77,7 @@ regexBooleanExpression
     ;
 
 matchBooleanExpression
-    : valueExpression DEV_MATCH queryString=string
+    : valueExpression MATCH queryString=string
     ;
 
 valueExpression
@@ -101,7 +101,13 @@ primaryExpression
     ;
 
 functionExpression
-    : identifierOrParameter LP (ASTERISK | (booleanExpression (COMMA booleanExpression)*))? RP
+    : functionName LP (ASTERISK | (booleanExpression (COMMA booleanExpression)*))? RP
+    ;
+
+functionName
+    // Additional function identifiers that are already a reserved word in the language
+    : MATCH
+    | identifierOrParameter
     ;
 
 dataType

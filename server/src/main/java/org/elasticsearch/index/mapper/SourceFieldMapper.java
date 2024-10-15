@@ -329,11 +329,11 @@ public class SourceFieldMapper extends MetadataFieldMapper {
             }
             // NOTE: if the `index.mapper.source.mode` exists it takes precedence to determine the source mode for `_source`
             // otherwise the mode is determined according to `index.mode` and `_source.mode`.
-            final Mode sourceMode = INDEX_MAPPER_SOURCE_MODE_SETTING.exists(settings)
-                ? INDEX_MAPPER_SOURCE_MODE_SETTING.get(settings)
+            final Mode sourceMode = INDEX_MAPPER_SOURCE_MODE_SETTING.exists(settings) ? INDEX_MAPPER_SOURCE_MODE_SETTING.get(settings)
+                : mode.get() == null ? Mode.STORED
                 : mode.get();
             if (isDefault(sourceMode)) {
-                return resolveSourceMode(indexMode, sourceMode == null ? Mode.STORED : sourceMode, enableRecoverySource);
+                return resolveSourceMode(indexMode, sourceMode, enableRecoverySource);
 
             }
             if (supportsNonDefaultParameterValues == false) {
@@ -421,7 +421,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
                 return enableRecoverySource ? TSDB_LEGACY_DEFAULT : TSDB_LEGACY_DEFAULT_NO_RECOVERY_SOURCE;
             }
         }
-        return resolveSourceMode(indexMode, settingSourceMode == null ? Mode.STORED : settingSourceMode, enableRecoverySource);
+        return resolveSourceMode(indexMode, settingSourceMode, enableRecoverySource);
     },
         c -> new Builder(
             c.getIndexSettings().getMode(),

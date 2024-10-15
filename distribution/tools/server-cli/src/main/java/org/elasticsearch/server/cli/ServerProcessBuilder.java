@@ -44,6 +44,7 @@ public class ServerProcessBuilder {
     private ProcessInfo processInfo;
     private List<String> jvmOptions;
     private Terminal terminal;
+    private ServerProcessListener listener;
 
     // this allows mocking the process building by tests
     interface ProcessStarter {
@@ -87,6 +88,11 @@ public class ServerProcessBuilder {
      */
     public ServerProcessBuilder withTerminal(Terminal terminal) {
         this.terminal = terminal;
+        return this;
+    }
+
+    public ServerProcessBuilder withListener(ServerProcessListener listener) {
+        this.listener = listener;
         return this;
     }
 
@@ -174,6 +180,10 @@ public class ServerProcessBuilder {
             if (success == false && jvmProcess != null && jvmProcess.isAlive()) {
                 jvmProcess.destroyForcibly();
             }
+        }
+
+        if (listener != null) {
+            listener.onReady();
         }
 
         return new ServerProcess(jvmProcess, errorPump);

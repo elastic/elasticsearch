@@ -136,7 +136,8 @@ class NodeServiceProvider {
             responseCollectorService,
             circuitBreakerService,
             executorSelector,
-            tracer
+            tracer,
+            null
         );
     }
 

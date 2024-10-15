@@ -79,7 +79,7 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
         Settings result = provider.getAdditionalIndexSettings(
             DataStream.getDefaultBackingIndexName(dataStreamName, 1),
             dataStreamName,
-            true,
+            IndexMode.TIME_SERIES,
             projectMetadata,
             now,
             settings,
@@ -124,7 +124,7 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
         Settings result = provider.getAdditionalIndexSettings(
             DataStream.getDefaultBackingIndexName(dataStreamName, 1),
             dataStreamName,
-            true,
+            IndexMode.TIME_SERIES,
             projectMetadata,
             now,
             settings,
@@ -194,7 +194,7 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
         Settings result = provider.getAdditionalIndexSettings(
             DataStream.getDefaultBackingIndexName(dataStreamName, 1),
             dataStreamName,
-            true,
+            IndexMode.TIME_SERIES,
             projectMetadata,
             now,
             settings,
@@ -219,7 +219,7 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
         Settings result = provider.getAdditionalIndexSettings(
             DataStream.getDefaultBackingIndexName(dataStreamName, 1),
             dataStreamName,
-            true,
+            IndexMode.TIME_SERIES,
             projectMetadata,
             now,
             settings,
@@ -244,7 +244,7 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
         Settings result = provider.getAdditionalIndexSettings(
             DataStream.getDefaultBackingIndexName(dataStreamName, 1),
             dataStreamName,
-            true,
+            IndexMode.TIME_SERIES,
             projectMetadata,
             now,
             settings,
@@ -269,7 +269,7 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
         Settings result = provider.getAdditionalIndexSettings(
             DataStream.getDefaultBackingIndexName(dataStreamName, 1),
             dataStreamName,
-            true,
+            IndexMode.TIME_SERIES,
             projectMetadata,
             now,
             settings,
@@ -300,7 +300,7 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
         var result = provider.getAdditionalIndexSettings(
             DataStream.getDefaultBackingIndexName(dataStreamName, 1),
             dataStreamName,
-            true,
+            IndexMode.TIME_SERIES,
             projectMetadata,
             now,
             settings,
@@ -337,7 +337,7 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
             () -> provider.getAdditionalIndexSettings(
                 DataStream.getDefaultBackingIndexName(dataStreamName, 1),
                 dataStreamName,
-                true,
+                IndexMode.TIME_SERIES,
                 projectMetadata,
                 now,
                 settings,
@@ -363,7 +363,7 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
         Settings result = provider.getAdditionalIndexSettings(
             DataStream.getDefaultBackingIndexName(dataStreamName, 1),
             dataStreamName,
-            false,
+            null,
             projectMetadata,
             Instant.ofEpochMilli(1L),
             settings,
@@ -386,7 +386,7 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
         Settings result = provider.getAdditionalIndexSettings(
             DataStream.getDefaultBackingIndexName(dataStreamName, 2),
             dataStreamName,
-            true,
+            IndexMode.TIME_SERIES,
             projectMetadata,
             now,
             settings,
@@ -419,7 +419,7 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
         Settings result = provider.getAdditionalIndexSettings(
             DataStream.getDefaultBackingIndexName(dataStreamName, 2),
             dataStreamName,
-            false,
+            null,
             projectMetadata,
             Instant.ofEpochMilli(1L),
             settings,
@@ -698,7 +698,7 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
         var result = provider.getAdditionalIndexSettings(
             DataStream.getDefaultBackingIndexName(dataStreamName, 1),
             dataStreamName,
-            true,
+            IndexMode.TIME_SERIES,
             projectMetadata,
             now,
             settings,

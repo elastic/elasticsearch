@@ -1016,10 +1016,10 @@ public class MetadataCreateIndexService {
         if (sourceMetadata == null) {
             final Settings templateAndRequestSettings = Settings.builder().put(combinedTemplateSettings).put(request.settings()).build();
 
-            final boolean timeSeriesTemplate = Optional.of(request)
+            final IndexMode templateIndexMode = Optional.of(request)
                 .map(CreateIndexClusterStateUpdateRequest::matchingTemplate)
-                .map(projectMetadata::isTimeSeriesTemplate)
-                .orElse(false);
+                .map(projectMetadata::retrieveIndexModeFromTemplate)
+                .orElse(null);
 
             // Loop through all the explicit index setting providers, adding them to the
             // additionalIndexSettings map
@@ -1029,7 +1029,7 @@ public class MetadataCreateIndexService {
                 var newAdditionalSettings = provider.getAdditionalIndexSettings(
                     request.index(),
                     request.dataStreamName(),
-                    timeSeriesTemplate,
+                    templateIndexMode,
                     projectMetadata,
                     resolvedAt,
                     templateAndRequestSettings,

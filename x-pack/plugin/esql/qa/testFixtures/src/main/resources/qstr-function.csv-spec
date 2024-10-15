@@ -49,20 +49,6 @@ book_no:keyword | title:text
 7350            | Return of the Shadow
 ;
 
-qstrWithDisjunction
-required_capability: qstr_function
-
-from books 
-| where qstr("title:Return") or year > 2020
-| keep book_no, title;
-ignoreOrder:true
-
-book_no:keyword | title:text
-2714            | Return of the King Being the Third Part of The Lord of the Rings
-6818            | Hadji Murad                                                     
-7350            | Return of the Shadow         
-;
-
 qstrWithConjunction
 required_capability: qstr_function
 
@@ -88,17 +74,16 @@ card:keyword   |host:keyword   |ip0:ip                   |ip1:ip
 eth1           |beta           |127.0.0.1                |127.0.0.2
 ;
 
-qstrWithFunctionNotPushedToLucene
+qstrWithNonPushableConjunction
 required_capability: qstr_function
 
 from books 
-| where qstr("title: rings") and length(description) > 600 
+| where qstr("title: Rings") and length(title) > 75
 | keep book_no, title;
 ignoreOrder:true
 
 book_no:keyword | title:text
-2675            | The Lord of the Rings - Boxed Set                               
-2714            | Return of the King Being the Third Part of The Lord of the Rings     
+4023            |A Tolkien Compass: Including J. R. R. Tolkien's Guide to the Names in The Lord of the Rings
 ;
 
 qstrWithMultipleWhereClauses
@@ -113,4 +98,56 @@ ignoreOrder:true
 book_no:keyword | title:text
 4023            | A Tolkien Compass: Including J. R. R. Tolkien's Guide to the Names in The Lord of the Rings           
 7140            | The Lord of the Rings Poster Collection: Six Paintings by Alan Lee (No. 1)
+;
+
+
+matchMultivaluedTextField
+required_capability: match_function
+
+from employees 
+| where qstr("job_positions: (Tech Lead) AND job_positions:(Reporting Analyst)") 
+| keep emp_no, first_name, last_name;
+ignoreOrder:true
+
+emp_no:integer | first_name:keyword | last_name:keyword
+10004          | Chirstian          | Koblick        
+10010          | Duangkaew          | Piveteau       
+10011          | Mary               | Sluis          
+10088          | Jungsoon           | Syrzycki       
+10093          | Sailaja            | Desikan        
+10097          | Remzi              | Waschkowski    
+;
+
+matchMultivaluedNumericField
+required_capability: match_function
+
+from employees 
+| where qstr("salary_change: [14 TO *]") 
+| keep emp_no, first_name, last_name, salary_change;
+ignoreOrder:true
+
+emp_no:integer | first_name:keyword | last_name:keyword | salary_change:double
+10003          | Parto              | Bamford           | [12.82, 14.68]              
+10015          | Guoxiang           | Nooteboom         | [12.4, 14.25]               
+10023          | Bojan              | Montemayor        | [0.8, 14.63]                
+10040          | Weiyi              | Meriste           | [-8.94, 1.92, 6.97, 14.74]  
+10061          | Tse                | Herber            | [-2.58, -0.95, 14.39]       
+10065          | Satosi             | Awdeh             | [-9.81, -1.47, 14.44]       
+10099          | Valter             | Sullins           | [-8.78, -3.98, 10.71, 14.26]
+;
+
+testMultiValuedFieldWithConjunction
+required_capability: match_function
+
+from employees 
+| where (qstr("job_positions: (Data Scientist) OR job_positions:(Support Engineer)")) and gender == "F"
+| keep emp_no, first_name, last_name;
+ignoreOrder:true
+
+emp_no:integer | first_name:keyword | last_name:keyword  
+10023          | Bojan              | Montemayor
+10041          | Uri                | Lenart
+10044          | Mingsen            | Casley
+10053          | Sanjiv             | Zschoche
+10069          | Margareta          | Bierman
 ;

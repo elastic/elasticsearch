@@ -111,6 +111,7 @@ public abstract class DocumentParserContext {
     private final Set<String> ignoredFields;
     private final List<IgnoredSourceFieldMapper.NameValue> ignoredFieldValues;
     private final List<IgnoredSourceFieldMapper.NameValue> ignoredFieldsMissingValues;
+    private final boolean inArrayScopeEnabled;
     private boolean inArrayScope;
 
     private final Map<String, List<Mapper>> dynamicMappers;
@@ -143,6 +144,7 @@ public abstract class DocumentParserContext {
         Set<String> ignoreFields,
         List<IgnoredSourceFieldMapper.NameValue> ignoredFieldValues,
         List<IgnoredSourceFieldMapper.NameValue> ignoredFieldsWithNoSource,
+        boolean inArrayScopeEnabled,
         boolean inArrayScope,
         Map<String, List<Mapper>> dynamicMappers,
         Map<String, ObjectMapper> dynamicObjectMappers,
@@ -164,6 +166,7 @@ public abstract class DocumentParserContext {
         this.ignoredFields = ignoreFields;
         this.ignoredFieldValues = ignoredFieldValues;
         this.ignoredFieldsMissingValues = ignoredFieldsWithNoSource;
+        this.inArrayScopeEnabled = inArrayScopeEnabled;
         this.inArrayScope = inArrayScope;
         this.dynamicMappers = dynamicMappers;
         this.dynamicObjectMappers = dynamicObjectMappers;
@@ -188,6 +191,7 @@ public abstract class DocumentParserContext {
             in.ignoredFields,
             in.ignoredFieldValues,
             in.ignoredFieldsMissingValues,
+            in.inArrayScopeEnabled,
             in.inArrayScope,
             in.dynamicMappers,
             in.dynamicObjectMappers,
@@ -219,6 +223,7 @@ public abstract class DocumentParserContext {
             new HashSet<>(),
             new ArrayList<>(),
             new ArrayList<>(),
+            mappingParserContext.getIndexSettings().isSyntheticSourceSecondDocParsingPassEnabled(),
             false,
             new HashMap<>(),
             new HashMap<>(),
@@ -371,7 +376,7 @@ public abstract class DocumentParserContext {
      * Applies to synthetic source only.
      */
     public final DocumentParserContext maybeCloneForArray(Mapper mapper) throws IOException {
-        if (canAddIgnoredField() && mapper instanceof ObjectMapper) {
+        if (canAddIgnoredField() && mapper instanceof ObjectMapper && inArrayScopeEnabled) {
             boolean isNested = mapper instanceof NestedObjectMapper;
             if ((inArrayScope == false && isNested == false) || (inArrayScope && isNested)) {
                 DocumentParserContext subcontext = switchParser(parser());

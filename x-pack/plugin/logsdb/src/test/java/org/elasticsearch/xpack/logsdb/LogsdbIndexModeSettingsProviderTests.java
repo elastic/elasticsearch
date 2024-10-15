@@ -52,7 +52,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
         final Settings additionalIndexSettings = provider.getAdditionalIndexSettings(
             null,
             "logs-apache-production",
-            false,
+            null,
             Metadata.EMPTY_METADATA.getProject(),
             Instant.now().truncatedTo(ChronoUnit.SECONDS),
             Settings.EMPTY,
@@ -70,7 +70,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
         final Settings additionalIndexSettings = provider.getAdditionalIndexSettings(
             "logs-apache-production",
             null,
-            false,
+            null,
             Metadata.EMPTY_METADATA.getProject(),
             Instant.now().truncatedTo(ChronoUnit.SECONDS),
             Settings.EMPTY,
@@ -88,7 +88,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
         final Settings additionalIndexSettings = provider.getAdditionalIndexSettings(
             null,
             "logs-apache-production",
-            false,
+            null,
             Metadata.EMPTY_METADATA.getProject(),
             Instant.now().truncatedTo(ChronoUnit.SECONDS),
             Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.STANDARD.getName()).build(),
@@ -106,7 +106,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
         final Settings additionalIndexSettings = provider.getAdditionalIndexSettings(
             null,
             "logs-apache-production",
-            false,
+            null,
             Metadata.EMPTY_METADATA.getProject(),
             Instant.now().truncatedTo(ChronoUnit.SECONDS),
             Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.getName()).build(),
@@ -124,7 +124,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
         final Settings additionalIndexSettings = provider.getAdditionalIndexSettings(
             null,
             "logs",
-            false,
+            null,
             Metadata.EMPTY_METADATA.getProject(),
             Instant.now().truncatedTo(ChronoUnit.SECONDS),
             Settings.EMPTY,
@@ -142,7 +142,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
         final Settings additionalIndexSettings = provider.getAdditionalIndexSettings(
             null,
             "logs-apache-production",
-            false,
+            null,
             buildMetadata(List.of("*"), List.of()),
             Instant.now().truncatedTo(ChronoUnit.SECONDS),
             Settings.EMPTY,
@@ -160,7 +160,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
         final Settings additionalIndexSettings = provider.getAdditionalIndexSettings(
             null,
             "logs-apache-production",
-            false,
+            null,
             buildMetadata(List.of("*"), List.of("logs@settings")),
             Instant.now().truncatedTo(ChronoUnit.SECONDS),
             Settings.EMPTY,
@@ -178,7 +178,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
         final Settings additionalIndexSettings = provider.getAdditionalIndexSettings(
             null,
             "logs-apache-production",
-            false,
+            null,
             buildMetadata(List.of("*"), List.of("logs@settings", "logs@custom")),
             Instant.now().truncatedTo(ChronoUnit.SECONDS),
             Settings.EMPTY,
@@ -196,7 +196,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
         final Settings additionalIndexSettings = provider.getAdditionalIndexSettings(
             null,
             "logs-apache-production",
-            false,
+            null,
             buildMetadata(List.of("*"), List.of("logs@custom", "custom-component-template")),
             Instant.now().truncatedTo(ChronoUnit.SECONDS),
             Settings.EMPTY,
@@ -214,7 +214,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
         final Settings additionalIndexSettings = provider.getAdditionalIndexSettings(
             null,
             "logs-apache-production",
-            false,
+            null,
             buildMetadata(List.of("standard-apache-production"), List.of("logs@settings")),
             Instant.now().truncatedTo(ChronoUnit.SECONDS),
             Settings.EMPTY,
@@ -232,7 +232,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
         final Settings additionalIndexSettings = provider.getAdditionalIndexSettings(
             null,
             "LOGS-apache-production",
-            false,
+            null,
             Metadata.EMPTY_METADATA.getProject(),
             Instant.now().truncatedTo(ChronoUnit.SECONDS),
             Settings.EMPTY,
@@ -250,7 +250,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
         final Settings additionalIndexSettings = provider.getAdditionalIndexSettings(
             null,
             "logs-apache-production-eu",
-            false,
+            null,
             Metadata.EMPTY_METADATA.getProject(),
             Instant.now().truncatedTo(ChronoUnit.SECONDS),
             Settings.EMPTY,
@@ -268,7 +268,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
         final Settings beforeSettings = provider.getAdditionalIndexSettings(
             null,
             "logs-apache-production",
-            false,
+            null,
             buildMetadata(List.of("*"), List.of("logs@settings")),
             Instant.now().truncatedTo(ChronoUnit.SECONDS),
             Settings.EMPTY,
@@ -282,7 +282,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
         final Settings afterSettings = provider.getAdditionalIndexSettings(
             null,
             "logs-apache-production",
-            false,
+            null,
             buildMetadata(List.of("*"), List.of("logs@settings")),
             Instant.now().truncatedTo(ChronoUnit.SECONDS),
             Settings.EMPTY,
@@ -296,7 +296,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
         final Settings laterSettings = provider.getAdditionalIndexSettings(
             null,
             "logs-apache-production",
-            false,
+            null,
             buildMetadata(List.of("*"), List.of("logs@settings")),
             Instant.now().truncatedTo(ChronoUnit.SECONDS),
             Settings.EMPTY,

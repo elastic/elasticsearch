@@ -16,7 +16,6 @@ import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.test.XContentTestUtils;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
-import org.elasticsearch.test.cluster.util.Version;
 import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.elasticsearch.test.junit.RunnableTestRuleAdapter;
 import org.junit.ClassRule;
@@ -38,7 +37,7 @@ public class FileSettingsRoleMappingUpgradeIT extends ParameterizedRollingUpgrad
     private static final RunnableTestRuleAdapter versionLimit = new RunnableTestRuleAdapter(
         () -> assumeTrue(
             "Only relevant when upgrading from a version before role mappings were stored in cluster state",
-            getOldClusterTestVersion().after(new Version(8, 4, 0)) && getOldClusterTestVersion().before(new Version(8, 15, 0))
+            oldClusterHasFeature("gte_v8.4.0") && oldClusterHasFeature("gte_v8.15.0") == false
         )
     );
 

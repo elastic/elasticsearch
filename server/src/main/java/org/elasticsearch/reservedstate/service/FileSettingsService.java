@@ -129,14 +129,14 @@ public class FileSettingsService extends MasterNodeFileWatchingService implement
         processFileChanges(true);
     }
 
-    private void processFileChanges(boolean allowSameVersion) throws IOException, InterruptedException, ExecutionException {
+    private void processFileChanges(boolean reprocessSameVersion) throws IOException, InterruptedException, ExecutionException {
         PlainActionFuture<Void> completion = new PlainActionFuture<>();
         try (
             var fis = Files.newInputStream(watchedFile());
             var bis = new BufferedInputStream(fis);
             var parser = JSON.xContent().createParser(XContentParserConfiguration.EMPTY, bis)
         ) {
-            stateService.process(NAMESPACE, parser, allowSameVersion, (e) -> completeProcessing(e, completion));
+            stateService.process(NAMESPACE, parser, reprocessSameVersion, (e) -> completeProcessing(e, completion));
         }
         completion.get();
     }

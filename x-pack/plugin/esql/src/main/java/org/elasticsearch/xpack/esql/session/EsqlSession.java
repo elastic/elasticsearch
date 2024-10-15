@@ -24,6 +24,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.indices.IndicesExpressionGrouper;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
@@ -68,9 +69,11 @@ import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.planner.Mapper;
 import org.elasticsearch.xpack.esql.stats.PlanningMetrics;
+import org.elasticsearch.xpack.esql.stats.SearchStats;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -147,9 +150,58 @@ public class EsqlSession {
         analyzedPlan(
             parse(request.query(), request.params()),
             executionInfo,
-            listener.delegateFailureAndWrap(
-                (next, analyzedPlan) -> executeOptimizedPlan(request, executionInfo, runPhase, optimizedPlan(analyzedPlan), next)
-            )
+            new ActionListener<>() {
+                @Override
+                public void onResponse(LogicalPlan analyzedPlan) {
+                    executeOptimizedPlan(request, executionInfo, runPhase, optimizedPlan(analyzedPlan), listener);
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    Predicate<EsqlExecutionInfo> returnEmptyResult = execInfo -> {
+                        if (execInfo.isCrossClusterSearch() &&
+                            execInfo.clusterAliases().contains(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY) == false) {
+                            for (String clusterAlias : execInfo.clusterAliases()) {
+                                if (execInfo.isSkipUnavailable(clusterAlias) == false) {
+                                    return false;
+                                }
+                            }
+                            return true;
+                        }
+                        return false;
+                    };
+
+                    if (returnEmptyResult.test(executionInfo)) {
+                        Exception exceptionForResponse;
+                        if (e instanceof ConnectTransportException) {
+                            // when field-caps has no field info (since no clusters could be connected to or had matching indices)
+                            // it just throws the first exception, so this odd special handling is here LEFTOFF
+                            exceptionForResponse = new RemoteTransportException("connect_transport_exception - unable to connect to remote cluster", null);
+                        } else {
+                            exceptionForResponse = e;
+                        }
+                        executionInfo.overallTook(
+                            new TimeValue(System.nanoTime() - configuration.getQueryStartTimeNanos(), TimeUnit.NANOSECONDS)
+                        );
+                        for (String clusterAlias : executionInfo.clusterAliases()) {
+                            executionInfo.swapCluster(clusterAlias,
+                                (k, v) -> new EsqlExecutionInfo.Cluster.Builder(v)
+                                    // for now ESQL doesn't return partial results, so set status to SUCCESSFUL
+                                    .setStatus(EsqlExecutionInfo.Cluster.Status.SKIPPED)
+                                    .setTook(executionInfo.overallTook())
+                                    .setFailures(List.of(new ShardSearchFailure(exceptionForResponse)))
+                                    .build()
+                            );
+                        }
+                        listener.onResponse(
+                            new Result(Collections.emptyList(), Collections.emptyList(), Collections.emptyList(), executionInfo)
+                        );
+                    } else {
+                        System.err.println("\n==================\nBBB BBB >>> BBB PATH B: ");
+                        listener.onFailure(e);
+                    }
+                }
+            }
         );
     }
 

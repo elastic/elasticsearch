@@ -81,7 +81,7 @@ public class RestNodesStatsAction extends BaseRestHandler {
         Set<String> metricNames = Strings.tokenizeByCommaToSet(request.param("metric", "_all"));
 
         NodesStatsRequest nodesStatsRequest = new NodesStatsRequest(nodesIds);
-        nodesStatsRequest.timeout(getTimeout(request));
+        nodesStatsRequest.setTimeout(getTimeout(request));
         // level parameter validation
         nodesStatsRequest.setIncludeShardsStats(NodeStatsLevel.of(request, NodeStatsLevel.NODE) != NodeStatsLevel.NODE);
 

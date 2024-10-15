@@ -45,6 +45,7 @@ import org.elasticsearch.action.admin.indices.segments.IndexShardSegments;
 import org.elasticsearch.action.admin.indices.segments.IndicesSegmentResponse;
 import org.elasticsearch.action.admin.indices.segments.ShardSegments;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequestBuilder;
+import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequestBuilder;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
@@ -1543,6 +1544,37 @@ public abstract class ESIntegTestCase extends ESTestCase {
      */
     protected final DocWriteResponse indexDoc(String index, String id, Object... source) {
         return prepareIndex(index).setId(id).setSource(source).get();
+    }
+
+    /**
+     * Runs random indexing until each shard in the given index is at least minBytesPerShard in size.
+     * Force merges all cluster shards down to one segment, and then invokes refresh to ensure all shard data is visible for readers,
+     * before returning.
+     *
+     * @return The final {@link ShardStats} for all shards of the index.
+     */
+    protected ShardStats[] indexAllShardsToAnEqualOrGreaterMinimumSize(final String indexName, long minBytesPerShard) {
+        while (true) {
+            indexRandom(false, indexName, scaledRandomIntBetween(100, 10000));
+            forceMerge();
+            refresh();
+
+            final ShardStats[] shardStats = indicesAdmin().prepareStats(indexName)
+                .clear()
+                .setStore(true)
+                .setTranslog(true)
+                .get()
+                .getShards();
+
+            var smallestShardSize = Arrays.stream(shardStats)
+                .mapToLong(it -> it.getStats().getStore().sizeInBytes())
+                .min()
+                .orElseThrow(() -> new AssertionError("no shards"));
+
+            if (smallestShardSize >= minBytesPerShard) {
+                return shardStats;
+            }
+        }
     }
 
     /**

@@ -68,6 +68,7 @@ public final class RRFRetrieverBuilder extends CompoundRetrieverBuilder<RRFRetri
             p.nextToken();
             String name = p.currentName();
             RetrieverBuilder retrieverBuilder = p.namedObject(RetrieverBuilder.class, name, c);
+            c.trackRetrieverUsage(retrieverBuilder.getName());
             p.nextToken();
             return retrieverBuilder;
         }, RETRIEVERS_FIELD);
@@ -180,10 +181,7 @@ public final class RRFRetrieverBuilder extends CompoundRetrieverBuilder<RRFRetri
             builder.startArray(RETRIEVERS_FIELD.getPreferredName());
 
             for (var entry : innerRetrievers) {
-                builder.startObject();
-                builder.field(entry.retriever().getName());
                 entry.retriever().toXContent(builder, params);
-                builder.endObject();
             }
             builder.endArray();
         }

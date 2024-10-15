@@ -16,10 +16,13 @@ import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.inference.results.ErrorChunkedInferenceResults;
+import org.elasticsearch.xpack.core.inference.results.InferenceChunkedSparseEmbeddingResults;
 import org.elasticsearch.xpack.core.inference.results.InferenceChunkedTextEmbeddingByteResults;
 import org.elasticsearch.xpack.core.inference.results.InferenceChunkedTextEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.inference.results.InferenceTextEmbeddingByteResults;
 import org.elasticsearch.xpack.core.inference.results.InferenceTextEmbeddingFloatResults;
+import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
+import org.elasticsearch.xpack.core.ml.inference.results.MlChunkedTextExpansionResults;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -42,7 +45,8 @@ public class EmbeddingRequestChunker {
 
     public enum EmbeddingType {
         FLOAT,
-        BYTE;
+        BYTE,
+        SPARSE;
 
         public static EmbeddingType fromDenseVectorElementType(DenseVectorFieldMapper.ElementType elementType) {
             return switch (elementType) {
@@ -67,6 +71,7 @@ public class EmbeddingRequestChunker {
     private List<List<String>> chunkedInputs;
     private List<AtomicArray<List<InferenceTextEmbeddingFloatResults.InferenceFloatEmbedding>>> floatResults;
     private List<AtomicArray<List<InferenceTextEmbeddingByteResults.InferenceByteEmbedding>>> byteResults;
+    private List<AtomicArray<List<SparseEmbeddingResults.Embedding>>> sparseResults;
     private AtomicArray<ErrorChunkedInferenceResults> errors;
     private ActionListener<List<ChunkedInferenceServiceResults>> finalListener;
 
@@ -117,6 +122,7 @@ public class EmbeddingRequestChunker {
         switch (embeddingType) {
             case FLOAT -> floatResults = new ArrayList<>(inputs.size());
             case BYTE -> byteResults = new ArrayList<>(inputs.size());
+            case SPARSE -> sparseResults = new ArrayList<>(inputs.size());
         }
         errors = new AtomicArray<>(inputs.size());
 
@@ -127,6 +133,7 @@ public class EmbeddingRequestChunker {
             switch (embeddingType) {
                 case FLOAT -> floatResults.add(new AtomicArray<>(numberOfSubBatches));
                 case BYTE -> byteResults.add(new AtomicArray<>(numberOfSubBatches));
+                case SPARSE -> sparseResults.add(new AtomicArray<>(numberOfSubBatches));
             }
             chunkedInputs.add(chunks);
         }
@@ -217,6 +224,7 @@ public class EmbeddingRequestChunker {
             switch (embeddingType) {
                 case FLOAT -> handleFloatResults(inferenceServiceResults);
                 case BYTE -> handleByteResults(inferenceServiceResults);
+                case SPARSE -> handleSparseResults(inferenceServiceResults);
             }
         }
 
@@ -253,6 +261,29 @@ public class EmbeddingRequestChunker {
                 for (var pos : positions) {
                     byteResults.get(pos.inputIndex())
                         .setOnce(pos.chunkIndex(), byteEmbeddings.embeddings().subList(start, start + pos.embeddingCount()));
+                    start += pos.embeddingCount();
+                }
+
+                if (resultCount.incrementAndGet() == totalNumberOfRequests) {
+                    sendResponse();
+                }
+            } else {
+                onFailure(
+                    unexpectedResultTypeException(inferenceServiceResults.getWriteableName(), InferenceTextEmbeddingByteResults.NAME)
+                );
+            }
+        }
+
+        private void handleSparseResults(InferenceServiceResults inferenceServiceResults) {
+            if (inferenceServiceResults instanceof SparseEmbeddingResults sparseEmbeddings) {
+                if (failIfNumRequestsDoNotMatch(sparseEmbeddings.embeddings().size())) {
+                    return;
+                }
+
+                int start = 0;
+                for (var pos : positions) {
+                    sparseResults.get(pos.inputIndex())
+                        .setOnce(pos.chunkIndex(), sparseEmbeddings.embeddings().subList(start, start + pos.embeddingCount()));
                     start += pos.embeddingCount();
                 }
 
@@ -319,6 +350,7 @@ public class EmbeddingRequestChunker {
         return switch (embeddingType) {
             case FLOAT -> mergeFloatResultsWithInputs(chunkedInputs.get(resultIndex), floatResults.get(resultIndex));
             case BYTE -> mergeByteResultsWithInputs(chunkedInputs.get(resultIndex), byteResults.get(resultIndex));
+            case SPARSE -> mergeSparseResultsWithInputs(chunkedInputs.get(resultIndex), sparseResults.get(resultIndex));
         };
     }
 
@@ -364,6 +396,26 @@ public class EmbeddingRequestChunker {
         }
 
         return new InferenceChunkedTextEmbeddingByteResults(embeddingChunks, false);
+    }
+
+    private InferenceChunkedSparseEmbeddingResults mergeSparseResultsWithInputs(
+        List<String> chunks,
+        AtomicArray<List<SparseEmbeddingResults.Embedding>> debatchedResults
+    ) {
+        var all = new ArrayList<SparseEmbeddingResults.Embedding>();
+        for (int i = 0; i < debatchedResults.length(); i++) {
+            var subBatch = debatchedResults.get(i);
+            all.addAll(subBatch);
+        }
+
+        assert chunks.size() == all.size();
+
+        var embeddingChunks = new ArrayList<MlChunkedTextExpansionResults.ChunkedResult>();
+        for (int i = 0; i < chunks.size(); i++) {
+            embeddingChunks.add(new MlChunkedTextExpansionResults.ChunkedResult(chunks.get(i), all.get(i).tokens()));
+        }
+
+        return new InferenceChunkedSparseEmbeddingResults(embeddingChunks);
     }
 
     public record BatchRequest(List<SubBatch> subBatches) {

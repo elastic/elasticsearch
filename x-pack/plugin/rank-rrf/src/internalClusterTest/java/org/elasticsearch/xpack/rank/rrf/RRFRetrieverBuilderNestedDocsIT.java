@@ -12,6 +12,7 @@ import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.retriever.CompoundRetrieverBuilder;
 import org.elasticsearch.search.retriever.KnnRetrieverBuilder;
@@ -21,8 +22,9 @@ import org.elasticsearch.xcontent.XContentType;
 
 import java.util.Arrays;
 
-import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
+import static org.hamcrest.Matchers.closeTo;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 
 public class RRFRetrieverBuilderNestedDocsIT extends RRFRetrieverBuilderIT {
@@ -68,7 +70,7 @@ public class RRFRetrieverBuilderNestedDocsIT extends RRFRetrieverBuilderIT {
               }
             }
             """;
-        createIndex(INDEX, Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0).build());
+        createIndex(INDEX, Settings.builder().put(SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 5)).build());
         admin().indices().preparePutMapping(INDEX).setSource(mapping, XContentType.JSON).get();
         indexDoc(INDEX, "doc_1", DOC_FIELD, "doc_1", TOPIC_FIELD, "technology", TEXT_FIELD, "term", LAST_30D_FIELD, 100);
         indexDoc(
@@ -134,9 +136,9 @@ public class RRFRetrieverBuilderNestedDocsIT extends RRFRetrieverBuilderIT {
         final int rankWindowSize = 100;
         final int rankConstant = 10;
         SearchSourceBuilder source = new SearchSourceBuilder();
-        // this one retrieves docs 1, 4
+        // this one retrieves docs 1
         StandardRetrieverBuilder standard0 = new StandardRetrieverBuilder(
-            QueryBuilders.nestedQuery("views", QueryBuilders.rangeQuery(LAST_30D_FIELD).gte(30L), ScoreMode.Avg)
+            QueryBuilders.nestedQuery("views", QueryBuilders.rangeQuery(LAST_30D_FIELD).gte(50L), ScoreMode.Avg)
         );
         // this one retrieves docs 2 and 6 due to prefilter
         StandardRetrieverBuilder standard1 = new StandardRetrieverBuilder(
@@ -157,16 +159,21 @@ public class RRFRetrieverBuilderNestedDocsIT extends RRFRetrieverBuilderIT {
             )
         );
         source.fetchField(TOPIC_FIELD);
+        source.explain(true);
         SearchRequestBuilder req = client().prepareSearch(INDEX).setSource(source);
         ElasticsearchAssertions.assertResponse(req, resp -> {
             assertNull(resp.pointInTimeId());
             assertNotNull(resp.getHits().getTotalHits());
-            assertThat(resp.getHits().getTotalHits().value, equalTo(4L));
+            assertThat(resp.getHits().getTotalHits().value, equalTo(3L));
             assertThat(resp.getHits().getTotalHits().relation, equalTo(TotalHits.Relation.EQUAL_TO));
             assertThat(resp.getHits().getAt(0).getId(), equalTo("doc_6"));
-            assertThat(resp.getHits().getAt(1).getId(), equalTo("doc_1"));
-            assertThat(resp.getHits().getAt(2).getId(), equalTo("doc_2"));
-            assertThat(resp.getHits().getAt(3).getId(), equalTo("doc_4"));
+            assertThat((double) resp.getHits().getAt(0).getScore(), closeTo(0.1742, 1e-4));
+            assertThat(
+                Arrays.stream(resp.getHits().getHits()).skip(1).map(SearchHit::getId).toList(),
+                containsInAnyOrder("doc_1", "doc_2")
+            );
+            assertThat((double) resp.getHits().getAt(1).getScore(), closeTo(0.0909, 1e-4));
+            assertThat((double) resp.getHits().getAt(2).getScore(), closeTo(0.0909, 1e-4));
         });
     }
 }

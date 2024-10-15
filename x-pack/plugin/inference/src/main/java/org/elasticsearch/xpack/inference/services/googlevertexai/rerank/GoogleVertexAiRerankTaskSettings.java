@@ -18,6 +18,7 @@ import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
@@ -56,6 +57,11 @@ public class GoogleVertexAiRerankTaskSettings implements TaskSettings {
 
     public GoogleVertexAiRerankTaskSettings(StreamInput in) throws IOException {
         this.topN = in.readOptionalVInt();
+    }
+
+    @Override
+    public boolean isEmpty() {
+        return topN == null;
     }
 
     public Integer topN() {
@@ -101,5 +107,13 @@ public class GoogleVertexAiRerankTaskSettings implements TaskSettings {
     @Override
     public int hashCode() {
         return Objects.hash(topN);
+    }
+
+    @Override
+    public TaskSettings updatedTaskSettings(Map<String, Object> newSettings) {
+        GoogleVertexAiRerankRequestTaskSettings requestSettings = GoogleVertexAiRerankRequestTaskSettings.fromMap(
+            new HashMap<>(newSettings)
+        );
+        return of(this, requestSettings);
     }
 }

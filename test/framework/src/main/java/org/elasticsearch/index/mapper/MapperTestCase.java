@@ -1570,7 +1570,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             b.endObject();
         }));
 
-        int elementCount = randomIntBetween(1, 5);
+        int elementCount = randomIntBetween(2, 5);
         CheckedConsumer<XContentBuilder, IOException> buildInput = (XContentBuilder builder) -> {
             example.buildInputArray(builder, elementCount);
         };
@@ -1580,7 +1580,8 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         buildInput.accept(builder);
         builder.endObject();
         String expected = Strings.toString(builder);
-        assertThat(syntheticSource(mapperAll, buildInput), equalTo(expected));
+        String actual = syntheticSource(mapperAll, buildInput);
+        assertThat(actual, equalTo(expected));
     }
 
     @Override

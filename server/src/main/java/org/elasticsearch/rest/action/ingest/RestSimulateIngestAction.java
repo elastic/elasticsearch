@@ -76,7 +76,8 @@ public class RestSimulateIngestAction extends BaseRestHandler {
         Map<String, Object> sourceMap = XContentHelper.convertToMap(sourceTuple.v2(), false, sourceTuple.v1()).v2();
         SimulateBulkRequest bulkRequest = new SimulateBulkRequest(
             (Map<String, Map<String, Object>>) sourceMap.remove("pipeline_substitutions"),
-            (Map<String, Map<String, Object>>) sourceMap.remove("component_template_substitutions")
+            (Map<String, Map<String, Object>>) sourceMap.remove("component_template_substitutions"),
+            (Map<String, Map<String, Object>>) sourceMap.remove("index_template_substitutions")
         );
         BytesReference transformedData = convertToBulkRequestXContentBytes(sourceMap);
         bulkRequest.add(

@@ -38,6 +38,11 @@ public class EsqlCapabilities {
         FN_CBRT,
 
         /**
+         * Support for function {@code HYPOT}.
+         */
+        FN_HYPOT,
+
+        /**
          * Support for {@code MV_APPEND} function. #107001
          */
         FN_MV_APPEND,
@@ -166,6 +171,11 @@ public class EsqlCapabilities {
         SPATIAL_PREDICATES_SUPPORT_MULTIVALUES,
 
         /**
+         * Support a number of fixes and enhancements to spatial distance pushdown. Done in #112938.
+         */
+        SPATIAL_DISTANCE_PUSHDOWN_ENHANCEMENTS,
+
+        /**
          * Fix to GROK and DISSECT that allows extracting attributes with the same name as the input
          * https://github.com/elastic/elasticsearch/issues/110184
          */
@@ -262,11 +272,9 @@ public class EsqlCapabilities {
         MATCH_OPERATOR(true),
 
         /**
-         * Support for the {@code META} keyword. Tests with this tag are
-         * intentionally excluded from mixed version clusters because we
-         * continually add functions, so they constantly fail if we don't.
+         * Removing support for the {@code META} keyword.
          */
-        META,
+        NO_META,
 
         /**
          * Add CombineBinaryComparisons rule.
@@ -336,7 +344,12 @@ public class EsqlCapabilities {
         /**
          * QSTR function
          */
-        QSTR_FUNCTION(true),
+        QSTR_FUNCTION,
+
+        /**
+         * MATCH function
+         */
+        MATCH_FUNCTION,
 
         /**
          * Don't optimize CASE IS NOT NULL function by not requiring the fields to be not null as well.
@@ -348,6 +361,21 @@ public class EsqlCapabilities {
          * Compute year differences in full calendar years.
          */
         DATE_DIFF_YEAR_CALENDARIAL,
+
+        /**
+         * Support named parameters for field names.
+         */
+        NAMED_PARAMETER_FOR_FIELD_AND_FUNCTION_NAMES,
+
+        /**
+         * Fix sorting not allowed on _source and counters.
+         */
+        SORTING_ON_SOURCE_AND_COUNTERS_FORBIDDEN,
+
+        /**
+         * Allow filter per individual aggregation.
+         */
+        PER_AGG_FILTERING,
 
         /**
          * Support aggregations on constants in more scenarios.

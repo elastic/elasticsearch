@@ -20,7 +20,5 @@ public final class SearchCapabilities {
     /** Support synthetic source with `bit` type in `dense_vector` field when `index` is set to `false`. */
     private static final String BIT_DENSE_VECTOR_SYNTHETIC_SOURCE_CAPABILITY = "bit_dense_vector_synthetic_source";
 
-    public static final Set<String> CAPABILITIES = Set.of(
-        BIT_DENSE_VECTOR_SYNTHETIC_SOURCE_CAPABILITY
-    );
+    public static final Set<String> CAPABILITIES = Set.of(BIT_DENSE_VECTOR_SYNTHETIC_SOURCE_CAPABILITY);
 }

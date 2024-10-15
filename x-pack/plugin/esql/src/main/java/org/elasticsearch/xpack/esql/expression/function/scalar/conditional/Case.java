@@ -15,9 +15,11 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.data.ToMask;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
+import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -30,7 +32,6 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
-import org.elasticsearch.xpack.esql.expression.function.Warnings;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
@@ -49,7 +50,7 @@ public final class Case extends EsqlScalarFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Case", Case::new);
 
     record Condition(Expression condition, Expression value) {
-        ConditionEvaluatorSupplier toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
+        ConditionEvaluatorSupplier toEvaluator(ToEvaluator toEvaluator) {
             return new ConditionEvaluatorSupplier(condition.source(), toEvaluator.apply(condition), toEvaluator.apply(value));
         }
     }
@@ -310,26 +311,17 @@ public final class Case extends EsqlScalarFunction {
     }
 
     @Override
-    public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
-        ElementType resultType = PlannerUtils.toElementType(dataType());
+    public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         List<ConditionEvaluatorSupplier> conditionsFactories = conditions.stream().map(c -> c.toEvaluator(toEvaluator)).toList();
         ExpressionEvaluator.Factory elseValueFactory = toEvaluator.apply(elseValue);
-        return new ExpressionEvaluator.Factory() {
-            @Override
-            public ExpressionEvaluator get(DriverContext context) {
-                return new CaseEvaluator(
-                    context.blockFactory(),
-                    resultType,
-                    conditionsFactories.stream().map(x -> x.apply(context)).toList(),
-                    elseValueFactory.get(context)
-                );
-            }
+        ElementType resultType = PlannerUtils.toElementType(dataType());
 
-            @Override
-            public String toString() {
-                return "CaseEvaluator[conditions=" + conditionsFactories + ", elseVal=" + elseValueFactory + ']';
-            }
-        };
+        if (conditionsFactories.size() == 1
+            && conditionsFactories.get(0).value.eagerEvalSafeInLazy()
+            && elseValueFactory.eagerEvalSafeInLazy()) {
+            return new CaseEagerEvaluatorFactory(resultType, conditionsFactories.get(0), elseValueFactory);
+        }
+        return new CaseLazyEvaluatorFactory(resultType, conditionsFactories, elseValueFactory);
     }
 
     record ConditionEvaluatorSupplier(Source conditionSource, ExpressionEvaluator.Factory condition, ExpressionEvaluator.Factory value)
@@ -349,7 +341,12 @@ public final class Case extends EsqlScalarFunction {
                  * Rather than go into depth about this in the warning message,
                  * we just say "false".
                  */
-                Warnings.createWarningsTreatedAsFalse(driverContext.warningsMode(), conditionSource),
+                Warnings.createWarningsTreatedAsFalse(
+                    driverContext.warningsMode(),
+                    conditionSource.source().getLineNumber(),
+                    conditionSource.source().getColumnNumber(),
+                    conditionSource.text()
+                ),
                 condition.get(driverContext),
                 value.get(driverContext)
             );
@@ -375,9 +372,42 @@ public final class Case extends EsqlScalarFunction {
         public String toString() {
             return "ConditionEvaluator[condition=" + condition + ", value=" + value + ']';
         }
+
+        public void registerMultivalue() {
+            conditionWarnings.registerException(new IllegalArgumentException("CASE expects a single-valued boolean"));
+        }
     }
 
-    private record CaseEvaluator(
+    private record CaseLazyEvaluatorFactory(
+        ElementType resultType,
+        List<ConditionEvaluatorSupplier> conditionsFactories,
+        ExpressionEvaluator.Factory elseValueFactory
+    ) implements ExpressionEvaluator.Factory {
+        @Override
+        public ExpressionEvaluator get(DriverContext context) {
+            List<ConditionEvaluator> conditions = new ArrayList<>(conditionsFactories.size());
+            ExpressionEvaluator elseValue = null;
+            try {
+                for (ConditionEvaluatorSupplier cond : conditionsFactories) {
+                    conditions.add(cond.apply(context));
+                }
+                elseValue = elseValueFactory.get(context);
+                ExpressionEvaluator result = new CaseLazyEvaluator(context.blockFactory(), resultType, conditions, elseValue);
+                conditions = null;
+                elseValue = null;
+                return result;
+            } finally {
+                Releasables.close(conditions == null ? () -> {} : Releasables.wrap(conditions), elseValue);
+            }
+        }
+
+        @Override
+        public String toString() {
+            return "CaseLazyEvaluator[conditions=" + conditionsFactories + ", elseVal=" + elseValueFactory + ']';
+        }
+    }
+
+    private record CaseLazyEvaluator(
         BlockFactory blockFactory,
         ElementType resultType,
         List<ConditionEvaluator> conditions,
@@ -409,9 +439,7 @@ public final class Case extends EsqlScalarFunction {
                                     continue;
                                 }
                                 if (b.getValueCount(0) > 1) {
-                                    condition.conditionWarnings.registerException(
-                                        new IllegalArgumentException("CASE expects a single-valued boolean")
-                                    );
+                                    condition.registerMultivalue();
                                     continue;
                                 }
                                 if (false == b.getBoolean(b.getFirstValueIndex(0))) {
@@ -439,7 +467,80 @@ public final class Case extends EsqlScalarFunction {
 
         @Override
         public String toString() {
-            return "CaseEvaluator[conditions=" + conditions + ", elseVal=" + elseVal + ']';
+            return "CaseLazyEvaluator[conditions=" + conditions + ", elseVal=" + elseVal + ']';
+        }
+    }
+
+    private record CaseEagerEvaluatorFactory(
+        ElementType resultType,
+        ConditionEvaluatorSupplier conditionFactory,
+        ExpressionEvaluator.Factory elseValueFactory
+    ) implements ExpressionEvaluator.Factory {
+        @Override
+        public ExpressionEvaluator get(DriverContext context) {
+            ConditionEvaluator conditionEvaluator = conditionFactory.apply(context);
+            ExpressionEvaluator elseValue = null;
+            try {
+                elseValue = elseValueFactory.get(context);
+                ExpressionEvaluator result = new CaseEagerEvaluator(resultType, context.blockFactory(), conditionEvaluator, elseValue);
+                conditionEvaluator = null;
+                elseValue = null;
+                return result;
+            } finally {
+                Releasables.close(conditionEvaluator, elseValue);
+            }
+        }
+
+        @Override
+        public String toString() {
+            return "CaseEagerEvaluator[conditions=[" + conditionFactory + "], elseVal=" + elseValueFactory + ']';
+        }
+    }
+
+    private record CaseEagerEvaluator(
+        ElementType resultType,
+        BlockFactory blockFactory,
+        ConditionEvaluator condition,
+        EvalOperator.ExpressionEvaluator elseVal
+    ) implements EvalOperator.ExpressionEvaluator {
+        @Override
+        public Block eval(Page page) {
+            try (BooleanBlock lhsOrRhsBlock = (BooleanBlock) condition.condition.eval(page); ToMask lhsOrRhs = lhsOrRhsBlock.toMask()) {
+                if (lhsOrRhs.hadMultivaluedFields()) {
+                    condition.registerMultivalue();
+                }
+                if (lhsOrRhs.mask().isConstant()) {
+                    if (lhsOrRhs.mask().getBoolean(0)) {
+                        return condition.value.eval(page);
+                    } else {
+                        return elseVal.eval(page);
+                    }
+                }
+                try (
+                    Block lhs = condition.value.eval(page);
+                    Block rhs = elseVal.eval(page);
+                    Block.Builder builder = resultType.newBlockBuilder(lhs.getTotalValueCount(), blockFactory)
+                ) {
+                    for (int p = 0; p < lhs.getPositionCount(); p++) {
+                        if (lhsOrRhs.mask().getBoolean(p)) {
+                            builder.copyFrom(lhs, p, p + 1);
+                        } else {
+                            builder.copyFrom(rhs, p, p + 1);
+                        }
+                    }
+                    return builder.build();
+                }
+            }
+        }
+
+        @Override
+        public void close() {
+            Releasables.closeExpectNoException(condition, elseVal);
+        }
+
+        @Override
+        public String toString() {
+            return "CaseEagerEvaluator[conditions=[" + condition + "], elseVal=" + elseVal + ']';
         }
     }
 }

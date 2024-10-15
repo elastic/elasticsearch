@@ -116,7 +116,7 @@ public class CompatibleNamedXContentRegistryTests extends ESTestCase {
         }
     }
 
-    @UpdateForV9
+    @UpdateForV9(owner = UpdateForV9.Owner.CORE_INFRA)
     @AwaitsFix(bugUrl = "this can be re-enabled once our rest api version is bumped to V_9")
     public void testNotCompatibleRequest() throws IOException {
         NamedXContentRegistry registry = new NamedXContentRegistry(

@@ -14,12 +14,14 @@ composed_of:
 - apm-90d@lifecycle
 - metrics-apm@mappings
 - metrics-apm@settings
+- metrics-apm.internal-fallback@ilm
 - metrics@custom
 - metrics-apm.internal@custom
 - ecs@mappings
 ignore_missing_component_templates:
 - metrics@custom
 - metrics-apm.internal@custom
+- metrics-apm.internal-fallback@ilm
 template:
   settings:
     index:

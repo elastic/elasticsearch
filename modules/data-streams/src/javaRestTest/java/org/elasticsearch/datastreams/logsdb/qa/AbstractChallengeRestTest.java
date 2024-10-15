@@ -44,7 +44,7 @@ public abstract class AbstractChallengeRestTest extends ESRestTestCase {
     private XContentBuilder contenderMappings;
     private Settings.Builder baselineSettings;
     private Settings.Builder contenderSettings;
-    private RestClient client;
+    protected RestClient client;
 
     @ClassRule()
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
@@ -273,6 +273,33 @@ public abstract class AbstractChallengeRestTest extends ESRestTestCase {
     private Response query(final SearchSourceBuilder search, final Supplier<String> dataStreamNameSupplier) throws IOException {
         final Request request = new Request("GET", "/" + dataStreamNameSupplier.get() + "/_search");
         request.setJsonEntity(Strings.toString(search));
+        return client.performRequest(request);
+    }
+
+    public Response esqlBaseline(final String query) throws IOException {
+        return esql(query, this::getBaselineDataStreamName);
+    }
+
+    public Response esqlContender(final String query) throws IOException {
+        return esql(query, this::getContenderDataStreamName);
+    }
+
+    private Response esql(final String query, final Supplier<String> dataStreamNameSupplier) throws IOException {
+        final Request request = new Request("POST", "/_query");
+        request.setJsonEntity("{\"query\": \"" + query.replace("$index", dataStreamNameSupplier.get()) + "\"}");
+        return client.performRequest(request);
+    }
+
+    public Response fieldCapsBaseline() throws IOException {
+        return fieldCaps(this::getBaselineDataStreamName);
+    }
+
+    public Response fieldCapsContender() throws IOException {
+        return fieldCaps(this::getContenderDataStreamName);
+    }
+
+    private Response fieldCaps(final Supplier<String> dataStreamNameSupplier) throws IOException {
+        final Request request = new Request("GET", "/" + dataStreamNameSupplier.get() + "/_field_caps?fields=*");
         return client.performRequest(request);
     }
 

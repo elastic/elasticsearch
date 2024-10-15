@@ -20,7 +20,6 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 
-import java.io.BufferedInputStream;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -106,9 +105,7 @@ public class GeoIpCliTests extends CommandTestCase {
     private void verifyTarball(Map<String, byte[]> data) throws Exception {
         for (String tgz : List.of("a.tgz", "b.tgz")) {
             try (
-                TarArchiveInputStream tis = new TarArchiveInputStream(
-                    new GZIPInputStream(new BufferedInputStream(Files.newInputStream(target.resolve(tgz))))
-                )
+                TarArchiveInputStream tis = new TarArchiveInputStream(new GZIPInputStream(Files.newInputStream(target.resolve(tgz)), 8192))
             ) {
                 TarArchiveEntry entry = tis.getNextTarEntry();
                 assertNotNull(entry);

@@ -40,7 +40,6 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.index.EsIndex;
-import org.elasticsearch.xpack.esql.io.stream.PlanNameRegistry;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
@@ -329,14 +328,14 @@ public class EnrichPolicyResolver {
         }
 
         LookupResponse(StreamInput in) throws IOException {
-            PlanStreamInput planIn = new PlanStreamInput(in, PlanNameRegistry.INSTANCE, in.namedWriteableRegistry(), null);
+            PlanStreamInput planIn = new PlanStreamInput(in, in.namedWriteableRegistry(), null);
             this.policies = planIn.readMap(StreamInput::readString, ResolvedEnrichPolicy::new);
             this.failures = planIn.readMap(StreamInput::readString, StreamInput::readString);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            PlanStreamOutput pso = new PlanStreamOutput(out, new PlanNameRegistry(), null);
+            PlanStreamOutput pso = new PlanStreamOutput(out, null);
             pso.writeMap(policies, StreamOutput::writeWriteable);
             pso.writeMap(failures, StreamOutput::writeString);
         }

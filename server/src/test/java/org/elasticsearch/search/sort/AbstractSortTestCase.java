@@ -152,7 +152,7 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
         for (int runs = 0; runs < NUMBER_OF_TESTBUILDERS; runs++) {
             T sortBuilder = createTestItem();
             SortFieldAndFormat sortField = Rewriteable.rewrite(sortBuilder, mockShardContext).build(mockShardContext);
-            sortFieldAssertions(sortBuilder, sortField.field, sortField.format);
+            sortFieldAssertions(sortBuilder, sortField.field(), sortField.format());
         }
     }
 
@@ -197,7 +197,7 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
         };
         NestedLookup nestedLookup = NestedLookup.build(List.of(new NestedObjectMapper.Builder("path", IndexVersion.current(), query -> {
             throw new UnsupportedOperationException();
-        }).build(MapperBuilderContext.root(false, false))));
+        }, null).build(MapperBuilderContext.root(false, false))));
         return new SearchExecutionContext(
             0,
             0,

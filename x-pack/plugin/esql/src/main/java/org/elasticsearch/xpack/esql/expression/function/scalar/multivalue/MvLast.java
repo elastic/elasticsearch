@@ -59,8 +59,8 @@ public class MvLast extends AbstractMultivalueFunction {
         description = """
             Converts a multivalue expression into a single valued column containing the last
             value. This is most useful when reading from a function that emits multivalued
-            columns in a known order like <<esql-split>>.
-
+            columns in a known order like <<esql-split>>.""",
+        detailedDescription = """
             The order that <<esql-multivalued-fields, multivalued fields>> are read from
             underlying storage is not guaranteed. It is *frequently* ascending, but don't
             rely on that. If you need the maximum value use <<esql-mv_max>> instead of

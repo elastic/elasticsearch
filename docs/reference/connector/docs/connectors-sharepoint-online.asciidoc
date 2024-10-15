@@ -1,0 +1,988 @@
+[#es-connectors-sharepoint-online]
+=== Elastic SharePoint Online connector reference
+++++
+<titleabbrev>SharePoint Online</titleabbrev>
+++++
+// Attributes used in this file
+:service-name: SharePoint Online
+:service-name-stub: sharepoint_online
+
+[TIP]
+====
+Looking for the SharePoint *Server* connector? See <<es-connectors-sharepoint,SharePoint Server reference>>.
+====
+
+The _Elastic SharePoint Online connector_ is a <<es-connectors,connector>> for https://www.microsoft.com/en-ww/microsoft-365/sharepoint/[Microsoft SharePoint Online^].
+
+This connector is written in Python using the {connectors-python}[Elastic connector framework^]. 
+
+View the {connectors-python}/connectors/sources/{service-name-stub}.py[*source code* for this connector^] (branch _{connectors-branch}_, compatible with Elastic _{minor-version}_).
+
+.Choose your connector reference
+*******************************
+Are you using a managed connector on Elastic Cloud or a self-managed connector? Expand the documentation based on your deployment method.
+*******************************
+
+// //////// //// //// //// //// //// //// ////////
+// ////////   NATIVE CONNECTOR REFERENCE   ///////
+// //////// //// //// //// //// //// //// ////////
+
+[discrete#es-connectors-sharepoint-online-native-connector-reference]
+==== *Elastic managed connector reference*
+
+.View *Elastic managed connector* reference
+
+[%collapsible]
+===============
+
+[discrete#es-connectors-sharepoint-online-availability-prerequisites]
+===== Availability and prerequisites
+
+This connector is available as a *managed connector* in Elastic versions *8.9.0 and later*.
+To use this connector natively in Elastic Cloud, satisfy all <<es-native-connectors,managed connector requirements>>.
+
+[NOTE]
+====
+This connector requires a subscription.
+View the requirements for this feature under the *Elastic Search* section of the https://www.elastic.co/subscriptions[Elastic Stack subscriptions^] page.
+====
+
+[discrete#es-connectors-sharepoint-online-usage]
+===== Usage
+
+To use this connector as a *managed connector*, see <<es-native-connectors>>.
+
+For additional operations, see <<es-connectors-usage>>.
+
+[discrete#es-connectors-sharepoint-online-sharepoint-prerequisites]
+===== SharePoint prerequisites
+
+[discrete#es-connectors-sharepoint-online-oauth-app-create]
+====== Create SharePoint OAuth app
+
+Before you can configure the connector, you must create an **OAuth App** in the SharePoint Online platform.
+Your connector will authenticate to SharePoint as the registered OAuth application/client.
+You'll collect values (`client ID`, `tenant ID`, and `client secret`) during this process that you'll need for the <<es-connectors-sharepoint-online-configuration,configuration step>> in Kibana.
+
+To get started, first log in to SharePoint Online and access your administrative dashboard.
+Ensure you are logged in as the Azure Portal **service account**.
+
+Follow these steps:
+
+* Sign in to https://portal.azure.com/ and click on **Azure Active Directory**.
+* Locate **App Registrations** and Click **New Registration**.
+* Give your app a name - like "Search".
+* Leave the *Redirect URIs* blank for now.
+* *Register* the application.
+* Find and keep the **Application (client) ID** and **Directory (tenant) ID** handy.
+* Locate the **Secret** by navigating to **Client credentials: Certificates & Secrets**.
+* Select **New client secret**
+* Pick a name for your client secret.
+Select an expiration date. (At this expiration date, you will need to generate a new secret and update your connector configuration.)
+** Save the client secret **Secret ID** before leaving this screen.
+** Save the client secret **Value** before leaving this screen.
+* Set up the permissions the OAuth App will request from the Azure Portal service account.
+** Navigate to **API Permissions** and click **Add Permission**.
+** Add **application permissions** until the list looks like the following:
++
+```
+Graph API
+- Sites.Read.All
+- Files.Read.All
+- Group.Read.All
+- User.Read.All
+
+Sharepoint
+- Sites.Read.All
+```
+* **Grant admin consent**, using the `Grant Admin Consent` link from the permissions screen.
+* Save the tenant name (i.e. Domain name) of Azure platform.
+
+[WARNING]
+====
+The connector requires application permissions.  It does not support delegated permissions (scopes).
+====
+
+[NOTE]
+====
+The connector uses the https://learn.microsoft.com/en-us/sharepoint/dev/apis/sharepoint-rest-graph[Graph API^] (stable https://learn.microsoft.com/en-us/graph/api/overview?view=graph-rest-1.0#other-api-versions[v1.0 API^]) where possible to fetch data from Sharepoint Online.
+When entities are not available via the Graph API the connector falls back to using the Sharepoint https://learn.microsoft.com/en-us/sharepoint/dev/sp-add-ins/get-to-know-the-sharepoint-rest-service[REST API^].
+====
+
+[discrete#es-connectors-sharepoint-online-oauth-app-permissions]
+====== SharePoint permissions
+
+Refer to the following documentation for setting https://learn.microsoft.com/en-us/sharepoint/dev/solution-guidance/security-apponly-azureacs[SharePoint permissions^].
+
+* To set `DisableCustomAppAuthentication` to false, connect to SharePoint using PowerShell and run `set-spotenant -DisableCustomAppAuthentication $false`
+* To assign full permissions to the tenant in SharePoint Online, go to the tenant URL in your browser.
+The URL follows this pattern: `https://<office_365_admin_tenant_URL>/_layouts/15/appinv.aspx`.
+This loads the SharePoint admin center page.
+** In the *App ID* box, enter the application ID that you recorded earlier, and then click *Lookup*.
+The application name will appear in the Title box.
+** In the *App Domain* box, type <tenant_name>.onmicrosoft.com
+** In the *App's Permission Request XML* box, type the following XML string:
++
+[source, xml]
+----
+<AppPermissionRequests AllowAppOnlyPolicy="true">
+<AppPermissionRequest Scope="http://sharepoint/content/tenant" Right="FullControl" />
+<AppPermissionRequest Scope="http://sharepoint/social/tenant" Right="Read" />
+</AppPermissionRequests>
+----
+
+.Graph API permissions
+****
+Microsoft recommends using Graph API for all operations with Sharepoint Online. Graph API is well-documented and more efficient at fetching data, which helps avoid throttling.
+Refer to https://learn.microsoft.com/en-us/sharepoint/dev/general-development/how-to-avoid-getting-throttled-or-blocked-in-sharepoint-online[Microsoft's throttling policies^] for more information.
+
+Here's a summary of why we use these Graph API permissions:
+
+* *Sites.Read.All* is used to fetch the sites and their metadata
+* *Files.Read.All* is used to fetch Site Drives and files in these drives
+* *Groups.Read.All* is used to fetch groups for document-level permissions
+* *User.Read.All* is used to fetch user information for document-level permissions
+
+Due to the way the Graph API is designed, these permissions are "all or nothing" - it's currently impossible to limit access to these resources.
+****
+
+[discrete#es-connectors-sharepoint-online-compatability]
+===== Compatibility
+
+This connector is compatible with SharePoint Online.
+
+[discrete#es-connectors-sharepoint-online-configuration]
+===== Configuration
+
+Use the following configuration fields to set up the connector:
+
+Tenant ID::
+The tenant id for the Azure account hosting the Sharepoint Online instance.
+
+Tenant Name::
+The tenant name for the Azure account hosting the Sharepoint Online instance.
+
+Client ID::
+The client id to authenticate with SharePoint Online.
+
+Secret value::
+The secret value to authenticate with SharePoint Online.
+
+Comma-separated list of sites::
+List of site collection names or paths to fetch from SharePoint.
+When enumerating all sites, these values should be the _names_ of the sites.
+Use `*` to include all available sites.
+Examples:
+* `collection1`
+* `collection1,sub-collection`
+* `*`
++
+When **not** enumerating all sites, these values should be the _paths_ (URL after `/sites/`) of the sites.
+Examples:
+* `collection1`
+* `collection1,collection1/sub-collection`
+
+Enumerate all sites?::
+If enabled, the full list of all sites will be fetched from the API, in bulk, and will be filtered down to match the configured list of site names.
+If disabled, each path in the configured list of site paths will be fetched individually from the API.
+When disabled, `*` is not a valid configuration for `Comma-separated list of sites`.
+Enabling this configuration is most useful when syncing large numbers (more than total/200) of sites.
+This is because, at high volumes, it is more efficient to fetch sites in bulk.
+When syncing fewer sites, disabling this configuration can result in improved performance.
+This is because, at low volumes, it is more efficient to only fetch the sites that you need.
+
+Fetch sub-sites of configured sites?::
+Whether sub-sites of the configured site(s) should be automatically fetched.
+This option is only available when not enumerating all sites (see above).
+
+Enable document level security::
+Toggle to enable <<es-dls, document level security (DLS)>>.
+When enabled, full and incremental syncs will fetch access control lists for each document and store them in the `_allow_access_control` field.
+Access control syncs will fetch users' access control lists and store them in a separate index.
++
+Once enabled, the following granular permissions toggles will be available:
+
+** *Fetch drive item permissions*: Enable this option to fetch *drive item* specific permissions.
+** *Fetch unique page permissions*: Enable this option to fetch unique *page* permissions. If this setting is disabled a page will inherit permissions from its parent site.
+** *Fetch unique list permissions*: Enable this option to fetch unique *list* permissions. If this setting is disabled a list will inherit permissions from its parent site.
+** *Fetch unique list item permissions*: Enable this option to fetch unique *list item* permissions. If this setting is disabled a list item will inherit permissions from its parent site.
++
+[NOTE]
+====
+If left empty the default value `true` will be used for these granular permissions toggles.
+Note that these settings may increase sync times.
+====
+
+[discrete#es-connectors-sharepoint-online-documents-syncs]
+===== Documents and syncs
+
+The connector syncs the following SharePoint object types:
+
+* *Sites* (and subsites)
+* *Lists*
+* *List items* and *attachment content*
+* *Document libraries* and *attachment content* (including web pages)
+
+[NOTE]
+====
+* Content from files bigger than 10 MB won't be extracted. (Self-managed connectors can use the <<es-connectors-content-extraction-local, self-managed local extraction service>> to handle larger binary files.)
+* Permissions are not synced by default. Enable <<es-dls, document-level security (DLS)>> to sync permissions.
+====
+
+[TIP]
+====
+*Making Sharepoint Site Pages Web Part content searchable*
+
+If you're using Web Parts on Sharepoint Site Pages and want to make this content searchable, you'll need to consult the https://learn.microsoft.com/en-us/sharepoint/dev/spfx/web-parts/guidance/integrate-web-part-properties-with-sharepoint#specify-web-part-property-value-type/[official documentation^].
+
+We recommend setting `isHtmlString` to *True* for all Web Parts that need to be searchable.
+====
+
+[discrete#es-connectors-sharepoint-online-documents-syncs-limitations]
+====== Limitations
+
+* The connector does not currently sync content from Teams-connected sites.
+
+[discrete#es-connectors-sharepoint-online-sync-rules]
+===== Sync rules
+
+_Basic_ sync rules are identical for all connectors and are available by default.
+For more information read <<es-sync-rules-types>>.
+
+[discrete#es-connectors-sharepoint-online-sync-rules-advanced]
+====== Advanced sync rules
+
+[NOTE]
+====
+A <<es-connectors-sync-types-full, full sync>> is required for advanced sync rules to take effect.
+====
+
+The following section describes *advanced sync rules* for this connector.
+Advanced sync rules are defined through a source-specific DSL JSON snippet.
+
+<<es-sync-rules-advanced,Advanced rules>> for the Sharepoint Online connector enable you to avoid extracting and syncing older data that might no longer be relevant for search.
+
+Example:
+
+[source,js]
+----
+{
+	"skipExtractingDriveItemsOlderThan": 60
+}
+----
+// NOTCONSOLE
+
+This rule will not extract content of any drive items (files in document libraries) that haven't been modified for 60 days or more.
+
+[discrete#es-connectors-sharepoint-online-sync-rules-limitations]
+======= Limitations of sync rules with incremental syncs
+
+Changing sync rules after Sharepoint Online content has already been indexed can bring unexpected results, when using <<es-connectors-sync-types-incremental,incremental syncs>>.
+
+Incremental syncs ensure _updates_ from 3rd-party system, but do not modify existing documents in the index.
+
+*To avoid these issues, run a full sync after changing sync rules (basic or advanced).*
+
+Let's take a look at several examples where incremental syncs might lead to inconsistent data on your index.
+
+[discrete#es-connectors-sharepoint-online-sync-rules-limitations-restrictive-added]
+======== Example: Restrictive basic sync rule added after a full sync
+
+Imagine your Sharepoint Online drive contains the following drive items:
+
+[source,txt]
+----
+/Documents/Report.doc
+/Documents/Spreadsheet.xls
+/Presentations/Q4-2020-Report.pdf
+/Presentations/Q4-2020-Report-Data.xls
+/Personal/Documents/Sales.xls
+----
+
+After a sync, all these drive items will be stored on your Elasticsearch index.
+Let's add a basic sync rule, filtering files by their path:
+
+[source,txt]
+----
+Exclude WHERE path CONTAINS "Documents"
+----
+
+These filtering rules will exclude all files with "Documents" in their path, leaving only files in `/Presentations` directory:
+
+[source,txt]
+----
+/Presentations/Q4-2020-Report.pdf
+/Presentations/Q4-2020-Report-Data.xls
+----
+
+If no files were changed, incremental sync will not receive information about changes from Sharepoint Online and won't be able to delete any files, leaving the index in the same state it was before the sync.
+
+After a *full sync*, the index will be updated and files that are excluded by sync rules will be removed.
+
+[discrete#es-connectors-sharepoint-online-sync-rules-limitations-restrictive-removed]
+======== Example: Restrictive basic sync rules removed after a full sync
+
+Imagine that Sharepoint Online drive has the following drive items:
+
+[source,txt]
+----
+/Documents/Report.doc
+/Documents/Spreadsheet.xls
+/Presentations/Q4-2020-Report.pdf
+/Presentations/Q4-2020-Report-Data.xls
+/Personal/Documents/Sales.xls
+----
+
+Before doing a sync, we add a restrictive basic filtering rule:
+
+[source,txt]
+----
+Exclude WHERE path CONTAINS "Documents"
+----
+
+After a full sync, the index will contain only files in the `/Presentations` directory:
+
+[source,txt]
+----
+/Presentations/Q4-2020-Report.pdf
+/Presentations/Q4-2020-Report-Data.xls
+----
+
+Afterwards, we can remove the filtering rule and run an incremental sync. If no changes happened to the files, incremental sync will not mirror these changes in the Elasticsearch index, because Sharepoint Online will not report any changes to the items.
+Only a *full sync* will include the items previously ignored by the sync rule.
+
+[discrete#es-connectors-sharepoint-online-sync-rules-limitations-restrictive-changed]
+======== Example: Advanced sync rules edge case
+
+Advanced sync rules can be applied to limit which documents will have content extracted.
+For example, it's possible to set a rule so that documents older than 180 days won't have content extracted.
+
+However, there is an edge case.
+Imagine a document that is 179 days old and its content is extracted and indexed into Elasticsearch.
+After 2 days, this document will be 181 days old.
+Since this document was already ingested it will not be modified.
+Therefore, the content will not be removed from the index, following an incremental sync.
+
+In this situation, if you want older documents to be removed, you will need to clean the index up manually.
+For example, you can manually run an Elasticsearch query that removes drive item content older than 180 days:
+
+[source, console]
+----
+POST INDEX_NAME/_update_by_query?conflicts=proceed
+{
+  "query": {
+    "bool": {
+      "filter": [
+        {
+          "match": {
+            "object_type": "drive_item"
+          }
+        },
+        {
+          "exists": {
+            "field": "file"
+          }
+        },
+        {
+          "range": {
+            "lastModifiedDateTime": {
+              "lte": "now-180d"
+            }
+          }
+        }
+      ]
+    }
+  },
+  "script": {
+    "source": "ctx._source.body = ''",
+    "lang": "painless"
+  }
+}
+----
+// TEST[skip:TODO]
+
+[discrete#es-connectors-sharepoint-online-dls]
+===== Document-level security
+
+Document-level security (DLS) enables you to restrict access to documents based on a user's permissions.
+This feature is available by default for this connector.
+
+Refer to <<es-connectors-sharepoint-online-configuration,configuration>> on this page for how to enable DLS for this connector.
+
+[TIP]
+====
+Refer to <<es-dls-e2e-guide,DLS in Search Applications>> to learn how to ingest data from SharePoint Online with DLS enabled, when building a search application.
+====
+
+[discrete#es-connectors-sharepoint-online-content-extraction]
+===== Content extraction
+
+[discrete#es-connectors-sharepoint-online-content-extraction-pipeline]
+====== Default content extraction
+
+The default content extraction service is powered by the Enterprise Search default ingest pipeline.
+(See {ref}/ingest-pipeline-search.html[Ingest pipelines for Search indices].)
+
+See <<es-connectors-content-extraction>>.
+
+[discrete#es-connectors-sharepoint-online-content-extraction-local]
+====== Local content extraction (for large files)
+
+The SharePoint Online self-managed connector supports large file content extraction (> *100MB*).
+This requires:
+
+* A self-managed deployment of the Elastic Text Extraction Service.
+* Text extraction to be _disabled_ in the default ingest pipeline settings.
+
+Refer to <<es-connectors-content-extraction-local, local content extraction>> for more information.
+
+[discrete#es-connectors-sharepoint-online-known-issues]
+===== Known issues
+
+* *Documents failing to sync due to SharePoint file and folder limits*
++
+SharePoint has limits on the number of files and folders that can be synced.
+You might encounter an error like the following written to the body of documents that failed to sync:
+`The file size exceeds the allowed limit. CorrelationId: fdb36977-7cb8-4739-992f-49878ada6686, UTC DateTime: 4/21/2022 11:24:22 PM`
++
+Refer to https://support.microsoft.com/en-us/office/download-files-and-folders-from-onedrive-or-sharepoint-5c7397b7-19c7-4893-84fe-d02e8fa5df05#:~:text=Downloads%20are%20subject%20to%20the,zip%20file%20and%2020GB%20overall[SharePoint documentation^] for more information about these limits.
++
+** *Syncing a large number of files*
++
+The connector will fail to download files from folders that contain more than 5000 files.
+The List View Threshold (default 5000) is a limit that prevents operations with a high performance impact on the SharePoint Online environment.
++
+*Workaround:* Reduce batch size to avoid this issue.
++
+** *Syncing large files*
++
+SharePoint has file size limits, but these are configurable.
++
+*Workaround:* Increase the file size limit.
+Refer to https://learn.microsoft.com/en-us/sharepoint/manage-site-collection-storage-limits#set-automatic-or-manual-site-storage-limits[SharePoint documentation^] for more information.
++
+** *Deleted documents counter is not updated during incremental syncs*
++
+If the configuration `Enumerate All Sites?` is enabled, incremental syncs may not behave as expected.
+Drive Item documents that were deleted between incremental syncs may not be detected as deleted.
++
+*Workaround*: Disable `Enumerate All Sites?`, and configure full site paths for all desired sites.
+
+Refer to <<es-connectors-known-issues>> for a list of known issues for all connectors.
+
+[discrete#es-connectors-sharepoint-online-troubleshooting]
+===== Troubleshooting
+
+See <<es-connectors-troubleshooting>>.
+
+[discrete#es-connectors-sharepoint-onlinesecurity]
+===== Security
+
+See <<es-connectors-security>>.
+
+// Closing the collapsible section 
+===============
+
+// //////// //// //// //// //// //// //// ////////
+// //////// CONNECTOR CLIENT REFERENCE     ///////
+// //////// //// //// //// //// //// //// ////////
+
+[discrete#es-connectors-sharepoint-online-connector-client-reference]
+==== *Self-managed connector*
+
+.View *self-managed connector* reference
+
+[%collapsible]
+===============
+
+[discrete#es-connectors-sharepoint-online-client-availability-prerequisites]
+===== Availability and prerequisites
+
+This connector is available as a self-managed *self-managed connector*.
+To use this connector as a self-managed connector, satisfy all <<es-build-connector,self-managed connector requirements>>.
+
+[NOTE]
+====
+This connector requires a subscription.
+View the requirements for this feature under the *Elastic Search* section of the https://www.elastic.co/subscriptions[Elastic Stack subscriptions^] page.
+====
+
+[discrete#es-connectors-sharepoint-online-client-usage]
+===== Usage
+
+To use this connector as a *self-managed connector*, see <<es-build-connector>>
+For additional operations, see <<es-connectors-usage>>.
+
+[discrete#es-connectors-sharepoint-online-client-sharepoint-prerequisites]
+===== SharePoint prerequisites
+
+[discrete#es-connectors-sharepoint-online-client-oauth-app-create]
+====== Create SharePoint OAuth app
+
+Before you can configure the connector, you must create an **OAuth App** in the SharePoint Online platform.
+Your connector will authenticate to SharePoint as the registered OAuth application/client.
+You'll collect values (`client ID`, `tenant ID`, and `client secret`) during this process that you'll need for the <<es-connectors-sharepoint-online-client-configuration,configuration step>> in Kibana.
+
+To get started, first log in to SharePoint Online and access your administrative dashboard.
+Ensure you are logged in as the Azure Portal **service account**.
+
+Follow these steps:
+
+* Sign in to https://portal.azure.com/ and click on **Azure Active Directory**.
+* Locate **App Registrations** and Click **New Registration**.
+* Give your app a name - like "Search".
+* Leave the *Redirect URIs* blank for now.
+* *Register* the application.
+* Find and keep the **Application (client) ID** and **Directory (tenant) ID** handy.
+* Locate the **Secret** by navigating to **Client credentials: Certificates & Secrets**.
+* Select **New client secret**
+* Pick a name for your client secret.
+Select an expiration date. (At this expiration date, you will need to generate a new secret and update your connector configuration.)
+** Save the client secret **Secret ID** before leaving this screen.
+** Save the client secret **Value** before leaving this screen.
+* Set up the permissions the OAuth App will request from the Azure Portal service account.
+** Navigate to **API Permissions** and click **Add Permission**.
+** Add **application permissions** until the list looks like the following:
++
+```
+Graph API
+- Sites.Read.All
+- Files.Read.All
+- Group.Read.All
+- User.Read.All
+
+Sharepoint
+- Sites.Read.All
+```
+* **Grant admin consent**, using the `Grant Admin Consent` link from the permissions screen.
+* Save the tenant name (i.e. Domain name) of Azure platform.
+
+[WARNING]
+====
+The connector requires application permissions.  It does not support delegated permissions (scopes).
+====
+
+[NOTE]
+====
+The connector uses the https://learn.microsoft.com/en-us/sharepoint/dev/apis/sharepoint-rest-graph[Graph API^] (stable https://learn.microsoft.com/en-us/graph/api/overview?view=graph-rest-1.0#other-api-versions[v1.0 API^]) where possible to fetch data from Sharepoint Online.
+When entities are not available via the Graph API the connector falls back to using the Sharepoint https://learn.microsoft.com/en-us/sharepoint/dev/sp-add-ins/get-to-know-the-sharepoint-rest-service[REST API^].
+====
+
+[discrete#es-connectors-sharepoint-online-client-oauth-app-permissions]
+====== SharePoint permissions
+
+Refer to the following documentation for setting https://learn.microsoft.com/en-us/sharepoint/dev/solution-guidance/security-apponly-azureacs[SharePoint permissions^].
+
+* To set `DisableCustomAppAuthentication` to false, connect to SharePoint using PowerShell and run `set-spotenant -DisableCustomAppAuthentication $false`
+* To assign full permissions to the tenant in SharePoint Online, go to the tenant URL in your browser.
+The URL follows this pattern: `https://<office_365_admin_tenant_URL>/_layouts/15/appinv.aspx`.
+This loads the SharePoint admin center page.
+** In the *App ID* box, enter the application ID that you recorded earlier, and then click *Lookup*.
+The application name will appear in the Title box.
+** In the *App Domain* box, type <tenant_name>.onmicrosoft.com
+** In the *App's Permission Request XML* box, type the following XML string:
++
+[source, xml]
+----
+<AppPermissionRequests AllowAppOnlyPolicy="true">
+<AppPermissionRequest Scope="http://sharepoint/content/tenant" Right="FullControl" />
+<AppPermissionRequest Scope="http://sharepoint/social/tenant" Right="Read" />
+</AppPermissionRequests>
+----
+
+.Graph API permissions
+****
+Microsoft recommends using Graph API for all operations with Sharepoint Online. Graph API is well-documented and more efficient at fetching data, which helps avoid throttling.
+Refer to https://learn.microsoft.com/en-us/sharepoint/dev/general-development/how-to-avoid-getting-throttled-or-blocked-in-sharepoint-online[Microsoft's throttling policies^] for more information.
+
+Here's a summary of why we use these Graph API permissions:
+
+* *Sites.Read.All* is used to fetch the sites and their metadata
+* *Files.Read.All* is used to fetch Site Drives and files in these drives
+* *Groups.Read.All* is used to fetch groups for document-level permissions
+* *User.Read.All* is used to fetch user information for document-level permissions
+
+Due to the way the Graph API is designed, these permissions are "all or nothing" - it's currently impossible to limit access to these resources.
+****
+
+[discrete#es-connectors-sharepoint-online-client-compatability]
+===== Compatibility
+
+This connector is compatible with SharePoint Online.
+
+[discrete#es-connectors-sharepoint-online-client-configuration]
+===== Configuration
+
+[TIP]
+====
+When using the <<es-build-connector, self-managed connector>> workflow, initially these fields will use the default configuration set in the {connectors-python}/connectors/sources/sharepoint_online.py[connector source code^].
+These are set in the `get_default_configuration` function definition.
+
+These configurable fields will be rendered with their respective *labels* in the Kibana UI.
+Once connected, you'll be able to update these values in Kibana.
+====
+
+Use the following configuration fields to set up the connector:
+
+`tenant_id`::
+The tenant id for the Azure account hosting the Sharepoint Online instance.
+
+`tenant_name`::
+The tenant name for the Azure account hosting the Sharepoint Online instance.
+
+`client_id`::
+The client id to authenticate with SharePoint Online.
+
+`secret_value`::
+The secret value to authenticate with SharePoint Online.
+
+`site_collections`::
+List of site collection names or paths to fetch from SharePoint.
+When enumerating all sites, these values should be the _names_ of the sites.
+Use `*` to include all available sites.
+Examples:
+* `collection1`
+* `collection1,sub-collection`
+* `*`
++
+When **not** enumerating all sites, these values should be the _paths_ (URL after `/sites/`) of the sites.
+Examples:
+* `collection1`
+* `collection1,collection1/sub-collection`
+
+`enumerate_all_sites`::
+If enabled, the full list of all sites will be fetched from the API, in bulk, and will be filtered down to match the configured list of site names.
+If disabled, each path in the configured list of site paths will be fetched individually from the API.
+Enabling this configuration is most useful when syncing large numbers (more than total/200) of sites.
+This is because, at high volumes, it is more efficient to fetch sites in bulk.
+When syncing fewer sites, disabling this configuration can result in improved performance.
+This is because, at low volumes, it is more efficient to only fetch the sites that you need.
++
+[NOTE]
+====
+When disabled, `*` is not a valid configuration for `Comma-separated list of sites`.
+====
+
+`fetch_subsites`::
+Whether sub-sites of the configured site(s) should be automatically fetched.
+This option is only available when not enumerating all sites (see above).
+
+`use_text_extraction_service`::
+Toggle to enable local text extraction service for documents.
+Requires a separate deployment of the <<es-connectors-content-extraction-local,Elastic Text Extraction Service>>.
+Requires that ingest pipeline settings disable text extraction.
+Default value is `False`.
+
+`use_document_level_security`::
+Toggle to enable <<es-dls, document level security (DLS)>>.
+When enabled, full and incremental syncs will fetch access control lists for each document and store them in the `_allow_access_control` field.
+Access control syncs will fetch users' access control lists and store them in a separate index.
++
+Once enabled, the following granular permissions toggles will be available:
+
+** *Fetch drive item permissions*: Enable this option to fetch *drive item* specific permissions.
+** *Fetch unique page permissions*: Enable this option to fetch unique *page* permissions. If this setting is disabled a page will inherit permissions from its parent site.
+** *Fetch unique list permissions*: Enable this option to fetch unique *list* permissions. If this setting is disabled a list will inherit permissions from its parent site.
+** *Fetch unique list item permissions*: Enable this option to fetch unique *list item* permissions. If this setting is disabled a list item will inherit permissions from its parent site.
++
+[NOTE]
+====
+If left empty the default value `true` will be used for these granular permissions toggles.
+Note that these settings may increase sync times.
+====
+
+[discrete#es-connectors-sharepoint-online-client-docker]
+===== Deployment using Docker
+
+include::_connectors-docker-instructions.asciidoc[]
+
+[discrete#es-connectors-sharepoint-online-client-documents-syncs]
+===== Documents and syncs
+
+The connector syncs the following SharePoint object types:
+
+* *Sites* (and subsites)
+* *Lists*
+* *List items* and *attachment content*
+* *Document libraries* and *attachment content* (including web pages)
+
+[TIP]
+====
+*Making Sharepoint Site Pages Web Part content searchable*
+
+If you're using Web Parts on Sharepoint Site Pages and want to make this content searchable, you'll need to consult the https://learn.microsoft.com/en-us/sharepoint/dev/spfx/web-parts/guidance/integrate-web-part-properties-with-sharepoint#specify-web-part-property-value-type/[official documentation^].
+
+We recommend setting `isHtmlString` to *True* for all Web Parts that need to be searchable.
+====
+
+[NOTE]
+====
+* Content from files bigger than 10 MB won't be extracted by default. Use the <<es-connectors-content-extraction-local, self-managed local extraction service>> to handle larger binary files.
+* Permissions are not synced by default. Enable <<es-dls, document-level security (DLS)>> to sync permissions.
+====
+
+[discrete#es-connectors-sharepoint-online-client-documents-syncs-limitations]
+====== Limitations
+
+* The connector does not currently sync content from Teams-connected sites.
+
+[discrete#es-connectors-sharepoint-online-client-sync-rules]
+===== Sync rules
+
+_Basic_ sync rules are identical for all connectors and are available by default.
+For more information read <<es-sync-rules-types>>.
+
+[discrete#es-connectors-sharepoint-online-client-sync-rules-advanced]
+====== Advanced sync rules
+
+[NOTE]
+====
+A <<es-connectors-sync-types-full, full sync>> is required for advanced sync rules to take effect.
+====
+
+The following section describes *advanced sync rules* for this connector.
+Advanced sync rules are defined through a source-specific DSL JSON snippet.
+
+<<es-sync-rules-advanced,Advanced rules>> for the Sharepoint Online connector enable you to avoid extracting and syncing older data that might no longer be relevant for search.
+
+Example:
+
+[source,js]
+----
+{
+	"skipExtractingDriveItemsOlderThan": 60
+}
+
+----
+// NOTCONSOLE
+
+This rule will not extract content of any drive items (files in document libraries) that haven't been modified for 60 days or more.
+
+[discrete#es-connectors-sharepoint-online-client-sync-rules-limitations]
+======= Limitations of sync rules with incremental syncs
+
+Changing sync rules after Sharepoint Online content has already been indexed can bring unexpected results, when using <<es-connectors-sync-types-incremental,incremental syncs>>.
+
+Incremental syncs ensure _updates_ from 3rd-party system, but do not modify existing documents in the index.
+
+*To avoid these issues, run a full sync after changing sync rules (basic or advanced).*
+
+Let's take a look at several examples where incremental syncs might lead to inconsistent data on your index.
+
+[discrete#es-connectors-sharepoint-online-client-sync-rules-limitations-restrictive-added]
+======== Example: Restrictive basic sync rule added after a full sync
+
+Imagine your Sharepoint Online drive contains the following drive items:
+
+[source,txt]
+----
+/Documents/Report.doc
+/Documents/Spreadsheet.xls
+/Presentations/Q4-2020-Report.pdf
+/Presentations/Q4-2020-Report-Data.xls
+/Personal/Documents/Sales.xls
+----
+
+After a sync, all these drive items will be stored on your Elasticsearch index.
+Let's add a basic sync rule, filtering files by their path:
+
+[source,txt]
+----
+Exclude WHERE path CONTAINS "Documents"
+----
+
+These filtering rules will exclude all files with "Documents" in their path, leaving only files in `/Presentations` directory:
+
+[source,txt]
+----
+/Presentations/Q4-2020-Report.pdf
+/Presentations/Q4-2020-Report-Data.xls
+----
+
+If no files were changed, incremental sync will not receive information about changes from Sharepoint Online and won't be able to delete any files, leaving the index in the same state it was before the sync.
+
+After a *full sync*, the index will be updated and files that are excluded by sync rules will be removed.
+
+[discrete#es-connectors-sharepoint-online-client-sync-rules-limitations-restrictive-removed]
+======== Example: Restrictive basic sync rules removed after a full sync
+
+Imagine that Sharepoint Online drive has the following drive items:
+
+[source,txt]
+----
+/Documents/Report.doc
+/Documents/Spreadsheet.xls
+/Presentations/Q4-2020-Report.pdf
+/Presentations/Q4-2020-Report-Data.xls
+/Personal/Documents/Sales.xls
+----
+
+Before doing a sync, we add a restrictive basic filtering rule:
+
+[source,txt]
+----
+Exclude WHERE path CONTAINS "Documents"
+----
+
+After a full sync, the index will contain only files in the `/Presentations` directory:
+
+[source,txt]
+----
+/Presentations/Q4-2020-Report.pdf
+/Presentations/Q4-2020-Report-Data.xls
+----
+
+Afterwards, we can remove the filtering rule and run an incremental sync. If no changes happened to the files, incremental sync will not mirror these changes in the Elasticsearch index, because Sharepoint Online will not report any changes to the items.
+Only a *full sync* will include the items previously ignored by the sync rule.
+
+[discrete#es-connectors-sharepoint-online-client-sync-rules-limitations-restrictive-changed]
+======== Example: Advanced sync rules edge case
+
+Advanced sync rules can be applied to limit which documents will have content extracted.
+For example, it's possible to set a rule so that documents older than 180 days won't have content extracted.
+
+However, there is an edge case.
+Imagine a document that is 179 days old and its content is extracted and indexed into Elasticsearch.
+After 2 days, this document will be 181 days old.
+Since this document was already ingested it will not be modified.
+Therefore, the content will not be removed from the index, following an incremental sync.
+
+In this situation, if you want older documents to be removed, you will need to clean the index up manually.
+For example, you can manually run an Elasticsearch query that removes drive item content older than 180 days:
+
+[source, console]
+----
+POST INDEX_NAME/_update_by_query?conflicts=proceed
+{
+  "query": {
+    "bool": {
+      "filter": [
+        {
+          "match": {
+            "object_type": "drive_item"
+          }
+        },
+        {
+          "exists": {
+            "field": "file"
+          }
+        },
+        {
+          "range": {
+            "lastModifiedDateTime": {
+              "lte": "now-180d"
+            }
+          }
+        }
+      ]
+    }
+  },
+  "script": {
+    "source": "ctx._source.body = ''",
+    "lang": "painless"
+  }
+}
+----
+// TEST[skip:TODO]
+
+[discrete#es-connectors-sharepoint-online-client-dls]
+===== Document-level security
+
+Document-level security (DLS) enables you to restrict access to documents based on a user's permissions.
+This feature is available by default for this connector.
+
+Refer to <<es-connectors-sharepoint-online-client-configuration,configuration>> on this page for how to enable DLS for this connector.
+
+[TIP]
+====
+Refer to <<es-dls-e2e-guide,DLS in Search Applications>> to learn how to ingest data from SharePoint Online with DLS enabled, when building a search application.
+====
+
+[discrete#es-connectors-sharepoint-online-client-content-extraction]
+===== Content extraction
+
+[discrete#es-connectors-sharepoint-online-client-content-extraction-pipeline]
+====== Default content extraction
+
+The default content extraction service is powered by the Enterprise Search default ingest pipeline.
+(See {ref}/ingest-pipeline-search.html[Ingest pipelines for Search indices].)
+
+See <<es-connectors-content-extraction>>.
+
+[discrete#es-connectors-sharepoint-online-client-content-extraction-local]
+====== Local content extraction (for large files)
+
+The SharePoint Online self-managed connector supports large file content extraction (> *100MB*).
+This requires:
+
+* A self-managed deployment of the Elastic Text Extraction Service.
+* Text extraction to be _disabled_ in the default ingest pipeline settings.
+
+Refer to <<es-connectors-content-extraction-local, local content extraction>> for more information.
+
+[discrete#es-connectors-sharepoint-online-client-testing]
+===== End-to-end testing
+
+The connector framework enables operators to run functional tests against a real data source.
+Refer to <<es-build-connector-testing>> for more details.
+
+To perform E2E testing for the SharePoint Online connector, run the following command:
+
+[source,shell]
+----
+$ make ftest NAME=sharepoint_online
+----
+
+For faster tests, add the `DATA_SIZE=small` flag:
+
+[source,shell]
+----
+make ftest NAME=sharepoint_online DATA_SIZE=small
+----
+
+[discrete#es-connectors-sharepoint-online-client-known-issues]
+===== Known issues
+
+* *Documents failing to sync due to SharePoint file and folder limits*
++
+SharePoint has limits on the number of files and folders that can be synced.
+You might encounter an error like the following written to the body of documents that failed to sync:
+`The file size exceeds the allowed limit. CorrelationId: fdb36977-7cb8-4739-992f-49878ada6686, UTC DateTime: 4/21/2022 11:24:22 PM`
++
+Refer to https://support.microsoft.com/en-us/office/download-files-and-folders-from-onedrive-or-sharepoint-5c7397b7-19c7-4893-84fe-d02e8fa5df05#:~:text=Downloads%20are%20subject%20to%20the,zip%20file%20and%2020GB%20overall[SharePoint documentation^] for more information about these limits.
++
+** *Syncing a large number of files*
++
+The connector will fail to download files from folders that contain more than 5000 files.
+The List View Threshold (default 5000) is a limit that prevents operations with a high performance impact on the SharePoint Online environment.
++
+*Workaround:* Reduce batch size to avoid this issue.
++
+** *Syncing large files*
++
+SharePoint has file size limits, but these are configurable.
++
+*Workaround:* Increase the file size limit.
+Refer to https://learn.microsoft.com/en-us/sharepoint/manage-site-collection-storage-limits#set-automatic-or-manual-site-storage-limits[SharePoint documentation^] for more information.
++
+** *Deleted documents counter is not updated during incremental syncs*
++
+If the configuration `Enumerate All Sites?` is enabled, incremental syncs may not behave as expected.
+Drive Item documents that were deleted between incremental syncs may not be detected as deleted.
++
+*Workaround*: Disable `Enumerate All Sites?`, and configure full site paths for all desired sites.
+
+Refer to <<es-connectors-known-issues>> for a list of known issues for all connectors.
+
+[discrete#es-connectors-sharepoint-online-client-troubleshooting]
+===== Troubleshooting
+
+See <<es-connectors-troubleshooting>>.
+
+[discrete#es-connectors-sharepoint-online-client-security]
+===== Security
+
+See <<es-connectors-security>>.
+
+// Closing the collapsible section 
+===============

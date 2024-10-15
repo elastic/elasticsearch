@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.core.security.authc.support;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.CharArrays;
@@ -453,14 +454,14 @@ public enum Hasher {
         public char[] hash(SecureString text) {
             MessageDigest md = MessageDigests.sha256();
             md.update(CharArrays.toUtf8Bytes(text.getChars()));
-            return Base64.getUrlEncoder().withoutPadding().encodeToString(md.digest()).toCharArray();
+            return Strings.BASE_64_NO_PADDING_URL_ENCODER.encodeToString(md.digest()).toCharArray();
         }
 
         @Override
         public boolean verify(SecureString text, char[] hash) {
             MessageDigest md = MessageDigests.sha256();
             md.update(CharArrays.toUtf8Bytes(text.getChars()));
-            return CharArrays.constantTimeEquals(Base64.getUrlEncoder().withoutPadding().encodeToString(md.digest()).toCharArray(), hash);
+            return CharArrays.constantTimeEquals(Strings.BASE_64_NO_PADDING_URL_ENCODER.encodeToString(md.digest()).toCharArray(), hash);
         }
     },
 

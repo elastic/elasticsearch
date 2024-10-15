@@ -11,7 +11,6 @@ package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.core.CheckedConsumer;
-import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
@@ -144,10 +143,7 @@ public abstract class MetadataMapperTestCase extends MapperServiceTestCase {
         assertEquals("Failed to parse mapping: " + fieldName() + " is not configurable", exception.getMessage());
     }
 
-    @UpdateForV9
-    // This was previously testing for index versions between 7.0.0 and 8.6.0 but has been bumped to 8.0.0 - 8.6.0
-    // Verify this is the correct action.
-    public void testTypeAndFriendsAreAcceptedBefore_8_6_0() throws IOException {
+    public void testTypeAndFriendsAreSilentlyIgnoredBefore_8_6_0() throws IOException {
         assumeTrue("Metadata field " + fieldName() + " isn't configurable", isConfigurable());
         IndexVersion previousVersion = IndexVersionUtils.getPreviousVersion(IndexVersions.V_8_6_0);
         IndexVersion version = IndexVersionUtils.randomVersionBetween(random(), IndexVersions.MINIMUM_COMPATIBLE, previousVersion);

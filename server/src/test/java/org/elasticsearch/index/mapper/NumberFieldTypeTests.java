@@ -163,6 +163,47 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
         );
     }
 
+    private record OutOfRangeTermQueryTestCase(NumberType type, Object value) {}
+
+    public void testTermQueryWithOutOfRangeValues() {
+        List<OutOfRangeTermQueryTestCase> testCases = List.of(
+            new OutOfRangeTermQueryTestCase(NumberType.BYTE, "128"),
+            new OutOfRangeTermQueryTestCase(NumberType.BYTE, 128),
+            new OutOfRangeTermQueryTestCase(NumberType.BYTE, -129),
+            new OutOfRangeTermQueryTestCase(NumberType.SHORT, "32768"),
+            new OutOfRangeTermQueryTestCase(NumberType.SHORT, 32768),
+            new OutOfRangeTermQueryTestCase(NumberType.SHORT, -32769),
+            new OutOfRangeTermQueryTestCase(NumberType.INTEGER, "2147483648"),
+            new OutOfRangeTermQueryTestCase(NumberType.INTEGER, 2147483648L),
+            new OutOfRangeTermQueryTestCase(NumberType.INTEGER, -2147483649L),
+            new OutOfRangeTermQueryTestCase(NumberType.LONG, "9223372036854775808"),
+            new OutOfRangeTermQueryTestCase(NumberType.LONG, new BigInteger("9223372036854775808")),
+            new OutOfRangeTermQueryTestCase(NumberType.LONG, new BigInteger("-9223372036854775809")),
+            new OutOfRangeTermQueryTestCase(NumberType.HALF_FLOAT, "65520"),
+            new OutOfRangeTermQueryTestCase(NumberType.HALF_FLOAT, 65520f),
+            new OutOfRangeTermQueryTestCase(NumberType.HALF_FLOAT, -65520f),
+            new OutOfRangeTermQueryTestCase(NumberType.HALF_FLOAT, Float.POSITIVE_INFINITY),
+            new OutOfRangeTermQueryTestCase(NumberType.HALF_FLOAT, Float.NEGATIVE_INFINITY),
+            new OutOfRangeTermQueryTestCase(NumberType.HALF_FLOAT, Float.NaN),
+            new OutOfRangeTermQueryTestCase(NumberType.FLOAT, "3.4028235E39"),
+            new OutOfRangeTermQueryTestCase(NumberType.FLOAT, 3.4028235E39d),
+            new OutOfRangeTermQueryTestCase(NumberType.FLOAT, -3.4028235E39d),
+            new OutOfRangeTermQueryTestCase(NumberType.FLOAT, Float.POSITIVE_INFINITY),
+            new OutOfRangeTermQueryTestCase(NumberType.FLOAT, Float.NEGATIVE_INFINITY),
+            new OutOfRangeTermQueryTestCase(NumberType.FLOAT, Float.NaN),
+            new OutOfRangeTermQueryTestCase(NumberType.DOUBLE, "1.7976931348623157E309"),
+            new OutOfRangeTermQueryTestCase(NumberType.DOUBLE, new BigDecimal("1.7976931348623157E309")),
+            new OutOfRangeTermQueryTestCase(NumberType.DOUBLE, new BigDecimal("-1.7976931348623157E309")),
+            new OutOfRangeTermQueryTestCase(NumberType.DOUBLE, Double.NaN),
+            new OutOfRangeTermQueryTestCase(NumberType.DOUBLE, Double.POSITIVE_INFINITY),
+            new OutOfRangeTermQueryTestCase(NumberType.DOUBLE, Double.NEGATIVE_INFINITY)
+        );
+
+        for (OutOfRangeTermQueryTestCase testCase : testCases) {
+            assertTrue(testCase.type.termQuery("field", testCase.value, randomBoolean()) instanceof MatchNoDocsQuery);
+        }
+    }
+
     public void testRangeQueryWithNegativeBounds() {
         MappedFieldType ftInt = new NumberFieldMapper.NumberFieldType("field", NumberType.INTEGER, randomBoolean());
         assertEquals(

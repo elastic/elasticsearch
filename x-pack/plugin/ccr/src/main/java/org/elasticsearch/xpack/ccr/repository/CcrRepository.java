@@ -740,7 +740,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
                 mds
             ) {
 
-                final MultiFileWriter multiFileWriter = new MultiFileWriter(store, recoveryState.getIndex(), "", logger, () -> {});
+                final MultiFileWriter multiFileWriter = new MultiFileWriter(store, recoveryState.getIndex(), "", logger);
                 long offset = 0;
 
                 @Override

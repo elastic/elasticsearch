@@ -9,7 +9,7 @@
 
 package org.elasticsearch.ingest.geoip;
 
-import com.maxmind.geoip2.DatabaseReader;
+import com.maxmind.db.Reader;
 
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.action.ingest.SimulateDocumentBaseResult;
@@ -738,8 +738,8 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
 
     @SuppressForbidden(reason = "Maxmind API requires java.io.File")
     private void parseDatabase(Path tempFile) throws IOException {
-        try (DatabaseReader databaseReader = new DatabaseReader.Builder(tempFile.toFile()).build()) {
-            assertNotNull(databaseReader.getMetadata());
+        try (Reader reader = new Reader(tempFile.toFile())) {
+            assertNotNull(reader.getMetadata());
         }
     }
 

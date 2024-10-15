@@ -78,7 +78,6 @@ import static java.util.Collections.emptyMap;
 import static java.util.Collections.singleton;
 import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
-import static org.elasticsearch.action.search.TransportSearchAction.CCS_TELEMETRY_FEATURE_FLAG;
 import static org.elasticsearch.common.xcontent.XContentHelper.stripWhitespace;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -434,7 +433,8 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
             MappingStats.of(metadata, () -> {}),
             AnalysisStats.of(metadata, () -> {}),
             VersionStats.of(metadata, singletonList(mockNodeResponse)),
-            ClusterSnapshotStats.EMPTY
+            ClusterSnapshotStats.EMPTY,
+            null
         );
 
         final MonitoringDoc.Node node = new MonitoringDoc.Node("_uuid", "_host", "_addr", "_ip", "_name", 1504169190855L);
@@ -590,7 +590,8 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                     "total": 0,
                     "queries": {},
                     "rescorers": {},
-                    "sections": {}
+                    "sections": {},
+                    "retrievers": {}
                   },
                   "dense_vector": {
                     "value_count": 0
@@ -846,10 +847,7 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                 }
               }
             }""";
-        assertEquals(
-            stripWhitespace(Strings.format(expectedJson + (CCS_TELEMETRY_FEATURE_FLAG.isEnabled() ? ccsOutput : "") + suffixJson, args)),
-            xContent.utf8ToString()
-        );
+        assertEquals(stripWhitespace(Strings.format(expectedJson + ccsOutput + suffixJson, args)), xContent.utf8ToString());
     }
 
     private DiscoveryNode masterNode() {

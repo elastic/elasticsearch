@@ -15,31 +15,25 @@ import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
-import org.elasticsearch.common.xcontent.XContentParserUtils;
-import org.elasticsearch.core.Tuple;
-import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.stream.Collectors;
 
 /**
  * Response for {@link FieldCapabilitiesRequest} requests.
  */
 public class FieldCapabilitiesResponse extends ActionResponse implements ChunkedToXContentObject {
-    private static final ParseField INDICES_FIELD = new ParseField("indices");
-    private static final ParseField FIELDS_FIELD = new ParseField("fields");
+    public static final ParseField INDICES_FIELD = new ParseField("indices");
+    public static final ParseField FIELDS_FIELD = new ParseField("fields");
     private static final ParseField FAILED_INDICES_FIELD = new ParseField("failed_indices");
-    private static final ParseField FAILURES_FIELD = new ParseField("failures");
+    public static final ParseField FAILURES_FIELD = new ParseField("failures");
 
     private final String[] indices;
     private final Map<String, Map<String, FieldCapabilities>> responseMap;
@@ -181,50 +175,6 @@ public class FieldCapabilitiesResponse extends ActionResponse implements Chunked
                 )
                 : Iterators.single((b, p) -> b.endObject().endObject())
         );
-    }
-
-    public static FieldCapabilitiesResponse fromXContent(XContentParser parser) throws IOException {
-        return PARSER.parse(parser, null);
-    }
-
-    @SuppressWarnings("unchecked")
-    private static final ConstructingObjectParser<FieldCapabilitiesResponse, Void> PARSER = new ConstructingObjectParser<>(
-        "field_capabilities_response",
-        true,
-        a -> {
-            Map<String, Map<String, FieldCapabilities>> responseMap = ((List<Tuple<String, Map<String, FieldCapabilities>>>) a[0]).stream()
-                .collect(Collectors.toMap(Tuple::v1, Tuple::v2));
-            List<String> indices = a[1] == null ? Collections.emptyList() : (List<String>) a[1];
-            List<FieldCapabilitiesFailure> failures = a[2] == null ? Collections.emptyList() : (List<FieldCapabilitiesFailure>) a[2];
-            return new FieldCapabilitiesResponse(indices.toArray(String[]::new), responseMap, failures);
-        }
-    );
-
-    static {
-        PARSER.declareNamedObjects(ConstructingObjectParser.constructorArg(), (p, c, n) -> {
-            Map<String, FieldCapabilities> typeToCapabilities = parseTypeToCapabilities(p, n);
-            return new Tuple<>(n, typeToCapabilities);
-        }, FIELDS_FIELD);
-        PARSER.declareStringArray(ConstructingObjectParser.optionalConstructorArg(), INDICES_FIELD);
-        PARSER.declareObjectArray(
-            ConstructingObjectParser.optionalConstructorArg(),
-            (p, c) -> FieldCapabilitiesFailure.fromXContent(p),
-            FAILURES_FIELD
-        );
-    }
-
-    private static Map<String, FieldCapabilities> parseTypeToCapabilities(XContentParser parser, String name) throws IOException {
-        Map<String, FieldCapabilities> typeToCapabilities = new HashMap<>();
-
-        XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
-        XContentParser.Token token;
-        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-            XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser);
-            String type = parser.currentName();
-            FieldCapabilities capabilities = FieldCapabilities.fromXContent(name, parser);
-            typeToCapabilities.put(type, capabilities);
-        }
-        return typeToCapabilities;
     }
 
     @Override

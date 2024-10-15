@@ -99,6 +99,7 @@ import static org.junit.Assume.assumeTrue;
  *     <li>The default image with a custom, small base image</li>
  *     <li>A UBI-based image</li>
  *     <li>Another UBI image for Iron Bank</li>
+ *     <li>A WOLFI-based image</li>
  *     <li>Images for Cloud</li>
  * </ul>
  */
@@ -206,7 +207,9 @@ public class DockerTests extends PackagingTestCase {
         final String plugin = "analysis-icu";
         final Installation.Executables bin = installation.executables();
 
+        listPluginArchive().forEach(System.out::println);
         assertThat("Expected " + plugin + " to not be installed", listPlugins(), not(hasItems(plugin)));
+        assertThat("Expected " + plugin + " available in archive", listPluginArchive(), hasSize(16));
 
         // Stuff the proxy settings with garbage, so any attempt to go out to the internet would fail
         sh.getEnv()
@@ -386,6 +389,9 @@ public class DockerTests extends PackagingTestCase {
         if (distribution.packaging == Packaging.DOCKER_UBI || distribution.packaging == Packaging.DOCKER_IRON_BANK) {
             // In these images, the `cacerts` file ought to be a symlink here
             assertThat(path, equalTo("/etc/pki/ca-trust/extracted/java/cacerts"));
+        } else if (distribution.packaging == Packaging.DOCKER_WOLFI || distribution.packaging == Packaging.DOCKER_CLOUD_ESS) {
+            // In these images, the `cacerts` file ought to be a symlink here
+            assertThat(path, equalTo("/etc/ssl/certs/java/cacerts"));
         } else {
             // Whereas on other images, it's a real file so the real path is the same
             assertThat(path, equalTo("/usr/share/elasticsearch/jdk/lib/security/cacerts"));
@@ -1110,7 +1116,7 @@ public class DockerTests extends PackagingTestCase {
      */
     public void test171AdditionalCliOptionsAreForwarded() throws Exception {
         assumeTrue(
-            "Does not apply to Cloud images, because they don't use the default entrypoint",
+            "Does not apply to Cloud and Cloud ESS images, because they don't use the default entrypoint",
             distribution.packaging != Packaging.DOCKER_CLOUD && distribution().packaging != Packaging.DOCKER_CLOUD_ESS
         );
 
@@ -1214,6 +1220,10 @@ public class DockerTests extends PackagingTestCase {
     private List<String> listPlugins() {
         final Installation.Executables bin = installation.executables();
         return sh.run(bin.pluginTool + " list").stdout().lines().collect(Collectors.toList());
+    }
+
+    private List<String> listPluginArchive() {
+        return sh.run("ls -lh /opt/plugins/archive").stdout().lines().collect(Collectors.toList());
     }
 
     /**

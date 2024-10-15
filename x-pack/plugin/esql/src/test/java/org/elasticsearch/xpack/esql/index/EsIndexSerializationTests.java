@@ -15,7 +15,6 @@ import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
-import org.elasticsearch.xpack.esql.io.stream.PlanNameRegistry;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 import org.elasticsearch.xpack.esql.type.EsFieldTests;
@@ -57,12 +56,12 @@ public class EsIndexSerializationTests extends AbstractWireSerializingTestCase<E
 
     @Override
     protected Writeable.Reader<EsIndex> instanceReader() {
-        return a -> new EsIndex(new PlanStreamInput(a, new PlanNameRegistry(), a.namedWriteableRegistry(), null));
+        return a -> new EsIndex(new PlanStreamInput(a, a.namedWriteableRegistry(), null));
     }
 
     @Override
     protected Writeable.Writer<EsIndex> instanceWriter() {
-        return (out, idx) -> new PlanStreamOutput(out, new PlanNameRegistry(), null).writeWriteable(idx);
+        return (out, idx) -> new PlanStreamOutput(out, null).writeWriteable(idx);
     }
 
     @Override
@@ -136,11 +135,12 @@ public class EsIndexSerializationTests extends AbstractWireSerializingTestCase<E
      * See {@link #testManyTypeConflicts(boolean, ByteSizeValue)} for more.
      */
     public void testManyTypeConflicts() throws IOException {
-        testManyTypeConflicts(false, ByteSizeValue.ofBytes(991026));
+        testManyTypeConflicts(false, ByteSizeValue.ofBytes(916998));
         /*
          * History:
          *  953.7kb - shorten error messages for UnsupportedAttributes #111973
          *  967.7kb - cache EsFields #112008 (little overhead of the cache)
+         *  895.5kb - string serialization #112929
          */
     }
 
@@ -149,12 +149,13 @@ public class EsIndexSerializationTests extends AbstractWireSerializingTestCase<E
      * See {@link #testManyTypeConflicts(boolean, ByteSizeValue)} for more.
      */
     public void testManyTypeConflictsWithParent() throws IOException {
-        testManyTypeConflicts(true, ByteSizeValue.ofBytes(1374497));
+        testManyTypeConflicts(true, ByteSizeValue.ofBytes(1300467));
         /*
          * History:
          * 16.9mb - start
          *  1.8mb - shorten error messages for UnsupportedAttributes #111973
          *  1.3mb - cache EsFields #112008
+         *  1.2mb - string serialization #112929
          */
     }
 
@@ -176,7 +177,7 @@ public class EsIndexSerializationTests extends AbstractWireSerializingTestCase<E
      * </p>
      */
     private void testManyTypeConflicts(boolean withParent, ByteSizeValue expected) throws IOException {
-        try (BytesStreamOutput out = new BytesStreamOutput(); var pso = new PlanStreamOutput(out, new PlanNameRegistry(), null)) {
+        try (BytesStreamOutput out = new BytesStreamOutput(); var pso = new PlanStreamOutput(out, null)) {
             indexWithManyConflicts(withParent).writeTo(pso);
             assertThat(ByteSizeValue.ofBytes(out.bytes().length()), byteSizeEquals(expected));
         }

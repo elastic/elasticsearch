@@ -21,7 +21,7 @@ public class MvExpandSerializationTests extends AbstractLogicalPlanSerialization
         Source source = randomSource();
         LogicalPlan child = randomChild(0);
         NamedExpression target = FieldAttributeTests.createFieldAttribute(0, false);
-        Attribute expanded = ReferenceAttributeTests.randomReferenceAttribute();
+        Attribute expanded = ReferenceAttributeTests.randomReferenceAttribute(false);
         return new MvExpand(source, child, target, expanded);
     }
 
@@ -33,7 +33,7 @@ public class MvExpandSerializationTests extends AbstractLogicalPlanSerialization
         switch (between(0, 2)) {
             case 0 -> child = randomValueOtherThan(child, () -> randomChild(0));
             case 1 -> target = randomValueOtherThan(target, () -> FieldAttributeTests.createFieldAttribute(0, false));
-            case 2 -> expanded = randomValueOtherThan(expanded, ReferenceAttributeTests::randomReferenceAttribute);
+            case 2 -> expanded = randomValueOtherThan(expanded, () -> ReferenceAttributeTests.randomReferenceAttribute(false));
         }
         return new MvExpand(instance.source(), child, target, expanded);
     }

@@ -16,7 +16,6 @@ import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
-import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 
 import java.io.IOException;
@@ -40,13 +39,13 @@ public class EvalExec extends UnaryExec implements EstimatesRowSize {
     }
 
     private EvalExec(StreamInput in) throws IOException {
-        this(Source.readFrom((PlanStreamInput) in), ((PlanStreamInput) in).readPhysicalPlanNode(), in.readCollectionAsList(Alias::new));
+        this(Source.readFrom((PlanStreamInput) in), in.readNamedWriteable(PhysicalPlan.class), in.readCollectionAsList(Alias::new));
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         Source.EMPTY.writeTo(out);
-        ((PlanStreamOutput) out).writePhysicalPlanNode(child());
+        out.writeNamedWriteable(child());
         out.writeCollection(fields());
     }
 

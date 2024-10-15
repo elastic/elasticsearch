@@ -27,7 +27,8 @@ public class DefaultWrappersHandler implements DataSourceHandler {
     }
 
     private static Function<Supplier<Object>, Supplier<Object>> injectNulls() {
-        return (values) -> () -> ESTestCase.randomBoolean() ? null : values.get();
+        // Inject some nulls but majority of data should be non-null (as it likely is in reality).
+        return (values) -> () -> ESTestCase.randomDouble() <= 0.05 ? null : values.get();
     }
 
     private static Function<Supplier<Object>, Supplier<Object>> wrapInArray() {

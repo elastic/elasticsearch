@@ -41,11 +41,11 @@ public class RestGetPipelineAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
-        GetPipelineRequest request = new GetPipelineRequest(
+        final var request = new GetPipelineRequest(
+            getMasterNodeTimeout(restRequest),
             restRequest.paramAsBoolean("summary", false),
             Strings.splitStringByCommaToArray(restRequest.param("id"))
         );
-        request.masterNodeTimeout(getMasterNodeTimeout(restRequest));
         return channel -> client.execute(
             GetPipelineAction.INSTANCE,
             request,

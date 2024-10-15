@@ -10,6 +10,7 @@
 package org.elasticsearch.system.indices;
 
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
@@ -42,6 +43,7 @@ public class SystemAliasIT extends ESRestTestCase {
         {
             Request request = new Request("PUT", "/.internal-unmanaged-index-8");
             request.setJsonEntity("{\"aliases\": {\".internal-unmanaged-alias\": {}}}");
+            request.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("X-elastic-product-origin", "elastic"));
             Response response = client().performRequest(request);
             assertThat(response.getStatusLine().getStatusCode(), is(200));
         }
@@ -68,6 +70,7 @@ public class SystemAliasIT extends ESRestTestCase {
 
         {
             Request request = new Request("PUT", "/.internal-unmanaged-index-8");
+            request.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("X-elastic-product-origin", "elastic"));
             Response response = client().performRequest(request);
             assertThat(response.getStatusLine().getStatusCode(), is(200));
         }
@@ -79,6 +82,7 @@ public class SystemAliasIT extends ESRestTestCase {
     public void testCreatingSystemIndexWithIndexAliasEndpoint() throws Exception {
         {
             Request request = new Request("PUT", "/.internal-unmanaged-index-8");
+            request.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("X-elastic-product-origin", "elastic"));
             Response response = client().performRequest(request);
             assertThat(response.getStatusLine().getStatusCode(), is(200));
         }
@@ -102,6 +106,7 @@ public class SystemAliasIT extends ESRestTestCase {
     public void testCreatingSystemIndexWithAliasEndpoint() throws Exception {
         {
             Request request = new Request("PUT", "/.internal-unmanaged-index-8");
+            request.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("X-elastic-product-origin", "elastic"));
             Response response = client().performRequest(request);
             assertThat(response.getStatusLine().getStatusCode(), is(200));
         }
@@ -126,6 +131,7 @@ public class SystemAliasIT extends ESRestTestCase {
     public void testCreatingSystemIndexWithAliasesEndpoint() throws Exception {
         {
             Request request = new Request("PUT", "/.internal-unmanaged-index-8");
+            request.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("X-elastic-product-origin", "elastic"));
             Response response = client().performRequest(request);
             assertThat(response.getStatusLine().getStatusCode(), is(200));
         }

@@ -92,11 +92,14 @@ public class TransportDeleteIndexAction extends AcknowledgedTransportMasterNodeA
             return;
         }
 
-        DeleteIndexClusterStateUpdateRequest deleteRequest = new DeleteIndexClusterStateUpdateRequest(listener.delegateResponse((l, e) -> {
-            logger.debug(() -> "failed to delete indices [" + concreteIndices + "]", e);
-            listener.onFailure(e);
-        })).ackTimeout(request.ackTimeout()).masterNodeTimeout(request.masterNodeTimeout()).indices(concreteIndices.toArray(new Index[0]));
-
-        deleteIndexService.deleteIndices(deleteRequest);
+        deleteIndexService.deleteIndices(
+            request.masterNodeTimeout(),
+            request.ackTimeout(),
+            concreteIndices,
+            listener.delegateResponse((l, e) -> {
+                logger.debug(() -> "failed to delete indices [" + concreteIndices + "]", e);
+                listener.onFailure(e);
+            })
+        );
     }
 }

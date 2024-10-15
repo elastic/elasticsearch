@@ -58,7 +58,7 @@ The following services are available through the {infer} API.
 You can find the available task types next to the service name. 
 Click the links to review the configuration details of the services:
 
-* <<infer-service-alibabacloud-ai-search,AlibabaCloud AI Search>> (`rerank`, `sparse_embedding`, `text_embedding`)
+* <<infer-service-alibabacloud-ai-search,AlibabaCloud AI Search>> (`completion`, `rerank`, `sparse_embedding`, `text_embedding`)
 * <<infer-service-amazon-bedrock,Amazon Bedrock>> (`completion`, `text_embedding`)
 * <<infer-service-anthropic,Anthropic>> (`completion`)
 * <<infer-service-azure-ai-studio,Azure AI Studio>> (`completion`, `text_embedding`)

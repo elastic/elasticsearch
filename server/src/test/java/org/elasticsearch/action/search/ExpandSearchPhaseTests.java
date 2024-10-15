@@ -11,7 +11,10 @@ package org.elasticsearch.action.search;
 
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.document.DocumentField;
+import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.InnerHitBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -19,6 +22,7 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.AbstractSearchTestCase;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.collapse.CollapseBuilder;
 import org.elasticsearch.test.ESTestCase;
@@ -317,14 +321,12 @@ public class ExpandSearchPhaseTests extends ESTestCase {
                 @Override
                 void sendExecuteMultiSearch(MultiSearchRequest request, SearchTask task, ActionListener<MultiSearchResponse> listener) {
                     final QueryBuilder postFilter = QueryBuilders.existsQuery("foo");
-                    assertTrue(request.requests().stream().allMatch((r) -> "foo".equals(r.preference())));
+                    assertTrue(request.requests().stream().allMatch((r) -> "foobar".equals(r.preference())));
                     assertTrue(request.requests().stream().allMatch((r) -> "baz".equals(r.routing())));
                     assertTrue(request.requests().stream().allMatch((r) -> version == r.source().version()));
                     assertTrue(request.requests().stream().allMatch((r) -> seqNoAndTerm == r.source().seqNoAndPrimaryTerm()));
                     assertTrue(request.requests().stream().allMatch((r) -> postFilter.equals(r.source().postFilter())));
-                    assertTrue(request.requests().stream().allMatch((r) -> r.source().fetchSource().fetchSource() == false));
-                    assertTrue(request.requests().stream().allMatch((r) -> r.source().fetchSource().includes().length == 0));
-                    assertTrue(request.requests().stream().allMatch((r) -> r.source().fetchSource().excludes().length == 0));
+                    assertTrue(request.requests().stream().allMatch((r) -> r.source().fetchSource() == null));
                 }
             };
             mockSearchPhaseContext.getRequest()
@@ -338,17 +340,72 @@ public class ExpandSearchPhaseTests extends ESTestCase {
                 .preference("foobar")
                 .routing("baz");
 
-            SearchHits hits = SearchHits.empty(new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1.0f);
-            ExpandSearchPhase phase = new ExpandSearchPhase(mockSearchPhaseContext, hits, () -> new SearchPhase("test") {
+            SearchHit hit = new SearchHit(1, "ID");
+            hit.setDocumentField("someField", new DocumentField("someField", Collections.singletonList("foo")));
+            SearchHits hits = new SearchHits(new SearchHit[] { hit }, new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1.0F);
+            try {
+                ExpandSearchPhase phase = new ExpandSearchPhase(mockSearchPhaseContext, hits, () -> new SearchPhase("test") {
+                    @Override
+                    public void run() {
+                        mockSearchPhaseContext.sendSearchResponse(new SearchResponseSections(hits, null, null, false, null, null, 1), null);
+                    }
+                });
+                phase.run();
+                mockSearchPhaseContext.assertNoFailure();
+            } finally {
+                hits.decRef();
+            }
+        } finally {
+            var resp = mockSearchPhaseContext.searchResponse.get();
+            if (resp != null) {
+                resp.decRef();
+            }
+        }
+    }
+
+    public void testExpandSearchRespectsOriginalPIT() {
+        MockSearchPhaseContext mockSearchPhaseContext = new MockSearchPhaseContext(1);
+        final PointInTimeBuilder pit = new PointInTimeBuilder(new BytesArray("foo"));
+        try {
+            boolean version = randomBoolean();
+            final boolean seqNoAndTerm = randomBoolean();
+
+            mockSearchPhaseContext.searchTransport = new SearchTransportService(null, null, null) {
                 @Override
-                public void run() {
-                    mockSearchPhaseContext.sendSearchResponse(new SearchResponseSections(hits, null, null, false, null, null, 1), null);
+                void sendExecuteMultiSearch(MultiSearchRequest request, SearchTask task, ActionListener<MultiSearchResponse> listener) {
+                    assertTrue(request.requests().stream().allMatch((r) -> r.preference() == null));
+                    assertTrue(request.requests().stream().allMatch((r) -> r.indices() == Strings.EMPTY_ARRAY));
+                    assertTrue(request.requests().stream().allMatch((r) -> r.source().pointInTimeBuilder().equals(pit)));
                 }
-            });
-            phase.run();
-            mockSearchPhaseContext.assertNoFailure();
-            assertNotNull(mockSearchPhaseContext.searchResponse.get());
-            mockSearchPhaseContext.execute(() -> {});
+            };
+            mockSearchPhaseContext.getRequest()
+                .source(
+                    new SearchSourceBuilder().collapse(
+                        new CollapseBuilder("someField").setInnerHits(
+                            new InnerHitBuilder().setName("foobarbaz").setVersion(version).setSeqNoAndPrimaryTerm(seqNoAndTerm)
+                        )
+                    ).fetchSource(false).postFilter(QueryBuilders.existsQuery("foo")).pointInTimeBuilder(pit)
+                )
+                .routing("baz");
+
+            SearchHit hit = new SearchHit(1, "ID");
+            hit.setDocumentField("someField", new DocumentField("someField", Collections.singletonList("foo")));
+            SearchHits hits = new SearchHits(new SearchHit[] { hit }, new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1.0F);
+            try {
+                ExpandSearchPhase phase = new ExpandSearchPhase(mockSearchPhaseContext, hits, () -> new SearchPhase("test") {
+                    @Override
+                    public void run() {
+                        mockSearchPhaseContext.sendSearchResponse(
+                            new SearchResponseSections(hits, null, null, false, null, null, 1),
+                            new AtomicArray<>(0)
+                        );
+                    }
+                });
+                phase.run();
+                mockSearchPhaseContext.assertNoFailure();
+            } finally {
+                hits.decRef();
+            }
         } finally {
             var resp = mockSearchPhaseContext.searchResponse.get();
             if (resp != null) {

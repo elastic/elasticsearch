@@ -12,7 +12,6 @@ package org.elasticsearch.action.admin.indices.create;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.shrink.ResizeType;
 import org.elasticsearch.action.support.ActiveShardCount;
-import org.elasticsearch.cluster.ack.ClusterStateUpdateRequest;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
@@ -25,7 +24,7 @@ import java.util.Set;
 /**
  * Cluster state update request that allows to create an index
  */
-public class CreateIndexClusterStateUpdateRequest extends ClusterStateUpdateRequest<CreateIndexClusterStateUpdateRequest> {
+public class CreateIndexClusterStateUpdateRequest {
 
     private final String cause;
     private final String index;

@@ -27,7 +27,6 @@ import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
-import java.util.function.Function;
 
 /**
  * The environment of where things exists.
@@ -41,7 +40,7 @@ public class Environment {
 
     public static final Setting<String> PATH_HOME_SETTING = Setting.simpleString("path.home", Property.NodeScope);
     public static final Setting<List<String>> PATH_DATA_SETTING = Setting.stringListSetting("path.data", Property.NodeScope);
-    public static final Setting<String> PATH_LOGS_SETTING = new Setting<>("path.logs", "", Function.identity(), Property.NodeScope);
+    public static final Setting<String> PATH_LOGS_SETTING = Setting.simpleString("path.logs", Property.NodeScope);
     public static final Setting<List<String>> PATH_REPO_SETTING = Setting.stringListSetting("path.repo", Property.NodeScope);
     public static final Setting<String> PATH_SHARED_DATA_SETTING = Setting.simpleString("path.shared_data", Property.NodeScope);
 

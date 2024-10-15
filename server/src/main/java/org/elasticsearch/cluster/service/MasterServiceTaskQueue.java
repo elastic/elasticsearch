@@ -36,6 +36,9 @@ public interface MasterServiceTaskQueue<T extends ClusterStateTaskListener> {
      *                ?master_timeout}, which is typically available from {@link MasterNodeRequest#masterNodeTimeout()}. Tasks that
      *                correspond with internal actions should normally have no timeout since it is usually better to wait patiently in the
      *                queue until processed rather than to fail, especially if the only reasonable reaction to a failure is to retry.
+     *                <p>
+     *                The values {@code null} and {@link MasterNodeRequest#INFINITE_MASTER_NODE_TIMEOUT} (i.e. {@link TimeValue#MINUS_ONE})
+     *                both indicate that the task should never time out.
      */
     void submitTask(String source, T task, @Nullable TimeValue timeout);
 }

@@ -8,6 +8,8 @@ package org.elasticsearch.xpack.esql.core.type;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.xpack.esql.core.util.PlanStreamInput;
+import org.elasticsearch.xpack.esql.core.util.PlanStreamOutput;
 
 import java.io.IOException;
 import java.util.Map;
@@ -34,13 +36,18 @@ public class UnsupportedEsField extends EsField {
     }
 
     public UnsupportedEsField(StreamInput in) throws IOException {
-        this(in.readString(), in.readString(), in.readOptionalString(), in.readImmutableMap(EsField::readFrom));
+        this(
+            ((PlanStreamInput) in).readCachedString(),
+            ((PlanStreamInput) in).readCachedString(),
+            in.readOptionalString(),
+            in.readImmutableMap(EsField::readFrom)
+        );
     }
 
     @Override
     public void writeContent(StreamOutput out) throws IOException {
-        out.writeString(getName());
-        out.writeString(getOriginalType());
+        ((PlanStreamOutput) out).writeCachedString(getName());
+        ((PlanStreamOutput) out).writeCachedString(getOriginalType());
         out.writeOptionalString(getInherited());
         out.writeMap(getProperties(), (o, x) -> x.writeTo(out));
     }

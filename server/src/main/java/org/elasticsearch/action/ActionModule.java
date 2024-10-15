@@ -160,6 +160,7 @@ import org.elasticsearch.action.admin.indices.template.put.TransportPutComposabl
 import org.elasticsearch.action.admin.indices.template.put.TransportPutIndexTemplateAction;
 import org.elasticsearch.action.admin.indices.validate.query.TransportValidateQueryAction;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryAction;
+import org.elasticsearch.action.bulk.IncrementalBulkService;
 import org.elasticsearch.action.bulk.SimulateBulkAction;
 import org.elasticsearch.action.bulk.TransportBulkAction;
 import org.elasticsearch.action.bulk.TransportShardBulkAction;
@@ -351,9 +352,7 @@ import org.elasticsearch.rest.action.admin.indices.RestResolveIndexAction;
 import org.elasticsearch.rest.action.admin.indices.RestRolloverIndexAction;
 import org.elasticsearch.rest.action.admin.indices.RestSimulateIndexTemplateAction;
 import org.elasticsearch.rest.action.admin.indices.RestSimulateTemplateAction;
-import org.elasticsearch.rest.action.admin.indices.RestSyncedFlushAction;
 import org.elasticsearch.rest.action.admin.indices.RestUpdateSettingsAction;
-import org.elasticsearch.rest.action.admin.indices.RestUpgradeActionDeprecated;
 import org.elasticsearch.rest.action.admin.indices.RestValidateQueryAction;
 import org.elasticsearch.rest.action.cat.AbstractCatAction;
 import org.elasticsearch.rest.action.cat.RestAliasAction;
@@ -448,6 +447,7 @@ public class ActionModule extends AbstractModule {
     private final List<ActionPlugin> actionPlugins;
     private final Map<String, ActionHandler<?, ?>> actions;
     private final ActionFilters actionFilters;
+    private final IncrementalBulkService bulkService;
     private final AutoCreateIndex autoCreateIndex;
     private final DestructiveOperations destructiveOperations;
     private final RestController restController;
@@ -476,7 +476,8 @@ public class ActionModule extends AbstractModule {
         ClusterService clusterService,
         RerouteService rerouteService,
         List<ReservedClusterStateHandler<?>> reservedStateHandlers,
-        RestExtension restExtension
+        RestExtension restExtension,
+        IncrementalBulkService bulkService
     ) {
         this.settings = settings;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
@@ -488,6 +489,7 @@ public class ActionModule extends AbstractModule {
         this.threadPool = threadPool;
         actions = setupActions(actionPlugins);
         actionFilters = setupActionFilters(actionPlugins);
+        this.bulkService = bulkService;
         autoCreateIndex = new AutoCreateIndex(settings, clusterSettings, indexNameExpressionResolver, systemIndices);
         destructiveOperations = new DestructiveOperations(settings, clusterSettings);
         Set<RestHeaderDefinition> headers = Stream.concat(
@@ -912,7 +914,6 @@ public class ActionModule extends AbstractModule {
 
         registerHandler.accept(new RestRefreshAction());
         registerHandler.accept(new RestFlushAction());
-        registerHandler.accept(new RestSyncedFlushAction());
         registerHandler.accept(new RestForceMergeAction());
         registerHandler.accept(new RestClearIndicesCacheAction());
         registerHandler.accept(new RestResolveClusterAction());
@@ -928,7 +929,7 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestCountAction());
         registerHandler.accept(new RestTermVectorsAction());
         registerHandler.accept(new RestMultiTermVectorsAction());
-        registerHandler.accept(new RestBulkAction(settings));
+        registerHandler.accept(new RestBulkAction(settings, bulkService));
         registerHandler.accept(new RestUpdateAction());
 
         registerHandler.accept(new RestSearchAction(restController.getSearchUsageHolder(), clusterSupportsFeature));
@@ -998,8 +999,6 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestCatComponentTemplateAction());
         registerHandler.accept(new RestAnalyzeIndexDiskUsageAction());
         registerHandler.accept(new RestFieldUsageStatsAction());
-
-        registerHandler.accept(new RestUpgradeActionDeprecated());
 
         // Desired nodes
         registerHandler.accept(new RestGetDesiredNodesAction());

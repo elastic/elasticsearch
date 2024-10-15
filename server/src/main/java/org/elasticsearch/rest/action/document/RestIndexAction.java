@@ -14,6 +14,7 @@ import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -26,24 +27,24 @@ import org.elasticsearch.rest.action.RestToXContentListener;
 import java.io.IOException;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
+import static org.elasticsearch.rest.action.document.RestBulkAction.FAILURE_STORE_STATUS_CAPABILITY;
 
 @ServerlessScope(Scope.PUBLIC)
 public class RestIndexAction extends BaseRestHandler {
     static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Specifying types in document "
         + "index requests is deprecated, use the typeless endpoints instead (/{index}/_doc/{id}, /{index}/_doc, "
         + "or /{index}/_create/{id}).";
+    private final Set<String> capabilities = DataStream.isFailureStoreFeatureFlagEnabled()
+        ? Set.of(FAILURE_STORE_STATUS_CAPABILITY)
+        : Set.of();
 
     @Override
     public List<Route> routes() {
-        return List.of(
-            new Route(POST, "/{index}/_doc/{id}"),
-            new Route(PUT, "/{index}/_doc/{id}"),
-            Route.builder(POST, "/{index}/{type}/{id}").deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7).build(),
-            Route.builder(PUT, "/{index}/{type}/{id}").deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7).build()
-        );
+        return List.of(new Route(POST, "/{index}/_doc/{id}"), new Route(PUT, "/{index}/_doc/{id}"));
     }
 
     @Override
@@ -61,12 +62,7 @@ public class RestIndexAction extends BaseRestHandler {
 
         @Override
         public List<Route> routes() {
-            return List.of(
-                new Route(POST, "/{index}/_create/{id}"),
-                new Route(PUT, "/{index}/_create/{id}"),
-                Route.builder(POST, "/{index}/{type}/{id}/_create").deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7).build(),
-                Route.builder(PUT, "/{index}/{type}/{id}/_create").deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7).build()
-            );
+            return List.of(new Route(POST, "/{index}/_create/{id}"), new Route(PUT, "/{index}/_create/{id}"));
         }
 
         @Override
@@ -95,10 +91,7 @@ public class RestIndexAction extends BaseRestHandler {
 
         @Override
         public List<Route> routes() {
-            return List.of(
-                new Route(POST, "/{index}/_doc"),
-                Route.builder(POST, "/{index}/{type}").deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7).build()
-            );
+            return List.of(new Route(POST, "/{index}/_doc"));
         }
 
         @Override
@@ -144,4 +137,8 @@ public class RestIndexAction extends BaseRestHandler {
         );
     }
 
+    @Override
+    public Set<String> supportedCapabilities() {
+        return capabilities;
+    }
 }

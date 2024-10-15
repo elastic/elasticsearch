@@ -23,11 +23,13 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.expression.function.FieldAttributeTests;
 import org.elasticsearch.xpack.esql.expression.function.MetadataAttributeTests;
 import org.elasticsearch.xpack.esql.expression.function.ReferenceAttributeTests;
 import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttributeTests;
 import org.elasticsearch.xpack.esql.session.Configuration;
+import org.elasticsearch.xpack.esql.type.EsFieldTests;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -49,7 +51,7 @@ public class PlanStreamOutputTests extends ESTestCase {
         BytesStreamOutput out = new BytesStreamOutput();
         TransportVersion v1 = TransportVersionUtils.randomCompatibleVersion(random());
         out.setTransportVersion(v1);
-        PlanStreamOutput planOut = new PlanStreamOutput(out, PlanNameRegistry.INSTANCE, randomBoolean() ? null : randomConfiguration());
+        PlanStreamOutput planOut = new PlanStreamOutput(out, randomBoolean() ? null : randomConfiguration());
         assertThat(planOut.getTransportVersion(), equalTo(v1));
         TransportVersion v2 = TransportVersionUtils.randomCompatibleVersion(random());
         planOut.setTransportVersion(v2);
@@ -62,15 +64,10 @@ public class PlanStreamOutputTests extends ESTestCase {
         String columnName = randomAlphaOfLength(10);
         try (Column c = randomColumn()) {
             Configuration configuration = randomConfiguration("query_" + randomAlphaOfLength(1), Map.of(tableName, Map.of(columnName, c)));
-            try (
-                BytesStreamOutput out = new BytesStreamOutput();
-                PlanStreamOutput planStream = new PlanStreamOutput(out, PlanNameRegistry.INSTANCE, configuration)
-            ) {
+            try (BytesStreamOutput out = new BytesStreamOutput(); PlanStreamOutput planStream = new PlanStreamOutput(out, configuration)) {
                 planStream.writeCachedBlock(c.values());
                 assertThat(out.bytes().length(), equalTo(3 + tableName.length() + columnName.length()));
-                try (
-                    PlanStreamInput in = new PlanStreamInput(out.bytes().streamInput(), PlanNameRegistry.INSTANCE, REGISTRY, configuration)
-                ) {
+                try (PlanStreamInput in = new PlanStreamInput(out.bytes().streamInput(), REGISTRY, configuration)) {
                     assertThat(in.readCachedBlock(), sameInstance(c.values()));
                 }
             }
@@ -80,16 +77,11 @@ public class PlanStreamOutputTests extends ESTestCase {
     public void testWriteBlockOnce() throws IOException {
         try (Block b = randomColumn().values()) {
             Configuration configuration = randomConfiguration();
-            try (
-                BytesStreamOutput out = new BytesStreamOutput();
-                PlanStreamOutput planStream = new PlanStreamOutput(out, PlanNameRegistry.INSTANCE, configuration)
-            ) {
+            try (BytesStreamOutput out = new BytesStreamOutput(); PlanStreamOutput planStream = new PlanStreamOutput(out, configuration)) {
                 planStream.writeCachedBlock(b);
                 assertThat(out.bytes().length(), greaterThan(4 * LEN));
                 assertThat(out.bytes().length(), lessThan(8 * LEN));
-                try (
-                    PlanStreamInput in = new PlanStreamInput(out.bytes().streamInput(), PlanNameRegistry.INSTANCE, REGISTRY, configuration)
-                ) {
+                try (PlanStreamInput in = new PlanStreamInput(out.bytes().streamInput(), REGISTRY, configuration)) {
                     Block read = in.readCachedBlock();
                     assertThat(read, not(sameInstance(b)));
                     assertThat(read, equalTo(b));
@@ -101,17 +93,12 @@ public class PlanStreamOutputTests extends ESTestCase {
     public void testWriteBlockTwice() throws IOException {
         try (Block b = randomColumn().values()) {
             Configuration configuration = randomConfiguration();
-            try (
-                BytesStreamOutput out = new BytesStreamOutput();
-                PlanStreamOutput planStream = new PlanStreamOutput(out, PlanNameRegistry.INSTANCE, configuration)
-            ) {
+            try (BytesStreamOutput out = new BytesStreamOutput(); PlanStreamOutput planStream = new PlanStreamOutput(out, configuration)) {
                 planStream.writeCachedBlock(b);
                 planStream.writeCachedBlock(b);
                 assertThat(out.bytes().length(), greaterThan(4 * LEN));
                 assertThat(out.bytes().length(), lessThan(8 * LEN));
-                try (
-                    PlanStreamInput in = new PlanStreamInput(out.bytes().streamInput(), PlanNameRegistry.INSTANCE, REGISTRY, configuration)
-                ) {
+                try (PlanStreamInput in = new PlanStreamInput(out.bytes().streamInput(), REGISTRY, configuration)) {
                     Block read = in.readCachedBlock();
                     assertThat(read, not(sameInstance(b)));
                     assertThat(read, equalTo(b));
@@ -124,16 +111,13 @@ public class PlanStreamOutputTests extends ESTestCase {
     public void testWriteAttributeMultipleTimes() throws IOException {
         Attribute attribute = randomAttribute();
         Configuration configuration = randomConfiguration();
-        try (
-            BytesStreamOutput out = new BytesStreamOutput();
-            PlanStreamOutput planStream = new PlanStreamOutput(out, PlanNameRegistry.INSTANCE, configuration)
-        ) {
+        try (BytesStreamOutput out = new BytesStreamOutput(); PlanStreamOutput planStream = new PlanStreamOutput(out, configuration)) {
             int occurrences = randomIntBetween(2, 150);
             for (int i = 0; i < occurrences; i++) {
                 planStream.writeNamedWriteable(attribute);
             }
             assertThat(planStream.cachedAttributes.size(), is(1));
-            try (PlanStreamInput in = new PlanStreamInput(out.bytes().streamInput(), PlanNameRegistry.INSTANCE, REGISTRY, configuration)) {
+            try (PlanStreamInput in = new PlanStreamInput(out.bytes().streamInput(), REGISTRY, configuration)) {
                 Attribute first = in.readNamedWriteable(Attribute.class);
                 for (int i = 1; i < occurrences; i++) {
                     Attribute next = in.readNamedWriteable(Attribute.class);
@@ -145,10 +129,7 @@ public class PlanStreamOutputTests extends ESTestCase {
 
     public void testWriteMultipleAttributes() throws IOException {
         Configuration configuration = randomConfiguration();
-        try (
-            BytesStreamOutput out = new BytesStreamOutput();
-            PlanStreamOutput planStream = new PlanStreamOutput(out, PlanNameRegistry.INSTANCE, configuration)
-        ) {
+        try (BytesStreamOutput out = new BytesStreamOutput(); PlanStreamOutput planStream = new PlanStreamOutput(out, configuration)) {
             List<Attribute> attrs = new ArrayList<>();
             int occurrences = randomIntBetween(2, 300);
             for (int i = 0; i < occurrences; i++) {
@@ -162,7 +143,7 @@ public class PlanStreamOutputTests extends ESTestCase {
                 }
             }
 
-            try (PlanStreamInput in = new PlanStreamInput(out.bytes().streamInput(), PlanNameRegistry.INSTANCE, REGISTRY, configuration)) {
+            try (PlanStreamInput in = new PlanStreamInput(out.bytes().streamInput(), REGISTRY, configuration)) {
                 List<Attribute> readAttrs = new ArrayList<>();
                 for (int i = 0; i < occurrences; i++) {
                     readAttrs.add(in.readNamedWriteable(Attribute.class));
@@ -181,10 +162,7 @@ public class PlanStreamOutputTests extends ESTestCase {
 
     public void testWriteMultipleAttributesWithSmallCache() throws IOException {
         Configuration configuration = randomConfiguration();
-        try (
-            BytesStreamOutput out = new BytesStreamOutput();
-            PlanStreamOutput planStream = new PlanStreamOutput(out, PlanNameRegistry.INSTANCE, configuration, PlanNamedTypes::name, 10)
-        ) {
+        try (BytesStreamOutput out = new BytesStreamOutput(); PlanStreamOutput planStream = new PlanStreamOutput(out, configuration, 10)) {
             expectThrows(InvalidArgumentException.class, () -> {
                 for (int i = 0; i <= 10; i++) {
                     planStream.writeNamedWriteable(randomAttribute());
@@ -195,10 +173,7 @@ public class PlanStreamOutputTests extends ESTestCase {
 
     public void testWriteEqualAttributesDifferentID() throws IOException {
         Configuration configuration = randomConfiguration();
-        try (
-            BytesStreamOutput out = new BytesStreamOutput();
-            PlanStreamOutput planStream = new PlanStreamOutput(out, PlanNameRegistry.INSTANCE, configuration)
-        ) {
+        try (BytesStreamOutput out = new BytesStreamOutput(); PlanStreamOutput planStream = new PlanStreamOutput(out, configuration)) {
 
             Attribute one = randomAttribute();
             Attribute two = one.withId(new NameId());
@@ -206,7 +181,7 @@ public class PlanStreamOutputTests extends ESTestCase {
             planStream.writeNamedWriteable(one);
             planStream.writeNamedWriteable(two);
 
-            try (PlanStreamInput in = new PlanStreamInput(out.bytes().streamInput(), PlanNameRegistry.INSTANCE, REGISTRY, configuration)) {
+            try (PlanStreamInput in = new PlanStreamInput(out.bytes().streamInput(), REGISTRY, configuration)) {
                 Attribute oneCopy = in.readNamedWriteable(Attribute.class);
                 Attribute twoCopy = in.readNamedWriteable(Attribute.class);
 
@@ -220,10 +195,7 @@ public class PlanStreamOutputTests extends ESTestCase {
 
     public void testWriteDifferentAttributesSameID() throws IOException {
         Configuration configuration = randomConfiguration();
-        try (
-            BytesStreamOutput out = new BytesStreamOutput();
-            PlanStreamOutput planStream = new PlanStreamOutput(out, PlanNameRegistry.INSTANCE, configuration)
-        ) {
+        try (BytesStreamOutput out = new BytesStreamOutput(); PlanStreamOutput planStream = new PlanStreamOutput(out, configuration)) {
 
             Attribute one = randomAttribute();
             Attribute two = randomAttribute().withId(one.id());
@@ -231,7 +203,7 @@ public class PlanStreamOutputTests extends ESTestCase {
             planStream.writeNamedWriteable(one);
             planStream.writeNamedWriteable(two);
 
-            try (PlanStreamInput in = new PlanStreamInput(out.bytes().streamInput(), PlanNameRegistry.INSTANCE, REGISTRY, configuration)) {
+            try (PlanStreamInput in = new PlanStreamInput(out.bytes().streamInput(), REGISTRY, configuration)) {
                 Attribute oneCopy = in.readNamedWriteable(Attribute.class);
                 Attribute twoCopy = in.readNamedWriteable(Attribute.class);
 
@@ -246,14 +218,11 @@ public class PlanStreamOutputTests extends ESTestCase {
 
     public void testWriteMultipleEsFields() throws IOException {
         Configuration configuration = randomConfiguration();
-        try (
-            BytesStreamOutput out = new BytesStreamOutput();
-            PlanStreamOutput planStream = new PlanStreamOutput(out, PlanNameRegistry.INSTANCE, configuration)
-        ) {
+        try (BytesStreamOutput out = new BytesStreamOutput(); PlanStreamOutput planStream = new PlanStreamOutput(out, configuration)) {
             List<EsField> fields = new ArrayList<>();
             int occurrences = randomIntBetween(2, 300);
             for (int i = 0; i < occurrences; i++) {
-                fields.add(PlanNamedTypesTests.randomEsField());
+                fields.add(EsFieldTests.randomEsField(4));
             }
 
             // send all the EsFields, three times
@@ -263,7 +232,7 @@ public class PlanStreamOutputTests extends ESTestCase {
                 }
             }
 
-            try (PlanStreamInput in = new PlanStreamInput(out.bytes().streamInput(), PlanNameRegistry.INSTANCE, REGISTRY, configuration)) {
+            try (PlanStreamInput in = new PlanStreamInput(out.bytes().streamInput(), REGISTRY, configuration)) {
                 List<EsField> readFields = new ArrayList<>();
                 for (int i = 0; i < occurrences; i++) {
                     readFields.add(EsField.readFrom(in));
@@ -282,8 +251,8 @@ public class PlanStreamOutputTests extends ESTestCase {
 
     private static Attribute randomAttribute() {
         return switch (randomInt(3)) {
-            case 0 -> PlanNamedTypesTests.randomFieldAttribute();
-            case 1 -> ReferenceAttributeTests.randomReferenceAttribute();
+            case 0 -> FieldAttributeTests.createFieldAttribute(0, false);
+            case 1 -> ReferenceAttributeTests.randomReferenceAttribute(false);
             case 2 -> UnsupportedAttributeTests.randomUnsupportedAttribute();
             case 3 -> MetadataAttributeTests.randomMetadataAttribute();
             default -> throw new IllegalArgumentException();

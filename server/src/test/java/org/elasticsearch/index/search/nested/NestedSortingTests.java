@@ -820,7 +820,7 @@ public class NestedSortingTests extends AbstractFieldDataTestCase {
         Query query = new BooleanQuery.Builder().add(queryBuilder.toQuery(searchExecutionContext), Occur.MUST)
             .add(Queries.newNonNestedFilter(searchExecutionContext.indexVersionCreated()), Occur.FILTER)
             .build();
-        Sort sort = new Sort(sortBuilder.build(searchExecutionContext).field);
+        Sort sort = new Sort(sortBuilder.build(searchExecutionContext).field());
         return searcher.search(query, 10, sort);
     }
 

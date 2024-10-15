@@ -230,7 +230,7 @@ public class NativeUsersStore {
             if (frozenSecurityIndex.indexExists() == false) {
                 logger.trace("could not retrieve user [{}] because security index does not exist", user);
             } else {
-                logger.error("security index is unavailable. short circuiting retrieval of user [{}]", user);
+                logger.warn("could not retrieve user [{}] because security index is not available", user);
             }
             listener.onResponse(null);
         } else {

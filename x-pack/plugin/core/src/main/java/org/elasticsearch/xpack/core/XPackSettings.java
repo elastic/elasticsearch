@@ -242,7 +242,7 @@ public class XPackSettings {
      * Do not allow insecure hashing algorithms to be used for password hashing
      */
     public static Setting<String> defaultStoredHashAlgorithmSetting(String key, Function<Settings, String> defaultHashingAlgorithm) {
-        return new Setting<>(new Setting.SimpleKey(key), defaultHashingAlgorithm, Function.identity(), v -> {
+        return new Setting<>(key, defaultHashingAlgorithm, Function.identity(), v -> {
             if (Hasher.getAvailableAlgoStoredHash().contains(v.toLowerCase(Locale.ROOT)) == false) {
                 throw new IllegalArgumentException(
                     "Invalid algorithm: " + v + ". Valid values for password hashing are " + Hasher.getAvailableAlgoStoredHash().toString()

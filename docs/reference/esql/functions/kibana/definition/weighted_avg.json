@@ -170,5 +170,6 @@
   "examples" : [
     "FROM employees\n| STATS w_avg = WEIGHTED_AVG(salary, height) by languages\n| EVAL w_avg = ROUND(w_avg)\n| KEEP w_avg, languages\n| SORT languages"
   ],
-  "preview" : false
+  "preview" : false,
+  "snapshot_only" : false
 }

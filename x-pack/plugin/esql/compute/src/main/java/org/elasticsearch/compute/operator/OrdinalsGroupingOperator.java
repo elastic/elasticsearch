@@ -46,6 +46,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.function.IntFunction;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 import static java.util.Objects.requireNonNull;
 import static java.util.stream.Collectors.joining;
@@ -325,7 +326,11 @@ public class OrdinalsGroupingOperator implements Operator {
 
     @Override
     public String toString() {
-        return this.getClass().getSimpleName() + "[" + "aggregators=" + aggregatorFactories + "]";
+        String aggregatorDescriptions = aggregatorFactories.stream()
+            .map(factory -> "\"" + factory.describe() + "\"")
+            .collect(Collectors.joining(", "));
+
+        return this.getClass().getSimpleName() + "[" + "aggregators=[" + aggregatorDescriptions + "]]";
     }
 
     record SegmentID(int shardIndex, int segmentIndex) {

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.services.mistral.embeddings;
 
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.EmptyTaskSettings;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
@@ -19,6 +20,27 @@ import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 public class MistralEmbeddingModelTests extends ESTestCase {
     public static MistralEmbeddingsModel createModel(String inferenceId, String model, String apiKey) {
         return createModel(inferenceId, model, apiKey, null, null, null, null);
+    }
+
+    public static MistralEmbeddingsModel createModel(
+        String inferenceId,
+        String model,
+        ChunkingSettings chunkingSettings,
+        String apiKey,
+        @Nullable Integer dimensions,
+        @Nullable Integer maxTokens,
+        @Nullable SimilarityMeasure similarity,
+        RateLimitSettings rateLimitSettings
+    ) {
+        return new MistralEmbeddingsModel(
+            inferenceId,
+            TaskType.TEXT_EMBEDDING,
+            "mistral",
+            new MistralEmbeddingsServiceSettings(model, dimensions, maxTokens, similarity, rateLimitSettings),
+            EmptyTaskSettings.INSTANCE,
+            chunkingSettings,
+            new DefaultSecretSettings(new SecureString(apiKey.toCharArray()))
+        );
     }
 
     public static MistralEmbeddingsModel createModel(
@@ -36,6 +58,7 @@ public class MistralEmbeddingModelTests extends ESTestCase {
             "mistral",
             new MistralEmbeddingsServiceSettings(model, dimensions, maxTokens, similarity, rateLimitSettings),
             EmptyTaskSettings.INSTANCE,
+            null,
             new DefaultSecretSettings(new SecureString(apiKey.toCharArray()))
         );
     }

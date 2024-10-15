@@ -114,7 +114,7 @@ public class FieldAttribute extends TypedAttribute {
         this(
             Source.readFrom((StreamInput & PlanStreamInput) in),
             readParentName(in),
-            in.readString(),
+            ((PlanStreamInput) in).readCachedString(),
             DataType.readFrom(in),
             EsField.readFrom(in),
             in.readOptionalString(),
@@ -129,7 +129,7 @@ public class FieldAttribute extends TypedAttribute {
         if (((PlanStreamOutput) out).writeAttributeCacheHeader(this)) {
             Source.EMPTY.writeTo(out);
             writeParentName(out);
-            out.writeString(name());
+            ((PlanStreamOutput) out).writeCachedString(name());
             dataType().writeTo(out);
             field.writeTo(out);
             // We used to write the qualifier here. We can still do if needed in the future.
@@ -146,7 +146,7 @@ public class FieldAttribute extends TypedAttribute {
 
     private void writeParentName(StreamOutput out) throws IOException {
         if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_FIELD_ATTRIBUTE_PARENT_SIMPLIFIED)) {
-            out.writeOptionalString(parentName);
+            ((PlanStreamOutput) out).writeOptionalCachedString(parentName);
         } else {
             if (parentName() == null) {
                 out.writeOptionalWriteable((FieldAttribute) null);
@@ -161,7 +161,7 @@ public class FieldAttribute extends TypedAttribute {
 
     private static String readParentName(StreamInput in) throws IOException {
         if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_FIELD_ATTRIBUTE_PARENT_SIMPLIFIED)) {
-            return in.readOptionalString();
+            return ((PlanStreamInput) in).readOptionalCachedString();
         }
 
         FieldAttribute parent = in.readOptionalWriteable(FieldAttribute::readFrom);

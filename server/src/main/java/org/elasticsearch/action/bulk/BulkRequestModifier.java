@@ -87,10 +87,7 @@ final class BulkRequestModifier implements Iterator<DocWriteRequest<?>> {
         if (itemResponses.isEmpty()) {
             return bulkRequest;
         } else {
-            BulkRequest modifiedBulkRequest = new BulkRequest();
-            modifiedBulkRequest.setRefreshPolicy(bulkRequest.getRefreshPolicy());
-            modifiedBulkRequest.waitForActiveShards(bulkRequest.waitForActiveShards());
-            modifiedBulkRequest.timeout(bulkRequest.timeout());
+            BulkRequest modifiedBulkRequest = bulkRequest.shallowClone();
 
             int slot = 0;
             List<DocWriteRequest<?>> requests = bulkRequest.requests();
@@ -117,7 +114,12 @@ final class BulkRequestModifier implements Iterator<DocWriteRequest<?>> {
     ActionListener<BulkResponse> wrapActionListenerIfNeeded(long ingestTookInMillis, ActionListener<BulkResponse> actionListener) {
         if (itemResponses.isEmpty()) {
             return actionListener.map(
-                response -> new BulkResponse(response.getItems(), response.getTook().getMillis(), ingestTookInMillis)
+                response -> new BulkResponse(
+                    response.getItems(),
+                    response.getTook().getMillis(),
+                    ingestTookInMillis,
+                    response.getIncrementalState()
+                )
             );
         } else {
             return actionListener.map(response -> {
@@ -142,7 +144,7 @@ final class BulkRequestModifier implements Iterator<DocWriteRequest<?>> {
                     assertResponsesAreCorrect(bulkResponses, allResponses);
                 }
 
-                return new BulkResponse(allResponses, response.getTook().getMillis(), ingestTookInMillis);
+                return new BulkResponse(allResponses, response.getTook().getMillis(), ingestTookInMillis, response.getIncrementalState());
             });
         }
     }

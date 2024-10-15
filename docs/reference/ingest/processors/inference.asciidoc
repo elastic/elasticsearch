@@ -169,6 +169,18 @@ include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenizatio
 include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-truncate]
 =======
 
+`deberta_v2`::::
+(Optional, object)
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-deberta-v2]
++
+.Properties of deberta_v2
+[%collapsible%open]
+=======
+`truncate`::::
+(Optional, string)
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-truncate-deberta-v2]
+=======
+
 `roberta`::::
 (Optional, object)
 include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-roberta]
@@ -222,6 +234,18 @@ include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenizatio
 `truncate`::::
 (Optional, string)
 include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-truncate]
+=======
+
+`deberta_v2`::::
+(Optional, object)
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-deberta-v2]
++
+.Properties of deberta_v2
+[%collapsible%open]
+=======
+`truncate`::::
+(Optional, string)
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-truncate-deberta-v2]
 =======
 
 `roberta`::::
@@ -304,6 +328,23 @@ include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenizatio
 include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-truncate]
 =======
 
+`deberta_v2`::::
+(Optional, object)
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-deberta-v2]
++
+.Properties of deberta_v2
+[%collapsible%open]
+=======
+`span`::::
+(Optional, integer)
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-span]
+
+`truncate`::::
+(Optional, string)
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-truncate-deberta-v2]
+=======
+
+
 `roberta`::::
 (Optional, object)
 include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-roberta]
@@ -361,6 +402,18 @@ include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenizatio
 `truncate`::::
 (Optional, string)
 include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-truncate]
+=======
+
+`deberta_v2`::::
+(Optional, object)
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-deberta-v2]
++
+.Properties of deberta_v2
+[%collapsible%open]
+=======
+`truncate`::::
+(Optional, string)
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-truncate-deberta-v2]
 =======
 
 `roberta`::::
@@ -424,6 +477,22 @@ include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenizatio
 include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-truncate]
 =======
 
+`deberta_v2`::::
+(Optional, object)
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-deberta-v2]
++
+.Properties of deberta_v2
+[%collapsible%open]
+=======
+`span`::::
+(Optional, integer)
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-span]
+
+`truncate`::::
+(Optional, string)
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-truncate-deberta-v2]
+=======
+
 `roberta`::::
 (Optional, object)
 include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-roberta]
@@ -453,6 +522,29 @@ include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenizatio
 (Optional, string)
 include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-truncate]
 =======
+=====
+
+[discrete]
+[[inference-processor-text-similarity-opt]]
+==== Text similarity configuration options
+
+`text_similarity`:::
+(Object, optional)
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-text-similarity]
++
+.Properties of text_similarity inference
+[%collapsible%open]
+=====
+`span_score_combination_function`::::
+(Optional, string)
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-text-similarity-span-score-func]
+
+`tokenization`::::
+(Optional, object)
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization]
++
+Refer to <<tokenization-properties>> to review the properties of the
+`tokenization` object.
 =====
 
 
@@ -490,6 +582,18 @@ include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenizatio
 `truncate`::::
 (Optional, string)
 include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-truncate]
+=======
+
+`deberta_v2`::::
+(Optional, object)
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-deberta-v2]
++
+.Properties of deberta_v2
+[%collapsible%open]
+=======
+`truncate`::::
+(Optional, string)
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-truncate-deberta-v2]
 =======
 
 `roberta`::::

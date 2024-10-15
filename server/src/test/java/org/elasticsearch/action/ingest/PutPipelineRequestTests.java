@@ -52,7 +52,13 @@ public class PutPipelineRequestTests extends ESTestCase {
         // End first processor
         pipelineBuilder.endArray();
         pipelineBuilder.endObject();
-        PutPipelineRequest request = new PutPipelineRequest("1", BytesReference.bytes(pipelineBuilder), xContentType);
+        PutPipelineRequest request = new PutPipelineRequest(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
+            "1",
+            BytesReference.bytes(pipelineBuilder),
+            xContentType
+        );
         XContentBuilder requestBuilder = XContentBuilder.builder(xContentType.xContent());
         BytesReference actualRequestBody = BytesReference.bytes(request.toXContent(requestBuilder, ToXContent.EMPTY_PARAMS));
         assertEquals(BytesReference.bytes(pipelineBuilder), actualRequestBody);

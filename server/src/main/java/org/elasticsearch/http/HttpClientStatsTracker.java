@@ -227,7 +227,11 @@ public class HttpClientStatsTracker {
             lastRequestTimeMillis = currentTimeMillis;
             lastUri = httpRequest.uri();
             requestCount += 1;
-            requestSizeBytes += httpRequest.content().length();
+            if (httpRequest.body().isFull()) {
+                requestSizeBytes += httpRequest.body().asFull().bytes().length();
+            } else {
+                httpRequest.body().asStream().addTracingHandler((chunk, last) -> requestSizeBytes += chunk.length());
+            }
         }
 
         private static String getFirstValueForHeader(final HttpRequest request, final String header) {

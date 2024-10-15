@@ -18,7 +18,7 @@ stream or index.
 ==================================================
 
 Source-only snapshots are only supported if the `_source` field is enabled and no source-filtering is applied.
-When you restore a source-only snapshot:
+As a result, indices adopting synthetic source cannot be restored. When you restore a source-only snapshot:
 
  * The restored index is read-only and can only serve `match_all` search or scroll requests to enable reindexing.
 

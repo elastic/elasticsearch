@@ -12,6 +12,7 @@ package org.elasticsearch.common.util;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.recycler.Recycler;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
 
 import java.lang.reflect.Array;
@@ -20,6 +21,7 @@ import java.util.Arrays;
 /** Common implementation for array lists that slice data into fixed-size blocks. */
 abstract class AbstractBigArray extends AbstractArray {
 
+    @Nullable
     protected final PageCacheRecycler recycler;
     private Recycler.V<?>[] cache;
 

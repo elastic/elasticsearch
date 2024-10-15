@@ -9,14 +9,12 @@
 package org.elasticsearch.ingest.geoip;
 
 import com.maxmind.db.NodeCache;
-import com.maxmind.geoip2.model.AbstractResponse;
 
 import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.ingest.geoip.stats.CacheStats;
 
-import java.net.InetAddress;
 import java.nio.file.Path;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
@@ -28,7 +26,7 @@ import java.util.function.LongSupplier;
  * cost of deserialization for each lookup (cached or not). This comes at slight expense of higher memory usage, but significant
  * reduction of CPU usage.
  */
-final class GeoIpCache {
+public final class GeoIpCache {
 
     /**
      * Internal-only sentinel object for recording that a result from the geoip database was null (i.e. there was no result). By caching
@@ -36,15 +34,15 @@ final class GeoIpCache {
      * something not being in the cache because the data doesn't exist in the database.
      */
     // visible for testing
-    static final AbstractResponse NO_RESULT = new AbstractResponse() {
+    static final Object NO_RESULT = new Object() {
         @Override
         public String toString() {
-            return "AbstractResponse[NO_RESULT]";
+            return "NO_RESULT";
         }
     };
 
     private final LongSupplier relativeNanoTimeProvider;
-    private final Cache<CacheKey, AbstractResponse> cache;
+    private final Cache<CacheKey, Object> cache;
     private final AtomicLong hitsTimeInNanos = new AtomicLong(0);
     private final AtomicLong missesTimeInNanos = new AtomicLong(0);
 
@@ -54,7 +52,7 @@ final class GeoIpCache {
             throw new IllegalArgumentException("geoip max cache size must be 0 or greater");
         }
         this.relativeNanoTimeProvider = relativeNanoTimeProvider;
-        this.cache = CacheBuilder.<CacheKey, AbstractResponse>builder().setMaximumWeight(maxSize).build();
+        this.cache = CacheBuilder.<CacheKey, Object>builder().setMaximumWeight(maxSize).build();
     }
 
     GeoIpCache(long maxSize) {
@@ -62,16 +60,12 @@ final class GeoIpCache {
     }
 
     @SuppressWarnings("unchecked")
-    <T extends AbstractResponse> T putIfAbsent(
-        InetAddress ip,
-        String databasePath,
-        Function<InetAddress, AbstractResponse> retrieveFunction
-    ) {
+    <RESPONSE> RESPONSE putIfAbsent(String ip, String databasePath, Function<String, RESPONSE> retrieveFunction) {
         // can't use cache.computeIfAbsent due to the elevated permissions for the jackson (run via the cache loader)
         CacheKey cacheKey = new CacheKey(ip, databasePath);
         long cacheStart = relativeNanoTimeProvider.getAsLong();
         // intentionally non-locking for simplicity...it's OK if we re-put the same key/value in the cache during a race condition.
-        AbstractResponse response = cache.get(cacheKey);
+        Object response = cache.get(cacheKey);
         long cacheRequestTime = relativeNanoTimeProvider.getAsLong() - cacheStart;
 
         // populate the cache for this key, if necessary
@@ -93,12 +87,12 @@ final class GeoIpCache {
         if (response == NO_RESULT) {
             return null; // the no-result sentinel is an internal detail, don't expose it
         } else {
-            return (T) response;
+            return (RESPONSE) response;
         }
     }
 
     // only useful for testing
-    AbstractResponse get(InetAddress ip, String databasePath) {
+    Object get(String ip, String databasePath) {
         CacheKey cacheKey = new CacheKey(ip, databasePath);
         return cache.get(cacheKey);
     }
@@ -141,5 +135,5 @@ final class GeoIpCache {
      * path is needed to be included in the cache key. For example, if we only used the IP address as the key the City and ASN the same
      * IP may be in both with different values and we need to cache both.
      */
-    private record CacheKey(InetAddress ip, String databasePath) {}
+    private record CacheKey(String ip, String databasePath) {}
 }

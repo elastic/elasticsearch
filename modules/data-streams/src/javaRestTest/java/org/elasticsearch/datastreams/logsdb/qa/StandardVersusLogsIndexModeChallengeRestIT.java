@@ -13,11 +13,11 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
+import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.FormatNames;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.datastreams.logsdb.qa.matchers.MatchResult;
 import org.elasticsearch.datastreams.logsdb.qa.matchers.Matcher;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -42,6 +42,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.TreeMap;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -185,7 +186,7 @@ public class StandardVersusLogsIndexModeChallengeRestIT extends AbstractChalleng
         int numberOfDocuments = ESTestCase.randomIntBetween(100, 200);
         final List<XContentBuilder> documents = generateDocuments(numberOfDocuments);
 
-        assertDocumentIndexing(documents);
+        indexDocuments(documents);
 
         final SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().query(QueryBuilders.matchAllQuery())
             .size(numberOfDocuments);
@@ -203,7 +204,7 @@ public class StandardVersusLogsIndexModeChallengeRestIT extends AbstractChalleng
         int numberOfDocuments = ESTestCase.randomIntBetween(100, 200);
         final List<XContentBuilder> documents = generateDocuments(numberOfDocuments);
 
-        assertDocumentIndexing(documents);
+        indexDocuments(documents);
 
         final SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().query(QueryBuilders.termQuery("method", "put"))
             .size(numberOfDocuments);
@@ -221,7 +222,7 @@ public class StandardVersusLogsIndexModeChallengeRestIT extends AbstractChalleng
         int numberOfDocuments = ESTestCase.randomIntBetween(100, 200);
         final List<XContentBuilder> documents = generateDocuments(numberOfDocuments);
 
-        assertDocumentIndexing(documents);
+        indexDocuments(documents);
 
         final SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().query(QueryBuilders.matchAllQuery())
             .size(numberOfDocuments)
@@ -239,7 +240,7 @@ public class StandardVersusLogsIndexModeChallengeRestIT extends AbstractChalleng
         int numberOfDocuments = ESTestCase.randomIntBetween(100, 200);
         final List<XContentBuilder> documents = generateDocuments(numberOfDocuments);
 
-        assertDocumentIndexing(documents);
+        indexDocuments(documents);
 
         final SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().query(QueryBuilders.matchAllQuery())
             .size(0)
@@ -257,7 +258,7 @@ public class StandardVersusLogsIndexModeChallengeRestIT extends AbstractChalleng
         int numberOfDocuments = ESTestCase.randomIntBetween(100, 200);
         final List<XContentBuilder> documents = generateDocuments(numberOfDocuments);
 
-        assertDocumentIndexing(documents);
+        indexDocuments(documents);
 
         final SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().query(QueryBuilders.matchAllQuery())
             .aggregation(AggregationBuilders.dateHistogram("agg").field("@timestamp").calendarInterval(DateHistogramInterval.SECOND))
@@ -269,6 +270,73 @@ public class StandardVersusLogsIndexModeChallengeRestIT extends AbstractChalleng
             .ignoringSort(true)
             .isEqualTo(getAggregationBuckets(queryContender(searchSourceBuilder), "agg"));
         assertTrue(matchResult.getMessage(), matchResult.isMatch());
+    }
+
+    public void testEsqlSource() throws IOException {
+        int numberOfDocuments = ESTestCase.randomIntBetween(100, 200);
+        final List<XContentBuilder> documents = generateDocuments(numberOfDocuments);
+
+        indexDocuments(documents);
+
+        final String query = "FROM $index METADATA _source, _id | KEEP _source, _id | LIMIT " + numberOfDocuments;
+        final MatchResult matchResult = Matcher.matchSource()
+            .mappings(getContenderMappings(), getBaselineMappings())
+            .settings(getContenderSettings(), getBaselineSettings())
+            .expected(getEsqlSourceResults(esqlBaseline(query)))
+            .ignoringSort(true)
+            .isEqualTo(getEsqlSourceResults(esqlContender(query)));
+        assertTrue(matchResult.getMessage(), matchResult.isMatch());
+    }
+
+    public void testEsqlTermsAggregation() throws IOException {
+        int numberOfDocuments = ESTestCase.randomIntBetween(100, 200);
+        final List<XContentBuilder> documents = generateDocuments(numberOfDocuments);
+
+        indexDocuments(documents);
+
+        final String query = "FROM $index | STATS count(*) BY host.name | SORT host.name | LIMIT " + numberOfDocuments;
+        final MatchResult matchResult = Matcher.mappings(getContenderMappings(), getBaselineMappings())
+            .settings(getContenderSettings(), getBaselineSettings())
+            .expected(getEsqlStatsResults(esqlBaseline(query)))
+            .ignoringSort(true)
+            .isEqualTo(getEsqlStatsResults(esqlContender(query)));
+        assertTrue(matchResult.getMessage(), matchResult.isMatch());
+    }
+
+    public void testFieldCaps() throws IOException {
+        int numberOfDocuments = ESTestCase.randomIntBetween(20, 50);
+        final List<XContentBuilder> documents = generateDocuments(numberOfDocuments);
+
+        indexDocuments(documents);
+
+        final MatchResult matchResult = Matcher.mappings(getContenderMappings(), getBaselineMappings())
+            .settings(getContenderSettings(), getBaselineSettings())
+            .expected(getFields(fieldCapsBaseline()))
+            .ignoringSort(true)
+            .isEqualTo(getFields(fieldCapsContender()));
+        assertTrue(matchResult.getMessage(), matchResult.isMatch());
+    }
+
+    @Override
+    public Response indexBaselineDocuments(CheckedSupplier<List<XContentBuilder>, IOException> documentsSupplier) throws IOException {
+        var response = super.indexBaselineDocuments(documentsSupplier);
+
+        assertThat(response.getStatusLine().getStatusCode(), Matchers.equalTo(RestStatus.OK.getStatus()));
+        var baselineResponseBody = entityAsMap(response);
+        assertThat("errors in baseline bulk response:\n " + baselineResponseBody, baselineResponseBody.get("errors"), equalTo(false));
+
+        return response;
+    }
+
+    @Override
+    public Response indexContenderDocuments(CheckedSupplier<List<XContentBuilder>, IOException> documentsSupplier) throws IOException {
+        var response = super.indexContenderDocuments(documentsSupplier);
+
+        assertThat(response.getStatusLine().getStatusCode(), Matchers.equalTo(RestStatus.OK.getStatus()));
+        var contenderResponseBody = entityAsMap(response);
+        assertThat("errors in contender bulk response:\n " + contenderResponseBody, contenderResponseBody.get("errors"), equalTo(false));
+
+        return response;
     }
 
     private List<XContentBuilder> generateDocuments(int numberOfDocuments) throws IOException {
@@ -308,6 +376,40 @@ public class StandardVersusLogsIndexModeChallengeRestIT extends AbstractChalleng
     }
 
     @SuppressWarnings("unchecked")
+    private static Map<String, Object> getFields(final Response response) throws IOException {
+        final Map<String, Object> map = XContentHelper.convertToMap(XContentType.JSON.xContent(), response.getEntity().getContent(), true);
+        final Map<String, Object> fields = (Map<String, Object>) map.get("fields");
+        assertThat(fields.size(), greaterThan(0));
+        return new TreeMap<>(fields);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static List<Map<String, Object>> getEsqlSourceResults(final Response response) throws IOException {
+        final Map<String, Object> map = XContentHelper.convertToMap(XContentType.JSON.xContent(), response.getEntity().getContent(), true);
+        final List<List<Object>> values = (List<List<Object>>) map.get("values");
+        assertThat(values.size(), greaterThan(0));
+
+        // Results contain a list of [source, id] lists.
+        return values.stream()
+            .sorted(Comparator.comparingInt((List<Object> value) -> Integer.parseInt((String) value.get(1))))
+            .map(value -> (Map<String, Object>) value.get(0))
+            .toList();
+    }
+
+    @SuppressWarnings("unchecked")
+    private static List<Map<String, Object>> getEsqlStatsResults(final Response response) throws IOException {
+        final Map<String, Object> map = XContentHelper.convertToMap(XContentType.JSON.xContent(), response.getEntity().getContent(), true);
+        final List<List<Object>> values = (List<List<Object>>) map.get("values");
+        assertThat(values.size(), greaterThan(0));
+
+        // Results contain a list of [agg value, group name] lists.
+        return values.stream()
+            .sorted(Comparator.comparing((List<Object> value) -> (String) value.get(1)))
+            .map(value -> Map.of((String) value.get(1), value.get(0)))
+            .toList();
+    }
+
+    @SuppressWarnings("unchecked")
     private static List<Map<String, Object>> getAggregationBuckets(final Response response, final String aggName) throws IOException {
         final Map<String, Object> map = XContentHelper.convertToMap(XContentType.JSON.xContent(), response.getEntity().getContent(), true);
         final Map<String, Object> aggs = (Map<String, Object>) map.get("aggregations");
@@ -319,15 +421,7 @@ public class StandardVersusLogsIndexModeChallengeRestIT extends AbstractChalleng
         return buckets;
     }
 
-    private void assertDocumentIndexing(List<XContentBuilder> documents) throws IOException {
-        final Tuple<Response, Response> tuple = indexDocuments(() -> documents, () -> documents);
-
-        assertThat(tuple.v1().getStatusLine().getStatusCode(), Matchers.equalTo(RestStatus.OK.getStatus()));
-        var baselineResponseBody = entityAsMap(tuple.v1());
-        assertThat("errors in baseline bulk response:\n " + baselineResponseBody, baselineResponseBody.get("errors"), equalTo(false));
-
-        assertThat(tuple.v2().getStatusLine().getStatusCode(), Matchers.equalTo(RestStatus.OK.getStatus()));
-        var contenderResponseBody = entityAsMap(tuple.v2());
-        assertThat("errors in contender bulk response:\n " + contenderResponseBody, contenderResponseBody.get("errors"), equalTo(false));
+    private void indexDocuments(List<XContentBuilder> documents) throws IOException {
+        indexDocuments(() -> documents, () -> documents);
     }
 }

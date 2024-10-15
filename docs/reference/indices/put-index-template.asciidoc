@@ -85,6 +85,8 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=master-timeout]
 [[put-index-template-api-request-body]]
 ==== {api-request-body-title}
 
+// tag::request-body[]
+
 `composed_of`::
 (Optional, array of strings)
 An ordered list of component template names. Component templates are merged in the order
@@ -102,7 +104,7 @@ See <<create-index-template,create an index template>>.
 +
 .Properties of `data_stream`
 [%collapsible%open]
-====
+=====
 `allow_custom_routing`::
 (Optional, Boolean) If `true`, the data stream supports
 <<mapping-routing-field,custom routing>>. Defaults to `false`.
@@ -117,7 +119,7 @@ See <<create-index-template,create an index template>>.
 +
 If `time_series`, each backing index has an `index.mode` index setting of
 `time_series`.
-====
+=====
 
 `index_patterns`::
 (Required, array of strings)
@@ -146,7 +148,7 @@ Template to be applied. It may optionally include an `aliases`, `mappings`, or
 +
 .Properties of `template`
 [%collapsible%open]
-====
+=====
 `aliases`::
 (Optional, object of objects) Aliases to add.
 +
@@ -161,7 +163,7 @@ include::{es-ref-dir}/indices/create-index.asciidoc[tag=aliases-props]
 include::{docdir}/rest-api/common-parms.asciidoc[tag=mappings]
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=settings]
-====
+=====
 
 `version`::
 (Optional, integer)
@@ -174,6 +176,7 @@ Marks this index template as deprecated.
 When creating or updating a non-deprecated index template that uses deprecated components,
 {es} will emit a deprecation warning.
 // end::index-template-api-body[]
+// end::request-body[]
 
 [[put-index-template-api-example]]
 ==== {api-examples-title}

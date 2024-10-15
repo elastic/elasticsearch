@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.enrich;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -29,8 +30,16 @@ public record ResolvedEnrichPolicy(
             in.readString(),
             in.readStringCollectionAsList(),
             in.readMap(StreamInput::readString),
-            in.readMap(EsField::readFrom)
+            in.readMap(getEsFieldReader(in))
         );
+    }
+
+    private static Reader<EsField> getEsFieldReader(StreamInput in) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_ES_FIELD_CACHED_SERIALIZATION)
+            || in.getTransportVersion().isPatchFrom(TransportVersions.ESQL_ATTRIBUTE_CACHED_SERIALIZATION_8_15)) {
+            return EsField::readFrom;
+        }
+        return EsField::new;
     }
 
     @Override
@@ -45,7 +54,15 @@ public record ResolvedEnrichPolicy(
              * There are lots of subtypes of ESField, but we always write the field
              * as though it were the base class.
              */
-            (o, v) -> new EsField(v.getName(), v.getDataType(), v.getProperties(), v.isAggregatable(), v.isAlias()).writeTo(o)
+            (o, v) -> {
+                var field = new EsField(v.getName(), v.getDataType(), v.getProperties(), v.isAggregatable(), v.isAlias());
+                if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_ES_FIELD_CACHED_SERIALIZATION)
+                    || out.getTransportVersion().isPatchFrom(TransportVersions.ESQL_ATTRIBUTE_CACHED_SERIALIZATION_8_15)) {
+                    field.writeTo(o);
+                } else {
+                    field.writeContent(o);
+                }
+            }
         );
     }
 }

@@ -22,6 +22,7 @@ import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.IndexSortSortedNumericDocValuesRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
@@ -143,6 +144,46 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
         assertEquals(Relation.INTERSECTS, ft.isFieldWithinQuery(reader, "2015-10-12", "2016-04-03", false, false, zone, null, context));
         assertEquals(Relation.INTERSECTS, ft.isFieldWithinQuery(reader, "2015-10-12", "2016-04-03", false, true, zone, null, context));
         assertEquals(Relation.INTERSECTS, ft.isFieldWithinQuery(reader, "2015-10-12", "2016-04-03", true, false, zone, null, context));
+        // Bad dates
+        assertThrows(
+            ElasticsearchParseException.class,
+            () -> ft.isFieldWithinQuery(reader, "2015-00-01", "2016-04-03", randomBoolean(), randomBoolean(), zone, null, context)
+        );
+        assertThrows(
+            ElasticsearchParseException.class,
+            () -> ft.isFieldWithinQuery(reader, "2015-01-01", "2016-04-00", randomBoolean(), randomBoolean(), zone, null, context)
+        );
+        assertThrows(
+            ElasticsearchParseException.class,
+            () -> ft.isFieldWithinQuery(reader, "2015-22-01", "2016-04-00", randomBoolean(), randomBoolean(), zone, null, context)
+        );
+        assertThrows(
+            ElasticsearchParseException.class,
+            () -> ft.isFieldWithinQuery(reader, "2015-01-01", "2016-04-45", randomBoolean(), randomBoolean(), zone, null, context)
+        );
+        assertThrows(
+            ElasticsearchParseException.class,
+            () -> ft.isFieldWithinQuery(reader, "2015-01-01", "2016-04-01T25:00:00", randomBoolean(), randomBoolean(), zone, null, context)
+        );
+        if (ft.resolution().equals(Resolution.NANOSECONDS)) {
+            assertThrows(
+                IllegalArgumentException.class,
+                () -> ft.isFieldWithinQuery(reader, "-2016-04-01", "2016-04-01", randomBoolean(), randomBoolean(), zone, null, context)
+            );
+            assertThrows(
+                IllegalArgumentException.class,
+                () -> ft.isFieldWithinQuery(
+                    reader,
+                    "9223372036854775807",
+                    "2016-04-01",
+                    randomBoolean(),
+                    randomBoolean(),
+                    zone,
+                    null,
+                    context
+                )
+            );
+        }
     }
 
     public void testValueFormat() {

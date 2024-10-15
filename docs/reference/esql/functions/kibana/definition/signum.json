@@ -56,5 +56,6 @@
   "examples" : [
     "ROW d = 100.0\n| EVAL s = SIGNUM(d)"
   ],
-  "preview" : false
+  "preview" : false,
+  "snapshot_only" : false
 }

@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
+import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.esql.expression.function.scalar.VaragsTestCaseBuilder;
@@ -33,7 +34,6 @@ import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Function;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.compute.data.BlockUtils.toJavaObject;
@@ -174,7 +174,7 @@ public class CoalesceTests extends AbstractScalarFunctionTestCase {
         Layout.Builder builder = new Layout.Builder();
         buildLayout(builder, exp);
         Layout layout = builder.build();
-        Function<Expression, EvalOperator.ExpressionEvaluator.Factory> map = child -> {
+        EvaluatorMapper.ToEvaluator toEvaluator = child -> {
             if (child == evil) {
                 return dvrCtx -> new EvalOperator.ExpressionEvaluator() {
                     @Override
@@ -189,7 +189,7 @@ public class CoalesceTests extends AbstractScalarFunctionTestCase {
             return EvalMapper.toEvaluator(child, layout);
         };
         try (
-            EvalOperator.ExpressionEvaluator eval = exp.toEvaluator(map).get(driverContext());
+            EvalOperator.ExpressionEvaluator eval = exp.toEvaluator(toEvaluator).get(driverContext());
             Block block = eval.eval(row(testCase.getDataValues()))
         ) {
             assertThat(toJavaObject(block, 0), testCase.getMatcher());

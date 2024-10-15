@@ -24,6 +24,8 @@ import java.io.Reader;
 import java.io.StringReader;
 import java.util.Arrays;
 
+import static org.apache.lucene.tests.analysis.BaseTokenStreamTestCase.assertTokenStreamContents;
+
 public class CharGroupTokenizerFactoryTests extends ESTokenStreamTestCase {
 
     public void testParseTokenChars() {

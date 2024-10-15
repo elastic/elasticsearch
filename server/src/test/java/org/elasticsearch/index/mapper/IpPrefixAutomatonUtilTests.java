@@ -174,6 +174,12 @@ public class IpPrefixAutomatonUtilTests extends ESTestCase {
             assertTrue(accepts(a, "255.27.240.24"));
             assertTrue(accepts(a, "255:a360::25bb:828f:ffff:ffff"));
         }
+        {
+            CompiledAutomaton a = buildIpPrefixAutomaton("23c9::");
+            assertTrue(accepts(a, "23c9::6063:7ac9:ffff:ffff"));
+            assertFalse(accepts(a, "0.0.0.0"));
+            assertFalse(accepts(a, "249.43.32.175"));
+        }
     }
 
     private static boolean accepts(CompiledAutomaton compiledAutomaton, String address) throws UnknownHostException {

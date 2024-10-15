@@ -154,45 +154,27 @@ public class ComponentTemplateTests extends SimpleDiffableSerializationTestCase<
                 Template ot = orig.template();
                 yield switch (randomIntBetween(0, 3)) {
                     case 0 -> new ComponentTemplate(
-                        new Template(
-                            randomValueOtherThan(ot.settings(), ComponentTemplateTests::randomSettings),
-                            ot.mappings(),
-                            ot.aliases(),
-                            ot.lifecycle()
-                        ),
+                        Template.builder(ot).settings(randomValueOtherThan(ot.settings(), ComponentTemplateTests::randomSettings)).build(),
                         orig.version(),
                         orig.metadata(),
                         orig.deprecated()
                     );
                     case 1 -> new ComponentTemplate(
-                        new Template(
-                            ot.settings(),
-                            randomValueOtherThan(ot.mappings(), ComponentTemplateTests::randomMappings),
-                            ot.aliases(),
-                            ot.lifecycle()
-                        ),
+                        Template.builder(ot).mappings(randomValueOtherThan(ot.mappings(), ComponentTemplateTests::randomMappings)).build(),
                         orig.version(),
                         orig.metadata(),
                         orig.deprecated()
                     );
                     case 2 -> new ComponentTemplate(
-                        new Template(
-                            ot.settings(),
-                            ot.mappings(),
-                            randomValueOtherThan(ot.aliases(), ComponentTemplateTests::randomAliases),
-                            ot.lifecycle()
-                        ),
+                        Template.builder(ot).aliases(randomValueOtherThan(ot.aliases(), ComponentTemplateTests::randomAliases)).build(),
                         orig.version(),
                         orig.metadata(),
                         orig.deprecated()
                     );
                     case 3 -> new ComponentTemplate(
-                        new Template(
-                            ot.settings(),
-                            ot.mappings(),
-                            ot.aliases(),
-                            randomValueOtherThan(ot.lifecycle(), DataStreamLifecycleTests::randomLifecycle)
-                        ),
+                        Template.builder(ot)
+                            .lifecycle(randomValueOtherThan(ot.lifecycle(), DataStreamLifecycleTests::randomLifecycle))
+                            .build(),
                         orig.version(),
                         orig.metadata(),
                         orig.deprecated()

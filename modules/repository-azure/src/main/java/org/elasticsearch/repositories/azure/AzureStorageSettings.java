@@ -316,7 +316,7 @@ final class AzureStorageSettings {
 
     private static <T> T getValue(Settings settings, String groupName, Setting<T> setting) {
         final Setting.AffixKey k = (Setting.AffixKey) setting.getRawKey();
-        final String fullKey = k.toConcreteKey(groupName).toString();
+        final String fullKey = k.toConcreteKey(groupName);
         return setting.getConcreteSetting(fullKey).get(settings);
     }
 

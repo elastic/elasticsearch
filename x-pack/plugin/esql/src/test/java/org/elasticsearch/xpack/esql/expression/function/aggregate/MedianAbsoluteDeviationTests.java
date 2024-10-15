@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.expression.function.aggregate;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.search.aggregations.metrics.InternalMedianAbsoluteDeviation;
 import org.elasticsearch.search.aggregations.metrics.TDigestState;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -50,20 +51,20 @@ public class MedianAbsoluteDeviationTests extends AbstractAggregationTestCase {
         return new TestCaseSupplier(List.of(fieldSupplier.type()), () -> {
             var fieldTypedData = fieldSupplier.get();
 
-            var digest = TDigestState.create(1000);
+            try (var digest = TDigestState.create(newLimitedBreaker(ByteSizeValue.ofMb(100)), 1000)) {
+                for (var value : fieldTypedData.multiRowData()) {
+                    digest.add(((Number) value).doubleValue());
+                }
 
-            for (var value : fieldTypedData.multiRowData()) {
-                digest.add(((Number) value).doubleValue());
+                var expected = digest.size() == 0 ? null : InternalMedianAbsoluteDeviation.computeMedianAbsoluteDeviation(digest);
+
+                return new TestCaseSupplier.TestCase(
+                    List.of(fieldTypedData),
+                    "MedianAbsoluteDeviation[number=Attribute[channel=0]]",
+                    DataType.DOUBLE,
+                    equalTo(expected)
+                );
             }
-
-            var expected = digest.size() == 0 ? null : InternalMedianAbsoluteDeviation.computeMedianAbsoluteDeviation(digest);
-
-            return new TestCaseSupplier.TestCase(
-                List.of(fieldTypedData),
-                "MedianAbsoluteDeviation[number=Attribute[channel=0]]",
-                DataType.DOUBLE,
-                equalTo(expected)
-            );
         });
     }
 }

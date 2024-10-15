@@ -9,10 +9,12 @@
 
 package org.elasticsearch.action.bulk;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.ToXContent;
@@ -37,12 +39,18 @@ public class BulkResponse extends ActionResponse implements Iterable<BulkItemRes
     private final BulkItemResponse[] responses;
     private final long tookInMillis;
     private final long ingestTookInMillis;
+    private final BulkRequest.IncrementalState incrementalState;
 
     public BulkResponse(StreamInput in) throws IOException {
         super(in);
         responses = in.readArray(BulkItemResponse::new, BulkItemResponse[]::new);
         tookInMillis = in.readVLong();
         ingestTookInMillis = in.readZLong();
+        if (in.getTransportVersion().onOrAfter(TransportVersions.BULK_INCREMENTAL_STATE)) {
+            incrementalState = new BulkRequest.IncrementalState(in);
+        } else {
+            incrementalState = BulkRequest.IncrementalState.EMPTY;
+        }
     }
 
     public BulkResponse(BulkItemResponse[] responses, long tookInMillis) {
@@ -50,9 +58,19 @@ public class BulkResponse extends ActionResponse implements Iterable<BulkItemRes
     }
 
     public BulkResponse(BulkItemResponse[] responses, long tookInMillis, long ingestTookInMillis) {
+        this(responses, tookInMillis, ingestTookInMillis, BulkRequest.IncrementalState.EMPTY);
+    }
+
+    public BulkResponse(
+        BulkItemResponse[] responses,
+        long tookInMillis,
+        long ingestTookInMillis,
+        BulkRequest.IncrementalState incrementalState
+    ) {
         this.responses = responses;
         this.tookInMillis = tookInMillis;
         this.ingestTookInMillis = ingestTookInMillis;
+        this.incrementalState = incrementalState;
     }
 
     /**
@@ -60,6 +78,10 @@ public class BulkResponse extends ActionResponse implements Iterable<BulkItemRes
      */
     public TimeValue getTook() {
         return new TimeValue(tookInMillis);
+    }
+
+    public long getTookInMillis() {
+        return tookInMillis;
     }
 
     /**
@@ -74,6 +96,10 @@ public class BulkResponse extends ActionResponse implements Iterable<BulkItemRes
      */
     public long getIngestTookInMillis() {
         return ingestTookInMillis;
+    }
+
+    BulkRequest.IncrementalState getIncrementalState() {
+        return incrementalState;
     }
 
     /**
@@ -125,18 +151,20 @@ public class BulkResponse extends ActionResponse implements Iterable<BulkItemRes
         out.writeArray(responses);
         out.writeVLong(tookInMillis);
         out.writeZLong(ingestTookInMillis);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.BULK_INCREMENTAL_STATE)) {
+            incrementalState.writeTo(out);
+        }
     }
 
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
-        return Iterators.concat(Iterators.single((builder, p) -> {
-            builder.startObject();
-            builder.field(ERRORS, hasFailures());
-            builder.field(TOOK, tookInMillis);
+        return ChunkedToXContent.builder(params).object(ob -> {
+            ob.field(ERRORS, hasFailures());
+            ob.field(TOOK, tookInMillis);
             if (ingestTookInMillis != BulkResponse.NO_INGEST_TOOK) {
-                builder.field(INGEST_TOOK, ingestTookInMillis);
+                ob.field(INGEST_TOOK, ingestTookInMillis);
             }
-            return builder.startArray(ITEMS);
-        }), Iterators.forArray(responses), Iterators.<ToXContent>single((builder, p) -> builder.endArray().endObject()));
+            ob.array(ITEMS, Iterators.forArray(responses));
+        });
     }
 }

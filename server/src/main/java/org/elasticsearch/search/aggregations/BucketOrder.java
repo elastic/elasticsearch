@@ -134,7 +134,7 @@ public abstract class BucketOrder implements ToXContentObject, Writeable {
      * The comparator might need to reduce the {@link DelayedBucket} and therefore we need to provide the
      * reducer and the reduce context.The context must be on the final reduce phase.
      */
-    public abstract <B extends InternalMultiBucketAggregation.InternalBucket> Comparator<DelayedBucket<B>> delayedBucketComparator(
+    abstract <B extends InternalMultiBucketAggregation.InternalBucket> Comparator<DelayedBucket<B>> delayedBucketComparator(
         BiFunction<List<B>, AggregationReduceContext, B> reduce,
         AggregationReduceContext reduceContext
     );

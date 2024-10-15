@@ -235,7 +235,6 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
     }
 
     @TestIssueLogging(issueUrl = "https://github.com/elastic/elasticsearch/issues/101608", value = "com.amazonaws.request:DEBUG")
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/101608")
     public void testMetrics() throws Exception {
         // Create the repository and perform some activities
         final String repository = createRepository(randomRepositoryName(), false);
@@ -428,9 +427,21 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
         final BytesReference serialized = BytesReference.bytes(
             modifiedRepositoryData.snapshotsToXContent(XContentFactory.jsonBuilder(), SnapshotsService.OLD_SNAPSHOT_FORMAT)
         );
-        repository.blobStore()
-            .blobContainer(repository.basePath())
-            .writeBlobAtomic(randomNonDataPurpose(), getRepositoryDataBlobName(modifiedRepositoryData.getGenId()), serialized, true);
+        if (randomBoolean()) {
+            repository.blobStore()
+                .blobContainer(repository.basePath())
+                .writeBlobAtomic(randomNonDataPurpose(), getRepositoryDataBlobName(modifiedRepositoryData.getGenId()), serialized, true);
+        } else {
+            repository.blobStore()
+                .blobContainer(repository.basePath())
+                .writeBlobAtomic(
+                    randomNonDataPurpose(),
+                    getRepositoryDataBlobName(modifiedRepositoryData.getGenId()),
+                    serialized.streamInput(),
+                    serialized.length(),
+                    true
+                );
+        }
 
         final String newSnapshotName = "snapshot-new";
         final long beforeThrottledSnapshot = repository.threadPool().relativeTimeInNanos();

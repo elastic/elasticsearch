@@ -350,14 +350,18 @@ public class FsBlobContainerTests extends ESTestCase {
             BlobPath.EMPTY,
             path
         );
-        container.writeBlobAtomic(
-            randomNonDataPurpose(),
-            blobName,
-            new BytesArray(randomByteArrayOfLength(randomIntBetween(1, 512))),
-            true
-        );
+        final var randomData = new BytesArray(randomByteArrayOfLength(randomIntBetween(1, 512)));
+        if (randomBoolean()) {
+            container.writeBlobAtomic(randomNonDataPurpose(), blobName, randomData, true);
+        } else {
+            container.writeBlobAtomic(randomNonDataPurpose(), blobName, randomData.streamInput(), randomData.length(), true);
+        }
         final var blobData = new BytesArray(randomByteArrayOfLength(randomIntBetween(1, 512)));
-        container.writeBlobAtomic(randomNonDataPurpose(), blobName, blobData, false);
+        if (randomBoolean()) {
+            container.writeBlobAtomic(randomNonDataPurpose(), blobName, blobData, false);
+        } else {
+            container.writeBlobAtomic(randomNonDataPurpose(), blobName, blobData.streamInput(), blobData.length(), false);
+        }
         assertEquals(blobData, Streams.readFully(container.readBlob(randomPurpose(), blobName)));
         expectThrows(
             FileAlreadyExistsException.class,

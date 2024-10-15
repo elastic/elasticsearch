@@ -43,7 +43,7 @@ import static org.elasticsearch.transport.RemoteClusterPortSettings.REMOTE_CLUST
  * {@link SniffConnectionStrategy#REMOTE_CONNECTIONS_PER_CLUSTER} until either all eligible nodes are exhausted or the maximum number of
  * connections per cluster has been reached.
  */
-final class RemoteClusterConnection implements Closeable {
+public final class RemoteClusterConnection implements Closeable {
 
     private final TransportService transportService;
     private final RemoteConnectionManager remoteConnectionManager;
@@ -99,7 +99,7 @@ final class RemoteClusterConnection implements Closeable {
     /**
      * Returns whether this cluster is configured to be skipped when unavailable
      */
-    boolean isSkipUnavailable() {
+    public boolean isSkipUnavailable() {
         return skipUnavailable;
     }
 

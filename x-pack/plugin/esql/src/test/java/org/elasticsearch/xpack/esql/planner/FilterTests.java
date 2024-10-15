@@ -28,7 +28,6 @@ import org.elasticsearch.xpack.esql.core.util.Queries;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
-import org.elasticsearch.xpack.esql.io.stream.PlanNameRegistry;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
@@ -284,16 +283,14 @@ public class FilterTests extends ESTestCase {
             out.writeOptionalString(null);
             out.writeNamedWriteable(inner);
             out.writeString(field);
-            source.writeTo(new PlanStreamOutput(out, new PlanNameRegistry(), config));
+            source.writeTo(new PlanStreamOutput(out, config));
 
             StreamInput in = new NamedWriteableAwareStreamInput(
                 ByteBufferStreamInput.wrap(BytesReference.toBytes(out.bytes())),
                 SerializationTestUtils.writableRegistry()
             );
 
-            Object obj = SingleValueQuery.ENTRY.reader.read(
-                new PlanStreamInput(in, new PlanNameRegistry(), in.namedWriteableRegistry(), config)
-            );
+            Object obj = SingleValueQuery.ENTRY.reader.read(new PlanStreamInput(in, in.namedWriteableRegistry(), config));
             return (QueryBuilder) obj;
         } catch (IOException e) {
             throw new UncheckedIOException(e);

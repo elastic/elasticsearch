@@ -359,7 +359,10 @@ public class Netty4Transport extends TcpTransport {
         if (NetworkTraceFlag.TRACE_ENABLED) {
             pipeline.addLast("logging", ESLoggingHandler.INSTANCE);
         }
-        pipeline.addLast("chunked_writer", new Netty4WriteThrottlingHandler(getThreadPool().getThreadContext()));
+        pipeline.addLast(
+            "chunked_writer",
+            new Netty4WriteThrottlingHandler(getThreadPool().getThreadContext(), threadWatchdog.getActivityTrackerForCurrentThread())
+        );
         pipeline.addLast(
             "dispatcher",
             new Netty4MessageInboundHandler(
@@ -381,9 +384,9 @@ public class Netty4Transport extends TcpTransport {
     }
 
     private static void addClosedExceptionLogger(Channel channel) {
-        channel.closeFuture().addListener(f -> {
-            if (f.isSuccess() == false) {
-                logger.debug(() -> format("exception while closing channel: %s", channel), f.cause());
+        Netty4Utils.addListener(channel.closeFuture(), channelFuture -> {
+            if (channelFuture.isSuccess() == false && logger.isDebugEnabled()) {
+                logger.debug(format("exception while closing channel: %s", channelFuture.channel()), channelFuture.cause());
             }
         });
     }

@@ -12,6 +12,7 @@ package org.elasticsearch.system.indices;
 
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.settings.SecureString;
@@ -40,7 +41,9 @@ public class NetNewSystemIndicesIT extends ESRestTestCase {
         );
         assertThat(EntityUtils.toString(e.getResponse().getEntity()), containsString("system"));
 
-        Response response = client().performRequest(new Request("PUT", "/_net_new_sys_index/_create"));
+        var request = new Request("PUT", "/_net_new_sys_index/_create");
+        request.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("X-elastic-product-origin", "elastic"));
+        Response response = client().performRequest(request);
         assertThat(response.getStatusLine().getStatusCode(), is(200));
     }
 
@@ -56,6 +59,7 @@ public class NetNewSystemIndicesIT extends ESRestTestCase {
 
         Request request = new Request("PUT", "/_net_new_sys_index/" + id);
         request.setJsonEntity("{}");
+        request.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("X-elastic-product-origin", "elastic"));
         Response response = client().performRequest(request);
         assertThat(response.getStatusLine().getStatusCode(), is(200));
     }
@@ -74,6 +78,7 @@ public class NetNewSystemIndicesIT extends ESRestTestCase {
         Request request = new Request("PUT", "/_net_new_sys_index/" + id);
         request.setJsonEntity("{}");
         request.addParameter("refresh", "true");
+        request.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("X-elastic-product-origin", "elastic"));
         Response response = client().performRequest(request);
         assertThat(response.getStatusLine().getStatusCode(), is(200));
 

@@ -179,7 +179,7 @@ public class TypeParsers {
 
     public static DateFormatter parseDateTimeFormatter(Object node) {
         if (node instanceof String) {
-            return DateFormatter.forPattern((String) node);
+            return DateFormatter.forPattern((String) node).withLocale(DateFieldMapper.DEFAULT_LOCALE);
         }
         throw new IllegalArgumentException("Invalid format: [" + node.toString() + "]: expected string value");
     }

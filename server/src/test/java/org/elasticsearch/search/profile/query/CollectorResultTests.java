@@ -11,6 +11,7 @@ package org.elasticsearch.search.profile.query;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
+import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -56,7 +57,7 @@ public class CollectorResultTests extends AbstractXContentSerializingTestCase<Co
     @Override
     protected CollectorResult doParseInstance(XContentParser parser) throws IOException {
         ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
-        CollectorResult result = CollectorResult.fromXContent(parser);
+        CollectorResult result = SearchResponseUtils.parseCollectorResult(parser);
         ensureExpectedToken(null, parser.nextToken(), parser);
         return result;
     }

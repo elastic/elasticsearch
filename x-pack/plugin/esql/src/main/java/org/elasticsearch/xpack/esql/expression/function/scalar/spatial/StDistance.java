@@ -30,7 +30,6 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 
 import java.io.IOException;
-import java.util.function.Function;
 
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
 import static org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesUtils.makeGeometryFromLiteral;
@@ -150,6 +149,14 @@ public class StDistance extends BinarySpatialFunction implements EvaluatorMapper
     }
 
     @Override
+    public StDistance withDocValues(boolean foundLeft, boolean foundRight) {
+        // Only update the docValues flags if the field is found in the attributes
+        boolean leftDV = leftDocValues || foundLeft;
+        boolean rightDV = rightDocValues || foundRight;
+        return new StDistance(source(), left(), right(), leftDV, rightDV);
+    }
+
+    @Override
     public String getWriteableName() {
         return ENTRY.name;
     }
@@ -177,9 +184,7 @@ public class StDistance extends BinarySpatialFunction implements EvaluatorMapper
     }
 
     @Override
-    public EvalOperator.ExpressionEvaluator.Factory toEvaluator(
-        Function<Expression, EvalOperator.ExpressionEvaluator.Factory> toEvaluator
-    ) {
+    public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         if (right().foldable()) {
             return toEvaluator(toEvaluator, left(), makeGeometryFromLiteral(right()), leftDocValues);
         } else if (left().foldable()) {
@@ -209,7 +214,7 @@ public class StDistance extends BinarySpatialFunction implements EvaluatorMapper
     }
 
     private EvalOperator.ExpressionEvaluator.Factory toEvaluator(
-        Function<Expression, EvalOperator.ExpressionEvaluator.Factory> toEvaluator,
+        ToEvaluator toEvaluator,
         Expression field,
         Geometry geometry,
         boolean docValues
@@ -222,7 +227,7 @@ public class StDistance extends BinarySpatialFunction implements EvaluatorMapper
     }
 
     private EvalOperator.ExpressionEvaluator.Factory toEvaluator(
-        Function<Expression, EvalOperator.ExpressionEvaluator.Factory> toEvaluator,
+        ToEvaluator toEvaluator,
         Expression field,
         Point point,
         boolean docValues

@@ -70,7 +70,3 @@ server/src/main/java/org/elasticsearch/threadpool @elastic/es-core-infra
 # Security
 x-pack/plugin/core/src/main/java/org/elasticsearch/xpack/core/security/authz/privilege @elastic/es-security
 x-pack/plugin/core/src/main/java/org/elasticsearch/xpack/core/security/authz/store/ReservedRolesStore.java @elastic/es-security
-
-# Analytical engine
-x-pack/plugin/esql @elastic/es-analytical-engine
-x-pack/plugin/esql-core @elastic/es-analytical-engine

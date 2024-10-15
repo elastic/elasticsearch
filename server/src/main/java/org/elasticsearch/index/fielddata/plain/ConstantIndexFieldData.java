@@ -113,9 +113,6 @@ public class ConstantIndexFieldData extends AbstractIndexOrdinalsFieldData {
             return DocValues.singleton(sortedValues);
         }
 
-        @Override
-        public void close() {}
-
     }
 
     private final ConstantLeafFieldData atomicFieldData;

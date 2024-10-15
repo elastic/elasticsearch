@@ -8,6 +8,8 @@
 package org.elasticsearch.xpack.inference.services.elasticsearch;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.TaskSettings;
@@ -19,7 +21,18 @@ import static org.elasticsearch.xpack.core.ml.inference.assignment.AllocationSta
 
 public abstract class ElasticsearchInternalModel extends Model {
 
-    protected final ElasticsearchInternalServiceSettings internalServiceSettings;
+    protected ElasticsearchInternalServiceSettings internalServiceSettings;
+
+    public ElasticsearchInternalModel(
+        String inferenceEntityId,
+        TaskType taskType,
+        String service,
+        ElasticsearchInternalServiceSettings internalServiceSettings,
+        ChunkingSettings chunkingSettings
+    ) {
+        super(new ModelConfigurations(inferenceEntityId, taskType, service, internalServiceSettings, chunkingSettings));
+        this.internalServiceSettings = internalServiceSettings;
+    }
 
     public ElasticsearchInternalModel(
         String inferenceEntityId,
@@ -42,6 +55,18 @@ public abstract class ElasticsearchInternalModel extends Model {
         this.internalServiceSettings = internalServiceSettings;
     }
 
+    public ElasticsearchInternalModel(
+        String inferenceEntityId,
+        TaskType taskType,
+        String service,
+        ElasticsearchInternalServiceSettings internalServiceSettings,
+        TaskSettings taskSettings,
+        ChunkingSettings chunkingSettings
+    ) {
+        super(new ModelConfigurations(inferenceEntityId, taskType, service, internalServiceSettings, taskSettings, chunkingSettings));
+        this.internalServiceSettings = internalServiceSettings;
+    }
+
     public StartTrainedModelDeploymentAction.Request getStartTrainedModelDeploymentActionRequest() {
         var startRequest = new StartTrainedModelDeploymentAction.Request(internalServiceSettings.modelId(), this.getInferenceEntityId());
         startRequest.setNumberOfAllocations(internalServiceSettings.getNumAllocations());
@@ -56,4 +81,23 @@ public abstract class ElasticsearchInternalModel extends Model {
         Model model,
         ActionListener<Boolean> listener
     );
+
+    @Override
+    public ElasticsearchInternalServiceSettings getServiceSettings() {
+        return (ElasticsearchInternalServiceSettings) super.getServiceSettings();
+    }
+
+    public void updateNumAllocation(Integer numAllocations) {
+        this.internalServiceSettings = new ElasticsearchInternalServiceSettings(
+            numAllocations,
+            this.internalServiceSettings.getNumThreads(),
+            this.internalServiceSettings.modelId(),
+            this.internalServiceSettings.getAdaptiveAllocationsSettings()
+        );
+    }
+
+    @Override
+    public String toString() {
+        return Strings.toString(this.getConfigurations());
+    }
 }

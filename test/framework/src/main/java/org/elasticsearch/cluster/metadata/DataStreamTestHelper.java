@@ -152,7 +152,7 @@ public final class DataStreamTestHelper {
             .setMetadata(metadata)
             .setReplicated(replicated)
             .setLifecycle(lifecycle)
-            .setFailureStoreEnabled(failureStores.isEmpty() == false)
+            .setDataStreamOptions(failureStores.isEmpty() ? DataStreamOptions.EMPTY : DataStreamOptions.FAILURE_STORE_ENABLED)
             .setFailureIndices(DataStream.DataStreamIndices.failureIndicesBuilder(failureStores).build())
             .build();
     }
@@ -348,7 +348,7 @@ public final class DataStreamTestHelper {
             randomBoolean(),
             randomBoolean() ? IndexMode.STANDARD : null, // IndexMode.TIME_SERIES triggers validation that many unit tests doesn't pass
             randomBoolean() ? DataStreamLifecycle.newBuilder().dataRetention(randomMillisUpToYear9999()).build() : null,
-            failureStore,
+            failureStore ? DataStreamOptions.FAILURE_STORE_ENABLED : DataStreamOptions.EMPTY,
             DataStream.DataStreamIndices.backingIndicesBuilder(indices)
                 .setRolloverOnWrite(replicated == false && randomBoolean())
                 .setAutoShardingEvent(

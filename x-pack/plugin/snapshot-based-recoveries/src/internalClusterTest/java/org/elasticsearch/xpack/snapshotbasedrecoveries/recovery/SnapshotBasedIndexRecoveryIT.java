@@ -623,7 +623,7 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
 
                 assertAcked(indicesAdmin().prepareDelete(indexName).get());
 
-                assertBusy(mockLog::assertAllExpectationsMatched);
+                mockLog.awaitAllExpectationsMatched();
             }
 
             respondToRecoverSnapshotFile.countDown();

@@ -32,6 +32,9 @@ public interface LeafFieldData extends Accountable, Releasable {
      */
     SortedBinaryDocValues getBytesValues();
 
+    @Override
+    default void close() {}
+
     /**
      * Return a formatted representation of the values
      */

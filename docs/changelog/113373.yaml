@@ -1,0 +1,6 @@
+pr: 113373
+summary: Implement `parseBytesRef` for `TimeSeriesRoutingHashFieldType`
+area: TSDB
+type: bug
+issues:
+ - 112399

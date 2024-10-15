@@ -31,24 +31,16 @@ import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
-public class UpdatePersistentTaskStatusAction extends ActionType<PersistentTaskResponse> {
+public class UpdatePersistentTaskStatusAction {
 
-    public static final UpdatePersistentTaskStatusAction INSTANCE = new UpdatePersistentTaskStatusAction();
-    public static final String NAME = "cluster:admin/persistent/update_status";
+    public static final ActionType<PersistentTaskResponse> INSTANCE = new ActionType<>("cluster:admin/persistent/update_status");
 
-    private UpdatePersistentTaskStatusAction() {
-        super(NAME);
-    }
+    private UpdatePersistentTaskStatusAction() {/* no instances */}
 
     public static class Request extends MasterNodeRequest<Request> {
-
-        private String taskId;
-        private long allocationId = -1L;
-        private PersistentTaskState state;
-
-        public Request() {
-            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
-        }
+        private final String taskId;
+        private final long allocationId;
+        private final PersistentTaskState state;
 
         public Request(StreamInput in) throws IOException {
             super(in);
@@ -64,24 +56,12 @@ public class UpdatePersistentTaskStatusAction extends ActionType<PersistentTaskR
             this.state = state;
         }
 
-        public void setTaskId(String taskId) {
-            this.taskId = taskId;
-        }
-
         public String getTaskId() {
             return taskId;
         }
 
-        public void setAllocationId(long allocationId) {
-            this.allocationId = allocationId;
-        }
-
         public long getAllocationId() {
             return allocationId;
-        }
-
-        public void setState(PersistentTaskState state) {
-            this.state = state;
         }
 
         public PersistentTaskState getState() {
@@ -138,7 +118,7 @@ public class UpdatePersistentTaskStatusAction extends ActionType<PersistentTaskR
             IndexNameExpressionResolver indexNameExpressionResolver
         ) {
             super(
-                UpdatePersistentTaskStatusAction.NAME,
+                INSTANCE.name(),
                 transportService,
                 clusterService,
                 threadPool,

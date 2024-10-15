@@ -87,10 +87,6 @@ public class Netty4HttpRequestBodyStream implements HttpBody.Stream {
                 send();
             }
         }
-        if (hasLast) {
-            channel.config().setAutoRead(true);
-            channel.closeFuture().removeListener(closeListener);
-        }
     }
 
     // adds chunk to current buffer, will allocate composite buffer when need to hold more than 1 chunk
@@ -133,6 +129,10 @@ public class Netty4HttpRequestBodyStream implements HttpBody.Stream {
             tracer.onNext(bytesRef, hasLast);
         }
         handler.onNext(bytesRef, hasLast);
+        if (hasLast) {
+            channel.config().setAutoRead(true);
+            channel.closeFuture().removeListener(closeListener);
+        }
     }
 
     @Override

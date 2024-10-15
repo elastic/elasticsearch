@@ -131,6 +131,16 @@ public class ThreadWatchdog {
             assert isIdle(prevValue) : "thread [" + trackedThread.getName() + "] was already active";
         }
 
+        public boolean maybeStartActivity() {
+            assert trackedThread == Thread.currentThread() : trackedThread.getName() + " vs " + Thread.currentThread().getName();
+            if (isIdle(get())) {
+                getAndIncrement();
+                return true;
+            } else {
+                return false;
+            }
+        }
+
         public void stopActivity() {
             assert trackedThread == Thread.currentThread() : trackedThread.getName() + " vs " + Thread.currentThread().getName();
             final var prevValue = getAndIncrement();

@@ -15,16 +15,16 @@ import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.expression.function.Warnings;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link Split}.
  * This class is generated. Do not edit it.
  */
 public final class SplitVariableEvaluator implements EvalOperator.ExpressionEvaluator {
-  private final Warnings warnings;
+  private final Source source;
 
   private final EvalOperator.ExpressionEvaluator str;
 
@@ -34,13 +34,15 @@ public final class SplitVariableEvaluator implements EvalOperator.ExpressionEval
 
   private final DriverContext driverContext;
 
+  private Warnings warnings;
+
   public SplitVariableEvaluator(Source source, EvalOperator.ExpressionEvaluator str,
       EvalOperator.ExpressionEvaluator delim, BytesRef scratch, DriverContext driverContext) {
+    this.source = source;
     this.str = str;
     this.delim = delim;
     this.scratch = scratch;
     this.driverContext = driverContext;
-    this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
   }
 
   @Override
@@ -71,7 +73,7 @@ public final class SplitVariableEvaluator implements EvalOperator.ExpressionEval
         }
         if (strBlock.getValueCount(p) != 1) {
           if (strBlock.getValueCount(p) > 1) {
-            warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+            warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
           }
           result.appendNull();
           continue position;
@@ -82,7 +84,7 @@ public final class SplitVariableEvaluator implements EvalOperator.ExpressionEval
         }
         if (delimBlock.getValueCount(p) != 1) {
           if (delimBlock.getValueCount(p) > 1) {
-            warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+            warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
           }
           result.appendNull();
           continue position;
@@ -113,6 +115,18 @@ public final class SplitVariableEvaluator implements EvalOperator.ExpressionEval
   @Override
   public void close() {
     Releasables.closeExpectNoException(str, delim);
+  }
+
+  private Warnings warnings() {
+    if (warnings == null) {
+      this.warnings = Warnings.createWarnings(
+              driverContext.warningsMode(),
+              source.source().getLineNumber(),
+              source.source().getColumnNumber(),
+              source.text()
+          );
+    }
+    return warnings;
   }
 
   static class Factory implements EvalOperator.ExpressionEvaluator.Factory {

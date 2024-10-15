@@ -310,7 +310,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         }
     }
 
-    private void mergeIndexResponses(
+    private static void mergeIndexResponses(
         FieldCapabilitiesRequest request,
         CancellableTask task,
         Map<String, FieldCapabilitiesIndexResponse> indexResponses,
@@ -564,7 +564,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
 
     private class NodeTransportHandler implements TransportRequestHandler<FieldCapabilitiesNodeRequest> {
         @Override
-        public void messageReceived(FieldCapabilitiesNodeRequest request, TransportChannel channel, Task task) throws Exception {
+        public void messageReceived(FieldCapabilitiesNodeRequest request, TransportChannel channel, Task task) {
             assert task instanceof CancellableTask;
             final ActionListener<FieldCapabilitiesNodeResponse> listener = new ChannelActionListener<>(channel);
             ActionListener.completeWith(listener, () -> {

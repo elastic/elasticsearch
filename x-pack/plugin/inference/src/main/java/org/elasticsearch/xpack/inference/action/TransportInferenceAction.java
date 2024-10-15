@@ -17,6 +17,8 @@ import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceRegistry;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.Model;
+import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.inference.UnparsedModel;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
@@ -26,9 +28,16 @@ import org.elasticsearch.xpack.inference.action.task.StreamingTaskManager;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 import org.elasticsearch.xpack.inference.telemetry.InferenceStats;
 
+import java.util.Set;
+import java.util.stream.Collectors;
+
+import static org.elasticsearch.core.Strings.format;
+
 public class TransportInferenceAction extends HandledTransportAction<InferenceAction.Request, InferenceAction.Response> {
     private static final String STREAMING_INFERENCE_TASK_TYPE = "streaming_inference";
     private static final String STREAMING_TASK_ACTION = "xpack/inference/streaming_inference[n]";
+
+    private static final Set<Class<? extends InferenceService>> supportsStreaming = Set.of();
 
     private final ModelRegistry modelRegistry;
     private final InferenceServiceRegistry serviceRegistry;
@@ -54,30 +63,16 @@ public class TransportInferenceAction extends HandledTransportAction<InferenceAc
     @Override
     protected void doExecute(Task task, InferenceAction.Request request, ActionListener<InferenceAction.Response> listener) {
 
-        ActionListener<ModelRegistry.UnparsedModel> getModelListener = listener.delegateFailureAndWrap((delegate, unparsedModel) -> {
+        ActionListener<UnparsedModel> getModelListener = listener.delegateFailureAndWrap((delegate, unparsedModel) -> {
             var service = serviceRegistry.getService(unparsedModel.service());
             if (service.isEmpty()) {
-                delegate.onFailure(
-                    new ElasticsearchStatusException(
-                        "Unknown service [{}] for model [{}]. ",
-                        RestStatus.INTERNAL_SERVER_ERROR,
-                        unparsedModel.service(),
-                        unparsedModel.inferenceEntityId()
-                    )
-                );
+                listener.onFailure(unknownServiceException(unparsedModel.service(), request.getInferenceEntityId()));
                 return;
             }
 
             if (request.getTaskType().isAnyOrSame(unparsedModel.taskType()) == false) {
                 // not the wildcard task type and not the model task type
-                delegate.onFailure(
-                    new ElasticsearchStatusException(
-                        "Incompatible task_type, the requested type [{}] does not match the model type [{}]",
-                        RestStatus.BAD_REQUEST,
-                        request.getTaskType(),
-                        unparsedModel.taskType()
-                    )
-                );
+                listener.onFailure(incompatibleTaskTypeException(request.getTaskType(), unparsedModel.taskType()));
                 return;
             }
 
@@ -88,7 +83,6 @@ public class TransportInferenceAction extends HandledTransportAction<InferenceAc
                     unparsedModel.settings(),
                     unparsedModel.secrets()
                 );
-            inferenceStats.incrementRequestCount(model);
             inferOnService(model, request, service.get(), delegate);
         });
 
@@ -101,15 +95,42 @@ public class TransportInferenceAction extends HandledTransportAction<InferenceAc
         InferenceService service,
         ActionListener<InferenceAction.Response> listener
     ) {
-        service.infer(
-            model,
-            request.getQuery(),
-            request.getInput(),
-            request.getTaskSettings(),
-            request.getInputType(),
-            request.getInferenceTimeout(),
-            createListener(request, listener)
-        );
+        if (request.isStreaming() == false || service.canStream(request.getTaskType())) {
+            inferenceStats.incrementRequestCount(model);
+            service.infer(
+                model,
+                request.getQuery(),
+                request.getInput(),
+                request.isStreaming(),
+                request.getTaskSettings(),
+                request.getInputType(),
+                request.getInferenceTimeout(),
+                createListener(request, listener)
+            );
+        } else {
+            listener.onFailure(unsupportedStreamingTaskException(request, service));
+        }
+    }
+
+    private ElasticsearchStatusException unsupportedStreamingTaskException(InferenceAction.Request request, InferenceService service) {
+        var supportedTasks = service.supportedStreamingTasks();
+        if (supportedTasks.isEmpty()) {
+            return new ElasticsearchStatusException(
+                format("Streaming is not allowed for service [%s].", service.name()),
+                RestStatus.METHOD_NOT_ALLOWED
+            );
+        } else {
+            var validTasks = supportedTasks.stream().map(TaskType::toString).collect(Collectors.joining(","));
+            return new ElasticsearchStatusException(
+                format(
+                    "Streaming is not allowed for service [%s] and task [%s]. Supported tasks: [%s]",
+                    service.name(),
+                    request.getTaskType(),
+                    validTasks
+                ),
+                RestStatus.METHOD_NOT_ALLOWED
+            );
+        }
     }
 
     private ActionListener<InferenceServiceResults> createListener(
@@ -118,19 +139,25 @@ public class TransportInferenceAction extends HandledTransportAction<InferenceAc
     ) {
         if (request.isStreaming()) {
             return listener.delegateFailureAndWrap((l, inferenceResults) -> {
-                if (inferenceResults.isStreaming()) {
-                    var taskProcessor = streamingTaskManager.<ChunkedToXContent>create(
-                        STREAMING_INFERENCE_TASK_TYPE,
-                        STREAMING_TASK_ACTION
-                    );
-                    inferenceResults.publisher().subscribe(taskProcessor);
-                    l.onResponse(new InferenceAction.Response(inferenceResults, taskProcessor));
-                } else {
-                    // if we asked for streaming but the provider doesn't support it, for now we're going to get back the single response
-                    l.onResponse(new InferenceAction.Response(inferenceResults));
-                }
+                var taskProcessor = streamingTaskManager.<ChunkedToXContent>create(STREAMING_INFERENCE_TASK_TYPE, STREAMING_TASK_ACTION);
+                inferenceResults.publisher().subscribe(taskProcessor);
+                l.onResponse(new InferenceAction.Response(inferenceResults, taskProcessor));
             });
         }
         return listener.delegateFailureAndWrap((l, inferenceResults) -> l.onResponse(new InferenceAction.Response(inferenceResults)));
-    };
+    }
+
+    private static ElasticsearchStatusException unknownServiceException(String service, String inferenceId) {
+        return new ElasticsearchStatusException("Unknown service [{}] for model [{}]. ", RestStatus.BAD_REQUEST, service, inferenceId);
+    }
+
+    private static ElasticsearchStatusException incompatibleTaskTypeException(TaskType requested, TaskType expected) {
+        return new ElasticsearchStatusException(
+            "Incompatible task_type, the requested type [{}] does not match the model type [{}]",
+            RestStatus.BAD_REQUEST,
+            requested,
+            expected
+        );
+    }
+
 }

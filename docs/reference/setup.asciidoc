@@ -27,6 +27,8 @@ the only resource-intensive application on the host or container. For example,
 you might run {metricbeat} alongside {es} for cluster statistics, but a
 resource-heavy {ls} deployment should be on its own host.
 
+include::run-elasticsearch-locally.asciidoc[]
+
 include::setup/install.asciidoc[]
 
 include::setup/configuration.asciidoc[]

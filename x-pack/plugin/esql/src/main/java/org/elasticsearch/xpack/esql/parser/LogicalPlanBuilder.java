@@ -27,7 +27,6 @@ import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedStar;
-import org.elasticsearch.xpack.esql.core.expression.predicate.fulltext.StringQueryPredicate;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Holder;
@@ -54,7 +53,6 @@ import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
-import org.elasticsearch.xpack.esql.plan.logical.meta.MetaFunctions;
 import org.elasticsearch.xpack.esql.plan.logical.show.ShowInfo;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.joni.exception.SyntaxException;
@@ -71,6 +69,7 @@ import java.util.Set;
 import java.util.function.Function;
 
 import static org.elasticsearch.common.logging.HeaderWarning.addWarning;
+import static org.elasticsearch.xpack.esql.core.util.StringUtils.WILDCARD;
 import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputExpressions;
 import static org.elasticsearch.xpack.esql.parser.ParserUtils.source;
 import static org.elasticsearch.xpack.esql.parser.ParserUtils.typedParsing;
@@ -299,13 +298,12 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         return input -> new Aggregate(source(ctx), input, Aggregate.AggregateType.STANDARD, stats.groupings, stats.aggregates);
     }
 
-    private record Stats(List<Expression> groupings, List<? extends NamedExpression> aggregates) {
+    private record Stats(List<Expression> groupings, List<? extends NamedExpression> aggregates) {}
 
-    }
-
-    private Stats stats(Source source, EsqlBaseParser.FieldsContext groupingsCtx, EsqlBaseParser.FieldsContext aggregatesCtx) {
+    private Stats stats(Source source, EsqlBaseParser.FieldsContext groupingsCtx, EsqlBaseParser.AggFieldsContext aggregatesCtx) {
         List<NamedExpression> groupings = visitGrouping(groupingsCtx);
-        List<NamedExpression> aggregates = new ArrayList<>(visitFields(aggregatesCtx));
+        List<NamedExpression> aggregates = new ArrayList<>(visitAggFields(aggregatesCtx));
+
         if (aggregates.isEmpty() && groupings.isEmpty()) {
             throw new ParsingException(source, "At least one aggregation or grouping expression required in [{}]", source.text());
         }
@@ -342,9 +340,11 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         if (false == EsqlPlugin.INLINESTATS_FEATURE_FLAG.isEnabled()) {
             throw new ParsingException(source(ctx), "INLINESTATS command currently requires a snapshot build");
         }
-        List<NamedExpression> aggregates = new ArrayList<>(visitFields(ctx.stats));
+        List<Alias> aggFields = visitAggFields(ctx.stats);
+        List<NamedExpression> aggregates = new ArrayList<>(aggFields);
         List<NamedExpression> groupings = visitGrouping(ctx.grouping);
         aggregates.addAll(groupings);
+        // TODO: add support for filters
         return input -> new InlineStats(source(ctx), input, new ArrayList<>(groupings), aggregates);
     }
 
@@ -352,23 +352,6 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     public PlanFactory visitWhereCommand(EsqlBaseParser.WhereCommandContext ctx) {
         Expression expression = expression(ctx.booleanExpression());
         return input -> new Filter(source(ctx), input, expression);
-    }
-
-    @Override
-    public PlanFactory visitMatchCommand(EsqlBaseParser.MatchCommandContext ctx) {
-        if (Build.current().isSnapshot() == false) {
-            throw new ParsingException(source(ctx), "MATCH command currently requires a snapshot build");
-        }
-
-        StringQueryPredicate stringQueryPredicate = visitMatchQuery(ctx.matchQuery());
-        return input -> new Filter(source(ctx), input, stringQueryPredicate);
-    }
-
-    @Override
-    public StringQueryPredicate visitMatchQuery(EsqlBaseParser.MatchQueryContext ctx) {
-        Source source = source(ctx);
-        String queryString = unquote(ctx.QUOTED_STRING().getText());
-        return new StringQueryPredicate(source, queryString, null);
     }
 
     @Override
@@ -431,11 +414,6 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     }
 
     @Override
-    public LogicalPlan visitMetaFunctions(EsqlBaseParser.MetaFunctionsContext ctx) {
-        return new MetaFunctions(source(ctx));
-    }
-
-    @Override
     public PlanFactory visitEnrichCommand(EsqlBaseParser.EnrichCommandContext ctx) {
         return p -> {
             var source = source(ctx);
@@ -444,8 +422,11 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             String policyNameString = tuple.v2();
 
             NamedExpression matchField = ctx.ON() != null ? visitQualifiedNamePattern(ctx.matchField) : new EmptyAttribute(source);
-            if (matchField instanceof UnresolvedNamePattern up) {
-                throw new ParsingException(source, "Using wildcards [*] in ENRICH WITH projections is not allowed [{}]", up.pattern());
+            String patternString = matchField instanceof UnresolvedNamePattern up ? up.pattern()
+                : matchField instanceof UnresolvedStar ? WILDCARD
+                : null;
+            if (patternString != null) {
+                throw new ParsingException(source, "Using wildcards [*] in ENRICH WITH projections is not allowed [{}]", patternString);
             }
 
             List<NamedExpression> keepClauses = visitList(this, ctx.enrichWithClause(), NamedExpression.class);

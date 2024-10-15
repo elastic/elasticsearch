@@ -7,8 +7,11 @@
 
 package org.elasticsearch.compute.aggregation;
 
-$if(Ip)$
+$if(BytesRef || Ip)$
 import org.apache.lucene.util.BytesRef;
+$endif$
+$if(BytesRef)$
+import org.elasticsearch.common.breaker.CircuitBreaker;
 $endif$
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.ann.Aggregator;
@@ -49,7 +52,7 @@ class Top$Name$Aggregator {
     public static void combineIntermediate(SingleState state, $Type$Block values) {
         int start = values.getFirstValueIndex(0);
         int end = start + values.getValueCount(0);
-$if(Ip)$
+$if(BytesRef || Ip)$
         var scratch = new BytesRef();
         for (int i = start; i < end; i++) {
             combine(state, values.get$Type$(i, scratch));
@@ -76,7 +79,7 @@ $endif$
     public static void combineIntermediate(GroupingState state, int groupId, $Type$Block values, int valuesPosition) {
         int start = values.getFirstValueIndex(valuesPosition);
         int end = start + values.getValueCount(valuesPosition);
-$if(Ip)$
+$if(BytesRef || Ip)$
         var scratch = new BytesRef();
         for (int i = start; i < end; i++) {
             combine(state, groupId, values.get$Type$(i, scratch));
@@ -100,7 +103,13 @@ $endif$
         private final $Name$BucketedSort sort;
 
         private GroupingState(BigArrays bigArrays, int limit, boolean ascending) {
+$if(BytesRef)$
+            // TODO pass the breaker in from the DriverContext
+            CircuitBreaker breaker = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
+            this.sort = new BytesRefBucketedSort(breaker, "top", bigArrays, ascending ? SortOrder.ASC : SortOrder.DESC, limit);
+$else$
             this.sort = new $Name$BucketedSort(bigArrays, ascending ? SortOrder.ASC : SortOrder.DESC, limit);
+$endif$
         }
 
         public void add(int groupId, $type$ value) {

@@ -160,7 +160,7 @@ public class SingleNodeDiscoveryIT extends ESIntegTestCase {
             other.beforeTest(random());
             final ClusterState first = internalCluster().getInstance(ClusterService.class).state();
             assertThat(first.nodes().getSize(), equalTo(1));
-            assertBusy(mockLog::assertAllExpectationsMatched);
+            mockLog.awaitAllExpectationsMatched();
         } finally {
             other.close();
         }

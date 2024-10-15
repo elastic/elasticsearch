@@ -146,7 +146,8 @@ public class AzureAiStudioEmbeddingsServiceSettings extends AzureAiStudioService
         return similarity;
     }
 
-    public boolean dimensionsSetByUser() {
+    @Override
+    public Boolean dimensionsSetByUser() {
         return this.dimensionsSetByUser;
     }
 

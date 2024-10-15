@@ -13,6 +13,8 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.en.EnglishAnalyzer;
 import org.elasticsearch.test.ESTokenStreamTestCase;
 
+import static org.apache.lucene.tests.analysis.BaseTokenStreamTestCase.assertAnalyzesTo;
+
 public class SnowballAnalyzerTests extends ESTokenStreamTestCase {
 
     public void testEnglish() throws Exception {

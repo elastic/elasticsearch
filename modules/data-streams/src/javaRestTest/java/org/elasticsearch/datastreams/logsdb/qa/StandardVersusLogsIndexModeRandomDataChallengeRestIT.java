@@ -26,8 +26,12 @@ public class StandardVersusLogsIndexModeRandomDataChallengeRestIT extends Standa
     protected final DataGenerationHelper dataGenerationHelper;
 
     public StandardVersusLogsIndexModeRandomDataChallengeRestIT() {
+        this(new DataGenerationHelper());
+    }
+
+    protected StandardVersusLogsIndexModeRandomDataChallengeRestIT(DataGenerationHelper dataGenerationHelper) {
         super();
-        dataGenerationHelper = new DataGenerationHelper();
+        this.dataGenerationHelper = dataGenerationHelper;
     }
 
     @Override

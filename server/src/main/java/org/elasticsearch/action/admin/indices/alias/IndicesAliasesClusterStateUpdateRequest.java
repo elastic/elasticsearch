@@ -9,32 +9,25 @@
 package org.elasticsearch.action.admin.indices.alias;
 
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesResponse.AliasActionResult;
-import org.elasticsearch.cluster.ack.ClusterStateUpdateRequest;
 import org.elasticsearch.cluster.metadata.AliasAction;
+import org.elasticsearch.core.TimeValue;
 
 import java.util.List;
+import java.util.Objects;
 
 /**
  * Cluster state update request that allows to add or remove aliases
  */
-public class IndicesAliasesClusterStateUpdateRequest extends ClusterStateUpdateRequest<IndicesAliasesClusterStateUpdateRequest> {
-    private final List<AliasAction> actions;
-
-    private final List<IndicesAliasesResponse.AliasActionResult> actionResults;
-
-    public IndicesAliasesClusterStateUpdateRequest(List<AliasAction> actions, List<AliasActionResult> actionResults) {
-        this.actions = actions;
-        this.actionResults = actionResults;
-    }
-
-    /**
-     * Returns the alias actions to be performed
-     */
-    public List<AliasAction> actions() {
-        return actions;
-    }
-
-    public List<AliasActionResult> getActionResults() {
-        return actionResults;
+public record IndicesAliasesClusterStateUpdateRequest(
+    TimeValue masterNodeTimeout,
+    TimeValue ackTimeout,
+    List<AliasAction> actions,
+    List<AliasActionResult> actionResults
+) {
+    public IndicesAliasesClusterStateUpdateRequest {
+        Objects.requireNonNull(masterNodeTimeout);
+        Objects.requireNonNull(ackTimeout);
+        Objects.requireNonNull(actions);
+        Objects.requireNonNull(actionResults);
     }
 }

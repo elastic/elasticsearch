@@ -15,6 +15,10 @@ import java.util.function.BiFunction;
 /**
  * A wrapper around reducing buckets with the same key that can delay that reduction
  * as long as possible. It's stateful and not even close to thread safe.
+ * <p>
+ * It is responsibility of the caller to account for buckets created using DelayedBucket.
+ * It should call {@link #nonCompetitive} to release any possible sub-bucket creation if
+ * a bucket is rejected from the final response.
  */
 public final class DelayedBucket<B extends InternalMultiBucketAggregation.InternalBucket> {
     /**
@@ -45,7 +49,6 @@ public final class DelayedBucket<B extends InternalMultiBucketAggregation.Intern
      */
     public B reduced(BiFunction<List<B>, AggregationReduceContext, B> reduce, AggregationReduceContext reduceContext) {
         if (reduced == null) {
-            reduceContext.consumeBucketsAndMaybeBreak(1);
             reduced = reduce.apply(toReduce, reduceContext);
             toReduce = null;
         }
@@ -95,8 +98,8 @@ public final class DelayedBucket<B extends InternalMultiBucketAggregation.Intern
      */
     void nonCompetitive(AggregationReduceContext reduceContext) {
         if (reduced != null) {
-            // -1 for itself, -countInnerBucket for all the sub-buckets.
-            reduceContext.consumeBucketsAndMaybeBreak(-1 - InternalMultiBucketAggregation.countInnerBucket(reduced));
+            // -countInnerBucket for all the sub-buckets.
+            reduceContext.consumeBucketsAndMaybeBreak(-InternalMultiBucketAggregation.countInnerBucket(reduced));
         }
     }
 }

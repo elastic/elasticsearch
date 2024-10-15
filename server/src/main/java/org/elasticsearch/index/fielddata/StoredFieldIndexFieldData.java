@@ -105,9 +105,6 @@ public abstract class StoredFieldIndexFieldData<T> implements IndexFieldData<Sto
         }
 
         @Override
-        public void close() {}
-
-        @Override
         public SortedBinaryDocValues getBytesValues() {
             throw new IllegalArgumentException("not supported for source fallback");
         }

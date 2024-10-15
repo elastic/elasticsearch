@@ -25,7 +25,6 @@ import org.elasticsearch.client.ResponseListener;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -34,7 +33,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
-import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.inference.InferenceServiceResults;
@@ -47,6 +45,9 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
+import org.elasticsearch.xpack.inference.external.response.streaming.ServerSentEvent;
+import org.elasticsearch.xpack.inference.external.response.streaming.ServerSentEventField;
+import org.elasticsearch.xpack.inference.external.response.streaming.ServerSentEventParser;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -59,7 +60,6 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Flow;
 import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Predicate;
@@ -80,9 +80,7 @@ public class ServerSentEventsRestActionListenerTests extends ESIntegTestCase {
     private static final String NO_STREAM_ROUTE = "/_inference_no_stream";
     private static final Exception expectedException = new IllegalStateException("hello there");
     private static final String expectedExceptionAsServerSentEvent = """
-        \uFEFF\
-        event: error
-        data: {\
+        {\
         "error":{"root_cause":[{"type":"illegal_state_exception","reason":"hello there",\
         "caused_by":{"type":"illegal_state_exception","reason":"hello there"}}],\
         "type":"illegal_state_exception","reason":"hello there"},"status":500\
@@ -234,11 +232,7 @@ public class ServerSentEventsRestActionListenerTests extends ESIntegTestCase {
         @Override
         public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
             var randomString = randomUnicodeOfLengthBetween(2, 20);
-            return Iterators.concat(
-                ChunkedToXContentHelper.startObject(),
-                ChunkedToXContentHelper.field("delta", randomString),
-                ChunkedToXContentHelper.endObject()
-            );
+            return ChunkedToXContent.builder(params).object(b -> b.field("delta", randomString));
         }
     }
 
@@ -271,7 +265,7 @@ public class ServerSentEventsRestActionListenerTests extends ESIntegTestCase {
 
         @Override
         public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
-            return ChunkedToXContentHelper.field("result", randomUnicodeOfLengthBetween(2, 20));
+            return ChunkedToXContent.builder(params).field("result", randomUnicodeOfLengthBetween(2, 20));
         }
     }
 
@@ -323,30 +317,16 @@ public class ServerSentEventsRestActionListenerTests extends ESIntegTestCase {
     }
 
     private static class RandomStringCollector {
-        private static final Pattern jsonPattern = Pattern.compile("^\uFEFFevent: message\ndata: \\{.*}$");
-        private static final Pattern endPattern = Pattern.compile("^\uFEFFevent: message\ndata: \\[DONE\\]$");
-        private final AtomicBoolean hasDoneChunk = new AtomicBoolean(false);
         private final Deque<String> stringsVerified = new LinkedBlockingDeque<>();
-        private volatile String previousTokens = "";
+        private final ServerSentEventParser sseParser = new ServerSentEventParser();
 
         private void collect(String str) throws IOException {
-            str = previousTokens + str;
-            String[] events = str.split("\n\n", -1);
-            for (var i = 0; i < events.length - 1; i++) {
-                var line = events[i];
-                if (jsonPattern.matcher(line).matches() || expectedExceptionAsServerSentEvent.equals(line)) {
-                    stringsVerified.offer(line);
-                } else if (endPattern.matcher(line).matches()) {
-                    hasDoneChunk.set(true);
-                } else {
-                    throw new IOException("Line does not match expected JSON message or DONE message. Line: " + line);
-                }
-            }
-
-            previousTokens = events[events.length - 1];
-            if (endPattern.matcher(previousTokens.trim()).matches()) {
-                hasDoneChunk.set(true);
-            }
+            sseParser.parse(str.getBytes(StandardCharsets.UTF_8))
+                .stream()
+                .filter(event -> event.name() == ServerSentEventField.DATA)
+                .filter(ServerSentEvent::hasValue)
+                .map(ServerSentEvent::value)
+                .forEach(stringsVerified::offer);
         }
     }
 
@@ -363,8 +343,8 @@ public class ServerSentEventsRestActionListenerTests extends ESIntegTestCase {
 
         var response = callAsync(request);
         assertThat(response.getStatusLine().getStatusCode(), is(HttpStatus.SC_OK));
-        assertThat(collector.stringsVerified.size(), equalTo(expectedTestCount));
-        assertThat(collector.hasDoneChunk.get(), equalTo(true));
+        assertThat(collector.stringsVerified.size(), equalTo(expectedTestCount + 1)); // normal payload count + done byte
+        assertThat(collector.stringsVerified.peekLast(), equalTo("[DONE]"));
     }
 
     private Response callAsync(Request request) {
@@ -409,10 +389,9 @@ public class ServerSentEventsRestActionListenerTests extends ESIntegTestCase {
         } catch (ResponseException e) {
             var response = e.getResponse();
             assertThat(response.getStatusLine().getStatusCode(), is(HttpStatus.SC_INTERNAL_SERVER_ERROR));
-            assertThat(
-                EntityUtils.toString(response.getEntity(), StandardCharsets.UTF_8),
-                equalTo(expectedExceptionAsServerSentEvent + "\n\n")
-            );
+            assertThat(EntityUtils.toString(response.getEntity(), StandardCharsets.UTF_8), equalTo("""
+                \uFEFFevent: error
+                data:\s""" + expectedExceptionAsServerSentEvent + "\n\n"));
         }
     }
 
@@ -431,7 +410,7 @@ public class ServerSentEventsRestActionListenerTests extends ESIntegTestCase {
         var response = callAsync(request);
         assertThat(response.getStatusLine().getStatusCode(), is(HttpStatus.SC_OK)); // error still starts with 200-OK
         assertThat(collector.stringsVerified.size(), equalTo(expectedTestCount + 1)); // normal payload count + last error byte
-        assertThat("DONE chunk is not sent on error", collector.hasDoneChunk.get(), equalTo(false));
+        assertThat("DONE chunk is not sent on error", collector.stringsVerified.stream().anyMatch("[DONE]"::equals), equalTo(false));
         assertThat(collector.stringsVerified.getLast(), equalTo(expectedExceptionAsServerSentEvent));
     }
 

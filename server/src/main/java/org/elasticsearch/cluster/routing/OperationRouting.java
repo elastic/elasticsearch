@@ -32,6 +32,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.TransportVersions.FAST_REFRESH_RCO;
 import static org.elasticsearch.index.IndexSettings.INDEX_FAST_REFRESH_SETTING;
 
 public class OperationRouting {
@@ -305,8 +306,14 @@ public class OperationRouting {
     }
 
     public static boolean canSearchShard(ShardRouting shardRouting, ClusterState clusterState) {
+        // TODO: remove if and always return isSearchable (ES-9563)
         if (INDEX_FAST_REFRESH_SETTING.get(clusterState.metadata().index(shardRouting.index()).getSettings())) {
-            return shardRouting.isPromotableToPrimary();
+            // Until all the cluster is upgraded, we send searches/gets to the primary (even if it has been upgraded) to execute locally.
+            if (clusterState.getMinTransportVersion().onOrAfter(FAST_REFRESH_RCO)) {
+                return shardRouting.isSearchable();
+            } else {
+                return shardRouting.isPromotableToPrimary();
+            }
         } else {
             return shardRouting.isSearchable();
         }

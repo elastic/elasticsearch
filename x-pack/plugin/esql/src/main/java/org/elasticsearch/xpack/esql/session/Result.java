@@ -10,6 +10,8 @@ package org.elasticsearch.xpack.esql.session;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverProfile;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
@@ -25,5 +27,6 @@ import java.util.List;
  *                 are quite cheap to build, so we build them for all ESQL runs, regardless of if
  *                 users have asked for them. But we only include them in the results if users ask
  *                 for them.
+ * @param executionInfo Metadata about the execution of this query. Used for cross cluster queries.
  */
-public record Result(List<Attribute> schema, List<Page> pages, List<DriverProfile> profiles) {}
+public record Result(List<Attribute> schema, List<Page> pages, List<DriverProfile> profiles, @Nullable EsqlExecutionInfo executionInfo) {}

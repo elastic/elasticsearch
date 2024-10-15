@@ -202,7 +202,7 @@ matched_fields:: Combine matches on multiple fields to highlight a single field.
 This is most intuitive for multifields that analyze the same string in different
 ways. Valid for the `unified` and fvh` highlighters, but the behavior of this
 option is different for each highlighter.
-
++
 For the `unified` highlighter:
 
 - `matched_fields` array should **not** contain the original field that you want to highlight. The
@@ -213,6 +213,7 @@ without `offsets`, with or without `term_vectors`).
 - only the original field to which the matches are combined is loaded so only that field
 benefits from having `store` set to `yes`
 
++
 For the `fvh` highlighter:
 
 - `matched_fields` array may or may not contain the original field

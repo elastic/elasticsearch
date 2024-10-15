@@ -78,9 +78,7 @@ public final class UnsupportedAttribute extends FieldAttribute implements Unreso
             Source.readFrom((PlanStreamInput) in),
             ((PlanStreamInput) in).readCachedString(),
             in.getTransportVersion().onOrAfter(TransportVersions.ESQL_ES_FIELD_CACHED_SERIALIZATION)
-                || in.getTransportVersion().isPatchFrom(TransportVersions.ESQL_ATTRIBUTE_CACHED_SERIALIZATION_8_15)
-                    ? EsField.readFrom(in)
-                    : new UnsupportedEsField(in),
+                || in.getTransportVersion().isPatchFrom(TransportVersions.V_8_15_2) ? EsField.readFrom(in) : new UnsupportedEsField(in),
             in.readOptionalString(),
             NameId.readFrom((PlanStreamInput) in)
         );
@@ -92,7 +90,7 @@ public final class UnsupportedAttribute extends FieldAttribute implements Unreso
             Source.EMPTY.writeTo(out);
             ((PlanStreamOutput) out).writeCachedString(name());
             if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_ES_FIELD_CACHED_SERIALIZATION)
-                || out.getTransportVersion().isPatchFrom(TransportVersions.ESQL_ATTRIBUTE_CACHED_SERIALIZATION_8_15)) {
+                || out.getTransportVersion().isPatchFrom(TransportVersions.V_8_15_2)) {
                 field().writeTo(out);
             } else {
                 field().writeContent(out);

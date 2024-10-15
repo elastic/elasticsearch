@@ -195,7 +195,7 @@ The following parameters are accepted by `passthrough` fields:
     (Required) used for naming conflict resolution between pass-through fields. The field with the highest value wins.
     Accepts non-negative integer values.
 
-<<time_series_dimension,`time_series_dimension`>>::
+<<passthrough-dimensions,`time_series_dimension`>>::
 
     Whether or not to treat sub-fields as <<time-series-dimension,time-series dimensions>>.
     Accepts `false` (default) or `true`.

@@ -764,3 +764,47 @@ To resolve this error:
   path rather than the keystore file's path. For an example, see
   <<docker-keystore-bind-mount>>.
 . Retry the command.
+
+==== Updating or Upgrading the Elasticsearch version running on Docker
+Updating Elasticsearch running in a Docker container involves pulling the new Docker image and restarting the container with the new image.
+
+1. Pull the new version of the Elasticsearch Docker image from Elastic's Docker registry using the `docker pull` command. Replace `x.y.z` with the version number you want to update to.
+----
+   docker pull docker.elastic.co/elasticsearch/elasticsearch:x.y.z
+----
+
+2. Stop the currently running Elasticsearch container. Replace `container_name` with the name or ID of your Elasticsearch container.
+----
+   docker stop container_name
+----
+
+3. Once the container has stopped, remove it. This will not delete your data if you have correctly mapped your data directory to a volume outside of the container.
+----
+   docker rm container_name
+----
+
+4. Start a new container using the new image. Make sure to use the same volume mappings and configuration settings as the old container to ensure that your data and configuration are preserved. Replace `container_name` with the name you want for your new container.
+----
+   docker run --name container_name -p 9200:9200 -p 9300:9300 \
+   -e "discovery.type=single-node" \
+   -v path_to_data_volume:/usr/share/elasticsearch/data \
+   -v path_to_config_volume:/usr/share/elasticsearch/config \
+   docker.elastic.co/elasticsearch/elasticsearch:x.y.z
+----
+
+   Adjust the `-p` flags for port mappings, `-e` for environment variables, and `-v` for volume mappings as needed based on your setup.
+
+5. After the new container starts, verify that Elasticsearch is running the new version by querying the root URL of your Elasticsearch instance.
+----
+   curl http://localhost:9200
+   docker.elastic.co/elasticsearch/elasticsearch:x.y.z
+----
+
+   The response should show the version number of Elasticsearch that you updated to.
+
+**Important Notes**:
+- Always back up your data before performing an update, especially for production environments.
+- Review the Elasticsearch release notes for the new version to be aware of any breaking changes or required actions before or after the update.
+- If you're using custom plugins or configurations, ensure they are compatible with the new version and reapply them if necessary.
+- If you're running a cluster, you'll need to carefully plan the upgrade process to minimize downtime and ensure cluster stability. This often involves a rolling upgrade strategy.
+- When using a `docker-compose.yml` make sure to update the desired version in the configuration file or the environment variable.

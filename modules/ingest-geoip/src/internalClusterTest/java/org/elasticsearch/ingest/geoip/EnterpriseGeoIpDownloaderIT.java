@@ -99,11 +99,11 @@ public class EnterpriseGeoIpDownloaderIT extends ESIntegTestCase {
         waitAround();
         createPipeline(geoipPipelineName, "geoip", MAXMIND_DATABASE_TYPE, sourceField, targetField);
 
+        /*
+         * We know that the databases index has been populated (because we waited around, :wink:), but we don't know for sure that
+         * the databases have been pulled down and made available on all nodes. So we run these ingest-and-check steps in assertBusy blocks.
+         */
         assertBusy(() -> {
-            /*
-             * We know that the .geoip_databases index has been populated, but we don't know for sure that the database has been pulled
-             * down and made available on all nodes. So we run this ingest-and-check step in an assertBusy.
-             */
             logger.info("Ingesting a test document");
             String documentId = ingestDocument(indexName, geoipPipelineName, sourceField, "89.160.20.128");
             GetResponse getResponse = client().get(new GetRequest(indexName, documentId)).actionGet();

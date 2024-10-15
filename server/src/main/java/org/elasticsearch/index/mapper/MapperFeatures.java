@@ -25,7 +25,6 @@ public class MapperFeatures implements FeatureSpecification {
     @Override
     public Set<NodeFeature> getFeatures() {
         Set<NodeFeature> features = Set.of(
-            BWC_WORKAROUND_9_0,
             IgnoredSourceFieldMapper.TRACK_IGNORED_SOURCE,
             PassThroughObjectMapper.PASS_THROUGH_PRIORITY,
             RangeFieldMapper.NULL_VALUES_OFF_BY_ONE_FIX,

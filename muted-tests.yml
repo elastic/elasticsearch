@@ -413,6 +413,9 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/114775
 - class: org.elasticsearch.test.rest.ClientYamlTestSuiteIT
   issue: https://github.com/elastic/elasticsearch/issues/114787
+- class: org.elasticsearch.xpack.inference.rest.ServerSentEventsRestActionListenerTests
+  method: testNoStream
+  issue: https://github.com/elastic/elasticsearch/issues/114788
 
 # Examples:
 #

@@ -836,20 +836,26 @@ public class XContentMapValuesTests extends AbstractFilteringTestCase {
         }
     }
 
-    public void testInsertValueMixedDottedObjectNotation() throws IOException {
-        XContentBuilder builder = XContentFactory.jsonBuilder().startObject();
-        builder.startObject("foo").field("cat", "meow").endObject();
-        builder.field("foo.cat", "miau");
-        builder.endObject();
+    public void testInsertValueAmbiguousPath() throws IOException {
+        // Mixed dotted object notation
+        {
+            XContentBuilder builder = XContentFactory.jsonBuilder().startObject();
+            builder.startObject("foo").field("cat", "meow").endObject();
+            builder.field("foo.cat", "miau");
+            builder.endObject();
 
-        try (XContentParser parser = createParser(JsonXContent.jsonXContent, Strings.toString(builder))) {
-            Map<String, Object> map = parser.map();
-            IllegalArgumentException ex = assertThrows(
-                IllegalArgumentException.class,
-                () -> XContentMapValues.insertValue("foo.cat", map, "woof")
-            );
-            assertThat(ex.getMessage(), equalTo("Path [foo.cat] matches 2 values, it is ambiguous which value to replace"));
-            assertThat(map, equalTo(Map.of("foo", Map.of("cat", "meow"), "foo.cat", "miau")));
+            try (XContentParser parser = createParser(JsonXContent.jsonXContent, Strings.toString(builder))) {
+                Map<String, Object> map = parser.map();
+                IllegalArgumentException ex = assertThrows(
+                    IllegalArgumentException.class,
+                    () -> XContentMapValues.insertValue("foo.cat", map, "woof")
+                );
+                assertThat(
+                    ex.getMessage(),
+                    equalTo("Path [foo.cat] could be inserted in 2 distinct ways, it is ambiguous which one to use")
+                );
+                assertThat(map, equalTo(Map.of("foo", Map.of("cat", "meow"), "foo.cat", "miau")));
+            }
         }
     }
 
@@ -864,20 +870,15 @@ public class XContentMapValuesTests extends AbstractFilteringTestCase {
                 value = nextMap.get(pathElements[i]);
             } else if (nextLayer instanceof List<?> nextList) {
                 final String pathElement = pathElements[i];
-                List<?> values = nextList.stream()
-                    .flatMap(v -> {
-                        Stream.Builder<Object> streamBuilder = Stream.builder();
-                        if (v instanceof List<?> innerList) {
-                            traverseList(innerList, streamBuilder);
-                        } else {
-                            streamBuilder.add(v);
-                        }
-                        return streamBuilder.build();
-                    })
-                    .filter(v -> v instanceof Map<?, ?>)
-                    .map(v -> ((Map<?, ?>) v).get(pathElement))
-                    .filter(Objects::nonNull)
-                    .toList();
+                List<?> values = nextList.stream().flatMap(v -> {
+                    Stream.Builder<Object> streamBuilder = Stream.builder();
+                    if (v instanceof List<?> innerList) {
+                        traverseList(innerList, streamBuilder);
+                    } else {
+                        streamBuilder.add(v);
+                    }
+                    return streamBuilder.build();
+                }).filter(v -> v instanceof Map<?, ?>).map(v -> ((Map<?, ?>) v).get(pathElement)).filter(Objects::nonNull).toList();
 
                 if (values.isEmpty()) {
                     return null;

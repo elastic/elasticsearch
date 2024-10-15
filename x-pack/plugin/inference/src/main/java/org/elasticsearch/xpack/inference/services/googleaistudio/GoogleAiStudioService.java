@@ -26,8 +26,11 @@ import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.inference.chunking.ChunkingSettingsBuilder;
 import org.elasticsearch.xpack.inference.chunking.EmbeddingRequestChunker;
-import org.elasticsearch.xpack.inference.external.action.googleaistudio.GoogleAiStudioActionCreator;
+import org.elasticsearch.xpack.inference.external.action.SenderExecutableAction;
+import org.elasticsearch.xpack.inference.external.action.SingleInputSenderExecutableAction;
 import org.elasticsearch.xpack.inference.external.http.sender.DocumentsOnlyInput;
+import org.elasticsearch.xpack.inference.external.http.sender.GoogleAiStudioCompletionRequestManager;
+import org.elasticsearch.xpack.inference.external.http.sender.GoogleAiStudioEmbeddingsRequestManager;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
@@ -41,7 +44,9 @@ import org.elasticsearch.xpack.inference.services.validation.ModelValidatorBuild
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
+import static org.elasticsearch.xpack.inference.external.action.ActionUtils.constructFailedToSendRequestMessage;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInvalidModelException;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.parsePersistedConfigErrorMsg;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrDefaultEmpty;
@@ -211,6 +216,11 @@ public class GoogleAiStudioService extends SenderService {
     }
 
     @Override
+    public Set<TaskType> supportedStreamingTasks() {
+        return COMPLETION_ONLY;
+    }
+
+    @Override
     public void checkModelConfig(Model model, ActionListener<Model> listener) {
         // TODO: Remove this function once all services have been updated to use the new model validators
         ModelValidatorBuilder.buildModelValidator(model.getTaskType()).validate(this, model, listener);
@@ -246,16 +256,32 @@ public class GoogleAiStudioService extends SenderService {
         TimeValue timeout,
         ActionListener<InferenceServiceResults> listener
     ) {
-        if (model instanceof GoogleAiStudioModel == false) {
+        if (model instanceof GoogleAiStudioCompletionModel completionModel) {
+            var requestManager = new GoogleAiStudioCompletionRequestManager(completionModel, getServiceComponents().threadPool());
+            var docsOnly = DocumentsOnlyInput.of(inputs);
+            var failedToSendRequestErrorMessage = constructFailedToSendRequestMessage(
+                completionModel.uri(docsOnly.stream()),
+                "Google AI Studio completion"
+            );
+            var action = new SingleInputSenderExecutableAction(
+                getSender(),
+                requestManager,
+                failedToSendRequestErrorMessage,
+                "Google AI Studio completion"
+            );
+            action.execute(inputs, timeout, listener);
+        } else if (model instanceof GoogleAiStudioEmbeddingsModel embeddingsModel) {
+            var requestManager = new GoogleAiStudioEmbeddingsRequestManager(
+                embeddingsModel,
+                getServiceComponents().truncator(),
+                getServiceComponents().threadPool()
+            );
+            var failedToSendRequestErrorMessage = constructFailedToSendRequestMessage(embeddingsModel.uri(), "Google AI Studio embeddings");
+            var action = new SenderExecutableAction(getSender(), requestManager, failedToSendRequestErrorMessage);
+            action.execute(inputs, timeout, listener);
+        } else {
             listener.onFailure(createInvalidModelException(model));
-            return;
         }
-
-        GoogleAiStudioModel googleAiStudioModel = (GoogleAiStudioModel) model;
-        var actionCreator = new GoogleAiStudioActionCreator(getSender(), getServiceComponents());
-
-        var action = googleAiStudioModel.accept(actionCreator, taskSettings, inputType);
-        action.execute(inputs, timeout, listener);
     }
 
     @Override
@@ -269,7 +295,6 @@ public class GoogleAiStudioService extends SenderService {
         ActionListener<List<ChunkedInferenceServiceResults>> listener
     ) {
         GoogleAiStudioModel googleAiStudioModel = (GoogleAiStudioModel) model;
-        var actionCreator = new GoogleAiStudioActionCreator(getSender(), getServiceComponents());
 
         List<EmbeddingRequestChunker.BatchRequestAndListener> batchedRequests = new EmbeddingRequestChunker(
             inputs.getInputs(),
@@ -279,8 +304,7 @@ public class GoogleAiStudioService extends SenderService {
         ).batchRequestsWithListeners(listener);
 
         for (var request : batchedRequests) {
-            var action = googleAiStudioModel.accept(actionCreator, taskSettings, inputType);
-            action.execute(new DocumentsOnlyInput(request.batch().inputs()), timeout, request.listener());
+            doInfer(model, new DocumentsOnlyInput(request.batch().inputs()), taskSettings, inputType, timeout, request.listener());
         }
     }
 }

@@ -171,7 +171,7 @@ public class EsqlCapabilities {
         SPATIAL_PREDICATES_SUPPORT_MULTIVALUES,
 
         /**
-         * Enable spatial distance function to support multi-values.
+         * Enable spatial distance function to support multi-values. Done in #114836.
          */
         SPATIAL_DISTANCE_SUPPORTS_MULTIVALUES,
 

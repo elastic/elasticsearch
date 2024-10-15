@@ -89,6 +89,43 @@ id:l | distance_origin:d  | distance_subset:d | distance_disjoint:d | distance_f
 12   | 0.0                | 0.0               | 0.0                 | 0.0               | ["POINT(0 0)", "POINT(55 55)", "POINT(-55 -55)"] | ["POINT(0 0)", "POINT(55 54)"] |  ["POINT(55 55)", "POINT(65 65)"]
 ;
 
+whereSpatialDistanceTwoFields
+required_capability: st_distance
+required_capability: spatial_distance_supports_multivalues
+
+FROM multivalue_points
+| WHERE ST_DISTANCE(location, disjoint) < 6200000
+| KEEP id, location
+| SORT id
+;
+
+id:l | location:geo_point
+4    | ["POINT(5 5)", "POINT(15 15)"]
+7    | ["POINT(5 15)", "POINT(15 5)"]
+9    | "POINT(19 9)"
+10   | ["POINT(-9 -19)","POINT(19 9)"]
+11   | ["POINT(0 0)", "POINT(55 55)", "POINT(-55 -55)"]
+12   | ["POINT(0 0)", "POINT(55 55)", "POINT(-55 -55)"]
+;
+
+spatialDistanceFilterTwoFieldStats
+required_capability: st_distance
+required_capability: spatial_distance_supports_multivalues
+
+FROM multivalue_points
+| EVAL distance_disjoint=ST_DISTANCE(location, disjoint)
+| WHERE distance_disjoint > 0
+| EVAL kkm = TO_INTEGER(distance_disjoint / 1000000)
+| STATS c=COUNT(*) BY kkm
+| SORT kkm ASC
+;
+
+c:long | kkm:integer
+5      | 6
+5      | 7
+1      | 8
+;
+
 whereIntersectsPolygon
 required_capability: st_intersects
 

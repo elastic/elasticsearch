@@ -1,0 +1,9 @@
+pr: 114847
+summary: Download IPinfo ip location databases
+area: Ingest Node
+type: feature
+issues: []
+highlight:
+  title: Download IPinfo ip location databases
+  body: "This is just a draft PR, the description is to-be-completed later."
+  notable: true

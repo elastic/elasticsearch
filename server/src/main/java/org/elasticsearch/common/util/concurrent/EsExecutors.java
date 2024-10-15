@@ -335,21 +335,31 @@ public class EsExecutors {
     }
 
     public static ThreadFactory daemonThreadFactory(Settings settings, String executorName) {
-        return createDaemonThreadFactory(threadName(settings, executorName), executorName);
+        return createDaemonThreadFactory(threadName(settings, executorName), false);
     }
 
     public static ThreadFactory daemonThreadFactory(String nodeName, String executorName) {
         assert nodeName != null && false == nodeName.isEmpty();
-        return createDaemonThreadFactory(threadName(nodeName, executorName), executorName);
+        return createDaemonThreadFactory(threadName(nodeName, executorName), false);
+    }
+
+    public static ThreadFactory daemonThreadFactory(String nodeName, String executorName, boolean isSystemThread) {
+        assert nodeName != null && false == nodeName.isEmpty();
+        return createDaemonThreadFactory(threadName(nodeName, executorName), isSystemThread);
     }
 
     public static ThreadFactory daemonThreadFactory(String name) {
         assert name != null && name.isEmpty() == false;
-        return createDaemonThreadFactory(name, null);
+        return createDaemonThreadFactory(name, false);
     }
 
-    private static ThreadFactory createDaemonThreadFactory(String namePrefix, String executorName) {
-        return new EsThreadFactory(namePrefix, executorName);
+    public static ThreadFactory daemonThreadFactory(String name, boolean isSystemThread) {
+        assert name != null && name.isEmpty() == false;
+        return createDaemonThreadFactory(name, isSystemThread);
+    }
+
+    private static ThreadFactory createDaemonThreadFactory(String namePrefix, boolean isSystemThread) {
+        return new EsThreadFactory(namePrefix, isSystemThread);
     }
 
     static class EsThreadFactory implements ThreadFactory {
@@ -359,11 +369,11 @@ public class EsExecutors {
         final String namePrefix;
         final boolean isSystem;
 
-        EsThreadFactory(String namePrefix, String executorName) {
+        EsThreadFactory(String namePrefix, boolean isSystem) {
             this.namePrefix = namePrefix;
             SecurityManager s = System.getSecurityManager();
             group = (s != null) ? s.getThreadGroup() : Thread.currentThread().getThreadGroup();
-            isSystem = executorName != null && SYSTEM_THREAD_PREFIXES.contains(executorName);
+            this.isSystem = isSystem;
         }
 
         @Override

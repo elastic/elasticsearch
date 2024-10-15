@@ -7,6 +7,67 @@ setup:
 
   - do:
       indices.create:
+        index: index2
+        body:
+          settings:
+            index.number_of_shards: 2
+          mappings:
+            properties:
+              vector1:
+                type: dense_vector
+                dims: 768
+                index: true
+                similarity: l2_norm
+
+---
+"Field mapping stats":
+  - do:
+      indices.create:
+        index: index1
+        body:
+          settings:
+            index.number_of_shards: 2
+          mappings:
+            properties:
+              vector1:
+                type: dense_vector
+                dims: 768
+                index: true
+                similarity: l2_norm
+                index_options:
+                  type: hnsw
+                  m: 16
+                  ef_construction: 100
+              vector2:
+                type: dense_vector
+                dims: 1024
+                index: true
+                similarity: dot_product
+              vector3:
+                type: dense_vector
+                dims: 100
+                index: false
+  - do: { cluster.stats: { } }
+  - length: { indices.mappings.field_types: 1 }
+  - match: { indices.mappings.field_types.0.name: dense_vector }
+  - match: { indices.mappings.field_types.0.count: 4 }
+  - match: { indices.mappings.field_types.0.index_count: 2 }
+  - match: { indices.mappings.field_types.0.indexed_vector_count: 3 }
+  - match: { indices.mappings.field_types.0.indexed_vector_dim_min: 768 }
+  - match: { indices.mappings.field_types.0.indexed_vector_dim_max: 1024 }
+---
+"Field mapping stats with field details":
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: GET
+          path: /_cluster/stats
+          capabilities:
+            - "verbose-dense-vector-mapping-stats"
+      reason: "Capability required to run test"
+
+  - do:
+      indices.create:
         index: index1
         body:
           settings:
@@ -33,40 +94,6 @@ setup:
                 dims: 100
                 index: false
 
-  - do:
-      indices.create:
-        index: index2
-        body:
-          settings:
-            index.number_of_shards: 2
-          mappings:
-            properties:
-              vector1:
-                type: dense_vector
-                dims: 768
-                index: true
-                similarity: l2_norm
-
----
-"Field mapping stats":
-  - do: { cluster.stats: { } }
-  - length: { indices.mappings.field_types: 1 }
-  - match: { indices.mappings.field_types.0.name: dense_vector }
-  - match: { indices.mappings.field_types.0.count: 4 }
-  - match: { indices.mappings.field_types.0.index_count: 2 }
-  - match: { indices.mappings.field_types.0.indexed_vector_count: 3 }
-  - match: { indices.mappings.field_types.0.indexed_vector_dim_min: 768 }
-  - match: { indices.mappings.field_types.0.indexed_vector_dim_max: 1024 }
----
-"Field mapping stats with field details":
-  - requires:
-      test_runner_features: [ capabilities ]
-      capabilities:
-        - method: GET
-          path: /_cluster/stats
-          capabilities:
-            - "verbose-dense-vector-mapping-stats"
-      reason: "Capability required to run test"
   - do: { cluster.stats: { } }
   - length: { indices.mappings.field_types: 1 }
   - match: { indices.mappings.field_types.0.name: dense_vector }

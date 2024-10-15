@@ -75,11 +75,6 @@ public class AdaptiveAllocationsScaler {
         this.maxNumberOfAllocations = maxNumberOfAllocations;
     }
 
-    void setScaleToZeroPeriod(long inactivitySeconds) {
-        logger.info("setting scale to zero " + inactivitySeconds);
-        this.scaleToZeroAfterNoRequestsSeconds = inactivitySeconds;
-    }
-
     void process(AdaptiveAllocationsScalerService.Stats stats, double timeIntervalSeconds, int numberOfAllocations) {
         lastMeasuredQueueSize = stats.pendingCount();
         if (stats.requestCount() > 0) {
@@ -144,9 +139,6 @@ public class AdaptiveAllocationsScaler {
 
     Integer scale() {
 
-        logger.info("[{}] checking scale.", deploymentId);
-        logger.info("[{}] to zero", scaleToZeroAfterNoRequestsSeconds);
-
         if (requestRateEstimator.hasValue() == false) {
             return null;
         }
@@ -180,7 +172,7 @@ public class AdaptiveAllocationsScaler {
 
             if (oldNumberOfAllocations != 0) {
                 // avoid logging this message if there is no change
-                logger.info("[{}] adaptive allocations scaler: scaling down to zero, because of no requests.", deploymentId);
+                logger.debug("[{}] adaptive allocations scaler: scaling down to zero, because of no requests.", deploymentId);
             }
             numberOfAllocations = 0;
             neededNumberOfAllocations = 0;

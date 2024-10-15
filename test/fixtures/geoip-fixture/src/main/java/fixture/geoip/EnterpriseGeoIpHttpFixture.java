@@ -111,11 +111,9 @@ public class EnterpriseGeoIpHttpFixture extends ExternalResource {
                 try (InputStream in = fixtureStream("/ipinfo-fixture/ip_" + databaseType + "_sample.mmdb")) {
                     md5.update(in.readAllBytes());
                 }
-                exchange.getResponseBody()
-                    .write(Strings.format(
-                        """
-                        { "checksums": { "md5": "%s" } }
-                        """, MessageDigests.toHexString(md5.digest())).getBytes(StandardCharsets.UTF_8));
+                exchange.getResponseBody().write(Strings.format("""
+                    { "checksums": { "md5": "%s" } }
+                    """, MessageDigests.toHexString(md5.digest())).getBytes(StandardCharsets.UTF_8));
             } else {
                 try (
                     OutputStream out = exchange.getResponseBody();

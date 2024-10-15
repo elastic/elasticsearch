@@ -92,7 +92,7 @@ public class EnterpriseGeoIpDownloaderIT extends ESIntegTestCase {
         final String indexName = "enterprise_geoip_test_index";
         final String geoipPipelineName = "enterprise_geoip_pipeline";
         final String sourceField = "ip";
-        final String targetField = "ip-city";
+        final String targetField = "ip-result";
 
         startEnterpriseGeoIpDownloaderTask();
         configureMaxmindDatabase(MAXMIND_DATABASE_TYPE);

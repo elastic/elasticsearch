@@ -127,8 +127,18 @@ public class MultiClustersIT extends ESRestTestCase {
         refresh(client, index);
     }
 
-    private Map<String, Object> run(String query) throws IOException {
-        Map<String, Object> resp = runEsql(new RestEsqlTestCase.RequestObjectBuilder().query(query).build());
+    private Map<String, Object> run(String query, boolean includeCCSMetadata) throws IOException {
+        Map<String, Object> resp = runEsql(
+            new RestEsqlTestCase.RequestObjectBuilder().query(query).includeCCSMetadata(includeCCSMetadata).build()
+        );
+        logger.info("--> query {} response {}", query, resp);
+        return resp;
+    }
+
+    private Map<String, Object> runWithColumnarAndIncludeCCSMetadata(String query) throws IOException {
+        Map<String, Object> resp = runEsql(
+            new RestEsqlTestCase.RequestObjectBuilder().query(query).includeCCSMetadata(true).columnar(true).build()
+        );
         logger.info("--> query {} response {}", query, resp);
         return resp;
     }
@@ -147,62 +157,77 @@ public class MultiClustersIT extends ESRestTestCase {
 
     public void testCount() throws Exception {
         {
-            Map<String, Object> result = run("FROM test-local-index,*:test-remote-index | STATS c = COUNT(*)");
+            boolean includeCCSMetadata = randomBoolean();
+            Map<String, Object> result = run("FROM test-local-index,*:test-remote-index | STATS c = COUNT(*)", includeCCSMetadata);
             var columns = List.of(Map.of("name", "c", "type", "long"));
             var values = List.of(List.of(localDocs.size() + remoteDocs.size()));
 
             MapMatcher mapMatcher = matchesMap();
-            assertMap(
-                result,
-                mapMatcher.entry("columns", columns)
-                    .entry("values", values)
-                    .entry("took", greaterThanOrEqualTo(0))
-                    .entry("_clusters", any(Map.class))
-            );
-            assertClusterDetailsMap(result, false);
+            if (includeCCSMetadata) {
+                mapMatcher = mapMatcher.entry("_clusters", any(Map.class));
+            }
+            assertMap(result, mapMatcher.entry("columns", columns).entry("values", values).entry("took", greaterThanOrEqualTo(0)));
+            if (includeCCSMetadata) {
+                assertClusterDetailsMap(result, false);
+            }
         }
         {
-            Map<String, Object> result = run("FROM *:test-remote-index | STATS c = COUNT(*)");
+            boolean includeCCSMetadata = randomBoolean();
+            Map<String, Object> result = run("FROM *:test-remote-index | STATS c = COUNT(*)", includeCCSMetadata);
             var columns = List.of(Map.of("name", "c", "type", "long"));
             var values = List.of(List.of(remoteDocs.size()));
 
             MapMatcher mapMatcher = matchesMap();
-            assertMap(
-                result,
-                mapMatcher.entry("columns", columns)
-                    .entry("values", values)
-                    .entry("took", greaterThanOrEqualTo(0))
-                    .entry("_clusters", any(Map.class))
-            );
-            assertClusterDetailsMap(result, true);
+            if (includeCCSMetadata) {
+                mapMatcher = mapMatcher.entry("_clusters", any(Map.class));
+            }
+            assertMap(result, mapMatcher.entry("columns", columns).entry("values", values).entry("took", greaterThanOrEqualTo(0)));
+            if (includeCCSMetadata) {
+                assertClusterDetailsMap(result, true);
+            }
         }
     }
 
     public void testUngroupedAggs() throws Exception {
         {
-            Map<String, Object> result = run("FROM test-local-index,*:test-remote-index | STATS total = SUM(data)");
+            boolean includeCCSMetadata = randomBoolean();
+            Map<String, Object> result = run("FROM test-local-index,*:test-remote-index | STATS total = SUM(data)", includeCCSMetadata);
             var columns = List.of(Map.of("name", "total", "type", "long"));
             long sum = Stream.concat(localDocs.stream(), remoteDocs.stream()).mapToLong(d -> d.data).sum();
             var values = List.of(List.of(Math.toIntExact(sum)));
 
             // check all sections of map except _cluster/details
             MapMatcher mapMatcher = matchesMap();
-            assertMap(
-                result,
-                mapMatcher.entry("columns", columns)
-                    .entry("values", values)
-                    .entry("took", greaterThanOrEqualTo(0))
-                    .entry("_clusters", any(Map.class))
-            );
-            assertClusterDetailsMap(result, false);
+            if (includeCCSMetadata) {
+                mapMatcher = mapMatcher.entry("_clusters", any(Map.class));
+            }
+            assertMap(result, mapMatcher.entry("columns", columns).entry("values", values).entry("took", greaterThanOrEqualTo(0)));
+            if (includeCCSMetadata) {
+                assertClusterDetailsMap(result, false);
+            }
         }
         {
-            Map<String, Object> result = run("FROM *:test-remote-index | STATS total = SUM(data)");
+            boolean includeCCSMetadata = randomBoolean();
+            Map<String, Object> result = run("FROM *:test-remote-index | STATS total = SUM(data)", includeCCSMetadata);
             var columns = List.of(Map.of("name", "total", "type", "long"));
             long sum = remoteDocs.stream().mapToLong(d -> d.data).sum();
             var values = List.of(List.of(Math.toIntExact(sum)));
 
-            // check all sections of map except _cluster/details
+            MapMatcher mapMatcher = matchesMap();
+            if (includeCCSMetadata) {
+                mapMatcher = mapMatcher.entry("_clusters", any(Map.class));
+            }
+            assertMap(result, mapMatcher.entry("columns", columns).entry("values", values).entry("took", greaterThanOrEqualTo(0)));
+            if (includeCCSMetadata) {
+                assertClusterDetailsMap(result, true);
+            }
+        }
+        {
+            Map<String, Object> result = runWithColumnarAndIncludeCCSMetadata("FROM *:test-remote-index | STATS total = SUM(data)");
+            var columns = List.of(Map.of("name", "total", "type", "long"));
+            long sum = remoteDocs.stream().mapToLong(d -> d.data).sum();
+            var values = List.of(List.of(Math.toIntExact(sum)));
+
             MapMatcher mapMatcher = matchesMap();
             assertMap(
                 result,
@@ -269,7 +294,11 @@ public class MultiClustersIT extends ESRestTestCase {
 
     public void testGroupedAggs() throws Exception {
         {
-            Map<String, Object> result = run("FROM test-local-index,*:test-remote-index | STATS total = SUM(data) BY color | SORT color");
+            boolean includeCCSMetadata = randomBoolean();
+            Map<String, Object> result = run(
+                "FROM test-local-index,*:test-remote-index | STATS total = SUM(data) BY color | SORT color",
+                includeCCSMetadata
+            );
             var columns = List.of(Map.of("name", "total", "type", "long"), Map.of("name", "color", "type", "keyword"));
             var values = Stream.concat(localDocs.stream(), remoteDocs.stream())
                 .collect(Collectors.toMap(d -> d.color, Doc::data, Long::sum))
@@ -280,17 +309,20 @@ public class MultiClustersIT extends ESRestTestCase {
                 .toList();
 
             MapMatcher mapMatcher = matchesMap();
-            assertMap(
-                result,
-                mapMatcher.entry("columns", columns)
-                    .entry("values", values)
-                    .entry("took", greaterThanOrEqualTo(0))
-                    .entry("_clusters", any(Map.class))
-            );
-            assertClusterDetailsMap(result, false);
+            if (includeCCSMetadata) {
+                mapMatcher = mapMatcher.entry("_clusters", any(Map.class));
+            }
+            assertMap(result, mapMatcher.entry("columns", columns).entry("values", values).entry("took", greaterThanOrEqualTo(0)));
+            if (includeCCSMetadata) {
+                assertClusterDetailsMap(result, false);
+            }
         }
         {
-            Map<String, Object> result = run("FROM *:test-remote-index | STATS total = SUM(data) by color | SORT color");
+            boolean includeCCSMetadata = randomBoolean();
+            Map<String, Object> result = run(
+                "FROM *:test-remote-index | STATS total = SUM(data) by color | SORT color",
+                includeCCSMetadata
+            );
             var columns = List.of(Map.of("name", "total", "type", "long"), Map.of("name", "color", "type", "keyword"));
             var values = remoteDocs.stream()
                 .collect(Collectors.toMap(d -> d.color, Doc::data, Long::sum))
@@ -300,16 +332,15 @@ public class MultiClustersIT extends ESRestTestCase {
                 .map(e -> List.of(Math.toIntExact(e.getValue()), e.getKey()))
                 .toList();
 
-            // check all sections of map except _cluster/details
+            // check all sections of map except _clusters/details
             MapMatcher mapMatcher = matchesMap();
-            assertMap(
-                result,
-                mapMatcher.entry("columns", columns)
-                    .entry("values", values)
-                    .entry("took", greaterThanOrEqualTo(0))
-                    .entry("_clusters", any(Map.class))
-            );
-            assertClusterDetailsMap(result, true);
+            if (includeCCSMetadata) {
+                mapMatcher = mapMatcher.entry("_clusters", any(Map.class));
+            }
+            assertMap(result, mapMatcher.entry("columns", columns).entry("values", values).entry("took", greaterThanOrEqualTo(0)));
+            if (includeCCSMetadata) {
+                assertClusterDetailsMap(result, true);
+            }
         }
     }
 

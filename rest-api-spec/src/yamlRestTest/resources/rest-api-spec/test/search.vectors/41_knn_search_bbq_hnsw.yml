@@ -1,6 +1,5 @@
 setup:
   - requires:
-      capabilities:
       cluster_features: "mapper.vectors.bbq"
       reason: 'kNN float to better-binary quantization is required'
   - do:

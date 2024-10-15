@@ -2265,7 +2265,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                     "routing partition size ["
                         + routingPartitionSize
                         + "] should be a positive number"
-                        + " less than the number of shards ["
+                        + " less than the number of routing shards ["
                         + getRoutingNumShards()
                         + "] for ["
                         + index

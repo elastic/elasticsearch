@@ -1,11 +1,10 @@
 pr: 114854
-summary: Adding deprecation warnings for rank and `sub_searches`
+summary: Adding deprecation warnings for rrf using rank and `sub_searches`
 area: Search
 type: deprecation
 issues: []
 deprecation:
-  title: Adding deprecation warnings for rank and `sub_searches`
+  title: Adding deprecation warnings for rrf using rank and `sub_searches`
   area: Search
-  details: Please describe the details of this change for the release notes. You can
-    use asciidoc.
-  impact: Please describe the impact of this change to users
+  details: `sub_searches` will no longer be a supported and will be removed from the Search API. Similarly, `rrf` can only be used through the specified `retriever` and no longer though the `rank` element
+  impact: Requests containing a `rank: rrf` and/or `sub_searches` elements will receeive a deprecation header warning about their usage in their response. 

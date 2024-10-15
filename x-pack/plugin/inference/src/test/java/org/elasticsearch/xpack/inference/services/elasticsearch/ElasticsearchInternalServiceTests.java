@@ -1551,6 +1551,13 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("Chunking is not supported for task type [completion]"));
     }
 
+    public void testIsDefaultId() {
+        var service = createService(mock(Client.class));
+        assertTrue(service.isDefaultId(".elser-2"));
+        assertTrue(service.isDefaultId(".multi-e5-small"));
+        assertFalse(service.isDefaultId("foo"));
+    }
+
     private ElasticsearchInternalService createService(Client client) {
         var cs = mock(ClusterService.class);
         var cSettings = new ClusterSettings(Settings.EMPTY, Set.of(MachineLearningField.MAX_LAZY_ML_NODES));

@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedStar;
+import org.elasticsearch.xpack.esql.core.expression.function.Function;
 import org.elasticsearch.xpack.esql.core.expression.predicate.fulltext.MatchQueryPredicate;
 import org.elasticsearch.xpack.esql.core.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.core.expression.predicate.logical.Not;
@@ -44,6 +45,7 @@ import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.FunctionResolutionStrategy;
 import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.FilteredExpression;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.RLike;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.WildcardLike;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
@@ -612,8 +614,8 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
 
     @Override
     public String visitFunctionName(EsqlBaseParser.FunctionNameContext ctx) {
-        if (ctx.DEV_MATCH() != null) {
-            return ctx.DEV_MATCH().getText();
+        if (ctx.MATCH() != null) {
+            return ctx.MATCH().getText();
         }
         return visitIdentifierOrParameter(ctx.identifierOrParameter());
     }
@@ -742,9 +744,12 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
 
     @Override
     public Alias visitField(EsqlBaseParser.FieldContext ctx) {
+        return visitField(ctx, source(ctx));
+    }
+
+    private Alias visitField(EsqlBaseParser.FieldContext ctx, Source source) {
         UnresolvedAttribute id = visitQualifiedName(ctx.qualifiedName());
         Expression value = expression(ctx.booleanExpression());
-        var source = source(ctx);
         String name = id == null ? source.text() : id.name();
         return new Alias(source, name, value);
     }
@@ -752,6 +757,36 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
     @Override
     public List<Alias> visitFields(EsqlBaseParser.FieldsContext ctx) {
         return ctx != null ? visitList(this, ctx.field(), Alias.class) : new ArrayList<>();
+    }
+
+    @Override
+    public NamedExpression visitAggField(EsqlBaseParser.AggFieldContext ctx) {
+        Source source = source(ctx);
+        Alias field = visitField(ctx.field(), source);
+        var filterExpression = ctx.booleanExpression();
+
+        if (filterExpression != null) {
+            Expression condition = expression(filterExpression);
+            Expression child = field.child();
+            // basic check as the filter can be specified only on a function (should be an aggregate but we can't determine that yet)
+            if (field.child().anyMatch(Function.class::isInstance)) {
+                field = field.replaceChild(new FilteredExpression(field.source(), child, condition));
+            }
+            // allow condition only per aggregated function
+            else {
+                throw new ParsingException(
+                    condition.source(),
+                    "WHERE clause allowed only for aggregate functions [{}]",
+                    field.sourceText()
+                );
+            }
+        }
+        return field;
+    }
+
+    @Override
+    public List<Alias> visitAggFields(EsqlBaseParser.AggFieldsContext ctx) {
+        return ctx != null ? visitList(this, ctx.aggField(), Alias.class) : new ArrayList<>();
     }
 
     /**

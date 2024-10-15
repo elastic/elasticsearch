@@ -2222,6 +2222,7 @@ wkt:keyword    | pt:cartesian_point  | distance:double
 
 twoCitiesPointDistanceCartesian
 required_capability: st_distance
+required_capability: spatial_distance_supports_multivalues
 
 ROW p1 = TO_CARTESIANPOINT("POINT(-90.82814 29.79511)"), p2 = TO_CARTESIANPOINT("POINT(-90.79731509999999 29.8835389)")
 | EVAL d = ST_DISTANCE(p1, p2)
@@ -2233,6 +2234,7 @@ POINT (-90.82814 29.79511)  | POINT (-90.79731509999999 29.8835389)  | 0.0936463
 
 airportCartesianCityLocationPointDistance
 required_capability: st_distance
+required_capability: spatial_distance_supports_multivalues
 
 FROM airports_web
 | EVAL distance = ST_DISTANCE(location, TO_CARTESIANPOINT("POINT(1402900 7490000)"))
@@ -2246,6 +2248,7 @@ distance:double    | min:double        | max:double        | count:long
 
 airportCartesianDistanceToCityCopenhagen
 required_capability: st_distance
+required_capability: spatial_distance_supports_multivalues
 
 // tag::st_distance-airports_web[]
 FROM airports_web

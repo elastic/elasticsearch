@@ -195,7 +195,7 @@ public class TrainedModelAssignmentTests extends AbstractXContentSerializingTest
         builder.addRoutingEntry("node-2", new RoutingInfo(1, 1, RoutingState.STOPPED, ""));
         TrainedModelAssignment assignment = builder.build();
 
-        assertThat(assignment.selectRandomStartedNodesWeighedOnAllocationsForNRequests(1, RoutingState.STARTED).isEmpty(), is(true));
+        assertThat(assignment.selectRandomNodesWeighedOnAllocations(1, RoutingState.STARTED).isEmpty(), is(true));
     }
 
     public void testselectRandomStartedNodeWeighedOnAllocationsForNRequests_GivenSingleStartedNode() {
@@ -203,7 +203,7 @@ public class TrainedModelAssignmentTests extends AbstractXContentSerializingTest
         builder.addRoutingEntry("node-1", new RoutingInfo(4, 4, RoutingState.STARTED, ""));
         TrainedModelAssignment assignment = builder.build();
 
-        var nodes = assignment.selectRandomStartedNodesWeighedOnAllocationsForNRequests(1, RoutingState.STARTED);
+        var nodes = assignment.selectRandomNodesWeighedOnAllocations(1, RoutingState.STARTED);
 
         assertThat(nodes, contains(new Tuple<>("node-1", 1)));
     }
@@ -213,7 +213,7 @@ public class TrainedModelAssignmentTests extends AbstractXContentSerializingTest
         builder.addRoutingEntry("node-1", new RoutingInfo(4, 4, RoutingState.STARTED, ""));
         TrainedModelAssignment assignment = builder.build();
 
-        var nodes = assignment.selectRandomStartedNodesWeighedOnAllocationsForNRequests(1, RoutingState.STOPPING);
+        var nodes = assignment.selectRandomNodesWeighedOnAllocations(1, RoutingState.STOPPING);
 
         assertThat(nodes, empty());
     }
@@ -223,7 +223,7 @@ public class TrainedModelAssignmentTests extends AbstractXContentSerializingTest
         builder.addRoutingEntry("node-1", new RoutingInfo(4, 4, RoutingState.STOPPING, ""));
         TrainedModelAssignment assignment = builder.build();
 
-        var nodes = assignment.selectRandomStartedNodesWeighedOnAllocationsForNRequests(1, RoutingState.STOPPING);
+        var nodes = assignment.selectRandomNodesWeighedOnAllocations(1, RoutingState.STOPPING);
 
         assertThat(nodes, contains(new Tuple<>("node-1", 1)));
     }
@@ -234,7 +234,7 @@ public class TrainedModelAssignmentTests extends AbstractXContentSerializingTest
         builder.addRoutingEntry("node-2", new RoutingInfo(1, 1, RoutingState.STARTED, ""));
         TrainedModelAssignment assignment = builder.build();
 
-        var nodes = assignment.selectRandomStartedNodesWeighedOnAllocationsForNRequests(1, RoutingState.STARTED);
+        var nodes = assignment.selectRandomNodesWeighedOnAllocations(1, RoutingState.STARTED);
         assertThat(nodes, hasSize(1));
         assertEquals(nodes.get(0).v2(), Integer.valueOf(1));
     }
@@ -248,7 +248,7 @@ public class TrainedModelAssignmentTests extends AbstractXContentSerializingTest
 
         final int selectionCount = 10000;
         final CountAccumulator countsPerNodeAccumulator = new CountAccumulator();
-        var nodes = assignment.selectRandomStartedNodesWeighedOnAllocationsForNRequests(selectionCount, RoutingState.STARTED);
+        var nodes = assignment.selectRandomNodesWeighedOnAllocations(selectionCount, RoutingState.STARTED);
 
         assertThat(nodes, hasSize(3));
         assertThat(nodes.stream().mapToInt(Tuple::v2).sum(), equalTo(selectionCount));
@@ -269,7 +269,7 @@ public class TrainedModelAssignmentTests extends AbstractXContentSerializingTest
         builder.addRoutingEntry("node-3", new RoutingInfo(0, 0, RoutingState.STARTED, ""));
         TrainedModelAssignment assignment = builder.build();
         final int selectionCount = 1000;
-        var nodeCounts = assignment.selectRandomStartedNodesWeighedOnAllocationsForNRequests(selectionCount, RoutingState.STARTED);
+        var nodeCounts = assignment.selectRandomNodesWeighedOnAllocations(selectionCount, RoutingState.STARTED);
         assertThat(nodeCounts, hasSize(3));
 
         var selectedNodes = new HashSet<String>();

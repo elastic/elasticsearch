@@ -89,15 +89,15 @@ public class EnterpriseGeoIpDownloaderIT extends ESIntegTestCase {
          * Note that the "enterprise database" is actually just a geolite database being loaded by the GeoIpHttpFixture.
          */
         EnterpriseGeoIpDownloader.DEFAULT_MAXMIND_ENDPOINT = getEndpoint();
-        final String pipelineName = "enterprise_geoip_pipeline";
         final String indexName = "enterprise_geoip_test_index";
+        final String geoipPipelineName = "enterprise_geoip_pipeline";
         final String sourceField = "ip";
         final String targetField = "ip-city";
 
         startEnterpriseGeoIpDownloaderTask();
         configureMaxmindDatabase(MAXMIND_DATABASE_TYPE);
         waitAround();
-        createPipeline(pipelineName, "geoip", MAXMIND_DATABASE_TYPE, sourceField, targetField);
+        createPipeline(geoipPipelineName, "geoip", MAXMIND_DATABASE_TYPE, sourceField, targetField);
 
         assertBusy(() -> {
             /*
@@ -105,7 +105,7 @@ public class EnterpriseGeoIpDownloaderIT extends ESIntegTestCase {
              * down and made available on all nodes. So we run this ingest-and-check step in an assertBusy.
              */
             logger.info("Ingesting a test document");
-            String documentId = ingestDocument(indexName, pipelineName, sourceField, "89.160.20.128");
+            String documentId = ingestDocument(indexName, geoipPipelineName, sourceField, "89.160.20.128");
             GetResponse getResponse = client().get(new GetRequest(indexName, documentId)).actionGet();
             Map<String, Object> returnedSource = getResponse.getSource();
             assertNotNull(returnedSource);

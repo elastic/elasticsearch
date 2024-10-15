@@ -233,12 +233,16 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         Property.IndexScope
     );
 
-    @SuppressWarnings("Convert2Diamond") // since some IntelliJs mysteriously report an error if an <Integer> is replaced with <> here:
-    public static final Setting<Integer> INDEX_NUMBER_OF_ROUTING_SHARDS_SETTING = Setting.intSetting(
-        "index.number_of_routing_shards",
-        INDEX_NUMBER_OF_SHARDS_SETTING,
-        1,
-        new Setting.Validator<Integer>() {
+    public static final String SETTING_NUMBER_OF_ROUTING_SHARDS = "index.number_of_routing_shards";
+    public static final Setting<Integer> INDEX_NUMBER_OF_ROUTING_SHARDS_SETTING = new Setting<>(
+        SETTING_NUMBER_OF_ROUTING_SHARDS,
+        (settings) -> {
+            final int numTargetShards = INDEX_NUMBER_OF_SHARDS_SETTING.get(settings);
+            final IndexVersion indexVersionCreated = IndexMetadata.SETTING_INDEX_VERSION_CREATED.get(settings);
+            return String.valueOf(MetadataCreateIndexService.calculateNumRoutingShards(numTargetShards, indexVersionCreated));
+        },
+        (s) -> Setting.parseInt(s, 1, Integer.MAX_VALUE, SETTING_NUMBER_OF_ROUTING_SHARDS, false),
+        new Setting.Validator<>() {
 
             @Override
             public void validate(final Integer value) {
@@ -263,6 +267,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             }
 
         },
+        Property.Final,
         Property.IndexScope
     );
 

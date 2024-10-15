@@ -87,7 +87,7 @@ PUT my-index-000001/_doc/1
 In this case, references to `id` point to the field at the root level, while field `attributes.id`
 can only be accessed using the full path.
 
-  a. Two (or more) pass-through objects are defined within the same object and contain fields with the same name, e.g.
+  b. Two (or more) pass-through objects are defined within the same object and contain fields with the same name, e.g.
 +
 [source,console]
 --------------------------------------------------

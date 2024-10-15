@@ -48,6 +48,7 @@ dependencies {
   testImplementation project(path: ':modules:aggregations')
   testImplementation project(path: ':modules:data-streams')
   testImplementation project(':modules:mapper-extras')
+  testImplementation project(":server")
 
   // security deps
   api 'com.unboundid:unboundid-ldapsdk:6.0.3'

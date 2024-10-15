@@ -18,6 +18,7 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.mapper.ConstantFieldType;
+import org.elasticsearch.index.mapper.DataTierFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -25,6 +26,8 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Objects;
+
+import static org.elasticsearch.index.mapper.DataTierFieldMapper.CONTENT_TYPE;
 
 /**
  * A Query that matches documents containing a term.
@@ -216,6 +219,36 @@ public class TermQueryBuilder extends BaseTermQueryBuilder<TermQueryBuilder> {
     @Override
     protected final int doHashCode() {
         return Objects.hash(super.doHashCode(), caseInsensitive);
+    }
+
+    @Override
+    protected QueryBuilder doCoordinatorRewrite(CoordinatorRewriteContext coordinatorRewriteContext) {
+        return toQueryBuilder(getRelation(coordinatorRewriteContext));
+    }
+
+    protected MappedFieldType.Relation getRelation(final CoordinatorRewriteContext coordinatorRewriteContext) {
+        final MappedFieldType fieldType = coordinatorRewriteContext.getFieldType(CONTENT_TYPE);
+        if (fieldType instanceof final DataTierFieldMapper.DataTierFieldType tierFieldType) {
+            Query tierFieldQuery = tierFieldType.innerTermsQuery(value, coordinatorRewriteContext);
+            if (tierFieldQuery instanceof MatchAllDocsQuery) {
+                return MappedFieldType.Relation.INTERSECTS;
+            } else {
+                return MappedFieldType.Relation.DISJOINT;
+            }
+        }
+        return MappedFieldType.Relation.INTERSECTS;
+    }
+
+    private AbstractQueryBuilder<? extends AbstractQueryBuilder<?>> toQueryBuilder(MappedFieldType.Relation relation) {
+        switch (relation) {
+            case DISJOINT -> {
+                return new MatchNoneQueryBuilder("The \"" + getName() + "\" query was rewritten to a \"match_none\" query.");
+            }
+            case INTERSECTS -> {
+                return this;
+            }
+            default -> throw new AssertionError();
+        }
     }
 
     @Override

@@ -74,7 +74,8 @@ public class CoordinatorRewriteContextProvider {
             parserConfig,
             client,
             nowInMillis,
-            new DateFieldRangeInfo(timestampFieldType, timestampRange, dateFieldRangeInfo.eventIngestedFieldType(), eventIngestedRange)
+            new DateFieldRangeInfo(timestampFieldType, timestampRange, dateFieldRangeInfo.eventIngestedFieldType(), eventIngestedRange),
+            indexMetadata.getTierPreference().isEmpty() == false ? indexMetadata.getTierPreference().getFirst() : ""
         );
     }
 }

@@ -13,6 +13,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.mapper.DataTierFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.shard.IndexLongFieldRange;
@@ -31,9 +32,11 @@ import java.util.function.LongSupplier;
  */
 public class CoordinatorRewriteContext extends QueryRewriteContext {
     private final DateFieldRangeInfo dateFieldRangeInfo;
+    private final String tier;
 
     /**
      * Context for coordinator search rewrites based on time ranges for the @timestamp field and/or 'event.ingested' field
+     *
      * @param parserConfig
      * @param client
      * @param nowInMillis
@@ -43,7 +46,8 @@ public class CoordinatorRewriteContext extends QueryRewriteContext {
         XContentParserConfiguration parserConfig,
         Client client,
         LongSupplier nowInMillis,
-        DateFieldRangeInfo dateFieldRangeInfo
+        DateFieldRangeInfo dateFieldRangeInfo,
+        String tier
     ) {
         super(
             parserConfig,
@@ -63,6 +67,7 @@ public class CoordinatorRewriteContext extends QueryRewriteContext {
             null
         );
         this.dateFieldRangeInfo = dateFieldRangeInfo;
+        this.tier = tier;
     }
 
     /**
@@ -75,6 +80,8 @@ public class CoordinatorRewriteContext extends QueryRewriteContext {
             return dateFieldRangeInfo.timestampFieldType();
         } else if (IndexMetadata.EVENT_INGESTED_FIELD_NAME.equals(fieldName)) {
             return dateFieldRangeInfo.eventIngestedFieldType();
+        } else if (DataTierFieldMapper.NAME.equals(fieldName)) {
+            return DataTierFieldMapper.DataTierFieldType.INSTANCE;
         } else {
             return null;
         }
@@ -98,5 +105,9 @@ public class CoordinatorRewriteContext extends QueryRewriteContext {
     @Override
     public CoordinatorRewriteContext convertToCoordinatorRewriteContext() {
         return this;
+    }
+
+    public String getTier() {
+        return tier;
     }
 }

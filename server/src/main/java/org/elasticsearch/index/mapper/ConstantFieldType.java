@@ -15,9 +15,12 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.query.CoordinatorRewriteContext;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
 
@@ -94,6 +97,15 @@ public abstract class ConstantFieldType extends MappedFieldType {
                 // `terms` queries are a disjunction, so one matching term is enough
                 return Queries.newMatchAllQuery();
             }
+        }
+        return new MatchNoDocsQuery();
+    }
+
+    public final Query innerTermsQuery(Object value, CoordinatorRewriteContext context) {
+        String pattern = valueToString(value);
+        if (matches(pattern, false, context)) {
+            // `terms` queries are a disjunction, so one matching term is enough
+            return Queries.newMatchAllQuery();
         }
         return new MatchNoDocsQuery();
     }

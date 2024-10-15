@@ -153,12 +153,14 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
 
     private transient RetrieverBuilder retrieverBuilder;
 
+    @UpdateForV10(owner = UpdateForV10.Owner.SEARCH_RELEVANCE) // remove sub_searches support in 10.0
     private List<SubSearchSourceBuilder> subSearchSourceBuilders = new ArrayList<>();
 
     private QueryBuilder postQueryBuilder;
 
     private List<KnnSearchBuilder> knnSearch = new ArrayList<>();
 
+    @UpdateForV10(owner = UpdateForV10.Owner.SEARCH_RELEVANCE) // throw when parsing rrf through rank
     private RankBuilder rankBuilder = null;
 
     private int from = -1;

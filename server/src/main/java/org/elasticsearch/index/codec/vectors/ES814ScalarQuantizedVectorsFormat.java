@@ -41,6 +41,7 @@ import org.elasticsearch.simdvec.VectorSimilarityType;
 import java.io.IOException;
 
 import static org.apache.lucene.codecs.lucene99.Lucene99ScalarQuantizedVectorsFormat.DYNAMIC_CONFIDENCE_INTERVAL;
+import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.MAX_DIMS_COUNT;
 
 public class ES814ScalarQuantizedVectorsFormat extends FlatVectorsFormat {
 
@@ -290,5 +291,10 @@ public class ES814ScalarQuantizedVectorsFormat extends FlatVectorsFormat {
             throws IOException {
             return delegate.getRandomVectorScorer(sim, values, query);
         }
+    }
+
+    @Override
+    public int getMaxDimensions(String fieldName) {
+        return MAX_DIMS_COUNT;
     }
 }

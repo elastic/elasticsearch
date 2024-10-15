@@ -1,0 +1,252 @@
+setup:
+  - requires:
+      cluster_features: [ "query_rules.test" ]
+      reason: Introduced in 8.16.0
+
+  - do:
+      query_rules.put_ruleset:
+        ruleset_id: test-ruleset
+        body:
+          rules:
+            - rule_id: rule1
+              type: pinned
+              criteria:
+                - type: exact
+                  metadata: query_string
+                  values: [ search ]
+              actions:
+                ids:
+                  - 'doc1'
+            - rule_id: rule2
+              type: pinned
+              criteria:
+                - type: exact
+                  metadata: query_string
+                  values: [ ui ]
+              actions:
+                docs:
+                  - '_index': 'test-index1'
+                    '_id': 'doc2'
+            - rule_id: rule3
+              type: pinned
+              criteria:
+                - type: contains
+                  metadata: query_string
+                  values: [ kibana, logstash ]
+              actions:
+                ids:
+                  - 'doc2'
+                  - 'doc3'
+            - rule_id: rule4
+              type: pinned
+              criteria:
+                - type: exact
+                  metadata: query_string
+                  values: [ ops ]
+              actions:
+                ids:
+                  - 'doc7'
+            - rule_id: rule5
+              type: exclude
+              criteria:
+                - type: exact
+                  metadata: query_string
+                  values: [ search ]
+              actions:
+                ids:
+                  - 'doc8'
+
+---
+teardown:
+  - do:
+      query_rules.delete_ruleset:
+        ruleset_id: test-ruleset
+        ignore: 404
+
+  - do:
+      query_rules.delete_ruleset:
+        ruleset_id: combined-ruleset
+        ignore: 404
+
+  - do:
+      query_rules.delete_ruleset:
+        ruleset_id: double-jeopardy-ruleset
+        ignore: 404
+
+---
+"Test query rules, specifying a ruleset that does not exist":
+  - do:
+      catch: /resource_not_found_exception/
+      query_rules.test:
+        ruleset_id: nonexistent-ruleset
+        body:
+          match_criteria:
+            foo: bar
+
+
+---
+"Test query rules with an empty body":
+  - do:
+      catch: bad_request
+      query_rules.test:
+        ruleset_id: nonexistent-ruleset
+        body: { }
+
+---
+"Test query rules with an ID match":
+
+  - do:
+      query_rules.test:
+        ruleset_id: test-ruleset
+        body:
+          match_criteria:
+            query_string: search
+
+  - match: { total_matched_rules: 2 }
+  - match: { matched_rules.0.rule_id: 'rule1' }
+  - match: { matched_rules.1.rule_id: 'rule5' }
+
+---
+"As a user, test query rules with an ID match":
+  - skip:
+      features: headers
+
+  - do:
+      catch: forbidden
+      headers: { Authorization: "Basic ZW50c2VhcmNoLXVzZXI6ZW50c2VhcmNoLXVzZXItcGFzc3dvcmQ=" }  # user
+      query_rules.test:
+        ruleset_id: test-ruleset
+        body:
+          match_criteria:
+            query_string: search
+
+---
+"Test query rules with a doc match":
+
+  - do:
+      query_rules.test:
+        ruleset_id: test-ruleset
+        body:
+          match_criteria:
+            query_string: ui
+
+  - match: { total_matched_rules: 1 }
+  - match: { matched_rules.0.rule_id: 'rule2' }
+
+---
+"As a user, test query rules with a doc match":
+  - skip:
+      features: headers
+
+  - do:
+      catch: forbidden
+      headers: { Authorization: "Basic ZW50c2VhcmNoLXVzZXI6ZW50c2VhcmNoLXVzZXItcGFzc3dvcmQ=" }  # user
+      query_rules.test:
+        ruleset_id: test-ruleset
+        body:
+          match_criteria:
+            query_string: ui
+
+---
+"Test query rules with no matching rules":
+
+  - do:
+      query_rules.test:
+        ruleset_id: test-ruleset
+        body:
+          match_criteria:
+            query_string: no-match
+
+  - match: { total_matched_rules: 0 }
+
+---
+"Test rules where the same ID is both pinned and excluded":
+  - do:
+      query_rules.put_ruleset:
+        ruleset_id: double-jeopardy-ruleset
+        body:
+          rules:
+            - rule_id: rule1
+              type: pinned
+              criteria:
+                - type: exact
+                  metadata: foo
+                  values: [ bar ]
+              actions:
+                ids:
+                  - 'doc8'
+            - rule_id: rule2
+              type: exclude
+              criteria:
+                - type: exact
+                  metadata: foo
+                  values: [ bar ]
+              actions:
+                ids:
+                  - 'doc8'
+
+  - do:
+      query_rules.test:
+        ruleset_id: double-jeopardy-ruleset
+        body:
+          match_criteria:
+            foo: bar
+
+  - match: { total_matched_rules: 2 }
+  - match: { matched_rules.0.rule_id: 'rule1' }
+  - match: { matched_rules.1.rule_id: 'rule2' }
+
+---
+"Perform a rule query over a ruleset with combined numeric and text rule matching":
+
+  - do:
+      query_rules.put_ruleset:
+        ruleset_id: combined-ruleset
+        body:
+          rules:
+            - rule_id: rule1
+              type: pinned
+              criteria:
+                - type: exact
+                  metadata: foo
+                  values: [ bar ]
+              actions:
+                ids:
+                  - 'doc1'
+            - rule_id: rule2
+              type: pinned
+              criteria:
+                - type: lte
+                  metadata: foo
+                  values: [ 100 ]
+              actions:
+                ids:
+                  - 'doc2'
+  - do:
+      query_rules.test:
+        ruleset_id: combined-ruleset
+        body:
+          match_criteria:
+            foo: 100
+
+  - match: { total_matched_rules: 1 }
+  - match: { matched_rules.0.rule_id: 'rule2' }
+
+  - do:
+      query_rules.test:
+        ruleset_id: combined-ruleset
+        body:
+          match_criteria:
+            foo: bar
+
+  - match: { total_matched_rules: 1 }
+  - match: { matched_rules.0.rule_id: 'rule1' }
+
+  - do:
+      query_rules.test:
+        ruleset_id: combined-ruleset
+        body:
+          match_criteria:
+            foo: baz
+
+  - match: { total_matched_rules: 0 }

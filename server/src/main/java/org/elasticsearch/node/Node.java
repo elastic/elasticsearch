@@ -561,7 +561,7 @@ public class Node implements Closeable {
         toClose.add(() -> stopWatch.stop().start("transport"));
         toClose.add(injector.getInstance(TransportService.class));
         toClose.add(injector.getInstance(NodeMetrics.class));
-        toClose.add(injector.getInstance(IndicesService.class));
+        toClose.add(injector.getInstance(IndicesMetrics.class));
         if (ReadinessService.enabled(environment)) {
             toClose.add(injector.getInstance(ReadinessService.class));
         }

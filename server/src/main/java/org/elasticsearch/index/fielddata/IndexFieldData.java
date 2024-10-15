@@ -164,9 +164,13 @@ public interface IndexFieldData<FD extends LeafFieldData> {
 
         /** Return the missing object value according to the reduced type of the comparator. */
         public Object missingObject(Object missingValue, boolean reversed) {
+            return missingObject(missingValue, reversed, reducedType());
+        }
+
+        public Object missingObject(Object missingValue, boolean reversed, SortField.Type type) {
             if (sortMissingFirst(missingValue) || sortMissingLast(missingValue)) {
                 final boolean min = sortMissingFirst(missingValue) ^ reversed;
-                return switch (reducedType()) {
+                return switch (type) {
                     case INT -> min ? Integer.MIN_VALUE : Integer.MAX_VALUE;
                     case LONG -> min ? Long.MIN_VALUE : Long.MAX_VALUE;
                     case FLOAT -> min ? Float.NEGATIVE_INFINITY : Float.POSITIVE_INFINITY;
@@ -175,7 +179,7 @@ public interface IndexFieldData<FD extends LeafFieldData> {
                     default -> throw new UnsupportedOperationException("Unsupported reduced type: " + reducedType());
                 };
             } else {
-                switch (reducedType()) {
+                switch (type) {
                     case INT:
                         if (missingValue instanceof Number) {
                             return ((Number) missingValue).intValue();

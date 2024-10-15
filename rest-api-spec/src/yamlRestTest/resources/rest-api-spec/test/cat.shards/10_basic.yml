@@ -1,8 +1,8 @@
 ---
 "Help":
   - requires:
-      cluster_features: [ "gte_v8.15.0" ]
-      reason: sparse vector was added in 8.15.0
+      cluster_features: [ "gte_v8.16.0" ]
+      reason: search idle state was added in 8.16.0
   - do:
       cat.shards:
         help: true
@@ -81,6 +81,7 @@
              warmer.total_time                .+   \n
              path.data                        .+   \n
              path.state                       .+   \n
+             refresh.is_search_idle           .+   \n
              bulk.total_operations            .+   \n
              bulk.total_time                  .+   \n
              bulk.total_size_in_bytes         .+   \n

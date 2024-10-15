@@ -288,7 +288,10 @@ public class TransportGetAliasesActionTests extends ESTestCase {
         );
 
         final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
-        final IndexNameExpressionResolver indexNameExpressionResolver = new IndexNameExpressionResolver(threadContext, systemIndices);
+        final IndexNameExpressionResolver indexNameExpressionResolver = TestIndexNameExpressionResolver.newInstance(
+            threadContext,
+            systemIndices
+        );
         concreteIndices = indexNameExpressionResolver.concreteIndexNamesWithSystemIndexAccess(clusterState, aliasesRequest);
 
         Map<String, List<AliasMetadata>> finalResponse = TransportGetAliasesAction.postProcess(

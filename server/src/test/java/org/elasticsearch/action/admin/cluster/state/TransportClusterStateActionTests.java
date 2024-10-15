@@ -28,7 +28,7 @@ import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.IndexVersion;
-import org.elasticsearch.indices.EmptySystemIndices;
+import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
@@ -70,7 +70,7 @@ public class TransportClusterStateActionTests extends ESTestCase {
             threadPool
         );
         transportService.start();
-        indexResolver = new IndexNameExpressionResolver(threadPool.getThreadContext(), EmptySystemIndices.INSTANCE);
+        indexResolver = TestIndexNameExpressionResolver.newInstance(threadPool.getThreadContext());
         task = new CancellableTask(
             randomLong(),
             randomAlphaOfLength(8),

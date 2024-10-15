@@ -22,6 +22,7 @@ import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.ResolvedExpression;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
@@ -29,7 +30,6 @@ import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexVersion;
-import org.elasticsearch.indices.EmptySystemIndices;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
@@ -90,7 +90,7 @@ public class ResolveIndexTests extends ESTestCase {
     public void setup() {
         epochMillis = randomLongBetween(1580536800000L, 1583042400000L);
         threadContext = createThreadContext();
-        resolver = new IndexNameExpressionResolver(threadContext, EmptySystemIndices.INSTANCE);
+        resolver = TestIndexNameExpressionResolver.newInstance(threadContext);
         dateString = DataStream.DATE_FORMATTER.formatMillis(epochMillis);
         clusterState = ClusterState.builder(new ClusterName("_name")).metadata(buildMetadata(dataStreams, indices)).build();
     }
@@ -229,9 +229,19 @@ public class ResolveIndexTests extends ESTestCase {
             .metadata(buildMetadata(new Object[][] {}, indices))
             .build();
         String[] requestedIndex = new String[] { "<logs-pgsql-prod-{now/d}>" };
-        Set<String> resolvedIndices = resolver.resolveExpressions(clusterState, IndicesOptions.LENIENT_EXPAND_OPEN, true, requestedIndex);
+        Set<ResolvedExpression> resolvedIndices = resolver.resolveExpressions(
+            clusterState,
+            IndicesOptions.LENIENT_EXPAND_OPEN,
+            true,
+            requestedIndex
+        );
         assertThat(resolvedIndices.size(), is(1));
-        assertThat(resolvedIndices, contains(oneOf("logs-pgsql-prod-" + todaySuffix, "logs-pgsql-prod-" + tomorrowSuffix)));
+        assertThat(
+            resolvedIndices,
+            contains(
+                oneOf(new ResolvedExpression("logs-pgsql-prod-" + todaySuffix), new ResolvedExpression("logs-pgsql-prod-" + tomorrowSuffix))
+            )
+        );
     }
 
     public void testSystemIndexAccess() {
@@ -244,7 +254,7 @@ public class ResolveIndexTests extends ESTestCase {
                 threadContext.putHeader(SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY, "false");
             }
             threadContext.putHeader(EXTERNAL_SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY, "whatever");
-            resolver = new IndexNameExpressionResolver(threadContext, systemIndices);
+            resolver = TestIndexNameExpressionResolver.newInstance(threadContext, systemIndices);
             List<ResolvedIndex> indices = new ArrayList<>();
             List<ResolvedAlias> aliases = new ArrayList<>();
             List<ResolvedDataStream> dataStreams = new ArrayList<>();
@@ -263,7 +273,7 @@ public class ResolveIndexTests extends ESTestCase {
         {
             threadContext = createThreadContext();
             threadContext.putHeader(EXTERNAL_SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY, "test-net-new-system");
-            resolver = new IndexNameExpressionResolver(threadContext, systemIndices);
+            resolver = TestIndexNameExpressionResolver.newInstance(threadContext, systemIndices);
             List<ResolvedIndex> indices = new ArrayList<>();
             List<ResolvedAlias> aliases = new ArrayList<>();
             List<ResolvedDataStream> dataStreams = new ArrayList<>();

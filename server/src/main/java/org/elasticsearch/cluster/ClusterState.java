@@ -50,6 +50,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.index.shard.IndexLongFieldRange;
@@ -684,6 +685,8 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params outerParams) {
         final var metrics = Metric.parseString(outerParams.param("metric", "_all"), true);
+
+        @FixForMultiProject // Do we need this to be a param?
         final boolean multiProject = outerParams.paramAsBoolean("multi-project", false);
 
         return Iterators.concat(

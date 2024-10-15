@@ -13,7 +13,9 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.tasks.Task;
 
 import java.util.Collection;
 import java.util.Set;
@@ -81,6 +83,21 @@ public final class TestProjectResolvers {
 
             private Set<ProjectId> getMatchingProjectIds(Metadata metadata) {
                 return Sets.intersection(metadata.projects().keySet(), allowedProjectIds);
+            }
+        };
+    }
+
+    public static ProjectResolver usingRequestHeader(ThreadContext threadContext) {
+        return new ProjectResolver() {
+            @Override
+            public ProjectMetadata getProjectMetadata(Metadata metadata) {
+                String headerValue = threadContext.getHeader(Task.X_ELASTIC_PROJECT_ID_HTTP_HEADER);
+                var projectId = headerValue != null ? new ProjectId(headerValue) : Metadata.DEFAULT_PROJECT_ID;
+                var project = metadata.projects().get(projectId);
+                if (project == null) {
+                    throw new IllegalArgumentException("Could not find project with id [" + headerValue + "]");
+                }
+                return project;
             }
         };
     }

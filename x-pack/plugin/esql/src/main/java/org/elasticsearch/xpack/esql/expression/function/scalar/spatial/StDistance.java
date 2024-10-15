@@ -149,6 +149,14 @@ public class StDistance extends BinarySpatialFunction implements EvaluatorMapper
     }
 
     @Override
+    public StDistance withDocValues(boolean foundLeft, boolean foundRight) {
+        // Only update the docValues flags if the field is found in the attributes
+        boolean leftDV = leftDocValues || foundLeft;
+        boolean rightDV = rightDocValues || foundRight;
+        return new StDistance(source(), left(), right(), leftDV, rightDV);
+    }
+
+    @Override
     public String getWriteableName() {
         return ENTRY.name;
     }

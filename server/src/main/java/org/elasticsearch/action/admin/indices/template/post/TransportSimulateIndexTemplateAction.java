@@ -31,6 +31,7 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettingProvider;
 import org.elasticsearch.index.IndexSettingProviders;
@@ -236,6 +237,7 @@ public class TransportSimulateIndexTemplateAction extends TransportMasterNodeRea
         Set<IndexSettingProvider> indexSettingProviders
     ) throws Exception {
         // TODO multi-project get the right project here
+        @FixForMultiProject
         var projectMetadata = simulatedState.getMetadata().getProject();
         Settings templateSettings = resolveSettings(projectMetadata, matchingTemplate);
 
@@ -272,12 +274,13 @@ public class TransportSimulateIndexTemplateAction extends TransportMasterNodeRea
             Settings result = provider.getAdditionalIndexSettings(
                 indexName,
                 template.getDataStreamTemplate() != null ? indexName : null,
-                template.getDataStreamTemplate() != null && projectMetadata.isTimeSeriesTemplate(template),
+                projectMetadata.retrieveIndexModeFromTemplate(template),
                 projectMetadata,
                 now,
                 templateSettings,
                 mappings
             );
+            MetadataCreateIndexService.validateAdditionalSettings(provider, result, additionalSettings);
             dummySettings.put(result);
             additionalSettings.put(result);
         }

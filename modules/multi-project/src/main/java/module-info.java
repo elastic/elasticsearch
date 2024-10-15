@@ -7,7 +7,10 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-module org.elasticsearch.multiproject {
+import org.elasticsearch.core.FixForMultiProject;
+
+// Most/all of this module should in in serverless (but is here to facilitate testing)
+@FixForMultiProject module org.elasticsearch.multiproject {
     requires org.elasticsearch.base;
     requires org.elasticsearch.server;
     requires org.elasticsearch.xcontent;

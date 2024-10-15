@@ -27,6 +27,14 @@ import org.apache.lucene.util.VectorUtil;
 public class BQVectorUtils {
     private static final float EPSILON = 1e-4f;
 
+    public static double sqrtNewtonRaphson(double x, double curr, double prev) {
+        return (curr == prev) ? curr : sqrtNewtonRaphson(x, 0.5 * (curr + x / curr), curr);
+    }
+
+    public static double constSqrt(double x) {
+        return x >= 0 && Double.isInfinite(x) == false ? sqrtNewtonRaphson(x, x, 0) : Double.NaN;
+    }
+
     public static boolean isUnitVector(float[] v) {
         double l1norm = VectorUtil.dotProduct(v, v);
         return Math.abs(l1norm - 1.0d) <= EPSILON;

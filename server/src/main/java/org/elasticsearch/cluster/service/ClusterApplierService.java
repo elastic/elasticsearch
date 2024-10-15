@@ -20,6 +20,7 @@ import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.LocalNodeMasterListener;
 import org.elasticsearch.cluster.NodeConnectionsService;
 import org.elasticsearch.cluster.TimeoutClusterStateListener;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterApplierRecordingService.Recorder;
 import org.elasticsearch.common.Priority;
@@ -565,6 +566,9 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
                 try (Releasable ignored = stopWatch.record(name)) {
                     listener.clusterChanged(clusterChangedEvent);
                 }
+            } catch (Metadata.MultiProjectPendingException e) {
+                // don't warn, this fills the logs
+                logger.trace("ClusterStateListener not multi-project compatible", e);
             } catch (Exception ex) {
                 logger.warn("failed to notify ClusterStateListener", ex);
             }

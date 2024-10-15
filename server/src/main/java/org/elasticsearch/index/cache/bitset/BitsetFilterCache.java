@@ -58,8 +58,6 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 
-import static org.elasticsearch.index.IndexSettings.INDEX_FAST_REFRESH_SETTING;
-
 /**
  * This is a cache for {@link BitDocIdSet} based filters and is unbounded by size or time.
  * <p>
@@ -105,9 +103,7 @@ public final class BitsetFilterCache
         boolean loadFiltersEagerlySetting = settings.getValue(INDEX_LOAD_RANDOM_ACCESS_FILTERS_EAGERLY_SETTING);
         boolean isStateless = DiscoveryNode.isStateless(settings.getNodeSettings());
         if (isStateless) {
-            return DiscoveryNode.hasRole(settings.getNodeSettings(), DiscoveryNodeRole.SEARCH_ROLE)
-                && loadFiltersEagerlySetting
-                && INDEX_FAST_REFRESH_SETTING.get(settings.getSettings());
+            return loadFiltersEagerlySetting && DiscoveryNode.hasRole(settings.getNodeSettings(), DiscoveryNodeRole.SEARCH_ROLE);
         } else {
             return loadFiltersEagerlySetting;
         }

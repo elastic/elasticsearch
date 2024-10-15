@@ -1130,8 +1130,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         }
 
         private ProjectIndex projectIndex(ShardRouting shardRouting) {
-            final ProjectId projectId = allocation.globalRoutingTable().getProjectLookup().project(shardRouting.index());
-            return new ProjectIndex(projectId, shardRouting.getIndexName());
+            return new ProjectIndex(allocation, shardRouting);
         }
 
         /**
@@ -1502,7 +1501,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
 
     private record ProjectIndex(ProjectId project, String indexName) {
         ProjectIndex(RoutingAllocation allocation, ShardRouting shard) {
-            this(allocation.globalRoutingTable().getProjectLookup().project(shard.index()), shard.getIndexName());
+            this(allocation.globalRoutingTable().getProjectLookup().project(shard.index()).get(), shard.getIndexName());
         }
 
         public void assertMatch(ShardRouting shard) {

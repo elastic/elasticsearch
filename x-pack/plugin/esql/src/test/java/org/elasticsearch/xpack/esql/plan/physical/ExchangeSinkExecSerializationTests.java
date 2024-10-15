@@ -80,7 +80,7 @@ public class ExchangeSinkExecSerializationTests extends AbstractPhysicalPlanSeri
      * See {@link #testManyTypeConflicts(boolean, ByteSizeValue)} for more.
      */
     public void testManyTypeConflictsWithParent() throws IOException {
-        testManyTypeConflicts(true, ByteSizeValue.ofBytes(2774214));
+        testManyTypeConflicts(true, ByteSizeValue.ofBytes(2774192));
         /*
          * History:
          *  2 gb+ - start
@@ -102,7 +102,7 @@ public class ExchangeSinkExecSerializationTests extends AbstractPhysicalPlanSeri
      * with a single root field that has many children, grandchildren etc.
      */
     public void testDeeplyNestedFields() throws IOException {
-        ByteSizeValue expected = ByteSizeValue.ofBytes(69352081);
+        ByteSizeValue expected = ByteSizeValue.ofBytes(47252411);
 
         int depth = 6;
         int childrenPerLevel = 8;
@@ -117,7 +117,7 @@ public class ExchangeSinkExecSerializationTests extends AbstractPhysicalPlanSeri
      * with a single root field that has many children, grandchildren etc.
      */
     public void testDeeplyNestedFieldsKeepOnlyOne() throws IOException {
-        ByteSizeValue expected = ByteSizeValue.ofBytes(21183264);
+        ByteSizeValue expected = ByteSizeValue.ofBytes(9425806);
 
         int depth = 6;
         int childrenPerLevel = 9;

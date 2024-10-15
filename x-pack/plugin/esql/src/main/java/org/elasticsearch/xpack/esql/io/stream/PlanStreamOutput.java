@@ -230,6 +230,7 @@ public final class PlanStreamOutput extends StreamOutput implements org.elastics
     public void writeOptionalCachedString(String str) throws IOException {
         if (str == null) {
             writeBoolean(false);
+            return;
         }
 
         writeBoolean(true);

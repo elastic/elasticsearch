@@ -220,7 +220,7 @@ public class EsIndexSerializationTests extends AbstractWireSerializingTestCase<E
         int depth = 6;
         int childrenPerLevel = 9;
 
-        try (BytesStreamOutput out = new BytesStreamOutput(); var pso = new PlanStreamOutput(out, new PlanNameRegistry(), null)) {
+        try (BytesStreamOutput out = new BytesStreamOutput(); var pso = new PlanStreamOutput(out, null)) {
             deeplyNestedIndex(depth, childrenPerLevel).writeTo(pso);
             assertThat(ByteSizeValue.ofBytes(out.bytes().length()), byteSizeEquals(expectedSize));
         }

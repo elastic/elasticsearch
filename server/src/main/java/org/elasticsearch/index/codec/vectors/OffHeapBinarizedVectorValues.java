@@ -110,10 +110,17 @@ public abstract class OffHeapBinarizedVectorValues extends BinarizedByteVectorVa
         return binaryValue;
     }
 
+    @Override
+    public int discretizedDimensions() {
+        return discretizedDimensions;
+    }
+
+    @Override
     public float sqrtDimensions() {
         return sqrtDimensions;
     }
 
+    @Override
     public float maxX1() {
         return maxX1;
     }

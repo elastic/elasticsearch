@@ -10,11 +10,8 @@ package org.elasticsearch.xpack.application.rules.retriever;
 import org.apache.lucene.search.ScoreDoc;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.features.NodeFeature;
-import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.license.LicenseUtils;
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.StoredFieldsContext;
@@ -23,7 +20,9 @@ import org.elasticsearch.search.retriever.CompoundRetrieverBuilder;
 import org.elasticsearch.search.retriever.RetrieverBuilder;
 import org.elasticsearch.search.retriever.RetrieverParserContext;
 import org.elasticsearch.search.retriever.rankdoc.RankDocsQueryBuilder;
+import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.ScoreSortBuilder;
+import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -108,14 +107,12 @@ public final class QueryRuleRetrieverBuilder extends CompoundRetrieverBuilder<Qu
         Map<String, Object> matchCriteria,
         List<RetrieverSource> retrieverSource,
         int rankWindowSize,
-        String retrieverName,
-        List<QueryBuilder> preFilterQueryBuilders
+        String retrieverName
     ) {
         super(retrieverSource, rankWindowSize);
         this.rulesetIds = rulesetIds;
         this.matchCriteria = matchCriteria;
         this.retrieverName = retrieverName;
-        this.preFilterQueryBuilders = new ArrayList<>(preFilterQueryBuilders);
     }
 
     @Override
@@ -125,35 +122,20 @@ public final class QueryRuleRetrieverBuilder extends CompoundRetrieverBuilder<Qu
 
     @Override
     protected SearchSourceBuilder createSearchSourceBuilder(PointInTimeBuilder pit, RetrieverBuilder retrieverBuilder) {
-        Logger logger = LogManager.getLogger(QueryRuleRetrieverBuilder.class);
         var sourceBuilder = new SearchSourceBuilder().pointInTimeBuilder(pit)
             .trackTotalHits(false)
             .storedFields(new StoredFieldsContext(false))
             .size(rankWindowSize);
-        if (preFilterQueryBuilders.isEmpty() == false) {
-            retrieverBuilder.getPreFilterQueryBuilders().addAll(preFilterQueryBuilders);
-        }
         retrieverBuilder.extractToSearchSourceBuilder(sourceBuilder, true);
 
         QueryBuilder query = sourceBuilder.query();
         if (query != null && query instanceof RuleQueryBuilder == false) {
-            QueryBuilder organicQuery = query;
-            query = new RuleQueryBuilder(organicQuery, matchCriteria, rulesetIds);
+            QueryBuilder ruleQuery = new RuleQueryBuilder(query, matchCriteria, rulesetIds);
+            sourceBuilder.query(ruleQuery);
         }
 
-        // apply the pre-filters
-        if (preFilterQueryBuilders.size() > 0) {
-            BoolQueryBuilder newQuery = new BoolQueryBuilder();
-            if (query != null) {
-                newQuery.must(query);
-            }
-            preFilterQueryBuilders.forEach(newQuery::filter);
-            sourceBuilder.query(newQuery);
-        }
+        addSort(sourceBuilder);
 
-        sourceBuilder.sort(new ScoreSortBuilder());
-
-        logger.info("sourceBuilder: " + sourceBuilder);
         return sourceBuilder;
     }
 
@@ -167,14 +149,7 @@ public final class QueryRuleRetrieverBuilder extends CompoundRetrieverBuilder<Qu
 
     @Override
     protected QueryRuleRetrieverBuilder clone(List<RetrieverSource> newChildRetrievers) {
-        return new QueryRuleRetrieverBuilder(
-            rulesetIds,
-            matchCriteria,
-            newChildRetrievers,
-            rankWindowSize,
-            retrieverName,
-            preFilterQueryBuilders
-        );
+        return new QueryRuleRetrieverBuilder(rulesetIds, matchCriteria, newChildRetrievers, rankWindowSize, retrieverName);
     }
 
     @Override

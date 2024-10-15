@@ -93,6 +93,10 @@ The `rrf` retriever supports:
 
 * <<search-aggregations, aggregations>>
 * <<search-from-param, from>>
+* <<search-suggesters, suggesters>>
+* <<highlighting, highlighting>>
+* <<collapse-search-results, collapse>>
+* <<profiling-queries, profiling>>
 
 The `rrf` retriever does not currently support:
 
@@ -101,6 +105,9 @@ The `rrf` retriever does not currently support:
 * <<rescore, rescore>>
 
 Using unsupported features as part of a search with an `rrf` retriever results in an exception.
++
+IMPORTANT: It is best to avoid providing a <<search-api-pit, point in time>> as part of the request, as
+RRF creates one internally that is shared by all sub-retrievers to ensure consistent results.
 
 [[rrf-using-multiple-standard-retrievers]]
 ==== Reciprocal rank fusion using multiple standard retrievers

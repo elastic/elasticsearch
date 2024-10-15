@@ -1234,7 +1234,7 @@ public class VerifierTests extends ESTestCase {
         assertEquals(
             LoggerMessageFormat.format(
                 null,
-                "1:19: Invalid condition [{} or length(first_name) > 12]. " + "Function {} can't be used as part of an or condition",
+                "1:19: Invalid condition [{} or length(first_name) > 12]. " + "[{}] function can't be used as part of an or condition",
                 functionInvocation,
                 functionName
             ),
@@ -1244,7 +1244,7 @@ public class VerifierTests extends ESTestCase {
             LoggerMessageFormat.format(
                 null,
                 "1:19: Invalid condition [({} and first_name is not null) or (length(first_name) > 12 and first_name is null)]. "
-                    + "Function {} can't be used as part of an or condition",
+                    + "[{}] function can't be used as part of an or condition",
                 functionInvocation,
                 functionName
             ),
@@ -1258,7 +1258,7 @@ public class VerifierTests extends ESTestCase {
             LoggerMessageFormat.format(
                 null,
                 "1:19: Invalid condition [({} and first_name is not null) or first_name is null]. "
-                    + "Function {} can't be used as part of an or condition",
+                    + "[{}] function can't be used as part of an or condition",
                 functionInvocation,
                 functionName
             ),
@@ -1280,19 +1280,19 @@ public class VerifierTests extends ESTestCase {
 
     private void checkFullTextFunctionsWithNonBooleanFunctions(String functionName, String functionInvocation) {
         assertEquals(
-            "1:19: Invalid condition [" + functionInvocation + " is not null]. Function " + functionName + " can't be used with ISNOTNULL",
+            "1:19: Invalid condition [" + functionInvocation + " is not null]. [" + functionName + "] function can't be used with ISNOTNULL",
             error("from test | where " + functionInvocation + " is not null")
         );
         assertEquals(
-            "1:19: Invalid condition [" + functionInvocation + " is null]. Function " + functionName + " can't be used with ISNULL",
+            "1:19: Invalid condition [" + functionInvocation + " is null]. [" + functionName + "] function can't be used with ISNULL",
             error("from test | where " + functionInvocation + " is null")
         );
         assertEquals(
             "1:19: Invalid condition ["
                 + functionInvocation
-                + " in (\"hello\", \"world\")]. Function "
+                + " in (\"hello\", \"world\")]. ["
                 + functionName
-                + " can't be used with IN",
+                + "] function can't be used with IN",
             error("from test | where " + functionInvocation + " in (\"hello\", \"world\")")
         );
     }

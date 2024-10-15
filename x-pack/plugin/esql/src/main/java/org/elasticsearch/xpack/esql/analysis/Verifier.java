@@ -710,7 +710,7 @@ public class Verifier {
             failures.add(
                 fail(
                     or,
-                    "Invalid condition [{}]. Function [{}] {} can't be used as part of an or condition",
+                    "Invalid condition [{}]. [{}] {} can't be used as part of an or condition",
                     or.sourceText(),
                     ftf.functionName(),
                     ftf.functionType()

@@ -285,6 +285,18 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitStatsCommand(EsqlBaseParser.StatsCommandContext ctx);
   /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#aggFields}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitAggFields(EsqlBaseParser.AggFieldsContext ctx);
+  /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#aggField}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitAggField(EsqlBaseParser.AggFieldContext ctx);
+  /**
    * Visit a parse tree produced by {@link EsqlBaseParser#qualifiedName}.
    * @param ctx the parse tree
    * @return the visitor result

@@ -245,6 +245,7 @@ public class Constants {
         "cluster:admin/xpack/query_rules/get",
         "cluster:admin/xpack/query_rules/list",
         "cluster:admin/xpack/query_rules/put",
+        "cluster:admin/xpack/query_rules/test",
         "cluster:admin/xpack/rollup/delete",
         "cluster:admin/xpack/rollup/put",
         "cluster:admin/xpack/rollup/start",

@@ -1449,3 +1449,122 @@ setup:
   - match: { docs.0.doc._source.foo: "FOO" }
   - match: { docs.0.doc.executed_pipelines: ["foo-pipeline-2"] }
   - not_exists: docs.0.doc.error
+
+---
+"Test mapping addition works with legacy templates":
+  # In this test, we make sure that when the index template is a data stream template, simulate ingest works the same whether the data
+  # stream has been created or not -- either way, we expect it to use the template rather than the data stream / index mappings and settings.
+
+  - skip:
+      features:
+        - headers
+        - allowed_warnings
+
+  - requires:
+      cluster_features: ["simulate.mapping.addition"]
+      reason: "ingest simulate mapping addition added in 8.16"
+
+  - do:
+      indices.put_template:
+        name: my-legacy-template
+        body:
+          index_patterns: foo-*
+          settings:
+            number_of_replicas: 0
+          mappings:
+            dynamic: strict
+            properties:
+              foo:
+                type: integer
+              bar:
+                type: boolean
+
+  - do:
+      headers:
+        Content-Type: application/json
+      simulate.ingest:
+        index: foo-1
+        body: >
+          {
+            "docs": [
+              {
+                "_id": "asdf",
+                "_source": {
+                  "foo": 3,
+                  "bar": "not a boolean"
+                }
+              }
+            ]
+          }
+  - length: { docs: 1 }
+  - match: { docs.0.doc._index: "foo-1" }
+  - match: { docs.0.doc._source.foo: 3 }
+  - match: { docs.0.doc._source.bar: "not a boolean" }
+  - match: { docs.0.doc.error.type: "document_parsing_exception" }
+
+  - do:
+      headers:
+        Content-Type: application/json
+      simulate.ingest:
+        index: foo-1
+        body: >
+          {
+            "docs": [
+              {
+                "_id": "asdf",
+                "_source": {
+                  "foo": 3,
+                  "bar": "not a boolean"
+                }
+              }
+            ],
+            "mapping_addition": {
+              "dynamic": "strict",
+              "properties": {
+                "bar": {
+                  "type": "keyword"
+                }
+              }
+            }
+          }
+  - length: { docs: 1 }
+  - match: { docs.0.doc._index: "foo-1" }
+  - match: { docs.0.doc._source.foo: 3 }
+  - match: { docs.0.doc._source.bar: "not a boolean" }
+  - not_exists: docs.0.doc.error
+
+  - do:
+      indices.create:
+        index: foo-1
+  - match: { acknowledged: true }
+
+  - do:
+      headers:
+        Content-Type: application/json
+      simulate.ingest:
+        index: foo-1
+        body: >
+          {
+            "docs": [
+              {
+                "_id": "asdf",
+                "_source": {
+                  "foo": 3,
+                  "bar": "not a boolean"
+                }
+              }
+            ],
+            "mapping_addition": {
+              "dynamic": "strict",
+              "properties": {
+                "bar": {
+                  "type": "keyword"
+                }
+              }
+            }
+          }
+  - length: { docs: 1 }
+  - match: { docs.0.doc._index: "foo-1" }
+  - match: { docs.0.doc._source.foo: 3 }
+  - match: { docs.0.doc._source.bar: "not a boolean" }
+  - not_exists: docs.0.doc.error

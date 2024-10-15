@@ -9,11 +9,11 @@
 
 package org.elasticsearch.logsdb.datageneration;
 
+import java.util.Map;
+
 /**
- * Entity responsible for generating a valid value for a field.
- *
- * Generator is expected to produce a different value on every call.
+ * Contains generated mapping and supporting data.
+ * @param raw mapping represented as a possibly nested map (maps represent (sub-)objects)
+ * @param lookup supporting data structure that represent mapping in a flat form (full path to field -> mapping parameters)
  */
-public interface FieldDataGenerator {
-    Object generateValue();
-}
+public record Mapping(Map<String, Object> raw, Map<String, Map<String, Object>> lookup) {}

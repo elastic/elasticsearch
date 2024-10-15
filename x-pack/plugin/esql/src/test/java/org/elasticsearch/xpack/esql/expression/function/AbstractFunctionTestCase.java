@@ -1309,10 +1309,9 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
      */
     private static boolean shouldHideSignature(List<DataType> argTypes, DataType returnType) {
         for (DataType dt : DataType.UNDER_CONSTRUCTION.keySet()) {
-            if (returnType == dt) {
+            if (returnType == dt || argTypes.contains(dt)) {
                 return true;
             }
-            return argTypes.contains(dt);
         }
         return false;
     }

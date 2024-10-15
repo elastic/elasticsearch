@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.parser;
 import org.elasticsearch.Build;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.capabilities.UnresolvedException;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -925,11 +926,14 @@ public class StatementParserTests extends AbstractStatementParserTests {
             "row x = is_null(f)",
             "line 1:10: is_null function is not supported anymore, please use 'is null'/'is not null' predicates instead"
         );
-        expectError(
-            "from test | eval x = ?fn1(f)",
-            List.of(paramAsIdentifier("fn1", "IS_NULL")),
-            "line 1:23: is_null function is not supported anymore, please use 'is null'/'is not null' predicates instead"
-        );
+
+        if (Build.current().isSnapshot()) {
+            expectError(
+                "from test | eval x = ?fn1(f)",
+                List.of(paramAsIdentifier("fn1", "IS_NULL")),
+                "line 1:23: is_null function is not supported anymore, please use 'is null'/'is not null' predicates instead"
+            );
+        }
     }
 
     public void testMetadataFieldOnOtherSources() {
@@ -1602,6 +1606,10 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testParamForIdentifier() {
+        assumeTrue(
+            "named parameters for identifiers and patterns require snapshot build",
+            EsqlCapabilities.Cap.NAMED_PARAMETER_FOR_FIELD_AND_FUNCTION_NAMES.isEnabled()
+        );
         // field names can appear in eval/where/stats/sort/keep/drop/rename/dissect/grok/enrich/mvexpand
         // eval, where
         assertEquals(
@@ -1859,6 +1867,10 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testParamForIdentifierPattern() {
+        assumeTrue(
+            "named parameters for identifiers and patterns require snapshot build",
+            EsqlCapabilities.Cap.NAMED_PARAMETER_FOR_FIELD_AND_FUNCTION_NAMES.isEnabled()
+        );
         // name patterns can appear in keep and drop
         // all patterns
         LogicalPlan plan = statement(
@@ -1948,6 +1960,10 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testParamInInvalidPosition() {
+        assumeTrue(
+            "named parameters for identifiers and patterns require snapshot build",
+            EsqlCapabilities.Cap.NAMED_PARAMETER_FOR_FIELD_AND_FUNCTION_NAMES.isEnabled()
+        );
         // param for pattern is not supported in eval/where/stats/sort/rename/dissect/grok/enrich/mvexpand
         // where/stats/sort/dissect/grok are covered in RestEsqlTestCase
         List<String> invalidParamPositions = List.of("eval ?f1 = 1", "stats x = ?f1(*)", "mv_expand ?f1", "rename ?f1 as ?f2");
@@ -1999,6 +2015,10 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testMissingParam() {
+        assumeTrue(
+            "named parameters for identifiers and patterns require snapshot build",
+            EsqlCapabilities.Cap.NAMED_PARAMETER_FOR_FIELD_AND_FUNCTION_NAMES.isEnabled()
+        );
         // cover all processing commands eval/where/stats/sort/rename/dissect/grok/enrich/mvexpand/keep/drop
         String error = "Unknown query parameter [f1], did you mean [f4]?";
         String errorMvExpandFunctionNameCommandOption = "Query parameter [?f1] is null or undefined, cannot be used as an identifier";
@@ -2080,13 +2100,11 @@ public class StatementParserTests extends AbstractStatementParserTests {
 
     public void testIdPatternQuoted() throws Exception {
         var string = "`escaped string`";
-        List<String> temp = breakIntoFragments(string);
         assertThat(breakIntoFragments(string), contains(string));
     }
 
     public void testIdPatternQuotedWithDoubleBackticks() throws Exception {
         var string = "`escaped``string`";
-        List<String> temp = breakIntoFragments(string);
         assertThat(breakIntoFragments(string), contains(string));
     }
 

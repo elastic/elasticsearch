@@ -9,13 +9,20 @@
 
 package org.elasticsearch.xpack.application.rules.retriever;
 
+import org.apache.lucene.search.ScoreDoc;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.features.NodeFeature;
+import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.license.LicenseUtils;
+import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.fetch.StoredFieldsContext;
+import org.elasticsearch.search.rank.RankDoc;
+import org.elasticsearch.search.retriever.CompoundRetrieverBuilder;
 import org.elasticsearch.search.retriever.RetrieverBuilder;
 import org.elasticsearch.search.retriever.RetrieverParserContext;
+import org.elasticsearch.search.retriever.rankdoc.RankDocsQueryBuilder;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -25,16 +32,19 @@ import org.elasticsearch.xpack.application.rules.RuleQueryBuilder;
 import org.elasticsearch.xpack.core.XPackPlugin;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.elasticsearch.search.rank.RankBuilder.DEFAULT_RANK_WINDOW_SIZE;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 /**
  * A query rule retriever applies query rules defined in one or more rulesets to the underlying retriever.
  */
-public final class QueryRuleRetrieverBuilder extends RetrieverBuilder {
+public final class QueryRuleRetrieverBuilder extends CompoundRetrieverBuilder<QueryRuleRetrieverBuilder> {
 
     public static final String NAME = "rule";
     public static final NodeFeature QUERY_RULE_RETRIEVERS_SUPPORTED = new NodeFeature("query_rule_retriever_supported");
@@ -42,6 +52,7 @@ public final class QueryRuleRetrieverBuilder extends RetrieverBuilder {
     public static final ParseField RULESET_IDS_FIELD = new ParseField("ruleset_ids");
     public static final ParseField MATCH_CRITERIA_FIELD = new ParseField("match_criteria");
     public static final ParseField RETRIEVER_FIELD = new ParseField("retriever");
+    public static final ParseField RANK_WINDOW_SIZE_FIELD = new ParseField("rank_window_size");
 
     @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<QueryRuleRetrieverBuilder, RetrieverParserContext> PARSER = new ConstructingObjectParser<>(
@@ -50,7 +61,8 @@ public final class QueryRuleRetrieverBuilder extends RetrieverBuilder {
             List<String> rulesetIds = (List<String>) args[0];
             Map<String, Object> matchCriteria = (Map<String, Object>) args[1];
             RetrieverBuilder retrieverBuilder = (RetrieverBuilder) args[2];
-            return new QueryRuleRetrieverBuilder(rulesetIds, matchCriteria, retrieverBuilder);
+            int rankWindowSize = args[3] == null ? DEFAULT_RANK_WINDOW_SIZE : (int) args[3];
+            return new QueryRuleRetrieverBuilder(rulesetIds, matchCriteria, retrieverBuilder, rankWindowSize);
         }
     );
 
@@ -58,6 +70,7 @@ public final class QueryRuleRetrieverBuilder extends RetrieverBuilder {
         PARSER.declareStringArray(constructorArg(), RULESET_IDS_FIELD);
         PARSER.declareObject(constructorArg(), (p, c) -> p.map(), MATCH_CRITERIA_FIELD);
         PARSER.declareNamedObject(constructorArg(), (p, c, n) -> p.namedObject(RetrieverBuilder.class, n, c), RETRIEVER_FIELD);
+        PARSER.declareInt(optionalConstructorArg(), RANK_WINDOW_SIZE_FIELD);
         RetrieverBuilder.declareBaseParserFields(NAME, PARSER);
     }
 
@@ -77,12 +90,31 @@ public final class QueryRuleRetrieverBuilder extends RetrieverBuilder {
 
     private final List<String> rulesetIds;
     private final Map<String, Object> matchCriteria;
-    private final RetrieverBuilder retrieverBuilder;
 
-    public QueryRuleRetrieverBuilder(List<String> rulesetIds, Map<String, Object> matchCriteria, RetrieverBuilder retrieverBuilder) {
+    public QueryRuleRetrieverBuilder(
+        List<String> rulesetIds,
+        Map<String, Object> matchCriteria,
+        RetrieverBuilder retrieverBuilder,
+        int rankWindowSize
+    ) {
+        super(List.of(new RetrieverSource(retrieverBuilder, null)), rankWindowSize);
         this.rulesetIds = rulesetIds;
         this.matchCriteria = matchCriteria;
-        this.retrieverBuilder = retrieverBuilder;
+    }
+
+    public QueryRuleRetrieverBuilder(
+        List<String> rulesetIds,
+        Map<String, Object> matchCriteria,
+        List<RetrieverSource> retrieverSource,
+        int rankWindowSize,
+        String retrieverName,
+        List<QueryBuilder> preFilterQueryBuilders
+    ) {
+        super(retrieverSource, rankWindowSize);
+        this.rulesetIds = rulesetIds;
+        this.matchCriteria = matchCriteria;
+        this.retrieverName = retrieverName;
+        this.preFilterQueryBuilders = new ArrayList<>(preFilterQueryBuilders);
     }
 
     @Override
@@ -91,22 +123,33 @@ public final class QueryRuleRetrieverBuilder extends RetrieverBuilder {
     }
 
     @Override
-    public QueryBuilder topDocsQuery() {
-        assert rankDocs != null : "{rankDocs} should have been materialized at this point";
+    protected SearchSourceBuilder createSearchSourceBuilder(PointInTimeBuilder pit, RetrieverBuilder retrieverBuilder) {
+        var sourceBuilder = new SearchSourceBuilder().pointInTimeBuilder(pit)
+            .trackTotalHits(false)
+            .storedFields(new StoredFieldsContext(false))
+            .size(rankWindowSize);
+        if (preFilterQueryBuilders.isEmpty() == false) {
+            retrieverBuilder.getPreFilterQueryBuilders().addAll(preFilterQueryBuilders);
+        }
+        retrieverBuilder.extractToSearchSourceBuilder(sourceBuilder, true);
 
-        // TODO is this correct?
-        return retrieverBuilder.topDocsQuery();
-    }
+        QueryBuilder query = sourceBuilder.query();
+        if (query != null && query instanceof RuleQueryBuilder == false) {
+            QueryBuilder organicQuery = query;
+            query = new RuleQueryBuilder(organicQuery, matchCriteria, rulesetIds);
+        }
 
-    @Override
-    public void extractToSearchSourceBuilder(SearchSourceBuilder searchSourceBuilder, boolean compoundUsed) {
+        // apply the pre-filters
+        if (preFilterQueryBuilders.size() > 0) {
+            BoolQueryBuilder newQuery = new BoolQueryBuilder();
+            if (query != null) {
+                newQuery.must(query);
+            }
+            preFilterQueryBuilders.forEach(newQuery::filter);
+            sourceBuilder.query(newQuery);
+        }
 
-        // TODO throw if compoundUsed is true?
-
-        QueryBuilder organicQuery = retrieverBuilder.topDocsQuery();
-        QueryBuilder queryBuilder = new RuleQueryBuilder(organicQuery, matchCriteria, rulesetIds);
-
-        searchSourceBuilder.query(queryBuilder);
+        return sourceBuilder;
     }
 
     @Override
@@ -115,24 +158,46 @@ public final class QueryRuleRetrieverBuilder extends RetrieverBuilder {
         builder.startObject(MATCH_CRITERIA_FIELD.getPreferredName());
         builder.mapContents(matchCriteria);
         builder.endObject();
-        builder.startObject("retriever");
-        builder.startObject();
-        builder.field(retrieverBuilder.getName());
-        retrieverBuilder.toXContent(builder, params);
-        builder.endObject();
-        builder.endObject();
+    }
+
+    @Override
+    protected QueryRuleRetrieverBuilder clone(List<RetrieverSource> newChildRetrievers) {
+        return new QueryRuleRetrieverBuilder(
+            rulesetIds,
+            matchCriteria,
+            newChildRetrievers,
+            rankWindowSize,
+            retrieverName,
+            preFilterQueryBuilders
+        );
+    }
+
+    @Override
+    protected RankDoc[] combineInnerRetrieverResults(List<ScoreDoc[]> rankResults) {
+        assert rankResults.size() == 1;
+        ScoreDoc[] scoreDocs = rankResults.getFirst();
+        RankDoc[] rankDocs = new RankDoc[scoreDocs.length];
+        for (int i = 0; i < scoreDocs.length; i++) {
+            ScoreDoc scoreDoc = scoreDocs[i];
+            rankDocs[i] = new RankDoc(scoreDoc.doc, scoreDoc.score, scoreDoc.shardIndex);
+        }
+        return rankDocs;
+    }
+
+    @Override
+    public QueryBuilder explainQuery() {
+        // the original matching set of the QueryRuleRetriever retriever is specified by its nested retriever
+        return new RankDocsQueryBuilder(rankDocs, new QueryBuilder[] { innerRetrievers.getFirst().retriever().explainQuery() }, true);
     }
 
     @Override
     public boolean doEquals(Object o) {
         QueryRuleRetrieverBuilder that = (QueryRuleRetrieverBuilder) o;
-        return Objects.equals(rulesetIds, that.rulesetIds)
-            && Objects.equals(matchCriteria, that.matchCriteria)
-            && Objects.equals(retrieverBuilder, that.retrieverBuilder);
+        return super.doEquals(o) && Objects.equals(rulesetIds, that.rulesetIds) && Objects.equals(matchCriteria, that.matchCriteria);
     }
 
     @Override
     public int doHashCode() {
-        return Objects.hash(rulesetIds, matchCriteria, retrieverBuilder);
+        return Objects.hash(super.doHashCode(), rulesetIds, matchCriteria);
     }
 }

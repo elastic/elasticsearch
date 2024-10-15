@@ -153,6 +153,7 @@ public class ElasticsearchInternalServiceSettings implements ServiceSettings {
         this.numThreads = other.numThreads;
         this.modelId = other.modelId;
         this.adaptiveAllocationsSettings = other.adaptiveAllocationsSettings;
+        this.deploymentId = other.deploymentId;
     }
 
     public ElasticsearchInternalServiceSettings(StreamInput in) throws IOException {

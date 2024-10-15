@@ -131,4 +131,15 @@ public class CustomElandModelIT extends InferenceBaseRestTest {
         request.setJsonEntity(body);
         client().performRequest(request);
     }
+
+    // Create the model including definition and vocab
+    protected void createMlNodeTextExpansionModel(String modelId) throws IOException {
+        createTextExpansionModel(modelId);
+        putModelDefinition(modelId, BASE_64_ENCODED_MODEL, RAW_MODEL_SIZE);
+        putVocabulary(
+            List.of("these", "are", "my", "words", "the", "washing", "machine", "is", "leaking", "octopus", "comforter", "smells"),
+            modelId
+        );
+    }
+
 }

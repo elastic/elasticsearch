@@ -22,11 +22,18 @@ public class ElasticsearchInternalServiceSettingsTests extends AbstractWireSeria
 
     public static ElasticsearchInternalServiceSettings validInstance(String modelId) {
         boolean useAdaptive = randomBoolean();
+        var deploymentId = randomBoolean() ? null : randomAlphaOfLength(5);
         if (useAdaptive) {
             var adaptive = new AdaptiveAllocationsSettings(true, 1, randomIntBetween(2, 8));
-            return new ElasticsearchInternalServiceSettings(randomBoolean() ? 1 : null, randomIntBetween(1, 16), modelId, adaptive);
+            return new ElasticsearchInternalServiceSettings(
+                randomBoolean() ? 1 : null,
+                randomIntBetween(1, 16),
+                modelId,
+                adaptive,
+                deploymentId
+            );
         } else {
-            return new ElasticsearchInternalServiceSettings(randomIntBetween(1, 10), randomIntBetween(1, 16), modelId, null);
+            return new ElasticsearchInternalServiceSettings(randomIntBetween(1, 10), randomIntBetween(1, 16), modelId, null, deploymentId);
         }
     }
 

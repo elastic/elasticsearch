@@ -147,14 +147,7 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
             String deploymentId = (String) serviceSettingsMap.get(ElasticsearchInternalServiceSettings.DEPLOYMENT_ID);
             if (deploymentId != null) {
                 validateAgainstDeployment(modelId, deploymentId, taskType, modelListener.delegateFailureAndWrap((l, settings) -> {
-                   l.onResponse(new ElasticDeployedModel(
-                       inferenceEntityId,
-                       taskType,
-                       NAME,
-                       new ElserInternalServiceSettings(settings.build()),
-                       ElserMlNodeTaskSettings.DEFAULT,
-                       chunkingSettings
-                   ));
+                    l.onResponse(new ElasticDeployedModel(inferenceEntityId, taskType, NAME, settings.build(), chunkingSettings));
                 }));
             } else if (modelId == null) {
                 if (OLD_ELSER_SERVICE_NAME.equals(serviceName)) {
@@ -586,13 +579,7 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
         TimeValue timeout,
         ActionListener<InferenceServiceResults> listener
     ) {
-        var request = buildInferenceRequest(
-            model.mlNodeDeploymentId(),
-            TextExpansionConfigUpdate.EMPTY_UPDATE,
-            inputs,
-            inputType,
-            timeout
-        );
+        var request = buildInferenceRequest(model.mlNodeDeploymentId(), TextExpansionConfigUpdate.EMPTY_UPDATE, inputs, inputType, timeout);
 
         ActionListener<InferModelAction.Response> mlResultsListener = listener.delegateFailureAndWrap(
             (l, inferenceResult) -> l.onResponse(SparseEmbeddingResults.of(inferenceResult.getInferenceResults()))
@@ -614,13 +601,7 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
         Map<String, Object> requestTaskSettings,
         ActionListener<InferenceServiceResults> listener
     ) {
-        var request = buildInferenceRequest(
-            model.mlNodeDeploymentId(),
-            new TextSimilarityConfigUpdate(query),
-            inputs,
-            inputType,
-            timeout
-        );
+        var request = buildInferenceRequest(model.mlNodeDeploymentId(), new TextSimilarityConfigUpdate(query), inputs, inputType, timeout);
 
         var modelSettings = (CustomElandRerankTaskSettings) model.getTaskSettings();
         var requestSettings = CustomElandRerankTaskSettings.fromMap(requestTaskSettings);
@@ -917,7 +898,6 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
         };
     }
 
-
     private void validateAgainstDeployment(
         String modelId,
         String deploymentId,
@@ -926,7 +906,7 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
     ) {
         getDeployment(deploymentId, listener.delegateFailureAndWrap((l, response) -> {
             if (response.isPresent()) {
-                if (modelId.equals(response.get().getModelId()) == false) {
+                if (modelId != null && modelId.equals(response.get().getModelId()) == false) {
                     listener.onFailure(
                         new ElasticsearchStatusException(
                             "Deployment [{}] uses model [{}] which does not match the model [{}] in the request.",
@@ -940,18 +920,16 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
                 }
 
                 var updatedSettings = new ElasticsearchInternalServiceSettings.Builder().setNumAllocations(
-                        response.get().getNumberOfAllocations()
-                    )
+                    response.get().getNumberOfAllocations()
+                )
                     .setNumThreads(response.get().getThreadsPerAllocation())
                     .setAdaptiveAllocationsSettings(response.get().getAdaptiveAllocationsSettings())
                     .setDeploymentId(deploymentId)
-                    .setModelId(modelId);
+                    .setModelId(response.get().getModelId());
 
-                checkTaskTypeForMlNodeModel(
-                    response.get().getModelId(),
-                    taskType,
-                    l.delegateFailureAndWrap((l2, compatibleTaskType) -> { l2.onResponse(updatedSettings); })
-                );
+                checkTaskTypeForMlNodeModel(response.get().getModelId(), taskType, l.delegateFailureAndWrap((l2, compatibleTaskType) -> {
+                    l2.onResponse(updatedSettings);
+                }));
             }
         }));
     }

@@ -20,15 +20,17 @@ public class ElasticDeployedModel extends ElasticsearchInternalModel {
         String inferenceEntityId,
         TaskType taskType,
         String service,
-        ElserInternalServiceSettings serviceSettings,
-        ElserMlNodeTaskSettings taskSettings,
+        ElasticsearchInternalServiceSettings serviceSettings,
         ChunkingSettings chunkingSettings
     ) {
-        super(inferenceEntityId, taskType, service, serviceSettings, taskSettings, chunkingSettings);
+        super(inferenceEntityId, taskType, service, serviceSettings, chunkingSettings);
     }
 
     @Override
-    public ActionListener<CreateTrainedModelAssignmentAction.Response> getCreateTrainedModelAssignmentActionListener(Model model, ActionListener<Boolean> listener) {
+    public ActionListener<CreateTrainedModelAssignmentAction.Response> getCreateTrainedModelAssignmentActionListener(
+        Model model,
+        ActionListener<Boolean> listener
+    ) {
         return new ActionListener<>() {
             @Override
             public void onResponse(CreateTrainedModelAssignmentAction.Response response) {

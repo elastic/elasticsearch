@@ -100,7 +100,7 @@ import static org.elasticsearch.core.Strings.format;
 public class AzureBlobStore implements BlobStore {
     private static final Logger logger = LogManager.getLogger(AzureBlobStore.class);
     // See https://learn.microsoft.com/en-us/rest/api/storageservices/blob-batch#request-body
-    private static final int MAX_ELEMENTS_PER_BATCH = 256;
+    public static final int MAX_ELEMENTS_PER_BATCH = 256;
     private static final long DEFAULT_READ_CHUNK_SIZE = new ByteSizeValue(32, ByteSizeUnit.MB).getBytes();
     private static final int DEFAULT_UPLOAD_BUFFERS_SIZE = (int) new ByteSizeValue(64, ByteSizeUnit.KB).getBytes();
 
@@ -112,6 +112,7 @@ public class AzureBlobStore implements BlobStore {
     private final String container;
     private final LocationMode locationMode;
     private final ByteSizeValue maxSinglePartUploadSize;
+    private final int maxDeletesPerBatch;
 
     private final RequestMetricsRecorder requestMetricsRecorder;
     private final AzureClientProvider.RequestMetricsHandler requestMetricsHandler;
@@ -131,6 +132,7 @@ public class AzureBlobStore implements BlobStore {
         // locationMode is set per repository, not per client
         this.locationMode = Repository.LOCATION_MODE_SETTING.get(metadata.settings());
         this.maxSinglePartUploadSize = Repository.MAX_SINGLE_PART_UPLOAD_SIZE_SETTING.get(metadata.settings());
+        this.maxDeletesPerBatch = Repository.DELETION_BATCH_SIZE_SETTING.get(metadata.settings());
 
         List<RequestMatcher> requestMatchers = List.of(
             new RequestMatcher((httpMethod, url) -> httpMethod == HttpMethod.HEAD, Operation.GET_BLOB_PROPERTIES),
@@ -298,7 +300,7 @@ public class AzureBlobStore implements BlobStore {
         while (blobNames.hasNext()) {
             final BlobBatch currentBatch = batchAsyncClient.getBlobBatch();
             int counter = 0;
-            while (counter < MAX_ELEMENTS_PER_BATCH && blobNames.hasNext()) {
+            while (counter < maxDeletesPerBatch && blobNames.hasNext()) {
                 currentBatch.deleteBlob(container, blobNames.next());
                 counter++;
             }

@@ -87,6 +87,16 @@ public class AzureRepository extends MeteredBlobStoreRepository {
             DEFAULT_MAX_SINGLE_UPLOAD_SIZE,
             Property.NodeScope
         );
+
+        /**
+         * The batch size for batched delete requests
+         */
+        static final Setting<Integer> DELETION_BATCH_SIZE_SETTING = Setting.intSetting(
+            "delete_objects_max_size",
+            AzureBlobStore.MAX_ELEMENTS_PER_BATCH,
+            1,
+            AzureBlobStore.MAX_ELEMENTS_PER_BATCH
+        );
     }
 
     private final ByteSizeValue chunkSize;

@@ -33,7 +33,6 @@ import java.io.IOException;
 import java.time.Duration;
 import java.util.List;
 
-import static java.util.Arrays.asList;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;

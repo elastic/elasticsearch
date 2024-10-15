@@ -16,13 +16,11 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Processors;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.node.Node;
-import org.elasticsearch.threadpool.ThreadPool;
 
 import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.util.List;
 import java.util.Optional;
-import java.util.Set;
 import java.util.concurrent.AbstractExecutorService;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CancellationException;
@@ -43,13 +41,6 @@ public class EsExecutors {
 
     // although the available processors may technically change, for node sizing we use the number available at launch
     private static final int MAX_NUM_PROCESSORS = Runtime.getRuntime().availableProcessors();
-
-    private static final Set<String> SYSTEM_THREAD_PREFIXES = Set.of(
-        ThreadPool.Names.SYSTEM_READ,
-        ThreadPool.Names.SYSTEM_WRITE,
-        ThreadPool.Names.SYSTEM_CRITICAL_READ,
-        ThreadPool.Names.SYSTEM_CRITICAL_WRITE
-    );
 
     /**
      * Setting to manually control the number of allocated processors. This setting is used to adjust thread pool sizes per node. The

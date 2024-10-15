@@ -86,4 +86,13 @@ public abstract class BinarizedByteVectorValues extends ByteVectorValues {
         float[] centroid = getCentroid();
         return VectorUtil.dotProduct(centroid, centroid);
     }
+
+    // TODO the following two most likely need fixing
+    public float sqrtDimensions() {
+        return 0;
+    }
+
+    public float maxX1() {
+        return 0;
+    }
 }

@@ -95,6 +95,7 @@ public class EnterpriseGeoIpDownloaderIT extends ESIntegTestCase {
 
         startEnterpriseGeoIpDownloaderTask();
         configureMaxmindDatabase(MAXMIND_DATABASE_TYPE);
+        waitAround();
         createGeoIpPipeline(pipelineName, MAXMIND_DATABASE_TYPE, sourceField, targetField);
 
         assertBusy(() -> {
@@ -129,7 +130,7 @@ public class EnterpriseGeoIpDownloaderIT extends ESIntegTestCase {
         );
     }
 
-    private void configureMaxmindDatabase(String databaseType) throws Exception {
+    private void configureMaxmindDatabase(String databaseType) {
         admin().cluster()
             .execute(
                 PutDatabaseConfigurationAction.INSTANCE,
@@ -140,6 +141,9 @@ public class EnterpriseGeoIpDownloaderIT extends ESIntegTestCase {
                 )
             )
             .actionGet();
+    }
+
+    private void waitAround() throws Exception {
         ensureGreen(GeoIpDownloader.DATABASES_INDEX);
         assertBusy(() -> {
             SearchResponse searchResponse = client().search(new SearchRequest(GeoIpDownloader.DATABASES_INDEX)).actionGet();

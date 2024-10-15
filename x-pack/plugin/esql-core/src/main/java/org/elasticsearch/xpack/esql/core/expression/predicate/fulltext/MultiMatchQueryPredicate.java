@@ -88,4 +88,9 @@ public class MultiMatchQueryPredicate extends FullTextPredicate {
     public String getWriteableName() {
         return ENTRY.name;
     }
+
+    @Override
+    public String name() {
+        return "multi_match";
+    }
 }

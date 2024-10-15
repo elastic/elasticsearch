@@ -21,13 +21,13 @@ import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.expression.function.Function;
 import org.elasticsearch.xpack.esql.core.expression.predicate.BinaryOperator;
+import org.elasticsearch.xpack.esql.core.expression.predicate.fulltext.FullTextPredicate;
 import org.elasticsearch.xpack.esql.core.expression.predicate.fulltext.MatchQueryPredicate;
 import org.elasticsearch.xpack.esql.core.expression.predicate.logical.BinaryLogic;
 import org.elasticsearch.xpack.esql.core.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.core.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.FilteredExpression;
@@ -69,7 +69,6 @@ import java.util.stream.Stream;
 import static org.elasticsearch.xpack.esql.common.Failure.fail;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
-import static org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushFiltersToSource.canPushToSource;
 
 /**
  * This class is part of the planner. Responsible for failing impossible queries with a human-readable error message.  In particular, this
@@ -193,7 +192,7 @@ public class Verifier {
             checkBinaryComparison(p, failures);
             checkForSortableDataTypes(p, failures);
 
-            checkFilterMatchConditions(p, failures);
+            checkFullTextPredicates(p, failures);
             checkFullTextQueryFunctions(p, failures);
         });
         checkRemoteEnrich(plan, failures);
@@ -441,11 +440,6 @@ public class Verifier {
                         failures.add(fail(af, "aggregate function [{}] not allowed outside STATS command", af.sourceText()));
                     }
                 });
-                // check no MATCH expressions are used
-                field.forEachDown(
-                    MatchQueryPredicate.class,
-                    mqp -> { failures.add(fail(mqp, "EVAL does not support MATCH expressions")); }
-                );
             });
         }
     }
@@ -631,6 +625,19 @@ public class Verifier {
         });
     }
 
+    private static void checkFullTextPredicates(LogicalPlan plan, Set<Failure> failures) {
+        if (plan instanceof Filter f) {
+            Expression condition = f.condition();
+            checkMatchPredicateTypes(plan, failures);
+            checkCommandsBeforeFullTextPredicates(plan, condition, failures);
+            checkFullTextPredicateConditions(condition, failures);
+        } else {
+            plan.forEachExpression(FullTextPredicate.class, ftf -> {
+                failures.add(fail(ftf, "[{}] operator is only supported in WHERE commands", ftf.name()));
+            });
+        }
+    }
+
     /**
      * Currently any filter condition using MATCH needs to be pushed down to the Lucene query.
      * Conditions that use a combination of MATCH and ES|QL functions (e.g. `title MATCH "anna" OR DATE_EXTRACT("year", date) > 2010)
@@ -640,36 +647,59 @@ public class Verifier {
      * early in the execution, rather than fail at the compute engine level.
      * In the future we will be able to handle MATCH at the compute and we will no longer need these checks.
      */
-    private static void checkFilterMatchConditions(LogicalPlan plan, Set<Failure> failures) {
+    private static void checkMatchPredicateTypes(LogicalPlan plan, Set<Failure> failures) {
         if (plan instanceof Filter f) {
             Expression condition = f.condition();
 
-            Holder<Boolean> hasMatch = new Holder<>(false);
             condition.forEachDown(MatchQueryPredicate.class, mqp -> {
-                hasMatch.set(true);
                 var field = mqp.field();
                 if (field instanceof FieldAttribute == false) {
-                    failures.add(fail(mqp, "MATCH requires a mapped index field, found [" + field.sourceText() + "]"));
+                    failures.add(fail(mqp, "[:] operator requires a mapped index field, found [" + field.sourceText() + "]"));
                 }
 
                 if (DataType.isString(field.dataType()) == false) {
                     var message = LoggerMessageFormat.format(
                         null,
-                        "MATCH requires a text or keyword field, but [{}] has type [{}]",
+                        "[:] operator requires a text or keyword field, but [{}] has type [{}]",
                         field.sourceText(),
                         field.dataType().esType()
                     );
                     failures.add(fail(mqp, message));
                 }
             });
-
-            if (canPushToSource(condition, x -> false)) {
-                return;
-            }
-            if (hasMatch.get()) {
-                failures.add(fail(condition, "Invalid condition using MATCH"));
-            }
         }
+    }
+
+    private static void checkCommandsBeforeFullTextPredicates(LogicalPlan plan, Expression condition, Set<Failure> failures) {
+        condition.forEachDown(FullTextPredicate.class, qsf -> {
+            plan.forEachDown(LogicalPlan.class, lp -> {
+                if (lp instanceof Limit) {
+                    failures.add(
+                        fail(
+                            plan,
+                            "[{}] operator cannot be used after {}",
+                            qsf.name(),
+                            lp.sourceText().split(" ")[0].toUpperCase(Locale.ROOT)
+                        )
+                    );
+                }
+            });
+        });
+    }
+
+    private static void checkFullTextPredicateConditions(Expression condition, Set<Failure> failures) {
+        condition.forEachUp(Or.class, or -> {
+            checkFullTextPredicateInDisjunction(failures, or, or.left());
+            checkFullTextPredicateInDisjunction(failures, or, or.right());
+        });
+    }
+
+    private static void checkFullTextPredicateInDisjunction(Set<Failure> failures, Or or, Expression expression) {
+        expression.forEachDown(FullTextPredicate.class, ftp -> {
+            failures.add(
+                fail(or, "Invalid condition [{}]. [{}] operator can't be used as part of an or condition", or.sourceText(), ftp.name())
+            );
+        });
     }
 
     private static void checkFullTextQueryFunctions(LogicalPlan plan, Set<Failure> failures) {
@@ -681,7 +711,7 @@ public class Verifier {
             checkFullTextFunctionsParents(condition, failures);
         } else {
             plan.forEachExpression(FullTextFunction.class, ftf -> {
-                failures.add(fail(ftf, "[{}] {} is only supported in WHERE commands", ftf.functionName(), ftf.functionType()));
+                failures.add(fail(ftf, "[{}] function is only supported in WHERE commands", ftf.functionName()));
             });
         }
     }
@@ -693,9 +723,8 @@ public class Verifier {
                     failures.add(
                         fail(
                             plan,
-                            "[{}] {} cannot be used after {}",
+                            "[{}] function cannot be used after {}",
                             qsf.functionName(),
-                            qsf.functionType(),
                             lp.sourceText().split(" ")[0].toUpperCase(Locale.ROOT)
                         )
                     );
@@ -711,9 +740,8 @@ public class Verifier {
                     failures.add(
                         fail(
                             plan,
-                            "[{}] {} cannot be used after {}",
+                            "[{}] function cannot be used after {}",
                             qsf.functionName(),
-                            qsf.functionType(),
                             lp.sourceText().split(" ")[0].toUpperCase(Locale.ROOT)
                         )
                     );
@@ -729,15 +757,14 @@ public class Verifier {
         });
     }
 
-    private static void checkFullTextFunctionInDisjunction(Set<Failure> failures, Or or, Expression left) {
-        left.forEachDown(FullTextFunction.class, ftf -> {
+    private static void checkFullTextFunctionInDisjunction(Set<Failure> failures, Or or, Expression expression) {
+        expression.forEachDown(FullTextFunction.class, ftf -> {
             failures.add(
                 fail(
                     or,
-                    "Invalid condition [{}]. [{}] {} can't be used as part of an or condition",
+                    "Invalid condition [{}]. [{}] function can't be used as part of an or condition",
                     or.sourceText(),
-                    ftf.functionName(),
-                    ftf.functionType()
+                    ftf.functionName()
                 )
             );
         });
@@ -751,10 +778,9 @@ public class Verifier {
                 failures.add(
                     fail(
                         condition,
-                        "Invalid condition [{}]. [{}] {} can't be used with {}",
+                        "Invalid condition [{}]. [{}] function can't be used with {}",
                         condition.sourceText(),
                         ftf.functionName(),
-                        ftf.functionType(),
                         ((Function) parent).functionName()
                     )
                 );

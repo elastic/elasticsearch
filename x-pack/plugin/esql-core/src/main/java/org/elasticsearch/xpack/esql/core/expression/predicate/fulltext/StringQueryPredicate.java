@@ -59,4 +59,9 @@ public final class StringQueryPredicate extends FullTextPredicate {
     public String getWriteableName() {
         return ENTRY.name;
     }
+
+    @Override
+    public String name() {
+        return "query_string";
+    }
 }

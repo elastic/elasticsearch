@@ -112,4 +112,6 @@ public abstract class FullTextPredicate extends Expression {
         FullTextPredicate other = (FullTextPredicate) obj;
         return Objects.equals(query, other.query) && Objects.equals(options, other.options);
     }
+
+    public abstract String name();
 }

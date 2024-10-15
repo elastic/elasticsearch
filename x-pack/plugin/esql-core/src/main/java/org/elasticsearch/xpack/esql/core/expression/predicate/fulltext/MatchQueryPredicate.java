@@ -90,4 +90,9 @@ public class MatchQueryPredicate extends FullTextPredicate {
     public String getWriteableName() {
         return ENTRY.name;
     }
+
+    @Override
+    public String name() {
+        return ":";
+    }
 }

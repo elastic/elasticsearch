@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.inference.services.elastic;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 
@@ -27,6 +29,8 @@ public class ElasticInferenceServiceSettings {
         Setting.Property.NodeScope
     );
 
+    private static final Logger log = LogManager.getLogger(ElasticInferenceServiceSettings.class);
+
     /**
      * Class to validate the EIS Gateway url set via `xpack.inference.eis.gateway.url`.
      */
@@ -38,6 +42,7 @@ public class ElasticInferenceServiceSettings {
         public void validate(String value) {
             if (Objects.isNull(value) || value.isEmpty()) {
                 // No validation needed, if eis-gateway URL is not set
+                log.debug("eis-gateway url not set. Skipping validation");
                 return;
             }
 

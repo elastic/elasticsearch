@@ -215,7 +215,7 @@ public class EsIndexSerializationTests extends AbstractWireSerializingTestCase<E
      * A single root with 9 children, each of which has 9 children etc. 6 levels deep.
      */
     public void testDeeplyNestedFields() throws IOException {
-        ByteSizeValue expectedSize = ByteSizeValue.ofBytes(21182948);
+        ByteSizeValue expectedSize = ByteSizeValue.ofBytes(9425494);
 
         int depth = 6;
         int childrenPerLevel = 9;

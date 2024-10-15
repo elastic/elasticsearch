@@ -41,6 +41,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.function.BooleanSupplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -75,7 +76,7 @@ public enum IndexMode {
         }
 
         @Override
-        public CompressedXContent getDefaultMapping() {
+        public CompressedXContent getDefaultMapping(IndexSettings indexSettings) {
             return null;
         }
 
@@ -171,7 +172,7 @@ public enum IndexMode {
         }
 
         @Override
-        public CompressedXContent getDefaultMapping() {
+        public CompressedXContent getDefaultMapping(IndexSettings indexSettings) {
             return DEFAULT_TIME_SERIES_TIMESTAMP_MAPPING;
         }
 
@@ -249,8 +250,16 @@ public enum IndexMode {
         }
 
         @Override
-        public CompressedXContent getDefaultMapping() {
-            return DEFAULT_LOGS_TIMESTAMP_MAPPING;
+        public CompressedXContent getDefaultMapping(IndexSettings indexSettings) {
+            boolean sortOnHostName = Optional.ofNullable(indexSettings)
+                .map(s -> s.getIndexSortConfig().hasPrimarySortOnField("host.name"))
+                .orElse(false);
+
+            if (sortOnHostName) {
+                return DEFAULT_LOGS_TIMESTAMP_MAPPING_WITH_HOST_NAME;
+            } else {
+                return DEFAULT_LOGS_TIMESTAMP_MAPPING;
+            }
         }
 
         @Override
@@ -346,6 +355,31 @@ public enum IndexMode {
         }
     }
 
+    public static final CompressedXContent DEFAULT_LOGS_TIMESTAMP_MAPPING_WITH_HOST_NAME;
+
+    static {
+        try {
+            DEFAULT_LOGS_TIMESTAMP_MAPPING_WITH_HOST_NAME = new CompressedXContent(
+                ((builder, params) -> builder.startObject(MapperService.SINGLE_MAPPING_NAME)
+                    .startObject(DataStreamTimestampFieldMapper.NAME)
+                    .field("enabled", true)
+                    .endObject()
+                    .startObject("properties")
+                    .startObject(DataStreamTimestampFieldMapper.DEFAULT_PATH)
+                    .field("type", DateFieldMapper.CONTENT_TYPE)
+                    .endObject()
+                    .startObject("host.name")
+                    .field("type", KeywordFieldMapper.CONTENT_TYPE)
+                    .field("ignore_above", 1024)
+                    .endObject()
+                    .endObject()
+                    .endObject())
+            );
+        } catch (IOException e) {
+            throw new AssertionError(e);
+        }
+    }
+
     public static final CompressedXContent DEFAULT_LOGS_TIMESTAMP_MAPPING;
 
     static {
@@ -358,10 +392,6 @@ public enum IndexMode {
                     .startObject("properties")
                     .startObject(DataStreamTimestampFieldMapper.DEFAULT_PATH)
                     .field("type", DateFieldMapper.CONTENT_TYPE)
-                    .endObject()
-                    .startObject("host.name")
-                    .field("type", KeywordFieldMapper.CONTENT_TYPE)
-                    .field("ignore_above", 1024)
                     .endObject()
                     .endObject()
                     .endObject())
@@ -421,7 +451,7 @@ public enum IndexMode {
      * Get default mapping for this index or {@code null} if there is none.
      */
     @Nullable
-    public abstract CompressedXContent getDefaultMapping();
+    public abstract CompressedXContent getDefaultMapping(IndexSettings indexSettings);
 
     /**
      * Build the {@link FieldMapper} for {@code _id}.

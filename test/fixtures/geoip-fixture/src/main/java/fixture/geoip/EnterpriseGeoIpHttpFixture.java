@@ -25,6 +25,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.security.MessageDigest;
+import java.util.List;
 
 /**
  * This fixture is used to simulate a maxmind-provided server for downloading maxmind geoip database files from the
@@ -33,15 +34,15 @@ import java.security.MessageDigest;
 public class EnterpriseGeoIpHttpFixture extends ExternalResource {
 
     private final Path source;
-    private final String[] databaseTypes;
+    private final List<String> databaseTypes;
     private HttpServer server;
 
     /*
      * The values in databaseTypes must be in DatabaseConfiguration.MAXMIND_NAMES, and must be one of the databases copied in the
      * copyFiles method of thisi class.
      */
-    public EnterpriseGeoIpHttpFixture(String... databaseTypes) {
-        this.databaseTypes = databaseTypes;
+    public EnterpriseGeoIpHttpFixture(List<String> databaseTypes) {
+        this.databaseTypes = List.copyOf(databaseTypes);
         try {
             this.source = Files.createTempDirectory("source");
         } catch (IOException e) {

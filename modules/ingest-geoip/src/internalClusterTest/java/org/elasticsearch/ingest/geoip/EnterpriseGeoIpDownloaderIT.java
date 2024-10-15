@@ -40,6 +40,7 @@ import org.junit.ClassRule;
 
 import java.io.IOException;
 import java.util.Collection;
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.ingest.EnterpriseGeoIpTask.ENTERPRISE_GEOIP_DOWNLOADER;
@@ -51,7 +52,7 @@ public class EnterpriseGeoIpDownloaderIT extends ESIntegTestCase {
     private static final String DATABASE_TYPE = "GeoIP2-City";
 
     @ClassRule
-    public static final EnterpriseGeoIpHttpFixture fixture = new EnterpriseGeoIpHttpFixture(DATABASE_TYPE);
+    public static final EnterpriseGeoIpHttpFixture fixture = new EnterpriseGeoIpHttpFixture(List.of(DATABASE_TYPE));
 
     protected String getEndpoint() {
         return fixture.getAddress();

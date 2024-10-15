@@ -370,7 +370,12 @@ public class EsqlCapabilities {
         /**
          * Fix sorting not allowed on _source and counters.
          */
-        SORTING_ON_SOURCE_AND_COUNTERS_FORBIDDEN;
+        SORTING_ON_SOURCE_AND_COUNTERS_FORBIDDEN,
+
+        /**
+         * Match operator as a colon
+         */
+        MATCH_OPERATOR_COLON(true);
 
         private final boolean snapshotOnly;
         private final FeatureFlag featureFlag;

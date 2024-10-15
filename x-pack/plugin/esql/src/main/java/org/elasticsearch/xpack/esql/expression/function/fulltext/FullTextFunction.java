@@ -114,4 +114,8 @@ public abstract class FullTextFunction extends Function {
     public Nullability nullable() {
         return Nullability.FALSE;
     }
+
+    public String functionType() {
+        return "function";
+    }
 }

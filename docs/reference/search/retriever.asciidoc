@@ -543,4 +543,3 @@ at the top-level and instead are only allowed as elements of specific retrievers
 * <<request-body-search-terminate-after, `terminate_after`>>
 * <<search-sort-param, `sort`>>
 * <<rescore, `rescore`>>
-* <<search-api-min-score, `min_score`>>

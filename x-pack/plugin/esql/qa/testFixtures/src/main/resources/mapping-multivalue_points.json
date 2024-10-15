@@ -17,6 +17,9 @@
     },
     "subset": {
       "type": "geo_point"
+    },
+    "disjoint": {
+      "type": "geo_point"
     }
   }
 }

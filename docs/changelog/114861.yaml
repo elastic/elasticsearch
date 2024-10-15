@@ -1,0 +1,5 @@
+pr: 114861
+summary: "Revert \"[ML] Dynamically get of num allocations\""
+area: Machine Learning
+type: enhancement
+issues: []

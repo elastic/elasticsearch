@@ -485,11 +485,10 @@ public class EsqlFunctionRegistry {
     }
 
     public static FunctionDescription description(FunctionDefinition def) {
-        var constructors = def.clazz().getConstructors();
-        if (constructors.length == 0) {
+        Constructor<?> constructor = constructorFor(def.clazz());
+        if (constructor == null) {
             return new FunctionDescription(def.name(), List.of(), null, null, false, false);
         }
-        Constructor<?> constructor = constructors[0];
         FunctionInfo functionInfo = functionInfo(def);
         String functionDescription = functionInfo == null ? "" : functionInfo.description().replace('\n', ' ');
         String[] returnType = functionInfo == null ? new String[] { "?" } : removeUnderConstruction(functionInfo.returnType());
@@ -526,12 +525,27 @@ public class EsqlFunctionRegistry {
     }
 
     public static FunctionInfo functionInfo(FunctionDefinition def) {
-        var constructors = def.clazz().getConstructors();
+        Constructor<?> constructor = constructorFor(def.clazz());
+        if (constructor == null) {
+            return null;
+        }
+        return constructor.getAnnotation(FunctionInfo.class);
+    }
+
+    private static Constructor<?> constructorFor(Class<? extends Function> clazz) {
+        Constructor<?>[] constructors = clazz.getConstructors();
         if (constructors.length == 0) {
             return null;
         }
-        Constructor<?> constructor = constructors[0];
-        return constructor.getAnnotation(FunctionInfo.class);
+        // when dealing with multiple, pick the constructor exposing the FunctionInfo annotation
+        if (constructors.length > 1) {
+            for (Constructor<?> constructor : constructors) {
+                if (constructor.getAnnotation(FunctionInfo.class) != null) {
+                    return constructor;
+                }
+            }
+        }
+        return constructors[0];
     }
 
     private void buildDataTypesForStringLiteralConversion(FunctionDefinition[]... groupFunctions) {

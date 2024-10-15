@@ -88,7 +88,7 @@ public abstract class CollectionUtils {
         }
         List<T> list = new ArrayList<>(entries.length);
         for (T entry : entries) {
-            if (entry == null) {
+            if (entry != null) {
                 list.add(entry);
             }
         }

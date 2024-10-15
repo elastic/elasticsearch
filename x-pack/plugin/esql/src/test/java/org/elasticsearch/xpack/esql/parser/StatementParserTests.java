@@ -328,7 +328,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     public void testStatsWithGroupKeyAndAggFilter() throws Exception {
         var a = attribute("a");
         var f = new UnresolvedFunction(EMPTY, "min", DEFAULT, List.of(a));
-        var filter = new Alias(EMPTY, "min(a)", new FilteredExpression(EMPTY, f, new GreaterThan(EMPTY, a, integer(1))));
+        var filter = new Alias(EMPTY, "min(a) where a > 1", new FilteredExpression(EMPTY, f, new GreaterThan(EMPTY, a, integer(1))));
         assertEquals(
             new Aggregate(EMPTY, PROCESSING_CMD_INPUT, Aggregate.AggregateType.STANDARD, List.of(a), List.of(filter, a)),
             processingCommand("stats min(a) where a > 1 by a")
@@ -373,7 +373,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     public void testStatsWithoutGroupKeyMixedAggAndFilter() throws Exception {
         var a = attribute("a");
         var f = new UnresolvedFunction(EMPTY, "min", DEFAULT, List.of(a));
-        var filter = new Alias(EMPTY, "min(a)", new FilteredExpression(EMPTY, f, new GreaterThan(EMPTY, a, integer(1))));
+        var filter = new Alias(EMPTY, "min(a) where a > 1", new FilteredExpression(EMPTY, f, new GreaterThan(EMPTY, a, integer(1))));
         assertEquals(
             new Aggregate(EMPTY, PROCESSING_CMD_INPUT, Aggregate.AggregateType.STANDARD, List.of(), List.of(filter)),
             processingCommand("stats min(a) where a > 1")

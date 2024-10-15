@@ -21,6 +21,8 @@ import org.elasticsearch.xpack.esql.core.capabilities.UnresolvedException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
+import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttributeTests;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedNamedExpression;
@@ -164,6 +166,16 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
          * in the parameters and not included.
          */
         expectedCount -= 1;
+
+        // special exceptions with private constructors
+        if (MetadataAttribute.class.equals(subclass) || ReferenceAttribute.class.equals(subclass)) {
+            expectedCount++;
+        }
+
+        if (FieldAttribute.class.equals(subclass)) {
+            expectedCount += 2;
+        }
+
         assertEquals(expectedCount, info(node).properties().size());
     }
 
@@ -174,6 +186,9 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
      * implementations in the process.
      */
     public void testTransform() throws Exception {
+        if (FieldAttribute.class.equals(subclass)) {
+            assumeTrue("FieldAttribute private constructor", false);
+        }
         Constructor<T> ctor = longestCtor(subclass);
         Object[] nodeCtorArgs = ctorArgs(ctor);
         T node = ctor.newInstance(nodeCtorArgs);

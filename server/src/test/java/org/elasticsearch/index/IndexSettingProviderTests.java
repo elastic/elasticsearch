@@ -79,7 +79,7 @@ public class IndexSettingProviderTests extends ESSingleNodeTestCase {
         public Settings getAdditionalIndexSettings(
             String indexName,
             String dataStreamName,
-            boolean isTimeSeries,
+            IndexMode templateIndexMode,
             Metadata metadata,
             Instant resolvedAt,
             Settings indexTemplateAndCreateRequestSettings,

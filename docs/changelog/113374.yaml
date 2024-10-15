@@ -1,0 +1,5 @@
+pr: 113374
+summary: Add ESQL match function
+area: ES|QL
+type: feature
+issues: []

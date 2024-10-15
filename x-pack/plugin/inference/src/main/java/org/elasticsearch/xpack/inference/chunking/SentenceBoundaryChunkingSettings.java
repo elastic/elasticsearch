@@ -35,7 +35,7 @@ public class SentenceBoundaryChunkingSettings implements ChunkingSettings {
         ChunkingSettingsOptions.SENTENCE_OVERLAP.toString()
     );
 
-    private static int DEFAULT_OVERLAP = 0;
+    private static int DEFAULT_OVERLAP = 1;
 
     protected final int maxChunkSize;
     protected int sentenceOverlap = DEFAULT_OVERLAP;
@@ -69,17 +69,18 @@ public class SentenceBoundaryChunkingSettings implements ChunkingSettings {
             validationException
         );
 
-        Integer sentenceOverlap = ServiceUtils.extractOptionalPositiveInteger(
+        Integer sentenceOverlap = ServiceUtils.removeAsType(
             map,
             ChunkingSettingsOptions.SENTENCE_OVERLAP.toString(),
-            ModelConfigurations.CHUNKING_SETTINGS,
+            Integer.class,
             validationException
         );
-
-        if (sentenceOverlap != null && sentenceOverlap > 1) {
+        if (sentenceOverlap == null) {
+            sentenceOverlap = DEFAULT_OVERLAP;
+        } else if (sentenceOverlap > 1 || sentenceOverlap < 0) {
             validationException.addValidationError(
-                ChunkingSettingsOptions.SENTENCE_OVERLAP.toString() + "[" + sentenceOverlap + "] must be either 0 or 1"
-            ); // todo better
+                ChunkingSettingsOptions.SENTENCE_OVERLAP + "[" + sentenceOverlap + "] must be either 0 or 1"
+            );
         }
 
         if (validationException.validationErrors().isEmpty() == false) {

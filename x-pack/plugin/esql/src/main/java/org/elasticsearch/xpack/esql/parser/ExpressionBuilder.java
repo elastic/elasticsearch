@@ -47,7 +47,6 @@ import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.FunctionResolutionStrategy;
 import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.FilteredExpression;
-import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.RLike;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.WildcardLike;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
@@ -947,21 +946,27 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
         }
         EsqlBaseParser.MatchOptionsContext optionsCtx = ctx.matchOptions();
         Fuzziness fuzziness = null;
-        Double boost = null;
+        Float boost = null;
         if (optionsCtx != null) {
             fuzziness = visitFuzzinessExpression(optionsCtx.fuzzinessExpression());
             boost = visitBoostExpression(optionsCtx.boostExpression());
         }
 
-        return Match.operator(source(ctx), expression(ctx.valueExpression()), expression(ctx.queryString), boost, fuzziness);
+        return new MatchQueryPredicate(
+            source(ctx),
+            expression(ctx.valueExpression()),
+            visitString(ctx.queryString).fold().toString(),
+            boost,
+            fuzziness
+        );
     }
 
     @Override
-    public Double visitBoostExpression(EsqlBaseParser.BoostExpressionContext ctx) {
+    public Float visitBoostExpression(EsqlBaseParser.BoostExpressionContext ctx) {
         if (ctx == null) {
             return null;
         }
-        return (Double) visitDecimalValue(ctx.decimalValue()).value();
+        return (Float) visitDecimalValue(ctx.decimalValue()).value();
     }
 
     @Override

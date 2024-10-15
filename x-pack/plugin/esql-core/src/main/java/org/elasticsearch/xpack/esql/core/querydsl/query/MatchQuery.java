@@ -26,6 +26,10 @@ public class MatchQuery extends Query {
 
     private static final Map<String, BiConsumer<MatchQueryBuilder, String>> BUILDER_APPLIERS;
 
+    public static final String BOOST_OPTION = "boost";
+
+    public static final String FUZZINESS_OPTION = "fuzziness";
+
     static {
         // TODO: it'd be great if these could be constants instead of Strings, needs a core change to make the fields public first
         // TODO: add zero terms query support, I'm not sure the best way to parse it yet...
@@ -33,7 +37,8 @@ public class MatchQuery extends Query {
         BUILDER_APPLIERS = Map.ofEntries(
             entry("analyzer", MatchQueryBuilder::analyzer),
             entry("auto_generate_synonyms_phrase_query", (qb, s) -> qb.autoGenerateSynonymsPhraseQuery(Booleans.parseBoolean(s))),
-            entry("fuzziness", (qb, s) -> qb.fuzziness(Fuzziness.fromString(s))),
+            entry(FUZZINESS_OPTION, (qb, s) -> qb.fuzziness(Fuzziness.fromString(s))),
+            entry(BOOST_OPTION, (qb, s) -> qb.boost(Float.parseFloat(s))),
             entry("fuzzy_transpositions", (qb, s) -> qb.fuzzyTranspositions(Booleans.parseBoolean(s))),
             entry("fuzzy_rewrite", MatchQueryBuilder::fuzzyRewrite),
             entry("lenient", (qb, s) -> qb.lenient(Booleans.parseBoolean(s))),
@@ -48,20 +53,16 @@ public class MatchQuery extends Query {
     private final Object text;
     private final MatchQueryPredicate predicate;
     private final Map<String, String> options;
-    private final Fuzziness fuzziness;
-    private final Double boost;
 
     public MatchQuery(Source source, String name, Object text) {
-        this(source, name, text, null, null, null);
+        this(source, name, text, null);
     }
 
-    public MatchQuery(Source source, String name, Object text, Fuzziness fuzziness, Double boost, MatchQueryPredicate predicate) {
+    public MatchQuery(Source source, String name, Object text, MatchQueryPredicate predicate) {
         super(source);
         this.name = name;
         this.text = text;
         this.predicate = predicate;
-        this.fuzziness = fuzziness;
-        this.boost = boost;
         this.options = predicate == null ? Collections.emptyMap() : predicate.optionMap();
     }
 
@@ -75,12 +76,6 @@ public class MatchQuery extends Query {
                 throw new IllegalArgumentException("illegal match option [" + k + "]");
             }
         });
-        if (fuzziness != null) {
-            queryBuilder.fuzziness(fuzziness);
-        }
-        if (boost != null) {
-            queryBuilder.boost(boost.floatValue());
-        }
         return queryBuilder;
     }
 
@@ -114,13 +109,5 @@ public class MatchQuery extends Query {
     @Override
     protected String innerToString() {
         return name + ":" + text;
-    }
-
-    public Fuzziness fuzziness() {
-        return fuzziness;
-    }
-
-    public Double boost() {
-        return boost;
     }
 }

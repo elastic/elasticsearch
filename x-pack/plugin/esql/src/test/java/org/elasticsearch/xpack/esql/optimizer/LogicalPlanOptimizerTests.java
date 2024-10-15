@@ -5615,10 +5615,6 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         );
     }
 
-    private Literal nullOf(DataType dataType) {
-        return new Literal(Source.EMPTY, null, dataType);
-    }
-
     public void testCheckPercentileFoldableSecondArgument() {
         VerificationException e = expectThrows(VerificationException.class, () -> plan("""
             from test

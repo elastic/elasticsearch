@@ -12,7 +12,7 @@ package org.elasticsearch.internal;
 import org.apache.lucene.search.suggest.document.CompletionPostingsFormat;
 
 /**
- * Allows plugging-in the Postings Format.
+ * Allows plugging-in the Completions Postings Format.
  */
 public interface CompletionsPostingsFormatExtension {
 
@@ -24,6 +24,8 @@ public interface CompletionsPostingsFormatExtension {
 
     /**
      * Sets whether this extension is enabled. If the extension is not enabled, {@link #getFormatName()} should return null.
+     * <p>
+     * This allows all nodes to be upgraded to a version that supports the extension before it is enabled.
      */
     void setExtensionEnabled(boolean isExtensionEnabled);
 }

@@ -413,28 +413,6 @@ public class SourceFieldMapper extends MetadataFieldMapper {
             default:
                 throw new IllegalArgumentException("Unsupported index mode: " + indexMode);
         }
-<<<<<<< HEAD
-        final SourceFieldMapper syntheticWithoutRecoverySource = indexMode == IndexMode.TIME_SERIES
-            ? TSDB_DEFAULT_NO_RECOVERY_SOURCE
-            : LOGSDB_DEFAULT_NO_RECOVERY_SOURCE;
-        final SourceFieldMapper syntheticWithRecoverySource = indexMode == IndexMode.TIME_SERIES ? TSDB_DEFAULT : LOGSDB_DEFAULT;
-        final SourceFieldMapper storedWithoutRecoverySource = indexMode == IndexMode.TIME_SERIES
-            ? TSDB_DEFAULT_NO_RECOVERY_SOURCE_STORED
-            : LOGSDB_DEFAULT_NO_RECOVERY_SOURCE_STORED;
-        final SourceFieldMapper storedWithRecoverySource = indexMode == IndexMode.TIME_SERIES ? TSDB_DEFAULT_STORED : LOGSDB_DEFAULT_STORED;
-
-        switch (sourceMode) {
-            case SYNTHETIC:
-                return enableRecoverySource ? syntheticWithRecoverySource : syntheticWithoutRecoverySource;
-            case STORED:
-                return enableRecoverySource ? storedWithRecoverySource : storedWithoutRecoverySource;
-            case DISABLED:
-                throw new IllegalArgumentException("_source cannot be disabled in index using [" + indexMode + "] index mode");
-            default:
-                throw new IllegalStateException("Unexpected value: " + sourceMode);
-        }
-=======
->>>>>>> 3af4d67fac2 (Allow synthetic source and disabled source for standard indices (#114817))
     }
 
     public static final TypeParser PARSER = new ConfigurableTypeParser(c -> {

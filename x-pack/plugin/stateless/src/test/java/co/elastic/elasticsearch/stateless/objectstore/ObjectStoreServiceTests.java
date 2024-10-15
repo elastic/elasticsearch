@@ -24,7 +24,6 @@ import co.elastic.elasticsearch.stateless.action.NewCommitNotificationResponse;
 import co.elastic.elasticsearch.stateless.action.TransportNewCommitNotificationAction;
 import co.elastic.elasticsearch.stateless.cache.SharedBlobCacheWarmingService;
 import co.elastic.elasticsearch.stateless.commits.BatchedCompoundCommit;
-import co.elastic.elasticsearch.stateless.commits.BatchedCompoundCommitTestUtils;
 import co.elastic.elasticsearch.stateless.commits.BlobLocation;
 import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
 import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
@@ -47,6 +46,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.blobcache.BlobCacheUtils;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.blobcache.shared.SharedBytes;
 import org.elasticsearch.client.internal.node.NodeClient;
@@ -59,6 +59,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
@@ -87,8 +88,9 @@ import static co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService.
 import static co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService.ObjectStoreType.FS;
 import static co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService.ObjectStoreType.GCS;
 import static co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService.ObjectStoreType.S3;
-import static org.elasticsearch.blobcache.BlobCacheUtils.toPageAlignedSize;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.lessThan;
 
 @LuceneTestCase.SuppressFileSystems(value = "ExtrasFS")
 public class ObjectStoreServiceTests extends ESTestCase {
@@ -394,9 +396,9 @@ public class ObjectStoreServiceTests extends ESTestCase {
     public void testReadLatestBccPopulatesCache() throws Exception {
         final Map<String, BlobLocation> uploadedBlobs = ConcurrentCollections.newConcurrentMap();
         var primaryTerm = randomLongBetween(1, 42);
-        var useReplicatedRanges = false;
-        randomBoolean();
+        var useReplicatedRanges = randomBoolean();
 
+        long latestBccLength = 0L;
         var cacheSize = ByteSizeValue.ofMb(1L);
         var regionSize = ByteSizeValue.ofBytes((long) randomIntBetween(1, 3) * SharedBytes.PAGE_SIZE);
         try (
@@ -419,17 +421,14 @@ public class ObjectStoreServiceTests extends ESTestCase {
                         .put(StatelessCommitService.STATELESS_COMMIT_USE_INTERNAL_FILES_REPLICATED_CONTENT.getKey(), useReplicatedRanges)
                         .build();
                 }
-            };
-            // Disable the assertion when reading batched compound commit blobs that verifies the padding at the end of the compound commits
-            // because it triggers more cache misses and populates the cache for regions that do not include the header.
-            var ignored = BatchedCompoundCommitTestUtils.disablePaddingAsserter();
+            }
         ) {
             BatchedCompoundCommit latestBcc = null;
             var nbBlobs = randomIntBetween(0, 10);
             for (int i = 0; i < nbBlobs; i++) {
                 int nbCommits = randomIntBetween(1, 10);
-                // generate commits with ~2KiB to ~10KiB of additional files each
-                var indexCommits = testHarness.generateIndexCommitsWithoutMergeOrDeletion(nbCommits);
+                // generate commits larger than the region size to ensure that the header and the padding are located in different regions
+                var indexCommits = testHarness.generateIndexCommitsWithMinSegmentSize(nbCommits, regionSize.getBytes() + 1L);
                 try (
                     var virtualBatchedCompoundCommit = new VirtualBatchedCompoundCommit(
                         testHarness.shardId,
@@ -442,6 +441,7 @@ public class ObjectStoreServiceTests extends ESTestCase {
                 ) {
                     for (var indexCommit : indexCommits) {
                         assertTrue(virtualBatchedCompoundCommit.appendCommit(indexCommit, useReplicatedRanges));
+                        assertThat(getCommitSize(indexCommit), greaterThan(regionSize.getBytes()));
                     }
                     virtualBatchedCompoundCommit.freeze();
 
@@ -457,6 +457,7 @@ public class ObjectStoreServiceTests extends ESTestCase {
                     }
                     latestBcc = virtualBatchedCompoundCommit.getFrozenBatchedCompoundCommit();
                     latestBcc.compoundCommits().forEach(compoundCommit -> uploadedBlobs.putAll(compoundCommit.commitFiles()));
+                    latestBccLength = virtualBatchedCompoundCommit.getTotalSizeInBytes();
                 }
             }
 
@@ -465,43 +466,80 @@ public class ObjectStoreServiceTests extends ESTestCase {
             assertThat(blobs.size(), equalTo(nbBlobs));
             assertThat(ObjectStoreService.readLatestBcc(directory, blobs), equalTo(latestBcc));
 
-            long writeCount = getWriteCount(latestBcc, regionSize);
+            long writeCount = computeCacheWriteCounts(latestBcc, latestBccLength, regionSize.getBytes());
             assertTrue(TestThreadPool.terminate(testHarness.threadPool, 10L, TimeUnit.SECONDS));
 
             var cacheStats = testHarness.sharedCacheService.getStats();
+            assertThat(cacheStats.writeBytes(), equalTo(writeCount * regionSize.getBytes()));
             assertThat(cacheStats.writeCount(), equalTo(writeCount));
             assertThat(cacheStats.evictCount(), equalTo(0L));
+
+            if (0L < latestBccLength) {
+                assertThat(cacheStats.writeBytes(), lessThan(latestBccLength));
+            }
         }
     }
 
-    private static long getWriteCount(BatchedCompoundCommit latestBcc, ByteSizeValue regionSize) {
-        long writeCount = 0L;
+    private record CacheWriteCount(int writeCount, int regionStart, int regionEnd) {}
+
+    /**
+     * Computes the expected number of writes operations in cache that are required to fully read the bcc.
+     */
+    private static long computeCacheWriteCounts(BatchedCompoundCommit latestBcc, long latestBccSizeInBytes, long regionSizeInBytes) {
+        CacheWriteCount result = new CacheWriteCount(0, 0, -1);
         if (latestBcc != null) {
-            int lastRegion = -1;
             long offset = 0L;
             for (var compoundCommit : latestBcc.compoundCommits()) {
-                // region where the header starts
-                int regionStart = (int) (offset / regionSize.getBytes());
-                if (regionStart != lastRegion) {
-                    writeCount += 1L;
-                }
+                assert offset == BlobCacheUtils.toPageAlignedSize(offset);
 
-                // offset & region where the header ends
-                long endOffset = offset + compoundCommit.headerSizeInBytes();
-                int regionEnd;
-                if (endOffset % regionSize.getBytes() == 0) {
-                    regionEnd = (int) ((endOffset - 1L) / regionSize.getBytes());
-                } else {
-                    regionEnd = (int) (endOffset / regionSize.getBytes());
-                }
-                // number of regions over which the header spans
-                int regions = (regionEnd - regionStart);
-                writeCount += regions;
+                // compute the number of writes in cache required
+                result = getCacheWriteCount(offset, compoundCommit.headerSizeInBytes(), regionSizeInBytes, result);
+                offset += compoundCommit.sizeInBytes();
+                if (offset < latestBccSizeInBytes) {
+                    long compoundCommitSizePageAligned = BlobCacheUtils.toPageAlignedSize(compoundCommit.sizeInBytes());
+                    int paddingLength = Math.toIntExact(compoundCommitSizePageAligned - compoundCommit.sizeInBytes());
 
-                offset += toPageAlignedSize(compoundCommit.sizeInBytes());
-                lastRegion = regionEnd;
+                    // When assertions are enabled, extra reads are executed to assert that padding bytes at the end of the compound commit
+                    // are effectively zeros (see BatchedCompoundCommit#assertPaddingComposedOfZeros). Those reads trigger more cache misses
+                    // and populates the cache for regions that do not include headers, so we must account for them in this test.
+                    if (Assertions.ENABLED && 0 < paddingLength) {
+                        result = getCacheWriteCount(offset, paddingLength, regionSizeInBytes, result);
+                    }
+                    offset += paddingLength;
+                }
             }
         }
-        return writeCount;
+        return result.writeCount;
+    }
+
+    /**
+     * Computes the expected number of writes operations in cache that are required to read {@code length} bytes at {@code offset}.
+     */
+    private static CacheWriteCount getCacheWriteCount(long offset, long length, long regionSizeInBytes, CacheWriteCount previous) {
+        int writeCount = 0;
+        // region where the read operation starts
+        int regionStart = (int) (offset / regionSizeInBytes);
+        if (regionStart != previous.regionEnd) {
+            writeCount += 1;
+        }
+        // offset & region where the read operation completes
+        long endOffset = offset + length;
+        int regionEnd;
+        if (endOffset % regionSizeInBytes == 0) {
+            regionEnd = (int) ((endOffset - 1L) / regionSizeInBytes);
+        } else {
+            regionEnd = (int) (endOffset / regionSizeInBytes);
+        }
+        // number of regions over which the read operation spans
+        writeCount += (regionEnd - regionStart);
+        return new CacheWriteCount(Math.addExact(writeCount, previous.writeCount), regionStart, regionEnd);
+    }
+
+    private static long getCommitSize(StatelessCommitRef commitRef) throws IOException {
+        long sizeInBytes = 0L;
+        for (var additionalFile : commitRef.getAdditionalFiles()) {
+            sizeInBytes += commitRef.getDirectory().fileLength(additionalFile);
+        }
+        return sizeInBytes;
     }
 }

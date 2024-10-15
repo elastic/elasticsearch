@@ -21,7 +21,6 @@ import co.elastic.elasticsearch.stateless.engine.PrimaryTermAndGeneration;
 
 import org.elasticsearch.blobcache.BlobCacheUtils;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.core.Assertions;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
@@ -83,25 +82,6 @@ public record BatchedCompoundCommit(PrimaryTermAndGeneration primaryTermAndGener
         return compoundCommits.stream().flatMap(commit -> commit.internalFiles().stream()).collect(Collectors.toSet());
     }
 
-    @FunctionalInterface
-    public interface CompoundCommitPaddingAsserter {
-        boolean assertPadding(String blobName, long blobLength, BlobReader blobReader, long offset, StatelessCompoundCommit compoundCommit)
-            throws IOException;
-    }
-
-    /** the actual default for asserting the padding in tests */
-    private static final CompoundCommitPaddingAsserter DEFAULT_PADDING_ASSERTER;
-    static {
-        if (Assertions.ENABLED) {
-            DEFAULT_PADDING_ASSERTER = BatchedCompoundCommit::assertPaddingComposedOfZeros;
-        } else {
-            DEFAULT_PADDING_ASSERTER = (blobName, blobLength, blobReader, offset, compoundCommit) -> { throw new AssertionError(); };
-        }
-    }
-
-    /** can be changed by tests */
-    static volatile CompoundCommitPaddingAsserter PADDING_ASSERTER = DEFAULT_PADDING_ASSERTER;
-
     /**
      * Reads a {@link BatchedCompoundCommit} from the blob store, for that it materializes the headers
      * for all the {@link StatelessCompoundCommit} contained in the batched compound commit.
@@ -127,7 +107,7 @@ public record BatchedCompoundCommit(PrimaryTermAndGeneration primaryTermAndGener
                     primaryTermAndGeneration = compoundCommit.primaryTermAndGeneration();
                 }
                 compoundCommits.add(compoundCommit);
-                assert PADDING_ASSERTER.assertPadding(blobName, blobLength, blobReader, offset, compoundCommit);
+                assert assertPaddingComposedOfZeros(blobName, blobLength, blobReader, offset, compoundCommit);
                 offset += BlobCacheUtils.toPageAlignedSize(compoundCommit.sizeInBytes());
             }
         }

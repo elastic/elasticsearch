@@ -593,13 +593,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
 
     @Override
     public Expression visitFunctionExpression(EsqlBaseParser.FunctionExpressionContext ctx) {
-        EsqlBaseParser.IdentifierOrParameterContext identifierOrParameter = ctx.identifierOrParameter();
-        String name;
-        if (identifierOrParameter.identifier() != null) {
-            name = visitIdentifier(identifierOrParameter.identifier());
-        } else {
-            name = unresolvedAttributeNameInParam(identifierOrParameter.parameter(), expression(identifierOrParameter.parameter()));
-        }
+        String name = visitFunctionName(ctx.functionName());
         List<Expression> args = expressions(ctx.booleanExpression());
         if ("is_null".equals(EsqlFunctionRegistry.normalizeName(name))) {
             throw new ParsingException(
@@ -614,6 +608,23 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
             }
         }
         return new UnresolvedFunction(source(ctx), name, FunctionResolutionStrategy.DEFAULT, args);
+    }
+
+    @Override
+    public String visitFunctionName(EsqlBaseParser.FunctionNameContext ctx) {
+        if (ctx.DEV_MATCH() != null) {
+            return ctx.DEV_MATCH().getText();
+        }
+        return visitIdentifierOrParameter(ctx.identifierOrParameter());
+    }
+
+    @Override
+    public String visitIdentifierOrParameter(EsqlBaseParser.IdentifierOrParameterContext ctx) {
+        if (ctx.identifier() != null) {
+            return visitIdentifier(ctx.identifier());
+        }
+
+        return unresolvedAttributeNameInParam(ctx.parameter(), expression(ctx.parameter()));
     }
 
     @Override

@@ -44,21 +44,12 @@ public class Metrics {
     protected static String FPREFIX = "features.";
     protected static String FUNC_PREFIX = "functions.";
 
-    private static final EsqlFunctionRegistry funcitonRegistry = new EsqlFunctionRegistry().snapshotRegistry();
+    private final EsqlFunctionRegistry functionRegistry;
+    private final Map<Class<?>, String> classToFunctionName;
 
-    private static final Map<Class<?>, String> classToFunctionName = initClassToFunctionType();
-
-    private static Map<Class<?>, String> initClassToFunctionType() {
-        Map<Class<?>, String> tmp = new HashMap<>();
-        for (FunctionDefinition func : funcitonRegistry.listFunctions()) {
-            if (tmp.containsKey(func.clazz()) == false) {
-                tmp.put(func.clazz(), func.name());
-            }
-        }
-        return Collections.unmodifiableMap(tmp);
-    }
-
-    public Metrics() {
+    public Metrics(EsqlFunctionRegistry functionRegistry) {
+        this.functionRegistry = functionRegistry.snapshotRegistry();
+        this.classToFunctionName = initClassToFunctionType();
         Map<QueryMetric, Map<OperationType, CounterMetric>> qMap = new LinkedHashMap<>();
         for (QueryMetric metric : QueryMetric.values()) {
             Map<OperationType, CounterMetric> metricsMap = Maps.newLinkedHashMapWithExpectedSize(OperationType.values().length);
@@ -79,12 +70,22 @@ public class Metrics {
         functionMetrics = initFunctionMetrics();
     }
 
-    private static Map<String, CounterMetric> initFunctionMetrics() {
+    private Map<String, CounterMetric> initFunctionMetrics() {
         Map<String, CounterMetric> result = new LinkedHashMap<>();
         for (var entry : classToFunctionName.entrySet()) {
             result.put(entry.getValue(), new CounterMetric());
         }
         return Collections.unmodifiableMap(result);
+    }
+
+    private Map<Class<?>, String> initClassToFunctionType() {
+        Map<Class<?>, String> tmp = new HashMap<>();
+        for (FunctionDefinition func : functionRegistry.listFunctions()) {
+            if (tmp.containsKey(func.clazz()) == false) {
+                tmp.put(func.clazz(), func.name());
+            }
+        }
+        return Collections.unmodifiableMap(tmp);
     }
 
     /**

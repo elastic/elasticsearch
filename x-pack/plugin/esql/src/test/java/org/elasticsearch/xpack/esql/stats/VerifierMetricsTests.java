@@ -204,7 +204,7 @@ public class VerifierMetricsTests extends ESTestCase {
     }
 
     public void testTwoQueriesExecuted() {
-        Metrics metrics = new Metrics();
+        Metrics metrics = new Metrics(new EsqlFunctionRegistry());
         Verifier verifier = new Verifier(metrics);
         esqlWithVerifier("""
                from employees
@@ -251,7 +251,7 @@ public class VerifierMetricsTests extends ESTestCase {
     }
 
     public void testMultipleFunctions() {
-        Metrics metrics = new Metrics();
+        Metrics metrics = new Metrics(new EsqlFunctionRegistry());
         Verifier verifier = new Verifier(metrics);
         esqlWithVerifier("""
                from employees
@@ -296,6 +296,8 @@ public class VerifierMetricsTests extends ESTestCase {
                 assertEquals(0, function(value, c));
             }
         }
+        Map<?, ?> map = (Map<?, ?>) c.toNestedMap().get("functions");
+        assertEquals(functions.size(), map.size());
     }
 
     public void testEnrich() {
@@ -523,7 +525,7 @@ public class VerifierMetricsTests extends ESTestCase {
         Verifier verifier = v;
         Metrics metrics = null;
         if (v == null) {
-            metrics = new Metrics();
+            metrics = new Metrics(new EsqlFunctionRegistry());
             verifier = new Verifier(metrics);
         }
         analyzer(verifier).analyze(parser.createStatement(esql));

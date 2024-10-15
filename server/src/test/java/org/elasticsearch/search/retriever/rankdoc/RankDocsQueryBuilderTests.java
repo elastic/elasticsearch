@@ -195,6 +195,23 @@ public class RankDocsQueryBuilderTests extends AbstractQueryTestCase<RankDocsQue
                     assertThat(col.totalHits.value, equalTo((long) topSize));
                     assertEqualTopDocs(col.scoreDocs, rankDocs);
                 }
+
+                {
+                    // A single rank doc in the last segment
+                    RankDoc[] singleRankDoc = new RankDoc[1];
+                    singleRankDoc[0] = rankDocs[rankDocs.length - 1];
+                    RankDocsQuery q = new RankDocsQuery(
+                        reader,
+                        singleRankDoc,
+                        new Query[] { NumericDocValuesField.newSlowExactQuery("active", 1) },
+                        new String[1],
+                        false
+                    );
+                    var topDocsManager = new TopScoreDocCollectorManager(1, null, 0);
+                    var col = searcher.search(q, topDocsManager);
+                    assertThat(col.totalHits.value, lessThanOrEqualTo((long) (2 + rankDocs.length)));
+                    assertEqualTopDocs(col.scoreDocs, singleRankDoc);
+                }
             }
         }
     }

@@ -17,7 +17,7 @@ import java.util.Map;
 
 public class ChunkingSettingsBuilderTests extends ESTestCase {
 
-    public static final WordBoundaryChunkingSettings DEFAULT_SETTINGS = new WordBoundaryChunkingSettings(250, 100);
+    public static final SentenceBoundaryChunkingSettings DEFAULT_SETTINGS = new SentenceBoundaryChunkingSettings(250, 1);
 
     public void testEmptyChunkingSettingsMap() {
         ChunkingSettings chunkingSettings = ChunkingSettingsBuilder.fromMap(Collections.emptyMap());

@@ -1,5 +1,5 @@
 pr: 114837
 summary: Origin/104411-disallow-chars-in-pipeline-names
 area: Ingest Node
-type: "bug"
-issues: [ 104411 ]
+type: bug
+issues: []

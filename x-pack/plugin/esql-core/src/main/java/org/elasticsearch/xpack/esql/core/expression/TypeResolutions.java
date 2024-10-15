@@ -155,18 +155,19 @@ public final class TypeResolutions {
         return resolution;
     }
 
-    public static TypeResolution isNotFoldable(Expression e, String operationName, ParamOrdinal paramOrd) {
-        if (e.foldable()) {
+    public static TypeResolution isNotNull(Expression e, String operationName, ParamOrdinal paramOrd) {
+        if (e.dataType() == DataType.NULL) {
             return new TypeResolution(
                 format(
                     null,
-                    "{}argument of [{}] must be a table column, found constant [{}]",
+                    "{}argument of [{}] cannot be null, received [{}]",
                     paramOrd == null || paramOrd == DEFAULT ? "" : paramOrd.name().toLowerCase(Locale.ROOT) + " ",
                     operationName,
                     Expressions.name(e)
                 )
             );
         }
+
         return TypeResolution.TYPE_RESOLVED;
     }
 

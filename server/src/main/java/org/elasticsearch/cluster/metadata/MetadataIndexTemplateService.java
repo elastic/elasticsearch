@@ -708,7 +708,7 @@ public class MetadataIndexTemplateService {
             var newAdditionalSettings = provider.getAdditionalIndexSettings(
                 "validate-index-name",
                 indexTemplate.getDataStreamTemplate() != null ? "validate-data-stream-name" : null,
-                indexTemplate.getDataStreamTemplate() != null && projectMetadata.isTimeSeriesTemplate(indexTemplate),
+                projectMetadata.retrieveIndexModeFromTemplate(indexTemplate),
                 projectMetadata,
                 now,
                 combinedSettings,

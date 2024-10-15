@@ -123,7 +123,7 @@ public class ExplainIndexDataStreamLifecycle implements Writeable, ToXContentObj
         builder.field(MANAGED_BY_LIFECYCLE_FIELD.getPreferredName(), managedByLifecycle);
         if (managedByLifecycle) {
             if (indexCreationDate != null) {
-                builder.timeField(
+                builder.timestampFieldsFromUnixEpochMillis(
                     INDEX_CREATION_DATE_MILLIS_FIELD.getPreferredName(),
                     INDEX_CREATION_DATE_FIELD.getPreferredName(),
                     indexCreationDate
@@ -134,7 +134,11 @@ public class ExplainIndexDataStreamLifecycle implements Writeable, ToXContentObj
                 );
             }
             if (rolloverDate != null) {
-                builder.timeField(ROLLOVER_DATE_MILLIS_FIELD.getPreferredName(), ROLLOVER_DATE_FIELD.getPreferredName(), rolloverDate);
+                builder.timestampFieldsFromUnixEpochMillis(
+                    ROLLOVER_DATE_MILLIS_FIELD.getPreferredName(),
+                    ROLLOVER_DATE_FIELD.getPreferredName(),
+                    rolloverDate
+                );
                 builder.field(TIME_SINCE_ROLLOVER_FIELD.getPreferredName(), getTimeSinceRollover(nowSupplier).toHumanReadableString(2));
             }
             if (generationDateMillis != null) {

@@ -57,13 +57,13 @@ public class XContentElasticsearchExtension implements XContentBuilderExtension 
         // Fully-qualified here to reduce ambiguity around our (ES') Version class
         writers.put(org.apache.lucene.util.Version.class, (b, v) -> b.value(Objects.toString(v)));
         writers.put(TimeValue.class, (b, v) -> b.value(v.toString()));
-        writers.put(ZonedDateTime.class, XContentBuilder::timeValue);
-        writers.put(OffsetDateTime.class, XContentBuilder::timeValue);
-        writers.put(OffsetTime.class, XContentBuilder::timeValue);
-        writers.put(java.time.Instant.class, XContentBuilder::timeValue);
-        writers.put(LocalDateTime.class, XContentBuilder::timeValue);
-        writers.put(LocalDate.class, XContentBuilder::timeValue);
-        writers.put(LocalTime.class, XContentBuilder::timeValue);
+        writers.put(ZonedDateTime.class, XContentBuilder::timestampValue);
+        writers.put(OffsetDateTime.class, XContentBuilder::timestampValue);
+        writers.put(OffsetTime.class, XContentBuilder::timestampValue);
+        writers.put(java.time.Instant.class, XContentBuilder::timestampValue);
+        writers.put(LocalDateTime.class, XContentBuilder::timestampValue);
+        writers.put(LocalDate.class, XContentBuilder::timestampValue);
+        writers.put(LocalTime.class, XContentBuilder::timestampValue);
         writers.put(DayOfWeek.class, (b, v) -> b.value(v.toString()));
         writers.put(Month.class, (b, v) -> b.value(v.toString()));
         writers.put(MonthDay.class, (b, v) -> b.value(v.toString()));
@@ -103,10 +103,8 @@ public class XContentElasticsearchExtension implements XContentBuilderExtension 
     public Map<Class<?>, Function<Object, Object>> getDateTransformers() {
         Map<Class<?>, Function<Object, Object>> transformers = new HashMap<>();
         transformers.put(Date.class, d -> DEFAULT_FORMATTER.format(((Date) d).toInstant()));
-        transformers.put(Long.class, d -> DEFAULT_FORMATTER.format(Instant.ofEpochMilli((long) d)));
         transformers.put(Calendar.class, d -> DEFAULT_FORMATTER.format(((Calendar) d).toInstant()));
         transformers.put(GregorianCalendar.class, d -> DEFAULT_FORMATTER.format(((Calendar) d).toInstant()));
-        transformers.put(Instant.class, d -> DEFAULT_FORMATTER.format((Instant) d));
         transformers.put(ZonedDateTime.class, d -> DEFAULT_FORMATTER.format((ZonedDateTime) d));
         transformers.put(OffsetDateTime.class, d -> DEFAULT_FORMATTER.format((OffsetDateTime) d));
         transformers.put(OffsetTime.class, d -> OFFSET_TIME_FORMATTER.format((OffsetTime) d));
@@ -118,5 +116,10 @@ public class XContentElasticsearchExtension implements XContentBuilderExtension 
         transformers.put(LocalDate.class, d -> ((LocalDate) d).toString());
         transformers.put(LocalTime.class, d -> LOCAL_TIME_FORMATTER.format((LocalTime) d));
         return transformers;
+    }
+
+    @Override
+    public String formatUnixEpochMillis(long unixEpochMillis) {
+        return DEFAULT_FORMATTER.format(Instant.ofEpochMilli(unixEpochMillis));
     }
 }

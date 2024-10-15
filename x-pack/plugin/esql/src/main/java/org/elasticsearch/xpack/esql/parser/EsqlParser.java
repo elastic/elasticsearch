@@ -98,10 +98,8 @@ public class EsqlParser {
         @Override
         public void exitFunctionExpression(EsqlBaseParser.FunctionExpressionContext ctx) {
             // TODO remove this at some point
-            EsqlBaseParser.IdentifierOrParameterContext identifierOrParameter = ctx.identifierOrParameter();
-            EsqlBaseParser.IdentifierContext idCtx = identifierOrParameter.identifier();
-            String functionName = idCtx != null ? idCtx.getText() : identifierOrParameter.parameter().getText();
-            if ("is_null".equalsIgnoreCase(functionName)) {
+            EsqlBaseParser.FunctionNameContext identifier = ctx.functionName();
+            if (identifier.getText().equalsIgnoreCase("is_null")) {
                 throw new ParsingException(
                     source(ctx),
                     "is_null function is not supported anymore, please use 'is null'/'is not null' predicates instead"

@@ -24,6 +24,8 @@ import org.apache.lucene.util.hnsw.RandomAccessVectorValues;
 
 import java.io.IOException;
 
+import static org.elasticsearch.index.codec.vectors.BQVectorUtils.constSqrt;
+
 /**
  * Copied from Lucene, replace with Lucene's implementation sometime after Lucene 10
  */
@@ -53,6 +55,18 @@ public interface RandomAccessBinarizedByteVectorValues extends RandomAccessVecto
      * @return the quantizer used to quantize the vectors
      */
     BinaryQuantizer getQuantizer();
+
+    default int discretizedDimensions() {
+        return BQVectorUtils.discretize(dimension(), 64);
+    }
+
+    default float sqrtDimensions() {
+        return (float) constSqrt(dimension());
+    }
+
+    default float maxX1() {
+        return (float) (1.9 / constSqrt(discretizedDimensions() - 1.0));
+    }
 
     /**
      * @return coarse grained centroids for the vectors

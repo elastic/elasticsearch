@@ -18,4 +18,6 @@ module org.elasticsearch.ingest.geoip {
 
     exports org.elasticsearch.ingest.geoip.direct to org.elasticsearch.server;
     exports org.elasticsearch.ingest.geoip.stats to org.elasticsearch.server;
+
+    exports org.elasticsearch.ingest.geoip to com.maxmind.db;
 }

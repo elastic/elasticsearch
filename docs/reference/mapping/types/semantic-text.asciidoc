@@ -13,7 +13,7 @@ Long passages are <<auto-text-chunking, automatically chunked>> to smaller secti
 The `semantic_text` field type specifies an inference endpoint identifier that will be used to generate embeddings.
 You can create the inference endpoint by using the <<put-inference-api>>.
 This field type and the <<query-dsl-semantic-query,`semantic` query>> type make it simpler to perform semantic search on your data.
-If you don't specify an inference endpoint, the <<infer-service-elser,ELSER serive>> is used by default.
+If you don't specify an inference endpoint, the <<infer-service-elser,ELSER service>> is used by default.
 
 Using `semantic_text`, you won't need to specify how to generate embeddings for your data, or how to index it.
 The {infer} endpoint automatically determines the embedding generation, indexing, and query to use.
@@ -51,7 +51,7 @@ PUT my-index-000002
 }
 ------------------------------------------------------------
 // TEST[skip:Requires inference endpoint]
-<1> The `inference_id` of the {infer} endpoint you created previously.
+<1> The `inference_id` of the {infer} endpoint to use to generate embeddings.
 
 
 The recommended way to use semantic_text is by having dedicated {infer} endpoints for ingestion and search.

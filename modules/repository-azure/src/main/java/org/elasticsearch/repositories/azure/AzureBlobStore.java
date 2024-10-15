@@ -157,10 +157,6 @@ public class AzureBlobStore implements BlobStore {
             try {
                 URI uri = url.toURI();
                 String path = uri.getPath() == null ? "" : uri.getPath();
-                // Batch delete requests
-                if (path.contains(container) == false) {
-                    return;
-                }
                 assert path.contains(container) : uri.toString();
             } catch (URISyntaxException ignored) {
                 return;

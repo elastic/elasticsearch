@@ -222,8 +222,6 @@ public class ForecastIT extends MlNativeAutodetectIntegTestCase {
     }
 
     public void testOverflowToDisk() throws Exception {
-        assumeFalse("https://github.com/elastic/elasticsearch/issues/44609", Constants.WINDOWS);
-
         Detector.Builder detector = new Detector.Builder("mean", "value");
         detector.setByFieldName("clientIP");
 

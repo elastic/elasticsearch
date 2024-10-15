@@ -344,12 +344,12 @@ public class EsqlCapabilities {
         /**
          * QSTR function
          */
-        QSTR_FUNCTION(true),
+        QSTR_FUNCTION,
 
         /**
          * MATCH function
          */
-        MATCH_FUNCTION(true),
+        MATCH_FUNCTION,
 
         /**
          * Don't optimize CASE IS NOT NULL function by not requiring the fields to be not null as well.
@@ -375,7 +375,12 @@ public class EsqlCapabilities {
         /**
          * Match operator as a colon
          */
-        MATCH_OPERATOR_COLON(true);
+        MATCH_OPERATOR_COLON(true),
+
+        /**
+         * Allow filter per individual aggregation.
+         */
+        PER_AGG_FILTERING;
 
         private final boolean snapshotOnly;
         private final FeatureFlag featureFlag;

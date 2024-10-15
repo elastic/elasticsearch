@@ -45,7 +45,7 @@ import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.FunctionResolutionStrategy;
 import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
-import org.elasticsearch.xpack.esql.expression.function.fulltext.MatchFunction;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.RLike;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.WildcardLike;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
@@ -910,34 +910,41 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
         if (Build.current().isSnapshot() == false) {
             throw new ParsingException(source(ctx), "[:] operator currently requires a snapshot build");
         }
-        Double boost = null;
+        EsqlBaseParser.MatchOptionsContext optionsCtx = ctx.matchOptions();
         Fuzziness fuzziness = null;
-        EsqlBaseParser.MatchOptionsContext matchOptionsCtxt = ctx.matchOptions();
-        if (matchOptionsCtxt != null) {
-            EsqlBaseParser.BoostExpressionContext boostCtxt = matchOptionsCtxt.boostExpression();
-            if (boostCtxt != null) {
-                boost = (Double) visitDecimalValue(boostCtxt.decimalValue()).value();
-            }
-            EsqlBaseParser.FuzzinessExpressionContext fuzzyCtxt = matchOptionsCtxt.fuzzinessExpression();
-            if(fuzzyCtxt != null) {
-                if (fuzzyCtxt.fuzzinessValue() == null) {
-                    // Default value for query string query
-                    fuzziness = Fuzziness.TWO;
-                } else {
-                    try {
-                        fuzziness = Fuzziness.fromString(fuzzyCtxt.fuzzinessValue().getText());
-                    } catch (IllegalArgumentException e) {
-                        throw new ParsingException(source(ctx), "Invalid fuzziness value: [{}]", fuzzyCtxt.fuzzinessValue().getText());
-                    }
-                }
+        Double boost = null;
+        if (optionsCtx != null) {
+            fuzziness = visitFuzzinessExpression(optionsCtx.fuzzinessExpression());
+            boost = visitBoostExpression(optionsCtx.boostExpression());
+        }
+
+        return Match.operator(source(ctx), expression(ctx.valueExpression()), expression(ctx.queryString), boost, fuzziness);
+    }
+
+    @Override
+    public Double visitBoostExpression(EsqlBaseParser.BoostExpressionContext ctx) {
+        if (ctx == null) {
+            return null;
+        }
+        return (Double) visitDecimalValue(ctx.decimalValue()).value();
+    }
+
+    @Override
+    public Fuzziness visitFuzzinessExpression(EsqlBaseParser.FuzzinessExpressionContext ctx) {
+        if (ctx == null) {
+            return null;
+        }
+
+        if (ctx.fuzzinessValue() == null) {
+            // Default value for query string query
+            return Fuzziness.TWO;
+        } else {
+            try {
+                return Fuzziness.fromString(ctx.fuzzinessValue().getText());
+            } catch (IllegalArgumentException e) {
+                throw new ParsingException(source(ctx), "Invalid fuzziness value: [{}]", ctx.fuzzinessValue().getText());
             }
         }
-        return MatchFunction.operator(
-            source(ctx),
-            expression(ctx.valueExpression()),
-            expression(ctx.queryString),
-            boost,
-            fuzziness
-        );
+
     }
 }

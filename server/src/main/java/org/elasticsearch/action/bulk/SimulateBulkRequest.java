@@ -18,9 +18,9 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 /**
  * This extends BulkRequest with support for providing substitute pipeline definitions, component template definitions, and index template
@@ -177,42 +177,39 @@ public class SimulateBulkRequest extends BulkRequest {
     }
 
     @Override
-    public Map<String, ComponentTemplate> getComponentTemplateSubstitutions() throws IOException {
-        Map<String, ComponentTemplate> result = new HashMap<>(componentTemplateSubstitutions.size());
-        for (Map.Entry<String, Map<String, Object>> rawEntry : componentTemplateSubstitutions.entrySet()) {
-            result.put(rawEntry.getKey(), convertRawTemplateToComponentTemplate(rawEntry.getValue()));
-        }
-        return result;
+    public Map<String, ComponentTemplate> getComponentTemplateSubstitutions() {
+        return componentTemplateSubstitutions.entrySet()
+            .stream()
+            .collect(Collectors.toMap(Map.Entry::getKey, entry -> convertRawTemplateToComponentTemplate(entry.getValue())));
     }
 
     @Override
-    public Map<String, ComposableIndexTemplate> getIndexTemplateSubstitutions() throws IOException {
-        if (indexTemplateSubstitutions == null) {
-            return null;
-        }
-        Map<String, ComposableIndexTemplate> result = new HashMap<>(indexTemplateSubstitutions.size());
-        for (Map.Entry<String, Map<String, Object>> rawEntry : indexTemplateSubstitutions.entrySet()) {
-            result.put(rawEntry.getKey(), convertRawTemplateToIndexTemplate(rawEntry.getValue()));
-        }
-        return result;
+    public Map<String, ComposableIndexTemplate> getIndexTemplateSubstitutions() {
+        return indexTemplateSubstitutions.entrySet()
+            .stream()
+            .collect(Collectors.toMap(Map.Entry::getKey, entry -> convertRawTemplateToIndexTemplate(entry.getValue())));
     }
 
-    public Map<String, Object> getMappingAddition() throws IOException {
+    public Map<String, Object> getMappingAddition() {
         return mappingAddition;
     }
 
-    private static ComponentTemplate convertRawTemplateToComponentTemplate(Map<String, Object> rawTemplate) throws IOException {
+    private static ComponentTemplate convertRawTemplateToComponentTemplate(Map<String, Object> rawTemplate) {
         ComponentTemplate componentTemplate;
         try (var parser = XContentHelper.mapToXContentParser(XContentParserConfiguration.EMPTY, rawTemplate)) {
             componentTemplate = ComponentTemplate.parse(parser);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
         }
         return componentTemplate;
     }
 
-    private static ComposableIndexTemplate convertRawTemplateToIndexTemplate(Map<String, Object> rawTemplate) throws IOException {
+    private static ComposableIndexTemplate convertRawTemplateToIndexTemplate(Map<String, Object> rawTemplate) {
         ComposableIndexTemplate indexTemplate;
         try (var parser = XContentHelper.mapToXContentParser(XContentParserConfiguration.EMPTY, rawTemplate)) {
             indexTemplate = ComposableIndexTemplate.parse(parser);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
         }
         return indexTemplate;
     }

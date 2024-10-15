@@ -349,11 +349,9 @@ public class TransportSimulateBulkAction extends TransportAbstractBulkAction {
 
     private static CompressedXContent mergeMappings(@Nullable CompressedXContent originalMapping, Map<String, Object> mappingAddition)
         throws IOException {
-        Map<String, Object> combinedMappingMap;
-        if (originalMapping == null) {
-            combinedMappingMap = new HashMap<>();
-        } else {
-            combinedMappingMap = XContentHelper.convertToMap(originalMapping.uncompressed(), true, XContentType.JSON).v2();
+        Map<String, Object> combinedMappingMap = new HashMap<>();
+        if (originalMapping != null) {
+            combinedMappingMap.putAll(XContentHelper.convertToMap(originalMapping.uncompressed(), true, XContentType.JSON).v2());
         }
         XContentHelper.update(combinedMappingMap, mappingAddition, true);
         if (combinedMappingMap.isEmpty()) {

@@ -137,7 +137,7 @@ public class EnterpriseGeoIpDownloaderIT extends ESIntegTestCase {
                 new PutDatabaseConfigurationAction.Request(
                     TimeValue.MAX_VALUE,
                     TimeValue.MAX_VALUE,
-                    new DatabaseConfiguration("test", databaseType, new DatabaseConfiguration.Maxmind("test_account"))
+                    new DatabaseConfiguration("test-1", databaseType, new DatabaseConfiguration.Maxmind("test_account"))
                 )
             )
             .actionGet();

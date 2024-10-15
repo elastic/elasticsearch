@@ -350,6 +350,9 @@ tests:
 - class: org.elasticsearch.xpack.inference.integration.ModelRegistryIT
   method: testGetModel
   issue: https://github.com/elastic/elasticsearch/issues/114657
+- class: org.elasticsearch.xpack.inference.TextEmbeddingCrudIT
+  method: testPutE5WithTrainedModelAndInference
+  issue: https://github.com/elastic/elasticsearch/issues/114023
 
 # Examples:
 #

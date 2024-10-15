@@ -148,7 +148,7 @@ PUT _index_template/my-metrics
           "priority": 10,
           "time_series_dimension": true,
           "properties": {
-            "host": {
+            "host.name": {
               "type": "keyword"
             }
           }
@@ -166,7 +166,7 @@ POST metrics-mymetrics-test/_doc
 {
   "@timestamp": "2020-01-01T00:00:00.000Z",
   "attributes" : {
-    "host": "foo",
+    "host.name": "foo",
     "zone": "bar"
   },
   "cpu": 10

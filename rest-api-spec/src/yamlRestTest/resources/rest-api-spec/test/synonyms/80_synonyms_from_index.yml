@@ -21,7 +21,6 @@ setup:
         level: shards
         wait_for_active_shards: 2
         timeout: 1m
-        wait_for_status: yellow
 
   # Create an index with synonym_filter that uses that synonyms set
   - do:

@@ -15,6 +15,14 @@ setup:
 
   - match: { result: "created" }
 
+  # This is to ensure that at least two index shards (write and read) are available. In serverless this can take some time.
+  - do:
+      cluster.health:
+        index: .synonyms-2
+        level: shards
+        wait_for_active_shards: 2
+        timeout: 1m
+
   - do:
       synonyms.get_synonym:
         id: test-update-synonyms
@@ -44,6 +52,13 @@ setup:
           synonyms_set:
             - synonyms: "other, another"
 
+  - do:
+      cluster.health:
+        index: .synonyms-2
+        level: shards
+        wait_for_active_shards: 2
+        timeout: 1m
+
   - match: { result: "updated" }
   - match: { reload_analyzers_details._shards.total: 0 }
   - length: { reload_analyzers_details.reload_details: 0 }
@@ -57,6 +72,13 @@ setup:
           synonyms_set: []
 
   - match: { result: "created" }
+
+  - do:
+      cluster.health:
+        index: .synonyms-2
+        level: shards
+        wait_for_active_shards: 2
+        timeout: 1m
 
   - do:
       synonyms.get_synonym:

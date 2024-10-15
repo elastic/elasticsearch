@@ -45,6 +45,7 @@ import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.inference.InferenceWaitForAllocation;
 import org.elasticsearch.xpack.ml.inference.adaptiveallocations.AdaptiveAllocationsScalerService;
+import org.elasticsearch.xpack.ml.inference.adaptiveallocations.ScaleFromZeroFeatureFlag;
 import org.elasticsearch.xpack.ml.inference.assignment.TrainedModelAssignmentService;
 import org.elasticsearch.xpack.ml.inference.loadingservice.LocalModel;
 import org.elasticsearch.xpack.ml.inference.loadingservice.ModelLoadingService;
@@ -264,14 +265,11 @@ public class TransportInternalInferModelAction extends HandledTransportAction<Re
 
         // Get a list of nodes to send the requests to and the number of
         // documents for each node.
-        var nodes = assignment.selectRandomNodesWeighedOnAllocationsForNRequestsAndState(request.numberOfDocuments(), RoutingState.STARTED);
+        var nodes = assignment.selectRandomNodesWeighedOnAllocations(request.numberOfDocuments(), RoutingState.STARTED);
 
         // We couldn't find any nodes in the started state so let's look for ones that are stopping in case we're shutting down some nodes
         if (nodes.isEmpty()) {
-            nodes = assignment.selectRandomNodesWeighedOnAllocationsForNRequestsAndState(
-                request.numberOfDocuments(),
-                RoutingState.STOPPING
-            );
+            nodes = assignment.selectRandomNodesWeighedOnAllocations(request.numberOfDocuments(), RoutingState.STOPPING);
         }
 
         if (nodes.isEmpty()) {
@@ -279,11 +277,13 @@ public class TransportInternalInferModelAction extends HandledTransportAction<Re
             boolean starting = adaptiveAllocationsScalerService.maybeStartAllocation(assignment);
             if (starting) {
                 message += "; starting deployment of one allocation";
-                logger.info(message);
-                waitForAllocation.waitForAssignment(
-                    new InferenceWaitForAllocation.WaitingRequest(request, responseBuilder, parentTaskId, listener)
-                );
-                return;
+
+                if (ScaleFromZeroFeatureFlag.isEnabled()) {
+                    waitForAllocation.waitForAssignment(
+                        new InferenceWaitForAllocation.WaitingRequest(request, responseBuilder, parentTaskId, listener)
+                    );
+                    return;
+                }
             }
 
             logger.debug(message);
@@ -299,10 +299,7 @@ public class TransportInternalInferModelAction extends HandledTransportAction<Re
     private void inferOnBlockedRequest(InferenceWaitForAllocation.WaitingRequest request, TrainedModelAssignment assignment) {
         threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME).execute(() -> {
 
-            var nodes = assignment.selectRandomNodesWeighedOnAllocationsForNRequestsAndState(
-                request.request().numberOfDocuments(),
-                RoutingState.STARTED
-            );
+            var nodes = assignment.selectRandomNodesWeighedOnAllocations(request.request().numberOfDocuments(), RoutingState.STARTED);
 
             if (nodes.isEmpty()) {
                 request.listener()

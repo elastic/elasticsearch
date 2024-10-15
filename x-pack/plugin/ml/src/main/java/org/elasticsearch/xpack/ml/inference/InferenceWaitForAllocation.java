@@ -84,7 +84,6 @@ public class InferenceWaitForAllocation {
      * @param request The inference request details
      */
     public synchronized void waitForAssignment(WaitingRequest request) {
-        logger.info("waitForAssignment will wait for condition");
         if (pendingRequestCount.incrementAndGet() >= MAX_PENDING_REQUEST_COUNT) {
             pendingRequestCount.decrementAndGet();
             request.listener.onFailure(
@@ -103,7 +102,7 @@ public class InferenceWaitForAllocation {
             request.deploymentId(),
             predicate,
             request.request().getInferenceTimeout(),
-            new WaitingListener(request.deploymentId(), request, predicate)
+            new WaitingListener(request, predicate)
         );
     }
 
@@ -118,14 +117,20 @@ public class InferenceWaitForAllocation {
 
         @Override
         public boolean test(ClusterState clusterState) {
-            logger.info("predicate test");
             TrainedModelAssignment trainedModelAssignment = TrainedModelAssignmentMetadata.assignmentForDeploymentId(
                 clusterState,
                 deploymentId
             ).orElse(null);
             if (trainedModelAssignment == null) {
                 logger.info(() -> format("[%s] assignment was null while waiting to scale up", deploymentId));
-                return false;
+                exception.set(
+                    new ElasticsearchStatusException(
+                        "[{}] Error waiting for a model allocation, model assignment has been removed",
+                        RestStatus.CONFLICT,
+                        deploymentId
+                    )
+                );
+                return true; // don't try again
             }
 
             Map<String, String> nodeFailuresAndReasons = new HashMap<>();
@@ -151,24 +156,16 @@ public class InferenceWaitForAllocation {
             }
 
             var routable = trainedModelAssignment.getNodeRoutingTable().values().stream().filter(RoutingInfo::isRoutable).findFirst();
-            if (routable.isPresent()) {
-                logger.info("first route " + routable.get() + ", state" + trainedModelAssignment.calculateAllocationStatus());
-            } else {
-                logger.info("no routes");
-            }
-
             return routable.isPresent();
         }
     }
 
     private class WaitingListener implements TrainedModelAssignmentService.WaitForAssignmentListener {
 
-        private final String deploymentId;
         private final WaitingRequest request;
         private final DeploymentHasAtLeastOneAllocation predicate;
 
-        private WaitingListener(String deploymentId, WaitingRequest request, DeploymentHasAtLeastOneAllocation predicate) {
-            this.deploymentId = deploymentId;
+        private WaitingListener(WaitingRequest request, DeploymentHasAtLeastOneAllocation predicate) {
             this.request = request;
             this.predicate = predicate;
         }
@@ -183,13 +180,11 @@ public class InferenceWaitForAllocation {
                 return;
             }
 
-            logger.info("sending waited request");
             queuedConsumer.accept(request, assignment);
         }
 
         @Override
         public void onFailure(Exception e) {
-            logger.info("failed waiting", e);
             pendingRequestCount.decrementAndGet();
             request.listener().onFailure(e);
         }

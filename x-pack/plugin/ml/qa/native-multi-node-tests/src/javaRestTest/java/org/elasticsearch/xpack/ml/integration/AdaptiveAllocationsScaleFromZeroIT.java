@@ -7,15 +7,13 @@
 
 package org.elasticsearch.xpack.ml.integration;
 
-import org.elasticsearch.client.Request;
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseListener;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AdaptiveAllocationsSettings;
-import org.junit.Before;
 
-import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -29,21 +27,8 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
+@LuceneTestCase.AwaitsFix(bugUrl = "Cannot test without setting the scale to zero period to a small value")
 public class AdaptiveAllocationsScaleFromZeroIT extends PyTorchModelRestTestCase {
-
-    @Before
-    public void setShortScaleToZeroPeriod() throws IOException {
-        logger.info("setting time");
-        Request scaleToZeroTime = new Request("PUT", "_cluster/settings");
-        scaleToZeroTime.setJsonEntity("""
-            {
-              "persistent": {
-                "xpack.ml.adaptive_allocations_scale_to_zero_interval": "2s"
-              }
-            }""");
-
-        client().performRequest(scaleToZeroTime);
-    }
 
     @SuppressWarnings("unchecked")
     public void testScaleFromZero() throws Exception {

@@ -272,7 +272,7 @@ public class GoogleAiStudioCompletionActionTests extends ESTestCase {
     private ExecutableAction createAction(String url, String apiKey, String modelName, Sender sender) {
         var model = GoogleAiStudioCompletionModelTests.createModel(modelName, url, apiKey);
         var requestManager = new GoogleAiStudioCompletionRequestManager(model, threadPool);
-        var failedToSendRequestErrorMessage = constructFailedToSendRequestMessage(model.uri(), "Google AI Studio completion");
+        var failedToSendRequestErrorMessage = constructFailedToSendRequestMessage(model.uri(false), "Google AI Studio completion");
         return new SingleInputSenderExecutableAction(
             sender,
             requestManager,

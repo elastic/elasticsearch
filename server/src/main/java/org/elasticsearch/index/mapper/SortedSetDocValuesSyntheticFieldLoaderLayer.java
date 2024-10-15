@@ -185,7 +185,7 @@ public abstract class SortedSetDocValuesSyntheticFieldLoaderLayer implements Com
         private final int[] uniqueOrds;
         private final BytesRef[] converted;
 
-        private int idx = 0;
+        private int idx = -1;
 
         private SingletonDocValuesLoader(int[] docIdsInLeaf, int[] ords, int[] uniqueOrds, BytesRef[] converted) {
             this.docIdsInLeaf = docIdsInLeaf;
@@ -196,11 +196,12 @@ public abstract class SortedSetDocValuesSyntheticFieldLoaderLayer implements Com
 
         @Override
         public boolean advanceToDoc(int docId) throws IOException {
-            int index = Arrays.binarySearch(docIdsInLeaf, idx, docIdsInLeaf.length, docId);
-            if (index < 0) {
-                throw new IllegalArgumentException(docId + " is not expected to be called");
+            idx++;
+            if (docIdsInLeaf[idx] != docId) {
+                throw new IllegalArgumentException(
+                    "expected to be called with [" + docIdsInLeaf[idx] + "] but was called with " + docId + " instead"
+                );
             }
-            idx = index;
             return ords[idx] >= 0;
         }
 

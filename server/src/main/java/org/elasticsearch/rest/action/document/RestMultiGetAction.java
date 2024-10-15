@@ -44,9 +44,7 @@ public class RestMultiGetAction extends BaseRestHandler {
             new Route(GET, "/_mget"),
             new Route(POST, "/_mget"),
             new Route(GET, "/{index}/_mget"),
-            new Route(POST, "/{index}/_mget"),
-            Route.builder(GET, "/{index}/{type}/_mget").deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7).build(),
-            Route.builder(POST, "/{index}/{type}/_mget").deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7).build()
+            new Route(POST, "/{index}/_mget")
         );
     }
 

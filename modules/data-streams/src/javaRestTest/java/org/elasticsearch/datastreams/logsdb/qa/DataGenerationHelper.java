@@ -79,7 +79,7 @@ public class DataGenerationHelper {
         this.documentGenerator = new DocumentGenerator(specification);
 
         this.template = new TemplateGenerator(specification).generate();
-        this.mapping = new MappingGenerator(specification).generate(template, null);
+        this.mapping = new MappingGenerator(specification).generate(template);
     }
 
     void logsDbMapping(XContentBuilder builder) throws IOException {

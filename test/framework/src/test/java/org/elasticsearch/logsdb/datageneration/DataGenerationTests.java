@@ -102,7 +102,7 @@ public class DataGenerationTests extends ESTestCase {
         var documentGenerator = new DocumentGenerator(specification);
 
         var template = new TemplateGenerator(specification).generate();
-        var mapping = new MappingGenerator(specification).generate(template, null);
+        var mapping = new MappingGenerator(specification).generate(template);
 
         var mappingXContent = XContentBuilder.builder(XContentType.JSON.xContent());
         mappingXContent.map(mapping.raw());
@@ -175,7 +175,7 @@ public class DataGenerationTests extends ESTestCase {
             .build();
 
         var template = new TemplateGenerator(specification).generate();
-        var mapping = new MappingGenerator(specification).generate(template, null);
+        var mapping = new MappingGenerator(specification).generate(template);
         var ignored = new DocumentGenerator(specification).generate(template, mapping);
     }
 }

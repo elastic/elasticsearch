@@ -17,6 +17,9 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.TreeMap;
 
+/**
+ * Generator that generates a valid random document that follows the structure of provided {@link Template}.
+ */
 public class DocumentGenerator {
     private final DataGeneratorSpecification specification;
 
@@ -28,6 +31,12 @@ public class DocumentGenerator {
         this.objectArrayGenerator = specification.dataSource().get(new DataSourceRequest.ObjectArrayGenerator());
     }
 
+    /**
+     * Generates a valid random document following the provided template.
+     * @param template template for the document
+     * @param mapping generated mapping that will be applied to the destination index of this document
+     * @return document as a map where subobjects are represented as nested maps
+     */
     public Map<String, Object> generate(Template template, Mapping mapping) {
         var documentMap = new TreeMap<String, Object>();
         for (var predefinedField : specification.predefinedFields()) {

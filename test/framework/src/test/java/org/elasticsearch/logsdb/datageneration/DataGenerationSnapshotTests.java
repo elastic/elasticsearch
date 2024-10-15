@@ -31,7 +31,7 @@ public class DataGenerationSnapshotTests extends ESTestCase {
             .build();
 
         var template = new TemplateGenerator(specification).generate();
-        var mapping = new MappingGenerator(specification).generate(template, null);
+        var mapping = new MappingGenerator(specification).generate(template);
 
         var mappingXContent = XContentBuilder.builder(XContentType.JSON.xContent()).prettyPrint();
         mappingXContent.map(mapping.raw());

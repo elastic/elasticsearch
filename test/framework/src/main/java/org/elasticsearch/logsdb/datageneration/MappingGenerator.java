@@ -19,6 +19,10 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
 
+/**
+ * Generator that generates a valid random mapping that follows the structure of provided {@link Template}.
+ * Mapping will contain all fields from the template with generated mapping parameters.
+ */
 public class MappingGenerator {
     private final DataGeneratorSpecification specification;
 
@@ -30,7 +34,12 @@ public class MappingGenerator {
         this.dynamicMappingGenerator = specification.dataSource().get(new DataSourceRequest.DynamicMappingGenerator());
     }
 
-    public Mapping generate(Template template, Object someKindOfConfig) {
+    /**
+     * Generates a valid random mapping following the provided template.
+     * @param template template for the mapping
+     * @return {@link Mapping}
+     */
+    public Mapping generate(Template template) {
         var lookup = new TreeMap<String, Map<String, Object>>();
 
         // Top level mapping parameters
@@ -84,18 +93,17 @@ public class MappingGenerator {
 
             var mappingParameters = new TreeMap<String, Object>();
 
+            boolean isDynamicallyMapped = isDynamicallyMapped(templateEntry, context);
+            // Simply skip this field if it is dynamic.
+            // Lookup will contain null signaling dynamic mapping as well.
+            if (isDynamicallyMapped) {
+                continue;
+            }
+
             if (templateEntry instanceof Template.Leaf leaf) {
                 // For simplicity we only copy to keyword fields, synthetic source logic to handle copy_to is generic.
                 if (leaf.type() == FieldType.KEYWORD) {
                     context.addCopyToCandidate(fieldName);
-                }
-
-                boolean isDynamic = context.parentDynamicMapping != DynamicMapping.FORBIDDEN
-                    && dynamicMappingGenerator.generator().apply(false);
-                // Simply skip this field if it is dynamic.
-                // Lookup will contain null signaling dynamic mapping as well.
-                if (isDynamic) {
-                    continue;
                 }
 
                 var mappingParametersGenerator = specification.dataSource()
@@ -113,14 +121,6 @@ public class MappingGenerator {
                 mappingParameters.putAll(mappingParametersGenerator.get());
 
             } else if (templateEntry instanceof Template.Object object) {
-                boolean isDynamic = context.parentDynamicMapping != DynamicMapping.FORBIDDEN
-                    && dynamicMappingGenerator.generator().apply(true);
-                // Simply skip this field if it is dynamic.
-                // Lookup will contain null signaling dynamic mapping as well.
-                if (isDynamic) {
-                    continue;
-                }
-
                 var mappingParametersGenerator = specification.dataSource()
                     .get(new DataSourceRequest.ObjectMappingParametersGenerator(false, object.nested(), context.parentSubobjects()))
                     .mappingGenerator();
@@ -141,6 +141,11 @@ public class MappingGenerator {
             mapping.put(fieldName, mappingParameters);
             lookup.put(context.pathTo(fieldName), Map.copyOf(mappingParameters));
         }
+    }
+
+    private boolean isDynamicallyMapped(Template.Entry templateEntry, Context context) {
+        return context.parentDynamicMapping != DynamicMapping.FORBIDDEN
+            && dynamicMappingGenerator.generator().apply(templateEntry instanceof Template.Object);
     }
 
     record Context(

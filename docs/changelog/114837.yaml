@@ -1,0 +1,12 @@
+pr: 114837
+summary: Origin/104411-disallow-chars-in-pipeline-names
+area: Ingest Node
+type: "breaking, bug"
+issues: []
+breaking:
+  title: Origin/104411-disallow-chars-in-pipeline-names
+  area: Ingest Node
+  details: Please describe the details of this change for the release notes. You can
+    use asciidoc.
+  impact: Please describe the impact of this change to users
+  notable: false

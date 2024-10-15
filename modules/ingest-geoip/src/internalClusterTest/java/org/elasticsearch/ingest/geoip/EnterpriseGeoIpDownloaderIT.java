@@ -96,7 +96,7 @@ public class EnterpriseGeoIpDownloaderIT extends ESIntegTestCase {
         startEnterpriseGeoIpDownloaderTask();
         configureMaxmindDatabase(MAXMIND_DATABASE_TYPE);
         waitAround();
-        createGeoIpPipeline(pipelineName, MAXMIND_DATABASE_TYPE, sourceField, targetField);
+        createPipeline(pipelineName, "geoip", MAXMIND_DATABASE_TYPE, sourceField, targetField);
 
         assertBusy(() -> {
             /*
@@ -155,14 +155,15 @@ public class EnterpriseGeoIpDownloaderIT extends ESIntegTestCase {
         });
     }
 
-    private void createGeoIpPipeline(String pipelineName, String databaseType, String sourceField, String targetField) throws IOException {
+    private void createPipeline(String pipelineName, String processorType, String databaseType, String sourceField, String targetField)
+        throws IOException {
         putJsonPipeline(pipelineName, (builder, params) -> {
             builder.field("description", "test");
             builder.startArray("processors");
             {
                 builder.startObject();
                 {
-                    builder.startObject("geoip");
+                    builder.startObject(processorType);
                     {
                         builder.field("field", sourceField);
                         builder.field("target_field", targetField);

@@ -376,26 +376,39 @@ public class SourceFieldMapper extends MetadataFieldMapper {
     }
 
     private static SourceFieldMapper resolveSourceMode(final IndexMode indexMode, final Mode sourceMode, boolean enableRecoverySource) {
-        return switch (indexMode) {
-            case STANDARD -> switch (sourceMode) {
-                case SYNTHETIC -> enableRecoverySource ? DEFAULT_SYNTHETIC : DEFAULT_SYNTHETIC_NO_RECOVERY_SOURCE;
-                case STORED -> enableRecoverySource ? DEFAULT : DEFAULT_NO_RECOVERY_SOURCE;
-                case DISABLED -> enableRecoverySource ? DEFAULT_DISABLED : DEFAULT_DISABLED_NO_RECOVERY_SOURCE;
-            };
-            case TIME_SERIES, LOGSDB -> switch (sourceMode) {
-                case SYNTHETIC -> enableRecoverySource
-                    ? (indexMode == IndexMode.TIME_SERIES ? TSDB_DEFAULT : LOGSDB_DEFAULT)
-                    : (indexMode == IndexMode.TIME_SERIES ? TSDB_DEFAULT_NO_RECOVERY_SOURCE : LOGSDB_DEFAULT_NO_RECOVERY_SOURCE);
-                case STORED -> enableRecoverySource
-                    ? (indexMode == IndexMode.TIME_SERIES ? TSDB_DEFAULT_STORED : LOGSDB_DEFAULT_STORED)
-                    : (indexMode == IndexMode.TIME_SERIES
-                        ? TSDB_DEFAULT_NO_RECOVERY_SOURCE_STORED
-                        : LOGSDB_DEFAULT_NO_RECOVERY_SOURCE_STORED);
-                case DISABLED -> throw new IllegalArgumentException(
-                    "_source can not be disabled in index using [" + indexMode + "] index mode"
-                );
-            };
-        };
+        switch (indexMode) {
+            case STANDARD:
+                switch (sourceMode) {
+                    case SYNTHETIC:
+                        return enableRecoverySource ? DEFAULT_SYNTHETIC : DEFAULT_SYNTHETIC_NO_RECOVERY_SOURCE;
+                    case STORED:
+                        return enableRecoverySource ? DEFAULT : DEFAULT_NO_RECOVERY_SOURCE;
+                    case DISABLED:
+                        return enableRecoverySource ? DEFAULT_DISABLED : DEFAULT_DISABLED_NO_RECOVERY_SOURCE;
+                    default:
+                        throw new IllegalArgumentException("Unsupported source mode: " + sourceMode);
+                }
+            case TIME_SERIES:
+            case LOGSDB:
+                switch (sourceMode) {
+                    case SYNTHETIC:
+                        return enableRecoverySource
+                            ? (indexMode == IndexMode.TIME_SERIES ? TSDB_DEFAULT : LOGSDB_DEFAULT)
+                            : (indexMode == IndexMode.TIME_SERIES ? TSDB_DEFAULT_NO_RECOVERY_SOURCE : LOGSDB_DEFAULT_NO_RECOVERY_SOURCE);
+                    case STORED:
+                        return enableRecoverySource
+                            ? (indexMode == IndexMode.TIME_SERIES ? TSDB_DEFAULT_STORED : LOGSDB_DEFAULT_STORED)
+                            : (indexMode == IndexMode.TIME_SERIES
+                                ? TSDB_DEFAULT_NO_RECOVERY_SOURCE_STORED
+                                : LOGSDB_DEFAULT_NO_RECOVERY_SOURCE_STORED);
+                    case DISABLED:
+                        throw new IllegalArgumentException("_source can not be disabled in index using [" + indexMode + "] index mode");
+                    default:
+                        throw new IllegalArgumentException("Unsupported source mode: " + sourceMode);
+                }
+            default:
+                throw new IllegalArgumentException("Unsupported index mode: " + indexMode);
+        }
     }
 
     public static final TypeParser PARSER = new ConfigurableTypeParser(c -> {

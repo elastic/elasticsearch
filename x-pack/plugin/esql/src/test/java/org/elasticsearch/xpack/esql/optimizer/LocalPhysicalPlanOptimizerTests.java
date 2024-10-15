@@ -12,6 +12,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.apache.lucene.search.IndexSearcher;
 import org.elasticsearch.Build;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.MapperService;
@@ -564,6 +565,98 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         assertThat(query.limit().fold(), is(1000));
         var expected = QueryBuilders.matchQuery("last_name", "Smith");
         assertThat(query.query().toString(), is(expected.toString()));
+    }
+
+    public void testMatchOperatorFuzzinessDefault() {
+        assumeTrue("skipping because MATCH operator is not enabled", EsqlCapabilities.Cap.MATCH_OPERATOR.isEnabled());
+        var plan = plannerOptimizer.plan("""
+            from test
+            | where last_name : "Smith"~
+            """, IS_SV_STATS);
+
+        var limit = as(plan, LimitExec.class);
+        var exchange = as(limit.child(), ExchangeExec.class);
+        var project = as(exchange.child(), ProjectExec.class);
+        var field = as(project.child(), FieldExtractExec.class);
+        var query = as(field.child(), EsQueryExec.class);
+        assertThat(query.limit().fold(), is(1000));
+        var expected = QueryBuilders.matchQuery("last_name", "Smith").fuzziness(Fuzziness.TWO);
+        assertThat(query.query().toString(), is(expected.toString()));
+    }
+
+    public void testMatchOperatorFuzzinessExplicit() {
+        assumeTrue("skipping because MATCH operator is not enabled", EsqlCapabilities.Cap.MATCH_OPERATOR.isEnabled());
+        var plan = plannerOptimizer.plan("""
+            from test
+            | where last_name : "Smith"~1
+            """, IS_SV_STATS);
+
+        var limit = as(plan, LimitExec.class);
+        var exchange = as(limit.child(), ExchangeExec.class);
+        var project = as(exchange.child(), ProjectExec.class);
+        var field = as(project.child(), FieldExtractExec.class);
+        var query = as(field.child(), EsQueryExec.class);
+        assertThat(query.limit().fold(), is(1000));
+        var expected = QueryBuilders.matchQuery("last_name", "Smith").fuzziness(Fuzziness.ONE);
+        assertThat(query.query().toString(), is(expected.toString()));
+    }
+
+    public void testMatchOperatorFuzzinessAuto() {
+        assumeTrue("skipping because MATCH operator is not enabled", EsqlCapabilities.Cap.MATCH_OPERATOR.isEnabled());
+        var plan = plannerOptimizer.plan("""
+            from test
+            | where last_name : "Smith"~AUTO:3,5
+            """, IS_SV_STATS);
+
+        var limit = as(plan, LimitExec.class);
+        var exchange = as(limit.child(), ExchangeExec.class);
+        var project = as(exchange.child(), ProjectExec.class);
+        var field = as(project.child(), FieldExtractExec.class);
+        var query = as(field.child(), EsQueryExec.class);
+        assertThat(query.limit().fold(), is(1000));
+        var expected = QueryBuilders.matchQuery("last_name", "Smith").fuzziness(Fuzziness.fromString("AUTO:3,5"));
+        assertThat(query.query().toString(), is(expected.toString()));
+    }
+
+    public void testMatchOperatorBoost() {
+        assumeTrue("skipping because MATCH operator is not enabled", EsqlCapabilities.Cap.MATCH_OPERATOR.isEnabled());
+        var plan = plannerOptimizer.plan("""
+            from test
+            | where last_name : "Smith"^3.2
+            """, IS_SV_STATS);
+
+        var limit = as(plan, LimitExec.class);
+        var exchange = as(limit.child(), ExchangeExec.class);
+        var project = as(exchange.child(), ProjectExec.class);
+        var field = as(project.child(), FieldExtractExec.class);
+        var query = as(field.child(), EsQueryExec.class);
+        assertThat(query.limit().fold(), is(1000));
+        var expected = QueryBuilders.matchQuery("last_name", "Smith").boost(3.2F);
+        assertThat(query.query().toString(), is(expected.toString()));
+    }
+
+    public void testMatchOperatorBoostAndFuzziness() {
+        assumeTrue("skipping because MATCH operator is not enabled", EsqlCapabilities.Cap.MATCH_OPERATOR.isEnabled());
+        var plan = plannerOptimizer.plan("""
+            from test
+            | where last_name : "Smith"^3.2~1
+            """, IS_SV_STATS);
+
+        var limit = as(plan, LimitExec.class);
+        var exchange = as(limit.child(), ExchangeExec.class);
+        var project = as(exchange.child(), ProjectExec.class);
+        var field = as(project.child(), FieldExtractExec.class);
+        var query = as(field.child(), EsQueryExec.class);
+        assertThat(query.limit().fold(), is(1000));
+        var expected = QueryBuilders.matchQuery("last_name", "Smith").boost(3.2F).fuzziness(Fuzziness.ONE);
+        assertThat(query.query().toString(), is(expected.toString()));
+
+        // Check we can use in any order fuzziness and boosting
+        var newPlan = plannerOptimizer.plan("""
+            from test
+            | where last_name : "Smith"~1^3.2
+            """, IS_SV_STATS);
+        assertThat(newPlan, equalTo(plan));
     }
 
     /**

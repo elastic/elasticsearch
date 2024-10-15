@@ -657,7 +657,7 @@ public class Verifier {
             checkFullTextFunctionsParents(condition, failures);
         } else {
             plan.forEachExpression(FullTextFunction.class, ftf -> {
-                failures.add(fail(ftf, "[{}] is only supported in WHERE commands", ftf.functionName(), ftf.functionType());
+                failures.add(fail(ftf, "[{}] {} is only supported in WHERE commands", ftf.functionName(), ftf.functionType()));
             });
         }
     }

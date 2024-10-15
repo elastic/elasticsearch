@@ -153,23 +153,34 @@ The only requirements are that each node must be:
 
 * Accessible at its transport publish address by all other nodes in its
   cluster, and by any remote clusters that will discover it using
-  <<sniff-mode>>.
+  <<sniff-mode,sniff mode>>.
 
 Each node must have its own distinct publish address.
 
 If you specify the transport publish address using a hostname then {es} will
 resolve this hostname to an IP address once during startup, and other nodes
 will use the resulting IP address instead of resolving the name again
-themselves. To avoid confusion, use a hostname which resolves to the node's
-address in all network locations.
+themselves. You must use a hostname such that all of the addresses to which it
+resolves are addresses at which the node is accessible from all other nodes. To
+avoid confusion, it is simplest to use a hostname which resolves to a single
+address.
+
+If you specify the transport publish address using a
+<<network-interface-values,special value>> then {es} will resolve this value to
+a single IP address during startup, and other nodes will use the resulting IP
+address instead of resolving the value again themselves. You must use a value
+such that all of the addresses to which it resolves are addresses at which the
+node is accessible from all other nodes. To avoid confusion, it is simplest to
+use a value which resolves to a single address. It is usually a mistake to use
+`0.0.0.0` as a publish address on hosts with more than one network interface.
 
 ===== Using a single address
 
 The most common configuration is for {es} to bind to a single address at which
-it is accessible to clients and other nodes. In this configuration you should
-just set `network.host` to that address. You should not separately set any bind
-or publish addresses, nor should you separately configure the addresses for the
-HTTP or transport interfaces.
+it is accessible to clients and other nodes. To use this configuration, set
+only `network.host` to the desired address. Do not separately set any bind or
+publish addresses. Do not separately specify the addresses for the HTTP or
+transport interfaces.
 
 ===== Using multiple addresses
 

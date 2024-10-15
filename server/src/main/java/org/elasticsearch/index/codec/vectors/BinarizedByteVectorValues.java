@@ -25,6 +25,8 @@ import org.apache.lucene.util.VectorUtil;
 
 import java.io.IOException;
 
+import static org.elasticsearch.index.codec.vectors.BQVectorUtils.constSqrt;
+
 /**
  * Copied from Lucene, replace with Lucene's implementation sometime after Lucene 10
  */
@@ -69,6 +71,18 @@ public abstract class BinarizedByteVectorValues extends ByteVectorValues {
      * @return the number of vectors returned by this iterator
      */
     public abstract int size();
+
+    int discretizedDimensions() {
+        return BQVectorUtils.discretize(dimension(), 64);
+    }
+
+    float sqrtDimensions() {
+        return (float) constSqrt(dimension());
+    }
+
+    float maxX1() {
+        return (float) (1.9 / constSqrt(discretizedDimensions() - 1.0));
+    }
 
     /**
      * Return a {@link VectorScorer} for the given query vector.

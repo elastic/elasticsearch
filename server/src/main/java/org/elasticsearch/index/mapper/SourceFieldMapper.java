@@ -360,7 +360,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
             }
 
             SourceFieldMapper sourceFieldMapper = new SourceFieldMapper(
-                INDEX_MAPPER_SOURCE_MODE_SETTING.exists(settings) ? INDEX_MAPPER_SOURCE_MODE_SETTING.get(settings) : mode.get(),
+                sourceMode,
                 enabled.get(),
                 includes.getValue().toArray(Strings.EMPTY_ARRAY),
                 excludes.getValue().toArray(Strings.EMPTY_ARRAY),

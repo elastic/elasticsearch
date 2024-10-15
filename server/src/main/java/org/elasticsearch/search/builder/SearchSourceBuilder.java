@@ -101,7 +101,6 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
     public static final ParseField TIMEOUT_FIELD = new ParseField("timeout");
     public static final ParseField TERMINATE_AFTER_FIELD = new ParseField("terminate_after");
     public static final ParseField QUERY_FIELD = new ParseField("query");
-    @UpdateForV10(owner = UpdateForV10.Owner.SEARCH_RELEVANCE) // remove RANK_FIELD AND SUB_SEARCHES_FIELD
     public static final ParseField SUB_SEARCHES_FIELD = new ParseField("sub_searches");
     public static final ParseField RANK_FIELD = new ParseField("rank");
     public static final ParseField POST_FILTER_FIELD = new ParseField("post_filter");
@@ -1429,13 +1428,6 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                     knnBuilders = List.of(KnnSearchBuilder.fromXContent(parser));
                     searchUsage.trackSectionUsage(KNN_FIELD.getPreferredName());
                 } else if (RANK_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                    if (parser.getRestApiVersion().matches(RestApiVersion.onOrAfter(RestApiVersion.V_8))) {
-                        deprecationLogger.warn(
-                            DeprecationCategory.API,
-                            "rank_api",
-                            "Using [rank] is deprecated and will be removed in a future release"
-                        );
-                    }
                     if (RANK_SUPPORTED == false) {
                         throwUnknownKey(parser, token, currentFieldName);
                     }

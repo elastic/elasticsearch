@@ -12,6 +12,7 @@ package org.elasticsearch.repositories.azure;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.netty.util.ReferenceCountUtil;
+import reactor.core.Exceptions;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Schedulers;
@@ -291,23 +292,24 @@ public class AzureBlobStore implements BlobStore {
             batchResponses.add(batchAsyncClient.submitBatch(currentBatch));
         }
 
-        // The selective exception handling is easier to do this way than with what is thrown by Mono#whenDelayError
-        IOException exceptionToThrow = null;
-        for (Mono<Void> batchResponse : batchResponses) {
-            try {
-                batchResponse.block();
-            } catch (Exception e) {
-                if (isIgnorableBatchDeleteException(e)) {
-                    continue;
-                }
-                if (exceptionToThrow == null) {
-                    exceptionToThrow = new IOException("Error deleting batch");
-                }
-                exceptionToThrow.addSuppressed(e);
+        try {
+            Mono.whenDelayError(
+                batchResponses.stream()
+                    .map(m -> m.onErrorResume(AzureBlobStore::isIgnorableBatchDeleteException, t -> Mono.empty()))
+                    .toList()
+            ).block();
+        } catch (Exception e) {
+            final IOException exception = new IOException("Error deleting batch", e);
+            if (Exceptions.isMultiple(e)) {
+                Exceptions.unwrapMultipleExcludingTracebacks(e)
+                    .stream()
+                    // This is horrific, but there's no way to filter this noise reliably, see BlockingSingleSubscriber#blockingGet
+                    .filter(throwable -> throwable.getMessage().contains("#block terminated with an error") == false)
+                    .forEach(exception::addSuppressed);
+            } else {
+                exception.addSuppressed(e);
             }
-        }
-        if (exceptionToThrow != null) {
-            throw exceptionToThrow;
+            throw exception;
         }
     }
 
@@ -317,7 +319,7 @@ public class AzureBlobStore implements BlobStore {
      * @param exception An exception throw by batch delete
      * @return true if it is safe to ignore, false otherwise
      */
-    private boolean isIgnorableBatchDeleteException(Exception exception) {
+    private static boolean isIgnorableBatchDeleteException(Throwable exception) {
         if (exception instanceof BlobBatchStorageException bbse) {
             final Iterable<BlobStorageException> batchExceptions = bbse.getBatchExceptions();
             for (BlobStorageException bse : batchExceptions) {

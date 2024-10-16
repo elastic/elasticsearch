@@ -29,7 +29,7 @@ setup:
 
   - do:
       bulk:
-        refresh: wait_for
+        refresh: true
         body:
           - {"create": {"_index": "profiling-events-all"}}
           - {"Stacktrace.count": [1], "profiling.project.id": ["100"], "os.kernel": ["9.9.9-0"], "tags": ["environment:qa", "region:eu-west-1"], "host.ip": ["192.168.1.2"], "@timestamp": ["1700504427"], "container.name": ["instance-0000000010"], "ecs.version": ["1.12.0"], "Stacktrace.id": ["S07KmaoGhvNte78xwwRbZQ"], "agent.version": ["head-be593ef3-1688111067"], "host.name": ["ip-192-168-1-2"], "host.id": ["8457605156473051743"], "process.thread.name": ["497295213074376"]}

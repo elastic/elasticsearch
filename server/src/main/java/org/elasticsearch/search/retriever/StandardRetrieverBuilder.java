@@ -14,6 +14,7 @@ import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.builder.SubSearchSourceBuilder;
 import org.elasticsearch.search.collapse.CollapseBuilder;
@@ -27,6 +28,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
@@ -53,36 +55,28 @@ public final class StandardRetrieverBuilder extends RetrieverBuilder implements 
     static {
         PARSER.declareObject((r, v) -> r.queryBuilder = v, (p, c) -> {
             QueryBuilder queryBuilder = AbstractQueryBuilder.parseTopLevelQuery(p, c::trackQueryUsage);
-            c.trackSectionUsage(NAME + ":" + QUERY_FIELD.getPreferredName());
             return queryBuilder;
         }, QUERY_FIELD);
 
-        PARSER.declareField((r, v) -> r.searchAfterBuilder = v, (p, c) -> {
-            SearchAfterBuilder searchAfterBuilder = SearchAfterBuilder.fromXContent(p);
-            c.trackSectionUsage(NAME + ":" + SEARCH_AFTER_FIELD.getPreferredName());
-            return searchAfterBuilder;
-        }, SEARCH_AFTER_FIELD, ObjectParser.ValueType.OBJECT_ARRAY);
-
-        PARSER.declareField((r, v) -> r.terminateAfter = v, (p, c) -> {
-            int terminateAfter = p.intValue();
-            c.trackSectionUsage(NAME + ":" + TERMINATE_AFTER_FIELD.getPreferredName());
-            return terminateAfter;
-        }, TERMINATE_AFTER_FIELD, ObjectParser.ValueType.INT);
-
-        PARSER.declareField((r, v) -> r.sortBuilders = v, (p, c) -> {
-            List<SortBuilder<?>> sortBuilders = SortBuilder.fromXContent(p);
-            c.trackSectionUsage(NAME + ":" + SORT_FIELD.getPreferredName());
-            return sortBuilders;
-        }, SORT_FIELD, ObjectParser.ValueType.OBJECT_ARRAY);
-
-        PARSER.declareField((r, v) -> r.collapseBuilder = v, (p, c) -> {
-            CollapseBuilder collapseBuilder = CollapseBuilder.fromXContent(p);
-            if (collapseBuilder.getField() != null) {
-                c.trackSectionUsage(COLLAPSE_FIELD.getPreferredName());
-            }
-            return collapseBuilder;
-        }, COLLAPSE_FIELD, ObjectParser.ValueType.OBJECT);
-
+        PARSER.declareField(
+            (r, v) -> r.searchAfterBuilder = v,
+            (p, c) -> SearchAfterBuilder.fromXContent(p),
+            SEARCH_AFTER_FIELD,
+            ObjectParser.ValueType.OBJECT_ARRAY
+        );
+        PARSER.declareField((r, v) -> r.terminateAfter = v, (p, c) -> p.intValue(), TERMINATE_AFTER_FIELD, ObjectParser.ValueType.INT);
+        PARSER.declareField(
+            (r, v) -> r.sortBuilders = v,
+            (p, c) -> SortBuilder.fromXContent(p),
+            SORT_FIELD,
+            ObjectParser.ValueType.OBJECT_ARRAY
+        );
+        PARSER.declareField(
+            (r, v) -> r.collapseBuilder = v,
+            (p, c) -> CollapseBuilder.fromXContent(p),
+            COLLAPSE_FIELD,
+            ObjectParser.ValueType.OBJECT
+        );
         RetrieverBuilder.declareBaseParserFields(NAME, PARSER);
     }
 
@@ -103,6 +97,48 @@ public final class StandardRetrieverBuilder extends RetrieverBuilder implements 
 
     public StandardRetrieverBuilder(QueryBuilder queryBuilder) {
         this.queryBuilder = queryBuilder;
+    }
+
+    private StandardRetrieverBuilder(StandardRetrieverBuilder clone) {
+        this.retrieverName = clone.retrieverName;
+        this.queryBuilder = clone.queryBuilder;
+        this.minScore = clone.minScore;
+        this.sortBuilders = clone.sortBuilders;
+        this.preFilterQueryBuilders = clone.preFilterQueryBuilders;
+        this.collapseBuilder = clone.collapseBuilder;
+        this.searchAfterBuilder = clone.searchAfterBuilder;
+        this.terminateAfter = clone.terminateAfter;
+    }
+
+    @Override
+    public RetrieverBuilder rewrite(QueryRewriteContext ctx) throws IOException {
+        boolean changed = false;
+        List<SortBuilder<?>> rewrittenSortBuilders = null;
+        if (sortBuilders != null) {
+            rewrittenSortBuilders = new ArrayList<>(sortBuilders.size());
+            for (var sort : sortBuilders) {
+                var newSort = sort.rewrite(ctx);
+                rewrittenSortBuilders.add(newSort);
+                changed |= newSort != sort;
+            }
+        }
+        var rewrittenFilters = rewritePreFilters(ctx);
+        changed |= rewrittenFilters != preFilterQueryBuilders;
+
+        QueryBuilder rewrittenQuery = null;
+        if (queryBuilder != null) {
+            rewrittenQuery = queryBuilder.rewrite(ctx);
+            changed |= rewrittenQuery != queryBuilder;
+        }
+
+        if (changed) {
+            var rewritten = new StandardRetrieverBuilder(this);
+            rewritten.sortBuilders = rewrittenSortBuilders;
+            rewritten.preFilterQueryBuilders = rewrittenFilters;
+            rewritten.queryBuilder = rewrittenQuery;
+            return rewritten;
+        }
+        return this;
     }
 
     @Override

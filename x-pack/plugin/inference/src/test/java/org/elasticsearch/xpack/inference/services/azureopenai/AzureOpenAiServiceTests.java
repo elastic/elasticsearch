@@ -38,6 +38,8 @@ import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
+import org.elasticsearch.xpack.inference.services.InferenceEventsAssertion;
+import org.elasticsearch.xpack.inference.services.azureopenai.completion.AzureOpenAiCompletionModelTests;
 import org.elasticsearch.xpack.inference.services.azureopenai.embeddings.AzureOpenAiEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.azureopenai.embeddings.AzureOpenAiEmbeddingsModelTests;
 import org.hamcrest.CoreMatchers;
@@ -1421,6 +1423,87 @@ public class AzureOpenAiServiceTests extends ESTestCase {
             assertThat(requestMap.get("input"), Matchers.is(List.of("foo", "bar")));
             assertThat(requestMap.get("user"), Matchers.is("user"));
         }
+    }
+
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/114385")
+    public void testInfer_StreamRequest() throws Exception {
+        String responseJson = """
+            data: {\
+                "id":"12345",\
+                "object":"chat.completion.chunk",\
+                "created":123456789,\
+                "model":"gpt-4o-mini",\
+                "system_fingerprint": "123456789",\
+                "choices":[\
+                    {\
+                        "index":0,\
+                        "delta":{\
+                            "content":"hello, world"\
+                        },\
+                        "logprobs":null,\
+                        "finish_reason":null\
+                    }\
+                ]\
+            }
+
+            """;
+        webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
+
+        var result = streamChatCompletion();
+
+        InferenceEventsAssertion.assertThat(result).hasFinishedStream().hasNoErrors().hasEvent("""
+            {"completion":[{"delta":"hello, world"}]}""");
+    }
+
+    private InferenceServiceResults streamChatCompletion() throws IOException, URISyntaxException {
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+        try (var service = new AzureOpenAiService(senderFactory, createWithEmptySettings(threadPool))) {
+            var model = AzureOpenAiCompletionModelTests.createCompletionModel(
+                "resource",
+                "deployment",
+                "apiversion",
+                "user",
+                "apikey",
+                null,
+                "id"
+            );
+            model.setUri(new URI(getUrl(webServer)));
+            var listener = new PlainActionFuture<InferenceServiceResults>();
+            service.infer(
+                model,
+                null,
+                List.of("abc"),
+                true,
+                new HashMap<>(),
+                InputType.INGEST,
+                InferenceAction.Request.DEFAULT_TIMEOUT,
+                listener
+            );
+
+            return listener.actionGet(TIMEOUT);
+        }
+    }
+
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/114385")
+    public void testInfer_StreamRequest_ErrorResponse() throws Exception {
+        String responseJson = """
+            {
+              "error": {
+                "message": "You didn't provide an API key...",
+                "type": "invalid_request_error",
+                "param": null,
+                "code": null
+              }
+            }""";
+        webServer.enqueue(new MockResponse().setResponseCode(401).setBody(responseJson));
+
+        var result = streamChatCompletion();
+
+        InferenceEventsAssertion.assertThat(result)
+            .hasFinishedStream()
+            .hasNoEvents()
+            .hasErrorWithStatusCode(401)
+            .hasErrorContaining("You didn't provide an API key...");
     }
 
     private AzureOpenAiService createAzureOpenAiService() {

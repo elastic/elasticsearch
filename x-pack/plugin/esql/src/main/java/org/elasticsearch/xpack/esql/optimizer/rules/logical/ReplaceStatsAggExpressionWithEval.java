@@ -13,7 +13,6 @@ import org.elasticsearch.xpack.esql.core.expression.AttributeMap;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
@@ -24,8 +23,6 @@ import org.elasticsearch.xpack.esql.plan.logical.Project;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-
-import static java.util.Collections.singleton;
 
 /**
  * Replace nested expressions over aggregates with synthetic eval post the aggregation
@@ -71,16 +68,13 @@ public final class ReplaceStatsAggExpressionWithEval extends OptimizerRules.Opti
 
         for (NamedExpression agg : aggs) {
             if (agg instanceof Alias as) {
-                // if the child a nested expression
+                // use intermediate variable to mark child as final for lambda use
                 Expression child = as.child();
 
                 // common case - handle duplicates
                 if (child instanceof AggregateFunction af) {
-                    AggregateFunction canonical = (AggregateFunction) af.canonical();
-                    Expression field = canonical.field().transformUp(e -> aliases.resolve(e, e));
-                    canonical = (AggregateFunction) canonical.replaceChildren(
-                        CollectionUtils.combine(singleton(field), canonical.parameters())
-                    );
+                    // canonical representation, with resolved aliases
+                    AggregateFunction canonical = (AggregateFunction) af.canonical().transformUp(e -> aliases.resolve(e, e));
 
                     Alias found = rootAggs.get(canonical);
                     // aggregate is new
@@ -130,7 +124,7 @@ public final class ReplaceStatsAggExpressionWithEval extends OptimizerRules.Opti
         LogicalPlan plan = aggregate;
         if (changed.get()) {
             Source source = aggregate.source();
-            plan = new Aggregate(source, aggregate.child(), aggregate.aggregateType(), aggregate.groupings(), newAggs);
+            plan = aggregate.with(aggregate.child(), aggregate.groupings(), newAggs);
             if (newEvals.size() > 0) {
                 plan = new Eval(source, plan, newEvals);
             }

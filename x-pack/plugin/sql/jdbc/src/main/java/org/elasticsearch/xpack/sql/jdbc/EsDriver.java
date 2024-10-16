@@ -23,7 +23,7 @@ public class EsDriver implements Driver {
     private static final EsDriver INSTANCE = new EsDriver();
 
     static {
-        // invoke Version to perform classpath/jar sanity checks
+        // invoke version to perform classpath/jar sanity checks
         ClientVersion.CURRENT.toString();
 
         try {

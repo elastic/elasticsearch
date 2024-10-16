@@ -169,8 +169,8 @@ public class DriverProfile implements Writeable, ChunkedToXContentObject {
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
         return ChunkedToXContent.builder(params).object(ob -> {
             ob.append((b, p) -> {
-                b.timeField("start_millis", "start", startMillis);
-                b.timeField("stop_millis", "stop", stopMillis);
+                b.timestampFieldsFromUnixEpochMillis("start_millis", "start", startMillis);
+                b.timestampFieldsFromUnixEpochMillis("stop_millis", "stop", stopMillis);
                 b.field("took_nanos", tookNanos);
                 if (b.humanReadable()) {
                     b.field("took_time", TimeValue.timeValueNanos(tookNanos));

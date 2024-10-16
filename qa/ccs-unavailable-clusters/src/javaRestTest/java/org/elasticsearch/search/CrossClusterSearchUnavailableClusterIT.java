@@ -38,6 +38,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.search.aggregations.InternalAggregations;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.test.transport.MockTransportService;
@@ -45,6 +46,7 @@ import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.junit.ClassRule;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -60,6 +62,14 @@ import static org.hamcrest.CoreMatchers.equalTo;
 public class CrossClusterSearchUnavailableClusterIT extends ESRestTestCase {
 
     private final ThreadPool threadPool = new TestThreadPool(getClass().getName());
+
+    @ClassRule
+    public static ElasticsearchCluster cluster = ElasticsearchCluster.local().build();
+
+    @Override
+    protected String getTestRestCluster() {
+        return cluster.getHttpAddresses();
+    }
 
     @Override
     public void tearDown() throws Exception {
@@ -144,7 +154,7 @@ public class CrossClusterSearchUnavailableClusterIT extends ESRestTestCase {
                 threadPool
             )
         ) {
-            DiscoveryNode remoteNode = remoteTransport.getLocalDiscoNode();
+            DiscoveryNode remoteNode = remoteTransport.getLocalNode();
 
             updateRemoteClusterSettings(Collections.singletonMap("seeds", remoteNode.getAddress().toString()));
 
@@ -297,7 +307,7 @@ public class CrossClusterSearchUnavailableClusterIT extends ESRestTestCase {
                 threadPool
             )
         ) {
-            DiscoveryNode remoteNode = remoteTransport.getLocalDiscoNode();
+            DiscoveryNode remoteNode = remoteTransport.getLocalNode();
 
             {
                 // check that skip_unavailable alone cannot be set

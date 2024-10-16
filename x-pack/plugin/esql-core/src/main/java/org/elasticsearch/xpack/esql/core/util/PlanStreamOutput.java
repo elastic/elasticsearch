@@ -31,4 +31,6 @@ public interface PlanStreamOutput {
      * @throws IOException
      */
     boolean writeEsFieldCacheHeader(EsField field) throws IOException;
+
+    void writeCachedString(String field) throws IOException;
 }

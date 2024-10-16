@@ -709,12 +709,14 @@ public abstract class DocumentParserContext {
      * Return a new context that has the provided document as the current document.
      */
     public final DocumentParserContext switchDoc(final LuceneDocument document) {
-        return new Wrapper(this.parent, this) {
+        DocumentParserContext cloned = new Wrapper(this.parent, this) {
             @Override
             public LuceneDocument doc() {
                 return document;
             }
         };
+        cloned.inArrayScope = false;  // Reset for new document.
+        return cloned;
     }
 
     /**

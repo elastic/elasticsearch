@@ -34,10 +34,12 @@ import org.apache.lucene.util.automaton.CompiledAutomaton;
 import org.apache.lucene.util.automaton.CompiledAutomaton.AUTOMATON_TYPE;
 import org.apache.lucene.util.automaton.MinimizationOperations;
 import org.apache.lucene.util.automaton.Operations;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.common.unit.Fuzziness;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.IndexVersion;
@@ -65,6 +67,7 @@ import org.elasticsearch.search.runtime.StringScriptFieldRegexpQuery;
 import org.elasticsearch.search.runtime.StringScriptFieldTermQuery;
 import org.elasticsearch.search.runtime.StringScriptFieldWildcardQuery;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -72,6 +75,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
@@ -633,14 +637,64 @@ public final class KeywordFieldMapper extends FieldMapper {
                 return new BlockDocValuesReader.BytesRefsFromOrdsBlockLoader(name());
             }
             if (isSyntheticSource) {
-                if (false == isStored()) {
-                    throw new IllegalStateException(
-                        "keyword field ["
-                            + name()
-                            + "] is only supported in synthetic _source index if it creates doc values or stored fields"
-                    );
+                if (isStored()) {
+                    return new BlockStoredFieldsReader.BytesFromBytesRefsBlockLoader(name());
+                } else {
+                    var sourcePaths = blContext.sourcePaths(name());
+                    return new BlockStoredFieldsReader.BytesFromBytesRefsBlockLoader(IgnoredSourceFieldMapper.NAME) {
+
+                        @Override
+                        public RowStrideReader rowStrideReader(LeafReaderContext context) throws IOException {
+                            return new BlockStoredFieldsReader() {
+
+                                @Override
+                                public void read(int docId, StoredFields storedFields, Builder builder) throws IOException {
+                                    List<Object> values = storedFields.storedFields().get(IgnoredSourceFieldMapper.NAME);
+
+                                    // shouldn't happen, because a field that with stored fields or doc values must be in ignored source...
+                                    if (values == null || values.isEmpty()) {
+                                        builder.appendNull();
+                                        return;
+                                    }
+
+                                    List<BytesRef> convertedIgnoredValues = new ArrayList<>();
+                                    for (Object value : values) {
+                                        BytesRef rawIgnoredSource = (BytesRef) value;
+                                        var nameValue = IgnoredSourceFieldMapper.decode(rawIgnoredSource);
+                                        if (sourcePaths.contains(nameValue.getFieldName())) {
+                                            // We can also directly read the actual value without going to do xcontent parsing here.
+                                            XContentBuilder xContentBuilder = XContentBuilder.builder(
+                                                XContentDataHelper.getXContentType(nameValue.value()).xContent()
+                                            );
+                                            XContentDataHelper.decodeAndWrite(xContentBuilder, nameValue.value());
+                                            var parser = XContentHelper.createParserNotCompressed(
+                                                XContentParserConfiguration.EMPTY,
+                                                BytesReference.bytes(xContentBuilder),
+                                                xContentBuilder.contentType()
+                                            );
+                                            var token = parser.nextToken();
+                                            assert token.isValue();
+                                            convertedIgnoredValues.add(new BytesRef(parser.text()));
+                                        }
+                                    }
+
+                                    if (convertedIgnoredValues.isEmpty()) {
+                                        // shouldn't happen...
+                                        builder.appendNull();
+                                    } else if (convertedIgnoredValues.size() == 1) {
+                                        ((BytesRefBuilder) builder).appendBytesRef(convertedIgnoredValues.get(0));
+                                    } else {
+                                        builder.beginPositionEntry();
+                                        for (BytesRef convertedIgnoredValue : convertedIgnoredValues) {
+                                            ((BytesRefBuilder) builder).appendBytesRef(convertedIgnoredValue);
+                                        }
+                                        builder.endPositionEntry();
+                                    }
+                                }
+                            };
+                        }
+                    };
                 }
-                return new BlockStoredFieldsReader.BytesFromBytesRefsBlockLoader(name());
             }
             SourceValueFetcher fetcher = sourceValueFetcher(blContext.sourcePaths(name()));
             return new BlockSourceReader.BytesRefsBlockLoader(fetcher, sourceBlockLoaderLookup(blContext));

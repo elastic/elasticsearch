@@ -37,7 +37,6 @@ import org.apache.lucene.util.BitUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.IndexVersion;
@@ -111,7 +110,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
     public static final NodeFeature INT4_QUANTIZATION = new NodeFeature("mapper.vectors.int4_quantization");
     public static final NodeFeature BIT_VECTORS = new NodeFeature("mapper.vectors.bit_vectors");
     public static final NodeFeature BBQ_FORMAT = new NodeFeature("mapper.vectors.bbq");
-    public static final FeatureFlag BBQ_FEATURE_FLAG = new FeatureFlag("bbq_index_format");
 
     public static final IndexVersion MAGNITUDE_STORED_INDEX_VERSION = IndexVersions.V_7_5_0;
     public static final IndexVersion INDEXED_BY_DEFAULT_INDEX_VERSION = IndexVersions.FIRST_DETACHED_INDEX_VERSION;
@@ -2260,9 +2258,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
             throw new MapperParsingException("Unknown vector index options type [" + type + "] for field [" + fieldName + "]");
         }
         VectorIndexType parsedType = vectorIndexType.get();
-        if ((parsedType == VectorIndexType.BBQ_FLAT || parsedType == VectorIndexType.BBQ_HNSW) && BBQ_FEATURE_FLAG.isEnabled() == false) {
-            throw new MapperParsingException("Unknown vector index options type [" + type + "] for field [" + fieldName + "]");
-        }
         return parsedType.parseIndexOptions(fieldName, indexOptionsMap);
     }
 

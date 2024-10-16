@@ -224,15 +224,12 @@ public final class TrainedModelAssignment implements SimpleDiffable<TrainedModel
         return nodeRoutingTable.values().stream().anyMatch(routeInfo -> routeInfo.getState() == RoutingState.STARTED);
     }
 
-    public List<Tuple<String, Integer>> selectRandomStartedNodesWeighedOnAllocationsForNRequests(
-        int numberOfRequests,
-        RoutingState requiredState
-    ) {
+    public List<Tuple<String, Integer>> selectRandomNodesWeighedOnAllocations(int numberOfRequests, RoutingState... acceptableStates) {
         List<String> nodeIds = new ArrayList<>(nodeRoutingTable.size());
         List<Integer> cumulativeAllocations = new ArrayList<>(nodeRoutingTable.size());
         int allocationSum = 0;
         for (Map.Entry<String, RoutingInfo> routingEntry : nodeRoutingTable.entrySet()) {
-            if (routingEntry.getValue().getState() == requiredState) {
+            if (routingEntry.getValue().getState().isAnyOf(acceptableStates)) {
                 nodeIds.add(routingEntry.getKey());
                 allocationSum += routingEntry.getValue().getCurrentAllocations();
                 cumulativeAllocations.add(allocationSum);

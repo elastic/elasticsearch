@@ -21,12 +21,12 @@ import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.Map;
 
 import static java.util.Arrays.asList;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
 import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
+import static org.elasticsearch.rest.action.admin.indices.RestCreateIndexAction.prepareMappings;
 
 public class RestPutIndexTemplateAction extends BaseRestHandler {
 
@@ -53,42 +53,12 @@ public class RestPutIndexTemplateAction extends BaseRestHandler {
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         PutIndexTemplateRequest putRequest = new PutIndexTemplateRequest(request.param("name"));
-        if (request.getRestApiVersion() == RestApiVersion.V_7 && request.hasParam("template")) {
-            deprecationLogger.compatibleCritical(
-                "template_parameter_deprecation",
-                "Deprecated parameter [template] used, replaced by [index_patterns]"
-            );
-            putRequest.patterns(List.of(request.param("template")));
-        } else {
-            putRequest.patterns(asList(request.paramAsStringArray("index_patterns", Strings.EMPTY_ARRAY)));
-        }
+        putRequest.patterns(asList(request.paramAsStringArray("index_patterns", Strings.EMPTY_ARRAY)));
         putRequest.order(request.paramAsInt("order", putRequest.order()));
         putRequest.masterNodeTimeout(getMasterNodeTimeout(request));
         putRequest.create(request.paramAsBoolean("create", false));
         putRequest.cause(request.param("cause", ""));
-
-        Map<String, Object> sourceAsMap = XContentHelper.convertToMap(request.requiredContent(), false, request.getXContentType()).v2();
-        if (request.getRestApiVersion() == RestApiVersion.V_7) {
-            if (request.hasParam(INCLUDE_TYPE_NAME_PARAMETER)) {
-                deprecationLogger.compatibleCritical("put_index_template_with_types", TYPES_DEPRECATION_MESSAGE);
-            }
-            boolean includeTypeName = request.paramAsBoolean(INCLUDE_TYPE_NAME_PARAMETER, DEFAULT_INCLUDE_TYPE_NAME_POLICY);
-            if (includeTypeName) {
-                sourceAsMap = RestCreateIndexAction.prepareMappingsV7(sourceAsMap, request);
-            } else {
-                sourceAsMap = RestCreateIndexAction.prepareMappings(sourceAsMap);
-            }
-        } else {
-            sourceAsMap = RestCreateIndexAction.prepareMappings(sourceAsMap);
-        }
-        if (request.getRestApiVersion() == RestApiVersion.V_7 && sourceAsMap.containsKey("template")) {
-            deprecationLogger.compatibleCritical(
-                "template_field_deprecation",
-                "Deprecated field [template] used, replaced by [index_patterns]"
-            );
-            putRequest.patterns(List.of((String) sourceAsMap.remove("template")));
-        }
-        putRequest.source(sourceAsMap);
+        putRequest.source(prepareMappings(XContentHelper.convertToMap(request.requiredContent(), false, request.getXContentType()).v2()));
 
         return channel -> client.admin().indices().putTemplate(putRequest, new RestToXContentListener<>(channel));
     }

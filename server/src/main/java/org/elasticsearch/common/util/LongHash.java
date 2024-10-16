@@ -78,7 +78,6 @@ public final class LongHash extends AbstractHash {
     }
 
     private void append(long id, long key) {
-        keys = bigArrays.grow(keys, id + 1);
         keys.set(id, key);
     }
 
@@ -102,6 +101,7 @@ public final class LongHash extends AbstractHash {
         if (size >= maxSize) {
             assert size == maxSize;
             grow();
+            keys = bigArrays.resize(keys, maxSize);
         }
         assert size < maxSize;
         return set(key, size);

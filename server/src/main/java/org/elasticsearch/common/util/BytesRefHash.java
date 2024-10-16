@@ -182,7 +182,6 @@ public final class BytesRefHash extends AbstractHash implements Accountable {
     private void append(long id, BytesRef key, int code) {
         assert size == id;
         bytesRefs.append(key);
-        hashes = bigArrays.grow(hashes, id + 1);
         hashes.set(id, code);
     }
 
@@ -211,6 +210,7 @@ public final class BytesRefHash extends AbstractHash implements Accountable {
         if (size >= maxSize) {
             assert size == maxSize;
             grow();
+            hashes = bigArrays.resize(hashes, maxSize);
         }
         assert size < maxSize;
         return set(key, rehash(code), size);

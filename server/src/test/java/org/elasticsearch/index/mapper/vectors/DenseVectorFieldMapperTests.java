@@ -1227,13 +1227,16 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
             e.getMessage(),
             containsString("Failed to parse mapping: Mapping definition for [field] has unsupported parameters:  [foo : {}]")
         );
-        for (String quantizationKind : new String[] { "int4_hnsw", "int8_hnsw", "int8_flat", "int4_flat" }) {
+        List<String> floatOnlyQuantizations = new ArrayList<>(
+            Arrays.asList("int4_hnsw", "int8_hnsw", "int8_flat", "int4_flat", "bbq_hnsw", "bbq_flat")
+        );
+        for (String quantizationKind : floatOnlyQuantizations) {
             e = expectThrows(
                 MapperParsingException.class,
                 () -> createDocumentMapper(
                     fieldMapping(
                         b -> b.field("type", "dense_vector")
-                            .field("dims", dims)
+                            .field("dims", 64)
                             .field("element_type", "byte")
                             .field("similarity", "l2_norm")
                             .field("index", true)
@@ -1937,6 +1940,60 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
             + "rawVectorFormat=Lucene99FlatVectorsFormat(vectorsScorer=DefaultFlatVectorScorer())"
             + "))";
         assertEquals(expectedString, knnVectorsFormat.toString());
+    }
+
+    public void testKnnBBQHNSWVectorsFormat() throws IOException {
+        final int m = randomIntBetween(1, DEFAULT_MAX_CONN + 10);
+        final int efConstruction = randomIntBetween(1, DEFAULT_BEAM_WIDTH + 10);
+        final int dims = randomIntBetween(64, 4096);
+        MapperService mapperService = createMapperService(fieldMapping(b -> {
+            b.field("type", "dense_vector");
+            b.field("dims", dims);
+            b.field("index", true);
+            b.field("similarity", "dot_product");
+            b.startObject("index_options");
+            b.field("type", "bbq_hnsw");
+            b.field("m", m);
+            b.field("ef_construction", efConstruction);
+            b.endObject();
+        }));
+        CodecService codecService = new CodecService(mapperService, BigArrays.NON_RECYCLING_INSTANCE);
+        Codec codec = codecService.codec("default");
+        KnnVectorsFormat knnVectorsFormat;
+        if (CodecService.ZSTD_STORED_FIELDS_FEATURE_FLAG.isEnabled()) {
+            assertThat(codec, instanceOf(PerFieldMapperCodec.class));
+            knnVectorsFormat = ((PerFieldMapperCodec) codec).getKnnVectorsFormatForField("field");
+        } else {
+            if (codec instanceof CodecService.DeduplicateFieldInfosCodec deduplicateFieldInfosCodec) {
+                codec = deduplicateFieldInfosCodec.delegate();
+            }
+            assertThat(codec, instanceOf(LegacyPerFieldMapperCodec.class));
+            knnVectorsFormat = ((LegacyPerFieldMapperCodec) codec).getKnnVectorsFormatForField("field");
+        }
+        String expectedString = "ES816HnswBinaryQuantizedVectorsFormat(name=ES816HnswBinaryQuantizedVectorsFormat, maxConn="
+            + m
+            + ", beamWidth="
+            + efConstruction
+            + ", flatVectorFormat=ES816BinaryQuantizedVectorsFormat("
+            + "name=ES816BinaryQuantizedVectorsFormat, "
+            + "flatVectorScorer=ES816BinaryFlatVectorsScorer(nonQuantizedDelegate=DefaultFlatVectorScorer())))";
+        assertEquals(expectedString, knnVectorsFormat.toString());
+    }
+
+    public void testInvalidVectorDimensionsBBQ() {
+        for (String quantizedFlatFormat : new String[] { "bbq_hnsw", "bbq_flat" }) {
+            MapperParsingException e = expectThrows(MapperParsingException.class, () -> createDocumentMapper(fieldMapping(b -> {
+                b.field("type", "dense_vector");
+                b.field("dims", randomIntBetween(1, 63));
+                b.field("element_type", "float");
+                b.field("index", true);
+                b.field("similarity", "dot_product");
+                b.startObject("index_options");
+                b.field("type", quantizedFlatFormat);
+                b.endObject();
+            })));
+            assertThat(e.getMessage(), containsString("does not support dimensions fewer than 64"));
+        }
     }
 
     public void testKnnHalfByteQuantizedHNSWVectorsFormat() throws IOException {

@@ -10,6 +10,8 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
+import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -20,10 +22,12 @@ import org.elasticsearch.persistent.PersistentTaskState;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.security.action.UpdateIndexMigrationVersionAction;
 import org.elasticsearch.xpack.core.security.action.UpdateIndexMigrationVersionResponse;
 import org.elasticsearch.xpack.core.security.support.SecurityMigrationTaskParams;
 import org.junit.Before;
 
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
@@ -40,6 +44,7 @@ public class SecurityMigrationExecutorTests extends ESTestCase {
     private SecurityIndexManager securityIndexManager;
 
     private int updateIndexMigrationVersionActionInvocations;
+    private int refreshActionInvocations;
 
     private boolean clientShouldThrowException = false;
 
@@ -51,6 +56,7 @@ public class SecurityMigrationExecutorTests extends ESTestCase {
         when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
         when(threadPool.generic()).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
         updateIndexMigrationVersionActionInvocations = 0;
+        refreshActionInvocations = 0;
         client = new NoOpClient(threadPool) {
             @Override
             @SuppressWarnings("unchecked")
@@ -63,8 +69,15 @@ public class SecurityMigrationExecutorTests extends ESTestCase {
                     listener.onFailure(new IllegalStateException("Bad client"));
                     return;
                 }
-                updateIndexMigrationVersionActionInvocations++;
-                listener.onResponse((Response) new UpdateIndexMigrationVersionResponse());
+                if (request instanceof RefreshRequest) {
+                    refreshActionInvocations++;
+                    listener.onResponse((Response) new BroadcastResponse(1, 1, 0, List.of()));
+                } else if (request instanceof UpdateIndexMigrationVersionAction.Request) {
+                    updateIndexMigrationVersionActionInvocations++;
+                    listener.onResponse((Response) new UpdateIndexMigrationVersionResponse());
+                } else {
+                    fail("Unexpected client request");
+                }
 
             }
         };
@@ -85,6 +98,7 @@ public class SecurityMigrationExecutorTests extends ESTestCase {
         verify(mockTask, times(1)).markAsCompleted();
         verify(mockTask, times(0)).markAsFailed(any());
         assertEquals(2, updateIndexMigrationVersionActionInvocations);
+        assertEquals(2, refreshActionInvocations);
         assertEquals(2, migrateInvocations[0]);
     }
 
@@ -111,6 +125,7 @@ public class SecurityMigrationExecutorTests extends ESTestCase {
         verify(mockTask, times(1)).markAsCompleted();
         verify(mockTask, times(0)).markAsFailed(any());
         assertEquals(0, updateIndexMigrationVersionActionInvocations);
+        assertEquals(0, refreshActionInvocations);
         assertEquals(0, migrateInvocationsCounter[0]);
     }
 
@@ -140,6 +155,7 @@ public class SecurityMigrationExecutorTests extends ESTestCase {
         securityMigrationExecutor.nodeOperation(mockTask, new SecurityMigrationTaskParams(0, true), mock(PersistentTaskState.class));
         verify(mockTask, times(1)).markAsCompleted();
         verify(mockTask, times(0)).markAsFailed(any());
+        assertEquals(2, refreshActionInvocations);
         assertEquals(2, updateIndexMigrationVersionActionInvocations);
         assertEquals(2, migrateInvocations[0]);
     }
@@ -158,6 +174,7 @@ public class SecurityMigrationExecutorTests extends ESTestCase {
         verify(mockTask, times(1)).markAsCompleted();
         verify(mockTask, times(0)).markAsFailed(any());
         assertEquals(0, updateIndexMigrationVersionActionInvocations);
+        assertEquals(0, refreshActionInvocations);
         assertEquals(0, migrateInvocations[0]);
     }
 

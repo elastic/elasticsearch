@@ -302,7 +302,7 @@ and can dynamically match new fields. However, {es} will reject any mapping
 updates that add scripted, runtime, or non-dimension fields that
 match the `index.routing_path` value.
 
-<<passthrough-dimensions, pass-through>> fields may be configured
+<<passthrough-dimensions, Pass-through>> fields may be configured
 as dimension containers. In this case, their sub-fields get included to the
 routing path automatically.
 

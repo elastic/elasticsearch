@@ -114,10 +114,10 @@ final class IpinfoIpDataLookups {
     @Nullable
     static Function<Set<Database.Property>, IpDataLookup> getIpinfoLookup(final Database database) {
         return switch (database) {
-            case Database.AsnV2 -> IpinfoIpDataLookups.Asn::new;
-            case Database.CountryV2 -> IpinfoIpDataLookups.Country::new;
-            case Database.CityV2 -> IpinfoIpDataLookups.Geolocation::new;
-            case Database.PrivacyDetection -> IpinfoIpDataLookups.PrivacyDetection::new;
+            case AsnV2 -> IpinfoIpDataLookups.Asn::new;
+            case CountryV2 -> IpinfoIpDataLookups.Country::new;
+            case CityV2 -> IpinfoIpDataLookups.Geolocation::new;
+            case PrivacyDetection -> IpinfoIpDataLookups.PrivacyDetection::new;
             default -> null;
         };
     }

@@ -378,6 +378,9 @@ tests:
 - class: org.elasticsearch.ingest.geoip.DatabaseNodeServiceIT
   method: testGzippedDatabase
   issue: https://github.com/elastic/elasticsearch/issues/113752
+- class: org.elasticsearch.xpack.enrich.EnrichRestIT
+  method: test {p0=enrich/10_basic/Test using the deprecated elasticsearch_version field results in a warning}
+  issue: https://github.com/elastic/elasticsearch/issues/114748
 
 # Examples:
 #

@@ -42,7 +42,7 @@ public class DataStreamFailureStoreDefinitionTests extends ESTestCase {
         expectedBuilder = Settings.builder().put(builder.build());
         assertThat(DataStreamFailureStoreDefinition.filterUserDefinedSettings(builder).keys(), equalTo(expectedBuilder.keys()));
 
-        // Add unsupported settings
+        // Remove unsupported settings
         String randomSetting = randomAlphaOfLength(10);
         builder.put(INDEX_FAILURE_STORE_VERSION_SETTING_NAME, 3)
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 2)
@@ -67,10 +67,7 @@ public class DataStreamFailureStoreDefinitionTests extends ESTestCase {
             DataStreamFailureStoreDefinition.filterUserDefinedSettings(builder).keys().contains(IndexSettings.MODE.getKey()),
             equalTo(false)
         );
-        assertThat(
-            DataStreamFailureStoreDefinition.filterUserDefinedSettings(builder).keys().contains(randomSetting),
-            equalTo(false)
-        );
+        assertThat(DataStreamFailureStoreDefinition.filterUserDefinedSettings(builder).keys().contains(randomSetting), equalTo(false));
     }
 
 }

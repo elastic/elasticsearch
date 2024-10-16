@@ -68,7 +68,15 @@ public class SecurityMigrationExecutor extends PersistentTasksExecutor<SecurityM
             return;
         }
 
-        applyOutstandingMigrations(task, params.getMigrationVersion(), listener);
+        refreshSecurityIndex(
+            new ThreadedActionListener<>(
+                this.getExecutor(),
+                ActionListener.wrap(
+                    refreshResponse -> applyOutstandingMigrations(task, params.getMigrationVersion(), listener),
+                    listener::onFailure
+                )
+            )
+        );
     }
 
     private void applyOutstandingMigrations(AllocatedPersistentTask task, int currentMigrationVersion, ActionListener<Void> listener) {

@@ -98,7 +98,7 @@ public class SecurityMigrationExecutorTests extends ESTestCase {
         verify(mockTask, times(1)).markAsCompleted();
         verify(mockTask, times(0)).markAsFailed(any());
         assertEquals(2, updateIndexMigrationVersionActionInvocations);
-        assertEquals(2, refreshActionInvocations);
+        assertEquals(3, refreshActionInvocations);
         assertEquals(2, migrateInvocations[0]);
     }
 
@@ -125,7 +125,7 @@ public class SecurityMigrationExecutorTests extends ESTestCase {
         verify(mockTask, times(1)).markAsCompleted();
         verify(mockTask, times(0)).markAsFailed(any());
         assertEquals(0, updateIndexMigrationVersionActionInvocations);
-        assertEquals(0, refreshActionInvocations);
+        assertEquals(1, refreshActionInvocations);
         assertEquals(0, migrateInvocationsCounter[0]);
     }
 
@@ -155,7 +155,7 @@ public class SecurityMigrationExecutorTests extends ESTestCase {
         securityMigrationExecutor.nodeOperation(mockTask, new SecurityMigrationTaskParams(0, true), mock(PersistentTaskState.class));
         verify(mockTask, times(1)).markAsCompleted();
         verify(mockTask, times(0)).markAsFailed(any());
-        assertEquals(2, refreshActionInvocations);
+        assertEquals(3, refreshActionInvocations);
         assertEquals(2, updateIndexMigrationVersionActionInvocations);
         assertEquals(2, migrateInvocations[0]);
     }
@@ -174,7 +174,7 @@ public class SecurityMigrationExecutorTests extends ESTestCase {
         verify(mockTask, times(1)).markAsCompleted();
         verify(mockTask, times(0)).markAsFailed(any());
         assertEquals(0, updateIndexMigrationVersionActionInvocations);
-        assertEquals(0, refreshActionInvocations);
+        assertEquals(1, refreshActionInvocations);
         assertEquals(0, migrateInvocations[0]);
     }
 
@@ -203,14 +203,13 @@ public class SecurityMigrationExecutorTests extends ESTestCase {
             }))
         );
 
-        assertThrows(
-            IllegalStateException.class,
-            () -> securityMigrationExecutor.nodeOperation(
+        securityMigrationExecutor.nodeOperation(
                 mockTask,
                 new SecurityMigrationTaskParams(0, true),
                 mock(PersistentTaskState.class)
-            )
-        );
+            );
+        verify(mockTask, times(1)).markAsFailed(any());
+        verify(mockTask, times(0)).markAsCompleted();
     }
 
     public void testUpdateMigrationVersionThrowsException() {

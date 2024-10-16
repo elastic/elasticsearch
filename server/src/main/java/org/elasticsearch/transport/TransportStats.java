@@ -167,7 +167,8 @@ public class TransportStats implements Writeable, ChunkedToXContent {
 
     private boolean assertHistogramsConsistent() {
         assert inboundHandlingTimeBucketFrequencies.length == outboundHandlingTimeBucketFrequencies.length;
-        assert inboundHandlingTimeBucketFrequencies.length == HandlingTimeTracker.BUCKET_COUNT;
+        assert inboundHandlingTimeBucketFrequencies.length == 0
+            || inboundHandlingTimeBucketFrequencies.length == HandlingTimeTracker.BUCKET_COUNT;
         return true;
     }
 
@@ -181,9 +182,13 @@ public class TransportStats implements Writeable, ChunkedToXContent {
             builder.humanReadableField(Fields.RX_SIZE_IN_BYTES, Fields.RX_SIZE, ByteSizeValue.ofBytes(rxSize));
             builder.field(Fields.TX_COUNT, txCount);
             builder.humanReadableField(Fields.TX_SIZE_IN_BYTES, Fields.TX_SIZE, ByteSizeValue.ofBytes(txSize));
-            histogramToXContent(builder, inboundHandlingTimeBucketFrequencies, Fields.INBOUND_HANDLING_TIME_HISTOGRAM);
-            histogramToXContent(builder, outboundHandlingTimeBucketFrequencies, Fields.OUTBOUND_HANDLING_TIME_HISTOGRAM);
-            builder.startObject(Fields.ACTIONS);
+            if (inboundHandlingTimeBucketFrequencies.length > 0) {
+                histogramToXContent(builder, inboundHandlingTimeBucketFrequencies, Fields.INBOUND_HANDLING_TIME_HISTOGRAM);
+                histogramToXContent(builder, outboundHandlingTimeBucketFrequencies, Fields.OUTBOUND_HANDLING_TIME_HISTOGRAM);
+            }
+            if (transportActionStats.isEmpty() == false) {
+                builder.startObject(Fields.ACTIONS);
+            }
             return builder;
         }),
 

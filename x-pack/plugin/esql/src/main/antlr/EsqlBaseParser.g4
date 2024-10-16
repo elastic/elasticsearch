@@ -188,7 +188,7 @@ aggFields
     ;
 
 aggField
-    : field {this.isDevVersion()}? (WHERE booleanExpression)?
+    : field (WHERE booleanExpression)?
     ;
 
 qualifiedName

@@ -70,9 +70,9 @@ GET my-index-000001/_search
 
 It's possible for conflicting names to arise, for fields that are defined within different scopes:
 
-  1. A pass-through object is defined next to a field that has the same name as one of the pass-through object
-     sub-fields, e.g.
-
+  a. A pass-through object is defined next to a field that has the same name as one of the pass-through object
+sub-fields, e.g.
++
 [source,console]
 --------------------------------------------------
 PUT my-index-000001/_doc/1
@@ -83,12 +83,12 @@ PUT my-index-000001/_doc/1
   "id": "bar"
 }
 --------------------------------------------------
++
+In this case, references to `id` point to the field at the root level, while field `attributes.id`
+can only be accessed using the full path.
 
-     In this case, references to `id` point to the field at the root level, while field `attributes.id`
-     can only be accessed using the full path.
-
-  1. Two (or more) pass-through objects are defined within the same object and contain fields with the same name, e.g.
-
+  b. Two (or more) pass-through objects are defined within the same object and contain fields with the same name, e.g.
++
 [source,console]
 --------------------------------------------------
 PUT my-index-000002
@@ -117,7 +117,7 @@ PUT my-index-000002
   }
 }
 --------------------------------------------------
-
++
 In this case, param `priority` is used for conflict resolution, with the higher values taking precedence. In the
 example above, `resource.attributes` has higher priority than `attributes`, so references to `id` point to the field
 within `resource.attributes`. `attributes.id` can still be accessed using its full path.

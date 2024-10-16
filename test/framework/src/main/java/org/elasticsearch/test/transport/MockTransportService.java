@@ -830,9 +830,4 @@ public class MockTransportService extends TransportService {
             assertTrue(ThreadPool.terminate(testExecutor, 10, TimeUnit.SECONDS));
         }
     }
-
-    public DiscoveryNode getLocalDiscoNode() {
-        return this.getLocalNode();
-    }
-
 }

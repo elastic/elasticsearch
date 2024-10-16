@@ -479,8 +479,7 @@ public class CcrLicenseChecker {
                 ActionListener<Response> listener
             ) {
                 final Supplier<ThreadContext.StoredContext> supplier = threadContext.newRestorableContext(false);
-                try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
-                    threadContext.markAsSystemContext();
+                try (var ignore = threadContext.newEmptySystemContext()) {
                     delegate.execute(connection, action, request, new ContextPreservingActionListener<>(supplier, listener));
                 }
             }

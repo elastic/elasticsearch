@@ -157,13 +157,13 @@ public class BanFailureLoggingTests extends TaskManagerTestCase {
 
             parentTransportService.addSendBehavior(sendRequestBehavior);
 
-            AbstractSimpleTransportTestCase.connectToNode(parentTransportService, childTransportService.getLocalDiscoNode());
+            AbstractSimpleTransportTestCase.connectToNode(parentTransportService, childTransportService.getLocalNode());
 
             final CancellableTask parentTask = (CancellableTask) parentTransportService.getTaskManager()
                 .register("transport", "internal:testAction", new ParentRequest());
 
             parentTransportService.sendChildRequest(
-                childTransportService.getLocalDiscoNode(),
+                childTransportService.getLocalNode(),
                 "internal:testAction[c]",
                 new EmptyRequest(),
                 parentTask,
@@ -172,7 +172,7 @@ public class BanFailureLoggingTests extends TaskManagerTestCase {
             );
 
             try (MockLog mockLog = MockLog.capture(TaskCancellationService.class)) {
-                for (MockLog.LoggingExpectation expectation : expectations.apply(childTransportService.getLocalDiscoNode())) {
+                for (MockLog.LoggingExpectation expectation : expectations.apply(childTransportService.getLocalNode())) {
                     mockLog.addExpectation(expectation);
                 }
 

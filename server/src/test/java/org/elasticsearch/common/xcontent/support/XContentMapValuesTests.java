@@ -834,6 +834,48 @@ public class XContentMapValuesTests extends AbstractFilteringTestCase {
             assertThat(getMapValue(map, "path1.path2.test2"), equalTo("value3"));
             assertThat(getMapValue(map, "path1.path2"), equalTo(List.of(List.of(Map.of("test", "value2", "test2", "value3")))));
         }
+
+        // fields with . in them
+        {
+            XContentBuilder builder = XContentFactory.jsonBuilder().startObject().field("xxx.yyy", "value1").endObject();
+            Map<String, Object> map = toSourceMap(Strings.toString(builder));
+
+            XContentMapValues.insertValue("xxx.yyy", map, "value2");
+            assertThat(getMapValue(map, "xxx\\.yyy"), equalTo("value2"));
+
+            XContentMapValues.insertValue("xxx", map, "value3");
+            assertThat(getMapValue(map, "xxx"), equalTo("value3"));
+
+            XContentMapValues.insertValue("xxx.yyy.zzz", map, "value4");
+            assertThat(getMapValue(map, "xxx\\.yyy\\.zzz"), equalTo("value4"));
+        }
+        {
+            XContentBuilder builder = XContentFactory.jsonBuilder().startObject();
+            {
+                builder.startObject("path1.path2");
+                {
+                    builder.startObject("path3.path4");
+                    builder.field("test", "value1");
+                    builder.endObject();
+                }
+                builder.endObject();
+            }
+            builder.endObject();
+            Map<String, Object> map = toSourceMap(Strings.toString(builder));
+
+            XContentMapValues.insertValue("path1.path2.path3.path4.test", map, "value2");
+            assertThat(getMapValue(map, "path1\\.path2.path3\\.path4.test"), equalTo("value2"));
+
+            XContentMapValues.insertValue("path1.path2.path3", map, "value3");
+            assertThat(getMapValue(map, "path1\\.path2.path3"), equalTo("value3"));
+
+            XContentMapValues.insertValue("path1.path2.path3.path4.test2", map, "value4");
+            assertThat(getMapValue(map, "path1\\.path2.path3\\.path4.test2"), equalTo("value4"));
+            assertThat(
+                getMapValue(map, "path1\\.path2"),
+                equalTo(Map.of("path3", "value3", "path3.path4", Map.of("test", "value2", "test2", "value4")))
+            );
+        }
     }
 
     public void testInsertValueAmbiguousPath() throws IOException {
@@ -843,19 +885,62 @@ public class XContentMapValuesTests extends AbstractFilteringTestCase {
             builder.startObject("foo").field("cat", "meow").endObject();
             builder.field("foo.cat", "miau");
             builder.endObject();
+            Map<String, Object> map = toSourceMap(Strings.toString(builder));
+            final Map<String, Object> originalMap = Collections.unmodifiableMap(toSourceMap(Strings.toString(builder)));
 
-            try (XContentParser parser = createParser(JsonXContent.jsonXContent, Strings.toString(builder))) {
-                Map<String, Object> map = parser.map();
-                IllegalArgumentException ex = assertThrows(
-                    IllegalArgumentException.class,
-                    () -> XContentMapValues.insertValue("foo.cat", map, "woof")
-                );
-                assertThat(
-                    ex.getMessage(),
-                    equalTo("Path [foo.cat] could be inserted in 2 distinct ways, it is ambiguous which one to use")
-                );
-                assertThat(map, equalTo(Map.of("foo", Map.of("cat", "meow"), "foo.cat", "miau")));
+            IllegalArgumentException ex = assertThrows(
+                IllegalArgumentException.class,
+                () -> XContentMapValues.insertValue("foo.cat", map, "woof")
+            );
+            assertThat(
+                ex.getMessage(),
+                equalTo("Path [foo.cat] could be inserted in 2 distinct ways, it is ambiguous which one to use")
+            );
+            assertThat(map, equalTo(originalMap));
+        }
+        {
+            XContentBuilder builder = XContentFactory.jsonBuilder().startObject();
+            {
+                builder.startObject("path1.path2");
+                {
+                    builder.startObject("path3");
+                    builder.field("test1", "value1");
+                    builder.endObject();
+                }
+                builder.endObject();
             }
+            {
+                builder.startObject("path1");
+                {
+                    builder.startObject("path2.path3");
+                    builder.field("test2", "value2");
+                    builder.endObject();
+                }
+                builder.endObject();
+            }
+            builder.endObject();
+            Map<String, Object> map = toSourceMap(Strings.toString(builder));
+            final Map<String, Object> originalMap = Collections.unmodifiableMap(toSourceMap(Strings.toString(builder)));
+
+            IllegalArgumentException ex = assertThrows(
+                IllegalArgumentException.class,
+                () -> XContentMapValues.insertValue("path1.path2.path3.test1.test2", map, "value3")
+            );
+            assertThat(
+                ex.getMessage(),
+                equalTo("Path [path1.path2.path3.test1.test2] could be inserted in 2 distinct ways, it is ambiguous which one to use")
+            );
+
+            ex = assertThrows(
+                IllegalArgumentException.class,
+                () -> XContentMapValues.insertValue("path1.path2.path3.test3", map, "value4")
+            );
+            assertThat(
+                ex.getMessage(),
+                equalTo("Path [path1.path2.path3.test3] could be inserted in 2 distinct ways, it is ambiguous which one to use")
+            );
+
+            assertThat(map, equalTo(originalMap));
         }
     }
 

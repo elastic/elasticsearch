@@ -26,7 +26,6 @@ import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -100,7 +99,6 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
     public static final ParseField TIMEOUT_FIELD = new ParseField("timeout");
     public static final ParseField TERMINATE_AFTER_FIELD = new ParseField("terminate_after");
     public static final ParseField QUERY_FIELD = new ParseField("query");
-    @UpdateForV10(owner = UpdateForV10.Owner.SEARCH_RELEVANCE) // remove [sub_searches] and [rank] support in 10.0
     public static final ParseField SUB_SEARCHES_FIELD = new ParseField("sub_searches").withAllDeprecated("retriever");
     public static final ParseField RANK_FIELD = new ParseField("rank").withAllDeprecated("retriever");
     public static final ParseField POST_FILTER_FIELD = new ParseField("post_filter");

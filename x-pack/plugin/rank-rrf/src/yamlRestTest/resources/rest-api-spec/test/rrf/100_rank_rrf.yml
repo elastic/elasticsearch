@@ -68,7 +68,7 @@ setup:
 
   - do:
       warnings:
-        - "Using [rank] for [rrf] is deprecated and will be removed in a future release"
+        - "Deprecated field [rank] used, this field is unused and will be removed entirely in a future release. Please consider using the appropriate [retriever] to rank your results."
       search:
         index: test
         body:
@@ -110,8 +110,8 @@ setup:
 
   - do:
       warnings:
-        - "Using [rank] for [rrf] is deprecated and will be removed in a future release"
-        - "Using [sub_searches] is deprecated and will be removed in a future release"
+        - "Deprecated field [rank] used, this field is unused and will be removed entirely in a future release. Please consider using the appropriate [retriever] to rank your results."
+        - "Deprecated field [sub_searches] used, this field is unused and will be removed entirely in a future release. Please consider using the appropriate [retriever] to combine multiple searches."
       search:
         index: test
         body:
@@ -159,8 +159,8 @@ setup:
 
   - do:
       warnings:
-        - "Using [rank] for [rrf] is deprecated and will be removed in a future release"
-        - "Using [sub_searches] is deprecated and will be removed in a future release"
+        - "Deprecated field [rank] used, this field is unused and will be removed entirely in a future release. Please consider using the appropriate [retriever] to rank your results."
+        - "Deprecated field [sub_searches] used, this field is unused and will be removed entirely in a future release. Please consider using the appropriate [retriever] to combine multiple searches."
       search:
         index: test
         body:

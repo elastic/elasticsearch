@@ -179,7 +179,7 @@ setup:
 
   - do:
       warnings:
-        - "Using [rank] for [rrf] is deprecated and will be removed in a future release"
+        - "Deprecated field [rank] used, this field is unused and will be removed entirely in a future release. Please consider using the appropriate [retriever] to rank your results."
       search:
         index: test
         body:

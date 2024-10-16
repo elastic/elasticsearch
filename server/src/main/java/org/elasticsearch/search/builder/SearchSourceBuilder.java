@@ -1430,6 +1430,14 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                     knnBuilders = List.of(KnnSearchBuilder.fromXContent(parser));
                     searchUsage.trackSectionUsage(KNN_FIELD.getPreferredName());
                 } else if (RANK_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
+                    if (parser.getRestApiVersion().matches(RestApiVersion.onOrAfter(RestApiVersion.V_8))) {
+                        deprecationLogger.warn(
+                            DeprecationCategory.API,
+                            "sub_searches_api",
+                            "Deprecated field [rank] used, this field is unused and will be removed entirely in a future release. "
+                                + "Please consider using the appropriate [retriever] to rank your results."
+                        );
+                    }
                     if (RANK_SUPPORTED == false) {
                         throwUnknownKey(parser, token, currentFieldName);
                     }
@@ -1641,7 +1649,9 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                         deprecationLogger.warn(
                             DeprecationCategory.API,
                             "sub_searches_api",
-                            "Using [sub_searches] is deprecated and will be removed in a future release"
+                            "Deprecated field [sub_searches] used, this field is unused and will be removed "
+                                + "entirely in a future release. "
+                                + "Please consider using the appropriate [retriever] to combine multiple searches."
                         );
                     }
                     if (RANK_SUPPORTED == false) {

@@ -31,6 +31,7 @@ public class RRFRankPlugin extends Plugin implements SearchPlugin {
     public static final String NAME = "rrf";
 
     @Override
+    @SuppressWarnings("deprecation")
     public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
         return List.of(
             new NamedWriteableRegistry.Entry(RankBuilder.class, NAME, RRFRankBuilder::new),
@@ -40,6 +41,7 @@ public class RRFRankPlugin extends Plugin implements SearchPlugin {
     }
 
     @Override
+    @SuppressWarnings("deprecation")
     public List<NamedXContentRegistry.Entry> getNamedXContent() {
         return List.of(new NamedXContentRegistry.Entry(RankBuilder.class, new ParseField(NAME), RRFRankBuilder::fromXContent));
     }

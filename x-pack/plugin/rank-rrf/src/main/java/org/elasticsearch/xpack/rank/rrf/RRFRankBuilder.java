@@ -14,9 +14,6 @@ import org.elasticsearch.TransportVersions;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.logging.DeprecationCategory;
-import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.search.rank.RankBuilder;
 import org.elasticsearch.search.rank.RankDoc;
@@ -39,18 +36,17 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
 
 /**
  * The builder to support RRF. Adds user-defined parameters for window size and rank constant.
+ *
+ * @deprecated RRF support is provided through the retriever framework. Please use {@link RRFRetrieverBuilder instead}
  */
+@Deprecated
 public class RRFRankBuilder extends RankBuilder {
-
-    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RRFRankPlugin.class);
-
-    public static final int DEFAULT_RANK_CONSTANT = 60;
 
     public static final ParseField RANK_CONSTANT_FIELD = new ParseField("rank_constant");
 
     static final ConstructingObjectParser<RRFRankBuilder, Void> PARSER = new ConstructingObjectParser<>(RRFRankPlugin.NAME, args -> {
         int windowSize = args[0] == null ? DEFAULT_RANK_WINDOW_SIZE : (int) args[0];
-        int rankConstant = args[1] == null ? DEFAULT_RANK_CONSTANT : (int) args[1];
+        int rankConstant = args[1] == null ? RRFRetrieverBuilder.DEFAULT_RANK_CONSTANT : (int) args[1];
         return new RRFRankBuilder(windowSize, rankConstant);
     });
 
@@ -60,13 +56,6 @@ public class RRFRankBuilder extends RankBuilder {
     }
 
     public static RRFRankBuilder fromXContent(XContentParser parser) throws IOException {
-        if (parser.getRestApiVersion().matches(RestApiVersion.onOrAfter(RestApiVersion.V_8))) {
-            deprecationLogger.warn(
-                DeprecationCategory.API,
-                "rank_api",
-                "Using [rank] for [rrf] is deprecated and will be removed in a future release"
-            );
-        }
         if (RRFRankPlugin.RANK_RRF_FEATURE.check(XPackPlugin.getSharedLicenseState()) == false) {
             throw LicenseUtils.newComplianceException("Reciprocal Rank Fusion (RRF)");
         }

@@ -376,13 +376,14 @@ public abstract class DocumentParserContext {
      * Applies to synthetic source only.
      */
     public final DocumentParserContext maybeCloneForArray(Mapper mapper) throws IOException {
-        if (canAddIgnoredField() && mapper instanceof ObjectMapper && inArrayScopeEnabled) {
-            boolean isNested = mapper instanceof NestedObjectMapper;
-            if ((inArrayScope == false && isNested == false) || (inArrayScope && isNested)) {
-                DocumentParserContext subcontext = switchParser(parser());
-                subcontext.inArrayScope = inArrayScope == false;
-                return subcontext;
-            }
+        if (canAddIgnoredField()
+            && mapper instanceof ObjectMapper
+            && mapper instanceof NestedObjectMapper == false
+            && inArrayScope == false
+            && inArrayScopeEnabled) {
+            DocumentParserContext subcontext = switchParser(parser());
+            subcontext.inArrayScope = true;
+            return subcontext;
         }
         return this;
     }

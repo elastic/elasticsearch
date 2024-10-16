@@ -375,7 +375,7 @@ public class EsqlCapabilities {
         /**
          * Support named parameters for field names.
          */
-        NAMED_PARAMETER_FOR_FIELD_AND_FUNCTION_NAMES,
+        NAMED_PARAMETER_FOR_FIELD_AND_FUNCTION_NAMES(true),
 
         /**
          * Fix sorting not allowed on _source and counters.

@@ -27,8 +27,92 @@ setup:
               _id: baz
           - { "text": "baz - no rule attached" }
           - index:
-              _id: bar2
-          - { "text": "bar2 - no rule attached" }
+              _id: foo_no_rule
+          - { "text": "text search result for foo with no rule attached" }
+          - index:
+              _id: bar_no_rule
+          - { "text": "text search result for bar with no rule attached" }
           - index:
               _id: foo2
           - { "text": "foo2 - second pinned doc for foo" }
+
+  - do:
+      query_rules.put_ruleset:
+        ruleset_id: test-ruleset
+        body:
+          rules:
+            - rule_id: foo
+              type: pinned
+              criteria:
+                - type: exact
+                  metadata: foo
+                  values: [ foo ]
+              actions:
+                ids:
+                  - foo
+                  - foo2
+            - rule_id: bar
+              type: exclude
+              criteria:
+                - type: exact
+                  metadata: bar
+                  values: [ bar ]
+              actions:
+                ids:
+                  - bar
+
+---
+"standalone query rules retriever":
+
+  - do:
+      search:
+        index: test
+        body:
+          retriever:
+            rule:
+              match:criteria:
+                foo: foo
+                bar: bar
+              ruleset_ids:
+                test-ruleset
+              retriever:
+                standard:
+                  query:
+                    query_string:
+                      query: bar
+
+  - match: { hits.hits.size: 3 }
+  - match: { hits.hits.0._id: foo }
+  - match: { hits.hits.1._id: foo2 }
+  - match: { hits.hits.2._id: bar_no_rule }
+
+---
+"query rules retriever combined with rrf":
+
+  - do:
+      search:
+        index: test
+        body:
+          retriever:
+            rule:
+              match:criteria:
+                foo: foo
+                bar: bar
+              ruleset_ids:
+                test-ruleset
+              retriever:
+                rrf:
+                  retrievers: [
+                    {
+
+                    },
+                    {
+                                          
+                    }
+                  ]
+
+  - match: { hits.hits.size: 3 }
+  - match: { hits.hits.0._id: foo }
+  - match: { hits.hits.1._id: foo2 }
+  - match: { hits.hits.2._id: bar_no_rule }
+

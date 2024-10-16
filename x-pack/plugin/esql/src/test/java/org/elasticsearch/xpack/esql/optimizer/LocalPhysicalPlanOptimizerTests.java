@@ -975,7 +975,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
     public void testOutOfRangeFilterForDoubleFieldsPushdown() {
         var allTypeMappingAnalyzer = makeAnalyzer("mapping-all-types.json", new EnrichResolution());
 
-        String smallerThanFloat = String.valueOf(randomDoubleBetween(-Double.MAX_VALUE, Float.MIN_VALUE - 1d, true));
+        String smallerThanFloat = String.valueOf(randomDoubleBetween(-Double.MAX_VALUE, -Float.MAX_VALUE - 1d, true));
         String largerThanFloat = String.valueOf(randomDoubleBetween(Float.MAX_VALUE + 1d, Double.MAX_VALUE, true));
 
         List<OutOfRangeTestCase> cases = List.of(
@@ -991,65 +991,34 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         final String NEQ = "!=";
 
         for (OutOfRangeTestCase testCase : cases) {
-            List<String> rangePredicates = List.of(
-                LT + testCase.tooHigh,
-                LTE + testCase.tooHigh,
-                GT + testCase.tooLow,
-                GTE + testCase.tooLow,
-                LT + testCase.tooLow,
-                LTE + testCase.tooLow,
-                GT + testCase.tooHigh,
-                GTE + testCase.tooHigh
-            );
-
-            for (String rangePredicate : rangePredicates) {
-                String comparison = testCase.fieldName + rangePredicate;
-                var query = "from test | where " + comparison;
-
-                Source expectedSource = new Source(1, 18, comparison);
-
-                logger.info("Query: " + query);
-                EsQueryExec actualQueryExec = doTestOutOfRangeFilterPushdown(query, allTypeMappingAnalyzer);
-
-                assertThat(actualQueryExec.query(), is(instanceOf(SingleValueQuery.Builder.class)));
-                var actualLuceneQuery = (SingleValueQuery.Builder) actualQueryExec.query();
-                assertThat(actualLuceneQuery.field(), equalTo(testCase.fieldName));
-                assertThat(actualLuceneQuery.source(), equalTo(expectedSource));
-                assertTrue(actualLuceneQuery.next() instanceof RangeQueryBuilder);
-            }
-
             for (var value : List.of(testCase.tooHigh, testCase.tooLow)) {
-                String comparison = testCase.fieldName + EQ + value;
-                var query = "from test | where " + comparison;
+                for (String predicate : List.of(LT, LTE, GT, GTE, EQ, NEQ)) {
+                    String comparison = testCase.fieldName + predicate + value;
+                    var query = "from test | where " + comparison;
 
-                Source expectedSource = new Source(1, 18, comparison);
+                    Source expectedSource = new Source(1, 18, comparison);
 
-                logger.info("Query: " + query);
-                EsQueryExec actualQueryExec = doTestOutOfRangeFilterPushdown(query, allTypeMappingAnalyzer);
+                    logger.info("Query: " + query);
+                    EsQueryExec actualQueryExec = doTestOutOfRangeFilterPushdown(query, allTypeMappingAnalyzer);
 
-                var actualLuceneQuery = (SingleValueQuery.Builder) actualQueryExec.query();
-                assertThat(actualLuceneQuery.field(), equalTo(testCase.fieldName));
-                assertThat(actualLuceneQuery.source(), equalTo(expectedSource));
-                var expectedInnerQuery = QueryBuilders.termQuery(testCase.fieldName, Double.parseDouble(value));
-                assertThat(actualLuceneQuery.next(), equalTo(expectedInnerQuery));
-            }
+                    assertThat(actualQueryExec.query(), is(instanceOf(SingleValueQuery.Builder.class)));
+                    var actualLuceneQuery = (SingleValueQuery.Builder) actualQueryExec.query();
+                    assertThat(actualLuceneQuery.field(), equalTo(testCase.fieldName));
+                    assertThat(actualLuceneQuery.source(), equalTo(expectedSource));
 
-            for (var value : List.of(testCase.tooHigh, testCase.tooLow)) {
-                String comparison = testCase.fieldName + NEQ + value;
-                var query = "from test | where " + comparison;
+                    QueryBuilder actualInnerLuceneQuery = actualLuceneQuery.next();
 
-                Source expectedSource = new Source(1, 18, comparison);
-
-                logger.info("Query: " + query);
-                EsQueryExec actualQueryExec = doTestOutOfRangeFilterPushdown(query, allTypeMappingAnalyzer);
-
-                var actualLuceneQuery = (SingleValueQuery.Builder) actualQueryExec.query();
-                assertThat(actualLuceneQuery.field(), equalTo(testCase.fieldName));
-                assertThat(actualLuceneQuery.source(), equalTo(expectedSource));
-
-                var expectedInnerQuery = QueryBuilders.boolQuery()
-                    .mustNot(QueryBuilders.termQuery(testCase.fieldName, Double.parseDouble(value)));
-                assertThat(actualLuceneQuery.next(), equalTo(expectedInnerQuery));
+                    if (predicate.equals(EQ)) {
+                        QueryBuilder expectedInnerQuery = QueryBuilders.termQuery(testCase.fieldName, Double.parseDouble(value));
+                        assertThat(actualInnerLuceneQuery, equalTo(expectedInnerQuery));
+                    } else if (predicate.equals(NEQ)) {
+                        QueryBuilder expectedInnerQuery = QueryBuilders.boolQuery()
+                            .mustNot(QueryBuilders.termQuery(testCase.fieldName, Double.parseDouble(value)));
+                        assertThat(actualInnerLuceneQuery, equalTo(expectedInnerQuery));
+                    } else { // one of LT, LTE, GT, GTE
+                        assertTrue(actualInnerLuceneQuery instanceof RangeQueryBuilder);
+                    }
+                }
             }
         }
     }

@@ -250,17 +250,9 @@ public enum IndexMode {
 
         @Override
         public CompressedXContent getDefaultMapping(final IndexSettings indexSettings) {
-            final IndexSortConfig.FieldSortSpec[] fieldSortSpecs = indexSettings.getIndexSortConfig().sortSpecs;
-            if (fieldSortSpecs == null || fieldSortSpecs.length == 0) {
-                return DEFAULT_LOGS_TIMESTAMP_MAPPING_WITH_HOSTNAME;
-            }
-
-            for (final IndexSortConfig.FieldSortSpec fieldSortSpec : fieldSortSpecs) {
-                if (HOST_NAME.equals(fieldSortSpec.field)) {
-                    return DEFAULT_LOGS_TIMESTAMP_MAPPING_WITH_HOSTNAME;
-                }
-            }
-            return DEFAULT_TIME_SERIES_TIMESTAMP_MAPPING;
+            return indexSettings != null && indexSettings.getIndexSortConfig().hasPrimarySortOnField(HOST_NAME)
+                ? DEFAULT_LOGS_TIMESTAMP_MAPPING_WITH_HOSTNAME
+                : DEFAULT_TIME_SERIES_TIMESTAMP_MAPPING;
         }
 
         @Override

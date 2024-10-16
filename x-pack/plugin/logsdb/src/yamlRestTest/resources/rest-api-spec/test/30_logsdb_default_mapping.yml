@@ -436,9 +436,9 @@ create logsdb data stream with custom sorting and dynamically mapped host.name:
         refresh: true
         body:
           - { "create": { } }
-          - { "@timestamp": "2022-01-01T00:00:00", agent.name: "foo", agent.id: "foo-568", host: { name: "db8fdcf1-b1e2-444b-8c6a-0466c61dcce4", id: 568 } }
+          - { "@timestamp": "2022-01-01T00:00:00", agent.name: "foo", agent.id: "foo-568", host: { id: "db8fdcf1-b1e2-444b-8c6a-0466c61dcce4" } }
           - { "create": { } }
-          - { "@timestamp": "2022-01-01T00:01:00", agent.name: "bar", agent.id: "foo-309", host: { name: "35e1ed10-961e-46c7-83ea-4109c913a1d6", id: 309 } }
+          - { "@timestamp": "2022-01-01T00:01:00", agent.name: "bar", agent.id: "foo-309", host: { id: "35e1ed10-961e-46c7-83ea-4109c913a1d6" } }
 
   - do:
       indices.get_data_stream:
@@ -452,9 +452,8 @@ create logsdb data stream with custom sorting and dynamically mapped host.name:
   - match: { .$backing_index.mappings.properties.@timestamp.type: date }
   - match: { .$backing_index.mappings.properties.agent.properties.name.type: keyword }
   - match: { .$backing_index.mappings.properties.agent.properties.id.type: keyword }
-  - match: { .$backing_index.mappings.properties.host.properties.name.type: text }
-  - match: { .$backing_index.mappings.properties.host.properties.id.type: long }
-  - match: { .$backing_index.mappings.properties.host.properties.name.ignore_above: null }
+  - match: { .$backing_index.mappings.properties.host.properties.name: null }
+  - match: { .$backing_index.mappings.properties.host.properties.id.type: text }
 
 ---
 create logsdb data stream with custom sorting and host.name object:
@@ -970,3 +969,95 @@ create logsdb data stream with multi-fields on host.name and no sorting:
 
   - match: { error.type: "illegal_argument_exception" }
   - match: { error.reason: "docvalues not found for index sort field:[host.name]" }
+
+---
+create logsdb data stream with custom empty sorting:
+  - skip:
+      features: [ "allowed_warnings" ]
+  - requires:
+      cluster_features: [ "mapper.keyword_normalizer_synthetic_source" ]
+      reason: support for normalizer on keyword fields
+
+  - do:
+      allowed_warnings:
+        - "index template [logs-template] has index patterns [logs-*-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [logs-template] will take precedence during new index creation"
+      indices.put_index_template:
+        name: logs-template
+        body:
+          index_patterns: [ logs-http-empty ]
+          priority: 10000
+          template:
+            settings:
+              index:
+                sort.field: [ ]
+                sort.order: [ ]
+                mode: logsdb
+            mappings:
+              properties:
+                hostname:
+                  type: keyword
+          data_stream: { }
+  - is_true: acknowledged
+
+  - do:
+      indices.create_data_stream:
+        name: logs-http-empty
+  - is_true: acknowledged
+
+  - do:
+      indices.get_data_stream:
+        name: logs-http-empty
+
+  - set: { data_streams.0.indices.0.index_name: backing_index }
+  - do:
+      indices.get_mapping:
+        index: $backing_index
+
+  - match: { .$backing_index.mappings.properties.@timestamp.type: date }
+  - match: { .$backing_index.mappings.properties.host.properties.name.type: keyword }
+  - match: { .$backing_index.mappings.properties.host.properties.name.ignore_above: 1024 }
+
+---
+create logsdb data stream with custom sorting on timestamp:
+  - skip:
+      features: [ "allowed_warnings" ]
+  - requires:
+      cluster_features: [ "mapper.keyword_normalizer_synthetic_source" ]
+      reason: support for normalizer on keyword fields
+
+  - do:
+      allowed_warnings:
+        - "index template [logs-template] has index patterns [logs-*-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [logs-template] will take precedence during new index creation"
+      indices.put_index_template:
+        name: logs-template
+        body:
+          index_patterns: [ logs-http-dev ]
+          priority: 10000
+          template:
+            settings:
+              index:
+                sort.field: [ "@timestamp" ]
+                sort.order: [ "asc" ]
+                mode: logsdb
+            mappings:
+              properties:
+                hostname:
+                  type: keyword
+          data_stream: { }
+  - is_true: acknowledged
+
+  - do:
+      indices.create_data_stream:
+        name: logs-http-dev
+  - is_true: acknowledged
+
+  - do:
+      indices.get_data_stream:
+        name: logs-http-dev
+
+  - set: { data_streams.0.indices.0.index_name: backing_index }
+  - do:
+      indices.get_mapping:
+        index: $backing_index
+
+  - match: { .$backing_index.mappings.properties.@timestamp.type: date }

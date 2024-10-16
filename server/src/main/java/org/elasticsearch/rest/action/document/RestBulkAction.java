@@ -139,8 +139,13 @@ public class RestBulkAction extends BaseRestHandler {
         }
     }
 
-    private static ElasticsearchParseException parseFailureException(Exception e) {
-        return new ElasticsearchParseException("could not parse bulk request body", e);
+    private static Exception parseFailureException(Exception e) {
+        if (e instanceof IllegalArgumentException) {
+            return e;
+        } else {
+            // TODO: Maybe improve in follow-up to be XContentParseException and include line number and column
+            return new ElasticsearchParseException("could not parse bulk request body", e);
+        }
     }
 
     static class ChunkHandler implements BaseRestHandler.RequestBodyChunkConsumer {

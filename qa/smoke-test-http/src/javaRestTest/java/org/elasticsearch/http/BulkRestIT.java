@@ -89,7 +89,7 @@ public class BulkRestIT extends HttpSmokeTestCase {
         );
         ResponseException responseException = expectThrows(ResponseException.class, () -> getRestClient().performRequest(request));
         assertEquals(400, responseException.getResponse().getStatusLine().getStatusCode());
-        assertThat(responseException.getMessage(), containsString("could not parse bulk request body"));
+        assertThat(responseException.getMessage(), containsString("The bulk request must be terminated by a newline"));
     }
 
     public void testBulkRequest() throws IOException {

@@ -40,6 +40,7 @@ import org.elasticsearch.action.support.RefCountingRunnable;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.cluster.service.MasterService;
+import org.elasticsearch.common.BackoffPolicy;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobContainer;
@@ -910,21 +911,44 @@ class S3BlobContainer extends AbstractBlobContainer {
     @Override
     public void getRegister(OperationPurpose purpose, String key, ActionListener<OptionalBytesReference> listener) {
         ActionListener.completeWith(listener, () -> {
-            final var getObjectRequest = new GetObjectRequest(blobStore.bucket(), buildKey(key));
-            S3BlobStore.configureRequestForMetrics(getObjectRequest, blobStore, Operation.GET_OBJECT, purpose);
-            try (
-                var clientReference = blobStore.clientReference();
-                var s3Object = SocketAccess.doPrivileged(() -> clientReference.client().getObject(getObjectRequest));
-                var stream = s3Object.getObjectContent()
-            ) {
-                return OptionalBytesReference.of(getRegisterUsingConsistentRead(stream, keyPath, key));
-            } catch (AmazonS3Exception e) {
-                logger.trace(() -> Strings.format("[%s]: getRegister failed", key), e);
-                if (e.getStatusCode() == 404) {
-                    return OptionalBytesReference.EMPTY;
-                } else {
-                    throw e;
+            final var backoffPolicy = purpose == OperationPurpose.REPOSITORY_ANALYSIS
+                ? BackoffPolicy.noBackoff()
+                : BackoffPolicy.constantBackoff(blobStore.getGetRegisterRetryDelay(), blobStore.getMaxRetries());
+            final var retryDelayIterator = backoffPolicy.iterator();
+
+            Exception finalException = null;
+            while (true) {
+                final var getObjectRequest = new GetObjectRequest(blobStore.bucket(), buildKey(key));
+                S3BlobStore.configureRequestForMetrics(getObjectRequest, blobStore, Operation.GET_OBJECT, purpose);
+                try (
+                    var clientReference = blobStore.clientReference();
+                    var s3Object = SocketAccess.doPrivileged(() -> clientReference.client().getObject(getObjectRequest));
+                    var stream = s3Object.getObjectContent()
+                ) {
+                    return OptionalBytesReference.of(getRegisterUsingConsistentRead(stream, keyPath, key));
+                } catch (Exception attemptException) {
+                    logger.trace(() -> Strings.format("[%s]: getRegister failed", key), attemptException);
+                    if (attemptException instanceof AmazonS3Exception amazonS3Exception && amazonS3Exception.getStatusCode() == 404) {
+                        return OptionalBytesReference.EMPTY;
+                    } else if (finalException == null) {
+                        finalException = attemptException;
+                    } else if (finalException != attemptException) {
+                        finalException.addSuppressed(attemptException);
+                    }
                 }
+                if (retryDelayIterator.hasNext()) {
+                    try {
+                        // noinspection BusyWait
+                        Thread.sleep(retryDelayIterator.next().millis());
+                        continue;
+                    } catch (InterruptedException interruptedException) {
+                        Thread.currentThread().interrupt();
+                        finalException.addSuppressed(interruptedException);
+                        // fall through and throw the exception
+                    }
+                }
+
+                throw finalException;
             }
         });
     }

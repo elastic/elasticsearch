@@ -275,7 +275,12 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
 
         ReservedClusterStateService service = new ReservedClusterStateService(clusterService, mock(RerouteService.class), List.of());
 
-        ErrorState error = new ErrorState("namespace", 2L, false, List.of("error"), ReservedStateErrorMetadata.ErrorKind.TRANSIENT);
+        ErrorState error = new ErrorState(
+            "namespace",
+            new ReservedStateVersionParameters(2L, false),
+            List.of("error"),
+            ReservedStateErrorMetadata.ErrorKind.TRANSIENT
+        );
         service.updateErrorState(error);
 
         assertThat(updateTask.getValue(), notNullValue());
@@ -296,7 +301,12 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
 
         // it should not update if the error version is less than the current version
         when(clusterService.state()).thenReturn(updatedState);
-        ErrorState oldError = new ErrorState("namespace", 1L, false, List.of("old error"), ReservedStateErrorMetadata.ErrorKind.TRANSIENT);
+        ErrorState oldError = new ErrorState(
+            "namespace",
+            new ReservedStateVersionParameters(1L, false),
+            List.of("old error"),
+            ReservedStateErrorMetadata.ErrorKind.TRANSIENT
+        );
         service.updateErrorState(oldError);
         verifyNoMoreInteractions(errorQueue);
     }
@@ -310,8 +320,7 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
             new ReservedStateErrorTask(
                 new ErrorState(
                     "test",
-                    1L,
-                    false,
+                    new ReservedStateVersionParameters(1L, false),
                     List.of("some parse error", "some io error"),
                     ReservedStateErrorMetadata.ErrorKind.PARSING
                 ),
@@ -361,8 +370,10 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
 
         assertFalse(ReservedStateErrorTask.isNewError(operatorMetadata, 2L, false));
         assertFalse(ReservedStateErrorTask.isNewError(operatorMetadata, 1L, false));
+        assertTrue(ReservedStateErrorTask.isNewError(operatorMetadata, 2L, true));
         assertTrue(ReservedStateErrorTask.isNewError(operatorMetadata, 3L, false));
         assertTrue(ReservedStateErrorTask.isNewError(null, 1L, false));
+        assertTrue(ReservedStateErrorTask.isNewError(null, 1L, true));
 
         var chunk = new ReservedStateChunk(Map.of("one", "two", "maker", "three"), new ReservedStateVersion(2L, Version.CURRENT));
         var orderedHandlers = List.of(exceptionThrower.name(), newStateMaker.name());

@@ -110,7 +110,12 @@ public class ReservedClusterStateService {
         try {
             return stateChunkParser.apply(parser, null);
         } catch (Exception e) {
-            ErrorState errorState = new ErrorState(namespace, EMPTY_VERSION, e, ReservedStateErrorMetadata.ErrorKind.PARSING);
+            ErrorState errorState = new ErrorState(
+                namespace,
+                ReservedStateVersionParameters.EMPTY_VERSION,
+                e,
+                ReservedStateErrorMetadata.ErrorKind.PARSING
+            );
             updateErrorState(errorState);
             logger.debug("error processing state change request for [{}] with the following errors [{}]", namespace, errorState);
 
@@ -133,7 +138,12 @@ public class ReservedClusterStateService {
         try {
             stateChunk = parse(namespace, parser);
         } catch (Exception e) {
-            ErrorState errorState = new ErrorState(namespace, EMPTY_VERSION, e, ReservedStateErrorMetadata.ErrorKind.PARSING);
+            ErrorState errorState = new ErrorState(
+                namespace,
+                ReservedStateVersionParameters.EMPTY_VERSION,
+                e,
+                ReservedStateErrorMetadata.ErrorKind.PARSING
+            );
             updateErrorState(errorState);
             logger.debug("error processing state change request for [{}] with the following errors [{}]", namespace, errorState);
 
@@ -183,7 +193,6 @@ public class ReservedClusterStateService {
     public void process(String namespace, ReservedStateChunk reservedStateChunk, Consumer<Exception> errorListener) {
         Map<String, Object> reservedState = reservedStateChunk.state();
         ReservedStateVersionParameters reservedStateVersionParameters = reservedStateChunk.versionParameters();
-        ReservedStateVersion reservedStateVersion = reservedStateVersionParameters.version();
 
         LinkedHashSet<String> orderedHandlers;
         try {

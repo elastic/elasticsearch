@@ -9,7 +9,21 @@
 
 package org.elasticsearch.reservedstate.service;
 
+import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.ReservedStateMetadata;
+
 /**
  * Version parameters including the version {@link ReservedStateVersion} itself and whether re-processing on the same version is accepted.
  */
-public record ReservedStateVersionParameters(ReservedStateVersion version, Boolean reprocessSameVersion) {}
+public record ReservedStateVersionParameters(ReservedStateVersion version, Boolean reprocessSameVersion) {
+
+    public static final ReservedStateVersionParameters EMPTY_VERSION = new ReservedStateVersionParameters(
+        ReservedStateMetadata.EMPTY_VERSION,
+        false
+    );
+
+    public ReservedStateVersionParameters(Long version, Boolean reprocessSameVersion) {
+        this(new ReservedStateVersion(version, Version.CURRENT), reprocessSameVersion);
+    }
+
+}

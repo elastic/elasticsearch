@@ -68,7 +68,7 @@ public class ReservedStateErrorTask implements ClusterStateTaskListener {
     static boolean checkErrorVersion(ClusterState currentState, ErrorState errorState) {
         ReservedStateMetadata existingMetadata = currentState.metadata().reservedStateMetadata().get(errorState.namespace());
         // check for noop here
-        if (isNewError(existingMetadata, errorState.version(), errorState.reprocessSameVersion()) == false) {
+        if (isNewError(existingMetadata, errorState.versionParameters()) == false) {
             logger.info(
                 () -> format(
                     "Not updating error state because version [%s] is less or equal to the last state error version [%s]",

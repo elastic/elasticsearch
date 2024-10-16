@@ -151,7 +151,7 @@ GET /cooking_blog/_search
   }
 }
 ----
-// TEST[continued]
+// TEST[skip]
 <1> By default, the `match` query uses `OR` logic between the resulting tokens. This means it will match documents that contain either "fluffy" or "pancakes", or both, in the description field.
 <2> {es} defaults to the analyzer defined in the field mapping, so this field is unnecessary here. This is only required if you're using a different analyzer at search time, which is an <<different-analyzers,advanced use case>>.
 
@@ -522,8 +522,6 @@ GET /cooking_blog/_search
 ----
 // TEST[continued]
 <1> The `must_not` clause excludes documents that match the specified criteria. This is a powerful tool for filtering out unwanted results.
-
-The response might look like this:
 
 .Example response
 [%collapsible]

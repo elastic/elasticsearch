@@ -194,10 +194,6 @@ public class ElasticsearchInternalServiceSettings implements ServiceSettings {
         return modelId;
     }
 
-    public String deloymentId() {
-        return modelId;
-    }
-
     public Integer getNumAllocations() {
         return numAllocations;
     }

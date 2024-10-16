@@ -17,7 +17,6 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
@@ -466,18 +465,6 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
     public void testParseIndicesBoost() throws IOException {
         {
             String restContent = """
-                { "indices_boost": {"foo": 1.0, "bar": 2.0}}""";
-            try (XContentParser parser = createParserWithCompatibilityFor(JsonXContent.jsonXContent, restContent, RestApiVersion.V_7)) {
-                SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().parseXContent(parser, true, nf -> false);
-                assertEquals(2, searchSourceBuilder.indexBoosts().size());
-                assertEquals(new SearchSourceBuilder.IndexBoost("foo", 1.0f), searchSourceBuilder.indexBoosts().get(0));
-                assertEquals(new SearchSourceBuilder.IndexBoost("bar", 2.0f), searchSourceBuilder.indexBoosts().get(1));
-                assertCriticalWarnings("Object format in indices_boost is deprecated, please use array format instead");
-            }
-        }
-
-        {
-            String restContent = """
                 {
                   "indices_boost": [ { "foo": 1 }, { "bar": 2 }, { "baz": 3 } ]
                 }""";
@@ -554,16 +541,6 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
             );
             assertThat(ex.getMessage(), containsString(Integer.toString(boundedRandomSize)));
         }
-
-        restContent = "{\"size\" : -1}";
-        try (XContentParser parser = createParserWithCompatibilityFor(JsonXContent.jsonXContent, restContent, RestApiVersion.V_7)) {
-            SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().parseXContent(parser, true, nf -> false);
-            assertEquals(-1, searchSourceBuilder.size());
-        }
-        assertCriticalWarnings(
-            "Using search size of -1 is deprecated and will be removed in future versions. Instead, don't use the `size` "
-                + "parameter if you don't want to set it explicitly."
-        );
     }
 
     public void testNegativeTerminateAfter() throws IOException {

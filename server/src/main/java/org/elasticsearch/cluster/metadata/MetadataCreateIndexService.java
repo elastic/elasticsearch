@@ -1373,7 +1373,7 @@ public class MetadataCreateIndexService {
         MapperService mapperService = indexService.mapperService();
         IndexMode indexMode = indexService.getIndexSettings() != null ? indexService.getIndexSettings().getMode() : IndexMode.STANDARD;
         List<CompressedXContent> allMappings = new ArrayList<>();
-        final CompressedXContent defaultMapping = indexMode.getDefaultMapping();
+        final CompressedXContent defaultMapping = indexMode.getDefaultMapping(indexService.getIndexSettings());
         if (defaultMapping != null) {
             allMappings.add(defaultMapping);
         }

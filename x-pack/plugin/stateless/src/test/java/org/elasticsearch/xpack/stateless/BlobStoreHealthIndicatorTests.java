@@ -50,7 +50,11 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.atMost;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
@@ -62,6 +66,7 @@ public class BlobStoreHealthIndicatorTests extends ESTestCase {
         StatelessElectionStrategy electionStrategy = mock(StatelessElectionStrategy.class);
         AtomicLong nextTick = new AtomicLong();
         BlobStoreHealthIndicator indicator = new BlobStoreHealthIndicator(Settings.EMPTY, clusterService, electionStrategy, nextTick::get);
+        indicator.start();
         ArgumentCaptor<ActionListener<Optional<StatelessElectionStrategy.Lease>>> listenerCaptor = ArgumentCaptor.forClass(
             ActionListener.class
         );
@@ -95,6 +100,7 @@ public class BlobStoreHealthIndicatorTests extends ESTestCase {
         assertThat(details.get("error_message"), is(nullValue()));
         assertThat(result.impacts(), empty());
         assertThat(result.diagnosisList(), empty());
+        indicator.close();
     }
 
     @SuppressWarnings("unchecked")
@@ -104,6 +110,7 @@ public class BlobStoreHealthIndicatorTests extends ESTestCase {
 
         AtomicLong nextTick = new AtomicLong();
         BlobStoreHealthIndicator indicator = new BlobStoreHealthIndicator(Settings.EMPTY, clusterService, electionStrategy, nextTick::get);
+        indicator.start();
         ArgumentCaptor<ActionListener<Optional<StatelessElectionStrategy.Lease>>> listenerCaptor = ArgumentCaptor.forClass(
             ActionListener.class
         );
@@ -133,6 +140,7 @@ public class BlobStoreHealthIndicatorTests extends ESTestCase {
         );
         assertThat(result.diagnosisList().size(), is(1));
         assertThat(result.diagnosisList().get(0).definition().id(), equalTo("blob_store_inaccessible"));
+        indicator.close();
     }
 
     @SuppressWarnings("unchecked")
@@ -141,6 +149,7 @@ public class BlobStoreHealthIndicatorTests extends ESTestCase {
         StatelessElectionStrategy electionStrategy = mock(StatelessElectionStrategy.class);
         AtomicLong nextTick = new AtomicLong();
         BlobStoreHealthIndicator indicator = new BlobStoreHealthIndicator(Settings.EMPTY, clusterService, electionStrategy, nextTick::get);
+        indicator.start();
         ArgumentCaptor<ActionListener<Optional<StatelessElectionStrategy.Lease>>> listenerCaptor = ArgumentCaptor.forClass(
             ActionListener.class
         );
@@ -168,6 +177,7 @@ public class BlobStoreHealthIndicatorTests extends ESTestCase {
         assertThat(getDuration(details, "time_since_last_update_millis"), equalTo(healthRequestTime - responseTime));
         assertThat(getDuration(details, "last_check_duration_millis"), equalTo(responseTime - startTime));
         assertThat(result.diagnosisList().get(0).definition().id(), equalTo("blob_store_inaccessible"));
+        indicator.close();
     }
 
     @SuppressWarnings("unchecked")
@@ -180,6 +190,7 @@ public class BlobStoreHealthIndicatorTests extends ESTestCase {
             electionStrategy,
             () -> Clock.systemUTC().millis()
         );
+        indicator.start();
         ArgumentCaptor<ActionListener<Optional<StatelessElectionStrategy.Lease>>> listenerCaptor = ArgumentCaptor.forClass(
             ActionListener.class
         );
@@ -189,6 +200,7 @@ public class BlobStoreHealthIndicatorTests extends ESTestCase {
         listenerCaptor.getValue()
             .onResponse(randomBoolean() ? Optional.empty() : Optional.of(new StatelessElectionStrategy.Lease(randomInt(), randomInt())));
         assertThat(indicator.getInProgress(), is(false));
+        indicator.close();
     }
 
     public void testGreenDueToInitialization() {
@@ -199,12 +211,14 @@ public class BlobStoreHealthIndicatorTests extends ESTestCase {
             mock(StatelessElectionStrategy.class),
             () -> Clock.systemUTC().millis()
         );
+        indicator.start();
         HealthIndicatorResult result = indicator.createHealthIndicatorResult(true, null, null, now);
         assertThat(result.status(), is(HealthStatus.GREEN));
         assertThat(result.symptom(), startsWith("The cluster is initialising"));
         assertThat(result.details(), is(HealthIndicatorDetails.EMPTY));
         assertThat(result.impacts(), empty());
         assertThat(result.diagnosisList(), empty());
+        indicator.close();
     }
 
     public void testYellowDueToStaleResult() {
@@ -217,6 +231,7 @@ public class BlobStoreHealthIndicatorTests extends ESTestCase {
             mock(StatelessElectionStrategy.class),
             () -> Clock.systemUTC().millis()
         );
+        indicator.start();
         // verbose: false is important because we are not running the health check so some fields needed for the details will not be set
         HealthIndicatorResult result = indicator.createHealthIndicatorResult(
             false,
@@ -232,6 +247,40 @@ public class BlobStoreHealthIndicatorTests extends ESTestCase {
         assertThat(result.impacts(), empty());
         assertThat(result.diagnosisList().size(), is(1));
         assertThat(result.diagnosisList().get(0).definition().id(), equalTo("stale_status"));
+        indicator.close();
+    }
+
+    public void testLifecycle() {
+        ClusterService clusterService = mock(ClusterService.class);
+        StatelessElectionStrategy electionStrategy = mock(StatelessElectionStrategy.class);
+        doAnswer(invocation -> {
+            ActionListener<Optional<StatelessElectionStrategy.Lease>> listener = invocation.getArgument(0);
+            listener.onResponse(Optional.empty());
+            return null;
+        }).when(electionStrategy).readLease(any());
+
+        AtomicLong nextTick = new AtomicLong();
+        BlobStoreHealthIndicator indicator = new BlobStoreHealthIndicator(Settings.EMPTY, clusterService, electionStrategy, nextTick::get);
+
+        long startTime = randomIntBetween(1, 100);
+        indicator.runCheck();
+        verify(electionStrategy, never()).readLease(any());
+
+        indicator.start();
+        indicator.stop();
+        if (randomBoolean()) {
+            indicator.close();
+        }
+
+        // might have run the check in the brief period where the indicator was started - clean these up first
+        verify(electionStrategy, atMost(Integer.MAX_VALUE)).readLease(any());
+
+        startTime += randomIntBetween(1, 100);
+        nextTick.set(startTime);
+        indicator.runCheck();
+        verify(electionStrategy, never()).readLease(any());
+
+        indicator.close();
     }
 
     private Map<String, Object> xContentToMap(ToXContent xcontent) throws IOException {

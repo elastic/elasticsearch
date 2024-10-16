@@ -277,6 +277,7 @@ public class AzureBlobStoreRepositoryMetricsTests extends AzureBlobStoreReposito
             getLongCounterTotal(dataNodeName, RepositoriesMetrics.METRIC_REQUESTS_TOTAL)
         );
         assertEquals((failedBatches * (MAX_RETRIES + 1L)), getLongCounterTotal(dataNodeName, RepositoriesMetrics.METRIC_EXCEPTIONS_TOTAL));
+        assertEquals(failedBatches * deleteBatchSize, container.listBlobs(randomPurpose()).size());
     }
 
     private long getLongCounterTotal(String dataNodeName, String metricKey) {

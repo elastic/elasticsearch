@@ -1139,7 +1139,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         String id,
         VersionType versionType,
         long ifSeqNo,
-        long ifPrimaryTerm
+        long ifPrimaryTerm,
+        String routing
     ) throws IOException {
         assert versionType.validateVersionForWrites(version);
         return applyDeleteOperation(
@@ -1152,11 +1153,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             versionType,
             ifSeqNo,
             ifPrimaryTerm,
-            Engine.Operation.Origin.PRIMARY
+            Engine.Operation.Origin.PRIMARY,
+            routing
         );
     }
 
-    public Engine.DeleteResult applyDeleteOperationOnReplica(long seqNo, long opPrimaryTerm, long version, String type, String id)
+    public Engine.DeleteResult applyDeleteOperationOnReplica(long seqNo, long opPrimaryTerm, long version, String type, String id, String routing)
         throws IOException {
         return applyDeleteOperation(
             getEngine(),
@@ -1168,7 +1170,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             null,
             UNASSIGNED_SEQ_NO,
             0,
-            Engine.Operation.Origin.REPLICA
+            Engine.Operation.Origin.REPLICA,
+            routing
         );
     }
 
@@ -1182,7 +1185,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         @Nullable VersionType versionType,
         long ifSeqNo,
         long ifPrimaryTerm,
-        Engine.Operation.Origin origin
+        Engine.Operation.Origin origin,
+        String routing
     ) throws IOException {
         assert opPrimaryTerm <= getOperationPrimaryTerm()
             : "op term [ " + opPrimaryTerm + " ] > shard term [" + getOperationPrimaryTerm() + "]";
@@ -1225,7 +1229,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             versionType,
             origin,
             ifSeqNo,
-            ifPrimaryTerm
+            ifPrimaryTerm,
+            routing
         );
         assert Objects.equals(resolvedType, delete.type());
         return delete(engine, delete);
@@ -1241,10 +1246,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         VersionType versionType,
         Engine.Operation.Origin origin,
         long ifSeqNo,
-        long ifPrimaryTerm
+        long ifPrimaryTerm,
+        String routing
     ) {
         long startTime = System.nanoTime();
-        return new Engine.Delete(type, id, uid, seqNo, primaryTerm, version, versionType, origin, startTime, ifSeqNo, ifPrimaryTerm);
+        return new Engine.Delete(type, id, uid, seqNo, primaryTerm, version, versionType, origin, startTime, ifSeqNo, ifPrimaryTerm, routing);
     }
 
     private Engine.DeleteResult delete(Engine engine, Engine.Delete delete) throws IOException {
@@ -1945,7 +1951,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     versionType,
                     UNASSIGNED_SEQ_NO,
                     0,
-                    origin
+                    origin,
+                    delete.routing()
                 );
                 break;
             case NO_OP:

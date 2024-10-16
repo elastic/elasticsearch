@@ -46,6 +46,12 @@ class BytesReferenceStreamInput extends StreamInput {
     }
 
     @Override
+    public byte tryReadByte() throws IOException {
+        maybeNextSlice();
+        return slice.bytes[slice.offset + sliceIndex];
+    }
+
+    @Override
     public short readShort() throws IOException {
         if (slice.length - sliceIndex >= 2) {
             sliceIndex += 2;

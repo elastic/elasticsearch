@@ -49,6 +49,11 @@ public class InputStreamStreamInput extends StreamInput {
     }
 
     @Override
+    public byte tryReadByte() throws IOException {
+        throw new IOException("tryReadByte not supported");
+    }
+
+    @Override
     public void readBytes(byte[] b, int offset, int len) throws IOException {
         if (len < 0) throw new IndexOutOfBoundsException();
         final int read = Streams.readFully(is, b, offset, len);

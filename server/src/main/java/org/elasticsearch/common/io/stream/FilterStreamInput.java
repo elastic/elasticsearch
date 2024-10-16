@@ -31,6 +31,11 @@ public abstract class FilterStreamInput extends StreamInput {
     }
 
     @Override
+    public byte tryReadByte() throws IOException {
+        return delegate.tryReadByte();
+    }
+
+    @Override
     public void readBytes(byte[] b, int offset, int len) throws IOException {
         delegate.readBytes(b, offset, len);
     }

@@ -1,0 +1,5 @@
+pr: 97894
+summary: translog.delete add routing to locate correctly the target cluster shard of the deleted document with routing when the CCR obtains the translog.delete
+area: China
+type: bug
+issues: []

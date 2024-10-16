@@ -32,16 +32,21 @@ import org.elasticsearch.xpack.core.inference.ChunkingSettingsFeatureFlag;
 import org.elasticsearch.xpack.core.inference.results.InferenceTextEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.inference.results.RankedDocsResults;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
-import org.elasticsearch.xpack.core.ml.action.GetDeploymentStatsAction;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
+import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsStatsAction;
 import org.elasticsearch.xpack.core.ml.action.InferModelAction;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AdaptiveAllocationsSettings;
+import org.elasticsearch.xpack.core.ml.inference.assignment.AssignmentStats;
 import org.elasticsearch.xpack.core.ml.inference.results.ErrorInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.MlTextEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.EmptyConfigUpdate;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextEmbeddingConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextEmbeddingConfigUpdate;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextExpansionConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextExpansionConfigUpdate;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextSimilarityConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextSimilarityConfigUpdate;
 import org.elasticsearch.xpack.inference.chunking.ChunkingSettingsBuilder;
 import org.elasticsearch.xpack.inference.chunking.EmbeddingRequestChunker;
@@ -51,9 +56,9 @@ import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.EnumSet;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -137,7 +142,12 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
             throwIfNotEmptyMap(config, name());
 
             String modelId = (String) serviceSettingsMap.get(ElasticsearchInternalServiceSettings.MODEL_ID);
-            if (modelId == null) {
+            String deploymentId = (String) serviceSettingsMap.get(ElasticsearchInternalServiceSettings.DEPLOYMENT_ID);
+            if (deploymentId != null) {
+                validateAgainstDeployment(modelId, deploymentId, taskType, modelListener.delegateFailureAndWrap((l, settings) -> {
+                    l.onResponse(new ElasticDeployedModel(inferenceEntityId, taskType, NAME, settings.build(), chunkingSettings));
+                }));
+            } else if (modelId == null) {
                 if (OLD_ELSER_SERVICE_NAME.equals(serviceName)) {
                     // TODO complete deprecation of null model ID
                     // throw new ValidationException().addValidationError("Error parsing request config, model id is missing");
@@ -220,6 +230,8 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
                         + "]. You may need to load it into the cluster using eland."
                 );
             } else {
+                throwIfUnsupportedTaskType(modelId, taskType, response.getResources().results().get(0).getInferenceConfig());
+
                 var model = createCustomElandModel(
                     inferenceEntityId,
                     taskType,
@@ -540,7 +552,7 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
         ActionListener<InferenceServiceResults> listener
     ) {
         var request = buildInferenceRequest(
-            model.getConfigurations().getInferenceEntityId(),
+            model.mlNodeDeploymentId(),
             TextEmbeddingConfigUpdate.EMPTY_INSTANCE,
             inputs,
             inputType,
@@ -565,13 +577,7 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
         TimeValue timeout,
         ActionListener<InferenceServiceResults> listener
     ) {
-        var request = buildInferenceRequest(
-            model.getConfigurations().getInferenceEntityId(),
-            TextExpansionConfigUpdate.EMPTY_UPDATE,
-            inputs,
-            inputType,
-            timeout
-        );
+        var request = buildInferenceRequest(model.mlNodeDeploymentId(), TextExpansionConfigUpdate.EMPTY_UPDATE, inputs, inputType, timeout);
 
         ActionListener<InferModelAction.Response> mlResultsListener = listener.delegateFailureAndWrap(
             (l, inferenceResult) -> l.onResponse(SparseEmbeddingResults.of(inferenceResult.getInferenceResults()))
@@ -593,13 +599,7 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
         Map<String, Object> requestTaskSettings,
         ActionListener<InferenceServiceResults> listener
     ) {
-        var request = buildInferenceRequest(
-            model.getConfigurations().getInferenceEntityId(),
-            new TextSimilarityConfigUpdate(query),
-            inputs,
-            inputType,
-            timeout
-        );
+        var request = buildInferenceRequest(model.mlNodeDeploymentId(), new TextSimilarityConfigUpdate(query), inputs, inputType, timeout);
 
         var modelSettings = (CustomElandRerankTaskSettings) model.getTaskSettings();
         var requestSettings = CustomElandRerankTaskSettings.fromMap(requestTaskSettings);
@@ -668,7 +668,7 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
 
             for (var batch : batchedRequests) {
                 var inferenceRequest = buildInferenceRequest(
-                    model.getConfigurations().getInferenceEntityId(),
+                    esModel.mlNodeDeploymentId(),
                     EmptyConfigUpdate.INSTANCE,
                     batch.batch().inputs(),
                     inputType,
@@ -786,47 +786,11 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
         );
     }
 
+    /**
+     * Default configurations that can be out of the box without creating an endpoint first.
+     * @param defaultsListener Config listener
+     */
     @Override
-    public void updateModelsWithDynamicFields(List<Model> models, ActionListener<List<Model>> listener) {
-        var modelsByDeploymentIds = new HashMap<String, ElasticsearchInternalModel>();
-        for (var model : models) {
-            if (model instanceof ElasticsearchInternalModel esModel) {
-                modelsByDeploymentIds.put(esModel.internalServiceSettings.deloymentId(), esModel);
-            } else {
-                listener.onFailure(
-                    new ElasticsearchStatusException(
-                        "Cannot update model [{}] as it is not an Elasticsearch service model",
-                        RestStatus.INTERNAL_SERVER_ERROR,
-                        model.getInferenceEntityId()
-                    )
-                );
-                return;
-            }
-        }
-
-        if (modelsByDeploymentIds.isEmpty()) {
-            listener.onResponse(models);
-            return;
-        }
-
-        String deploymentIds = String.join(",", modelsByDeploymentIds.keySet());
-        client.execute(
-            GetDeploymentStatsAction.INSTANCE,
-            new GetDeploymentStatsAction.Request(deploymentIds),
-            ActionListener.wrap(stats -> {
-                for (var deploymentStats : stats.getStats().results()) {
-                    var model = modelsByDeploymentIds.get(deploymentStats.getDeploymentId());
-                    model.updateNumAllocation(deploymentStats.getNumberOfAllocations());
-                }
-                listener.onResponse(new ArrayList<>(modelsByDeploymentIds.values()));
-            }, e -> {
-                logger.warn("Get deployment stats failed, cannot update the endpoint's number of allocations", e);
-                // continue with the original response
-                listener.onResponse(models);
-            })
-        );
-    }
-
     public void defaultConfigs(ActionListener<List<Model>> defaultsListener) {
         preferredModelVariantFn.accept(defaultsListener.delegateFailureAndWrap((delegate, preferredModelVariant) -> {
             if (PreferredModelVariant.LINUX_X86_OPTIMIZED.equals(preferredModelVariant)) {
@@ -894,5 +858,109 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
                 taskType
             );
         };
+    }
+
+    private void validateAgainstDeployment(
+        String modelId,
+        String deploymentId,
+        TaskType taskType,
+        ActionListener<ElasticsearchInternalServiceSettings.Builder> listener
+    ) {
+        getDeployment(deploymentId, listener.delegateFailureAndWrap((l, response) -> {
+            if (response.isPresent()) {
+                if (modelId != null && modelId.equals(response.get().getModelId()) == false) {
+                    listener.onFailure(
+                        new ElasticsearchStatusException(
+                            "Deployment [{}] uses model [{}] which does not match the model [{}] in the request.",
+                            RestStatus.BAD_REQUEST, // TODO better message
+                            deploymentId,
+                            response.get().getModelId(),
+                            modelId
+                        )
+                    );
+                    return;
+                }
+
+                var updatedSettings = new ElasticsearchInternalServiceSettings.Builder().setNumAllocations(
+                    response.get().getNumberOfAllocations()
+                )
+                    .setNumThreads(response.get().getThreadsPerAllocation())
+                    .setAdaptiveAllocationsSettings(response.get().getAdaptiveAllocationsSettings())
+                    .setDeploymentId(deploymentId)
+                    .setModelId(response.get().getModelId());
+
+                checkTaskTypeForMlNodeModel(response.get().getModelId(), taskType, l.delegateFailureAndWrap((l2, compatibleTaskType) -> {
+                    l2.onResponse(updatedSettings);
+                }));
+            }
+        }));
+    }
+
+    private void getDeployment(String deploymentId, ActionListener<Optional<AssignmentStats>> listener) {
+        client.execute(
+            GetTrainedModelsStatsAction.INSTANCE,
+            new GetTrainedModelsStatsAction.Request(deploymentId),
+            listener.delegateFailureAndWrap((l, response) -> {
+                l.onResponse(
+                    response.getResources()
+                        .results()
+                        .stream()
+                        .filter(s -> s.getDeploymentStats() != null && s.getDeploymentStats().getDeploymentId().equals(deploymentId))
+                        .map(GetTrainedModelsStatsAction.Response.TrainedModelStats::getDeploymentStats)
+                        .findFirst()
+                );
+            })
+        );
+    }
+
+    private void checkTaskTypeForMlNodeModel(String modelId, TaskType taskType, ActionListener<Boolean> listener) {
+        client.execute(
+            GetTrainedModelsAction.INSTANCE,
+            new GetTrainedModelsAction.Request(modelId),
+            listener.delegateFailureAndWrap((l, response) -> {
+                if (response.getResources().results().isEmpty()) {
+                    l.onFailure(new IllegalStateException("this shouldn't happen"));
+                    return;
+                }
+
+                var inferenceConfig = response.getResources().results().get(0).getInferenceConfig();
+                throwIfUnsupportedTaskType(modelId, taskType, inferenceConfig);
+                l.onResponse(Boolean.TRUE);
+            })
+        );
+    }
+
+    static void throwIfUnsupportedTaskType(String modelId, TaskType taskType, InferenceConfig inferenceConfig) {
+        var deploymentTaskType = inferenceConfigToTaskType(inferenceConfig);
+        if (deploymentTaskType == null) {
+            throw new ElasticsearchStatusException(
+                "Deployed model [{}] has type [{}] which does not map to any supported task types",
+                RestStatus.BAD_REQUEST,
+                modelId,
+                inferenceConfig.getWriteableName()
+            );
+        }
+        if (deploymentTaskType != taskType) {
+            throw new ElasticsearchStatusException(
+                "Deployed model [{}] with type [{}] does not match the requested task type [{}]",
+                RestStatus.BAD_REQUEST,
+                modelId,
+                inferenceConfig.getWriteableName(),
+                taskType
+            );
+        }
+
+    }
+
+    static TaskType inferenceConfigToTaskType(InferenceConfig config) {
+        if (config instanceof TextExpansionConfig) {
+            return TaskType.SPARSE_EMBEDDING;
+        } else if (config instanceof TextEmbeddingConfig) {
+            return TaskType.TEXT_EMBEDDING;
+        } else if (config instanceof TextSimilarityConfig) {
+            return TaskType.RERANK;
+        } else {
+            return null;
+        }
     }
 }

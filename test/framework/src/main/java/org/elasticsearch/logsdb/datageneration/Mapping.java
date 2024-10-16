@@ -7,21 +7,13 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.action.search;
+package org.elasticsearch.logsdb.datageneration;
 
-import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.io.stream.StreamInput;
+import java.util.Map;
 
-import java.io.IOException;
-
-public class VersionMismatchException extends ElasticsearchException {
-
-    public VersionMismatchException(String msg, Object... args) {
-        super(msg, args);
-    }
-
-    public VersionMismatchException(StreamInput in) throws IOException {
-        super(in);
-    }
-
-}
+/**
+ * Contains generated mapping and supporting data.
+ * @param raw mapping represented as a possibly nested map (maps represent (sub-)objects)
+ * @param lookup supporting data structure that represent mapping in a flat form (full path to field -> mapping parameters)
+ */
+public record Mapping(Map<String, Object> raw, Map<String, Map<String, Object>> lookup) {}

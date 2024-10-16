@@ -7,13 +7,10 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.spatial;
 import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
-import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.LongBlock;
-import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
@@ -28,85 +25,48 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 public final class StDistanceGeoPointDocValuesAndSourceEvaluator implements EvalOperator.ExpressionEvaluator {
   private final Source source;
 
-  private final EvalOperator.ExpressionEvaluator leftValue;
+  private final EvalOperator.ExpressionEvaluator left;
 
-  private final EvalOperator.ExpressionEvaluator rightValue;
+  private final EvalOperator.ExpressionEvaluator right;
 
   private final DriverContext driverContext;
 
   private Warnings warnings;
 
   public StDistanceGeoPointDocValuesAndSourceEvaluator(Source source,
-      EvalOperator.ExpressionEvaluator leftValue, EvalOperator.ExpressionEvaluator rightValue,
+      EvalOperator.ExpressionEvaluator left, EvalOperator.ExpressionEvaluator right,
       DriverContext driverContext) {
     this.source = source;
-    this.leftValue = leftValue;
-    this.rightValue = rightValue;
+    this.left = left;
+    this.right = right;
     this.driverContext = driverContext;
   }
 
   @Override
   public Block eval(Page page) {
-    try (LongBlock leftValueBlock = (LongBlock) leftValue.eval(page)) {
-      try (BytesRefBlock rightValueBlock = (BytesRefBlock) rightValue.eval(page)) {
-        LongVector leftValueVector = leftValueBlock.asVector();
-        if (leftValueVector == null) {
-          return eval(page.getPositionCount(), leftValueBlock, rightValueBlock);
-        }
-        BytesRefVector rightValueVector = rightValueBlock.asVector();
-        if (rightValueVector == null) {
-          return eval(page.getPositionCount(), leftValueBlock, rightValueBlock);
-        }
-        return eval(page.getPositionCount(), leftValueVector, rightValueVector);
+    try (LongBlock leftBlock = (LongBlock) left.eval(page)) {
+      try (BytesRefBlock rightBlock = (BytesRefBlock) right.eval(page)) {
+        return eval(page.getPositionCount(), leftBlock, rightBlock);
       }
     }
   }
 
-  public DoubleBlock eval(int positionCount, LongBlock leftValueBlock,
-      BytesRefBlock rightValueBlock) {
+  public DoubleBlock eval(int positionCount, LongBlock leftBlock, BytesRefBlock rightBlock) {
     try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
-      BytesRef rightValueScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
-        if (leftValueBlock.isNull(p)) {
-          result.appendNull();
-          continue position;
+        boolean allBlocksAreNulls = true;
+        if (!leftBlock.isNull(p)) {
+          allBlocksAreNulls = false;
         }
-        if (leftValueBlock.getValueCount(p) != 1) {
-          if (leftValueBlock.getValueCount(p) > 1) {
-            warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          }
-          result.appendNull();
-          continue position;
+        if (!rightBlock.isNull(p)) {
+          allBlocksAreNulls = false;
         }
-        if (rightValueBlock.isNull(p)) {
-          result.appendNull();
-          continue position;
-        }
-        if (rightValueBlock.getValueCount(p) != 1) {
-          if (rightValueBlock.getValueCount(p) > 1) {
-            warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          }
+        if (allBlocksAreNulls) {
           result.appendNull();
           continue position;
         }
         try {
-          result.appendDouble(StDistance.processGeoPointDocValuesAndSource(leftValueBlock.getLong(leftValueBlock.getFirstValueIndex(p)), rightValueBlock.getBytesRef(rightValueBlock.getFirstValueIndex(p), rightValueScratch)));
-        } catch (IllegalArgumentException e) {
-          warnings().registerException(e);
-          result.appendNull();
-        }
-      }
-      return result.build();
-    }
-  }
-
-  public DoubleBlock eval(int positionCount, LongVector leftValueVector,
-      BytesRefVector rightValueVector) {
-    try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
-      BytesRef rightValueScratch = new BytesRef();
-      position: for (int p = 0; p < positionCount; p++) {
-        try {
-          result.appendDouble(StDistance.processGeoPointDocValuesAndSource(leftValueVector.getLong(p), rightValueVector.getBytesRef(p, rightValueScratch)));
+          StDistance.processGeoPointDocValuesAndSource(result, p, leftBlock, rightBlock);
         } catch (IllegalArgumentException e) {
           warnings().registerException(e);
           result.appendNull();
@@ -118,12 +78,12 @@ public final class StDistanceGeoPointDocValuesAndSourceEvaluator implements Eval
 
   @Override
   public String toString() {
-    return "StDistanceGeoPointDocValuesAndSourceEvaluator[" + "leftValue=" + leftValue + ", rightValue=" + rightValue + "]";
+    return "StDistanceGeoPointDocValuesAndSourceEvaluator[" + "left=" + left + ", right=" + right + "]";
   }
 
   @Override
   public void close() {
-    Releasables.closeExpectNoException(leftValue, rightValue);
+    Releasables.closeExpectNoException(left, right);
   }
 
   private Warnings warnings() {
@@ -141,25 +101,25 @@ public final class StDistanceGeoPointDocValuesAndSourceEvaluator implements Eval
   static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
     private final Source source;
 
-    private final EvalOperator.ExpressionEvaluator.Factory leftValue;
+    private final EvalOperator.ExpressionEvaluator.Factory left;
 
-    private final EvalOperator.ExpressionEvaluator.Factory rightValue;
+    private final EvalOperator.ExpressionEvaluator.Factory right;
 
-    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory leftValue,
-        EvalOperator.ExpressionEvaluator.Factory rightValue) {
+    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory left,
+        EvalOperator.ExpressionEvaluator.Factory right) {
       this.source = source;
-      this.leftValue = leftValue;
-      this.rightValue = rightValue;
+      this.left = left;
+      this.right = right;
     }
 
     @Override
     public StDistanceGeoPointDocValuesAndSourceEvaluator get(DriverContext context) {
-      return new StDistanceGeoPointDocValuesAndSourceEvaluator(source, leftValue.get(context), rightValue.get(context), context);
+      return new StDistanceGeoPointDocValuesAndSourceEvaluator(source, left.get(context), right.get(context), context);
     }
 
     @Override
     public String toString() {
-      return "StDistanceGeoPointDocValuesAndSourceEvaluator[" + "leftValue=" + leftValue + ", rightValue=" + rightValue + "]";
+      return "StDistanceGeoPointDocValuesAndSourceEvaluator[" + "left=" + left + ", right=" + right + "]";
     }
   }
 }

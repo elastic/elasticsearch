@@ -30,11 +30,9 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 
@@ -59,11 +57,7 @@ public class IndicesOptionsTests extends ESTestCase {
                         .allowClosedIndices(randomBoolean())
                 )
                 .selectorOptions(
-                    IndicesOptions.SelectorOptions.builder()
-                        .setDefaultSelectors(
-                            EnumSet.copyOf(randomNonEmptySubsetOf(Set.of(IndexComponentSelector.DATA, IndexComponentSelector.FAILURES)))
-                        )
-                        .build()
+                    IndicesOptions.SelectorOptions.builder().defaultSelectors(randomFrom(IndexComponentSelector.values())).build()
                 )
                 .build();
 
@@ -350,9 +344,7 @@ public class IndicesOptionsTests extends ESTestCase {
             randomBoolean()
         );
         GatekeeperOptions gatekeeperOptions = new GatekeeperOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean());
-        IndicesOptions.SelectorOptions selectorOptions = new IndicesOptions.SelectorOptions(
-            EnumSet.copyOf(randomNonEmptySubsetOf(Set.of(IndexComponentSelector.DATA, IndexComponentSelector.FAILURES)))
-        );
+        IndicesOptions.SelectorOptions selectorOptions = new IndicesOptions.SelectorOptions(randomFrom(IndexComponentSelector.values()));
 
         IndicesOptions indicesOptions = new IndicesOptions(concreteTargetOptions, wildcardOptions, gatekeeperOptions, selectorOptions);
 
@@ -370,7 +362,7 @@ public class IndicesOptionsTests extends ESTestCase {
         assertThat(map.get("allow_no_indices"), equalTo(wildcardOptions.allowEmptyExpressions()));
         assertThat(map.get("ignore_throttled"), equalTo(gatekeeperOptions.ignoreThrottled()));
         String displayValue;
-        if (IndicesOptions.SelectorOptions.DATA_AND_FAILURE.equals(selectorOptions)) {
+        if (IndicesOptions.SelectorOptions.ALL_SUPPORTED.equals(selectorOptions)) {
             displayValue = "include";
         } else if (IndicesOptions.SelectorOptions.ONLY_DATA.equals(selectorOptions)) {
             displayValue = "exclude";

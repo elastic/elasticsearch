@@ -34,9 +34,7 @@ import org.elasticsearch.xcontent.XContentType;
 import org.junit.Before;
 
 import java.io.IOException;
-import java.util.EnumSet;
 import java.util.Map;
-import java.util.Set;
 
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -181,9 +179,7 @@ public class RolloverRequestTests extends ESTestCase {
             IndicesOptions.builder(originalRequest.indicesOptions())
                 .selectorOptions(
                     IndicesOptions.SelectorOptions.builder()
-                        .setDefaultSelectors(
-                            EnumSet.copyOf(randomNonEmptySubsetOf(Set.of(IndexComponentSelector.DATA, IndexComponentSelector.FAILURES)))
-                        )
+                        .defaultSelectors(randomFrom(IndexComponentSelector.DATA, IndexComponentSelector.FAILURES))
                 )
                 .build()
         );
@@ -266,7 +262,7 @@ public class RolloverRequestTests extends ESTestCase {
             RolloverRequest rolloverRequest = new RolloverRequest("alias-index", "new-index-name");
             rolloverRequest.setIndicesOptions(
                 IndicesOptions.builder(rolloverRequest.indicesOptions())
-                    .selectorOptions(IndicesOptions.SelectorOptions.DATA_AND_FAILURE)
+                    .selectorOptions(IndicesOptions.SelectorOptions.ALL_SUPPORTED)
                     .build()
             );
             ActionRequestValidationException validationException = rolloverRequest.validate();

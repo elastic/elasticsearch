@@ -9,6 +9,11 @@
 
 package org.elasticsearch.action.support;
 
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
+
+import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
@@ -17,33 +22,66 @@ import java.util.Map;
  * We define as index components the two different sets of indices a data stream could consist of:
  * - DATA: represents the backing indices
  * - FAILURES: represent the failing indices
+ * - ALL: represents all available in this expression components, meaning if it's a data stream both backing and failure indices and if it's
+ * an index only the index itself.
  * Note: An index is its own DATA component, but it cannot have a FAILURE component.
  */
-public enum IndexComponentSelector {
-    DATA("data"),
-    FAILURES("failures");
+public enum IndexComponentSelector implements Writeable {
+    DATA("data", (byte) 0),
+    FAILURES("failures", (byte) 1),
+    ALL_APPLICABLE("*", (byte) 2);
 
     private final String key;
+    private final byte id;
 
-    IndexComponentSelector(String key) {
+    IndexComponentSelector(String key, byte id) {
         this.key = key;
+        this.id = id;
     }
 
     public String getKey() {
         return key;
     }
 
-    private static final Map<String, IndexComponentSelector> REGISTRY;
+    public byte getId() {
+        return id;
+    }
+
+    private static final Map<String, IndexComponentSelector> KEY_REGISTRY;
+    private static final Map<Byte, IndexComponentSelector> ID_REGISTRY;
 
     static {
-        Map<String, IndexComponentSelector> registry = new HashMap<>(IndexComponentSelector.values().length);
+        Map<String, IndexComponentSelector> keyRegistry = new HashMap<>(IndexComponentSelector.values().length);
         for (IndexComponentSelector value : IndexComponentSelector.values()) {
-            registry.put(value.getKey(), value);
+            keyRegistry.put(value.getKey(), value);
         }
-        REGISTRY = Collections.unmodifiableMap(registry);
+        KEY_REGISTRY = Collections.unmodifiableMap(keyRegistry);
+        Map<Byte, IndexComponentSelector> idRegistry = new HashMap<>(IndexComponentSelector.values().length);
+        for (IndexComponentSelector value : IndexComponentSelector.values()) {
+            idRegistry.put(value.getId(), value);
+        }
+        ID_REGISTRY = Collections.unmodifiableMap(idRegistry);
     }
 
     public static IndexComponentSelector getByKey(String key) {
-        return REGISTRY.get(key);
+        IndexComponentSelector indexComponentSelector = KEY_REGISTRY.get(key);
+        if (indexComponentSelector == null) {
+            throw new IllegalArgumentException("Unknown index component selector [" + key + "]");
+        }
+        return indexComponentSelector;
+    }
+
+    public static IndexComponentSelector read(StreamInput in) throws IOException {
+        var id = in.readByte();
+        IndexComponentSelector indexComponentSelector = ID_REGISTRY.get(id);
+        if (indexComponentSelector == null) {
+            throw new IllegalArgumentException("Unknown id of index component selector [" + id + "]");
+        }
+        return indexComponentSelector;
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeByte(id);
     }
 }

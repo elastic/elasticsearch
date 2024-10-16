@@ -288,6 +288,8 @@ set CLI_JAVA_OPTS="-Dhttp.proxyHost=host_name -Dhttp.proxyPort=port_number -Dhtt
 bin\elasticsearch-plugin install analysis-icu
 ------------------------------------
 
+NOTE: Basic authentication for proxies in the plugin manager is not supported
+
 === Plugins directory
 
 The default location of the `plugins` directory depends on which package you install:

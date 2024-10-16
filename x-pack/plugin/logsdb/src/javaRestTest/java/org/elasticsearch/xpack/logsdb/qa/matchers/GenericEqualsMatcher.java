@@ -7,14 +7,14 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.datastreams.logsdb.qa.matchers;
+package org.elasticsearch.xpack.logsdb.qa.matchers;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.util.List;
 
-import static org.elasticsearch.datastreams.logsdb.qa.matchers.Messages.formatErrorMessage;
+import static org.elasticsearch.xpack.logsdb.qa.matchers.Messages.formatErrorMessage;
 
 public class GenericEqualsMatcher<T> extends Matcher {
     protected final XContentBuilder actualMappings;

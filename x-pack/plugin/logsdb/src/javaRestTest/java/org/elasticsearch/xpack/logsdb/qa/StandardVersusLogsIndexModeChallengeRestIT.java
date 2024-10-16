@@ -7,7 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.datastreams.logsdb.qa;
+package org.elasticsearch.xpack.logsdb.qa;
 
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
@@ -18,8 +18,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.FormatNames;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.datastreams.logsdb.qa.matchers.MatchResult;
-import org.elasticsearch.datastreams.logsdb.qa.matchers.Matcher;
+import org.elasticsearch.xpack.logsdb.qa.matchers.MatchResult;
+import org.elasticsearch.xpack.logsdb.qa.matchers.Matcher;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.aggregations.AggregationBuilders;

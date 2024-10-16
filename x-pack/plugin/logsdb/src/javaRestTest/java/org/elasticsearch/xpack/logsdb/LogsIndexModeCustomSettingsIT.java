@@ -7,7 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.datastreams.logsdb;
+package org.elasticsearch.xpack.logsdb;
 
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;

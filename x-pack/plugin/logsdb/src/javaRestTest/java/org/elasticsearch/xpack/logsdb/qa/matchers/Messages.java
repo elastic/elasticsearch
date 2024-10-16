@@ -7,7 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.datastreams.logsdb.qa.matchers;
+package org.elasticsearch.xpack.logsdb.qa.matchers;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;

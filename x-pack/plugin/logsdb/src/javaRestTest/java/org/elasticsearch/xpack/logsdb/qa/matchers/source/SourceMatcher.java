@@ -7,14 +7,14 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.datastreams.logsdb.qa.matchers.source;
+package org.elasticsearch.xpack.logsdb.qa.matchers.source;
 
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.datastreams.logsdb.qa.matchers.GenericEqualsMatcher;
-import org.elasticsearch.datastreams.logsdb.qa.matchers.ListEqualMatcher;
-import org.elasticsearch.datastreams.logsdb.qa.matchers.MatchResult;
+import org.elasticsearch.xpack.logsdb.qa.matchers.GenericEqualsMatcher;
+import org.elasticsearch.xpack.logsdb.qa.matchers.ListEqualMatcher;
+import org.elasticsearch.xpack.logsdb.qa.matchers.MatchResult;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.util.List;
@@ -22,8 +22,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 
-import static org.elasticsearch.datastreams.logsdb.qa.matchers.Messages.formatErrorMessage;
-import static org.elasticsearch.datastreams.logsdb.qa.matchers.Messages.prettyPrintCollections;
+import static org.elasticsearch.xpack.logsdb.qa.matchers.Messages.formatErrorMessage;
+import static org.elasticsearch.xpack.logsdb.qa.matchers.Messages.prettyPrintCollections;
 
 public class SourceMatcher extends GenericEqualsMatcher<List<Map<String, Object>>> {
     private final Map<String, MappingTransforms.FieldMapping> actualNormalizedMapping;

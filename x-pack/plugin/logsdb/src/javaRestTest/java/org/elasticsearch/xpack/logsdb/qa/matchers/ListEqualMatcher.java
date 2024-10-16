@@ -7,49 +7,49 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.datastreams.logsdb.qa.matchers;
+package org.elasticsearch.xpack.logsdb.qa.matchers;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xcontent.XContentBuilder;
 
-import java.util.Arrays;
 import java.util.List;
 
-import static org.elasticsearch.datastreams.logsdb.qa.matchers.Messages.formatErrorMessage;
-import static org.elasticsearch.datastreams.logsdb.qa.matchers.Messages.prettyPrintArrays;
+import static org.elasticsearch.xpack.logsdb.qa.matchers.Messages.formatErrorMessage;
+import static org.elasticsearch.xpack.logsdb.qa.matchers.Messages.prettyPrintCollections;
 
-class ArrayEqualMatcher extends GenericEqualsMatcher<Object[]> {
-    ArrayEqualMatcher(
+public class ListEqualMatcher extends GenericEqualsMatcher<List<?>> {
+    public ListEqualMatcher(
         final XContentBuilder actualMappings,
         final Settings.Builder actualSettings,
         final XContentBuilder expectedMappings,
         final Settings.Builder expectedSettings,
-        final Object[] actual,
-        final Object[] expected,
-        boolean ignoringSort
+        final List<?> actual,
+        final List<?> expected,
+        final boolean ignoringSort
     ) {
         super(actualMappings, actualSettings, expectedMappings, expectedSettings, actual, expected, ignoringSort);
     }
 
     @Override
+    @SuppressWarnings("unchecked")
     public MatchResult match() {
-        return matchArraysEqual(actual, expected, ignoringSort);
+        return matchListEquals((List<Object>) actual, (List<Object>) expected, ignoringSort);
     }
 
-    private MatchResult matchArraysEqual(final Object[] actualArray, final Object[] expectedArray, boolean ignoreSorting) {
-        if (actualArray.length != expectedArray.length) {
+    private MatchResult matchListEquals(final List<Object> actualList, final List<Object> expectedList, boolean ignoreSorting) {
+        if (actualList.size() != expectedList.size()) {
             return MatchResult.noMatch(
                 formatErrorMessage(
                     actualMappings,
                     actualSettings,
                     expectedMappings,
                     expectedSettings,
-                    "Array lengths do no match, " + prettyPrintArrays(actualArray, expectedArray)
+                    "List lengths do not match, " + prettyPrintCollections(actualList, expectedList)
                 )
             );
         }
         if (ignoreSorting) {
-            return matchArraysEqualIgnoringSorting(actualArray, expectedArray)
+            return matchListsEqualIgnoringSorting(actualList, expectedList)
                 ? MatchResult.match()
                 : MatchResult.noMatch(
                     formatErrorMessage(
@@ -57,11 +57,11 @@ class ArrayEqualMatcher extends GenericEqualsMatcher<Object[]> {
                         actualSettings,
                         expectedMappings,
                         expectedSettings,
-                        "Arrays do not match when ignoring sort order, " + prettyPrintArrays(actualArray, expectedArray)
+                        "Lists do not match when ignoring sort order, " + prettyPrintCollections(actualList, expectedList)
                     )
                 );
         } else {
-            return matchArraysEqualExact(actualArray, expectedArray)
+            return matchListsEqualExact(actualList, expectedList)
                 ? MatchResult.match()
                 : MatchResult.noMatch(
                     formatErrorMessage(
@@ -69,21 +69,19 @@ class ArrayEqualMatcher extends GenericEqualsMatcher<Object[]> {
                         actualSettings,
                         expectedMappings,
                         expectedSettings,
-                        "Arrays do not match exactly, " + prettyPrintArrays(actualArray, expectedArray)
+                        "Lists do not match exactly, " + prettyPrintCollections(actualList, expectedList)
                     )
                 );
         }
     }
 
-    private static boolean matchArraysEqualIgnoringSorting(final Object[] actualArray, final Object[] expectedArray) {
-        final List<Object> actualList = Arrays.asList(actualArray);
-        final List<Object> expectedList = Arrays.asList(expectedArray);
+    private static boolean matchListsEqualIgnoringSorting(final List<Object> actualList, final List<Object> expectedList) {
         return actualList.containsAll(expectedList) && expectedList.containsAll(actualList);
     }
 
-    private static <T> boolean matchArraysEqualExact(T[] actualArray, T[] expectedArray) {
-        for (int i = 0; i < actualArray.length; i++) {
-            boolean isEqual = actualArray[i].equals(expectedArray[i]);
+    private static <T> boolean matchListsEqualExact(List<Object> actualList, List<Object> expectedList) {
+        for (int i = 0; i < actualList.size(); i++) {
+            boolean isEqual = actualList.get(i).equals(expectedList.get(i));
             if (isEqual == false) {
                 return false;
             }

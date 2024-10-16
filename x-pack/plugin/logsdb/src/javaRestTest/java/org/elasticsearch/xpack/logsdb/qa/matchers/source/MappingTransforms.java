@@ -7,7 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.datastreams.logsdb.qa.matchers.source;
+package org.elasticsearch.xpack.logsdb.qa.matchers.source;
 
 import java.util.ArrayList;
 import java.util.HashMap;

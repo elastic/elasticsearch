@@ -20,14 +20,18 @@ import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.predicate.logical.Not;
+import org.elasticsearch.xpack.esql.core.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
 import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.FilteredExpression;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.RLike;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.WildcardLike;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Div;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mod;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
@@ -319,6 +323,61 @@ public class StatementParserTests extends AbstractStatementParserTests {
         for (String query : queries) {
             expectVerificationError(query, "grouping key [a] already specified in the STATS BY clause");
         }
+    }
+
+    public void testStatsWithGroupKeyAndAggFilter() throws Exception {
+        var a = attribute("a");
+        var f = new UnresolvedFunction(EMPTY, "min", DEFAULT, List.of(a));
+        var filter = new Alias(EMPTY, "min(a) where a > 1", new FilteredExpression(EMPTY, f, new GreaterThan(EMPTY, a, integer(1))));
+        assertEquals(
+            new Aggregate(EMPTY, PROCESSING_CMD_INPUT, Aggregate.AggregateType.STANDARD, List.of(a), List.of(filter, a)),
+            processingCommand("stats min(a) where a > 1 by a")
+        );
+    }
+
+    public void testStatsWithGroupKeyAndMixedAggAndFilter() throws Exception {
+        var a = attribute("a");
+        var min = new UnresolvedFunction(EMPTY, "min", DEFAULT, List.of(a));
+        var max = new UnresolvedFunction(EMPTY, "max", DEFAULT, List.of(a));
+        var avg = new UnresolvedFunction(EMPTY, "avg", DEFAULT, List.of(a));
+        var min_alias = new Alias(EMPTY, "min", min);
+
+        var max_filter_ex = new Or(
+            EMPTY,
+            new GreaterThan(EMPTY, new Mod(EMPTY, a, integer(3)), integer(10)),
+            new GreaterThan(EMPTY, new Div(EMPTY, a, integer(2)), integer(100))
+        );
+        var max_filter = new Alias(EMPTY, "max", new FilteredExpression(EMPTY, max, max_filter_ex));
+
+        var avg_filter_ex = new GreaterThan(EMPTY, new Div(EMPTY, a, integer(2)), integer(100));
+        var avg_filter = new Alias(EMPTY, "avg", new FilteredExpression(EMPTY, avg, avg_filter_ex));
+
+        assertEquals(
+            new Aggregate(
+                EMPTY,
+                PROCESSING_CMD_INPUT,
+                Aggregate.AggregateType.STANDARD,
+                List.of(a),
+                List.of(min_alias, max_filter, avg_filter, a)
+            ),
+            processingCommand("""
+                stats
+                min = min(a),
+                max = max(a) WHERE (a % 3 > 10 OR a / 2 > 100),
+                avg = avg(a) WHERE a / 2 > 100
+                BY a
+                """)
+        );
+    }
+
+    public void testStatsWithoutGroupKeyMixedAggAndFilter() throws Exception {
+        var a = attribute("a");
+        var f = new UnresolvedFunction(EMPTY, "min", DEFAULT, List.of(a));
+        var filter = new Alias(EMPTY, "min(a) where a > 1", new FilteredExpression(EMPTY, f, new GreaterThan(EMPTY, a, integer(1))));
+        assertEquals(
+            new Aggregate(EMPTY, PROCESSING_CMD_INPUT, Aggregate.AggregateType.STANDARD, List.of(), List.of(filter)),
+            processingCommand("stats min(a) where a > 1")
+        );
     }
 
     public void testInlineStatsWithGroups() {

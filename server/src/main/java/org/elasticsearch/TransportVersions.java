@@ -103,10 +103,6 @@ public class TransportVersions {
     public static final TransportVersion V_8_13_4 = def(8_595_00_1);
     public static final TransportVersion V_8_14_0 = def(8_636_00_1);
     public static final TransportVersion V_8_15_0 = def(8_702_00_2);
-    /**
-     * we made a single backport for ESQL_ES_FIELD_CACHED_SERIALIZATION and ESQL_ATTRIBUTE_CACHED_SERIALIZATION
-     * with only one TransportVersion entry
-     */
     public static final TransportVersion V_8_15_2 = def(8_702_00_3);
     public static final TransportVersion ML_INFERENCE_DONT_DELETE_WHEN_SEMANTIC_TEXT_EXISTS = def(8_703_00_0);
     public static final TransportVersion INFERENCE_ADAPTIVE_ALLOCATIONS = def(8_704_00_0);

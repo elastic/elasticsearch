@@ -48,7 +48,6 @@ import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotR
 import java.io.IOException;
 import java.time.Instant;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
@@ -84,10 +83,10 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseFroz
 
         if (DiscoveryNode.canContainData(otherSettings)
             && getRolesFromSettings(otherSettings).stream()
-            .anyMatch(
-                nr -> nr.roleName().equals(DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE.roleName())
-                    || nr.roleName().equals(DiscoveryNodeRole.DATA_ROLE.roleName())
-            )) {
+                .anyMatch(
+                    nr -> nr.roleName().equals(DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE.roleName())
+                        || nr.roleName().equals(DiscoveryNodeRole.DATA_ROLE.roleName())
+                )) {
             return Settings.builder()
                 .put(initialSettings)
                 // Have a shared cache of reasonable size available on each node because tests randomize over frozen and cold allocation
@@ -1055,14 +1054,14 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseFroz
 
         TermQueryBuilder termQueryBuilder = QueryBuilders.termQuery("_tier", "data_content");
         List<String> indicesToSearch = List.of(regularIndex, partiallyMountedIndex);
-        SearchRequest request = new SearchRequest()
-            .indices(indicesToSearch.toArray(new String[0]))
+        SearchRequest request = new SearchRequest().indices(indicesToSearch.toArray(new String[0]))
             .source(new SearchSourceBuilder().query(termQueryBuilder));
 
-        assertResponse(client().search(request), newSearchResponse -> {
+        assertResponse(client().search(request), searchResponse -> {
             // as we excluded the frozen tier we shouldn't get any failures
-            assertThat(newSearchResponse.getFailedShards(), equalTo(0));
-            assertThat(newSearchResponse.getHits().getTotalHits().value, equalTo(numDocsRegularIndex));
+            assertThat(searchResponse.getFailedShards(), equalTo(0));
+            // we should be receiving all the hits from the index that's in the data_content tier
+            assertThat(searchResponse.getHits().getTotalHits().value, equalTo((long) numDocsRegularIndex));
         });
     }
 

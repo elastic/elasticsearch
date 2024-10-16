@@ -223,32 +223,14 @@ public class TermQueryBuilder extends BaseTermQueryBuilder<TermQueryBuilder> {
 
     @Override
     protected QueryBuilder doCoordinatorRewrite(CoordinatorRewriteContext coordinatorRewriteContext) {
-        return toQueryBuilder(getRelation(coordinatorRewriteContext));
-    }
-
-    protected MappedFieldType.Relation getRelation(final CoordinatorRewriteContext coordinatorRewriteContext) {
         final MappedFieldType fieldType = coordinatorRewriteContext.getFieldType(CONTENT_TYPE);
         if (fieldType instanceof final DataTierFieldMapper.DataTierFieldType tierFieldType) {
             Query tierFieldQuery = tierFieldType.innerTermsQuery(value, coordinatorRewriteContext);
-            if (tierFieldQuery instanceof MatchAllDocsQuery) {
-                return MappedFieldType.Relation.INTERSECTS;
-            } else {
-                return MappedFieldType.Relation.DISJOINT;
-            }
-        }
-        return MappedFieldType.Relation.INTERSECTS;
-    }
-
-    private AbstractQueryBuilder<? extends AbstractQueryBuilder<?>> toQueryBuilder(MappedFieldType.Relation relation) {
-        switch (relation) {
-            case DISJOINT -> {
+            if (tierFieldQuery instanceof MatchNoDocsQuery) {
                 return new MatchNoneQueryBuilder("The \"" + getName() + "\" query was rewritten to a \"match_none\" query.");
             }
-            case INTERSECTS -> {
-                return this;
-            }
-            default -> throw new AssertionError();
         }
+        return this;
     }
 
     @Override

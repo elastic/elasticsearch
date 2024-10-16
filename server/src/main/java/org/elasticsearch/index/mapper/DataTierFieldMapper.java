@@ -54,8 +54,9 @@ public class DataTierFieldMapper extends MetadataFieldMapper {
                 pattern = Strings.toLowercaseAscii(pattern);
             }
 
-            String tierPreference = context instanceof CoordinatorRewriteContext ? ((CoordinatorRewriteContext) context).getTier() :
-                getTierPreference(context);
+            String tierPreference = context instanceof CoordinatorRewriteContext
+                ? ((CoordinatorRewriteContext) context).getTier()
+                : getTierPreference(context);
             if (tierPreference == null || tierPreference.isEmpty()) {
                 return false;
             }

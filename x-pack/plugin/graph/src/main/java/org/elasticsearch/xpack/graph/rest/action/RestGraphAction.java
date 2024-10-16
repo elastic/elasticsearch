@@ -12,7 +12,6 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.protocol.xpack.graph.GraphExploreRequest;
 import org.elasticsearch.protocol.xpack.graph.GraphExploreRequest.TermBoost;
@@ -78,11 +77,6 @@ public class RestGraphAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        if (request.getRestApiVersion() == RestApiVersion.V_7 && request.hasParam("type")) {
-            deprecationLogger.compatibleCritical("graph_with_types", TYPES_DEPRECATION_MESSAGE);
-            request.param("type");
-        }
-
         GraphExploreRequest graphRequest = new GraphExploreRequest(Strings.splitStringByCommaToArray(request.param("index")));
         graphRequest.indicesOptions(IndicesOptions.fromRequest(request, graphRequest.indicesOptions()));
         graphRequest.routing(request.param("routing"));

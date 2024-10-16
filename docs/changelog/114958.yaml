@@ -1,0 +1,5 @@
+pr: 114958
+summary: Avoid NPE in `maybeStartAllocation` in `AdaptiveAllocations`
+area: Machine Learning
+type: bug
+issues: []

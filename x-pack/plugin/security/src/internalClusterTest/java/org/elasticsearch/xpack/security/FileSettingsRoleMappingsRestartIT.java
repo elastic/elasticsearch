@@ -26,7 +26,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import static org.elasticsearch.integration.RoleMappingFileSettingsIT.setupClusterStateListener;
 import static org.elasticsearch.integration.RoleMappingFileSettingsIT.setupClusterStateListenerForCleanup;
 import static org.elasticsearch.integration.RoleMappingFileSettingsIT.writeJSONFile;
-import static org.elasticsearch.xpack.core.security.authc.support.mapper.RoleMappingXContentNameFieldHelper.METADATA_NAME_FIELD;
+import static org.elasticsearch.xpack.core.security.authc.support.mapper.ReservedRoleMappingXContentNameFieldHelper.METADATA_NAME_FIELD;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.emptyIterable;
 

@@ -15,20 +15,21 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
-public final class RoleMappingXContentNameFieldHelper {
-    private static final Logger logger = LogManager.getLogger(RoleMappingXContentNameFieldHelper.class);
+public final class ReservedRoleMappingXContentNameFieldHelper {
+    private static final Logger logger = LogManager.getLogger(ReservedRoleMappingXContentNameFieldHelper.class);
 
-    public static final String METADATA_NAME_FIELD = "_es_role_mapping_name";
+    public static final String METADATA_NAME_FIELD = "_es_reserved_role_mapping_name";
     public static final String FALLBACK_NAME = "name_not_available_after_deserialization";
 
-    private RoleMappingXContentNameFieldHelper() {}
+    private ReservedRoleMappingXContentNameFieldHelper() {}
 
     public static ExpressionRoleMapping copyWithNameInMetadata(ExpressionRoleMapping roleMapping) {
         Map<String, Object> metadata = new HashMap<>(roleMapping.getMetadata());
         Object previousValue = metadata.put(METADATA_NAME_FIELD, roleMapping.getName());
         if (previousValue != null) {
             logger.error(
-                "Metadata field [{}] is reserved and will be overwritten. Please rename this field in your role mapping configuration.",
+                "Metadata field [{}] is reserved and will be overwritten with an internal system value. "
+                    + "Please rename this field in your role mapping configuration.",
                 METADATA_NAME_FIELD
             );
         }

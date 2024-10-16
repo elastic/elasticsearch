@@ -381,6 +381,9 @@ tests:
 - class: org.elasticsearch.datastreams.LazyRolloverDuringDisruptionIT
   method: testRolloverIsExecutedOnce
   issue: https://github.com/elastic/elasticsearch/issues/112634
+- class: org.elasticsearch.xpack.eql.EqlStatsIT
+  method: testEqlRestUsage
+  issue: https://github.com/elastic/elasticsearch/issues/114790
 
 # Examples:
 #

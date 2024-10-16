@@ -63,7 +63,6 @@ import java.util.Set;
 
 import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat.DEFAULT_BEAM_WIDTH;
 import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat.DEFAULT_MAX_CONN;
-import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.BBQ_FEATURE_FLAG;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -1228,11 +1227,9 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
             e.getMessage(),
             containsString("Failed to parse mapping: Mapping definition for [field] has unsupported parameters:  [foo : {}]")
         );
-        List<String> floatOnlyQuantizations = new ArrayList<>(Arrays.asList("int4_hnsw", "int8_hnsw", "int8_flat", "int4_flat"));
-        if (BBQ_FEATURE_FLAG.isEnabled()) {
-            floatOnlyQuantizations.add("bbq_hnsw");
-            floatOnlyQuantizations.add("bbq_flat");
-        }
+        List<String> floatOnlyQuantizations = new ArrayList<>(
+            Arrays.asList("int4_hnsw", "int8_hnsw", "int8_flat", "int4_flat", "bbq_hnsw", "bbq_flat")
+        );
         for (String quantizationKind : floatOnlyQuantizations) {
             e = expectThrows(
                 MapperParsingException.class,
@@ -1964,7 +1961,6 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
     }
 
     public void testKnnBBQHNSWVectorsFormat() throws IOException {
-        assumeTrue("BBQ vectors are not supported in the current version", BBQ_FEATURE_FLAG.isEnabled());
         final int m = randomIntBetween(1, DEFAULT_MAX_CONN + 10);
         final int efConstruction = randomIntBetween(1, DEFAULT_BEAM_WIDTH + 10);
         final int dims = randomIntBetween(64, 4096);
@@ -2003,7 +1999,6 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
     }
 
     public void testInvalidVectorDimensionsBBQ() {
-        assumeTrue("BBQ vectors are not supported in the current version", BBQ_FEATURE_FLAG.isEnabled());
         for (String quantizedFlatFormat : new String[] { "bbq_hnsw", "bbq_flat" }) {
             MapperParsingException e = expectThrows(MapperParsingException.class, () -> createDocumentMapper(fieldMapping(b -> {
                 b.field("type", "dense_vector");

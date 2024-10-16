@@ -374,8 +374,7 @@ public class AzureBlobStore implements BlobStore {
 
                 for (final BlobItem blobItem : containerClient.listBlobsByHierarchy("/", listBlobsOptions, null)) {
                     BlobItemProperties properties = blobItem.getProperties();
-                    Boolean isPrefix = blobItem.isPrefix();
-                    if (isPrefix != null && isPrefix) {
+                    if (blobItem.isPrefix()) {
                         continue;
                     }
                     String blobName = blobItem.getName().substring(keyPath.length());

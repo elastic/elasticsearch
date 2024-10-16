@@ -16,7 +16,6 @@ import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
 import org.elasticsearch.logsdb.datageneration.datasource.DataSourceHandler;
 import org.elasticsearch.logsdb.datageneration.datasource.DataSourceRequest;
 import org.elasticsearch.logsdb.datageneration.datasource.DataSourceResponse;
-import org.elasticsearch.logsdb.datageneration.fields.DynamicMapping;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -28,20 +27,8 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
-public class DataGeneratorTests extends ESTestCase {
-    public void testDataGeneratorSanity() throws IOException {
-        var dataGenerator = new DataGenerator(DataGeneratorSpecification.buildDefault());
-
-        var mapping = XContentBuilder.builder(XContentType.JSON.xContent());
-        dataGenerator.writeMapping(mapping);
-
-        for (int i = 0; i < 1000; i++) {
-            var document = XContentBuilder.builder(XContentType.JSON.xContent());
-            dataGenerator.generateDocument(document);
-        }
-    }
-
-    public void testDataGeneratorProducesValidMappingAndDocument() throws IOException {
+public class DataGenerationTests extends ESTestCase {
+    public void testDataGenerationProducesValidMappingAndDocument() throws IOException {
         // Make sure objects, nested objects and all field types are covered.
         var testChildFieldGenerator = new DataSourceResponse.ChildFieldGenerator() {
             private boolean dynamicSubObjectCovered = false;
@@ -101,43 +88,34 @@ public class DataGeneratorTests extends ESTestCase {
 
             @Override
             public DataSourceResponse.FieldTypeGenerator handle(DataSourceRequest.FieldTypeGenerator request) {
-                if (request.dynamicMapping() == DynamicMapping.FORBIDDEN || request.dynamicMapping() == DynamicMapping.SUPPORTED) {
-                    return new DataSourceResponse.FieldTypeGenerator(
-                        () -> new DataSourceResponse.FieldTypeGenerator.FieldTypeInfo(
-                            FieldType.values()[generatedFields++ % FieldType.values().length],
-                            false
-                        )
-                    );
-                }
+                return new DataSourceResponse.FieldTypeGenerator(
+                    () -> new DataSourceResponse.FieldTypeGenerator.FieldTypeInfo(
+                        FieldType.values()[generatedFields++ % FieldType.values().length]
+                    )
+                );
 
-                return new DataSourceResponse.FieldTypeGenerator(() -> {
-                    var fieldType = FieldType.values()[generatedFields++ % FieldType.values().length];
-                    // Does not really work with dynamic mapping.
-                    if (fieldType == FieldType.UNSIGNED_LONG) {
-                        fieldType = FieldType.values()[generatedFields++ % FieldType.values().length];
-                    }
-
-                    return new DataSourceResponse.FieldTypeGenerator.FieldTypeInfo(fieldType, true);
-                });
             }
         };
 
-        var dataGenerator = new DataGenerator(
-            DataGeneratorSpecification.builder().withDataSourceHandlers(List.of(dataSourceOverride)).build()
-        );
+        var specification = DataGeneratorSpecification.builder().withDataSourceHandlers(List.of(dataSourceOverride)).build();
 
-        var mapping = XContentBuilder.builder(XContentType.JSON.xContent());
-        dataGenerator.writeMapping(mapping);
+        var documentGenerator = new DocumentGenerator(specification);
+
+        var template = new TemplateGenerator(specification).generate();
+        var mapping = new MappingGenerator(specification).generate(template);
+
+        var mappingXContent = XContentBuilder.builder(XContentType.JSON.xContent());
+        mappingXContent.map(mapping.raw());
 
         var mappingService = new MapperServiceTestCase() {
             @Override
             protected Collection<? extends Plugin> getPlugins() {
                 return List.of(new UnsignedLongMapperPlugin(), new MapperExtrasPlugin());
             }
-        }.createMapperService(mapping);
+        }.createMapperService(mappingXContent);
 
         var document = XContentBuilder.builder(XContentType.JSON.xContent());
-        dataGenerator.generateDocument(document);
+        document.map(documentGenerator.generate(template, mapping));
 
         mappingService.documentMapper().parse(new SourceToParse("1", BytesReference.bytes(document), XContentType.JSON));
     }
@@ -187,19 +165,17 @@ public class DataGeneratorTests extends ESTestCase {
             @Override
             public DataSourceResponse.FieldTypeGenerator handle(DataSourceRequest.FieldTypeGenerator request) {
                 return new DataSourceResponse.FieldTypeGenerator(
-                    () -> new DataSourceResponse.FieldTypeGenerator.FieldTypeInfo(FieldType.LONG, false)
+                    () -> new DataSourceResponse.FieldTypeGenerator.FieldTypeInfo(FieldType.LONG)
                 );
             }
         };
+        var specification = DataGeneratorSpecification.builder()
+            .withDataSourceHandlers(List.of(dataSourceOverride))
+            .withMaxObjectDepth(2)
+            .build();
 
-        var dataGenerator = new DataGenerator(
-            DataGeneratorSpecification.builder().withDataSourceHandlers(List.of(dataSourceOverride)).withMaxObjectDepth(2).build()
-        );
-
-        var mapping = XContentBuilder.builder(XContentType.JSON.xContent());
-        dataGenerator.writeMapping(mapping);
-
-        var document = XContentBuilder.builder(XContentType.JSON.xContent());
-        dataGenerator.generateDocument(document);
+        var template = new TemplateGenerator(specification).generate();
+        var mapping = new MappingGenerator(specification).generate(template);
+        var ignored = new DocumentGenerator(specification).generate(template, mapping);
     }
 }

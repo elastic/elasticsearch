@@ -398,6 +398,9 @@ tests:
 - class: org.elasticsearch.xpack.enrich.EnrichRestIT
   method: test {p0=enrich/50_data_stream/enrich documents over _bulk via a data stream}
   issue: https://github.com/elastic/elasticsearch/issues/114769
+- class: org.elasticsearch.xpack.remotecluster.RemoteClusterSecurityWithApmTracingRestIT
+  method: testTracingCrossCluster
+  issue: https://github.com/elastic/elasticsearch/issues/112731
 
 # Examples:
 #

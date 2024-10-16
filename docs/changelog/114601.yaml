@@ -1,5 +1,5 @@
 pr: 114601
-summary: Semantic-text_object-fields-bug
+summary: Support semantic_text in object fields
 area: Vector Search
 type: bug
 issues:

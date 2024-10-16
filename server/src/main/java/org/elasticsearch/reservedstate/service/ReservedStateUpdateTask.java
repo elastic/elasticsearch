@@ -192,7 +192,7 @@ public class ReservedStateUpdateTask implements ClusterStateTaskListener {
 
         Long alreadyProcessedVersion = existingMetadata.version();
         if (alreadyProcessedVersion < reservedStateVersion.version()
-            || reservedStateVersionParameters.reprocessSameVersion() && alreadyProcessedVersion.equals(reservedStateVersion.version())) {
+            || (reservedStateVersionParameters.reprocessSameVersion() && alreadyProcessedVersion.equals(reservedStateVersion.version()))) {
             return true;
         }
 

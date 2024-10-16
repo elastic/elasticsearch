@@ -315,18 +315,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
   method: test {categorize.Categorize ASYNC}
   issue: https://github.com/elastic/elasticsearch/issues/113721
-- class: org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvPercentileTests
-  method: "testEvaluateBlockWithoutNulls {TestCase=field: <positive mv UNORDERED longs>, percentile: <small positive double>}"
-  issue: https://github.com/elastic/elasticsearch/issues/114585
-- class: org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvPercentileTests
-  method: "testEvaluateBlockWithoutNulls {TestCase=field: <positive mv SORTED_ASCENDING longs>, percentile: <small positive double>}"
-  issue: https://github.com/elastic/elasticsearch/issues/114586
-- class: org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvPercentileTests
-  method: "testEvaluateBlockWithoutNulls {TestCase=field: <positive mv DEDUPLICATED_AND_SORTED_ASCENDING longs>, percentile: <small positive double>}"
-  issue: https://github.com/elastic/elasticsearch/issues/114587
-- class: org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvPercentileTests
-  method: "testEvaluateBlockWithoutNulls {TestCase=field: <positive mv DEDUPLICATED_UNORDERD longs>, percentile: <small positive double>}"
-  issue: https://github.com/elastic/elasticsearch/issues/114588
 - class: org.elasticsearch.action.search.SearchQueryThenFetchAsyncActionTests
   method: testMinimumVersionSameAsNewVersion
   issue: https://github.com/elastic/elasticsearch/issues/114593

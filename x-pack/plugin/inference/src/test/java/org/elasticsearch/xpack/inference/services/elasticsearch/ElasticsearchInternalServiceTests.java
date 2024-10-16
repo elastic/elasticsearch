@@ -52,7 +52,10 @@ import org.elasticsearch.xpack.core.ml.inference.results.MlTextEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.inference.results.MlTextEmbeddingResultsTests;
 import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
 import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResultsTests;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextEmbeddingConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextEmbeddingConfigUpdate;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextExpansionConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextSimilarityConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TokenizationConfigUpdate;
 import org.elasticsearch.xpack.inference.InferencePlugin;
 import org.elasticsearch.xpack.inference.chunking.ChunkingSettingsTests;
@@ -564,9 +567,9 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
             var client = mock(Client.class);
             doAnswer(invocation -> {
                 var listener = (ActionListener<GetTrainedModelsAction.Response>) invocation.getArguments()[2];
-                listener.onResponse(
-                    new GetTrainedModelsAction.Response(new QueryPage<>(List.of(mock(TrainedModelConfig.class)), 1, mock(ParseField.class)))
-                );
+                var modelConfig = mock(TrainedModelConfig.class);
+                when(modelConfig.getInferenceConfig()).thenReturn(mock(TextSimilarityConfig.class));
+                listener.onResponse(new GetTrainedModelsAction.Response(new QueryPage<>(List.of(modelConfig), 1, mock(ParseField.class))));
                 return null;
             }).when(client).execute(Mockito.same(GetTrainedModelsAction.INSTANCE), any(), any());
 
@@ -611,9 +614,9 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
             var client = mock(Client.class);
             doAnswer(invocation -> {
                 var listener = (ActionListener<GetTrainedModelsAction.Response>) invocation.getArguments()[2];
-                listener.onResponse(
-                    new GetTrainedModelsAction.Response(new QueryPage<>(List.of(mock(TrainedModelConfig.class)), 1, mock(ParseField.class)))
-                );
+                var modelConfig = mock(TrainedModelConfig.class);
+                when(modelConfig.getInferenceConfig()).thenReturn(mock(TextSimilarityConfig.class));
+                listener.onResponse(new GetTrainedModelsAction.Response(new QueryPage<>(List.of(modelConfig), 1, mock(ParseField.class))));
                 return null;
             }).when(client).execute(Mockito.same(GetTrainedModelsAction.INSTANCE), any(), any());
 
@@ -710,9 +713,9 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
         var client = mock(Client.class);
         doAnswer(invocation -> {
             var listener = (ActionListener<GetTrainedModelsAction.Response>) invocation.getArguments()[2];
-            listener.onResponse(
-                new GetTrainedModelsAction.Response(new QueryPage<>(List.of(mock(TrainedModelConfig.class)), 1, mock(ParseField.class)))
-            );
+            var modelConfig = mock(TrainedModelConfig.class);
+            when(modelConfig.getInferenceConfig()).thenReturn(mock(TextExpansionConfig.class));
+            listener.onResponse(new GetTrainedModelsAction.Response(new QueryPage<>(List.of(modelConfig), 1, mock(ParseField.class))));
             return null;
         }).when(client).execute(Mockito.same(GetTrainedModelsAction.INSTANCE), any(), any());
 
@@ -1303,14 +1306,20 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
     }
 
     public void testParseRequestConfigEland_PreservesTaskType() {
+        var taskType = randomFrom(EnumSet.of(TaskType.RERANK, TaskType.TEXT_EMBEDDING, TaskType.SPARSE_EMBEDDING));
+        var modelConfig = mock(TrainedModelConfig.class);
+        switch (taskType) {
+            case RERANK -> when(modelConfig.getInferenceConfig()).thenReturn(mock(TextSimilarityConfig.class));
+            case SPARSE_EMBEDDING -> when(modelConfig.getInferenceConfig()).thenReturn(mock(TextExpansionConfig.class));
+            case TEXT_EMBEDDING -> when(modelConfig.getInferenceConfig()).thenReturn(mock(TextEmbeddingConfig.class));
+        }
+
         var client = mock(Client.class);
         doAnswer(invocationOnMock -> {
             @SuppressWarnings("unchecked")
             ActionListener<GetTrainedModelsAction.Response> listener = (ActionListener<GetTrainedModelsAction.Response>) invocationOnMock
                 .getArguments()[2];
-            listener.onResponse(
-                new GetTrainedModelsAction.Response(new QueryPage<>(List.of(mock(TrainedModelConfig.class)), 1, mock(ParseField.class)))
-            );
+            listener.onResponse(new GetTrainedModelsAction.Response(new QueryPage<>(List.of(modelConfig), 1, mock(ParseField.class))));
             return Void.TYPE;
         }).when(client).execute(eq(GetTrainedModelsAction.INSTANCE), any(), any());
         when(client.threadPool()).thenReturn(threadPool);
@@ -1331,7 +1340,6 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
             )
         );
 
-        var taskType = randomFrom(EnumSet.of(TaskType.RERANK, TaskType.TEXT_EMBEDDING, TaskType.SPARSE_EMBEDDING));
         CustomElandModel expectedModel = getCustomElandModel(taskType);
 
         PlainActionFuture<Model> listener = new PlainActionFuture<>();

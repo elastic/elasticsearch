@@ -28,7 +28,6 @@ import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.search.rank.RankBuilder;
 import org.elasticsearch.search.rescore.RescorerBuilder;
 import org.elasticsearch.search.searchafter.SearchAfterBuilder;
 import org.elasticsearch.search.slice.SliceBuilder;
@@ -121,7 +120,6 @@ public class RandomSearchRequestGenerator {
     public static SearchSourceBuilder randomSearchSourceBuilder(
         Supplier<HighlightBuilder> randomHighlightBuilder,
         Supplier<SuggestBuilder> randomSuggestBuilder,
-        Supplier<RankBuilder> rankContextBuilderSupplier,
         Supplier<RescorerBuilder<?>> randomRescoreBuilder,
         Supplier<List<SearchExtBuilder>> randomExtBuilders,
         Supplier<CollapseBuilder> randomCollapseBuilder,
@@ -341,9 +339,6 @@ public class RandomSearchRequestGenerator {
         }
         if (randomBoolean()) {
             builder.suggest(randomSuggestBuilder.get());
-        }
-        if (randomBoolean()) {
-            builder.rankBuilder(rankContextBuilderSupplier.get());
         }
         if (randomBoolean()) {
             int numRescores = randomIntBetween(1, 5);

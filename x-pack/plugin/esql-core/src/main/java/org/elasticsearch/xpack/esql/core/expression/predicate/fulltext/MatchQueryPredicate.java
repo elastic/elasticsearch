@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.esql.core.expression.predicate.fulltext;
 
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -17,6 +18,8 @@ import java.util.List;
 import java.util.Objects;
 
 import static java.util.Collections.singletonList;
+import static org.elasticsearch.xpack.esql.core.querydsl.query.MatchQuery.BOOST_OPTION;
+import static org.elasticsearch.xpack.esql.core.querydsl.query.MatchQuery.FUZZINESS_OPTION;
 
 public class MatchQueryPredicate extends FullTextPredicate {
 
@@ -31,6 +34,25 @@ public class MatchQueryPredicate extends FullTextPredicate {
     public MatchQueryPredicate(Source source, Expression field, String query, String options) {
         super(source, query, options, singletonList(field));
         this.field = field;
+    }
+
+    public MatchQueryPredicate(Source source, Expression field, String query, Double boost, Fuzziness fuzziness) {
+        super(source, query, createOptions(boost, fuzziness), singletonList(field));
+        this.field = field;
+    }
+
+    private static String createOptions(Double boost, Fuzziness fuzziness) {
+        StringBuilder options = new StringBuilder();
+        if (boost != null) {
+            options.append(BOOST_OPTION).append("=").append(boost);
+        }
+        if (fuzziness != null) {
+            if (boost != null) {
+                options.append(";");
+            }
+            options.append(FUZZINESS_OPTION).append("=").append(fuzziness.asString());
+        }
+        return options.toString();
     }
 
     MatchQueryPredicate(StreamInput in) throws IOException {

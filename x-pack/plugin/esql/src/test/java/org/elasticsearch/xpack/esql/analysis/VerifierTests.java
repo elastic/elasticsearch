@@ -1112,35 +1112,39 @@ public class VerifierTests extends ESTestCase {
     public void testMatchInsideEval() throws Exception {
         assumeTrue("Match operator is available just for snapshots", Build.current().isSnapshot());
 
-        assertEquals("1:36: EVAL does not support MATCH expressions", error("row title = \"brown fox\" | eval x = title match \"fox\" "));
+        assertEquals(
+            "1:36: [:] operator is only supported in WHERE commands",
+            error("row title = \"brown fox\" | eval x = title:\"fox\" ")
+        );
     }
 
     public void testMatchFilter() throws Exception {
-        assumeTrue("Match operator is available just for snapshots", Build.current().isSnapshot());
+        assumeTrue("Match operator is available just for snapshots", EsqlCapabilities.Cap.MATCH_OPERATOR_COLON.isEnabled());
 
         assertEquals(
-            "1:63: MATCH requires a mapped index field, found [name]",
-            error("from test | eval name = concat(first_name, last_name) | where name match \"Anna\"")
+            "1:63: [:] operator requires a mapped index field, found [name]",
+            error("from test | eval name = concat(first_name, last_name) | where name:\"Anna\"")
         );
 
         assertEquals(
-            "1:19: MATCH requires a text or keyword field, but [salary] has type [integer]",
-            error("from test | where salary match \"100\"")
+            "1:19: [:] operator requires a text or keyword field, but [salary] has type [integer]",
+            error("from test | where salary:\"100\"")
         );
 
         assertEquals(
-            "1:19: Invalid condition using MATCH",
-            error("from test | where first_name match \"Anna\" or starts_with(first_name, \"Anne\")")
+            "1:19: Invalid condition [first_name:\"Anna\" or starts_with(first_name, \"Anne\")]. "
+                + "[:] operator can't be used as part of an or condition",
+            error("from test | where first_name:\"Anna\" or starts_with(first_name, \"Anne\")")
         );
 
         assertEquals(
-            "1:51: Invalid condition using MATCH",
-            error("from test | eval new_salary = salary + 10 | where first_name match \"Anna\" OR new_salary > 100")
+            "1:51: Invalid condition [first_name:\"Anna\" OR new_salary > 100]. " + "[:] operator can't be used as part of an or condition",
+            error("from test | eval new_salary = salary + 10 | where first_name:\"Anna\" OR new_salary > 100")
         );
 
         assertEquals(
-            "1:45: MATCH requires a mapped index field, found [fn]",
-            error("from test | rename first_name as fn | where fn match \"Anna\"")
+            "1:45: [:] operator requires a mapped index field, found [fn]",
+            error("from test | rename first_name as fn | where fn:\"Anna\"")
         );
     }
 
@@ -1243,18 +1247,27 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testQueryStringWithDisjunctions() {
-        checkWithDisjunctions("QSTR", "qstr(\"first_name: Anna\")");
+        checkWithDisjunctions("QSTR", "qstr(\"first_name: Anna\")", "function");
     }
 
-    public void testMatchWithDisjunctions() {
-        checkWithDisjunctions("MATCH", "match(first_name, \"Anna\")");
+    public void testMatchFunctionWithDisjunctions() {
+        checkWithDisjunctions("MATCH", "match(first_name, \"Anna\")", "function");
     }
 
-    private void checkWithDisjunctions(String functionName, String functionInvocation) {
+    public void testMatchOperatorWithDisjunctions() {
+        assumeTrue("skipping because MATCH operator is not enabled", EsqlCapabilities.Cap.MATCH_OPERATOR_COLON.isEnabled());
+
+        checkWithDisjunctions(":", "first_name : \"Anna\"", "operator");
+    }
+
+    private void checkWithDisjunctions(String functionName, String functionInvocation, String functionType) {
         assertEquals(
             LoggerMessageFormat.format(
                 null,
-                "1:19: Invalid condition [{} or length(first_name) > 12]. " + "Function {} can't be used as part of an or condition",
+                "1:19: Invalid condition [{} or length(first_name) > 12]. "
+                    + "[{}] "
+                    + functionType
+                    + " can't be used as part of an or condition",
                 functionInvocation,
                 functionName
             ),
@@ -1264,7 +1277,9 @@ public class VerifierTests extends ESTestCase {
             LoggerMessageFormat.format(
                 null,
                 "1:19: Invalid condition [({} and first_name is not null) or (length(first_name) > 12 and first_name is null)]. "
-                    + "Function {} can't be used as part of an or condition",
+                    + "[{}] "
+                    + functionType
+                    + " can't be used as part of an or condition",
                 functionInvocation,
                 functionName
             ),
@@ -1278,7 +1293,9 @@ public class VerifierTests extends ESTestCase {
             LoggerMessageFormat.format(
                 null,
                 "1:19: Invalid condition [({} and first_name is not null) or first_name is null]. "
-                    + "Function {} can't be used as part of an or condition",
+                    + "[{}] "
+                    + functionType
+                    + " can't be used as part of an or condition",
                 functionInvocation,
                 functionName
             ),
@@ -1296,19 +1313,23 @@ public class VerifierTests extends ESTestCase {
 
     private void checkFullTextFunctionsWithNonBooleanFunctions(String functionName, String functionInvocation) {
         assertEquals(
-            "1:19: Invalid condition [" + functionInvocation + " is not null]. Function " + functionName + " can't be used with ISNOTNULL",
+            "1:19: Invalid condition ["
+                + functionInvocation
+                + " is not null]. ["
+                + functionName
+                + "] function can't be used with ISNOTNULL",
             error("from test | where " + functionInvocation + " is not null")
         );
         assertEquals(
-            "1:19: Invalid condition [" + functionInvocation + " is null]. Function " + functionName + " can't be used with ISNULL",
+            "1:19: Invalid condition [" + functionInvocation + " is null]. [" + functionName + "] function can't be used with ISNULL",
             error("from test | where " + functionInvocation + " is null")
         );
         assertEquals(
             "1:19: Invalid condition ["
                 + functionInvocation
-                + " in (\"hello\", \"world\")]. Function "
+                + " in (\"hello\", \"world\")]. ["
                 + functionName
-                + " can't be used with IN",
+                + "] function can't be used with IN",
             error("from test | where " + functionInvocation + " in (\"hello\", \"world\")")
         );
     }
@@ -1331,6 +1352,12 @@ public class VerifierTests extends ESTestCase {
             "1:68: Unknown column [first_name]",
             error("from test | stats max_salary = max(salary) by emp_no | where match(first_name, \"Anna\")")
         );
+
+        assumeTrue("skipping because MATCH operator is not enabled", EsqlCapabilities.Cap.MATCH_OPERATOR_COLON.isEnabled());
+        assertEquals(
+            "1:62: Unknown column [first_name]",
+            error("from test | stats max_salary = max(salary) by emp_no | where first_name : \"Anna\"")
+        );
     }
 
     public void testMatchFunctionNullArgs() throws Exception {
@@ -1344,8 +1371,11 @@ public class VerifierTests extends ESTestCase {
         );
     }
 
-    public void testMatchFunctionTargetsExistingField() throws Exception {
+    public void testMatchTargetsExistingField() throws Exception {
         assertEquals("1:39: Unknown column [first_name]", error("from test | keep emp_no | where match(first_name, \"Anna\")"));
+
+        assumeTrue("skipping because MATCH operator is not enabled", EsqlCapabilities.Cap.MATCH_OPERATOR_COLON.isEnabled());
+        assertEquals("1:33: Unknown column [first_name]", error("from test | keep emp_no | where first_name : \"Anna\""));
     }
 
     public void testCoalesceWithMixedNumericTypes() {

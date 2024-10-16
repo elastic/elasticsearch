@@ -97,18 +97,6 @@ public class EsqlBaseParserBaseListener implements EsqlBaseParserListener {
    *
    * <p>The default implementation does nothing.</p>
    */
-  @Override public void enterMatchExpression(EsqlBaseParser.MatchExpressionContext ctx) { }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation does nothing.</p>
-   */
-  @Override public void exitMatchExpression(EsqlBaseParser.MatchExpressionContext ctx) { }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation does nothing.</p>
-   */
   @Override public void enterLogicalNot(EsqlBaseParser.LogicalNotContext ctx) { }
   /**
    * {@inheritDoc}
@@ -157,6 +145,18 @@ public class EsqlBaseParserBaseListener implements EsqlBaseParserListener {
    *
    * <p>The default implementation does nothing.</p>
    */
+  @Override public void enterMatchOpExpression(EsqlBaseParser.MatchOpExpressionContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitMatchOpExpression(EsqlBaseParser.MatchOpExpressionContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
   @Override public void enterLogicalIn(EsqlBaseParser.LogicalInContext ctx) { }
   /**
    * {@inheritDoc}
@@ -193,13 +193,61 @@ public class EsqlBaseParserBaseListener implements EsqlBaseParserListener {
    *
    * <p>The default implementation does nothing.</p>
    */
-  @Override public void enterMatchBooleanExpression(EsqlBaseParser.MatchBooleanExpressionContext ctx) { }
+  @Override public void enterMatchOperatorExpression(EsqlBaseParser.MatchOperatorExpressionContext ctx) { }
   /**
    * {@inheritDoc}
    *
    * <p>The default implementation does nothing.</p>
    */
-  @Override public void exitMatchBooleanExpression(EsqlBaseParser.MatchBooleanExpressionContext ctx) { }
+  @Override public void exitMatchOperatorExpression(EsqlBaseParser.MatchOperatorExpressionContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void enterMatchOptions(EsqlBaseParser.MatchOptionsContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitMatchOptions(EsqlBaseParser.MatchOptionsContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void enterFuzzinessExpression(EsqlBaseParser.FuzzinessExpressionContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitFuzzinessExpression(EsqlBaseParser.FuzzinessExpressionContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void enterFuzzinessValue(EsqlBaseParser.FuzzinessValueContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitFuzzinessValue(EsqlBaseParser.FuzzinessValueContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void enterBoostExpression(EsqlBaseParser.BoostExpressionContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitBoostExpression(EsqlBaseParser.BoostExpressionContext ctx) { }
   /**
    * {@inheritDoc}
    *

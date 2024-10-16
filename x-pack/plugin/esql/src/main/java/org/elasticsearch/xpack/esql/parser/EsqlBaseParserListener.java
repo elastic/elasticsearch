@@ -80,18 +80,6 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    */
   void exitWhereCommand(EsqlBaseParser.WhereCommandContext ctx);
   /**
-   * Enter a parse tree produced by the {@code matchExpression}
-   * labeled alternative in {@link EsqlBaseParser#booleanExpression}.
-   * @param ctx the parse tree
-   */
-  void enterMatchExpression(EsqlBaseParser.MatchExpressionContext ctx);
-  /**
-   * Exit a parse tree produced by the {@code matchExpression}
-   * labeled alternative in {@link EsqlBaseParser#booleanExpression}.
-   * @param ctx the parse tree
-   */
-  void exitMatchExpression(EsqlBaseParser.MatchExpressionContext ctx);
-  /**
    * Enter a parse tree produced by the {@code logicalNot}
    * labeled alternative in {@link EsqlBaseParser#booleanExpression}.
    * @param ctx the parse tree
@@ -140,6 +128,18 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    */
   void exitRegexExpression(EsqlBaseParser.RegexExpressionContext ctx);
   /**
+   * Enter a parse tree produced by the {@code matchOpExpression}
+   * labeled alternative in {@link EsqlBaseParser#booleanExpression}.
+   * @param ctx the parse tree
+   */
+  void enterMatchOpExpression(EsqlBaseParser.MatchOpExpressionContext ctx);
+  /**
+   * Exit a parse tree produced by the {@code matchOpExpression}
+   * labeled alternative in {@link EsqlBaseParser#booleanExpression}.
+   * @param ctx the parse tree
+   */
+  void exitMatchOpExpression(EsqlBaseParser.MatchOpExpressionContext ctx);
+  /**
    * Enter a parse tree produced by the {@code logicalIn}
    * labeled alternative in {@link EsqlBaseParser#booleanExpression}.
    * @param ctx the parse tree
@@ -174,15 +174,55 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    */
   void exitRegexBooleanExpression(EsqlBaseParser.RegexBooleanExpressionContext ctx);
   /**
-   * Enter a parse tree produced by {@link EsqlBaseParser#matchBooleanExpression}.
+   * Enter a parse tree produced by {@link EsqlBaseParser#matchOperatorExpression}.
    * @param ctx the parse tree
    */
-  void enterMatchBooleanExpression(EsqlBaseParser.MatchBooleanExpressionContext ctx);
+  void enterMatchOperatorExpression(EsqlBaseParser.MatchOperatorExpressionContext ctx);
   /**
-   * Exit a parse tree produced by {@link EsqlBaseParser#matchBooleanExpression}.
+   * Exit a parse tree produced by {@link EsqlBaseParser#matchOperatorExpression}.
    * @param ctx the parse tree
    */
-  void exitMatchBooleanExpression(EsqlBaseParser.MatchBooleanExpressionContext ctx);
+  void exitMatchOperatorExpression(EsqlBaseParser.MatchOperatorExpressionContext ctx);
+  /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#matchOptions}.
+   * @param ctx the parse tree
+   */
+  void enterMatchOptions(EsqlBaseParser.MatchOptionsContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#matchOptions}.
+   * @param ctx the parse tree
+   */
+  void exitMatchOptions(EsqlBaseParser.MatchOptionsContext ctx);
+  /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#fuzzinessExpression}.
+   * @param ctx the parse tree
+   */
+  void enterFuzzinessExpression(EsqlBaseParser.FuzzinessExpressionContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#fuzzinessExpression}.
+   * @param ctx the parse tree
+   */
+  void exitFuzzinessExpression(EsqlBaseParser.FuzzinessExpressionContext ctx);
+  /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#fuzzinessValue}.
+   * @param ctx the parse tree
+   */
+  void enterFuzzinessValue(EsqlBaseParser.FuzzinessValueContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#fuzzinessValue}.
+   * @param ctx the parse tree
+   */
+  void exitFuzzinessValue(EsqlBaseParser.FuzzinessValueContext ctx);
+  /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#boostExpression}.
+   * @param ctx the parse tree
+   */
+  void enterBoostExpression(EsqlBaseParser.BoostExpressionContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#boostExpression}.
+   * @param ctx the parse tree
+   */
+  void exitBoostExpression(EsqlBaseParser.BoostExpressionContext ctx);
   /**
    * Enter a parse tree produced by the {@code valueExpressionDefault}
    * labeled alternative in {@link EsqlBaseParser#valueExpression}.

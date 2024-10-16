@@ -57,13 +57,6 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitWhereCommand(EsqlBaseParser.WhereCommandContext ctx);
   /**
-   * Visit a parse tree produced by the {@code matchExpression}
-   * labeled alternative in {@link EsqlBaseParser#booleanExpression}.
-   * @param ctx the parse tree
-   * @return the visitor result
-   */
-  T visitMatchExpression(EsqlBaseParser.MatchExpressionContext ctx);
-  /**
    * Visit a parse tree produced by the {@code logicalNot}
    * labeled alternative in {@link EsqlBaseParser#booleanExpression}.
    * @param ctx the parse tree
@@ -92,6 +85,13 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitRegexExpression(EsqlBaseParser.RegexExpressionContext ctx);
   /**
+   * Visit a parse tree produced by the {@code matchOpExpression}
+   * labeled alternative in {@link EsqlBaseParser#booleanExpression}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitMatchOpExpression(EsqlBaseParser.MatchOpExpressionContext ctx);
+  /**
    * Visit a parse tree produced by the {@code logicalIn}
    * labeled alternative in {@link EsqlBaseParser#booleanExpression}.
    * @param ctx the parse tree
@@ -112,11 +112,35 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitRegexBooleanExpression(EsqlBaseParser.RegexBooleanExpressionContext ctx);
   /**
-   * Visit a parse tree produced by {@link EsqlBaseParser#matchBooleanExpression}.
+   * Visit a parse tree produced by {@link EsqlBaseParser#matchOperatorExpression}.
    * @param ctx the parse tree
    * @return the visitor result
    */
-  T visitMatchBooleanExpression(EsqlBaseParser.MatchBooleanExpressionContext ctx);
+  T visitMatchOperatorExpression(EsqlBaseParser.MatchOperatorExpressionContext ctx);
+  /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#matchOptions}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitMatchOptions(EsqlBaseParser.MatchOptionsContext ctx);
+  /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#fuzzinessExpression}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitFuzzinessExpression(EsqlBaseParser.FuzzinessExpressionContext ctx);
+  /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#fuzzinessValue}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitFuzzinessValue(EsqlBaseParser.FuzzinessValueContext ctx);
+  /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#boostExpression}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitBoostExpression(EsqlBaseParser.BoostExpressionContext ctx);
   /**
    * Visit a parse tree produced by the {@code valueExpressionDefault}
    * labeled alternative in {@link EsqlBaseParser#valueExpression}.

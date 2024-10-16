@@ -30,7 +30,6 @@ import java.io.BufferedReader;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
-import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
@@ -363,9 +362,7 @@ public class AzureHttpHandler implements HttpHandler {
                     exchange.getResponseHeaders().add("Content-Type", "multipart/mixed; boundary=" + responseBoundary);
                     exchange.sendResponseHeaders(RestStatus.ACCEPTED.getStatus(), response.length());
                     logger.debug("--> Sending response:\n{}", response);
-                    try (OutputStream responseBody = exchange.getResponseBody()) {
-                        responseBody.write(response.toString().getBytes(StandardCharsets.UTF_8));
-                    }
+                    exchange.getResponseBody().write(response.toString().getBytes(StandardCharsets.UTF_8));
                 }
             } else {
                 logger.warn("--> Unrecognised request received: {}", request);

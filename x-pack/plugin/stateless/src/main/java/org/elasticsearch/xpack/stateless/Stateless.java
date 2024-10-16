@@ -216,6 +216,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
@@ -298,6 +299,7 @@ public class Stateless extends Plugin
     private final SetOnce<RecoveryMetricsCollector> recoveryMetricsCollector = new SetOnce<>();
     private final SetOnce<DocumentParsingProvider> documentParsingProvider = new SetOnce<>();
     private final SetOnce<BlobCacheMetrics> blobCacheMetrics = new SetOnce<>();
+    private final SetOnce<IndicesService> indicesService = new SetOnce<>();
     private final boolean sharedCachedSettingExplicitlySet;
 
     private final boolean sharedCacheMmapExplicitlySet;
@@ -426,7 +428,7 @@ public class Stateless extends Plugin
         ThreadPool threadPool = services.threadPool();
         Environment environment = services.environment();
         NodeEnvironment nodeEnvironment = services.nodeEnvironment();
-        IndicesService indicesService = services.indicesService();
+        IndicesService indicesService = setAndGet(this.indicesService, services.indicesService());
         final var blobCacheMetrics = setAndGet(
             this.blobCacheMetrics,
             new BlobCacheMetrics(services.telemetryProvider().getMeterRegistry())
@@ -834,6 +836,14 @@ public class Stateless extends Plugin
 
     @Override
     public void close() throws IOException {
+        // We should close the shared blob cache only after we made sure that all shards have been closed.
+        try {
+            if (indicesService.get().awaitClose(1, TimeUnit.MINUTES) == false) {
+                logger.warn("Closing the Stateless services while some shards are still open");
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
         Releasables.close(sharedBlobCacheService.get());
         try {
             IOUtils.close(blobStoreHealthIndicator.get());

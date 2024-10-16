@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.application.rules.retriever;
 
+import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchRequest;
@@ -22,10 +23,8 @@ import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.StoredFieldsContext;
 import org.elasticsearch.search.rank.RankDoc;
-import org.elasticsearch.search.retriever.CompoundRetrieverBuilder;
-import org.elasticsearch.search.retriever.RankDocsRetrieverBuilder;
-import org.elasticsearch.search.retriever.RetrieverBuilder;
-import org.elasticsearch.search.retriever.RetrieverParserContext;
+import org.elasticsearch.search.retriever.*;
+import org.elasticsearch.search.retriever.rankdoc.RankDocsQueryBuilder;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.ScoreSortBuilder;
 import org.elasticsearch.search.sort.ShardDocSortField;
@@ -51,7 +50,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
 /**
  * A query rule retriever applies query rules defined in one or more rulesets to the underlying retriever.
  */
-public final class QueryRuleRetrieverBuilder extends RetrieverBuilder {
+public final class QueryRuleRetrieverBuilder extends CompoundRetrieverBuilder<QueryRuleRetrieverBuilder> {
 
     public static final String NAME = "rule";
     public static final NodeFeature QUERY_RULE_RETRIEVERS_SUPPORTED = new NodeFeature("query_rule_retriever_supported");
@@ -97,29 +96,30 @@ public final class QueryRuleRetrieverBuilder extends RetrieverBuilder {
 
     private final List<String> rulesetIds;
     private final Map<String, Object> matchCriteria;
-    private final CompoundRetrieverBuilder.RetrieverSource subRetriever;
-    private final int rankWindowSize;
-    private boolean executed = false;
 
     public QueryRuleRetrieverBuilder(
         List<String> rulesetIds,
         Map<String, Object> matchCriteria,
-        RetrieverBuilder subRetriever,
+        RetrieverBuilder retrieverBuilder,
         int rankWindowSize
     ) {
-        this(rulesetIds, matchCriteria, new CompoundRetrieverBuilder.RetrieverSource(subRetriever, null), rankWindowSize);
-    }
-
-    private QueryRuleRetrieverBuilder(
-        List<String> rulesetIds,
-        Map<String, Object> matchCriteria,
-        CompoundRetrieverBuilder.RetrieverSource subRetriever,
-        int rankWindowSize
-    ) {
-        this.subRetriever = subRetriever;
+        super(new ArrayList<>(), rankWindowSize);
         this.rulesetIds = rulesetIds;
         this.matchCriteria = matchCriteria;
-        this.rankWindowSize = rankWindowSize;
+        addChild(new QueryRuleRetrieverBuilderWrapper(retrieverBuilder));
+    }
+
+    public QueryRuleRetrieverBuilder(
+        List<String> rulesetIds,
+        Map<String, Object> matchCriteria,
+        List<RetrieverSource> retrieverSource,
+        int rankWindowSize,
+        String retrieverName
+    ) {
+        super(retrieverSource, rankWindowSize);
+        this.rulesetIds = rulesetIds;
+        this.matchCriteria = matchCriteria;
+        this.retrieverName = retrieverName;
     }
 
     @Override
@@ -128,100 +128,21 @@ public final class QueryRuleRetrieverBuilder extends RetrieverBuilder {
     }
 
     @Override
-    public boolean isCompound() {
-        return executed == false;
-    }
-
-    @Override
-    public RetrieverBuilder rewrite(QueryRewriteContext ctx) throws IOException {
-        if (ctx.getPointInTimeBuilder() == null) {
-            throw new IllegalStateException("PIT is required");
-        }
-
-        if (executed) {
-            return this;
-        }
-
-        // Rewrite prefilters
-        var newPreFilters = rewritePreFilters(ctx);
-        if (newPreFilters != preFilterQueryBuilders) {
-            var ret = new QueryRuleRetrieverBuilder(rulesetIds, matchCriteria, subRetriever, rankWindowSize);
-            ret.preFilterQueryBuilders = newPreFilters;
-            return ret;
-        }
-
-        // Rewrite retriever sources
-        var newRetriever = subRetriever.retriever().rewrite(ctx);
-        if (newRetriever != subRetriever.retriever()) {
-            return new QueryRuleRetrieverBuilder(rulesetIds, matchCriteria, newRetriever, rankWindowSize);
-        } else {
-            var newSource = subRetriever.source() != null
-                ? subRetriever.source()
-                : createSearchSourceBuilder(ctx.getPointInTimeBuilder(), newRetriever);
-            var rewrittenSource = newSource.rewrite(ctx);
-            if (rewrittenSource != subRetriever.source()) {
-                return new QueryRuleRetrieverBuilder(
-                    rulesetIds,
-                    matchCriteria,
-                    new CompoundRetrieverBuilder.RetrieverSource(newRetriever, rewrittenSource),
-                    rankWindowSize
-                );
-            }
-        }
-
-        // execute searches
-        final SetOnce<RankDoc[]> results = new SetOnce<>();
-        final SearchRequest searchRequest = new SearchRequest().source(subRetriever.source());
-        // The can match phase can reorder shards, so we disable it to ensure the stable ordering
-        searchRequest.setPreFilterShardSize(Integer.MAX_VALUE);
-        ctx.registerAsyncAction((client, listener) -> {
-            client.execute(TransportSearchAction.TYPE, searchRequest, new ActionListener<>() {
-                @Override
-                public void onResponse(SearchResponse resp) {
-                    var rankDocs = getRankDocs(resp);
-                    results.set(rankDocs);
-                    listener.onResponse(null);
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    listener.onFailure(e);
-                }
-            });
-        });
-
-        executed = true;
-        return new RankDocsRetrieverBuilder(rankWindowSize, List.of(this), results::get, newPreFilters);
-    }
-
-    @Override
-    public void extractToSearchSourceBuilder(SearchSourceBuilder searchSourceBuilder, boolean compoundUsed) {
-        throw new IllegalStateException("Should not be called, missing a rewrite?");
-    }
-
     protected SearchSourceBuilder createSearchSourceBuilder(PointInTimeBuilder pit, RetrieverBuilder retrieverBuilder) {
-        var sourceBuilder = new SearchSourceBuilder().pointInTimeBuilder(pit)
-            .trackTotalHits(false)
-            .storedFields(new StoredFieldsContext(false))
-            .size(rankWindowSize);
-        retrieverBuilder.extractToSearchSourceBuilder(sourceBuilder, true);
-        // TODO: ensure that the inner sort is by relevance and throw an error otherwise.
+        var ret = super.createSearchSourceBuilder(pit, retrieverBuilder);
+        checkValidSort(ret.sorts());
+        ret.query(new RuleQueryBuilder(ret.query(), matchCriteria, rulesetIds));
+        return ret;
+    }
 
-        QueryBuilder query = sourceBuilder.query();
-        if (query != null && query instanceof RuleQueryBuilder == false) {
-            QueryBuilder ruleQuery = new RuleQueryBuilder(query, matchCriteria, rulesetIds);
-            sourceBuilder.query(ruleQuery);
-        }
-
-        // Record the shard id in the sort result
-        List<SortBuilder<?>> sortBuilders = sourceBuilder.sorts() != null ? new ArrayList<>(sourceBuilder.sorts()) : new ArrayList<>();
+    private static void checkValidSort(List<SortBuilder<?>> sortBuilders) {
         if (sortBuilders.isEmpty()) {
-            sortBuilders.add(new ScoreSortBuilder());
+            return;
         }
-        sortBuilders.add(new FieldSortBuilder(FieldSortBuilder.SHARD_DOC_FIELD_NAME));
-        sourceBuilder.sort(sortBuilders);
 
-        return sourceBuilder;
+        if (sortBuilders.get(0) instanceof ScoreSortBuilder == false) {
+            throw new IllegalArgumentException("Rule retrievers can only sort documents by relevance score, got: " + sortBuilders);
+        }
     }
 
     @Override
@@ -233,41 +154,56 @@ public final class QueryRuleRetrieverBuilder extends RetrieverBuilder {
     }
 
     @Override
-    public QueryBuilder topDocsQuery() {
-        QueryBuilder topDocsQuery = subRetriever.source().query();
-        if (preFilterQueryBuilders.isEmpty()) {
-            topDocsQuery.queryName(this.retrieverName);
-            return topDocsQuery;
+    protected QueryRuleRetrieverBuilder clone(List<RetrieverSource> newChildRetrievers) {
+        return new QueryRuleRetrieverBuilder(rulesetIds, matchCriteria, newChildRetrievers, rankWindowSize, retrieverName);
+    }
+
+    @Override
+    protected RankDoc[] combineInnerRetrieverResults(List<ScoreDoc[]> rankResults) {
+        assert rankResults.size() == 1;
+        ScoreDoc[] scoreDocs = rankResults.getFirst();
+        RankDoc[] rankDocs = new RankDoc[scoreDocs.length];
+        for (int i = 0; i < scoreDocs.length; i++) {
+            ScoreDoc scoreDoc = scoreDocs[i];
+            rankDocs[i] = new RankDoc(scoreDoc.doc, scoreDoc.score, scoreDoc.shardIndex);
+            rankDocs[i].rank = i + 1;
         }
-        var ret = new BoolQueryBuilder().filter(topDocsQuery).queryName(this.retrieverName);
-        preFilterQueryBuilders.stream().forEach(ret::filter);
-        return subRetriever.source().query();
+        return rankDocs;
     }
 
     @Override
     public boolean doEquals(Object o) {
         QueryRuleRetrieverBuilder that = (QueryRuleRetrieverBuilder) o;
-        return Objects.equals(rulesetIds, that.rulesetIds)
-            && Objects.equals(matchCriteria, that.matchCriteria)
-            && subRetriever.equals(that.subRetriever);
+        return super.doEquals(o) && Objects.equals(rulesetIds, that.rulesetIds) && Objects.equals(matchCriteria, that.matchCriteria);
     }
 
     @Override
     public int doHashCode() {
-        return Objects.hash(subRetriever, rulesetIds, matchCriteria);
+        return Objects.hash(super.doHashCode(), rulesetIds, matchCriteria);
     }
 
-    private RankDoc[] getRankDocs(SearchResponse searchResponse) {
-        int size = searchResponse.getHits().getHits().length;
-        RankDoc[] docs = new RankDoc[size];
-        for (int i = 0; i < size; i++) {
-            var hit = searchResponse.getHits().getAt(i);
-            long sortValue = (long) hit.getRawSortValues()[hit.getRawSortValues().length - 1];
-            int doc = ShardDocSortField.decodeDoc(sortValue);
-            int shardRequestIndex = ShardDocSortField.decodeShardRequestIndex(sortValue);
-            docs[i] = new RankDoc(doc, hit.getScore(), shardRequestIndex);
-            docs[i].rank = i + 1;
+    class QueryRuleRetrieverBuilderWrapper extends RetrieverBuilderWrapper<QueryRuleRetrieverBuilderWrapper> {
+        protected QueryRuleRetrieverBuilderWrapper(RetrieverBuilder in) {
+            super(in);
         }
-        return docs;
+
+        @Override
+        protected QueryRuleRetrieverBuilderWrapper clone(RetrieverBuilder in) {
+            return new QueryRuleRetrieverBuilderWrapper(in);
+        }
+
+        @Override
+        public QueryBuilder topDocsQuery() {
+            return new RuleQueryBuilder(in.topDocsQuery(), matchCriteria, rulesetIds);
+        }
+
+        @Override
+        public QueryBuilder explainQuery() {
+            return new RankDocsQueryBuilder(
+                in.getRankDocs(),
+                new QueryBuilder[] { new RuleQueryBuilder(in.explainQuery(), matchCriteria, rulesetIds) },
+                true
+            );
+        }
     }
 }

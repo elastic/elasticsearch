@@ -17,25 +17,27 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
-public class DataGeneratorSnapshotTests extends ESTestCase {
+public class DataGenerationSnapshotTests extends ESTestCase {
     public void testSnapshot() throws Exception {
-        var dataGenerator = new DataGenerator(
-            DataGeneratorSpecification.builder()
-                .withDataSourceHandlers(List.of(new DataSourceOverrides()))
-                .withMaxFieldCountPerLevel(5)
-                .withMaxObjectDepth(2)
-                .build()
-        );
+        var specification = DataGeneratorSpecification.builder()
+            .withDataSourceHandlers(List.of(new DataSourceOverrides()))
+            .withMaxFieldCountPerLevel(5)
+            .withMaxObjectDepth(2)
+            .build();
 
-        var mapping = XContentBuilder.builder(XContentType.JSON.xContent()).prettyPrint();
-        dataGenerator.writeMapping(mapping);
+        var template = new TemplateGenerator(specification).generate();
+        var mapping = new MappingGenerator(specification).generate(template);
 
-        var document = XContentBuilder.builder(XContentType.JSON.xContent()).prettyPrint();
-        dataGenerator.generateDocument(document);
+        var mappingXContent = XContentBuilder.builder(XContentType.JSON.xContent()).prettyPrint();
+        mappingXContent.map(mapping.raw());
+
+        var documentXContent = XContentBuilder.builder(XContentType.JSON.xContent()).prettyPrint();
+        documentXContent.map(new DocumentGenerator(specification).generate(template, mapping));
 
         var expectedMapping = """
             {
@@ -49,53 +51,66 @@ public class DataGeneratorSnapshotTests extends ESTestCase {
                         "dynamic" : "false",
                         "properties" : {
                           "f3" : {
-                            "type" : "keyword",
-                            "store" : "true"
+                            "store" : "true",
+                            "type" : "keyword"
                           },
                           "f4" : {
-                            "type" : "long",
-                            "index" : "false"
+                            "index" : "false",
+                            "type" : "long"
                           }
-                        }
+                        },
+                        "type" : "object"
                       },
                       "f5" : {
                         "dynamic" : "false",
                         "properties" : {
                           "f6" : {
-                            "type" : "keyword",
-                            "store" : "true"
+                            "store" : "true",
+                            "type" : "keyword"
                           },
                           "f7" : {
-                            "type" : "long",
-                            "index" : "false"
+                            "dynamic" : "false",
+                            "properties" : {
+                              "f8" : {
+                                "index" : "false",
+                                "type" : "long"
+                              },
+                              "f9" : {
+                                "store" : "true",
+                                "type" : "keyword"
+                              }
+                            },
+                            "type" : "nested"
                           }
-                        }
+                        },
+                        "type" : "object"
                       }
-                    }
+                    },
+                    "type" : "object"
                   },
-                  "f8" : {
-                    "type" : "nested",
+                  "f10" : {
                     "dynamic" : "false",
                     "properties" : {
-                      "f9" : {
-                        "type" : "nested",
+                      "f11" : {
                         "dynamic" : "false",
                         "properties" : {
-                          "f10" : {
-                            "type" : "keyword",
-                            "store" : "true"
+                          "f12" : {
+                            "index" : "false",
+                            "type" : "long"
                           },
-                          "f11" : {
-                            "type" : "long",
-                            "index" : "false"
+                          "f13" : {
+                            "store" : "true",
+                            "type" : "keyword"
                           }
-                        }
+                        },
+                        "type" : "nested"
                       },
-                      "f12" : {
-                        "type" : "keyword",
-                        "store" : "true"
+                      "f14" : {
+                        "index" : "false",
+                        "type" : "long"
                       }
-                    }
+                    },
+                    "type" : "nested"
                   }
                 }
               }
@@ -103,48 +118,48 @@ public class DataGeneratorSnapshotTests extends ESTestCase {
 
         var expectedDocument = """
             {
-              "f1" : [
-                {
-                  "f2" : {
-                    "f3" : [
-                      null,
-                      "string1"
-                    ],
-                    "f4" : 0
-                  },
-                  "f5" : {
-                    "f6" : "string2",
-                    "f7" : null
-                  }
+              "f1" : {
+                "f2" : {
+                  "f3" : null,
+                  "f4" : 3
                 },
-                {
-                  "f2" : {
-                    "f3" : [
-                      "string3",
-                      "string4"
-                    ],
-                    "f4" : 1
-                  },
-                  "f5" : {
-                    "f6" : null,
-                    "f7" : 2
+                "f5" : {
+                  "f6" : [
+                    "string4",
+                    "string5"
+                  ],
+                  "f7" : {
+                    "f8" : null,
+                    "f9" : "string6"
                   }
                 }
-              ],
-              "f8" : {
-                "f9" : {
-                  "f10" : [
-                    "string5",
-                    "string6"
-                  ],
-                  "f11" : null
+              },
+              "f10" : [
+                {
+                  "f11" : {
+                    "f12" : [
+                      null,
+                      0
+                    ],
+                    "f13" : "string1"
+                  },
+                  "f14" : 1
                 },
-                "f12" : "string7"
-              }
+                {
+                  "f11" : {
+                    "f12" : null,
+                    "f13" : [
+                      "string2",
+                      "string3"
+                    ]
+                  },
+                  "f14" : 2
+                }
+              ]
             }""";
 
-        assertEquals(expectedMapping, Strings.toString(mapping));
-        assertEquals(expectedDocument, Strings.toString(document));
+        assertEquals(expectedMapping, Strings.toString(mappingXContent));
+        assertEquals(expectedDocument, Strings.toString(documentXContent));
     }
 
     private static class DataSourceOverrides implements DataSourceHandler {
@@ -173,7 +188,6 @@ public class DataGeneratorSnapshotTests extends ESTestCase {
 
         @Override
         public DataSourceResponse.ArrayWrapper handle(DataSourceRequest.ArrayWrapper request) {
-
             return new DataSourceResponse.ArrayWrapper((values) -> () -> {
                 if (generateArrayChecks++ % 4 == 0) {
                     // we have nulls so can't use List.of
@@ -206,12 +220,17 @@ public class DataGeneratorSnapshotTests extends ESTestCase {
             return new DataSourceResponse.FieldTypeGenerator(() -> {
                 if (fieldType == FieldType.KEYWORD) {
                     fieldType = FieldType.LONG;
-                    return new DataSourceResponse.FieldTypeGenerator.FieldTypeInfo(FieldType.KEYWORD, false);
+                    return new DataSourceResponse.FieldTypeGenerator.FieldTypeInfo(FieldType.KEYWORD);
                 }
 
                 fieldType = FieldType.KEYWORD;
-                return new DataSourceResponse.FieldTypeGenerator.FieldTypeInfo(FieldType.LONG, false);
+                return new DataSourceResponse.FieldTypeGenerator.FieldTypeInfo(FieldType.LONG);
             });
+        }
+
+        @Override
+        public DataSourceResponse.DynamicMappingGenerator handle(DataSourceRequest.DynamicMappingGenerator request) {
+            return new DataSourceResponse.DynamicMappingGenerator((ignored) -> false);
         }
 
         @Override
@@ -229,7 +248,7 @@ public class DataGeneratorSnapshotTests extends ESTestCase {
 
         @Override
         public DataSourceResponse.ObjectMappingParametersGenerator handle(DataSourceRequest.ObjectMappingParametersGenerator request) {
-            return new DataSourceResponse.ObjectMappingParametersGenerator(() -> Map.of("dynamic", "false"));
+            return new DataSourceResponse.ObjectMappingParametersGenerator(() -> new HashMap<>(Map.of("dynamic", "false")));
         }
     }
 

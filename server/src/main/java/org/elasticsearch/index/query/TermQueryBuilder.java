@@ -223,7 +223,10 @@ public class TermQueryBuilder extends BaseTermQueryBuilder<TermQueryBuilder> {
 
     @Override
     protected QueryBuilder doCoordinatorRewrite(CoordinatorRewriteContext coordinatorRewriteContext) {
-        final MappedFieldType fieldType = coordinatorRewriteContext.getFieldType(CONTENT_TYPE);
+        if (fieldName.equals(DataTierFieldMapper.NAME) == false) {
+            return this;
+        }
+        final MappedFieldType fieldType = coordinatorRewriteContext.getFieldType(DataTierFieldMapper.NAME);
         if (fieldType instanceof final DataTierFieldMapper.DataTierFieldType tierFieldType) {
             Query tierFieldQuery = tierFieldType.innerTermsQuery(value, coordinatorRewriteContext);
             if (tierFieldQuery instanceof MatchNoDocsQuery) {

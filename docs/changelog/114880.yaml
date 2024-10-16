@@ -1,5 +1,0 @@
-pr: 114880
-summary: Fix NPE in `AdaptiveAllocationsScalerService`
-area: Machine Learning
-type: bug
-issues: []

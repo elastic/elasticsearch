@@ -114,13 +114,6 @@ public class DocWriteResponseTests extends ESTestCase {
         ) {
             // DocWriteResponse is abstract so we have to sneak a subclass in here to test it.
         };
-        try (XContentBuilder builder = XContentBuilder.builder(JsonXContent.jsonXContent, RestApiVersion.V_7)) {
-            response.toXContent(builder, ToXContent.EMPTY_PARAMS);
-
-            try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder))) {
-                assertThat(parser.map(), hasEntry(MapperService.TYPE_FIELD_NAME, MapperService.SINGLE_MAPPING_NAME));
-            }
-        }
 
         try (XContentBuilder builder = XContentBuilder.builder(JsonXContent.jsonXContent, RestApiVersion.V_8)) {
             response.toXContent(builder, ToXContent.EMPTY_PARAMS);

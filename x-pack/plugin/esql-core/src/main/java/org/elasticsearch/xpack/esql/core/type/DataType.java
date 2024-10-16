@@ -266,6 +266,8 @@ public enum DataType {
         .sorted(Comparator.comparing(DataType::typeName))
         .toList();
 
+    private static final Collection<DataType> STRING_TYPES = DataType.types().stream().filter(DataType::isString).toList();
+
     private static final Map<String, DataType> NAME_TO_TYPE = TYPES.stream().collect(toUnmodifiableMap(DataType::typeName, t -> t));
 
     private static final Map<String, DataType> ES_TO_TYPE;
@@ -290,6 +292,10 @@ public enum DataType {
 
     public static Collection<DataType> types() {
         return TYPES;
+    }
+
+    public static Collection<DataType> stringTypes() {
+        return STRING_TYPES;
     }
 
     /**
@@ -425,6 +431,10 @@ public enum DataType {
             && t.isCounter() == false;
     }
 
+    public static boolean isCounter(DataType t) {
+        return t == COUNTER_DOUBLE || t == COUNTER_INTEGER || t == COUNTER_LONG;
+    }
+
     public static boolean isSpatialPoint(DataType t) {
         return t == GEO_POINT || t == CARTESIAN_POINT;
     }
@@ -435,6 +445,10 @@ public enum DataType {
 
     public static boolean isSpatial(DataType t) {
         return t == GEO_POINT || t == CARTESIAN_POINT || t == GEO_SHAPE || t == CARTESIAN_SHAPE;
+    }
+
+    public static boolean isSortable(DataType t) {
+        return false == (t == SOURCE || isCounter(t) || isSpatial(t));
     }
 
     public String nameUpper() {

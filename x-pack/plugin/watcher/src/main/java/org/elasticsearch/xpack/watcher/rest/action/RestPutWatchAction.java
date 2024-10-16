@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.watcher.rest.action;
 
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.lucene.uid.Versions;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.protocol.xpack.watcher.PutWatchRequest;
 import org.elasticsearch.protocol.xpack.watcher.PutWatchResponse;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -33,10 +32,7 @@ public class RestPutWatchAction extends BaseRestHandler implements RestRequestFi
 
     @Override
     public List<Route> routes() {
-        return List.of(
-            Route.builder(POST, "/_watcher/watch/{id}").replaces(POST, "/_xpack/watcher/watch/{id}", RestApiVersion.V_7).build(),
-            Route.builder(PUT, "/_watcher/watch/{id}").replaces(PUT, "/_xpack/watcher/watch/{id}", RestApiVersion.V_7).build()
-        );
+        return List.of(new Route(POST, "/_watcher/watch/{id}"), new Route(PUT, "/_watcher/watch/{id}"));
     }
 
     @Override

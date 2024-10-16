@@ -372,9 +372,6 @@ tests:
 - class: org.elasticsearch.xpack.eql.EqlRestIT
   method: testUnicodeChars
   issue: https://github.com/elastic/elasticsearch/issues/114791
-- class: org.elasticsearch.xpack.rank.rrf.RRFRetrieverBuilderNestedDocsIT
-  method: testRRFExplainWithNamedRetrievers
-  issue: https://github.com/elastic/elasticsearch/issues/114820
 - class: org.elasticsearch.ingest.geoip.HttpClientTests
   issue: https://github.com/elastic/elasticsearch/issues/112618
 - class: org.elasticsearch.xpack.remotecluster.RemoteClusterSecurityWithApmTracingRestIT

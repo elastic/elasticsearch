@@ -21,7 +21,6 @@ import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.TimeValue;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -285,8 +284,7 @@ public class XContentMapValues {
      * @param map the map to search and modify in-place.
      * @param newValue the new value to assign to the path.
      *
-     * @throws IllegalArgumentException If either the path cannot be fully traversed or there is ambiguity about where to insert the new
-     *                                  value.
+     * @throws IllegalArgumentException If there is ambiguity about where to insert the new value.
      */
     public static void insertValue(String path, Map<?, ?> map, Object newValue) {
         String[] pathElements = path.split("\\.");
@@ -349,15 +347,16 @@ public class XContentMapValues {
 
             return suffixMaps;
         } else {
-            throw new IllegalArgumentException(
-                "Path ["
-                    + String.join(".", Arrays.stream(Arrays.copyOfRange(pathElements, 0, index)).toList())
-                    + "] has value ["
-                    + currentValue
-                    + "] of type ["
-                    + currentValue.getClass().getSimpleName()
-                    + "], which cannot be traversed into further"
-            );
+            // The path terminated early on a non-traversable data type. This is ok, it means we can't insert the value at this particular
+            // leaf node. Return an empty list to indicate this. The value will be inserted on the deepest appropriate parent map.
+            //
+            // This approach allows us to insert subobjects with "." chars in the key name that share a common prefix, like so:
+            //
+            // Map<String, Object> map = new HashMap<>();
+            // XContentMapValues.insertValue("x.y", map, "value1");
+            // XContentMapValues.insertValue("x", map, "value2");
+            // XContentMapValues.insertValue("x.y.z", map, "value3");
+            return List.of();
         }
     }
 

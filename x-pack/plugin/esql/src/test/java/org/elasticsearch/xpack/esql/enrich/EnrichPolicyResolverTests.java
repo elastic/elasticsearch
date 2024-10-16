@@ -448,7 +448,8 @@ public class EnrichPolicyResolverTests extends ESTestCase {
         @Override
         protected Transport.Connection getRemoteConnection(String remoteCluster) {
             assertThat("Must only called on the local cluster", cluster, equalTo(LOCAL_CLUSTER_GROUP_KEY));
-            return transports.get("").getConnection(transports.get(remoteCluster).getLocalDiscoNode());
+            MockTransportService mockTransportService = transports.get(remoteCluster);
+            return transports.get("").getConnection(mockTransportService.getLocalNode());
         }
 
         static ClusterService mockClusterService(Map<String, EnrichPolicy> policies) {

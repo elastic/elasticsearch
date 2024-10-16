@@ -443,6 +443,167 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
         }
     }
 
+    public void testStandardIndexModeWithSourceModeSetting() throws IOException {
+        // Test for IndexMode.STANDARD
+        {
+            final XContentBuilder mappings = topMapping(b -> {});
+            final Settings settings = Settings.builder()
+                .put(IndexSettings.MODE.getKey(), IndexMode.STANDARD.name())
+                .put(SourceFieldMapper.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.SYNTHETIC)
+                .build();
+            final MapperService mapperService = createMapperService(settings, mappings);
+            DocumentMapper docMapper = mapperService.documentMapper();
+            assertTrue(docMapper.sourceMapper().isSynthetic());
+        }
+        {
+            final XContentBuilder mappings = topMapping(b -> {});
+            final Settings settings = Settings.builder()
+                .put(IndexSettings.MODE.getKey(), IndexMode.STANDARD.name())
+                .put(SourceFieldMapper.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.STORED)
+                .build();
+            final MapperService mapperService = createMapperService(settings, mappings);
+            final DocumentMapper docMapper = mapperService.documentMapper();
+            assertTrue(docMapper.sourceMapper().isStored());
+        }
+        {
+            final XContentBuilder mappings = topMapping(b -> {});
+            final Settings settings = Settings.builder()
+                .put(IndexSettings.MODE.getKey(), IndexMode.STANDARD.name())
+                .put(SourceFieldMapper.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.DISABLED)
+                .build();
+            final MapperService mapperService = createMapperService(settings, mappings);
+            final DocumentMapper docMapper = mapperService.documentMapper();
+            assertTrue(docMapper.sourceMapper().isDisabled());
+        }
+
+        // Test for IndexMode.LOGSDB
+        {
+            final XContentBuilder mappings = topMapping(b -> {});
+            final Settings settings = Settings.builder()
+                .put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB.name())
+                .put(SourceFieldMapper.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.SYNTHETIC)
+                .build();
+            final MapperService mapperService = createMapperService(settings, mappings);
+            DocumentMapper docMapper = mapperService.documentMapper();
+            assertTrue(docMapper.sourceMapper().isSynthetic());
+        }
+        {
+            final XContentBuilder mappings = topMapping(b -> {});
+            final Settings settings = Settings.builder()
+                .put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB.name())
+                .put(SourceFieldMapper.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.STORED)
+                .build();
+            final MapperService mapperService = createMapperService(settings, mappings);
+            final DocumentMapper docMapper = mapperService.documentMapper();
+            assertTrue(docMapper.sourceMapper().isStored());
+        }
+        {
+            final XContentBuilder mappings = topMapping(b -> {});
+            final Settings settings = Settings.builder()
+                .put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB.name())
+                .put(SourceFieldMapper.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.DISABLED)
+                .build();
+            var ex = expectThrows(MapperParsingException.class, () -> createMapperService(settings, mappings));
+            assertEquals("Failed to parse mapping: _source can not be disabled in index using [logsdb] index mode", ex.getMessage());
+        }
+
+        // Test for IndexMode.TIME_SERIES
+        {
+            final String mappings = """
+                    {
+                        "_doc" : {
+                            "properties": {
+                                "routing_field": {
+                                    "type": "keyword",
+                                    "time_series_dimension": true
+                                }
+                            }
+                        }
+                    }
+                """;
+            final Settings settings = Settings.builder()
+                .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.name())
+                .put(SourceFieldMapper.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.SYNTHETIC)
+                .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "routing_field")
+                .build();
+            final MapperService mapperService = createMapperService(settings, mappings);
+            DocumentMapper docMapper = mapperService.documentMapper();
+            assertTrue(docMapper.sourceMapper().isSynthetic());
+        }
+        {
+            final String mappings = """
+                    {
+                        "_doc" : {
+                            "properties": {
+                                "routing_field": {
+                                    "type": "keyword",
+                                    "time_series_dimension": true
+                                }
+                            }
+                        }
+                    }
+                """;
+            final Settings settings = Settings.builder()
+                .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.name())
+                .put(SourceFieldMapper.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.STORED)
+                .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "routing_field")
+                .build();
+            final MapperService mapperService = createMapperService(settings, mappings);
+            final DocumentMapper docMapper = mapperService.documentMapper();
+            assertTrue(docMapper.sourceMapper().isStored());
+        }
+        {
+            final String mappings = """
+                    {
+                        "_doc" : {
+                            "properties": {
+                                "routing_field": {
+                                    "type": "keyword",
+                                    "time_series_dimension": true
+                                }
+                            }
+                        }
+                    }
+                """;
+            final Settings settings = Settings.builder()
+                .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.name())
+                .put(SourceFieldMapper.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.DISABLED)
+                .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "routing_field")
+                .build();
+            var ex = expectThrows(MapperParsingException.class, () -> createMapperService(settings, mappings));
+            assertEquals("Failed to parse mapping: _source can not be disabled in index using [time_series] index mode", ex.getMessage());
+        }
+
+        // Test cases without IndexMode (default to standard)
+        {
+            final XContentBuilder mappings = topMapping(b -> {});
+            final Settings settings = Settings.builder()
+                .put(SourceFieldMapper.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.SYNTHETIC)
+                .build();
+            final MapperService mapperService = createMapperService(settings, mappings);
+            DocumentMapper docMapper = mapperService.documentMapper();
+            assertTrue(docMapper.sourceMapper().isSynthetic());
+        }
+        {
+            final XContentBuilder mappings = topMapping(b -> {});
+            final Settings settings = Settings.builder()
+                .put(SourceFieldMapper.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.STORED)
+                .build();
+            final MapperService mapperService = createMapperService(settings, mappings);
+            final DocumentMapper docMapper = mapperService.documentMapper();
+            assertTrue(docMapper.sourceMapper().isStored());
+        }
+        {
+            final XContentBuilder mappings = topMapping(b -> {});
+            final Settings settings = Settings.builder()
+                .put(SourceFieldMapper.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.DISABLED)
+                .build();
+            final MapperService mapperService = createMapperService(settings, mappings);
+            final DocumentMapper docMapper = mapperService.documentMapper();
+            assertTrue(docMapper.sourceMapper().isDisabled());
+        }
+    }
+
     public void testRecoverySourceWithLogsCustom() throws IOException {
         XContentBuilder mappings = topMapping(b -> b.startObject(SourceFieldMapper.NAME).field("mode", "synthetic").endObject());
         {

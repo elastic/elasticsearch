@@ -1219,7 +1219,7 @@ public class AnalyzerTests extends ESTestCase {
         assertThat(output, hasSize(2));
         var aggs = agg.aggregates();
         var min = as(Alias.unwrap(aggs.get(0)), Min.class);
-        assertThat(min.arguments(), hasSize(1));
+        assertThat(min.arguments(), hasSize(2));    // field + filter
         var group = Alias.unwrap(agg.groupings().get(0));
         assertEquals(min.arguments().get(0), group);
     }
@@ -1241,7 +1241,7 @@ public class AnalyzerTests extends ESTestCase {
         assertThat(output, hasSize(2));
         var aggs = agg.aggregates();
         var min = as(Alias.unwrap(aggs.get(0)), Min.class);
-        assertThat(min.arguments(), hasSize(1));
+        assertThat(min.arguments(), hasSize(2));    // field + filter
         assertEquals(Expressions.attribute(min.arguments().get(0)), Expressions.attribute(agg.groupings().get(0)));
     }
 
@@ -1638,7 +1638,7 @@ public class AnalyzerTests extends ESTestCase {
         var attributes = limit.output().stream().collect(Collectors.toMap(NamedExpression::name, a -> a));
         assertThat(
             attributes.keySet(),
-            equalTo(Set.of("network.connections", "network.bytes_in", "network.bytes_out", "network.message_in"))
+            equalTo(Set.of("network.connections", "network.bytes_in", "network.bytes_out", "network.message_in", "network.message_out"))
         );
         assertThat(attributes.get("network.connections").dataType(), equalTo(DataType.LONG));
         assertThat(attributes.get("network.bytes_in").dataType(), equalTo(DataType.COUNTER_LONG));

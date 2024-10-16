@@ -11,46 +11,63 @@ import org.apache.http.HttpHeaders;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.entity.ByteArrayEntity;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.ValidationException;
+import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.inference.external.http.sender.DocumentsOnlyInput;
 import org.elasticsearch.xpack.inference.external.request.HttpRequest;
 import org.elasticsearch.xpack.inference.external.request.Request;
 import org.elasticsearch.xpack.inference.services.googleaistudio.completion.GoogleAiStudioCompletionModel;
 
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
-import java.util.List;
 import java.util.Objects;
 
 public class GoogleAiStudioCompletionRequest implements GoogleAiStudioRequest {
+    private static final String ALT_PARAM = "alt";
+    private static final String SSE_VALUE = "sse";
 
-    private final List<String> input;
+    private final DocumentsOnlyInput input;
 
-    private final URI uri;
+    private final LazyInitializable<URI, RuntimeException> uri;
 
     private final GoogleAiStudioCompletionModel model;
 
-    public GoogleAiStudioCompletionRequest(List<String> input, GoogleAiStudioCompletionModel model) {
-        this.input = input;
+    public GoogleAiStudioCompletionRequest(DocumentsOnlyInput input, GoogleAiStudioCompletionModel model) {
+        this.input = Objects.requireNonNull(input);
         this.model = Objects.requireNonNull(model);
-        this.uri = model.uri();
+        this.uri = new LazyInitializable<>(() -> model.uri(input.stream()));
     }
 
     @Override
     public HttpRequest createHttpRequest() {
-        var httpPost = new HttpPost(uri);
-        var requestEntity = Strings.toString(new GoogleAiStudioCompletionRequestEntity(input));
+        var httpPost = createHttpPost();
+        var requestEntity = Strings.toString(new GoogleAiStudioCompletionRequestEntity(input.getInputs()));
 
         ByteArrayEntity byteEntity = new ByteArrayEntity(requestEntity.getBytes(StandardCharsets.UTF_8));
         httpPost.setEntity(byteEntity);
         httpPost.setHeader(HttpHeaders.CONTENT_TYPE, XContentType.JSON.mediaType());
-        GoogleAiStudioRequest.decorateWithApiKeyParameter(httpPost, model.getSecretSettings());
 
         return new HttpRequest(httpPost, getInferenceEntityId());
     }
 
+    private HttpPost createHttpPost() {
+        try {
+            var uriBuilder = GoogleAiStudioRequest.builderWithApiKeyParameter(uri.getOrCompute(), model.getSecretSettings());
+            if (isStreaming()) {
+                uriBuilder.addParameter(ALT_PARAM, SSE_VALUE);
+            }
+            return new HttpPost(uriBuilder.build());
+        } catch (Exception e) {
+            ValidationException validationException = new ValidationException(e);
+            validationException.addValidationError(e.getMessage());
+            throw validationException;
+        }
+    }
+
     @Override
     public URI getURI() {
-        return this.uri;
+        return uri.getOrCompute();
     }
 
     @Override
@@ -68,5 +85,10 @@ public class GoogleAiStudioCompletionRequest implements GoogleAiStudioRequest {
     @Override
     public String getInferenceEntityId() {
         return model.getInferenceEntityId();
+    }
+
+    @Override
+    public boolean isStreaming() {
+        return input.stream();
     }
 }

@@ -718,7 +718,7 @@ public abstract class DocumentParserContext {
         };
         // Disable tracking array scopes for ignored source, as it would be added to the parent doc.
         // Nested documents are added to preserve object structure within arrays of objects, so the use
-        // of ignored source inside them should be mostly redundant.
+        // of ignored source for arrays inside them should be mostly redundant.
         cloned.inArrayScope = false;
         cloned.inArrayScopeEnabled = false;
         return cloned;

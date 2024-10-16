@@ -944,6 +944,7 @@ class S3BlobContainer extends AbstractBlobContainer {
                     } catch (InterruptedException interruptedException) {
                         Thread.currentThread().interrupt();
                         finalException.addSuppressed(interruptedException);
+                        // fall through and throw the exception
                     }
                 }
 

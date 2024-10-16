@@ -32,7 +32,6 @@ import org.elasticsearch.compute.operator.exchange.ExchangeSourceHandler;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -81,7 +80,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Executor;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.xpack.esql.plugin.EsqlPlugin.ESQL_WORKER_THREAD_POOL_NAME;
@@ -138,6 +136,7 @@ public class ComputeService {
         EsqlExecutionInfo execInfo,
         ActionListener<Result> listener
     ) {
+        updateExecutionInfoAtStartOfQueryExecution(execInfo);
         Tuple<PhysicalPlan, PhysicalPlan> coordinatorAndDataNodePlan = PlannerUtils.breakPlanBetweenCoordinatorAndDataNode(
             physicalPlan,
             configuration
@@ -173,19 +172,10 @@ public class ComputeService {
                 null
             );
             String local = RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
-            try (
-                var computeListener = ComputeListener.create(
-                    local,
-                    transportService,
-                    rootTask,
-                    execInfo,
-                    configuration.getQueryStartTimeNanos(),
-                    listener.map(r -> {
-                        updateExecutionInfoAfterCoordinatorOnlyQuery(configuration.getQueryStartTimeNanos(), execInfo);
-                        return new Result(physicalPlan.output(), collectedPages, r.getProfiles(), execInfo);
-                    })
-                )
-            ) {
+            try (var computeListener = ComputeListener.create(local, transportService, rootTask, execInfo, listener.map(r -> {
+                updateExecutionInfoAfterCoordinatorOnlyQuery(execInfo);
+                return new Result(physicalPlan.output(), collectedPages, r.getProfiles(), execInfo);
+            }))) {
                 runCompute(rootTask, computeContext, coordinatorPlan, computeListener.acquireCompute(local));
                 return;
             }
@@ -205,7 +195,6 @@ public class ComputeService {
             queryPragmas.exchangeBufferSize(),
             transportService.getThreadPool().executor(ThreadPool.Names.SEARCH)
         );
-        long start = configuration.getQueryStartTimeNanos();
         String local = RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
         /*
          * Grab the output attributes here, so we can pass them to
@@ -216,9 +205,8 @@ public class ComputeService {
         try (
             Releasable ignored = exchangeSource.addEmptySink();
             // this is the top level ComputeListener called once at the end (e.g., once all clusters have finished for a CCS)
-            var computeListener = ComputeListener.create(local, transportService, rootTask, execInfo, start, listener.map(r -> {
-                long tookTimeNanos = System.nanoTime() - configuration.getQueryStartTimeNanos();
-                execInfo.overallTook(new TimeValue(tookTimeNanos, TimeUnit.NANOSECONDS));
+            var computeListener = ComputeListener.create(local, transportService, rootTask, execInfo, listener.map(r -> {
+                execInfo.markEndQuery();
                 return new Result(outputAttributes, collectedPages, r.getProfiles(), execInfo);
             }))
         ) {
@@ -258,22 +246,44 @@ public class ComputeService {
         }
     }
 
-    private static void updateExecutionInfoAfterCoordinatorOnlyQuery(long queryStartNanos, EsqlExecutionInfo execInfo) {
-        long tookTimeNanos = System.nanoTime() - queryStartNanos;
-        execInfo.overallTook(new TimeValue(tookTimeNanos, TimeUnit.NANOSECONDS));
+    // visible for testing
+    static void updateExecutionInfoAtStartOfQueryExecution(EsqlExecutionInfo execInfo) {
+        execInfo.markEndPlanning();
+        for (String clusterAlias : execInfo.clusterAliases()) {
+            EsqlExecutionInfo.Cluster cluster = execInfo.getCluster(clusterAlias);
+            if (cluster.getStatus() == EsqlExecutionInfo.Cluster.Status.SKIPPED) {
+                execInfo.swapCluster(
+                    clusterAlias,
+                    (k, v) -> new EsqlExecutionInfo.Cluster.Builder(v).setTook(execInfo.planningTookTime())
+                        .setTotalShards(0)
+                        .setSuccessfulShards(0)
+                        .setSkippedShards(0)
+                        .setFailedShards(0)
+                        .build()
+                );
+            }
+        }
+    }
+
+    // For queries like: FROM logs*,remote*:logs* | LIMIT 0
+    private static void updateExecutionInfoAfterCoordinatorOnlyQuery(EsqlExecutionInfo execInfo) {
+        assert execInfo.getRelativeStartNanos() != null : "Relative start time should be set on EsqlExecutionInfo but is null";
+        assert execInfo.planningTookTime() != null : "Planning took time should be set on EsqlExecutionInfo but is null";
+
+        execInfo.markEndQuery();
         if (execInfo.isCrossClusterSearch()) {
             for (String clusterAlias : execInfo.clusterAliases()) {
-                // The local cluster 'took' time gets updated as part of the acquireCompute(local) call in the coordinator, so
-                // here we only need to update status for remote clusters since there are no remote ComputeListeners in this case.
-                // This happens in cross cluster searches that use LIMIT 0, e.g, FROM logs*,remote*:logs* | LIMIT 0.
-                if (clusterAlias.equals(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY) == false) {
-                    execInfo.swapCluster(clusterAlias, (k, v) -> {
-                        if (v.getStatus() == EsqlExecutionInfo.Cluster.Status.RUNNING) {
-                            return new EsqlExecutionInfo.Cluster.Builder(v).setStatus(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL).build();
-                        } else {
-                            return v;
-                        }
-                    });
+                if (execInfo.getCluster(clusterAlias).getStatus() != EsqlExecutionInfo.Cluster.Status.SKIPPED) {
+                    execInfo.swapCluster(
+                        clusterAlias,
+                        (k, v) -> new EsqlExecutionInfo.Cluster.Builder(v).setTook(execInfo.overallTook())
+                            .setStatus(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL)
+                            .setTotalShards(0)
+                            .setSuccessfulShards(0)
+                            .setSkippedShards(0)
+                            .setFailedShards(0)
+                            .build()
+                    );
                 }
             }
         }
@@ -837,8 +847,7 @@ public class ComputeService {
             EsqlExecutionInfo execInfo = new EsqlExecutionInfo(true);
             execInfo.swapCluster(clusterAlias, (k, v) -> new EsqlExecutionInfo.Cluster(clusterAlias, Arrays.toString(request.indices())));
             CancellableTask cancellable = (CancellableTask) task;
-            long start = request.configuration().getQueryStartTimeNanos();
-            try (var computeListener = ComputeListener.create(clusterAlias, transportService, cancellable, execInfo, start, listener)) {
+            try (var computeListener = ComputeListener.create(clusterAlias, transportService, cancellable, execInfo, listener)) {
                 runComputeOnRemoteCluster(
                     clusterAlias,
                     request.sessionId(),

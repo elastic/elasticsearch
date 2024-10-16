@@ -132,7 +132,6 @@ public class ComputeListenerTests extends ESTestCase {
                 transportService,
                 newTask(),
                 executionInfo,
-                System.nanoTime(),
                 results
             )
         ) {
@@ -152,7 +151,6 @@ public class ComputeListenerTests extends ESTestCase {
                 transportService,
                 newTask(),
                 executionInfo,
-                System.nanoTime(),
                 future
             )
         ) {
@@ -203,7 +201,6 @@ public class ComputeListenerTests extends ESTestCase {
                 transportService,
                 newTask(),
                 executionInfo,
-                System.nanoTime(),
                 future
             )
         ) {
@@ -271,7 +268,6 @@ public class ComputeListenerTests extends ESTestCase {
                 transportService,
                 newTask(),
                 executionInfo,
-                System.nanoTime(),
                 future
             )
         ) {
@@ -331,7 +327,6 @@ public class ComputeListenerTests extends ESTestCase {
                 transportService,
                 newTask(),
                 executionInfo,
-                System.nanoTime(),
                 future
             )
         ) {
@@ -379,7 +374,6 @@ public class ComputeListenerTests extends ESTestCase {
                 transportService,
                 rootTask,
                 execInfo,
-                System.nanoTime(),
                 rootListener
             )
         ) {
@@ -443,7 +437,6 @@ public class ComputeListenerTests extends ESTestCase {
                 transportService,
                 newTask(),
                 executionInfo,
-                System.nanoTime(),
                 ActionListener.runAfter(rootListener, latch::countDown)
             )
         ) {

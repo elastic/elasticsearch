@@ -72,7 +72,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Predicate;
@@ -246,7 +245,6 @@ public class EsqlSession {
                 if (indexResolution.isValid()) {
                     updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, indexResolution);
                     updateExecutionInfoWithUnavailableClusters(executionInfo, indexResolution.getUnavailableClusters());
-                    updateTookTimeForRemoteClusters(executionInfo);
                     Set<String> newClusters = enrichPolicyResolver.groupIndicesPerCluster(
                         indexResolution.get().concreteIndices().toArray(String[]::new)
                     ).keySet();
@@ -304,28 +302,6 @@ public class EsqlSession {
                     .setFailedShards(0)
                     .build()
             );
-        }
-    }
-
-    private void updateTookTimeForRemoteClusters(EsqlExecutionInfo executionInfo) {
-        if (executionInfo.isCrossClusterSearch()) {
-            for (String clusterAlias : executionInfo.clusterAliases()) {
-                if (clusterAlias.equals(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY) == false) {
-                    executionInfo.swapCluster(clusterAlias, (k, v) -> {
-                        if (v.getTook() == null && v.getStatus() != EsqlExecutionInfo.Cluster.Status.SKIPPED) {
-                            // set took time in case we are finished with the remote cluster (e.g., FROM foo | LIMIT 0).
-                            // this will be overwritten later if ES|QL operations happen on the remote cluster (the typical scenario)
-                            TimeValue took = new TimeValue(
-                                System.nanoTime() - configuration.getQueryStartTimeNanos(),
-                                TimeUnit.NANOSECONDS
-                            );
-                            return new EsqlExecutionInfo.Cluster.Builder(v).setTook(took).build();
-                        } else {
-                            return v;
-                        }
-                    });
-                }
-            }
         }
     }
 

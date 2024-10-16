@@ -33,6 +33,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.TimeUnit;
 import java.util.function.BiFunction;
 import java.util.function.Predicate;
 
@@ -60,12 +61,15 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
     // updates to the Cluster occur with the updateCluster method that given the key to map transforms an
     // old Cluster Object to a new Cluster Object with the remapping function.
     public final Map<String, Cluster> clusterInfo;
-    // not Writeable since it is only needed on the primary CCS coordinator
-    private final transient Predicate<String> skipUnavailablePredicate;
     private TimeValue overallTook;
-
     // whether the user has asked for CCS metadata to be in the JSON response (the overall took will always be present)
     private final boolean includeCCSMetadata;
+
+    // fields that are not Writeable since it is only needed on the primary CCS coordinator
+    private final transient Predicate<String> skipUnavailablePredicate;
+    private final transient Long relativeStartNanos;
+    // TODO: make this a SetOnce?
+    private transient TimeValue planningTookTime;  // time elapsed since start of query to calling ComputeService.execute
 
     public EsqlExecutionInfo(boolean includeCCSMetadata) {
         this(Predicates.always(), includeCCSMetadata);  // default all clusters to skip_unavailable=true
@@ -73,11 +77,13 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
 
     /**
      * @param skipUnavailablePredicate provide lookup for whether a given cluster has skip_unavailable set to true or false
+     * @param includeCCSMetadata (user defined setting) whether to include the CCS metadata in the HTTP response
      */
     public EsqlExecutionInfo(Predicate<String> skipUnavailablePredicate, boolean includeCCSMetadata) {
         this.clusterInfo = ConcurrentCollections.newConcurrentMap();
         this.skipUnavailablePredicate = skipUnavailablePredicate;
         this.includeCCSMetadata = includeCCSMetadata;
+        this.relativeStartNanos = System.nanoTime();
     }
 
     /**
@@ -88,6 +94,7 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
         this.clusterInfo = clusterInfo;
         this.includeCCSMetadata = includeCCSMetadata;
         this.skipUnavailablePredicate = Predicates.always();
+        this.relativeStartNanos = null;
     }
 
     public EsqlExecutionInfo(StreamInput in) throws IOException {
@@ -106,6 +113,7 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
             this.includeCCSMetadata = false;
         }
         this.skipUnavailablePredicate = Predicates.always();
+        this.relativeStartNanos = null;
     }
 
     @Override
@@ -125,7 +133,28 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
         return includeCCSMetadata;
     }
 
-    public void overallTook(TimeValue took) {
+    public Long getRelativeStartNanos() {
+        return relativeStartNanos;
+    }
+
+    public void markEndPlanning() {
+        assert planningTookTime == null : "markEndPlanning should only be called once";
+        planningTookTime = new TimeValue(System.nanoTime() - relativeStartNanos, TimeUnit.NANOSECONDS);
+        System.err.println(">>> >>> EEE ExecInfo: markEndPlanning: " + planningTookTime);
+    }
+
+    public TimeValue planningTookTime() {
+        return planningTookTime;
+    }
+
+    public void markEndQuery() {
+        assert overallTook == null : "markEndQuery should only be called once";
+        overallTook = new TimeValue(System.nanoTime() - relativeStartNanos, TimeUnit.NANOSECONDS);
+    }
+
+    // TODO: remove this?
+    // for testing only - use markEndQuery in production code
+    void overallTook(TimeValue took) {
         this.overallTook = took;
     }
 

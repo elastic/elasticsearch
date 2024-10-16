@@ -9,8 +9,6 @@
 
 package org.elasticsearch.search.fetch;
 
-import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
-
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.Set;
@@ -35,8 +33,7 @@ public record StoredFieldsSpec(boolean requiresSource, boolean requiresMetadata,
     /**
      * Use when the source should be loaded but no other stored fields are required
      */
-    //TODO: add NEEDS_IGNORE_SOURCE constant
-    public static final StoredFieldsSpec NEEDS_SOURCE = new StoredFieldsSpec(true, false, Set.of(IgnoredSourceFieldMapper.NAME));
+    public static final StoredFieldsSpec NEEDS_SOURCE = new StoredFieldsSpec(true, false, Set.of());
 
     /**
      * Combine these stored field requirements with those from another StoredFieldsSpec

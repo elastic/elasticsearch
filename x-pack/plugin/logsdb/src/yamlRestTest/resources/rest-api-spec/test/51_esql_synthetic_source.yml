@@ -1,8 +1,5 @@
 ---
 setup:
-  - requires:
-      test_runner_features: allowed_warnings_regex
-
   - do:
       indices.create:
         index: my-index
@@ -18,27 +15,16 @@ setup:
                 type: keyword
               agent_id:
                 type: keyword
-                doc_values: false
-                store: false
               process_id:
                 type: integer
-                doc_values: false
-                store: false
               http_method:
                 type: keyword
-                doc_values: false
-                store: false
               is_https:
                 type: boolean
-                doc_values: false
-                store: false
               location:
                 type: geo_point
-                doc_values: false
-                store: false
               message:
                 type: text
-                store: false
 
   - do:
       bulk:
@@ -64,65 +50,62 @@ teardown:
       indices.delete:
         index: my-index
 
-# column order varies between test runs...
-#---
-#"Simple from":
-#  - do:
-#      allowed_warnings_regex:
-#        - "Field \\[.*\\] cannot be retrieved, it is unsupported or not indexed; returning null"
-#      esql.query:
-#        body:
-#          query: 'FROM my-index | LIMIT 1'
-#
-#  - match: {columns.0.name: "@timestamp"}
-#  - match: {columns.0.type: "date"}
-#  - match: {columns.1.name: "agent_id"}
-#  - match: {columns.1.type: "keyword"}
-#  - match: {columns.2.name: "host.name"}
-#  - match: {columns.2.type: "keyword"}
-#  - match: {columns.4.name: "is_https"}
-#  - match: {columns.4.type: "boolean"}
-#  - match: {columns.5.name: "http_method"}
-#  - match: {columns.5.type: "keyword"}
-#  - match: {columns.6.name: "location"}
-#  - match: {columns.6.type: "geo_point"}
-#  - match: {columns.7.name: "message"}
-#  - match: {columns.7.type: "text"}
-#  - match: {columns.8.name: "process_id"}
-#  - match: {columns.8.type: "integer"}
-#
-#  - match: {values.0.0: "2024-02-12T10:31:00.000Z"}
-#  - match: {values.0.1: "yoda"}
-#  - match: {values.0.2: "bar"}
-#  - match: {values.0.3: "PUT"}
-#  - match: {values.0.4: "false"}
-#  - match: {values.0.5: "POINT (-74.006 40.7128)"}
-#  - match: {values.0.6: null}          # null is expected, because text fields aren't stored in ignored source
-#  - match: {values.0.7: 102}
+---
+"Simple from":
+  - do:
+      esql.query:
+        body:
+          query: 'FROM my-index | SORT host.name, @timestamp | LIMIT 1'
+
+  - match: {columns.0.name: "@timestamp"}
+  - match: {columns.0.type: "date"}
+  - match: {columns.1.name: "agent_id"}
+  - match: {columns.1.type: "keyword"}
+  - match: {columns.2.name: "host.name"}
+  - match: {columns.2.type: "keyword"}
+  - match: {columns.3.name: "http_method" }
+  - match: {columns.3.type: "keyword" }
+  - match: {columns.4.name: "is_https"}
+  - match: {columns.4.type: "boolean"}
+  - match: {columns.5.name: "location"}
+  - match: {columns.5.type: "geo_point"}
+  - match: {columns.6.name: "message"}
+  - match: {columns.6.type: "text"}
+  - match: {columns.7.name: "process_id"}
+  - match: {columns.7.type: "integer"}
+
+  - match: {values.0.0: "2024-02-12T10:31:00.000Z"}
+  - match: {values.0.1: "yoda"}
+  - match: {values.0.2: "bar"}
+  - match: {values.0.3: "PUT"}
+  - match: {values.0.4: false}
+  - match: {values.0.5: "POINT (-74.00600004941225 40.712799984030426)"}
+  - match: {values.0.6: "Do. Or do not. There is no try."}
+  - match: {values.0.7: 102}
 
 ---
 "Simple from geo point":
   - do:
       esql.query:
         body:
-          query: 'FROM my-index | KEEP location | LIMIT 10'
+          query: 'FROM my-index | SORT host.name, @timestamp | KEEP location | LIMIT 10'
 
   - match: {columns.0.name: "location"}
   - match: {columns.0.type: "geo_point"}
 
-  - match: {values.0.0: "POINT (-74.006 40.7128)"}
-  - match: {values.1.0: "POINT (-74.006 40.7128)"}
-  - match: {values.2.0: "POINT (-74.006 40.7128)"}
-  - match: {values.3.0: "POINT (-74.006 40.7128)"}
-  - match: {values.4.0: "POINT (-74.006 40.7128)"}
-  - match: {values.5.0: "POINT (-74.006 40.7128)"}
+  - match: {values.0.0: "POINT (-74.00600004941225 40.712799984030426)"}
+  - match: {values.1.0: "POINT (-74.00600004941225 40.712799984030426)"}
+  - match: {values.2.0: "POINT (-74.00600004941225 40.712799984030426)"}
+  - match: {values.3.0: "POINT (-74.00600004941225 40.712799984030426)"}
+  - match: {values.4.0: "POINT (-74.00600004941225 40.712799984030426)"}
+  - match: {values.5.0: "POINT (-74.00600004941225 40.712799984030426)"}
 
 ---
 "Simple from number fields":
   - do:
       esql.query:
         body:
-          query: 'FROM my-index | KEEP process_id | LIMIT 10'
+          query: 'FROM my-index | SORT host.name, @timestamp | KEEP process_id | LIMIT 10'
 
   - match: {columns.0.name: "process_id"}
   - match: {columns.0.type: "integer"}
@@ -139,7 +122,7 @@ teardown:
   - do:
       esql.query:
         body:
-          query: 'FROM my-index | KEEP agent_id, http_method | LIMIT 10'
+          query: 'FROM my-index | SORT host.name, @timestamp | KEEP agent_id, http_method | LIMIT 10'
 
   - match: {columns.0.name: "agent_id"}
   - match: {columns.0.type: "keyword"}
@@ -164,7 +147,7 @@ teardown:
   - do:
       esql.query:
         body:
-          query: 'FROM my-index | KEEP is_https | LIMIT 10'
+          query: 'FROM my-index | SORT host.name, @timestamp | KEEP is_https | LIMIT 10'
 
   - match: {columns.0.name: "is_https"}
   - match: {columns.0.type: "boolean"}
@@ -179,19 +162,16 @@ teardown:
 ---
 "Simple from text fields":
   - do:
-      allowed_warnings_regex:
-        - "Field \\[.*\\] cannot be retrieved, it is unsupported or not indexed; returning null"
       esql.query:
         body:
-          query: 'FROM my-index | KEEP message | LIMIT 10'
+          query: 'FROM my-index | SORT host.name, @timestamp | KEEP message | LIMIT 10'
 
   - match: {columns.0.name: "message"}
   - match: {columns.0.type: "text"}
 
-  # null is expected, because text fields aren't stored in ignored source
-  - match: {values.0.0: null}
-  - match: {values.1.0: null}
-  - match: {values.2.0: null}
-  - match: {values.3.0: null}
-  - match: {values.4.0: null}
-  - match: {values.5.0: null}
+  - match: {values.0.0: "Do. Or do not. There is no try."}
+  - match: {values.1.0: "I find your lack of faith disturbing."}
+  - match: {values.2.0: "Wars not make one great."}
+  - match: {values.3.0: "No, I am your father."}
+  - match: {values.4.0: "May the force be with you."}
+  - match: {values.5.0: "That's no moon. It's a space station."}

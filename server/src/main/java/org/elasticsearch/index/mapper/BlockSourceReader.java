@@ -22,6 +22,7 @@ import org.elasticsearch.search.fetch.StoredFieldsSpec;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 
 /**
  * Loads values from {@code _source}. This whole process is very slow and cast-tastic,
@@ -29,6 +30,15 @@ import java.util.List;
  * slow.
  */
 public abstract class BlockSourceReader implements BlockLoader.RowStrideReader {
+
+    // _ignored_source is needed ofr synthetic source is needed for, in case stored source (default) is used,
+    // then it just doesn't get loaded.
+    private static final StoredFieldsSpec NEEDS_SOURCE_AND_IGNORED_SOURCE = new StoredFieldsSpec(
+        true,
+        false,
+        Set.of(IgnoredSourceFieldMapper.NAME)
+    );
+
     private final ValueFetcher fetcher;
     private final List<Object> ignoredValues = new ArrayList<>();
     private final DocIdSetIterator iter;
@@ -104,7 +114,7 @@ public abstract class BlockSourceReader implements BlockLoader.RowStrideReader {
 
         @Override
         public final StoredFieldsSpec rowStrideStoredFieldSpec() {
-            return StoredFieldsSpec.NEEDS_SOURCE;
+            return NEEDS_SOURCE_AND_IGNORED_SOURCE;
         }
 
         @Override

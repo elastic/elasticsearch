@@ -1,0 +1,34 @@
+setup:
+  - requires:
+      cluster_features: 'query_rule_retriever_supported'
+      reason: 'test requires query rule retriever implementation'
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            index:
+              number_of_shards: 1
+              number_of_replicas: 0
+
+  - do:
+      bulk:
+        refresh: true
+        index: test
+        body:
+          - index:
+              _id: foo
+          - { "text": "foo - pinned doc for foo" }
+          - index:
+              _id: bar
+          - { "text": "bar - exclude doc for bar" }
+          - index:
+              _id: baz
+          - { "text": "baz - no rule attached" }
+          - index:
+              _id: bar2
+          - { "text": "bar2 - no rule attached" }
+          - index:
+              _id: foo2
+          - { "text": "foo2 - second pinned doc for foo" }

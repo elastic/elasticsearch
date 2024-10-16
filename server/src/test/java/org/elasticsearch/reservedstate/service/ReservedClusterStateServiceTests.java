@@ -417,7 +417,7 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
 
         ReservedStateUpdateTask task = new ReservedStateUpdateTask(
             "test",
-            new ReservedStateChunk(Map.of(), new ReservedStateVersionMetadata(new ReservedStateVersion(124L, Version.CURRENT), false)),
+            new ReservedStateChunk(Map.of(), new ReservedStateVersionParameters(new ReservedStateVersion(124L, Version.CURRENT), false)),
             Map.of(),
             List.of(),
             e -> {},
@@ -426,26 +426,7 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
         assertThat("Cluster state should be modified", task.execute(state), not(sameInstance(state)));
         task = new ReservedStateUpdateTask(
             "test",
-            new ReservedStateChunk(Map.of(), new ReservedStateVersionMetadata(new ReservedStateVersion(124L, Version.CURRENT), true)),
-            Map.of(),
-            List.of(),
-            e -> {},
-            ActionListener.noop()
-        );
-        assertThat("Cluster state should be modified", task.execute(state), not(sameInstance(state)));
-
-        task = new ReservedStateUpdateTask(
-            "test",
-            new ReservedStateChunk(Map.of(), new ReservedStateVersionMetadata(new ReservedStateVersion(123L, Version.CURRENT), false)),
-            Map.of(),
-            List.of(),
-            e -> {},
-            ActionListener.noop()
-        );
-        assertThat("Cluster state should not be modified", task.execute(state), sameInstance(state));
-        task = new ReservedStateUpdateTask(
-            "test",
-            new ReservedStateChunk(Map.of(), new ReservedStateVersionMetadata(new ReservedStateVersion(123L, Version.CURRENT), true)),
+            new ReservedStateChunk(Map.of(), new ReservedStateVersionParameters(new ReservedStateVersion(124L, Version.CURRENT), true)),
             Map.of(),
             List.of(),
             e -> {},
@@ -455,7 +436,7 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
 
         task = new ReservedStateUpdateTask(
             "test",
-            new ReservedStateChunk(Map.of(), new ReservedStateVersionMetadata(new ReservedStateVersion(122L, Version.CURRENT), false)),
+            new ReservedStateChunk(Map.of(), new ReservedStateVersionParameters(new ReservedStateVersion(123L, Version.CURRENT), false)),
             Map.of(),
             List.of(),
             e -> {},
@@ -464,7 +445,26 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
         assertThat("Cluster state should not be modified", task.execute(state), sameInstance(state));
         task = new ReservedStateUpdateTask(
             "test",
-            new ReservedStateChunk(Map.of(), new ReservedStateVersionMetadata(new ReservedStateVersion(122L, Version.CURRENT), false)),
+            new ReservedStateChunk(Map.of(), new ReservedStateVersionParameters(new ReservedStateVersion(123L, Version.CURRENT), true)),
+            Map.of(),
+            List.of(),
+            e -> {},
+            ActionListener.noop()
+        );
+        assertThat("Cluster state should be modified", task.execute(state), not(sameInstance(state)));
+
+        task = new ReservedStateUpdateTask(
+            "test",
+            new ReservedStateChunk(Map.of(), new ReservedStateVersionParameters(new ReservedStateVersion(122L, Version.CURRENT), false)),
+            Map.of(),
+            List.of(),
+            e -> {},
+            ActionListener.noop()
+        );
+        assertThat("Cluster state should not be modified", task.execute(state), sameInstance(state));
+        task = new ReservedStateUpdateTask(
+            "test",
+            new ReservedStateChunk(Map.of(), new ReservedStateVersionParameters(new ReservedStateVersion(122L, Version.CURRENT), false)),
             Map.of(),
             List.of(),
             e -> {},
@@ -476,7 +476,7 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
             "test",
             new ReservedStateChunk(
                 Map.of(),
-                new ReservedStateVersionMetadata(new ReservedStateVersion(124L, Version.fromId(Version.CURRENT.id + 1)), false)
+                new ReservedStateVersionParameters(new ReservedStateVersion(124L, Version.fromId(Version.CURRENT.id + 1)), false)
             ),
             Map.of(),
             List.of(),
@@ -488,7 +488,7 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
             "test",
             new ReservedStateChunk(
                 Map.of(),
-                new ReservedStateVersionMetadata(new ReservedStateVersion(124L, Version.fromId(Version.CURRENT.id + 1)), false)
+                new ReservedStateVersionParameters(new ReservedStateVersion(124L, Version.fromId(Version.CURRENT.id + 1)), false)
             ),
             Map.of(),
             List.of(),

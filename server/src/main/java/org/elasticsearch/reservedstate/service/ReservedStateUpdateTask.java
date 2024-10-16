@@ -87,10 +87,10 @@ public class ReservedStateUpdateTask implements ClusterStateTaskListener {
 
         ReservedStateMetadata existingMetadata = currentState.metadata().reservedStateMetadata().get(namespace);
         Map<String, Object> reservedState = stateChunk.state();
-        ReservedStateVersionMetadata reservedStateVersionMetadata = stateChunk.metadata();
-        ReservedStateVersion reservedStateVersion = reservedStateVersionMetadata.version();
+        ReservedStateVersionParameters reservedStateVersionParameters = stateChunk.versionParameters();
+        ReservedStateVersion reservedStateVersion = reservedStateVersionParameters.version();
 
-        if (checkMetadataVersion(namespace, existingMetadata, reservedStateVersionMetadata) == false) {
+        if (checkMetadataVersion(namespace, existingMetadata, reservedStateVersionParameters) == false) {
             return currentState;
         }
 
@@ -156,9 +156,9 @@ public class ReservedStateUpdateTask implements ClusterStateTaskListener {
     static boolean checkMetadataVersion(
         String namespace,
         ReservedStateMetadata existingMetadata,
-        ReservedStateVersionMetadata reservedStateVersionMetadata
+        ReservedStateVersionParameters reservedStateVersionParameters
     ) {
-        ReservedStateVersion reservedStateVersion = reservedStateVersionMetadata.version();
+        ReservedStateVersion reservedStateVersion = reservedStateVersionParameters.version();
         if (Version.CURRENT.before(reservedStateVersion.minCompatibleVersion())) {
             logger.warn(
                 () -> format(
@@ -186,9 +186,13 @@ public class ReservedStateUpdateTask implements ClusterStateTaskListener {
             return false;
         }
 
-        if (existingMetadata == null
-            || existingMetadata.version() < reservedStateVersion.version()
-            || reservedStateVersionMetadata.reprocessSameVersion() && existingMetadata.version().equals(reservedStateVersion.version())) {
+        if (existingMetadata == null) {
+            return true;
+        }
+
+        Long alreadyProcessedVersion = existingMetadata.version();
+        if (alreadyProcessedVersion < reservedStateVersion.version()
+            || reservedStateVersionParameters.reprocessSameVersion() && alreadyProcessedVersion.equals(reservedStateVersion.version())) {
             return true;
         }
 
@@ -198,7 +202,7 @@ public class ReservedStateUpdateTask implements ClusterStateTaskListener {
                     + " to the current metadata version [%s]",
                 namespace,
                 reservedStateVersion.version(),
-                existingMetadata.version()
+                alreadyProcessedVersion
             )
         );
         return false;

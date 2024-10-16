@@ -10,6 +10,6 @@
 package org.elasticsearch.reservedstate.service;
 
 /**
- * Metadata about the {@link ReservedStateVersion} including the version itself and whether re-processing on the same version is accepted.
+ * Version parameters including the version {@link ReservedStateVersion} itself and whether re-processing on the same version is accepted.
  */
-public record ReservedStateVersionMetadata(ReservedStateVersion version, Boolean reprocessSameVersion) {}
+public record ReservedStateVersionParameters(ReservedStateVersion version, Boolean reprocessSameVersion) {}

@@ -143,7 +143,14 @@ public class ReservedClusterStateService {
             return;
         }
 
-        process(namespace, stateChunk.copyWithReprocessSameVersion(reprocessSameVersion), errorListener);
+        if (reprocessSameVersion) {
+            stateChunk = new ReservedStateChunk(
+                stateChunk.state(),
+                new ReservedStateVersionParameters(stateChunk.versionParameters().version(), true)
+            );
+        }
+
+        process(namespace, stateChunk, errorListener);
     }
 
     public void initEmpty(String namespace, ActionListener<ActionResponse.Empty> listener) {
@@ -175,8 +182,8 @@ public class ReservedClusterStateService {
      */
     public void process(String namespace, ReservedStateChunk reservedStateChunk, Consumer<Exception> errorListener) {
         Map<String, Object> reservedState = reservedStateChunk.state();
-        ReservedStateVersionMetadata reservedStateVersionMetadata = reservedStateChunk.metadata();
-        ReservedStateVersion reservedStateVersion = reservedStateVersionMetadata.version();
+        ReservedStateVersionParameters reservedStateVersionParameters = reservedStateChunk.versionParameters();
+        ReservedStateVersion reservedStateVersion = reservedStateVersionParameters.version();
 
         LinkedHashSet<String> orderedHandlers;
         try {
@@ -203,7 +210,7 @@ public class ReservedClusterStateService {
 
         // We check if we should exit early on the state version from clusterService. The ReservedStateUpdateTask
         // will check again with the most current state version if this continues.
-        if (checkMetadataVersion(namespace, existingMetadata, reservedStateVersionMetadata) == false) {
+        if (checkMetadataVersion(namespace, existingMetadata, reservedStateVersionParameters) == false) {
             errorListener.accept(null);
             return;
         }

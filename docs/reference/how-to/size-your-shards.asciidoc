@@ -571,7 +571,7 @@ PUT _cluster/settings
 }
 ----
 
-For more information, see <troubleshooting-shards-capacity-issues>>.
+For more information, see <<troubleshooting-shards-capacity-issues,Troubleshooting shards capacity>>.
 
 [discrete]
 [[troubleshooting-max-docs-limit]]

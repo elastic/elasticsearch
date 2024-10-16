@@ -92,7 +92,6 @@ public class FileSettingsRoleMappingsRestartIT extends SecurityIntegTestCase {
         var clusterState = clusterAdmin().state(new ClusterStateRequest(TEST_REQUEST_TIMEOUT)).actionGet().getState();
         assertRoleMappingReservedMetadata(clusterState, "everyone_kibana_alone", "everyone_fleet_alone");
         List<ExpressionRoleMapping> roleMappings = new ArrayList<>(RoleMappingMetadata.getFromClusterState(clusterState).getRoleMappings());
-        System.out.println("roleMappings: " + roleMappings);
         assertThat(
             roleMappings,
             containsInAnyOrder(

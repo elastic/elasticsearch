@@ -733,8 +733,7 @@ public class XContentMapValuesTests extends AbstractFilteringTestCase {
         );
     }
 
-    public void testInsertValue() throws Exception {
-        // traversal through maps
+    public void testInsertValueMapTraversal() throws IOException {
         {
             XContentBuilder builder = XContentFactory.jsonBuilder().startObject().field("test", "value").endObject();
 
@@ -778,8 +777,9 @@ public class XContentMapValuesTests extends AbstractFilteringTestCase {
             XContentMapValues.insertValue("path2.test", map, List.of("value6", "value7", "value8"));
             assertThat(getMapValue(map, "path2\\.test"), equalTo(List.of("value6", "value7", "value8")));
         }
+    }
 
-        // traversal through lists
+    public void testInsertValueListTraversal() throws IOException {
         {
             XContentBuilder builder = XContentFactory.jsonBuilder().startObject();
             {
@@ -834,8 +834,9 @@ public class XContentMapValuesTests extends AbstractFilteringTestCase {
             assertThat(getMapValue(map, "path1.path2.test2"), equalTo("value3"));
             assertThat(getMapValue(map, "path1.path2"), equalTo(List.of(List.of(Map.of("test", "value2", "test2", "value3")))));
         }
+    }
 
-        // fields with . in them
+    public void testInsertValueFieldsWithDots() throws IOException {
         {
             XContentBuilder builder = XContentFactory.jsonBuilder().startObject().field("xxx.yyy", "value1").endObject();
             Map<String, Object> map = toSourceMap(Strings.toString(builder));

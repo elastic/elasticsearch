@@ -111,7 +111,7 @@ public abstract class DocumentParserContext {
     private final Set<String> ignoredFields;
     private final List<IgnoredSourceFieldMapper.NameValue> ignoredFieldValues;
     private final List<IgnoredSourceFieldMapper.NameValue> ignoredFieldsMissingValues;
-    private final boolean inArrayScopeEnabled;
+    private boolean inArrayScopeEnabled;
     private boolean inArrayScope;
 
     private final Map<String, List<Mapper>> dynamicMappers;
@@ -376,13 +376,14 @@ public abstract class DocumentParserContext {
      * Applies to synthetic source only.
      */
     public final DocumentParserContext maybeCloneForArray(Mapper mapper) throws IOException {
-        if (canAddIgnoredField() && mapper instanceof ObjectMapper && inArrayScopeEnabled) {
-            boolean isNested = mapper instanceof NestedObjectMapper;
-            if ((inArrayScope == false && isNested == false) || (inArrayScope && isNested)) {
-                DocumentParserContext subcontext = switchParser(parser());
-                subcontext.inArrayScope = inArrayScope == false;
-                return subcontext;
-            }
+        if (canAddIgnoredField()
+            && mapper instanceof ObjectMapper
+            && mapper instanceof NestedObjectMapper == false
+            && inArrayScope == false
+            && inArrayScopeEnabled) {
+            DocumentParserContext subcontext = switchParser(parser());
+            subcontext.inArrayScope = true;
+            return subcontext;
         }
         return this;
     }
@@ -709,12 +710,18 @@ public abstract class DocumentParserContext {
      * Return a new context that has the provided document as the current document.
      */
     public final DocumentParserContext switchDoc(final LuceneDocument document) {
-        return new Wrapper(this.parent, this) {
+        DocumentParserContext cloned = new Wrapper(this.parent, this) {
             @Override
             public LuceneDocument doc() {
                 return document;
             }
         };
+        // Disable tracking array scopes for ignored source, as it would be added to the parent doc.
+        // Nested documents are added to preserve object structure within arrays of objects, so the use
+        // of ignored source for arrays inside them should be mostly redundant.
+        cloned.inArrayScope = false;
+        cloned.inArrayScopeEnabled = false;
+        return cloned;
     }
 
     /**

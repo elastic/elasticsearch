@@ -275,7 +275,7 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
 
         ReservedClusterStateService service = new ReservedClusterStateService(clusterService, mock(RerouteService.class), List.of());
 
-        ErrorState error = new ErrorState("namespace", 2L, List.of("error"), ReservedStateErrorMetadata.ErrorKind.TRANSIENT);
+        ErrorState error = new ErrorState("namespace", 2L, false, List.of("error"), ReservedStateErrorMetadata.ErrorKind.TRANSIENT);
         service.updateErrorState(error);
 
         assertThat(updateTask.getValue(), notNullValue());
@@ -296,7 +296,7 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
 
         // it should not update if the error version is less than the current version
         when(clusterService.state()).thenReturn(updatedState);
-        ErrorState oldError = new ErrorState("namespace", 1L, List.of("old error"), ReservedStateErrorMetadata.ErrorKind.TRANSIENT);
+        ErrorState oldError = new ErrorState("namespace", 1L, false, List.of("old error"), ReservedStateErrorMetadata.ErrorKind.TRANSIENT);
         service.updateErrorState(oldError);
         verifyNoMoreInteractions(errorQueue);
     }
@@ -308,7 +308,13 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
 
         ReservedStateErrorTask task = spy(
             new ReservedStateErrorTask(
-                new ErrorState("test", 1L, List.of("some parse error", "some io error"), ReservedStateErrorMetadata.ErrorKind.PARSING),
+                new ErrorState(
+                    "test",
+                    1L,
+                    false,
+                    List.of("some parse error", "some io error"),
+                    ReservedStateErrorMetadata.ErrorKind.PARSING
+                ),
                 ActionListener.running(() -> listenerCompleted.set(true))
             )
         );
@@ -353,10 +359,10 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
         Metadata metadata = Metadata.builder().put(operatorMetadata).build();
         ClusterState state = ClusterState.builder(new ClusterName("test")).metadata(metadata).build();
 
-        assertFalse(ReservedStateErrorTask.isNewError(operatorMetadata, 2L));
-        assertFalse(ReservedStateErrorTask.isNewError(operatorMetadata, 1L));
-        assertTrue(ReservedStateErrorTask.isNewError(operatorMetadata, 3L));
-        assertTrue(ReservedStateErrorTask.isNewError(null, 1L));
+        assertFalse(ReservedStateErrorTask.isNewError(operatorMetadata, 2L, false));
+        assertFalse(ReservedStateErrorTask.isNewError(operatorMetadata, 1L, false));
+        assertTrue(ReservedStateErrorTask.isNewError(operatorMetadata, 3L, false));
+        assertTrue(ReservedStateErrorTask.isNewError(null, 1L, false));
 
         var chunk = new ReservedStateChunk(Map.of("one", "two", "maker", "three"), new ReservedStateVersion(2L, Version.CURRENT));
         var orderedHandlers = List.of(exceptionThrower.name(), newStateMaker.name());
@@ -369,7 +375,7 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
             chunk,
             Map.of(exceptionThrower.name(), exceptionThrower, newStateMaker.name(), newStateMaker),
             orderedHandlers,
-            errorState -> assertFalse(ReservedStateErrorTask.isNewError(operatorMetadata, errorState.version())),
+            errorState -> assertFalse(ReservedStateErrorTask.isNewError(operatorMetadata, errorState.version(), false)),
             ActionListener.noop()
         );
 
@@ -587,7 +593,7 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
         verify(controller, times(0)).updateErrorState(any());
 
         var version = new ReservedStateVersion(2L, Version.CURRENT);
-        var error = controller.checkAndReportError("test", List.of("test error"), version);
+        var error = controller.checkAndReportError("test", List.of("test error"), new ReservedStateVersionParameters(version, false));
         assertThat(error, instanceOf(IllegalStateException.class));
         assertThat(error.getMessage(), is("Error processing state change request for test, errors: test error"));
         verify(controller, times(1)).updateErrorState(any());

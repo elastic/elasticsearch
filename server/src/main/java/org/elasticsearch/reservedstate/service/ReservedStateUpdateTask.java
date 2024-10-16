@@ -111,7 +111,7 @@ public class ReservedStateUpdateTask implements ClusterStateTaskListener {
             }
         }
 
-        checkAndThrowOnError(errors, reservedStateVersion);
+        checkAndThrowOnError(errors, reservedStateVersionParameters);
 
         // Remove the last error if we had previously encountered any in prior processing of reserved state
         reservedMetadataBuilder.errorMetadata(null);
@@ -122,17 +122,12 @@ public class ReservedStateUpdateTask implements ClusterStateTaskListener {
         return stateBuilder.metadata(metadataBuilder).build();
     }
 
-    private void checkAndThrowOnError(List<String> errors, ReservedStateVersion reservedStateVersion) {
+    private void checkAndThrowOnError(List<String> errors, ReservedStateVersionParameters versionParameters) {
         // Any errors should be discovered through validation performed in the transform calls
         if (errors.isEmpty() == false) {
             logger.debug("Error processing state change request for [{}] with the following errors [{}]", namespace, errors);
 
-            var errorState = new ErrorState(
-                namespace,
-                reservedStateVersion.version(),
-                errors,
-                ReservedStateErrorMetadata.ErrorKind.VALIDATION
-            );
+            var errorState = new ErrorState(namespace, versionParameters, errors, ReservedStateErrorMetadata.ErrorKind.VALIDATION);
 
             /*
              * It doesn't matter this reporter needs to re-access the base state,

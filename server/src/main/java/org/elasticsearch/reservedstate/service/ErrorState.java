@@ -15,9 +15,33 @@ import java.util.List;
 
 import static org.elasticsearch.ExceptionsHelper.stackTrace;
 
-record ErrorState(String namespace, Long version, List<String> errors, ReservedStateErrorMetadata.ErrorKind errorKind) {
+record ErrorState(
+    String namespace,
+    Long version,
+    Boolean reprocessSameVersion,
+    List<String> errors,
+    ReservedStateErrorMetadata.ErrorKind errorKind
+) {
+    ErrorState(
+        String namespace,
+        ReservedStateVersionParameters versionParameters,
+        Exception e,
+        ReservedStateErrorMetadata.ErrorKind errorKind
+    ) {
+        this(namespace, versionParameters.version().version(), versionParameters.reprocessSameVersion(), List.of(stackTrace(e)), errorKind);
+    }
+
+    ErrorState(
+        String namespace,
+        ReservedStateVersionParameters versionParameters,
+        List<String> errors,
+        ReservedStateErrorMetadata.ErrorKind errorKind
+    ) {
+        this(namespace, versionParameters.version().version(), versionParameters.reprocessSameVersion(), errors, errorKind);
+    }
+
     ErrorState(String namespace, Long version, Exception e, ReservedStateErrorMetadata.ErrorKind errorKind) {
-        this(namespace, version, List.of(stackTrace(e)), errorKind);
+        this(namespace, version, false, List.of(stackTrace(e)), errorKind);
     }
 
     public String toString() {

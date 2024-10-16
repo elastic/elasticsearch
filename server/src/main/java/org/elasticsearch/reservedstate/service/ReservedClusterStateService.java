@@ -191,7 +191,7 @@ public class ReservedClusterStateService {
         } catch (Exception e) {
             ErrorState errorState = new ErrorState(
                 namespace,
-                reservedStateVersion.version(),
+                reservedStateVersionParameters,
                 e,
                 ReservedStateErrorMetadata.ErrorKind.PARSING
             );
@@ -218,7 +218,7 @@ public class ReservedClusterStateService {
         // We trial run all handler validations to ensure that we can process all of the cluster state error free.
         var trialRunErrors = trialRun(namespace, state, reservedStateChunk, orderedHandlers);
         // this is not using the modified trial state above, but that doesn't matter, we're just setting errors here
-        var error = checkAndReportError(namespace, trialRunErrors, reservedStateVersion);
+        var error = checkAndReportError(namespace, trialRunErrors, reservedStateVersionParameters);
 
         if (error != null) {
             errorListener.accept(error);
@@ -242,7 +242,11 @@ public class ReservedClusterStateService {
                     @Override
                     public void onFailure(Exception e) {
                         // Don't spam the logs on repeated errors
-                        if (isNewError(existingMetadata, reservedStateVersion.version())) {
+                        if (isNewError(
+                            existingMetadata,
+                            reservedStateVersion.version(),
+                            reservedStateVersionParameters.reprocessSameVersion()
+                        )) {
                             logger.debug("Failed to apply reserved cluster state", e);
                             errorListener.accept(e);
                         } else {
@@ -256,14 +260,14 @@ public class ReservedClusterStateService {
     }
 
     // package private for testing
-    Exception checkAndReportError(String namespace, List<String> errors, ReservedStateVersion reservedStateVersion) {
+    Exception checkAndReportError(String namespace, List<String> errors, ReservedStateVersionParameters reservedStateVersionParameters) {
         // Any errors should be discovered through validation performed in the transform calls
         if (errors.isEmpty() == false) {
             logger.debug("Error processing state change request for [{}] with the following errors [{}]", namespace, errors);
 
             var errorState = new ErrorState(
                 namespace,
-                reservedStateVersion.version(),
+                reservedStateVersionParameters,
                 errors,
                 ReservedStateErrorMetadata.ErrorKind.VALIDATION
             );

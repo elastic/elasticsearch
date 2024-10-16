@@ -892,10 +892,7 @@ public class XContentMapValuesTests extends AbstractFilteringTestCase {
                 IllegalArgumentException.class,
                 () -> XContentMapValues.insertValue("foo.cat", map, "woof")
             );
-            assertThat(
-                ex.getMessage(),
-                equalTo("Path [foo.cat] could be inserted in 2 distinct ways, it is ambiguous which one to use")
-            );
+            assertThat(ex.getMessage(), equalTo("Path [foo.cat] could be inserted in 2 distinct ways, it is ambiguous which one to use"));
             assertThat(map, equalTo(originalMap));
         }
         {

@@ -68,7 +68,9 @@ public class RemoteClusterPermissions implements NamedWriteable, ToXContentObjec
     // package private non-final for testing
     static Map<TransportVersion, Set<String>> allowedRemoteClusterPermissions = Map.of(
         TransportVersions.ROLE_REMOTE_CLUSTER_PRIVS,
-        Set.of(ClusterPrivilegeResolver.MONITOR_ENRICH.name())
+        Set.of(ClusterPrivilegeResolver.MONITOR_ENRICH.name()),
+        TransportVersions.ROLE_MONITOR_STATS,
+        Set.of(ClusterPrivilegeResolver.MONITOR_STATS.name())
     );
 
     public static final RemoteClusterPermissions NONE = new RemoteClusterPermissions();

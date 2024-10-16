@@ -828,13 +828,13 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
                     currentFieldName = parser.currentName();
                 } else if (Fields.PRIVILEGES.match(currentFieldName, parser.getDeprecationHandler())) {
                     privileges = readStringArray(roleName, parser, false);
-                    if (privileges.length != 1
+                    if (privileges.length > 2
                         || RemoteClusterPermissions.getSupportedRemoteClusterPermissions()
                             .contains(privileges[0].trim().toLowerCase(Locale.ROOT)) == false) {
                         throw new ElasticsearchParseException(
                             "failed to parse remote_cluster for role [{}]. "
                                 + RemoteClusterPermissions.getSupportedRemoteClusterPermissions()
-                                + " is the only value allowed for [{}] within [remote_cluster]",
+                                + " are the only value allowed for [{}] within [remote_cluster]",
                             roleName,
                             currentFieldName
                         );

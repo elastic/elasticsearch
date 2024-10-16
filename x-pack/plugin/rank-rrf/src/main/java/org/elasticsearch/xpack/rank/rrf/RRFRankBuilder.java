@@ -15,12 +15,15 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.license.LicenseUtils;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.rank.RankBuilder;
 import org.elasticsearch.search.rank.RankDoc;
 import org.elasticsearch.search.rank.context.QueryPhaseRankCoordinatorContext;
 import org.elasticsearch.search.rank.context.QueryPhaseRankShardContext;
 import org.elasticsearch.search.rank.context.RankFeaturePhaseRankCoordinatorContext;
 import org.elasticsearch.search.rank.context.RankFeaturePhaseRankShardContext;
+import org.elasticsearch.search.retriever.CompoundRetrieverBuilder;
+import org.elasticsearch.search.retriever.StandardRetrieverBuilder;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -28,6 +31,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.XPackPlugin;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
@@ -180,6 +184,24 @@ public class RRFRankBuilder extends RankBuilder {
     @Override
     public RankFeaturePhaseRankCoordinatorContext buildRankFeaturePhaseCoordinatorContext(int size, int from, Client client) {
         return null;
+    }
+
+    @Override
+    public void transformToRetriever(SearchSourceBuilder source) {
+        if (source.subSearches().size() < 2) {
+            throw new IllegalArgumentException("[rrf] requires at least 2 sub-queries to be defined");
+        }
+        List<CompoundRetrieverBuilder.RetrieverSource> retrieverSources = new ArrayList<>(source.subSearches().size());
+        for (int i = 0; i < retrieverSources.size(); i++) {
+            retrieverSources.add(
+                new CompoundRetrieverBuilder.RetrieverSource(
+                    new StandardRetrieverBuilder(source.subSearches().get(i).getQueryBuilder()),
+                    null
+                )
+            );
+        }
+        source.subSearches().clear();
+        source.retriever(new RRFRetrieverBuilder(retrieverSources, rankWindowSize(), rankConstant()));
     }
 
     @Override

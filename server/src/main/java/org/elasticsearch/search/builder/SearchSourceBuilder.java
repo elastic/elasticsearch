@@ -1636,6 +1636,10 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         }
 
         knnSearch = knnBuilders.stream().map(knnBuilder -> knnBuilder.build(size())).collect(Collectors.toList());
+        if (rankBuilder != null) {
+            rankBuilder.transformToRetriever(this);
+            rankBuilder = null;
+        }
         searchUsageConsumer.accept(searchUsage);
         return this;
     }

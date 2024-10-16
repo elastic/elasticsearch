@@ -16,7 +16,9 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
+import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.search.SearchService;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.rank.context.QueryPhaseRankCoordinatorContext;
 import org.elasticsearch.search.rank.context.QueryPhaseRankShardContext;
 import org.elasticsearch.search.rank.context.RankFeaturePhaseRankCoordinatorContext;
@@ -108,6 +110,15 @@ public abstract class RankBuilder implements VersionedNamedWriteable, ToXContent
      * which will then be passed to fetch phase.
      */
     public abstract RankFeaturePhaseRankCoordinatorContext buildRankFeaturePhaseCoordinatorContext(int size, int from, Client client);
+
+    /**
+     * Transforms the specific rank builder (as parsed through SearchSourceBuilder) to the corresponding retriever.
+     * This is used to ensure smooth deprecation of `rank` and `sub_searches` and move towards the retriever framework
+     */
+    @UpdateForV10(owner = UpdateForV10.Owner.SEARCH_RELEVANCE) // remove for 10.0 once we remove support for the rank parameter in SearchAPI
+    public void transformToRetriever(SearchSourceBuilder searchSourceBuilder) {
+        // no-op
+    }
 
     @Override
     public final boolean equals(Object obj) {

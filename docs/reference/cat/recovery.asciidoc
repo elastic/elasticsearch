@@ -83,7 +83,15 @@ Valid columns are:
 (Default) Type of recovery, from a `peer` or a `snapshot`.
 
 `stage`, `st`::
-(Default) **Not too sure, need to investigate
+(Default) Stage of the recovery. 
+Returned values are:
++
+* `INIT`
+* `INDEX` recovery of lucene files, either reusing local ones are copying new ones
+* `VERIFY_INDEX` potentially running check index
+* `TRANSLOG` starting up the engine, replaying the translog
+* `FINALIZE` performing final task after all translog ops have been done
+* `DONE`
 
 `source_host`, `shost`::
 (Default) Host address the index is moving from.

@@ -51,8 +51,8 @@ To get an accurate count of {es} documents, use the <<cat-count,cat count>> or
 <<search-count,count>> APIs.
 
 Note that information such as document count, deleted document count and store size are not shown for
-<<snapshots-source-only-repository, source-only indices>> since these indices do not contain the relevant
-data structures to retrieve this information from.
+indices restored from <<snapshots-source-only-repository,source-only snapshots>> since these indices
+do not contain the relevant data structures to retrieve this information from.
 
 
 [[cat-indices-api-path-params]]

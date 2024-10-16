@@ -384,6 +384,9 @@ tests:
 - class: org.elasticsearch.xpack.eql.EqlStatsIT
   method: testEqlRestUsage
   issue: https://github.com/elastic/elasticsearch/issues/114790
+- class: org.elasticsearch.xpack.eql.EqlRestIT
+  method: testBadRequests
+  issue: https://github.com/elastic/elasticsearch/issues/114752
 
 # Examples:
 #

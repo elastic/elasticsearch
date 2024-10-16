@@ -63,8 +63,12 @@ public final class ReservedRoleMappingXContentNameFieldHelper {
             return name;
         }
 
-        logger.error("role mapping metadata should contain reserved string field [" + METADATA_NAME_FIELD + "]");
-        assert false : "role mapping metadata should contain reserved string field [" + METADATA_NAME_FIELD + "]";
+        logger.error(
+            "Role mapping metadata is missing a required internal system field [{}]. "
+                + "This may result in inconsistent Role Mappings API behavior.",
+            METADATA_NAME_FIELD
+        );
+        assert false : "role mapping metadata should contain string field [" + METADATA_NAME_FIELD + "]";
         return FALLBACK_NAME;
     }
 }

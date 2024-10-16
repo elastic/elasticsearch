@@ -1,0 +1,14 @@
+sumWithOverflow
+FROM employees
+| LIMIT 2
+| EVAL x = languages - languages + 9223372036854775807
+| STATS overflow = SUM(x), underflow = SUM(-x)
+;
+warning:Line 4:20: evaluation of [SUM(x)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 4:20: java.lang.ArithmeticException: long overflow
+warning:Line 4:40: evaluation of [SUM(-x)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 4:40: java.lang.ArithmeticException: long overflow
+
+overflow:long | underflow:long
+null          | null
+;

@@ -42,10 +42,7 @@ public class RestPutRoleMappingAction extends NativeRoleMappingBaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(
-            Route.builder(POST, "/_security/role_mapping/{name}").build(),
-            Route.builder(PUT, "/_security/role_mapping/{name}").build()
-        );
+        return List.of(new Route(POST, "/_security/role_mapping/{name}"), new Route(PUT, "/_security/role_mapping/{name}"));
     }
 
     @Override

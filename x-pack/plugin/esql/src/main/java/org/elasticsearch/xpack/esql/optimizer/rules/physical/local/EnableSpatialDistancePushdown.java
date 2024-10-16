@@ -95,7 +95,7 @@ public class EnableSpatialDistancePushdown extends PhysicalOptimizerRules.Parame
             }
             return comparison;
         });
-        if (rewritten.equals(filterExec.condition()) == false) {
+        if (rewritten.equals(filterExec.condition()) == false && canPushToSource(rewritten, x -> false)) {
             return new FilterExec(filterExec.source(), esQueryExec, rewritten);
         }
         return filterExec;

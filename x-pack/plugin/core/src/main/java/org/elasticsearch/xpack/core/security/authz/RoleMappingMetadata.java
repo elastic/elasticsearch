@@ -21,7 +21,7 @@ import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xpack.core.security.authc.support.mapper.ClusterStateRoleMapping;
+import org.elasticsearch.xpack.core.security.authc.support.mapper.ClusterStateRoleMappingXContentTranslator;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.ExpressionRoleMapping;
 
 import java.io.IOException;
@@ -31,7 +31,6 @@ import java.util.Iterator;
 import java.util.LinkedHashSet;
 import java.util.Objects;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.metadata.Metadata.ALL_CONTEXTS;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
@@ -50,7 +49,7 @@ public final class RoleMappingMetadata extends AbstractNamedDiffable<Metadata.Cu
     static {
         PARSER.declareObjectArray(
             constructorArg(),
-            (p, c) -> new ClusterStateRoleMapping(ExpressionRoleMapping.parse("name_not_available_after_deserialization", p)),
+            (p, c) -> ClusterStateRoleMappingXContentTranslator.fromXContent(p),
             new ParseField(TYPE)
         );
     }
@@ -61,23 +60,18 @@ public final class RoleMappingMetadata extends AbstractNamedDiffable<Metadata.Cu
         return clusterState.metadata().custom(RoleMappingMetadata.TYPE, RoleMappingMetadata.EMPTY);
     }
 
-    private final Set<ClusterStateRoleMapping> roleMappings;
+    private final Set<ExpressionRoleMapping> roleMappings;
 
-    // TODO remove me
     public RoleMappingMetadata(Set<ExpressionRoleMapping> roleMappings) {
-        this.roleMappings = roleMappings.stream().map(ClusterStateRoleMapping::new).collect(Collectors.toSet());
-    }
-
-    public RoleMappingMetadata(Set<ClusterStateRoleMapping> roleMappings, boolean readyForNewFormat) {
         this.roleMappings = roleMappings;
     }
 
     public RoleMappingMetadata(StreamInput input) throws IOException {
-        this.roleMappings = input.readCollectionAsSet(ClusterStateRoleMapping::new);
+        this.roleMappings = input.readCollectionAsSet(ExpressionRoleMapping::new);
     }
 
     public Set<ExpressionRoleMapping> getRoleMappings() {
-        return roleMappings.stream().map(ClusterStateRoleMapping::toExpressionRoleMapping).collect(Collectors.toSet());
+        return this.roleMappings;
     }
 
     public boolean isEmpty() {
@@ -138,7 +132,7 @@ public final class RoleMappingMetadata extends AbstractNamedDiffable<Metadata.Cu
     @Override
     public String toString() {
         StringBuilder builder = new StringBuilder("RoleMapping[entries=[");
-        final Iterator<ClusterStateRoleMapping> entryList = roleMappings.iterator();
+        final Iterator<ExpressionRoleMapping> entryList = roleMappings.iterator();
         boolean firstEntry = true;
         while (entryList.hasNext()) {
             if (firstEntry == false) {

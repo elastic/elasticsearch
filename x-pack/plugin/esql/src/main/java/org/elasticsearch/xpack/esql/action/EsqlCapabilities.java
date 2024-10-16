@@ -171,9 +171,19 @@ public class EsqlCapabilities {
         SPATIAL_PREDICATES_SUPPORT_MULTIVALUES,
 
         /**
+         * Enable spatial distance function to support multi-values. Done in #114836.
+         */
+        SPATIAL_DISTANCE_SUPPORTS_MULTIVALUES,
+
+        /**
          * Support a number of fixes and enhancements to spatial distance pushdown. Done in #112938.
          */
         SPATIAL_DISTANCE_PUSHDOWN_ENHANCEMENTS,
+
+        /**
+         * Fix for spatial centroid when no records are found.
+         */
+        SPATIAL_CENTROID_NO_RECORDS,
 
         /**
          * Fix to GROK and DISSECT that allows extracting attributes with the same name as the input

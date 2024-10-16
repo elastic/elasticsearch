@@ -264,11 +264,6 @@ public class ExpressionRoleMapping implements ToXContentObject, Writeable {
 
     public XContentBuilder toXContent(XContentBuilder builder, Params params, boolean indexFormat) throws IOException {
         builder.startObject();
-        innerToXContent(builder, params, indexFormat);
-        return builder.endObject();
-    }
-
-    public XContentBuilder innerToXContent(XContentBuilder builder, Params params, boolean indexFormat) throws IOException {
         builder.field(Fields.ENABLED.getPreferredName(), enabled);
         if (roles.isEmpty() == false) {
             builder.startArray(Fields.ROLES.getPreferredName());
@@ -292,7 +287,7 @@ public class ExpressionRoleMapping implements ToXContentObject, Writeable {
         if (indexFormat) {
             builder.field(NativeRoleMappingStoreField.DOC_TYPE_FIELD, NativeRoleMappingStoreField.DOC_TYPE_ROLE_MAPPING);
         }
-        return builder;
+        return builder.endObject();
     }
 
     public Set<String> getRoleNames(ScriptService scriptService, ExpressionModel model) {

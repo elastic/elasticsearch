@@ -208,6 +208,8 @@ index can be <<indices-delete-index,removed>>. You may then consider setting
 <<indices-add-alias,Create Alias>> against the destination index for the source 
 index's name to point to it for continuity. 
 
+See link:https://www.youtube.com/watch?v=sHyNYnwbYro[this video] for example
+troubleshooting walkthrough.
 
 [discrete]
 [[shard-count-recommendation]]

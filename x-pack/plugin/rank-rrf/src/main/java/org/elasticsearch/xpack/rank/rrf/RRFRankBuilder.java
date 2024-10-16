@@ -23,6 +23,7 @@ import org.elasticsearch.search.rank.context.QueryPhaseRankShardContext;
 import org.elasticsearch.search.rank.context.RankFeaturePhaseRankCoordinatorContext;
 import org.elasticsearch.search.rank.context.RankFeaturePhaseRankShardContext;
 import org.elasticsearch.search.retriever.CompoundRetrieverBuilder;
+import org.elasticsearch.search.retriever.KnnRetrieverBuilder;
 import org.elasticsearch.search.retriever.StandardRetrieverBuilder;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -188,11 +189,12 @@ public class RRFRankBuilder extends RankBuilder {
 
     @Override
     public void transformToRetriever(SearchSourceBuilder source) {
-        if (source.subSearches().size() < 2) {
+        int totalQueries = source.subSearches().size() + source.knnSearch().size();
+        if (totalQueries < 2) {
             throw new IllegalArgumentException("[rrf] requires at least 2 sub-queries to be defined");
         }
-        List<CompoundRetrieverBuilder.RetrieverSource> retrieverSources = new ArrayList<>(source.subSearches().size());
-        for (int i = 0; i < retrieverSources.size(); i++) {
+        List<CompoundRetrieverBuilder.RetrieverSource> retrieverSources = new ArrayList<>(totalQueries);
+        for (int i = 0; i < source.subSearches().size(); i++) {
             retrieverSources.add(
                 new CompoundRetrieverBuilder.RetrieverSource(
                     new StandardRetrieverBuilder(source.subSearches().get(i).getQueryBuilder()),
@@ -200,7 +202,21 @@ public class RRFRankBuilder extends RankBuilder {
                 )
             );
         }
-        source.subSearches().clear();
+        for (int i = 0; i < source.knnSearch().size(); i++) {
+            retrieverSources.add(
+                new CompoundRetrieverBuilder.RetrieverSource(
+                    new KnnRetrieverBuilder(
+                        source.knnSearch().get(i).getField(),
+                        source.knnSearch().get(i).getQueryVector().asFloatVector(),
+                        source.knnSearch().get(i).getQueryVectorBuilder(),
+                        source.knnSearch().get(i).k(),
+                        source.knnSearch().get(i).getNumCands(),
+                        source.knnSearch().get(i).getSimilarity()
+                    ),
+                    null
+                )
+            );
+        }
         source.retriever(new RRFRetrieverBuilder(retrieverSources, rankWindowSize(), rankConstant()));
     }
 

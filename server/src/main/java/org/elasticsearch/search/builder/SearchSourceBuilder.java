@@ -1639,6 +1639,8 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         if (rankBuilder != null) {
             rankBuilder.transformToRetriever(this);
             rankBuilder = null;
+            subSearchSourceBuilders.clear();
+            knnSearch.clear();
         }
         searchUsageConsumer.accept(searchUsage);
         return this;

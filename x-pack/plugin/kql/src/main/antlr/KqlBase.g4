@@ -27,9 +27,9 @@ topLevelQuery
 
 query
     : query AND query               #logicalAnd
-    | query OR query                   #logicalOr
-    | NOT subQuery=simpleQuery         #logicalNot
-    | simpleQuery                      #queryDefault
+    | query OR query                #logicalOr
+    | NOT subQuery=simpleQuery      #logicalNot
+    | simpleQuery                   #queryDefault
     ;
 
 simpleQuery
@@ -86,6 +86,7 @@ unquotedLiteralExpression
 quotedStringExpression
     : QUOTED_STRING
     ;
+
 wildcardExpression
     : WILDCARD
 ;
@@ -107,7 +108,7 @@ RIGHT_CURLY_BRACKET: '}';
 
 UNQUOTED_LITERAL: WILDCARD* UNQUOTED_LITERAL_CHAR+ WILDCARD*;
 
-QUOTED_STRING: '"' QUOTED_CHAR* '"';
+QUOTED_STRING: '"'QUOTED_CHAR*'"';
 
 WILDCARD: WILDCARD_CHAR+;
 

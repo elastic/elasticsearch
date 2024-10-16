@@ -100,6 +100,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
     public static final ParseField TIMEOUT_FIELD = new ParseField("timeout");
     public static final ParseField TERMINATE_AFTER_FIELD = new ParseField("terminate_after");
     public static final ParseField QUERY_FIELD = new ParseField("query");
+    @UpdateForV10(owner = UpdateForV10.Owner.SEARCH_RELEVANCE) // remove [sub_searches] and [rank] support in 10.0
     public static final ParseField SUB_SEARCHES_FIELD = new ParseField("sub_searches").withAllDeprecated("retriever");
     public static final ParseField RANK_FIELD = new ParseField("rank").withAllDeprecated("retriever");
     public static final ParseField POST_FILTER_FIELD = new ParseField("post_filter");
@@ -152,14 +153,12 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
 
     private transient RetrieverBuilder retrieverBuilder;
 
-    @UpdateForV10(owner = UpdateForV10.Owner.SEARCH_RELEVANCE) // remove sub_searches support in 10.0
     private List<SubSearchSourceBuilder> subSearchSourceBuilders = new ArrayList<>();
 
     private QueryBuilder postQueryBuilder;
 
     private List<KnnSearchBuilder> knnSearch = new ArrayList<>();
 
-    @UpdateForV10(owner = UpdateForV10.Owner.SEARCH_RELEVANCE) // throw when parsing rrf through rank
     private RankBuilder rankBuilder = null;
 
     private int from = -1;

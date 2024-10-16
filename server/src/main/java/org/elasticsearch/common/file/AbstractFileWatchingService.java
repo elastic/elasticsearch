@@ -296,8 +296,10 @@ public abstract class AbstractFileWatchingService extends AbstractLifecycleCompo
             for (var listener : eventListeners) {
                 listener.watchedFileChanged();
             }
+        } catch (NoChangeOccurredException e) {
+            logger.info("Unable to process watched file: {}", watchedFile(), e);
         } catch (IOException | ExecutionException e) {
-            logger.error(() -> "Error processing watched file: " + watchedFile(), e);
+            logger.error("Error processing watched file: {}", watchedFile(), e);
         }
     }
 

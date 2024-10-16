@@ -7,8 +7,9 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.entitlement.runtime.policy;
+package org.elasticsearch.entitlement.runtime.policy.parser;
 
+import org.elasticsearch.entitlement.runtime.policy.impl.FileEntitlement;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
 
@@ -16,7 +17,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
-import static org.elasticsearch.entitlement.runtime.policy.PolicyParserException.newPolicyParserException;
+import static org.elasticsearch.entitlement.runtime.policy.parser.PolicyParserException.newPolicyParserException;
 
 public class FileEntitlementParser extends EntitlementParser {
 
@@ -24,14 +25,14 @@ public class FileEntitlementParser extends EntitlementParser {
     public static ParseField PATH_PARSEFIELD = new ParseField("path");
     public static ParseField ACTIONS_PARSEFIELD = new ParseField("actions");
 
-    protected String path;
-    protected final List<String> actions = new ArrayList<>();
+    public static String READ_ACTION = "read";
+    public static String WRITE_ACTION = "write";
 
     protected FileEntitlementParser(String policyName, String scopeName, XContentParser policyParser) {
         super(policyName, scopeName, policyParser);
     }
 
-    protected void parseEntitlement() throws IOException {
+    protected FileEntitlement parseEntitlement() throws IOException {
         if (policyParser.nextToken() != XContentParser.Token.START_OBJECT) {
             throw newPolicyParserException(
                 policyParser.getTokenLocation(),
@@ -40,6 +41,8 @@ public class FileEntitlementParser extends EntitlementParser {
                 "expected object [" + FILE_PARSEFIELD.getPreferredName() + "]"
             );
         }
+        String path = null;
+        int actions = 0;
         while (policyParser.nextToken() != XContentParser.Token.END_OBJECT) {
             if (policyParser.currentToken() != XContentParser.Token.FIELD_NAME) {
                 throw newPolicyParserException(
@@ -97,13 +100,29 @@ public class FileEntitlementParser extends EntitlementParser {
                         );
                     }
                     String action = policyParser.text();
-                    if (actions.contains(action) == false) {
-                        actions.add(action);
+                    if (READ_ACTION.equals(action)) {
+                        if ((actions & FileEntitlement.READ_ACTION) == FileEntitlement.READ_ACTION) {
+                            throw newPolicyParserException(
+                                policyParser.getTokenLocation(),
+                                policyName,
+                                "field [" + ACTIONS_PARSEFIELD.getPreferredName() + "] already has value [" + action + "]"
+                            );
+                        }
+                        actions |= FileEntitlement.READ_ACTION;
+                    } else if (WRITE_ACTION.equals(action)) {
+                        if ((actions & FileEntitlement.WRITE_ACTION) == FileEntitlement.WRITE_ACTION) {
+                            throw newPolicyParserException(
+                                policyParser.getTokenLocation(),
+                                policyName,
+                                "field [" + ACTIONS_PARSEFIELD.getPreferredName() + "] already has value [" + action + "]"
+                            );
+                        }
+                        actions |= FileEntitlement.WRITE_ACTION;
                     } else {
                         throw newPolicyParserException(
                             policyParser.getTokenLocation(),
                             policyName,
-                            "field [" + ACTIONS_PARSEFIELD.getPreferredName() + "] already has value [" + policyParser.text() + "]"
+                            "field [" + ACTIONS_PARSEFIELD.getPreferredName() + "] has unknown value [" + action + "]"
                         );
                     }
                 }
@@ -116,5 +135,6 @@ public class FileEntitlementParser extends EntitlementParser {
                 );
             }
         }
+        return new FileEntitlement(path, actions);
     }
 }

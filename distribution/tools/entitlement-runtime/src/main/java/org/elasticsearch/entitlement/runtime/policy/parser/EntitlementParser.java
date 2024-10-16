@@ -7,15 +7,21 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.entitlement.runtime.policy;
+package org.elasticsearch.entitlement.runtime.policy.parser;
 
-import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 
-public class PolicyParserTests extends ESTestCase {
+public abstract class EntitlementParser {
 
-    public void testPolicyBuilder() throws IOException {
-        new PolicyParser("test-policy.yaml", PolicyParserTests.class.getResourceAsStream("test-policy.yaml")).parsePolicy();
+    protected final String policyName;
+    protected final String scopeName;
+    protected final XContentParser policyParser;
+
+    protected EntitlementParser(String policyName, String scopeName, XContentParser policyParser) {
+        this.policyName = policyName;
+        this.scopeName = scopeName;
+        this.policyParser = policyParser;
     }
 }

@@ -7,7 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.entitlement.runtime.policy;
+package org.elasticsearch.entitlement.runtime.policy.parser;
 
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;

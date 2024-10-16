@@ -7,8 +7,9 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.entitlement.runtime.policy;
+package org.elasticsearch.entitlement.runtime.policy.parser;
 
+import org.elasticsearch.entitlement.runtime.policy.impl.Scope;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
 
@@ -16,7 +17,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
-import static org.elasticsearch.entitlement.runtime.policy.PolicyParserException.newPolicyParserException;
+import static org.elasticsearch.entitlement.runtime.policy.parser.PolicyParserException.newPolicyParserException;
 
 public abstract class ScopeParser {
 
@@ -26,14 +27,12 @@ public abstract class ScopeParser {
     protected final String policyName;
     protected final XContentParser policyParser;
 
-    protected final List<FileEntitlementParser> fileEntitlementParsers = new ArrayList<>();
-
     protected ScopeParser(String policyName, XContentParser policyParser) {
         this.policyName = policyName;
         this.policyParser = policyParser;
     }
 
-    protected void parseScope() throws IOException {
+    protected Scope parseScope() throws IOException {
         while (policyParser.nextToken() != XContentParser.Token.END_OBJECT) {
             if (policyParser.currentToken() != XContentParser.Token.FIELD_NAME) {
                 throw newPolicyParserException(

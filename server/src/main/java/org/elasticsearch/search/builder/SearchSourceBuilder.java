@@ -101,8 +101,8 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
     public static final ParseField TIMEOUT_FIELD = new ParseField("timeout");
     public static final ParseField TERMINATE_AFTER_FIELD = new ParseField("terminate_after");
     public static final ParseField QUERY_FIELD = new ParseField("query");
-    public static final ParseField SUB_SEARCHES_FIELD = new ParseField("sub_searches");
-    public static final ParseField RANK_FIELD = new ParseField("rank");
+    public static final ParseField SUB_SEARCHES_FIELD = new ParseField("sub_searches").withAllDeprecated();
+    public static final ParseField RANK_FIELD = new ParseField("rank").withAllDeprecated();
     public static final ParseField POST_FILTER_FIELD = new ParseField("post_filter");
     public static final ParseField KNN_FIELD = new ParseField("knn");
     public static final ParseField MIN_SCORE_FIELD = new ParseField("min_score");

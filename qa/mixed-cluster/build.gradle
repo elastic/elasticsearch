@@ -58,6 +58,9 @@ excludeList.add('cluster.desired_nodes/11_old_format/Test node version must have
 excludeList.add('cluster.desired_nodes/11_old_format/Test node version can not be null')
 excludeList.add('cluster.desired_nodes/20_dry_run/Test validation works for dry run updates')
 
+// Excluded because they create dot-prefixed indices on older versions
+excludeList.add('indices.resolve_index/20_resolve_system_index/*')
+
 BuildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
 
   if (bwcVersion != VersionProperties.getElasticsearchVersion()) {

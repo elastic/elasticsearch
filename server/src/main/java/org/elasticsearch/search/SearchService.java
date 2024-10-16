@@ -17,23 +17,23 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TopDocs;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.ResolvedIndices;
 import org.elasticsearch.action.search.CanMatchNodeRequest;
 import org.elasticsearch.action.search.CanMatchNodeResponse;
-import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchShardTask;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.ResolvedExpression;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
+import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -51,7 +51,6 @@ import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
@@ -114,6 +113,7 @@ import org.elasticsearch.search.query.QueryPhase;
 import org.elasticsearch.search.query.QuerySearchRequest;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.query.ScrollQuerySearchResult;
+import org.elasticsearch.search.query.SearchTimeoutException;
 import org.elasticsearch.search.rank.feature.RankFeatureResult;
 import org.elasticsearch.search.rank.feature.RankFeatureShardPhase;
 import org.elasticsearch.search.rank.feature.RankFeatureShardRequest;
@@ -144,7 +144,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
-import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -230,7 +229,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         "search.worker_threads_enabled",
         true,
         Property.NodeScope,
-        Property.Dynamic
+        Property.Dynamic,
+        Property.DeprecatedWarning
     );
 
     public static final Setting<Boolean> QUERY_PHASE_PARALLEL_COLLECTION_ENABLED = Setting.boolSetting(
@@ -262,6 +262,13 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         Property.NodeScope
     );
 
+    public static final Setting<Boolean> CCS_COLLECT_TELEMETRY = Setting.boolSetting(
+        "search.ccs.collect_telemetry",
+        true,
+        Property.Dynamic,
+        Property.NodeScope
+    );
+
     public static final int DEFAULT_SIZE = 10;
     public static final int DEFAULT_FROM = 0;
 
@@ -281,7 +288,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     private final FetchPhase fetchPhase;
     private final RankFeatureShardPhase rankFeatureShardPhase;
-    private volatile boolean enableSearchWorkerThreads;
+    private volatile Executor searchExecutor;
     private volatile boolean enableQueryPhaseParallelCollection;
 
     private volatile long defaultKeepAlive;
@@ -375,7 +382,10 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(ENABLE_REWRITE_AGGS_TO_FILTER_BY_FILTER, this::setEnableRewriteAggsToFilterByFilter);
 
-        enableSearchWorkerThreads = SEARCH_WORKER_THREADS_ENABLED.get(settings);
+        if (SEARCH_WORKER_THREADS_ENABLED.get(settings)) {
+            searchExecutor = threadPool.executor(Names.SEARCH);
+        }
+
         clusterService.getClusterSettings().addSettingsUpdateConsumer(SEARCH_WORKER_THREADS_ENABLED, this::setEnableSearchWorkerThreads);
 
         enableQueryPhaseParallelCollection = QUERY_PHASE_PARALLEL_COLLECTION_ENABLED.get(settings);
@@ -384,7 +394,11 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     private void setEnableSearchWorkerThreads(boolean enableSearchWorkerThreads) {
-        this.enableSearchWorkerThreads = enableSearchWorkerThreads;
+        if (enableSearchWorkerThreads) {
+            searchExecutor = threadPool.executor(Names.SEARCH);
+        } else {
+            searchExecutor = null;
+        }
     }
 
     private void setEnableQueryPhaseParallelCollection(boolean enableQueryPhaseParallelCollection) {
@@ -586,9 +600,13 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             final TimeValue timeout = request.getWaitForCheckpointsTimeout();
             final Scheduler.ScheduledCancellable timeoutTask = NO_TIMEOUT.equals(timeout) ? null : threadPool.schedule(() -> {
                 if (isDone.compareAndSet(false, true)) {
-                    listener.onFailure(
-                        new ElasticsearchTimeoutException("Wait for seq_no [{}] refreshed timed out [{}]", waitForCheckpoint, timeout)
+                    var shardTarget = new SearchShardTarget(
+                        shard.routingEntry().currentNodeId(),
+                        shard.shardId(),
+                        request.getClusterAlias()
                     );
+                    var message = LoggerMessageFormat.format("Wait for seq_no [{}] refreshed timed out [{}]", waitForCheckpoint, timeout);
+                    listener.onFailure(new SearchTimeoutException(shardTarget, message));
                 }
             }, timeout, EsExecutors.DIRECT_EXECUTOR_SERVICE);
 
@@ -1113,7 +1131,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 reader.indexShard().shardId(),
                 request.getClusterAlias()
             );
-            ExecutorService executor = this.enableSearchWorkerThreads ? threadPool.executor(Names.SEARCH_WORKER) : null;
             searchContext = new DefaultSearchContext(
                 reader,
                 request,
@@ -1122,7 +1139,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 timeout,
                 fetchPhase,
                 lowLevelCancellation,
-                executor,
+                searchExecutor,
                 resultsType,
                 enableQueryPhaseParallelCollection,
                 minimumDocsPerSlice
@@ -1257,7 +1274,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         if (source == null) {
             return;
         }
-        validateSearchSource(source, context.scrollContext() != null);
         SearchShardTarget shardTarget = context.shardTarget();
         SearchExecutionContext searchExecutionContext = context.getSearchExecutionContext();
         context.from(source.from());
@@ -1454,49 +1470,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     /**
-     * Validates the incoming search request on the data node. These checks have been moved to the coordinating node.
-     * Validation is still performed on the data nodes to ensure that in a mixed cluster scenario, when the coordinating node is on an older
-     * version that does not yet perform validation, the shards make up for that.
-     * This method can be entirely removed in the next major version, when all nodes perform the validation when coordinating a search.
-     *
-     * @see SearchRequest#validate()
-     */
-    @UpdateForV9
-    private static void validateSearchSource(SearchSourceBuilder source, boolean hasScroll) {
-        if (source.trackTotalHitsUpTo() != null && source.trackTotalHitsUpTo() != SearchContext.TRACK_TOTAL_HITS_ACCURATE && hasScroll) {
-            throw new IllegalArgumentException("disabling [track_total_hits] is not allowed in a scroll context");
-        }
-        if (CollectionUtils.isEmpty(source.searchAfter()) == false) {
-            if (hasScroll) {
-                throw new IllegalArgumentException("`search_after` cannot be used in a scroll context.");
-            }
-            if (source.from() > 0) {
-                throw new IllegalArgumentException("`from` parameter must be set to 0 when `search_after` is used.");
-            }
-        }
-        if (source.collapse() != null) {
-            if (hasScroll) {
-                throw new IllegalArgumentException("cannot use `collapse` in a scroll context");
-            }
-        }
-        if (source.slice() != null) {
-            if (source.pointInTimeBuilder() == null && (hasScroll == false)) {
-                throw new IllegalArgumentException("[slice] can only be used with [scroll] or [point-in-time] requests");
-            }
-        }
-        if (source.storedFields() != null) {
-            if (source.storedFields().fetchFields() == false) {
-                if (source.fetchSource() != null && source.fetchSource().fetchSource()) {
-                    throw new IllegalArgumentException("[stored_fields] cannot be disabled if [_source] is requested");
-                }
-                if (source.fetchFields() != null) {
-                    throw new IllegalArgumentException("[stored_fields] cannot be disabled when using the [fields] option");
-                }
-            }
-        }
-    }
-
-    /**
      * Shortcut ids to load, we load only "from" and up to "size". The phase controller
      * handles this as well since the result is always size * shards for Q_T_F
      */
@@ -1646,7 +1619,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         }
     }
 
-    public AliasFilter buildAliasFilter(ClusterState state, String index, Set<String> resolvedExpressions) {
+    public AliasFilter buildAliasFilter(ClusterState state, String index, Set<ResolvedExpression> resolvedExpressions) {
         return indicesService.buildAliasFilter(state, index, resolvedExpressions);
     }
 

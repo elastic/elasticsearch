@@ -32,14 +32,17 @@ import org.mockito.stubbing.Answer;
 
 import java.io.IOException;
 import java.net.UnknownHostException;
+import java.util.concurrent.Flow;
 
 import static org.elasticsearch.xpack.inference.external.http.retry.RetrySettingsTests.createDefaultRetrySettings;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.only;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
@@ -74,7 +77,7 @@ public class RetryingHttpSenderTests extends ESTestCase {
         doThrow(new RetryException(true, "failed")).doNothing().when(handler).validateResponse(any(), any(), any(), any());
         // Mockito.thenReturn() does not compile when returning a
         // bounded wild card list, thenAnswer must be used instead.
-        when(handler.parseResult(any(), any())).thenAnswer(answer);
+        when(handler.parseResult(any(Request.class), any(HttpResult.class))).thenAnswer(answer);
 
         var retrier = createRetrier(httpClient);
 
@@ -133,7 +136,8 @@ public class RetryingHttpSenderTests extends ESTestCase {
         Answer<InferenceServiceResults> answer = (invocation) -> inferenceResults;
 
         var handler = mock(ResponseHandler.class);
-        when(handler.parseResult(any(), any())).thenThrow(new RetryException(true, "failed")).thenAnswer(answer);
+        when(handler.parseResult(any(Request.class), any(HttpResult.class))).thenThrow(new RetryException(true, "failed"))
+            .thenAnswer(answer);
 
         var retrier = createRetrier(httpClient);
 
@@ -161,7 +165,8 @@ public class RetryingHttpSenderTests extends ESTestCase {
         Answer<InferenceServiceResults> answer = (invocation) -> inferenceResults;
 
         var handler = mock(ResponseHandler.class);
-        when(handler.parseResult(any(), any())).thenThrow(new IllegalStateException("failed")).thenAnswer(answer);
+        when(handler.parseResult(any(Request.class), any(HttpResult.class))).thenThrow(new IllegalStateException("failed"))
+            .thenAnswer(answer);
 
         var retrier = createRetrier(httpClient);
 
@@ -196,7 +201,7 @@ public class RetryingHttpSenderTests extends ESTestCase {
         Answer<InferenceServiceResults> answer = (invocation) -> inferenceResults;
 
         var handler = mock(ResponseHandler.class);
-        when(handler.parseResult(any(), any())).thenAnswer(answer);
+        when(handler.parseResult(any(Request.class), any(HttpResult.class))).thenAnswer(answer);
 
         var retrier = createRetrier(httpClient);
 
@@ -229,7 +234,7 @@ public class RetryingHttpSenderTests extends ESTestCase {
         Answer<InferenceServiceResults> answer = (invocation) -> inferenceResults;
 
         var handler = mock(ResponseHandler.class);
-        when(handler.parseResult(any(), any())).thenAnswer(answer);
+        when(handler.parseResult(any(Request.class), any(HttpResult.class))).thenAnswer(answer);
 
         var retrier = createRetrier(httpClient);
 
@@ -262,7 +267,7 @@ public class RetryingHttpSenderTests extends ESTestCase {
         Answer<InferenceServiceResults> answer = (invocation) -> inferenceResults;
 
         var handler = mock(ResponseHandler.class);
-        when(handler.parseResult(any(), any())).thenAnswer(answer);
+        when(handler.parseResult(any(Request.class), any(HttpResult.class))).thenAnswer(answer);
 
         var retrier = createRetrier(httpClient);
 
@@ -289,7 +294,7 @@ public class RetryingHttpSenderTests extends ESTestCase {
         Answer<InferenceServiceResults> answer = (invocation) -> inferenceResults;
 
         var handler = mock(ResponseHandler.class);
-        when(handler.parseResult(any(), any())).thenAnswer(answer);
+        when(handler.parseResult(any(Request.class), any(HttpResult.class))).thenAnswer(answer);
 
         var retrier = createRetrier(httpClient);
 
@@ -311,7 +316,7 @@ public class RetryingHttpSenderTests extends ESTestCase {
         Answer<InferenceServiceResults> answer = (invocation) -> inferenceResults;
 
         var handler = mock(ResponseHandler.class);
-        when(handler.parseResult(any(), any())).thenAnswer(answer);
+        when(handler.parseResult(any(Request.class), any(HttpResult.class))).thenAnswer(answer);
 
         var retrier = createRetrier(httpClient);
 
@@ -345,7 +350,7 @@ public class RetryingHttpSenderTests extends ESTestCase {
         doThrow(new RetryException(true, "failed")).doThrow(new IllegalStateException("failed again"))
             .when(handler)
             .validateResponse(any(), any(), any(), any());
-        when(handler.parseResult(any(), any())).thenAnswer(answer);
+        when(handler.parseResult(any(Request.class), any(HttpResult.class))).thenAnswer(answer);
 
         var retrier = createRetrier(sender);
 
@@ -382,7 +387,7 @@ public class RetryingHttpSenderTests extends ESTestCase {
         doThrow(new RetryException(true, "failed")).doThrow(new RetryException(false, "failed again"))
             .when(handler)
             .validateResponse(any(), any(), any(), any());
-        when(handler.parseResult(any(), any())).thenAnswer(answer);
+        when(handler.parseResult(any(Request.class), any(HttpResult.class))).thenAnswer(answer);
 
         var retrier = createRetrier(httpClient);
 
@@ -452,6 +457,56 @@ public class RetryingHttpSenderTests extends ESTestCase {
         assertThat(thrownException.getSuppressed().length, is(0));
         verify(httpClient, times(1)).send(any(), any(), any());
         verifyNoMoreInteractions(httpClient);
+    }
+
+    public void testStream() throws IOException {
+        var httpClient = mock(HttpClient.class);
+        Flow.Publisher<HttpResult> publisher = mock();
+        doAnswer(ans -> {
+            ActionListener<Flow.Publisher<HttpResult>> listener = ans.getArgument(2);
+            listener.onResponse(publisher);
+            return null;
+        }).when(httpClient).stream(any(), any(), any());
+
+        var retrier = createRetrier(httpClient);
+
+        ActionListener<InferenceServiceResults> listener = mock();
+        var request = mockRequest();
+        when(request.isStreaming()).thenReturn(true);
+        var responseHandler = mock(ResponseHandler.class);
+        when(responseHandler.canHandleStreamingResponses()).thenReturn(true);
+        executeTasks(() -> retrier.send(mock(Logger.class), request, () -> false, responseHandler, listener), 0);
+
+        verify(httpClient, times(1)).stream(any(), any(), any());
+        verifyNoMoreInteractions(httpClient);
+        verify(publisher, only()).subscribe(any(StreamingResponseHandler.class));
+    }
+
+    public void testStream_ResponseHandlerDoesNotHandleStreams() throws IOException {
+        var httpClient = mock(HttpClient.class);
+        doAnswer(ans -> {
+            ActionListener<HttpResult> listener = ans.getArgument(2);
+            listener.onResponse(new HttpResult(mock(), new byte[0]));
+            return null;
+        }).when(httpClient).send(any(), any(), any());
+
+        var expectedResponse = mock(InferenceServiceResults.class);
+
+        var retrier = createRetrier(httpClient);
+
+        var listener = new PlainActionFuture<InferenceServiceResults>();
+        var request = mockRequest();
+        when(request.isStreaming()).thenReturn(true);
+        var responseHandler = mock(ResponseHandler.class);
+        when(responseHandler.parseResult(any(Request.class), any(HttpResult.class))).thenReturn(expectedResponse);
+        when(responseHandler.canHandleStreamingResponses()).thenReturn(false);
+        executeTasks(() -> retrier.send(mock(Logger.class), request, () -> false, responseHandler, listener), 0);
+
+        var actualResponse = listener.actionGet(TIMEOUT);
+
+        verify(httpClient, times(1)).send(any(), any(), any());
+        verifyNoMoreInteractions(httpClient);
+        assertThat(actualResponse, sameInstance(expectedResponse));
     }
 
     public void testSend_DoesNotRetryIndefinitely() throws IOException {

@@ -280,7 +280,7 @@ public class GeoShapeWithDocValuesFieldMapperTests extends GeoFieldMapperTests {
         );
     }
 
-    @UpdateForV9
+    @UpdateForV9(owner = UpdateForV9.Owner.SEARCH_ANALYTICS)
     @AwaitsFix(bugUrl = "this is testing legacy functionality so can likely be removed in 9.0")
     public void testGeoShapeLegacyMerge() throws Exception {
         IndexVersion version = IndexVersionUtils.randomPreviousCompatibleVersion(random(), IndexVersions.V_8_0_0);

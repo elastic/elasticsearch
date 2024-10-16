@@ -31,7 +31,7 @@ import static org.hamcrest.Matchers.instanceOf;
 public class SecurityScrollTests extends SecurityIntegTestCase {
 
     public void testScrollIsPerUser() throws Exception {
-        assertSecurityIndexActive();
+        createSecurityIndexWithWaitForActiveShards();
         new PutRoleRequestBuilder(client()).name("scrollable")
             .addIndices(new String[] { randomAlphaOfLengthBetween(4, 12) }, new String[] { "read" }, null, null, null, randomBoolean())
             .get();

@@ -1,0 +1,580 @@
+[#es-connectors-dropbox]
+=== Elastic Dropbox connector reference
+++++
+<titleabbrev>Dropbox</titleabbrev>
+++++
+// Attributes used in this file
+:service-name: Dropbox
+:service-name-stub: dropbox
+
+The _Elastic Dropbox connector_ is a <<es-connectors,connector>> for https://www.dropbox.com[Dropbox^].
+This connector is written in Python using the {connectors-python}[Elastic connector framework^]. 
+
+View the {connectors-python}/connectors/sources/{service-name-stub}.py[*source code* for this connector^] (branch _{connectors-branch}_, compatible with Elastic _{minor-version}_).
+
+.Choose your connector reference
+*******************************
+Are you using a managed connector on Elastic Cloud or a self-managed connector? Expand the documentation based on your deployment method.
+*******************************
+
+// //////// //// //// //// //// //// //// ////////
+// ////////   NATIVE CONNECTOR REFERENCE   ///////
+// //////// //// //// //// //// //// //// ////////
+
+[discrete#es-connectors-dropbox-native-connector-reference]
+==== *Elastic managed connector reference*
+
+.View *Elastic managed connector* reference
+
+[%collapsible]
+===============
+
+[discrete#es-connectors-dropbox-availability-and-prerequisites]
+===== Availability and prerequisites
+
+This connector is available as a *managed connector* in Elastic versions *8.10.0 and later*.
+
+To use this connector natively in Elastic Cloud, satisfy all <<es-native-connectors-prerequisites,managed connector requirements>>.
+
+[discrete#es-connectors-dropbox-create-native-connector]
+===== Create a {service-name} connector
+include::_connectors-create-native.asciidoc[]
+
+[discrete#es-connectors-dropbox-usage]
+===== Usage
+
+To use this connector as a *managed connector*, see <<es-native-connectors>>.
+
+For additional operations, see <<es-connectors-usage>>.
+
+Before you can configure your connector, you'll need to:
+
+* <<es-connectors-dropbox-create-dropbox-oauth-app,Create a Dropbox OAuth app>>
+* <<es-connectors-dropbox-refresh-token,Generate a refresh token>>
+
+[discrete#es-connectors-dropbox-dropbox-api-authorization]
+===== Dropbox API Authorization
+
+[discrete#es-connectors-dropbox-create-dropbox-oauth-app]
+====== Create Dropbox OAuth App
+
+You'll need to create an OAuth app in the Dropbox platform by following these steps:
+
+1. Register a new app in the https://www.dropbox.com/developers/apps[Dropbox App Console^].
+Select *Full Dropbox API app* and choose the following required permissions:
+* `files.content.read`
+* `sharing.read`
++
+To use document level security, you'll also need the following permissions:
+* `team_info.read`
+* `team_data.member`
+* `team_data.content.read`
+* `members.read`
+2. Once the app is created, make note of the *app key* and *app secret* values which you'll need to configure the Dropbox connector on your Elastic deployment.
+
+[discrete#es-connectors-dropbox-refresh-token]
+====== Generate a refresh Token
+
+To generate a refresh token, follow these steps:
+
+1. Go to the following URL, replacing `<APP_KEY>` with the *app key* value saved earlier:
+`https://www.dropbox.com/oauth2/authorize?client_id=<APP_KEY>&response_type=code&token_access_type=offline`
++
+The HTTP response should contain an *authorization code* that you'll use to generate a refresh token.
+An authorization code *can only be used once* to create a refresh token.
++
+2. In your terminal, run the following `cURL` command, replacing `<AUTHORIZATION_CODE>`, `<APP_KEY>:<APP_SECRET>` with the values you saved earlier:
++
+[source,shell]
+----
+curl -X POST "https://api.dropboxapi.com/oauth2/token?code=<AUTHORIZATION_CODE>&grant_type=authorization_code" -u "<APP_KEY>:<APP_SECRET>"
+----
+// NOTCONSOLE
+Store the refresh token from the response to be used in the connector configuration.
++
+Make sure the response has a list of the following scopes:
++
+* `account_info.read`
+* `files.content.read`
+* `files.metadata.read`
+* `sharing.read`
+* `team_info.read` (if using document level security)
+* `team_data.member` (if using document level security)
+* `team_data.content.read` (if using document level security)
+* `members.read` (if using document level security)
+
+[discrete#es-connectors-dropbox-configuration]
+===== Configuration
+
+The following configuration fields are required to set up the connector:
+
+Path to fetch files/folders::
+The folder path to fetch files/folders from Dropbox. Default value is `/`.
++
+[Note]
+====
+This field can be bypassed by advanced sync rules.
+====
+
+App key::
+The App Key to authenticate your Dropbox application.
+
+App secret::
+The App Secret to authenticate your Dropbox application.
+
+Refresh token::
+The refresh token to authenticate your Dropbox application.
+
+Enable document level security::
+Toggle to enable <<es-dls, document level security (DLS)>>.
+When enabled, full syncs will fetch access control lists for each document and store them in the `_allow_access_control` field.
+Access control syncs will fetch users' access control lists and store them in a separate index.
+
+Include groups and inherited users::
+Appears when document level security is enabled. 
+Include groups and inherited users when indexing permissions.
+
+[WARNING]
+====
+Enabling `Include groups and inherited users` will cause a signficant performance degradation.
+====
+
+[discrete#es-connectors-dropbox-documents-and-syncs]
+===== Documents and syncs
+
+The connector syncs the following objects and entities:
+
+* *Files*
+** Includes metadata such as file name, path, size, content, etc.
+* *Folders*
+
+[NOTE]
+====
+Due to a Dropbox issue, metadata updates to Paper files from Dropbox Paper are not immediately reflected in the Dropbox UI.
+This delays the availability of updated results for the connector.
+Once the metadata changes are visible in the Dropbox UI, the updates are available.
+====
+
+[NOTE]
+====
+* Content from files bigger than 10 MB won't be extracted. (Self-managed connectors can use the <<es-connectors-content-extraction-local, self-managed local extraction service>> to handle larger binary files.)
+* Currently, the connector doesn't retrieve files from shared Team folders.
+* Permissions are not synced by default. If <<es-dls, document level security (DLS)>> is not enabled *all documents* indexed to an Elastic deployment will be visible to *all users with access* to that Elastic Deployment.
+====
+
+[discrete#es-connectors-dropbox-sync-types]
+====== Sync types
+
+<<es-connectors-sync-types-full,Full syncs>> are supported by default for all connectors.
+
+This connector also supports <<es-connectors-sync-types-incremental,incremental syncs>>.
+
+[discrete#es-connectors-dropbox-sync-rules]
+===== Sync rules
+
+<<es-sync-rules-basic, Basic sync rules>> are identical for all connectors and are available by default.
+
+[discrete#es-connectors-dropbox-sync-rules-advanced]
+====== Advanced sync rules
+
+[NOTE]
+====
+A <<es-connectors-sync-types-full, full sync>> is required for advanced sync rules to take effect.
+====
+
+The following section describes <<es-sync-rules-advanced,advanced sync rules>> for this connector.
+
+Advanced sync rules for Dropbox allow you to sync Dropbox files based on a query that matches strings in the filename.
+You can optionally filter the results of the query by `file_extensions` or `file_categories`.
+When both are provided, priority is given to `file_categories`.
+We have some examples below for illustration.
+
+[discrete#es-connectors-dropbox-sync-rules-advanced-example-1]
+======= Example: Query only
+
+[source,js]
+----
+[
+  {
+    "query": "confidential"
+  },
+  {
+    "query": "dropbox"
+  }
+]
+----
+// NOTCONSOLE
+
+[discrete#es-connectors-dropbox-sync-rules-advanced-example-2]
+======= Example: Query with file extension filter
+
+[source,js]
+----
+[
+  {
+    "query": "dropbox",
+    "options": {
+      "file_extensions": [
+        "txt",
+        "pdf"
+      ]
+    }
+  }
+]
+----
+// NOTCONSOLE
+
+[discrete#es-connectors-dropbox-sync-rules-advanced-example-3]
+======= Example: Query with file category filter
+
+[source,js]
+----
+[
+  {
+    "query": "test",
+    "options": {
+      "file_categories": [
+        {
+          ".tag": "paper"
+        },
+        {
+          ".tag": "png"
+        }
+      ]
+    }
+  }
+]
+----
+// NOTCONSOLE
+
+[discrete#es-connectors-dropbox-sync-rules-advanced-limitations]
+======= Limitations
+
+* Content extraction is not supported for Dropbox *Paper* files when advanced sync rules are enabled.
+
+[discrete#es-connectors-dropbox-known-issues]
+===== Known issues
+
+Refer to <<es-connectors-known-issues>> for a list of known issues for all connectors.
+
+[discrete#es-connectors-dropbox-troubleshooting]
+===== Troubleshooting
+
+See <<es-connectors-troubleshooting>> for a list of troubleshooting tips for all connectors.
+
+[discrete#es-connectors-dropbox-security]
+===== Security
+
+See <<es-connectors-security>> for a list of security tips for all connectors.
+
+[discrete#es-connectors-dropbox-content-extraction]
+===== Content extraction
+
+See <<es-connectors-content-extraction>>.
+// Closing the collapsible section 
+===============
+
+
+// //////// //// //// //// //// //// //// ////////
+// //////// CONNECTOR CLIENT REFERENCE     ///////
+// //////// //// //// //// //// //// //// ////////
+
+[discrete#es-connectors-dropbox-connector-client-reference]
+==== *Self-managed connector*
+
+.View *self-managed connector* reference
+
+[%collapsible]
+===============
+
+[discrete#es-connectors-dropbox-client-availability-and-prerequisites]
+===== Availability and prerequisites
+
+This connector is available as a self-managed *self-managed connector*.
+
+This self-managed connector is compatible with Elastic versions *8.9.0*+.
+
+To use this connector, satisfy all <<es-build-connector-prerequisites,self-managed connector requirements>>.
+
+[discrete#es-connectors-dropbox-create-connector-client]
+===== Create a {service-name} connector
+include::_connectors-create-client.asciidoc[]
+
+[discrete#es-connectors-dropbox-client-usage]
+===== Usage
+Before you can configure your connector, you'll need to:
+
+* <<es-connectors-dropbox-client-create-dropbox-oauth-app,Create a Dropbox OAuth app>>
+* <<es-connectors-dropbox-client-refresh-token,Generate a refresh token>>
+
+
+To use this connector as a *self-managed connector*, see <<es-build-connector>>
+Once set up, for additional usage operations, see <<es-connectors-usage>>.
+
+[discrete#es-connectors-dropbox-client-dropbox-api-authorization]
+===== Dropbox API Authorization
+
+[discrete#es-connectors-dropbox-client-create-dropbox-oauth-app]
+====== Create Dropbox OAuth App
+
+You'll need to create an OAuth app in the Dropbox platform by following these steps:
+
+1. Register a new app in the https://www.dropbox.com/developers/apps[Dropbox App Console^].
+Select *Full Dropbox API app* and choose the following required permissions:
+* `files.content.read`
+* `sharing.read`
++
+To use document level security, you'll also need the following permissions:
+* `team_info.read`
+* `team_data.member`
+* `team_data.content.read`
+* `members.read`
+2. Once the app is created, make note of the *app key* and *app secret* values which you'll need to configure the Dropbox connector on your Elastic deployment.
+
+[discrete#es-connectors-dropbox-client-refresh-token]
+====== Generate a refresh Token
+
+To generate a refresh token, follow these steps:
+
+1. Go to the following URL, replacing `<APP_KEY>` with the *app key* value saved earlier:
+`https://www.dropbox.com/oauth2/authorize?client_id=<APP_KEY>&response_type=code&token_access_type=offline`
++
+The HTTP response should contain an *authorization code* that you'll use to generate a refresh token.
+An authorization code *can only be used once* to create a refresh token.
++
+2. In your terminal, run the following `cURL` command, replacing `<AUTHORIZATION_CODE>`, `<APP_KEY>:<APP_SECRET>` with the values you saved earlier:
++
+[source,shell]
+----
+curl -X POST "https://api.dropboxapi.com/oauth2/token?code=<AUTHORIZATION_CODE>&grant_type=authorization_code" -u "<APP_KEY>:<APP_SECRET>"
+----
+// NOTCONSOLE
+Store the refresh token from the response to be used in the connector configuration.
++
+Make sure the response has a list of the following scopes:
++
+* `account_info.read`
+* `files.content.read`
+* `files.metadata.read`
+* `sharing.read`
+* `team_info.read` (if using document level security)
+* `team_data.member` (if using document level security)
+* `team_data.content.read` (if using document level security)
+* `members.read` (if using document level security)
+
+[discrete#es-connectors-dropbox-client-configuration]
+===== Configuration
+
+[TIP]
+====
+When using the <<es-build-connector, self-managed connector>> workflow, initially these fields will use the default configuration set in the {connectors-python}/connectors/sources/confluence.py[connector source code^].
+These are set in the `get_default_configuration` function definition.
+
+These configurable fields will be rendered with their respective *labels* in the Kibana UI.
+Once connected, you'll be able to update these values in Kibana.
+====
+
+The following configuration fields are required to set up the connector:
+
+`path`::
+The folder path to fetch files/folders from Dropbox. Default value is `/`.
+
+`app_key` (required)::
+The App Key to authenticate your Dropbox application.
+
+`app_secret` (required)::
+The App Secret to authenticate your Dropbox application.
+
+`refresh_token` (required)::
+The refresh token to authenticate your Dropbox application.
+
+use_document_level_security::
+Toggle to enable <<es-dls, document level security (DLS)>>.
+When enabled, full syncs will fetch access control lists for each document and store them in the `_allow_access_control` field.
+Access control syncs will fetch users' access control lists and store them in a separate index.
+
+`retry_count`::
+The number of retry attempts after a failed request to Dropbox. Default value is `3`.
+
+`concurrent_downloads`::
+The number of concurrent downloads for fetching attachment content.
+This can help speed up content extraction of attachments. Defaults to `100`.
+
+`use_text_extraction_service`::
+Requires a separate deployment of the <<es-connectors-content-extraction-local,Elastic Text Extraction Service>>.
+Requires that pipeline settings disable text extraction.
+Default value is `False`.
+
+`use_document_level_security`::
+Toggle to enable <<es-dls, document level security (DLS)>>.
+When enabled, full syncs will fetch access control lists for each document and store them in the `_allow_access_control` field. Access control syncs will fetch users' access control lists and store them in a separate index.
+
+`include_inherited_users_and_groups`::
+Depends on document level security being enabled. 
+Include groups and inherited users when indexing permissions.
+
+[WARNING]
+====
+Enabling `Include groups and inherited users` will cause a signficant performance degradation.
+====
+
+[discrete#es-connectors-dropbox-client-docker]
+===== Deployment using Docker
+
+include::_connectors-docker-instructions.asciidoc[]
+
+[discrete#es-connectors-dropbox-client-documents-and-syncs]
+===== Documents and syncs
+
+The connector syncs the following objects and entities:
+
+* *Files*
+** Includes metadata such as file name, path, size, content, etc.
+* *Folders*
+
+[NOTE]
+====
+Due to a Dropbox issue, metadata updates to Paper files from Dropbox Paper are not immediately reflected in the Dropbox UI.
+This delays the availability of updated results for the connector.
+Once the metadata changes are visible in the Dropbox UI, the updates are available.
+====
+
+[NOTE]
+====
+* Content from files bigger than 10 MB won't be extracted by default. You can use the <<es-connectors-content-extraction-local, self-managed local extraction service>> to handle larger binary files.
+* Currently, the connector doesn't retrieve files from shared Team folders.
+* Permissions are not synced by default. If <<es-dls, document level security (DLS)>> is not enabled *all documents* indexed to an Elastic deployment will be visible to *all users with access* to that Elastic Deployment.
+====
+
+[discrete#es-connectors-dropbox-client-sync-types]
+====== Sync types
+
+<<es-connectors-sync-types-full,Full syncs>> are supported by default for all connectors.
+
+This connector also supports <<es-connectors-sync-types-incremental,incremental syncs>>.
+
+[discrete#es-connectors-dropbox-client-sync-rules]
+===== Sync rules
+
+<<es-sync-rules-basic, Basic sync rules>> are identical for all connectors and are available by default.
+
+[discrete#es-connectors-dropbox-client-sync-rules-advanced]
+====== Advanced sync rules
+
+[NOTE]
+====
+A <<es-connectors-sync-types-full, full sync>> is required for advanced sync rules to take effect.
+====
+
+The following section describes <<es-sync-rules-advanced,advanced sync rules>> for this connector.
+
+Advanced sync rules for Dropbox allow you to sync Dropbox files based on a query that matches strings in the filename.
+You can optionally filter the results of the query by `file_extensions` or `file_categories`.
+When both are provided, priority is given to `file_categories`.
+We have some examples below for illustration.
+
+[discrete#es-connectors-dropbox-client-sync-rules-advanced-example-1]
+======= Example: Query only
+
+[source,js]
+----
+[
+  {
+    "query": "confidential"
+  },
+  {
+    "query": "dropbox"
+  }
+]
+----
+// NOTCONSOLE
+
+[discrete#es-connectors-dropbox-client-sync-rules-advanced-example-2]
+======= Example: Query with file extension filter
+
+[source,js]
+----
+[
+  {
+    "query": "dropbox",
+    "options": {
+      "file_extensions": [
+        "txt",
+        "pdf"
+      ]
+    }
+  }
+]
+----
+// NOTCONSOLE
+
+[discrete#es-connectors-dropbox-client-sync-rules-advanced-example-3]
+======= Example: Query with file category filter
+
+[source,js]
+----
+[
+  {
+    "query": "test",
+    "options": {
+      "file_categories": [
+        {
+          ".tag": "paper"
+        },
+        {
+          ".tag": "png"
+        }
+      ]
+    }
+  }
+]
+----
+// NOTCONSOLE
+
+[discrete#es-connectors-dropbox-client-sync-rules-advanced-limitations]
+======= Limitations
+
+* Content extraction is not supported for Dropbox *Paper* files when advanced sync rules are enabled.
+
+[discrete#es-connectors-dropbox-client-end-to-end-testing]
+===== End-to-end Testing
+
+The connector framework enables operators to run functional tests against a real data source.
+Refer to <<es-build-connector-testing>> for more details.
+
+To perform E2E testing for the Dropbox connector, run the following command:
+
+[source,shell]
+----
+$ make ftest NAME=dropbox
+----
+
+For faster tests, add the `DATA_SIZE=small` flag:
+
+[source,shell]
+----
+make ftest NAME=dropbox DATA_SIZE=small
+----
+
+[discrete#es-connectors-dropbox-client-known-issues]
+===== Known issues
+
+Refer to <<es-connectors-known-issues>> for a list of known issues for all connectors.
+
+[discrete#es-connectors-dropbox-client-troubleshooting]
+===== Troubleshooting
+
+See <<es-connectors-troubleshooting>> for a list of troubleshooting tips for all connectors.
+
+[discrete#es-connectors-dropbox-client-security]
+===== Security
+
+See <<es-connectors-security>> for a list of security tips for all connectors.
+
+[discrete#es-connectors-dropbox-client-content-extraction]
+===== Content extraction
+
+See <<es-connectors-content-extraction>>.
+
+// Closing the collapsible section 
+===============

@@ -54,7 +54,7 @@ final class CO2Calculator {
         return getKiloWattsPerCore(host) * getCO2TonsPerKWH(host) * annualCoreHours * getDatacenterPUE(host);
     }
 
-    @UpdateForV9 // only allow OTEL semantic conventions
+    @UpdateForV9(owner = UpdateForV9.Owner.PROFILING) // only allow OTEL semantic conventions
     private double getKiloWattsPerCore(HostMetadata host) {
         return switch (host.hostArchitecture) {
             // For the OTEL donation of the profiling agent, we switch to OTEL semantic conventions,

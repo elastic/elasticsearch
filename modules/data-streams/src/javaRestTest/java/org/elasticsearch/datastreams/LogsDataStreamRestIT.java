@@ -73,7 +73,7 @@ public class LogsDataStreamRestIT extends ESRestTestCase {
         });
     }
 
-    private static final String LOGS_TEMPLATE = """
+    static final String LOGS_TEMPLATE = """
         {
           "index_patterns": [ "logs-*-*" ],
           "data_stream": {},
@@ -110,7 +110,7 @@ public class LogsDataStreamRestIT extends ESRestTestCase {
           }
         }""";
 
-    private static final String LOGS_STANDARD_INDEX_MODE = """
+    static final String LOGS_STANDARD_INDEX_MODE = """
         {
           "index_patterns": [ "logs-*-*" ],
           "data_stream": {},
@@ -143,7 +143,7 @@ public class LogsDataStreamRestIT extends ESRestTestCase {
           }
         }""";
 
-    private static final String STANDARD_TEMPLATE = """
+    static final String STANDARD_TEMPLATE = """
         {
           "index_patterns": [ "standard-*-*" ],
           "data_stream": {},
@@ -216,7 +216,7 @@ public class LogsDataStreamRestIT extends ESRestTestCase {
           }
         }""";
 
-    private static final String DOC_TEMPLATE = """
+    static final String DOC_TEMPLATE = """
         {
             "@timestamp": "%s",
             "host.name": "%s",
@@ -333,6 +333,23 @@ public class LogsDataStreamRestIT extends ESRestTestCase {
         );
         assertDataStreamBackingIndexMode("logsdb", 0, DATA_STREAM_NAME);
 
+        putTemplate(client, "custom-template", LOGS_STANDARD_INDEX_MODE);
+        rolloverDataStream(client, DATA_STREAM_NAME);
+        indexDocument(
+            client,
+            DATA_STREAM_NAME,
+            document(
+                Instant.now(),
+                randomAlphaOfLength(10),
+                randomNonNegativeLong(),
+                randomFrom("PUT", "POST", "GET"),
+                randomAlphaOfLength(64),
+                randomIp(randomBoolean()),
+                randomLongBetween(1_000_000L, 2_000_000L)
+            )
+        );
+        assertDataStreamBackingIndexMode("standard", 1, DATA_STREAM_NAME);
+
         putTemplate(client, "custom-template", TIME_SERIES_TEMPLATE);
         rolloverDataStream(client, DATA_STREAM_NAME);
         indexDocument(
@@ -348,7 +365,24 @@ public class LogsDataStreamRestIT extends ESRestTestCase {
                 randomLongBetween(1_000_000L, 2_000_000L)
             )
         );
-        assertDataStreamBackingIndexMode("time_series", 1, DATA_STREAM_NAME);
+        assertDataStreamBackingIndexMode("time_series", 2, DATA_STREAM_NAME);
+
+        putTemplate(client, "custom-template", LOGS_STANDARD_INDEX_MODE);
+        rolloverDataStream(client, DATA_STREAM_NAME);
+        indexDocument(
+            client,
+            DATA_STREAM_NAME,
+            document(
+                Instant.now(),
+                randomAlphaOfLength(10),
+                randomNonNegativeLong(),
+                randomFrom("PUT", "POST", "GET"),
+                randomAlphaOfLength(64),
+                randomIp(randomBoolean()),
+                randomLongBetween(1_000_000L, 2_000_000L)
+            )
+        );
+        assertDataStreamBackingIndexMode("standard", 3, DATA_STREAM_NAME);
 
         putTemplate(client, "custom-template", LOGS_TEMPLATE);
         rolloverDataStream(client, DATA_STREAM_NAME);
@@ -365,7 +399,7 @@ public class LogsDataStreamRestIT extends ESRestTestCase {
                 randomLongBetween(1_000_000L, 2_000_000L)
             )
         );
-        assertDataStreamBackingIndexMode("logsdb", 2, DATA_STREAM_NAME);
+        assertDataStreamBackingIndexMode("logsdb", 4, DATA_STREAM_NAME);
     }
 
     public void testLogsDBToStandardReindex() throws IOException {
@@ -554,7 +588,7 @@ public class LogsDataStreamRestIT extends ESRestTestCase {
         assertThat(getSettings(client, getWriteBackingIndex(client, dataStreamName, backingIndex)).get("index.mode"), is(indexMode));
     }
 
-    private String document(
+    static String document(
         final Instant timestamp,
         final String hostname,
         long pid,
@@ -581,13 +615,13 @@ public class LogsDataStreamRestIT extends ESRestTestCase {
         assertOK(client.performRequest(request));
     }
 
-    private static void putTemplate(final RestClient client, final String templateName, final String mappings) throws IOException {
+    static void putTemplate(final RestClient client, final String templateName, final String mappings) throws IOException {
         final Request request = new Request("PUT", "/_index_template/" + templateName);
         request.setJsonEntity(mappings);
         assertOK(client.performRequest(request));
     }
 
-    private static void indexDocument(final RestClient client, String indexOrtDataStream, String doc) throws IOException {
+    static void indexDocument(final RestClient client, String indexOrtDataStream, String doc) throws IOException {
         final Request request = new Request("POST", "/" + indexOrtDataStream + "/_doc?refresh=true");
         request.setJsonEntity(doc);
         final Response response = client.performRequest(request);

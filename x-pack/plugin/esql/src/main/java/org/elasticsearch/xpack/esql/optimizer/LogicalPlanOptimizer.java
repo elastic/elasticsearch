@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.optimizer;
 
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.common.Failures;
-import org.elasticsearch.xpack.esql.core.rule.ParameterizedRuleExecutor;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.AddDefaultTopN;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.BooleanFunctionEqualsElimination;
@@ -54,10 +53,12 @@ import org.elasticsearch.xpack.esql.optimizer.rules.logical.SimplifyComparisonsA
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.SkipQueryOnEmptyMappings;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.SkipQueryOnLimitZero;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.SplitInWithFoldableValue;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.SubstituteFilteredExpression;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.SubstituteSpatialSurrogates;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.SubstituteSurrogates;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.TranslateMetricsAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.rule.ParameterizedRuleExecutor;
 
 import java.util.List;
 
@@ -122,6 +123,9 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             "Substitutions",
             Limiter.ONCE,
             new ReplaceLookupWithJoin(),
+            // translate filtered expressions into aggregate with filters - can't use surrogate expressions because it was
+            // retrofitted for constant folding - this needs to be fixed
+            new SubstituteFilteredExpression(),
             new RemoveStatsOverride(),
             // first extract nested expressions inside aggs
             new ReplaceStatsNestedExpressionWithEval(),

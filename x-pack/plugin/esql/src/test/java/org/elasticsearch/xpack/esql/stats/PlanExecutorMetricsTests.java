@@ -8,18 +8,22 @@
 package org.elasticsearch.xpack.esql.stats;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesIndexResponse;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.action.fieldcaps.IndexFieldCapabilities;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.indices.IndicesExpressionGrouper;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.VerificationException;
+import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.esql.action.EsqlResolveFieldsAction;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
@@ -106,17 +110,31 @@ public class PlanExecutorMetricsTests extends ESTestCase {
         // test a failed query: xyz field doesn't exist
         request.query("from test | stats m = max(xyz)");
         BiConsumer<PhysicalPlan, ActionListener<Result>> runPhase = (p, r) -> fail("this shouldn't happen");
-        planExecutor.esql(request, randomAlphaOfLength(10), EsqlTestUtils.TEST_CFG, enrichResolver, runPhase, new ActionListener<>() {
-            @Override
-            public void onResponse(Result result) {
-                fail("this shouldn't happen");
-            }
+        IndicesExpressionGrouper groupIndicesByCluster = (indicesOptions, indexExpressions) -> Map.of(
+            "",
+            new OriginalIndices(new String[] { "test" }, IndicesOptions.DEFAULT)
+        );
 
-            @Override
-            public void onFailure(Exception e) {
-                assertThat(e, instanceOf(VerificationException.class));
+        planExecutor.esql(
+            request,
+            randomAlphaOfLength(10),
+            EsqlTestUtils.TEST_CFG,
+            enrichResolver,
+            new EsqlExecutionInfo(randomBoolean()),
+            groupIndicesByCluster,
+            runPhase,
+            new ActionListener<>() {
+                @Override
+                public void onResponse(Result result) {
+                    fail("this shouldn't happen");
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    assertThat(e, instanceOf(VerificationException.class));
+                }
             }
-        });
+        );
 
         // check we recorded the failure and that the query actually came
         assertEquals(1, planExecutor.metrics().stats().get("queries._all.failed"));
@@ -126,15 +144,24 @@ public class PlanExecutorMetricsTests extends ESTestCase {
         // fix the failing query: foo field does exist
         request.query("from test | stats m = max(foo)");
         runPhase = (p, r) -> r.onResponse(null);
-        planExecutor.esql(request, randomAlphaOfLength(10), EsqlTestUtils.TEST_CFG, enrichResolver, runPhase, new ActionListener<>() {
-            @Override
-            public void onResponse(Result result) {}
+        planExecutor.esql(
+            request,
+            randomAlphaOfLength(10),
+            EsqlTestUtils.TEST_CFG,
+            enrichResolver,
+            new EsqlExecutionInfo(randomBoolean()),
+            groupIndicesByCluster,
+            runPhase,
+            new ActionListener<>() {
+                @Override
+                public void onResponse(Result result) {}
 
-            @Override
-            public void onFailure(Exception e) {
-                fail("this shouldn't happen");
+                @Override
+                public void onFailure(Exception e) {
+                    fail("this shouldn't happen");
+                }
             }
-        });
+        );
 
         // check the new metrics
         assertEquals(1, planExecutor.metrics().stats().get("queries._all.failed"));

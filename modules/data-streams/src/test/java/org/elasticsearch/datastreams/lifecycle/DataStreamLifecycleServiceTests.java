@@ -37,11 +37,11 @@ import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.DataStream;
-import org.elasticsearch.cluster.metadata.DataStreamFactoryRetention;
 import org.elasticsearch.cluster.metadata.DataStreamGlobalRetentionSettings;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle.Downsampling;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle.Downsampling.Round;
+import org.elasticsearch.cluster.metadata.DataStreamOptions;
 import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexGraveyard;
@@ -141,8 +141,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
     private DoExecuteDelegate clientDelegate;
     private ClusterService clusterService;
     private final DataStreamGlobalRetentionSettings globalRetentionSettings = DataStreamGlobalRetentionSettings.create(
-        ClusterSettings.createBuiltInClusterSettings(),
-        DataStreamFactoryRetention.emptyFactoryRetention()
+        ClusterSettings.createBuiltInClusterSettings()
     );
 
     @Before
@@ -1495,6 +1494,13 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
         String dataStreamName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         int numBackingIndices = 3;
         int numFailureIndices = 2;
+        int mutationBranch = randomIntBetween(0, 2);
+        DataStreamOptions dataStreamOptions = switch (mutationBranch) {
+            case 0 -> DataStreamOptions.EMPTY;
+            case 1 -> DataStreamOptions.FAILURE_STORE_ENABLED;
+            case 2 -> DataStreamOptions.FAILURE_STORE_DISABLED;
+            default -> throw new IllegalStateException("Unexpected value: " + mutationBranch);
+        };
         Metadata.Builder builder = Metadata.builder();
         DataStream dataStream = createDataStream(
             builder,
@@ -1504,7 +1510,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
             settings(IndexVersion.current()),
             new DataStreamLifecycle(),
             now
-        ).copy().setFailureStoreEnabled(randomBoolean()).build(); // failure store is managed even when disabled
+        ).copy().setDataStreamOptions(dataStreamOptions).build(); // failure store is managed even when disabled
         builder.put(dataStream);
         Metadata metadata = builder.build();
         Set<Index> indicesToExclude = Set.of(dataStream.getIndices().get(0), dataStream.getFailureIndices().getIndices().get(0));
@@ -1536,7 +1542,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
             settings(IndexVersion.current()),
             DataStreamLifecycle.newBuilder().dataRetention(0).build(),
             now
-        ).copy().setFailureStoreEnabled(false).build(); // failure store is managed even when it is disabled
+        ).copy().setDataStreamOptions(DataStreamOptions.FAILURE_STORE_DISABLED).build(); // failure store is managed even when disabled
         builder.put(dataStream);
 
         ClusterState state = ClusterState.builder(ClusterName.DEFAULT).metadata(builder).build();

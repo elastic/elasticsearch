@@ -111,8 +111,6 @@ public enum GlobalOrdinalsBuilder {
                     return 0;
                 }
 
-                @Override
-                public void close() {}
             };
             subs[i] = atomicFD[i].getOrdinalsValues();
         }

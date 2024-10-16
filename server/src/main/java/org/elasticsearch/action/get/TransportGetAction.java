@@ -20,6 +20,7 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.admin.indices.refresh.TransportShardRefreshAction;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.action.support.replication.BasicReplicationRequest;
 import org.elasticsearch.action.support.single.shard.TransportSingleShardAction;
 import org.elasticsearch.client.internal.node.NodeClient;
@@ -125,11 +126,10 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
         IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
         IndexShard indexShard = indexService.getShard(shardId.id());
         if (indexShard.routingEntry().isPromotableToPrimary() == false) {
-            assert indexShard.indexSettings().isFastRefresh() == false
-                : "a search shard should not receive a TransportGetAction for an index with fast refresh";
             handleGetOnUnpromotableShard(request, indexShard, listener);
             return;
         }
+        // TODO: adapt assertion to assert only that it is not stateless (ES-9563)
         assert DiscoveryNode.isStateless(clusterService.getSettings()) == false || indexShard.indexSettings().isFastRefresh()
             : "in Stateless a promotable to primary shard can receive a TransportGetAction only if an index has the fast refresh setting";
         if (request.realtime()) { // we are not tied to a refresh cycle here anyway
@@ -285,11 +285,11 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
                     } else {
                         assert r.segmentGeneration() > -1L;
                         assert r.primaryTerm() > Engine.UNKNOWN_PRIMARY_TERM;
-                        indexShard.waitForPrimaryTermAndGeneration(
-                            r.primaryTerm(),
-                            r.segmentGeneration(),
-                            listener.delegateFailureAndWrap((ll, aLong) -> super.asyncShardOperation(request, shardId, ll))
+                        final ActionListener<Long> termAndGenerationListener = ContextPreservingActionListener.wrapPreservingContext(
+                            listener.delegateFailureAndWrap((ll, aLong) -> super.asyncShardOperation(request, shardId, ll)),
+                            threadPool.getThreadContext()
                         );
+                        indexShard.waitForPrimaryTermAndGeneration(r.primaryTerm(), r.segmentGeneration(), termAndGenerationListener);
                     }
                 }
             }), TransportGetFromTranslogAction.Response::new, getExecutor(request, shardId))

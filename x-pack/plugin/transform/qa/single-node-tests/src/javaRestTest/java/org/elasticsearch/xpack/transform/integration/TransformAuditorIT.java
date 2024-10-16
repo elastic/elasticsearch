@@ -103,7 +103,7 @@ public class TransformAuditorIT extends TransformRestTestCase {
                 + "] starts "
                 + "with a dot '.', in the next major version, index names starting with a dot are reserved for hidden indices "
                 + "and system indices"
-        );
+        ).toBuilder().addHeader("X-elastic-product-origin", "elastic").build();
         Request request = new Request("PUT", "/" + TransformInternalIndexConstants.AUDIT_INDEX_DEPRECATED);
         String entity = "{\"settings\": " + Strings.toString(settings.build()) + "}";
         request.setJsonEntity(entity);

@@ -98,7 +98,7 @@ public class StandardRetrieverBuilderParsingTests extends AbstractXContentTestCa
 
     @Override
     protected StandardRetrieverBuilder doParseInstance(XContentParser parser) throws IOException {
-        return StandardRetrieverBuilder.fromXContent(
+        return (StandardRetrieverBuilder) RetrieverBuilder.parseTopLevelRetrieverBuilder(
             parser,
             new RetrieverParserContext(
                 new SearchUsage(),

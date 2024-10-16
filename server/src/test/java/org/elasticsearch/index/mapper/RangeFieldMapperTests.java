@@ -307,6 +307,9 @@ public abstract class RangeFieldMapperTests extends MapperTestCase {
         private final boolean includeFrom;
         private final boolean includeTo;
 
+        private final boolean skipDefaultFrom = randomBoolean();
+        private final boolean skipDefaultTo = randomBoolean();
+
         public TestRange(RangeType type, T from, T to, boolean includeFrom, boolean includeTo) {
             this.type = type;
             this.from = from;
@@ -321,13 +324,13 @@ public abstract class RangeFieldMapperTests extends MapperTestCase {
 
             return (ToXContent) (builder, params) -> {
                 builder.startObject();
-                if (includeFrom && from == null && randomBoolean()) {
+                if (includeFrom && from == null && skipDefaultFrom) {
                     // skip field entirely since it is equivalent to a default value
                 } else {
                     builder.field(fromKey, from);
                 }
 
-                if (includeTo && to == null && randomBoolean()) {
+                if (includeTo && to == null && skipDefaultTo) {
                     // skip field entirely since it is equivalent to a default value
                 } else {
                     builder.field(toKey, to);

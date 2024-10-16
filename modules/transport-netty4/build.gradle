@@ -241,3 +241,7 @@ tasks.named("thirdPartyAudit").configure {
     'io.netty.handler.ssl.util.OpenJdkSelfSignedCertGenerator$5'
   )
 }
+
+tasks.named('forbiddenApisMain').configure {
+  signaturesFiles += files('forbidden/netty-signatures.txt')
+}

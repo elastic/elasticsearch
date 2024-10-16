@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.version.CompatibilityVersions;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.tasks.Task;
@@ -147,7 +148,13 @@ public class TransportCreateIndexActionTests extends ESTestCase {
 
         ArgumentCaptor<Exception> exceptionArgumentCaptor = ArgumentCaptor.forClass(Exception.class);
         verify(mockListener, times(0)).onResponse(any());
-        verify(metadataCreateIndexService, times(0)).createIndex(any(), any());
+        verify(metadataCreateIndexService, times(0)).createIndex(
+            any(TimeValue.class),
+            any(TimeValue.class),
+            any(TimeValue.class),
+            any(),
+            any()
+        );
         verify(mockListener, times(1)).onFailure(exceptionArgumentCaptor.capture());
 
         Exception e = exceptionArgumentCaptor.getValue();
@@ -167,7 +174,13 @@ public class TransportCreateIndexActionTests extends ESTestCase {
             CreateIndexClusterStateUpdateRequest.class
         );
         verify(mockListener, times(0)).onFailure(any());
-        verify(metadataCreateIndexService, times(1)).createIndex(createRequestArgumentCaptor.capture(), any());
+        verify(metadataCreateIndexService, times(1)).createIndex(
+            any(TimeValue.class),
+            any(TimeValue.class),
+            any(TimeValue.class),
+            createRequestArgumentCaptor.capture(),
+            any()
+        );
 
         CreateIndexClusterStateUpdateRequest processedRequest = createRequestArgumentCaptor.getValue();
         assertTrue(processedRequest.settings().getAsBoolean(SETTING_INDEX_HIDDEN, false));
@@ -187,7 +200,13 @@ public class TransportCreateIndexActionTests extends ESTestCase {
             CreateIndexClusterStateUpdateRequest.class
         );
         verify(mockListener, times(0)).onFailure(any());
-        verify(metadataCreateIndexService, times(1)).createIndex(createRequestArgumentCaptor.capture(), any());
+        verify(metadataCreateIndexService, times(1)).createIndex(
+            any(TimeValue.class),
+            any(TimeValue.class),
+            any(TimeValue.class),
+            createRequestArgumentCaptor.capture(),
+            any()
+        );
 
         CreateIndexClusterStateUpdateRequest processedRequest = createRequestArgumentCaptor.getValue();
         assertTrue(processedRequest.aliases().contains(new Alias(SYSTEM_ALIAS_NAME).isHidden(true)));

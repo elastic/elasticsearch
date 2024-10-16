@@ -25,6 +25,7 @@ import org.elasticsearch.action.admin.indices.analyze.TransportReloadAnalyzersAc
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
+import org.elasticsearch.action.bulk.IndexDocFailureStoreStatus;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -602,6 +603,9 @@ public class SynonymsManagementAPIService {
         @Override
         public void onFailure(Exception e) {
             Throwable cause = ExceptionsHelper.unwrapCause(e);
+            if (cause instanceof IndexDocFailureStoreStatus.ExceptionWithFailureStoreStatus) {
+                cause = cause.getCause();
+            }
             if (cause instanceof IndexNotFoundException) {
                 delegate.onFailure(new ResourceNotFoundException("synonyms set [" + synonymSetId + "] not found"));
                 return;

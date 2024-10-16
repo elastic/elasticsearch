@@ -73,6 +73,7 @@ public class IndexLifecycleExplainResponseTests extends AbstractXContentSerializ
             stepNull ? null : randomAlphaOfLength(10),
             stepNull ? null : randomAlphaOfLength(10),
             randomBoolean() ? null : new BytesArray(new RandomStepInfo(() -> randomAlphaOfLength(10)).toString()),
+            randomBoolean() ? null : new BytesArray(new RandomStepInfo(() -> randomAlphaOfLength(10)).toString()),
             randomBoolean() ? null : PhaseExecutionInfoTests.randomPhaseExecutionInfo("")
         );
     }
@@ -99,6 +100,7 @@ public class IndexLifecycleExplainResponseTests extends AbstractXContentSerializ
                 randomBoolean() ? null : randomAlphaOfLength(10),
                 randomBoolean() ? null : randomAlphaOfLength(10),
                 randomBoolean() ? null : new BytesArray(new RandomStepInfo(() -> randomAlphaOfLength(10)).toString()),
+                randomBoolean() ? null : new BytesArray(new RandomStepInfo(() -> randomAlphaOfLength(10)).toString()),
                 randomBoolean() ? null : PhaseExecutionInfoTests.randomPhaseExecutionInfo("")
             )
         );
@@ -119,6 +121,7 @@ public class IndexLifecycleExplainResponseTests extends AbstractXContentSerializ
             12345L,
             "policy",
             5678L,
+            null,
             null,
             null,
             null,
@@ -191,42 +194,32 @@ public class IndexLifecycleExplainResponseTests extends AbstractXContentSerializ
         String shrinkIndexName = instance.getShrinkIndexName();
         boolean managed = instance.managedByILM();
         BytesReference stepInfo = instance.getStepInfo();
+        BytesReference previousStepInfo = instance.getPreviousStepInfo();
         PhaseExecutionInfo phaseExecutionInfo = instance.getPhaseExecutionInfo();
+
         if (managed) {
-            switch (between(0, 14)) {
-                case 0:
-                    index = index + randomAlphaOfLengthBetween(1, 5);
-                    break;
-                case 1:
-                    policy = policy + randomAlphaOfLengthBetween(1, 5);
-                    break;
-                case 2:
+            switch (between(0, 15)) {
+                case 0 -> index += randomAlphaOfLengthBetween(1, 5);
+                case 1 -> policy += randomAlphaOfLengthBetween(1, 5);
+                case 2 -> {
                     phase = randomAlphaOfLengthBetween(1, 5);
                     action = randomAlphaOfLengthBetween(1, 5);
                     step = randomAlphaOfLengthBetween(1, 5);
-                    break;
-                case 3:
-                    phaseTime = randomValueOtherThan(phaseTime, () -> randomLongBetween(0, 100000));
-                    break;
-                case 4:
-                    actionTime = randomValueOtherThan(actionTime, () -> randomLongBetween(0, 100000));
-                    break;
-                case 5:
-                    stepTime = randomValueOtherThan(stepTime, () -> randomLongBetween(0, 100000));
-                    break;
-                case 6:
+                }
+                case 3 -> phaseTime = randomValueOtherThan(phaseTime, () -> randomLongBetween(0, 100000));
+                case 4 -> actionTime = randomValueOtherThan(actionTime, () -> randomLongBetween(0, 100000));
+                case 5 -> stepTime = randomValueOtherThan(stepTime, () -> randomLongBetween(0, 100000));
+                case 6 -> {
                     if (Strings.hasLength(failedStep) == false) {
                         failedStep = randomAlphaOfLength(10);
                     } else if (randomBoolean()) {
-                        failedStep = failedStep + randomAlphaOfLengthBetween(1, 5);
+                        failedStep += randomAlphaOfLengthBetween(1, 5);
                     } else {
                         failedStep = null;
                     }
-                    break;
-                case 7:
-                    policyTime = randomValueOtherThan(policyTime, () -> randomLongBetween(0, 100000));
-                    break;
-                case 8:
+                }
+                case 7 -> policyTime = randomValueOtherThan(policyTime, () -> randomLongBetween(0, 100000));
+                case 8 -> {
                     if (Strings.hasLength(stepInfo) == false) {
                         stepInfo = new BytesArray(randomByteArrayOfLength(100));
                     } else if (randomBoolean()) {
@@ -237,31 +230,36 @@ public class IndexLifecycleExplainResponseTests extends AbstractXContentSerializ
                     } else {
                         stepInfo = null;
                     }
-                    break;
-                case 9:
-                    phaseExecutionInfo = randomValueOtherThan(
-                        phaseExecutionInfo,
-                        () -> PhaseExecutionInfoTests.randomPhaseExecutionInfo("")
-                    );
-                    break;
-                case 10:
+                }
+                case 9 -> {
+                    if (Strings.hasLength(previousStepInfo) == false) {
+                        previousStepInfo = new BytesArray(randomByteArrayOfLength(100));
+                    } else if (randomBoolean()) {
+                        previousStepInfo = randomValueOtherThan(
+                            previousStepInfo,
+                            () -> new BytesArray(new RandomStepInfo(() -> randomAlphaOfLength(10)).toString())
+                        );
+                    } else {
+                        previousStepInfo = null;
+                    }
+                }
+                case 10 -> phaseExecutionInfo = randomValueOtherThan(
+                    phaseExecutionInfo,
+                    () -> PhaseExecutionInfoTests.randomPhaseExecutionInfo("")
+                );
+                case 11 -> {
                     return IndexLifecycleExplainResponse.newUnmanagedIndexResponse(index);
-                case 11:
+                }
+                case 12 -> {
                     isAutoRetryableError = true;
                     failedStepRetryCount = randomValueOtherThan(failedStepRetryCount, () -> randomInt(10));
-                    break;
-                case 12:
-                    repositoryName = randomValueOtherThan(repositoryName, () -> randomAlphaOfLengthBetween(5, 10));
-                    break;
-                case 13:
-                    snapshotName = randomValueOtherThan(snapshotName, () -> randomAlphaOfLengthBetween(5, 10));
-                    break;
-                case 14:
-                    shrinkIndexName = randomValueOtherThan(shrinkIndexName, () -> randomAlphaOfLengthBetween(5, 10));
-                    break;
-                default:
-                    throw new AssertionError("Illegal randomisation branch");
+                }
+                case 13 -> repositoryName = randomValueOtherThan(repositoryName, () -> randomAlphaOfLengthBetween(5, 10));
+                case 14 -> snapshotName = randomValueOtherThan(snapshotName, () -> randomAlphaOfLengthBetween(5, 10));
+                case 15 -> shrinkIndexName = randomValueOtherThan(shrinkIndexName, () -> randomAlphaOfLengthBetween(5, 10));
+                default -> throw new AssertionError("Illegal randomisation branch");
             }
+
             return IndexLifecycleExplainResponse.newManagedIndexResponse(
                 index,
                 indexCreationDate,
@@ -280,6 +278,7 @@ public class IndexLifecycleExplainResponseTests extends AbstractXContentSerializ
                 snapshotName,
                 shrinkIndexName,
                 stepInfo,
+                previousStepInfo,
                 phaseExecutionInfo
             );
         } else {

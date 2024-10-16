@@ -20,7 +20,7 @@ import java.util.List;
 
 import static org.elasticsearch.test.hamcrest.OptionalMatchers.isPresentWith;
 
-@UpdateForV9
+@UpdateForV9(owner = UpdateForV9.Owner.CORE_INFRA)
 public class NodesCapabilitiesUpgradeIT extends AbstractRollingUpgradeTestCase {
 
     private static Boolean upgradingBeforeCapabilities;

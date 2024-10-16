@@ -93,7 +93,7 @@ public abstract class ElasticsearchTestBasePlugin implements Plugin<Project> {
                     mkdirs(test.getWorkingDir().toPath().resolve("temp").toFile());
 
                     // TODO remove once jvm.options are added to test system properties
-                    test.systemProperty("java.locale.providers", "SPI,CLDR");
+                    test.systemProperty("java.locale.providers", "CLDR");
                 }
             });
             test.getJvmArgumentProviders().add(nonInputProperties);
@@ -108,6 +108,7 @@ public abstract class ElasticsearchTestBasePlugin implements Plugin<Project> {
                 "-Xmx" + System.getProperty("tests.heap.size", "512m"),
                 "-Xms" + System.getProperty("tests.heap.size", "512m"),
                 "-Djava.security.manager=allow",
+                "-Dtests.testfeatures.enabled=true",
                 "--add-opens=java.base/java.util=ALL-UNNAMED",
                 // TODO: only open these for mockito when it is modularized
                 "--add-opens=java.base/java.security.cert=ALL-UNNAMED",
@@ -184,8 +185,8 @@ public abstract class ElasticsearchTestBasePlugin implements Plugin<Project> {
             });
 
             if (OS.current().equals(OS.WINDOWS) && System.getProperty("tests.timeoutSuite") == null) {
-                // override the suite timeout to 30 mins for windows, because it has the most inefficient filesystem known to man
-                test.systemProperty("tests.timeoutSuite", "2400000!");
+                // override the suite timeout to 60 mins for windows, because it has the most inefficient filesystem known to man
+                test.systemProperty("tests.timeoutSuite", "3600000!");
             }
 
             /*

@@ -9,7 +9,6 @@
 
 package org.elasticsearch.http;
 
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.rest.ChunkedRestResponseBodyPart;
 import org.elasticsearch.rest.RestRequest;
@@ -49,8 +48,8 @@ class TestHttpRequest implements HttpRequest {
     }
 
     @Override
-    public BytesReference content() {
-        return BytesArray.EMPTY;
+    public HttpBody body() {
+        return HttpBody.empty();
     }
 
     @Override

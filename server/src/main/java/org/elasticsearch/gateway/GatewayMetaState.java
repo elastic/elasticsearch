@@ -186,7 +186,7 @@ public class GatewayMetaState implements Closeable {
         long currentTerm = onDiskState.currentTerm;
 
         if (onDiskState.empty()) {
-            @UpdateForV9 // legacy metadata loader is not needed anymore from v9 onwards
+            @UpdateForV9(owner = UpdateForV9.Owner.DISTRIBUTED_COORDINATION) // legacy metadata loader is not needed anymore from v9 onwards
             final Tuple<Manifest, Metadata> legacyState = metaStateService.loadFullState();
             if (legacyState.v1().isEmpty() == false) {
                 metadata = legacyState.v2();

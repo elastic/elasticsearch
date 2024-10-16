@@ -128,6 +128,30 @@
       "params" : [
         {
           "name" : "field",
+          "type" : "keyword",
+          "optional" : false,
+          "description" : "The field to collect the top values for."
+        },
+        {
+          "name" : "limit",
+          "type" : "integer",
+          "optional" : false,
+          "description" : "The maximum number of values to collect."
+        },
+        {
+          "name" : "order",
+          "type" : "keyword",
+          "optional" : false,
+          "description" : "The order to calculate the top values. Either `asc` or `desc`."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "keyword"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
           "type" : "long",
           "optional" : false,
           "description" : "The field to collect the top values for."
@@ -147,10 +171,35 @@
       ],
       "variadic" : false,
       "returnType" : "long"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "text",
+          "optional" : false,
+          "description" : "The field to collect the top values for."
+        },
+        {
+          "name" : "limit",
+          "type" : "integer",
+          "optional" : false,
+          "description" : "The maximum number of values to collect."
+        },
+        {
+          "name" : "order",
+          "type" : "keyword",
+          "optional" : false,
+          "description" : "The order to calculate the top values. Either `asc` or `desc`."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "text"
     }
   ],
   "examples" : [
     "FROM employees\n| STATS top_salaries = TOP(salary, 3, \"desc\"), top_salary = MAX(salary)"
   ],
-  "preview" : false
+  "preview" : false,
+  "snapshot_only" : false
 }

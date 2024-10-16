@@ -408,11 +408,11 @@ public class WildcardFieldMapperTests extends MapperTestCase {
         SearchExecutionContext searchExecutionContext = createMockContext();
 
         FieldSortBuilder wildcardSortBuilder = new FieldSortBuilder(WILDCARD_FIELD_NAME);
-        SortField wildcardSortField = wildcardSortBuilder.build(searchExecutionContext).field;
+        SortField wildcardSortField = wildcardSortBuilder.build(searchExecutionContext).field();
         ScoreDoc[] wildcardHits = searcher.search(new MatchAllDocsQuery(), numDocs, new Sort(wildcardSortField)).scoreDocs;
 
         FieldSortBuilder keywordSortBuilder = new FieldSortBuilder(KEYWORD_FIELD_NAME);
-        SortField keywordSortField = keywordSortBuilder.build(searchExecutionContext).field;
+        SortField keywordSortField = keywordSortBuilder.build(searchExecutionContext).field();
         ScoreDoc[] keywordHits = searcher.search(new MatchAllDocsQuery(), numDocs, new Sort(keywordSortField)).scoreDocs;
 
         assertThat(wildcardHits.length, equalTo(keywordHits.length));

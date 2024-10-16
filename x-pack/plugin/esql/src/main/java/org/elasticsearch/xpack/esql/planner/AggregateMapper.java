@@ -98,39 +98,39 @@ final class AggregateMapper {
         .collect(Collectors.toUnmodifiableMap(aggDef -> aggDef, AggregateMapper::lookupIntermediateState));
 
     /** Cache of aggregates to intermediate expressions. */
-    private final HashMap<Expression, List<? extends NamedExpression>> cache;
+    private final HashMap<Expression, List<NamedExpression>> cache;
 
     AggregateMapper() {
         cache = new HashMap<>();
     }
 
-    public List<? extends NamedExpression> mapNonGrouping(List<? extends Expression> aggregates) {
+    public List<NamedExpression> mapNonGrouping(List<? extends Expression> aggregates) {
         return doMapping(aggregates, false);
     }
 
-    public List<? extends NamedExpression> mapNonGrouping(Expression aggregate) {
+    public List<NamedExpression> mapNonGrouping(Expression aggregate) {
         return map(aggregate, false).toList();
     }
 
-    public List<? extends NamedExpression> mapGrouping(List<? extends Expression> aggregates) {
+    public List<NamedExpression> mapGrouping(List<? extends Expression> aggregates) {
         return doMapping(aggregates, true);
     }
 
-    private List<? extends NamedExpression> doMapping(List<? extends Expression> aggregates, boolean grouping) {
+    private List<NamedExpression> doMapping(List<? extends Expression> aggregates, boolean grouping) {
         AttributeMap<NamedExpression> attrToExpressions = new AttributeMap<>();
         aggregates.stream().flatMap(agg -> map(agg, grouping)).forEach(ne -> attrToExpressions.put(ne.toAttribute(), ne));
         return attrToExpressions.values().stream().toList();
     }
 
-    public List<? extends NamedExpression> mapGrouping(Expression aggregate) {
+    public List<NamedExpression> mapGrouping(Expression aggregate) {
         return map(aggregate, true).toList();
     }
 
-    private Stream<? extends NamedExpression> map(Expression aggregate, boolean grouping) {
+    private Stream<NamedExpression> map(Expression aggregate, boolean grouping) {
         return cache.computeIfAbsent(Alias.unwrap(aggregate), aggKey -> computeEntryForAgg(aggKey, grouping)).stream();
     }
 
-    private static List<? extends NamedExpression> computeEntryForAgg(Expression aggregate, boolean grouping) {
+    private static List<NamedExpression> computeEntryForAgg(Expression aggregate, boolean grouping) {
         var aggDef = aggDefOrNull(aggregate, grouping);
         if (aggDef != null) {
             var is = getNonNull(aggDef);
@@ -170,7 +170,7 @@ final class AggregateMapper {
             // TODO can't we figure this out from the function itself?
             types = List.of("Int", "Long", "Double", "Boolean", "BytesRef");
         } else if (Top.class.isAssignableFrom(clazz)) {
-            types = List.of("Boolean", "Int", "Long", "Double", "Ip");
+            types = List.of("Boolean", "Int", "Long", "Double", "Ip", "BytesRef");
         } else if (Rate.class.isAssignableFrom(clazz)) {
             types = List.of("Int", "Long", "Double");
         } else if (FromPartial.class.isAssignableFrom(clazz) || ToPartial.class.isAssignableFrom(clazz)) {

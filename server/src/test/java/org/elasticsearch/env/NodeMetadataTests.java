@@ -80,7 +80,7 @@ public class NodeMetadataTests extends ESTestCase {
         );
     }
 
-    @UpdateForV9
+    @UpdateForV9(owner = UpdateForV9.Owner.CORE_INFRA)
     @AwaitsFix(bugUrl = "as mentioned in the comment below, the behavior here is changing for 9.0 so this test needs updating")
     public void testReadsFormatWithoutVersion() throws IOException {
         // the behaviour tested here is only appropriate if the current version is compatible with versions 7 and earlier
@@ -155,7 +155,7 @@ public class NodeMetadataTests extends ESTestCase {
         );
     }
 
-    @UpdateForV9
+    @UpdateForV9(owner = UpdateForV9.Owner.CORE_INFRA)
     @AwaitsFix(bugUrl = "Needs to be updated for 9.0 version bump")
     public void testUpgradeMarksPreviousVersion() {
         final String nodeId = randomAlphaOfLength(10);

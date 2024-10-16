@@ -412,7 +412,7 @@ public class MetadataRolloverService {
                         dataStream.rollover(
                             indexMetadata.getIndex(),
                             newGeneration,
-                            metadata.isTimeSeriesTemplate(templateV2),
+                            metadata.retrieveIndexModeFromTemplate(templateV2),
                             dataStreamAutoShardingEvent
                         )
                     );
@@ -548,11 +548,7 @@ public class MetadataRolloverService {
         if (settings != null) {
             b.put(settings);
         }
-        return new CreateIndexClusterStateUpdateRequest(cause, targetIndexName, providedIndexName).ackTimeout(
-            createIndexRequest.ackTimeout()
-        )
-            .masterNodeTimeout(createIndexRequest.masterNodeTimeout())
-            .settings(b.build())
+        return new CreateIndexClusterStateUpdateRequest(cause, targetIndexName, providedIndexName).settings(b.build())
             .aliases(createIndexRequest.aliases())
             .waitForActiveShards(ActiveShardCount.NONE) // not waiting for shards here, will wait on the alias switch operation
             .mappings(createIndexRequest.mappings())

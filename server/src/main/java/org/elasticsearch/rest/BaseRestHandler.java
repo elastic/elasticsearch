@@ -11,14 +11,17 @@ package org.elasticsearch.rest;
 
 import org.apache.lucene.search.spell.LevenshteinDistance;
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.http.HttpBody;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.rest.action.admin.cluster.RestNodesUsageAction;
 
@@ -43,13 +46,6 @@ import java.util.stream.Collectors;
  * {@link ActionPlugin#getRestHeaders()}.
  */
 public abstract class BaseRestHandler implements RestHandler {
-
-    /**
-     * Parameter that controls whether certain REST apis should include type names in their requests or responses.
-     * Note: This parameter is only available through compatible rest api for {@link RestApiVersion#V_7}.
-     */
-    public static final String INCLUDE_TYPE_NAME_PARAMETER = "include_type_name";
-    public static final boolean DEFAULT_INCLUDE_TYPE_NAME_POLICY = false;
 
     public static final Setting<Boolean> MULTI_ALLOW_EXPLICIT_INDEX = Setting.boolSetting(
         "rest.action.multi.allow_explicit_index",
@@ -83,6 +79,7 @@ public abstract class BaseRestHandler implements RestHandler {
     public final void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
         // check if the query has any parameters that are not in the supported set (if declared)
         Set<String> supported = allSupportedParameters();
+        assert supported == allSupportedParameters() : getName() + ": did not return same instance from allSupportedParameters()";
         if (supported != null) {
             var allSupported = Sets.union(
                 RestResponse.RESPONSE_PARAMS,
@@ -101,6 +98,8 @@ public abstract class BaseRestHandler implements RestHandler {
         // prepare the request for execution; has the side effect of touching the request parameters
         try (var action = prepareRequest(request, client)) {
 
+            assert assertConsumesSupportedParams(supported, request);
+
             // validate unconsumed params, but we must exclude params used to format the response
             // use a sorted set so the unconsumed parameters appear in a reliable sorted order
             final SortedSet<String> unconsumedParams = request.unconsumedParams()
@@ -117,16 +116,46 @@ public abstract class BaseRestHandler implements RestHandler {
                 throw new IllegalArgumentException(unrecognized(request, unconsumedParams, candidateParams, "parameter"));
             }
 
-            if (request.hasContent() && request.isContentConsumed() == false) {
+            if (request.hasContent() && (request.isContentConsumed() == false && request.isFullContent())) {
                 throw new IllegalArgumentException(
                     "request [" + request.method() + " " + request.path() + "] does not support having a body"
                 );
+            }
+
+            if (request.isStreamedContent()) {
+                assert action instanceof RequestBodyChunkConsumer;
+                var chunkConsumer = (RequestBodyChunkConsumer) action;
+                request.contentStream().setHandler(new HttpBody.ChunkHandler() {
+                    @Override
+                    public void onNext(ReleasableBytesReference chunk, boolean isLast) {
+                        chunkConsumer.handleChunk(channel, chunk, isLast);
+                    }
+
+                    @Override
+                    public void close() {
+                        chunkConsumer.streamClose();
+                    }
+                });
             }
 
             usageCount.increment();
             // execute the action
             action.accept(channel);
         }
+    }
+
+    private boolean assertConsumesSupportedParams(@Nullable Set<String> supported, RestRequest request) {
+        if (supported != null) {
+            final var supportedAndCommon = new TreeSet<>(supported);
+            supportedAndCommon.add("error_trace");
+            supportedAndCommon.addAll(ALWAYS_SUPPORTED);
+            supportedAndCommon.removeAll(RestRequest.INTERNAL_MARKER_REQUEST_PARAMETERS);
+            final var consumed = new TreeSet<>(request.consumedParams());
+            consumed.removeAll(RestRequest.INTERNAL_MARKER_REQUEST_PARAMETERS);
+            assert supportedAndCommon.equals(consumed)
+                : getName() + ": consumed params " + consumed + " while supporting " + supportedAndCommon;
+        }
+        return true;
     }
 
     protected static String unrecognized(RestRequest request, Set<String> invalids, Set<String> candidates, String detail) {
@@ -178,6 +207,17 @@ public abstract class BaseRestHandler implements RestHandler {
          */
         @Override
         default void close() {}
+    }
+
+    public interface RequestBodyChunkConsumer extends RestChannelConsumer {
+        void handleChunk(RestChannel channel, ReleasableBytesReference chunk, boolean isLast);
+
+        /**
+         * Called when the stream closes. This could happen prior to the completion of the request if the underlying channel was closed.
+         * Implementors should do their best to clean up resources and early terminate request processing if it is triggered before a
+         * response is generated.
+         */
+        default void streamClose() {}
     }
 
     /**

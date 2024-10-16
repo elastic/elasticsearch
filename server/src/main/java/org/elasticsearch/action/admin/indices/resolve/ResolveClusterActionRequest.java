@@ -15,13 +15,12 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
-import org.elasticsearch.transport.RemoteClusterService;
+import org.elasticsearch.transport.RemoteClusterAware;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -166,10 +165,7 @@ public class ResolveClusterActionRequest extends ActionRequest implements Indice
 
     boolean localIndicesPresent(String[] indices) {
         for (String index : indices) {
-            // ensure that `index` is a remote name and not a date math expression which includes ':' symbol
-            // since date math expression after evaluation should not contain ':' symbol
-            String indexExpression = IndexNameExpressionResolver.resolveDateMathExpression(index);
-            if (indexExpression.indexOf(RemoteClusterService.REMOTE_CLUSTER_INDEX_SEPARATOR) < 0) {
+            if (RemoteClusterAware.isRemoteIndexName(index) == false) {
                 return true;
             }
         }

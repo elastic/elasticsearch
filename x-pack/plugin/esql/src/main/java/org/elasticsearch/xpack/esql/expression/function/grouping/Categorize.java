@@ -36,7 +36,6 @@ import org.elasticsearch.xpack.ml.job.categorization.CategorizationAnalyzer;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.function.Function;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isString;
@@ -63,7 +62,7 @@ public class Categorize extends GroupingFunction implements Validatable {
 
     private final Expression field;
 
-    @FunctionInfo(returnType = { "integer" }, description = "Categorizes text messages")
+    @FunctionInfo(returnType = { "integer" }, description = "Categorizes text messages.")
     public Categorize(
         Source source,
         @Param(name = "field", type = { "text", "keyword" }, description = "Expression to categorize") Expression field
@@ -107,7 +106,7 @@ public class Categorize extends GroupingFunction implements Validatable {
     }
 
     @Override
-    public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
+    public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         return new CategorizeEvaluator.Factory(
             source(),
             toEvaluator.apply(field),

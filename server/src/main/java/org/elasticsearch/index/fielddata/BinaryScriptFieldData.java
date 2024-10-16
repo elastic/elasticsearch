@@ -66,9 +66,5 @@ public abstract class BinaryScriptFieldData implements IndexFieldData<BinaryScri
             return 0;
         }
 
-        @Override
-        public void close() {
-
-        }
     }
 }

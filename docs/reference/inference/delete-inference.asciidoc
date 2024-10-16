@@ -49,13 +49,12 @@ The type of {infer} task that the model performs.
 
 `dry_run`::
 (Optional, Boolean)
-When `true`, checks the {infer} processors that reference the endpoint and
-returns them in a list, but does not delete the endpoint. Defaults to `false`.
+When `true`, checks the `semantic_text` fields and  {infer} processors that reference the endpoint and returns them in a list, but does not delete the endpoint.
+Defaults to `false`.
 
 `force`::
 (Optional, Boolean)
-Deletes the endpoint regardless if it's used in an {infer} pipeline or in a
-`semantic_text` field.
+Deletes the endpoint regardless if it's used in a `semantic_text` field or in an {infer} pipeline.
 
 
 [discrete]

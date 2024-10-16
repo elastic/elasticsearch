@@ -25,7 +25,7 @@ public abstract class SortingNumericDocValues extends SortedNumericDocValues {
     protected long[] values;
     protected int valuesCursor;
     private final Sorter sorter;
-    private LongConsumer circuitBreakerConsumer;
+    private final LongConsumer circuitBreakerConsumer;
 
     protected SortingNumericDocValues() {
         this(l -> {});

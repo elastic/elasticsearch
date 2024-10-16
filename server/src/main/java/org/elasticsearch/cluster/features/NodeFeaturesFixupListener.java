@@ -43,7 +43,7 @@ import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.stream.Collectors;
 
-@UpdateForV9    // this can be removed in v9
+@UpdateForV9(owner = UpdateForV9.Owner.CORE_INFRA) // this can be removed in v9
 public class NodeFeaturesFixupListener implements ClusterStateListener {
 
     private static final Logger logger = LogManager.getLogger(NodeFeaturesFixupListener.class);

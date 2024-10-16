@@ -101,7 +101,8 @@ public class RestSearchAction extends BaseRestHandler {
 
         SearchRequest searchRequest = new SearchRequest();
         // access the BwC param, but just drop it
-        request.hasParam("min_compatible_shard_node");
+        // this might be set by old clients
+        request.param("min_compatible_shard_node");
         /*
          * We have to pull out the call to `source().size(size)` because
          * _update_by_query and _delete_by_query uses this same parsing

@@ -58,7 +58,9 @@ public class RestFleetSearchAction extends BaseRestHandler {
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         SearchRequest searchRequest = new SearchRequest();
         // access the BwC param, but just drop it
-        request.hasParam("min_compatible_shard_node");
+        // this might be set by old clients
+        request.param("min_compatible_shard_node");
+
         String[] indices = searchRequest.indices();
         if (indices.length > 1) {
             throw new IllegalArgumentException(

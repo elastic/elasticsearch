@@ -40,7 +40,13 @@ public class DataStreamFailureStoreDefinition {
         IndexMetadata.SETTING_NUMBER_OF_SHARDS,
         IndexMetadata.SETTING_NUMBER_OF_REPLICAS,
         IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS,
-        IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey()
+        IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(),
+        IndexMetadata.LIFECYCLE_NAME
+    );
+    public static final Set<String> SUPPORTED_USER_SETTINGS_PREFIXES = Set.of(
+        IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_PREFIX + ".",
+        IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_PREFIX + ".",
+        IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_PREFIX + "."
     );
     public static final CompressedXContent DATA_STREAM_FAILURE_STORE_MAPPING;
 
@@ -220,7 +226,8 @@ public class DataStreamFailureStoreDefinition {
         if (builder.keys().isEmpty() == false) {
             Set<String> existingKeys = new HashSet<>(builder.keys());
             for (String setting : existingKeys) {
-                if (SUPPORTED_USER_SETTINGS.contains(setting) == false) {
+                if (SUPPORTED_USER_SETTINGS.contains(setting) == false
+                    && SUPPORTED_USER_SETTINGS_PREFIXES.stream().anyMatch(setting::startsWith) == false) {
                     builder.remove(setting);
                 }
             }

@@ -328,7 +328,7 @@ public enum IndexMode {
         return "[" + IndexSettings.MODE.getKey() + "=time_series]";
     }
 
-    private static CompressedXContent createMapping(boolean includeHostName) throws IOException {
+    private static CompressedXContent createDefaultMapping(boolean includeHostName) throws IOException {
         return new CompressedXContent((builder, params) -> {
             builder.startObject(MapperService.SINGLE_MAPPING_NAME)
                 .startObject(DataStreamTimestampFieldMapper.NAME)
@@ -353,8 +353,8 @@ public enum IndexMode {
 
     static {
         try {
-            DEFAULT_TIME_SERIES_TIMESTAMP_MAPPING = createMapping(false);
-            DEFAULT_LOGS_TIMESTAMP_MAPPING_WITH_HOSTNAME = createMapping(true);
+            DEFAULT_TIME_SERIES_TIMESTAMP_MAPPING = createDefaultMapping(false);
+            DEFAULT_LOGS_TIMESTAMP_MAPPING_WITH_HOSTNAME = createDefaultMapping(true);
         } catch (IOException e) {
             throw new AssertionError(e);
         }

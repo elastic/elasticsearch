@@ -20,7 +20,6 @@ import org.elasticsearch.cluster.coordination.CoordinationMetadata.VotingConfigE
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
@@ -28,13 +27,14 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Predicates;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
@@ -70,7 +70,6 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.SortedMap;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -2277,30 +2276,32 @@ public class MetadataTests extends ESTestCase {
             chunkCount += 2;
 
             if (custom instanceof ComponentTemplateMetadata componentTemplateMetadata) {
-                chunkCount += 2 + componentTemplateMetadata.componentTemplates().size();
+                chunkCount += checkChunkSize(custom, params, 2 + componentTemplateMetadata.componentTemplates().size());
             } else if (custom instanceof ComposableIndexTemplateMetadata composableIndexTemplateMetadata) {
-                chunkCount += 2 + composableIndexTemplateMetadata.indexTemplates().size();
+                chunkCount += checkChunkSize(custom, params, 2 + composableIndexTemplateMetadata.indexTemplates().size());
             } else if (custom instanceof DataStreamMetadata dataStreamMetadata) {
-                chunkCount += 4 + dataStreamMetadata.dataStreams().size() + dataStreamMetadata.getDataStreamAliases().size();
+                chunkCount += checkChunkSize(
+                    custom,
+                    params,
+                    4 + dataStreamMetadata.dataStreams().size() + dataStreamMetadata.getDataStreamAliases().size()
+                );
             } else if (custom instanceof DesiredNodesMetadata) {
-                chunkCount += 1;
+                chunkCount += checkChunkSize(custom, params, 1);
             } else if (custom instanceof FeatureMigrationResults featureMigrationResults) {
-                chunkCount += 2 + featureMigrationResults.getFeatureStatuses().size();
+                chunkCount += checkChunkSize(custom, params, 2 + featureMigrationResults.getFeatureStatuses().size());
             } else if (custom instanceof IndexGraveyard indexGraveyard) {
-                chunkCount += 2 + indexGraveyard.getTombstones().size();
+                chunkCount += checkChunkSize(custom, params, 2 + indexGraveyard.getTombstones().size());
             } else if (custom instanceof IngestMetadata ingestMetadata) {
-                chunkCount += 2 + ingestMetadata.getPipelines().size();
+                chunkCount += checkChunkSize(custom, params, 2 + ingestMetadata.getPipelines().size());
             } else if (custom instanceof NodesShutdownMetadata nodesShutdownMetadata) {
-                chunkCount += 2 + nodesShutdownMetadata.getAll().size();
+                chunkCount += checkChunkSize(custom, params, 2 + nodesShutdownMetadata.getAll().size());
             } else if (custom instanceof PersistentTasksCustomMetadata persistentTasksCustomMetadata) {
-                chunkCount += 3 + persistentTasksCustomMetadata.tasks().size();
+                chunkCount += checkChunkSize(custom, params, 3 + persistentTasksCustomMetadata.tasks().size());
             } else if (custom instanceof RepositoriesMetadata repositoriesMetadata) {
-                chunkCount += repositoriesMetadata.repositories().size();
+                chunkCount += checkChunkSize(custom, params, repositoriesMetadata.repositories().size());
             } else {
                 // could be anything, we have to just try it
-                chunkCount += Iterables.size(
-                    (Iterable<ToXContent>) (() -> Iterators.map(custom.toXContentChunked(params), Function.identity()))
-                );
+                chunkCount += count(custom.toXContentChunked(params));
             }
         }
 
@@ -2310,6 +2311,21 @@ public class MetadataTests extends ESTestCase {
         chunkCount += 1;
 
         return Math.toIntExact(chunkCount);
+    }
+
+    private static long count(Iterator<?> it) {
+        long count = 0;
+        while (it.hasNext()) {
+            count++;
+            it.next();
+        }
+        return count;
+    }
+
+    private static long checkChunkSize(ChunkedToXContent custom, ToXContent.Params params, long expectedSize) {
+        long actualSize = count(custom.toXContentChunked(params));
+        assertThat(actualSize, equalTo(expectedSize));
+        return actualSize;
     }
 
     /**
@@ -2366,30 +2382,87 @@ public class MetadataTests extends ESTestCase {
         assertThat(unclassifiedFields, empty());
     }
 
-    public void testIsTimeSeriesTemplate() throws IOException {
-        var template = new Template(Settings.builder().put("index.mode", "time_series").build(), new CompressedXContent("{}"), null);
+    public void testRetrieveIndexModeFromTemplateTsdb() throws IOException {
+        // tsdb:
+        var tsdbTemplate = new Template(Settings.builder().put("index.mode", "time_series").build(), new CompressedXContent("{}"), null);
         // Settings in component template:
         {
-            var componentTemplate = new ComponentTemplate(template, null, null);
+            var componentTemplate = new ComponentTemplate(tsdbTemplate, null, null);
             var indexTemplate = ComposableIndexTemplate.builder()
                 .indexPatterns(List.of("test-*"))
                 .componentTemplates(List.of("component_template_1"))
                 .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
                 .build();
             Metadata m = Metadata.builder().put("component_template_1", componentTemplate).put("index_template_1", indexTemplate).build();
-            assertThat(m.isTimeSeriesTemplate(indexTemplate), is(true));
+            assertThat(m.retrieveIndexModeFromTemplate(indexTemplate), is(IndexMode.TIME_SERIES));
         }
         // Settings in composable index template:
         {
             var componentTemplate = new ComponentTemplate(new Template(null, null, null), null, null);
             var indexTemplate = ComposableIndexTemplate.builder()
                 .indexPatterns(List.of("test-*"))
-                .template(template)
+                .template(tsdbTemplate)
                 .componentTemplates(List.of("component_template_1"))
                 .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
                 .build();
             Metadata m = Metadata.builder().put("component_template_1", componentTemplate).put("index_template_1", indexTemplate).build();
-            assertThat(m.isTimeSeriesTemplate(indexTemplate), is(true));
+            assertThat(m.retrieveIndexModeFromTemplate(indexTemplate), is(IndexMode.TIME_SERIES));
+        }
+    }
+
+    public void testRetrieveIndexModeFromTemplateLogsdb() throws IOException {
+        // logsdb:
+        var logsdbTemplate = new Template(Settings.builder().put("index.mode", "logsdb").build(), new CompressedXContent("{}"), null);
+        // Settings in component template:
+        {
+            var componentTemplate = new ComponentTemplate(logsdbTemplate, null, null);
+            var indexTemplate = ComposableIndexTemplate.builder()
+                .indexPatterns(List.of("test-*"))
+                .componentTemplates(List.of("component_template_1"))
+                .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+                .build();
+            Metadata m = Metadata.builder().put("component_template_1", componentTemplate).put("index_template_1", indexTemplate).build();
+            assertThat(m.retrieveIndexModeFromTemplate(indexTemplate), is(IndexMode.LOGSDB));
+        }
+        // Settings in composable index template:
+        {
+            var componentTemplate = new ComponentTemplate(new Template(null, null, null), null, null);
+            var indexTemplate = ComposableIndexTemplate.builder()
+                .indexPatterns(List.of("test-*"))
+                .template(logsdbTemplate)
+                .componentTemplates(List.of("component_template_1"))
+                .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+                .build();
+            Metadata m = Metadata.builder().put("component_template_1", componentTemplate).put("index_template_1", indexTemplate).build();
+            assertThat(m.retrieveIndexModeFromTemplate(indexTemplate), is(IndexMode.LOGSDB));
+        }
+    }
+
+    public void testRetrieveIndexModeFromTemplateEmpty() throws IOException {
+        // no index mode:
+        var emptyTemplate = new Template(Settings.EMPTY, new CompressedXContent("{}"), null);
+        // Settings in component template:
+        {
+            var componentTemplate = new ComponentTemplate(emptyTemplate, null, null);
+            var indexTemplate = ComposableIndexTemplate.builder()
+                .indexPatterns(List.of("test-*"))
+                .componentTemplates(List.of("component_template_1"))
+                .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+                .build();
+            Metadata m = Metadata.builder().put("component_template_1", componentTemplate).put("index_template_1", indexTemplate).build();
+            assertThat(m.retrieveIndexModeFromTemplate(indexTemplate), nullValue());
+        }
+        // Settings in composable index template:
+        {
+            var componentTemplate = new ComponentTemplate(new Template(null, null, null), null, null);
+            var indexTemplate = ComposableIndexTemplate.builder()
+                .indexPatterns(List.of("test-*"))
+                .template(emptyTemplate)
+                .componentTemplates(List.of("component_template_1"))
+                .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+                .build();
+            Metadata m = Metadata.builder().put("component_template_1", componentTemplate).put("index_template_1", indexTemplate).build();
+            assertThat(m.retrieveIndexModeFromTemplate(indexTemplate), nullValue());
         }
     }
 

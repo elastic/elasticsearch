@@ -208,6 +208,7 @@ public final class DocumentParser {
         XContentParser parser = context.parser();
         XContentParser.Token currentToken = parser.nextToken();
         List<String> path = new ArrayList<>();
+        List<Boolean> isObjectInPath = new ArrayList<>();  // Tracks if path components correspond to an object or an array.
         String fieldName = null;
         while (currentToken != null) {
             while (currentToken != XContentParser.Token.FIELD_NAME) {
@@ -218,11 +219,16 @@ public final class DocumentParser {
                         parser.skipChildren();
                     } else {
                         path.add(fieldName);
+                        isObjectInPath.add(currentToken == XContentParser.Token.START_OBJECT);
                     }
                     fieldName = null;
                 } else if (currentToken == XContentParser.Token.END_OBJECT || currentToken == XContentParser.Token.END_ARRAY) {
-                    if (currentToken == XContentParser.Token.END_OBJECT && path.isEmpty() == false) {
+                    // Remove the path, if the scope type matches the one when the path was added.
+                    if (isObjectInPath.isEmpty() == false
+                        && (isObjectInPath.get(isObjectInPath.size() - 1) && currentToken == XContentParser.Token.END_OBJECT
+                            || isObjectInPath.get(isObjectInPath.size() - 1) == false && currentToken == XContentParser.Token.END_ARRAY)) {
                         path.remove(path.size() - 1);
+                        isObjectInPath.remove(isObjectInPath.size() - 1);
                     }
                     fieldName = null;
                 }
@@ -237,7 +243,6 @@ public final class DocumentParser {
             if (leaf != null) {
                 parser.nextToken();  // Advance the parser to the value to be read.
                 result.add(leaf.cloneWithValue(context.encodeFlattenedToken()));
-                parser.nextToken();  // Skip the token ending the value.
                 fieldName = null;
             }
             currentToken = parser.nextToken();

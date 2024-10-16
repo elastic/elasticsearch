@@ -17,7 +17,6 @@ import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.core.inference.ChunkingSettingsFeatureFlag;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
@@ -41,7 +40,6 @@ import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityPool;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
 import static org.elasticsearch.xpack.inference.chunking.ChunkingSettingsTests.createRandomChunkingSettingsMap;
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
@@ -111,38 +109,7 @@ public class GoogleVertexAiServiceTests extends ESTestCase {
         }
     }
 
-    public void testParseRequestConfig_ThrowsElasticsearchStatusExceptionWhenChunkingSettingsProvidedAndFeatureFlagDisabled()
-        throws IOException {
-        assumeTrue("Only if 'inference_chunking_settings' feature flag is disabled", ChunkingSettingsFeatureFlag.isEnabled() == false);
-        try (var service = createGoogleVertexAiService()) {
-            var config = getRequestConfigMap(
-                new HashMap<>(
-                    Map.of(
-                        ServiceFields.MODEL_ID,
-                        "model",
-                        GoogleVertexAiServiceFields.LOCATION,
-                        "location",
-                        GoogleVertexAiServiceFields.PROJECT_ID,
-                        "project"
-                    )
-                ),
-                getTaskSettingsMap(true),
-                createRandomChunkingSettingsMap(),
-                getSecretSettingsMap("{}")
-            );
-
-            var failureListener = ActionListener.<Model>wrap(model -> fail("Expected exception, but got model: " + model), exception -> {
-                assertThat(exception, instanceOf(ElasticsearchStatusException.class));
-                assertThat(exception.getMessage(), containsString("Model configuration contains settings"));
-            });
-
-            service.parseRequestConfig("id", TaskType.TEXT_EMBEDDING, config, failureListener);
-        }
-    }
-
-    public void testParseRequestConfig_CreatesAGoogleVertexAiEmbeddingsModelWhenChunkingSettingsProvidedAndFeatureFlagEnabled()
-        throws IOException {
-        assumeTrue("Only if 'inference_chunking_settings' feature flag is enabled", ChunkingSettingsFeatureFlag.isEnabled());
+    public void testParseRequestConfig_CreatesAGoogleVertexAiEmbeddingsModelWhenChunkingSettingsProvided() throws IOException {
         var projectId = "project";
         var location = "location";
         var modelId = "model";
@@ -188,9 +155,7 @@ public class GoogleVertexAiServiceTests extends ESTestCase {
         }
     }
 
-    public void testParseRequestConfig_CreatesAGoogleVertexAiEmbeddingsModelWhenChunkingSettingsNotProvidedAndFeatureFlagEnabled()
-        throws IOException {
-        assumeTrue("Only if 'inference_chunking_settings' feature flag is enabled", ChunkingSettingsFeatureFlag.isEnabled());
+    public void testParseRequestConfig_CreatesAGoogleVertexAiEmbeddingsModelWhenChunkingSettingsNotProvided() throws IOException {
         var projectId = "project";
         var location = "location";
         var modelId = "model";
@@ -449,61 +414,7 @@ public class GoogleVertexAiServiceTests extends ESTestCase {
         }
     }
 
-    public void testParsePersistedConfigWithSecrets_CreatesAGoogleVertexAiEmbeddingsModelWithoutChunkingSettingsWhenFeatureFlagDisabled()
-        throws IOException {
-        assumeTrue("Only if 'inference_chunking_settings' feature flag is disabled", ChunkingSettingsFeatureFlag.isEnabled() == false);
-        var projectId = "project";
-        var location = "location";
-        var modelId = "model";
-        var autoTruncate = true;
-        var serviceAccountJson = """
-            {
-                "some json"
-            }
-            """;
-
-        try (var service = createGoogleVertexAiService()) {
-            var persistedConfig = getPersistedConfigMap(
-                new HashMap<>(
-                    Map.of(
-                        ServiceFields.MODEL_ID,
-                        modelId,
-                        GoogleVertexAiServiceFields.LOCATION,
-                        location,
-                        GoogleVertexAiServiceFields.PROJECT_ID,
-                        projectId,
-                        GoogleVertexAiEmbeddingsServiceSettings.DIMENSIONS_SET_BY_USER,
-                        true
-                    )
-                ),
-                getTaskSettingsMap(autoTruncate),
-                createRandomChunkingSettingsMap(),
-                getSecretSettingsMap(serviceAccountJson)
-            );
-
-            var model = service.parsePersistedConfigWithSecrets(
-                "id",
-                TaskType.TEXT_EMBEDDING,
-                persistedConfig.config(),
-                persistedConfig.secrets()
-            );
-
-            assertThat(model, instanceOf(GoogleVertexAiEmbeddingsModel.class));
-
-            var embeddingsModel = (GoogleVertexAiEmbeddingsModel) model;
-            assertThat(embeddingsModel.getServiceSettings().modelId(), is(modelId));
-            assertThat(embeddingsModel.getServiceSettings().location(), is(location));
-            assertThat(embeddingsModel.getServiceSettings().projectId(), is(projectId));
-            assertThat(embeddingsModel.getServiceSettings().dimensionsSetByUser(), is(Boolean.TRUE));
-            assertThat(embeddingsModel.getTaskSettings(), is(new GoogleVertexAiEmbeddingsTaskSettings(autoTruncate)));
-            assertNull(embeddingsModel.getConfigurations().getChunkingSettings());
-            assertThat(embeddingsModel.getSecretSettings().serviceAccountJson().toString(), is(serviceAccountJson));
-        }
-    }
-
-    public void testParsePersistedConfigWithSecrets_CreatesAGoogleVertexAiEmbeddingsModelWhenChunkingSettingsProvidedAndFeatureFlagEnabled()
-        throws IOException {
-        assumeTrue("Only if 'inference_chunking_settings' feature flag is enabled", ChunkingSettingsFeatureFlag.isEnabled());
+    public void testParsePersistedConfigWithSecrets_CreatesAGoogleVertexAiEmbeddingsModelWhenChunkingSettingsProvided() throws IOException {
         var projectId = "project";
         var location = "location";
         var modelId = "model";
@@ -553,9 +464,7 @@ public class GoogleVertexAiServiceTests extends ESTestCase {
         }
     }
 
-    public void testParsePersistedConfigWithSecrets_CreatesAnEmbeddingsModelWhenChunkingSettingsNotProvidedAndFeatureFlagEnabled()
-        throws IOException {
-        assumeTrue("Only if 'inference_chunking_settings' feature flag is enabled", ChunkingSettingsFeatureFlag.isEnabled());
+    public void testParsePersistedConfigWithSecrets_CreatesAnEmbeddingsModelWhenChunkingSettingsNotProvided() throws IOException {
         var projectId = "project";
         var location = "location";
         var modelId = "model";
@@ -833,49 +742,7 @@ public class GoogleVertexAiServiceTests extends ESTestCase {
         }
     }
 
-    public void testParsePersistedConfig_CreatesAGoogleVertexAiEmbeddingsModelWithoutChunkingSettingsWhenFeatureFlagDisabled()
-        throws IOException {
-        assumeTrue("Only if 'inference_chunking_settings' feature flag is disabled", ChunkingSettingsFeatureFlag.isEnabled() == false);
-        var projectId = "project";
-        var location = "location";
-        var modelId = "model";
-        var autoTruncate = true;
-
-        try (var service = createGoogleVertexAiService()) {
-            var persistedConfig = getPersistedConfigMap(
-                new HashMap<>(
-                    Map.of(
-                        ServiceFields.MODEL_ID,
-                        modelId,
-                        GoogleVertexAiServiceFields.LOCATION,
-                        location,
-                        GoogleVertexAiServiceFields.PROJECT_ID,
-                        projectId,
-                        GoogleVertexAiEmbeddingsServiceSettings.DIMENSIONS_SET_BY_USER,
-                        true
-                    )
-                ),
-                getTaskSettingsMap(autoTruncate),
-                createRandomChunkingSettingsMap()
-            );
-
-            var model = service.parsePersistedConfig("id", TaskType.TEXT_EMBEDDING, persistedConfig.config());
-
-            assertThat(model, instanceOf(GoogleVertexAiEmbeddingsModel.class));
-
-            var embeddingsModel = (GoogleVertexAiEmbeddingsModel) model;
-            assertThat(embeddingsModel.getServiceSettings().modelId(), is(modelId));
-            assertThat(embeddingsModel.getServiceSettings().location(), is(location));
-            assertThat(embeddingsModel.getServiceSettings().projectId(), is(projectId));
-            assertThat(embeddingsModel.getServiceSettings().dimensionsSetByUser(), is(Boolean.TRUE));
-            assertThat(embeddingsModel.getTaskSettings(), is(new GoogleVertexAiEmbeddingsTaskSettings(autoTruncate)));
-            assertNull(embeddingsModel.getConfigurations().getChunkingSettings());
-        }
-    }
-
-    public void testParsePersistedConfig_CreatesAGoogleVertexAiEmbeddingsModelWhenChunkingSettingsProvidedAndFeatureFlagEnabled()
-        throws IOException {
-        assumeTrue("Only if 'inference_chunking_settings' feature flag is enabled", ChunkingSettingsFeatureFlag.isEnabled());
+    public void testParsePersistedConfig_CreatesAGoogleVertexAiEmbeddingsModelWhenChunkingSettingsProvided() throws IOException {
         var projectId = "project";
         var location = "location";
         var modelId = "model";
@@ -913,8 +780,7 @@ public class GoogleVertexAiServiceTests extends ESTestCase {
         }
     }
 
-    public void testParsePersistedConfig_CreatesAnEmbeddingsModelWhenChunkingSettingsNotProvidedAndFeatureFlagEnabled() throws IOException {
-        assumeTrue("Only if 'inference_chunking_settings' feature flag is enabled", ChunkingSettingsFeatureFlag.isEnabled());
+    public void testParsePersistedConfig_CreatesAnEmbeddingsModelWhenChunkingSettingsNotProvided() throws IOException {
         var projectId = "project";
         var location = "location";
         var modelId = "model";

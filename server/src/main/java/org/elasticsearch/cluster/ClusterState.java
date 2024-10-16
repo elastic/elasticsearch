@@ -759,10 +759,8 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
 
             // customs
             metrics.contains(Metric.CUSTOMS)
-                ? Iterators.flatMap(
-                    customs.entrySet().iterator(),
-                    cursor -> ChunkedToXContentHelper.wrapWithObject(cursor.getKey(), cursor.getValue().toXContentChunked(outerParams))
-                )
+                ? ChunkedToXContent.builder(outerParams)
+                    .forEach(customs.entrySet().iterator(), (b, e) -> b.xContentObject(e.getKey(), e.getValue()))
                 : Collections.emptyIterator()
         );
     }

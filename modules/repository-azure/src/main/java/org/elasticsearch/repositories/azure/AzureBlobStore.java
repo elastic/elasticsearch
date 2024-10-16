@@ -12,7 +12,6 @@ package org.elasticsearch.repositories.azure;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.netty.util.ReferenceCountUtil;
-import reactor.core.Exceptions;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Schedulers;
@@ -89,6 +88,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -291,25 +292,35 @@ public class AzureBlobStore implements BlobStore {
             }
             batchResponses.add(batchAsyncClient.submitBatch(currentBatch));
         }
+        waitForCompletion(batchResponses);
+    }
 
+    /**
+     * This is in preference to using e.g. <code>Mono.whenDelayError(...).block()</code> because it
+     * adds some noise to the suppressed exceptions. (see reactor.core.publisher.BlockingSingleSubscriber:100)
+     *
+     * @param deleteTasks A list of Mono objects representing the delete batches
+     * @throws IOException With all thrown exceptions as suppressed, if any of the delete batches fail
+     */
+    private void waitForCompletion(List<Mono<Void>> deleteTasks) throws IOException {
+        final CountDownLatch allRequestsFinished = new CountDownLatch(deleteTasks.size());
+        final List<Throwable> errors = new CopyOnWriteArrayList<>();
+        deleteTasks.stream()
+            .map(m -> m.onErrorResume(AzureBlobStore::isIgnorableBatchDeleteException, t -> Mono.empty()))
+            .forEach(m -> m.subscribe(v -> {}, error -> {
+                errors.add(error);
+                allRequestsFinished.countDown();
+            }, allRequestsFinished::countDown));
         try {
-            Mono.whenDelayError(
-                batchResponses.stream()
-                    .map(m -> m.onErrorResume(AzureBlobStore::isIgnorableBatchDeleteException, t -> Mono.empty()))
-                    .toList()
-            ).block();
-        } catch (Exception e) {
-            final IOException exception = new IOException("Error deleting batch", e);
-            if (Exceptions.isMultiple(e)) {
-                Exceptions.unwrapMultipleExcludingTracebacks(e)
-                    .stream()
-                    // This is horrific, but there's no way to filter this noise reliably, see BlockingSingleSubscriber#blockingGet
-                    .filter(throwable -> throwable.getMessage().contains("#block terminated with an error") == false)
-                    .forEach(exception::addSuppressed);
-            } else {
-                exception.addSuppressed(e);
-            }
-            throw exception;
+            allRequestsFinished.await();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            errors.add(e);
+        }
+        if (errors.isEmpty() == false) {
+            IOException ex = new IOException("Error deleting batches");
+            errors.forEach(ex::addSuppressed);
+            throw ex;
         }
     }
 

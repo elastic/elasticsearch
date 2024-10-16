@@ -9,6 +9,8 @@
 
 package org.elasticsearch.http;
 
+import org.apache.http.entity.ByteArrayEntity;
+import org.apache.http.entity.ContentType;
 import org.elasticsearch.action.bulk.IncrementalBulkService;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
@@ -19,22 +21,28 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.rest.RestStatus.BAD_REQUEST;
 import static org.elasticsearch.rest.RestStatus.OK;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE, supportsDedicatedMasters = false, numDataNodes = 2, numClientNodes = 0)
-public class IncrementalBulkRestIT extends HttpSmokeTestCase {
+public class BulkRestIT extends HttpSmokeTestCase {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         return Settings.builder()
             .put(super.nodeSettings(nodeOrdinal, otherSettings))
-            .put(IncrementalBulkService.INCREMENTAL_BULK.getKey(), true)
+            .put(IncrementalBulkService.INCREMENTAL_BULK.getKey(), seventyFivePercentOfTheTime())
             .build();
+    }
+
+    private static boolean seventyFivePercentOfTheTime() {
+        return (randomBoolean() && randomBoolean()) == false;
     }
 
     public void testBulkUriMatchingDoesNotMatchBulkCapabilitiesApi() throws IOException {
@@ -51,6 +59,26 @@ public class IncrementalBulkRestIT extends HttpSmokeTestCase {
         assertThat(responseException.getMessage(), containsString("request body is required"));
     }
 
+    public void testBulkInvalidIndexNameString() throws IOException {
+        Request request = new Request("POST", "/_bulk");
+
+        byte[] bytes1 = "{\"create\":{\"_index\":\"".getBytes(StandardCharsets.UTF_8);
+        byte[] bytes2 = new byte[] { (byte) 0xfe, (byte) 0xfe, (byte) 0xff, (byte) 0xff };
+        byte[] bytes3 = "\",\"_id\":\"1\"}}\n{\"field\":1}\n\r\n".getBytes(StandardCharsets.UTF_8);
+        byte[] bulkBody = new byte[bytes1.length + bytes2.length + bytes3.length];
+        System.arraycopy(bytes1, 0, bulkBody, 0, bytes1.length);
+        System.arraycopy(bytes2, 0, bulkBody, bytes1.length, bytes2.length);
+        System.arraycopy(bytes3, 0, bulkBody, bytes1.length + bytes2.length, bytes3.length);
+
+        request.setEntity(new ByteArrayEntity(bulkBody, ContentType.APPLICATION_JSON));
+
+        ResponseException responseException = expectThrows(ResponseException.class, () -> getRestClient().performRequest(request));
+        assertThat(responseException.getResponse().getStatusLine().getStatusCode(), equalTo(BAD_REQUEST.getStatus()));
+        assertThat(responseException.getMessage(), containsString("could not parse bulk request body"));
+        assertThat(responseException.getMessage(), containsString("json_parse_exception"));
+        assertThat(responseException.getMessage(), containsString("Invalid UTF-8"));
+    }
+
     public void testBulkRequestBodyImproperlyTerminated() throws IOException {
         Request request = new Request(randomBoolean() ? "POST" : "PUT", "/_bulk");
         // missing final line of the bulk body. cannot process
@@ -61,10 +89,10 @@ public class IncrementalBulkRestIT extends HttpSmokeTestCase {
         );
         ResponseException responseException = expectThrows(ResponseException.class, () -> getRestClient().performRequest(request));
         assertEquals(400, responseException.getResponse().getStatusLine().getStatusCode());
-        assertThat(responseException.getMessage(), containsString("could not parse bulk request body"));
+        assertThat(responseException.getMessage(), containsString("The bulk request must be terminated by a newline"));
     }
 
-    public void testIncrementalBulk() throws IOException {
+    public void testBulkRequest() throws IOException {
         Request createRequest = new Request("PUT", "/index_name");
         createRequest.setJsonEntity("""
             {
@@ -81,7 +109,6 @@ public class IncrementalBulkRestIT extends HttpSmokeTestCase {
 
         Request firstBulkRequest = new Request("POST", "/index_name/_bulk");
 
-        // index documents for the rollup job
         String bulkBody = "{\"index\":{\"_index\":\"index_name\",\"_id\":\"1\"}}\n"
             + "{\"field\":1}\n"
             + "{\"index\":{\"_index\":\"index_name\",\"_id\":\"2\"}}\n"
@@ -113,7 +140,6 @@ public class IncrementalBulkRestIT extends HttpSmokeTestCase {
 
         Request firstBulkRequest = new Request("POST", "/index_name/_bulk");
 
-        // index documents for the rollup job
         String bulkBody = "{\"index\":{\"_index\":\"index_name\",\"_id\":\"1\"}}\n"
             + "{\"field\":1}\n"
             + "{\"index\":{\"_index\":\"index_name\",\"_id\":\"2\"}}\n"
@@ -137,7 +163,7 @@ public class IncrementalBulkRestIT extends HttpSmokeTestCase {
         }
     }
 
-    public void testIncrementalMalformed() throws IOException {
+    public void testMalformedActionLineBulk() throws IOException {
         Request createRequest = new Request("PUT", "/index_name");
         createRequest.setJsonEntity("""
             {
@@ -154,7 +180,6 @@ public class IncrementalBulkRestIT extends HttpSmokeTestCase {
 
         Request bulkRequest = new Request("POST", "/index_name/_bulk");
 
-        // index documents for the rollup job
         final StringBuilder bulk = new StringBuilder();
         bulk.append("{\"index\":{\"_index\":\"index_name\"}}\n");
         bulk.append("{\"field\":1}\n");
@@ -170,7 +195,6 @@ public class IncrementalBulkRestIT extends HttpSmokeTestCase {
     private static void sendLargeBulk() throws IOException {
         Request bulkRequest = new Request("POST", "/index_name/_bulk");
 
-        // index documents for the rollup job
         final StringBuilder bulk = new StringBuilder();
         bulk.append("{\"delete\":{\"_index\":\"index_name\",\"_id\":\"1\"}}\n");
         int updates = 0;

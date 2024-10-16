@@ -9,6 +9,8 @@
 
 package org.elasticsearch.transport;
 
+import com.carrotsearch.randomizedtesting.annotations.Repeat;
+
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.network.HandlingTimeTracker;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -19,6 +21,7 @@ import java.util.Arrays;
 import java.util.Map;
 
 public class TransportStatsTests extends ESTestCase {
+    @Repeat
     public void testToXContent() {
         assertEquals(
             Strings.toString(

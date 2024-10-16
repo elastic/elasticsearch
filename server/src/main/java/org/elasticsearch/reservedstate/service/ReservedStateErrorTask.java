@@ -51,18 +51,15 @@ public class ReservedStateErrorTask implements ClusterStateTaskListener {
     }
 
     // package private for testing
-    static boolean isNewError(ReservedStateMetadata existingMetadata, Long newStateVersion, Boolean reprocessSameVersion) {
-        return (existingMetadata == null
+    static boolean isNewError(ReservedStateMetadata existingMetadata, ReservedStateVersionParameters versionParameters) {
+        Long newStateVersion = versionParameters.version().version();
+        return existingMetadata == null
             || existingMetadata.errorMetadata() == null
             || existingMetadata.errorMetadata().version() < newStateVersion
-            || (reprocessSameVersion && existingMetadata.errorMetadata().version().equals(newStateVersion))
+            || (versionParameters.reprocessSameVersion() && newStateVersion.equals(existingMetadata.errorMetadata().version()))
             || newStateVersion.equals(RESTORED_VERSION)
             || newStateVersion.equals(EMPTY_VERSION)
-            || newStateVersion.equals(NO_VERSION));
-    }
-
-    static boolean isNewError(ReservedStateMetadata existingMetadata, ReservedStateVersionParameters versionParameters) {
-        return isNewError(existingMetadata, versionParameters.version().version(), versionParameters.reprocessSameVersion());
+            || newStateVersion.equals(NO_VERSION);
     }
 
     static boolean checkErrorVersion(ClusterState currentState, ErrorState errorState) {

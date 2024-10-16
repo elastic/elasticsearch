@@ -368,12 +368,12 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
         Metadata metadata = Metadata.builder().put(operatorMetadata).build();
         ClusterState state = ClusterState.builder(new ClusterName("test")).metadata(metadata).build();
 
-        assertFalse(ReservedStateErrorTask.isNewError(operatorMetadata, 2L, false));
-        assertFalse(ReservedStateErrorTask.isNewError(operatorMetadata, 1L, false));
-        assertTrue(ReservedStateErrorTask.isNewError(operatorMetadata, 2L, true));
-        assertTrue(ReservedStateErrorTask.isNewError(operatorMetadata, 3L, false));
-        assertTrue(ReservedStateErrorTask.isNewError(null, 1L, false));
-        assertTrue(ReservedStateErrorTask.isNewError(null, 1L, true));
+        assertFalse(ReservedStateErrorTask.isNewError(operatorMetadata, new ReservedStateVersionParameters(2L, false)));
+        assertFalse(ReservedStateErrorTask.isNewError(operatorMetadata, new ReservedStateVersionParameters(1L, false)));
+        assertTrue(ReservedStateErrorTask.isNewError(operatorMetadata, new ReservedStateVersionParameters(2L, true)));
+        assertTrue(ReservedStateErrorTask.isNewError(operatorMetadata, new ReservedStateVersionParameters(3L, false)));
+        assertTrue(ReservedStateErrorTask.isNewError(null, new ReservedStateVersionParameters(1L, false)));
+        assertTrue(ReservedStateErrorTask.isNewError(null, new ReservedStateVersionParameters(1L, true)));
 
         var chunk = new ReservedStateChunk(Map.of("one", "two", "maker", "three"), new ReservedStateVersion(2L, Version.CURRENT));
         var orderedHandlers = List.of(exceptionThrower.name(), newStateMaker.name());
@@ -386,7 +386,9 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
             chunk,
             Map.of(exceptionThrower.name(), exceptionThrower, newStateMaker.name(), newStateMaker),
             orderedHandlers,
-            errorState -> assertFalse(ReservedStateErrorTask.isNewError(operatorMetadata, errorState.version(), false)),
+            errorState -> assertFalse(
+                ReservedStateErrorTask.isNewError(operatorMetadata, new ReservedStateVersionParameters(errorState.version(), false))
+            ),
             ActionListener.noop()
         );
 

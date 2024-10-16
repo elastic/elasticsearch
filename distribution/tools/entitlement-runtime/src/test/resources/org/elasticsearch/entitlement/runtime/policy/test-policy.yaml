@@ -1,0 +1,7 @@
+entitlement-module-1:
+  entitlements:
+    - file:
+        path: "test/path/to/file"
+        actions:
+          - "read"
+          - "write"

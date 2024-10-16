@@ -1,9 +1,0 @@
-policy:
-  - module:
-      name: entitlement-test
-      entitlements:
-        - file:
-            path: "test/path/to/file"
-            actions:
-              - "read"
-              - "write"

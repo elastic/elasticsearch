@@ -7,16 +7,13 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.entitlement.runtime.policy.impl;
+package org.elasticsearch.entitlement.runtime.policy;
 
-import java.util.Collections;
-import java.util.List;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
 
-public class Scope {
+@Retention(RetentionPolicy.RUNTIME)
+public @interface ExternalEntitlement {
 
-    public final List<FileEntitlement> fileEntitlements;
-
-    public Scope(List<FileEntitlement> fileEntitlements) {
-        this.fileEntitlements = Collections.unmodifiableList(fileEntitlements);
-    }
+    String[] parameterNames() default {};
 }

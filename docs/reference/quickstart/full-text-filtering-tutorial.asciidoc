@@ -151,7 +151,7 @@ GET /cooking_blog/_search
   }
 }
 ----
-// TEST[skip]
+// TEST[skip:TODOwhackamole]
 <1> By default, the `match` query uses `OR` logic between the resulting tokens. This means it will match documents that contain either "fluffy" or "pancakes", or both, in the description field.
 <2> {es} defaults to the analyzer defined in the field mapping, so this field is unnecessary here. This is only required if you're using a different analyzer at search time, which is an <<different-analyzers,advanced use case>>.
 

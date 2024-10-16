@@ -434,7 +434,7 @@ public class AdaptiveAllocationsScalerService implements ClusterStateListener {
         if (assignment.getAdaptiveAllocationsSettings() != null
             && assignment.getAdaptiveAllocationsSettings().getEnabled() == Boolean.TRUE
             && (assignment.getAdaptiveAllocationsSettings().getMinNumberOfAllocations() == null
-                || assignment.getAdaptiveAllocationsSettings().getMinNumberOfAllocations() == 0)) {
+                || Integer.valueOf(0).equals(assignment.getAdaptiveAllocationsSettings().getMinNumberOfAllocations()))) {
 
             // Prevent against a flurry of scale up requests.
             if (deploymentIdsWithInFlightScaleFromZeroRequests.contains(assignment.getDeploymentId()) == false) {

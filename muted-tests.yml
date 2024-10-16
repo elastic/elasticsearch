@@ -395,6 +395,9 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/114947
 - class: org.elasticsearch.ingest.geoip.HttpClientTests
   issue: https://github.com/elastic/elasticsearch/issues/112618
+- class: org.elasticsearch.xpack.enrich.EnrichRestIT
+  method: test {p0=enrich/50_data_stream/enrich documents over _bulk via a data stream}
+  issue: https://github.com/elastic/elasticsearch/issues/114769
 
 # Examples:
 #

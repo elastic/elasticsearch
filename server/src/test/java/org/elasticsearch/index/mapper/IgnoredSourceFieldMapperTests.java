@@ -932,6 +932,36 @@ public class IgnoredSourceFieldMapperTests extends MapperServiceTestCase {
             {"path":{"id":0.1,"to":{"id":[1,20,3,10]}}}""", syntheticSource);
     }
 
+    public void testArrayWithNestedObjects() throws IOException {
+        DocumentMapper documentMapper = createMapperService(syntheticSourceMapping(b -> {
+            b.startObject("path").startObject("properties");
+            {
+                b.startObject("to").field("type", "nested").startObject("properties");
+                {
+                    b.startObject("id").field("type", "integer").field("synthetic_source_keep", "arrays").endObject();
+                }
+                b.endObject().endObject();
+            }
+            b.endObject().endObject();
+        })).documentMapper();
+
+        var syntheticSource = syntheticSource(documentMapper, b -> {
+            b.startArray("path");
+            {
+                b.startObject().startArray("to");
+                {
+                    b.startObject().array("id", 1, 20, 3).endObject();
+                    b.startObject().field("id", 10).endObject();
+                }
+                b.endArray().endObject();
+                b.startObject().startObject("to").field("id", "0.1").endObject().endObject();
+            }
+            b.endArray();
+        });
+        assertEquals("""
+            {"path":{"to":[{"id":[1,20,3]},{"id":10},{"id":0}]}}""", syntheticSource);
+    }
+
     public void testArrayWithinArray() throws IOException {
         DocumentMapper documentMapper = createMapperService(syntheticSourceMapping(b -> {
             b.startObject("path");

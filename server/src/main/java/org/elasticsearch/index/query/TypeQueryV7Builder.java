@@ -27,7 +27,7 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 
-@UpdateForV9(owner = UpdateForV9.Owner.SEARCH_FOUNDATIONS) // v7 REST API no longer exists: eliminate ref to RestApiVersion.V_7
+@UpdateForV9(owner = UpdateForV9.Owner.SEARCH_RELEVANCE) // v7 REST API no longer exists: eliminate ref to RestApiVersion.V_7
 public class TypeQueryV7Builder extends AbstractQueryBuilder<TypeQueryV7Builder> {
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(TypeQueryV7Builder.class);
     public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Type queries are deprecated, "

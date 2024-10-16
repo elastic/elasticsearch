@@ -12,8 +12,8 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.Map;
+import java.util.TreeMap;
 
 public final class ReservedRoleMappingXContentNameFieldHelper {
     private static final Logger logger = LogManager.getLogger(ReservedRoleMappingXContentNameFieldHelper.class);
@@ -24,7 +24,8 @@ public final class ReservedRoleMappingXContentNameFieldHelper {
     private ReservedRoleMappingXContentNameFieldHelper() {}
 
     public static ExpressionRoleMapping copyWithNameInMetadata(ExpressionRoleMapping roleMapping) {
-        Map<String, Object> metadata = new HashMap<>(roleMapping.getMetadata());
+        // Use tree map to get deterministic order, and ensure we have a mutable map to work with
+        Map<String, Object> metadata = new TreeMap<>(roleMapping.getMetadata());
         Object previousValue = metadata.put(METADATA_NAME_FIELD, roleMapping.getName());
         if (previousValue != null) {
             logger.error(
@@ -38,17 +39,15 @@ public final class ReservedRoleMappingXContentNameFieldHelper {
             roleMapping.getExpression(),
             roleMapping.getRoles(),
             roleMapping.getRoleTemplates(),
-            // TODO deterministic order, maybe
-            Map.copyOf(metadata),
+            metadata,
             roleMapping.isEnabled()
         );
     }
 
     public static ExpressionRoleMapping parseWithNameFromMetadata(XContentParser parser) throws IOException {
         ExpressionRoleMapping roleMapping = ExpressionRoleMapping.parse(FALLBACK_NAME, parser);
-        String name = getNameFromMetadata(roleMapping);
         return new ExpressionRoleMapping(
-            name,
+            getNameFromMetadata(roleMapping),
             roleMapping.getExpression(),
             roleMapping.getRoles(),
             roleMapping.getRoleTemplates(),

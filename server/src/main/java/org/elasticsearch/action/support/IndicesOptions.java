@@ -332,11 +332,13 @@ public record IndicesOptions(
         boolean allowAliasToMultipleIndices,
         boolean allowClosedIndices,
         boolean allowFailureIndices,
+        boolean allowSelectors,
         @Deprecated boolean ignoreThrottled
     ) implements ToXContentFragment {
 
         public static final String IGNORE_THROTTLED = "ignore_throttled";
-        public static final GatekeeperOptions DEFAULT = new GatekeeperOptions(true, true, true, false);
+        // TODO-PR Should default be true?
+        public static final GatekeeperOptions DEFAULT = new GatekeeperOptions(true, true, true, true, false);
 
         public static GatekeeperOptions parseParameter(Object ignoreThrottled, GatekeeperOptions defaultOptions) {
             if (ignoreThrottled == null && defaultOptions != null) {
@@ -356,6 +358,7 @@ public record IndicesOptions(
             private boolean allowAliasToMultipleIndices;
             private boolean allowClosedIndices;
             private boolean allowFailureIndices;
+            private boolean allowSelectors;
             private boolean ignoreThrottled;
 
             public Builder() {
@@ -366,6 +369,7 @@ public record IndicesOptions(
                 allowAliasToMultipleIndices = options.allowAliasToMultipleIndices;
                 allowClosedIndices = options.allowClosedIndices;
                 allowFailureIndices = options.allowFailureIndices;
+                allowSelectors = options.allowSelectors;
                 ignoreThrottled = options.ignoreThrottled;
             }
 
@@ -404,8 +408,22 @@ public record IndicesOptions(
                 return this;
             }
 
+            /**
+             * Selector syntax is accepted in the request.
+             */
+            public Builder allowSelectors(boolean allowSelectors) {
+                this.allowSelectors = allowSelectors;
+                return this;
+            }
+
             public GatekeeperOptions build() {
-                return new GatekeeperOptions(allowAliasToMultipleIndices, allowClosedIndices, allowFailureIndices, ignoreThrottled);
+                return new GatekeeperOptions(
+                    allowAliasToMultipleIndices,
+                    allowClosedIndices,
+                    allowFailureIndices,
+                    allowSelectors,
+                    ignoreThrottled
+                );
             }
         }
 
@@ -527,7 +545,8 @@ public record IndicesOptions(
         ERROR_WHEN_CLOSED_INDICES,
         IGNORE_THROTTLED,
 
-        ALLOW_FAILURE_INDICES // Added in 8.14
+        ALLOW_FAILURE_INDICES, // Added in 8.14
+        ALLOW_SELECTORS        // Added in 8.16
     }
 
     private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(IndicesOptions.class);
@@ -933,9 +952,16 @@ public record IndicesOptions(
     }
 
     /**
-     * @return Whether execution on closed indices is allowed.
+     * @return Whether execution on failure indices is allowed.
      */
     public boolean allowFailureIndices() {
+        return gatekeeperOptions.allowFailureIndices();
+    }
+
+    /**
+     * @return Whether execution on failure indices is allowed.
+     */
+    public boolean allowSelectors() {
         return gatekeeperOptions.allowFailureIndices();
     }
 
@@ -1001,6 +1027,11 @@ public record IndicesOptions(
                 backwardsCompatibleOptions.add(Option.ALLOW_FAILURE_INDICES);
             }
         }
+        if (out.getTransportVersion().onOrAfter(TransportVersions.USE_SELECTORS)) {
+            if (allowSelectors()) {
+                backwardsCompatibleOptions.add(Option.ALLOW_SELECTORS);
+            }
+        }
         out.writeEnumSet(backwardsCompatibleOptions);
 
         EnumSet<WildcardStates> states = EnumSet.noneOf(WildcardStates.class);
@@ -1035,11 +1066,16 @@ public record IndicesOptions(
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
             allowFailureIndices = options.contains(Option.ALLOW_FAILURE_INDICES);
         }
+        boolean allowSelectors = true;
+        if (in.getTransportVersion().onOrAfter(TransportVersions.USE_SELECTORS)) {
+            allowSelectors = options.contains(Option.ALLOW_SELECTORS);
+        }
         GatekeeperOptions gatekeeperOptions = GatekeeperOptions.builder()
             .allowClosedIndices(options.contains(Option.ERROR_WHEN_CLOSED_INDICES) == false)
             .allowAliasToMultipleIndices(options.contains(Option.ERROR_WHEN_ALIASES_TO_MULTIPLE_INDICES) == false)
             .allowFailureIndices(allowFailureIndices)
             .ignoreThrottled(options.contains(Option.IGNORE_THROTTLED))
+            .allowSelectors(allowSelectors)
             .build();
         SelectorOptions selectorOptions = SelectorOptions.DEFAULT;
         if (in.getTransportVersion()

@@ -385,6 +385,9 @@ tests:
 - class: org.elasticsearch.packaging.test.EnrollmentProcessTests
   method: test20DockerAutoFormCluster
   issue: https://github.com/elastic/elasticsearch/issues/114885
+- class: org.elasticsearch.test.rest.ClientYamlTestSuiteIT
+  method: test {yaml=cluster.stats/30_ccs_stats/cross-cluster search stats search}
+  issue: https://github.com/elastic/elasticsearch/issues/114902
 
 # Examples:
 #

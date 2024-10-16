@@ -369,6 +369,9 @@ tests:
 - class: org.elasticsearch.xpack.inference.TextEmbeddingCrudIT
   method: testPutE5Small_withPlatformAgnosticVariant
   issue: https://github.com/elastic/elasticsearch/issues/113983
+- class: org.elasticsearch.xpack.eql.EqlRestIT
+  method: testIndexWildcardPatterns
+  issue: https://github.com/elastic/elasticsearch/issues/114749
 
 # Examples:
 #

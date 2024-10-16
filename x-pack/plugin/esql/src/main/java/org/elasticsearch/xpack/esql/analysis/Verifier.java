@@ -63,6 +63,7 @@ import java.util.Locale;
 import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
+import java.util.function.Predicate;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.esql.common.Failure.fail;
@@ -627,9 +628,16 @@ public class Verifier {
     private static void checkMatchQueryPredicates(LogicalPlan plan, Set<Failure> failures) {
         if (plan instanceof Filter f) {
             Expression condition = f.condition();
-            checkMatchPredicateTypes(plan, failures);
-            checkCommandsBeforeMatchPredicates(plan, condition, failures);
-            checkMatchPredicateConditions(condition, failures);
+            checkMatchPredicateArgumentTypes(plan, failures);
+            checkCommandsBeforeExpression(
+                plan,
+                condition,
+                MatchQueryPredicate.class,
+                lp -> lp instanceof Limit == false,
+                e -> "[:] operator",
+                failures
+            );
+            checkNotPresentInDisjunctions(condition, MatchQueryPredicate.class, mqp -> "[:] operator", failures);
         } else {
             plan.forEachExpression(
                 MatchQueryPredicate.class,
@@ -647,7 +655,7 @@ public class Verifier {
      * early in the execution, rather than fail at the compute engine level.
      * In the future we will be able to handle MATCH at the compute and we will no longer need these checks.
      */
-    private static void checkMatchPredicateTypes(LogicalPlan plan, Set<Failure> failures) {
+    private static void checkMatchPredicateArgumentTypes(LogicalPlan plan, Set<Failure> failures) {
         if (plan instanceof Filter f) {
             Expression condition = f.condition();
 
@@ -670,37 +678,76 @@ public class Verifier {
         }
     }
 
-    private static void checkCommandsBeforeMatchPredicates(LogicalPlan plan, Expression condition, Set<Failure> failures) {
-        condition.forEachDown(MatchQueryPredicate.class, qsf -> {
-            plan.forEachDown(LogicalPlan.class, lp -> {
-                if (lp instanceof Limit) {
-                    failures.add(
-                        fail(plan, "[:] operator cannot be used after {}", lp.sourceText().split(" ")[0].toUpperCase(Locale.ROOT))
-                    );
-                }
-            });
-        });
-    }
-
-    private static void checkMatchPredicateConditions(Expression condition, Set<Failure> failures) {
+    /**
+     * Checks a whether a condition contains a disjunction with the specified typeToken. Adds to failure if it does.
+     *
+     * @param condition condition to check for disjunctions
+     * @param typeToken type that is forbidden in disjunctions
+     * @param typeNameProvider provider for the type name to add in the failure message
+     * @param failures failures collection to add to
+     * @param <E> type of the token to look for
+     */
+    private static <E extends Expression> void checkNotPresentInDisjunctions(
+        Expression condition,
+        Class<E> typeToken,
+        java.util.function.Function<E, String> typeNameProvider,
+        Set<Failure> failures
+    ) {
         condition.forEachUp(Or.class, or -> {
-            checkMatchPredicateInDisjunction(failures, or, or.left());
-            checkMatchPredicateInDisjunction(failures, or, or.right());
+            checkNotPresentInDisjunctions(or.left(), or, typeToken, typeNameProvider, failures);
+            checkNotPresentInDisjunctions(or.right(), or, typeToken, typeNameProvider, failures);
         });
     }
 
-    private static void checkMatchPredicateInDisjunction(Set<Failure> failures, Or or, Expression expression) {
-        expression.forEachDown(MatchQueryPredicate.class, ftp -> {
-            failures.add(fail(or, "Invalid condition [{}]. [:] operator can't be used as part of an or condition", or.sourceText()));
+    /**
+     * Checks a whether a condition contains a disjunction with the specified typeToken. Adds to failure if it does.
+     *
+     * @param parentExpression parent expression to add to the failure message
+     * @param or               disjunction that is being checked
+     * @param typeToken        type that is forbidden in disjunctions
+     * @param failures         failures collection to add to
+     * @param <E>              type of the token to look for
+     */
+    private static <E extends Expression> void checkNotPresentInDisjunctions(
+        Expression parentExpression,
+        Or or,
+        Class<E> typeToken,
+        java.util.function.Function<E, String> elementName,
+        Set<Failure> failures
+    ) {
+        parentExpression.forEachDown(typeToken, ftp -> {
+            failures.add(
+                fail(or, "Invalid condition [{}]. " + elementName.apply(ftp) + " can't be used as part of an or condition", or.sourceText())
+            );
         });
     }
 
+    /**
+     * Checks full text query functions for invalid usage.
+     *
+     * @param plan root plan to check
+     * @param failures failures found
+     */
     private static void checkFullTextQueryFunctions(LogicalPlan plan, Set<Failure> failures) {
         if (plan instanceof Filter f) {
             Expression condition = f.condition();
-            checkCommandsBeforeQueryStringFunction(plan, condition, failures);
-            checkCommandsBeforeMatchFunction(plan, condition, failures);
-            checkFullTextFunctionsConditions(condition, failures);
+            checkCommandsBeforeExpression(
+                plan,
+                condition,
+                QueryString.class,
+                lp -> (lp instanceof Filter || lp instanceof OrderBy || lp instanceof EsRelation),
+                e -> "[" + e.functionName() + "] function",
+                failures
+            );
+            checkCommandsBeforeExpression(
+                plan,
+                condition,
+                Match.class,
+                lp -> (lp instanceof Limit == false),
+                e -> "[" + e.functionName() + "] function",
+                failures
+            );
+            checkNotPresentInDisjunctions(condition, FullTextFunction.class, ftf -> "[" + ftf.functionName() + "] function", failures);
             checkFullTextFunctionsParents(condition, failures);
         } else {
             plan.forEachExpression(FullTextFunction.class, ftf -> {
@@ -709,15 +756,33 @@ public class Verifier {
         }
     }
 
-    private static void checkCommandsBeforeQueryStringFunction(LogicalPlan plan, Expression condition, Set<Failure> failures) {
-        condition.forEachDown(QueryString.class, qsf -> {
+    /**
+     * Checks all commands that exist before a specific type satisfy conditions.
+     *
+     * @param plan plan that contains the condition
+     * @param condition condition to check
+     * @param typeToken type to check for. When a type is found in the condition, all plans before the root plan are checked
+     * @param commandCheck check to perform on each command that precedes the plan that contains the typeToken
+     * @param typeErrorMsgProvider provider for the type name in the error message
+     * @param failures failures to add errors to
+     * @param <E> class of the type to look for
+     */
+    private static <E extends Expression> void checkCommandsBeforeExpression(
+        LogicalPlan plan,
+        Expression condition,
+        Class<E> typeToken,
+        Predicate<LogicalPlan> commandCheck,
+        java.util.function.Function<E, String> typeErrorMsgProvider,
+        Set<Failure> failures
+    ) {
+        condition.forEachDown(typeToken, exp -> {
             plan.forEachDown(LogicalPlan.class, lp -> {
-                if ((lp instanceof Filter || lp instanceof OrderBy || lp instanceof EsRelation) == false) {
+                if (commandCheck.test(lp) == false) {
                     failures.add(
                         fail(
                             plan,
-                            "[{}] function cannot be used after {}",
-                            qsf.functionName(),
+                            "{} cannot be used after {}",
+                            typeErrorMsgProvider.apply(exp),
                             lp.sourceText().split(" ")[0].toUpperCase(Locale.ROOT)
                         )
                     );
@@ -726,43 +791,11 @@ public class Verifier {
         });
     }
 
-    private static void checkCommandsBeforeMatchFunction(LogicalPlan plan, Expression condition, Set<Failure> failures) {
-        condition.forEachDown(Match.class, qsf -> {
-            plan.forEachDown(LogicalPlan.class, lp -> {
-                if (lp instanceof Limit) {
-                    failures.add(
-                        fail(
-                            plan,
-                            "[{}] function cannot be used after {}",
-                            qsf.functionName(),
-                            lp.sourceText().split(" ")[0].toUpperCase(Locale.ROOT)
-                        )
-                    );
-                }
-            });
-        });
-    }
-
-    private static void checkFullTextFunctionsConditions(Expression condition, Set<Failure> failures) {
-        condition.forEachUp(Or.class, or -> {
-            checkFullTextFunctionInDisjunction(failures, or, or.left());
-            checkFullTextFunctionInDisjunction(failures, or, or.right());
-        });
-    }
-
-    private static void checkFullTextFunctionInDisjunction(Set<Failure> failures, Or or, Expression expression) {
-        expression.forEachDown(FullTextFunction.class, ftf -> {
-            failures.add(
-                fail(
-                    or,
-                    "Invalid condition [{}]. [{}] function can't be used as part of an or condition",
-                    or.sourceText(),
-                    ftf.functionName()
-                )
-            );
-        });
-    }
-
+    /**
+     * Checks parents of a full text function to ensure they are allowed
+     * @param condition condition that contains the full text function
+     * @param failures failures to add errors to
+     */
     private static void checkFullTextFunctionsParents(Expression condition, Set<Failure> failures) {
         forEachFullTextFunctionParent(condition, (ftf, parent) -> {
             if ((parent instanceof FullTextFunction == false)

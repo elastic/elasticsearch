@@ -242,11 +242,7 @@ public class ReservedClusterStateService {
                     @Override
                     public void onFailure(Exception e) {
                         // Don't spam the logs on repeated errors
-                        if (isNewError(
-                            existingMetadata,
-                            reservedStateVersion.version(),
-                            reservedStateVersionParameters.reprocessSameVersion()
-                        )) {
+                        if (isNewError(existingMetadata, reservedStateVersionParameters)) {
                             logger.debug("Failed to apply reserved cluster state", e);
                             errorListener.accept(e);
                         } else {

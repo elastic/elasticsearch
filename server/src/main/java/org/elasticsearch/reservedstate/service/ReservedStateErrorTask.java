@@ -61,6 +61,10 @@ public class ReservedStateErrorTask implements ClusterStateTaskListener {
             || newStateVersion.equals(NO_VERSION));
     }
 
+    static boolean isNewError(ReservedStateMetadata existingMetadata, ReservedStateVersionParameters versionParameters) {
+        return isNewError(existingMetadata, versionParameters.version().version(), versionParameters.reprocessSameVersion());
+    }
+
     static boolean checkErrorVersion(ClusterState currentState, ErrorState errorState) {
         ReservedStateMetadata existingMetadata = currentState.metadata().reservedStateMetadata().get(errorState.namespace());
         // check for noop here

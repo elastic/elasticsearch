@@ -52,7 +52,7 @@ public class TransportGetRoleMappingsAction extends HandledTransportAction<GetRo
             names = new HashSet<>(Arrays.asList(request.getNames()));
         }
         this.roleMappingStore.getRoleMappings(names, ActionListener.wrap(mappings -> {
-            ExpressionRoleMapping[] array = mappings.toArray(new ExpressionRoleMapping[mappings.size()]);
+            ExpressionRoleMapping[] array = mappings.toArray(new ExpressionRoleMapping[0]);
             listener.onResponse(new GetRoleMappingsResponse(array));
         }, listener::onFailure));
     }

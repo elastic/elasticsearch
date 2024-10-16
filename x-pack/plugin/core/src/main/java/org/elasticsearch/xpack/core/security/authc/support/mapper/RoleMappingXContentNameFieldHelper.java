@@ -15,20 +15,21 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
-public class ClusterStateRoleMappingXContentTranslator {
+public final class RoleMappingXContentNameFieldHelper {
+    private static final Logger logger = LogManager.getLogger(RoleMappingXContentNameFieldHelper.class);
 
-    private static final Logger logger = LogManager.getLogger(ClusterStateRoleMappingXContentTranslator.class);
-
-    public static final String NAME_FIELD = "_es_reserved_name";
+    public static final String METADATA_NAME_FIELD = "_es_role_mapping_name";
     public static final String FALLBACK_NAME = "name_not_available_after_deserialization";
+
+    private RoleMappingXContentNameFieldHelper() {}
 
     public static ExpressionRoleMapping copyWithNameInMetadata(ExpressionRoleMapping roleMapping) {
         Map<String, Object> metadata = new HashMap<>(roleMapping.getMetadata());
-        Object previousValue = metadata.put(NAME_FIELD, roleMapping.getName());
+        Object previousValue = metadata.put(METADATA_NAME_FIELD, roleMapping.getName());
         if (previousValue != null) {
             logger.error(
                 "Metadata field [{}] is reserved and will be overwritten. Please rename this field in your role mapping configuration.",
-                NAME_FIELD
+                METADATA_NAME_FIELD
             );
         }
         return new ExpressionRoleMapping(
@@ -36,12 +37,13 @@ public class ClusterStateRoleMappingXContentTranslator {
             roleMapping.getExpression(),
             roleMapping.getRoles(),
             roleMapping.getRoleTemplates(),
+            // TODO deterministic order, maybe
             Map.copyOf(metadata),
             roleMapping.isEnabled()
         );
     }
 
-    public static ExpressionRoleMapping fromXContent(XContentParser parser) throws IOException {
+    public static ExpressionRoleMapping parseWithNameFromMetadata(XContentParser parser) throws IOException {
         ExpressionRoleMapping roleMapping = ExpressionRoleMapping.parse(FALLBACK_NAME, parser);
         String name = getNameFromMetadata(roleMapping);
         return new ExpressionRoleMapping(
@@ -56,12 +58,12 @@ public class ClusterStateRoleMappingXContentTranslator {
 
     private static String getNameFromMetadata(ExpressionRoleMapping roleMapping) {
         Map<String, Object> metadata = roleMapping.getMetadata();
-        if (metadata.containsKey(NAME_FIELD) && metadata.get(NAME_FIELD) instanceof String name) {
+        if (metadata.containsKey(METADATA_NAME_FIELD) && metadata.get(METADATA_NAME_FIELD) instanceof String name) {
             return name;
         }
 
-        logger.error("role mapping metadata should contain reserved string field [" + NAME_FIELD + "]");
-        assert false : "role mapping metadata should contain reserved string field [" + NAME_FIELD + "]";
+        logger.error("role mapping metadata should contain reserved string field [" + METADATA_NAME_FIELD + "]");
+        assert false : "role mapping metadata should contain reserved string field [" + METADATA_NAME_FIELD + "]";
         return FALLBACK_NAME;
     }
 }

@@ -21,8 +21,8 @@ import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xpack.core.security.authc.support.mapper.ClusterStateRoleMappingXContentTranslator;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.ExpressionRoleMapping;
+import org.elasticsearch.xpack.core.security.authc.support.mapper.RoleMappingXContentNameFieldHelper;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -49,7 +49,7 @@ public final class RoleMappingMetadata extends AbstractNamedDiffable<Metadata.Cu
     static {
         PARSER.declareObjectArray(
             constructorArg(),
-            (p, c) -> ClusterStateRoleMappingXContentTranslator.fromXContent(p),
+            (p, c) -> RoleMappingXContentNameFieldHelper.parseWithNameFromMetadata(p),
             new ParseField(TYPE)
         );
     }

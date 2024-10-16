@@ -57,12 +57,24 @@ public record IndicesOptions(
     SelectorOptions selectorOptions
 ) implements ToXContentFragment {
 
+    /**
+     * @deprecated this query param will be replaced by the selector `::` on the expression level
+     */
     @Deprecated
-    public static final String FAILURE_STORE = "failure_store";
+    public static final String FAILURE_STORE_QUERY_PARAM = "failure_store";
+    /**
+     * @deprecated this value will be replaced by the selector `::*` on the expression level
+     */
     @Deprecated
     public static final String INCLUDE_ALL = "include";
+    /**
+     * @deprecated this value will be replaced by the selector `::data` on the expression level
+     */
     @Deprecated
     public static final String INCLUDE_ONLY_REGULAR_INDICES = "exclude";
+    /**
+     * @deprecated this value will be replaced by the selector `::failures` on the expression level
+     */
     @Deprecated
     public static final String INCLUDE_ONLY_FAILURE_INDICES = "only";
 
@@ -309,7 +321,7 @@ public record IndicesOptions(
      * - The "allow*" flags, which purpose is to enable actions to define certain conditions that need to apply on the concrete indices
      * they accept. For example, single-index actions will set allowAliasToMultipleIndices to false, while search will not accept a
      * closed index etc. These options are not configurable by the end-user.
-     * - The ignoreThrottled flag, which is a depricared flag that will filter out frozen indices.
+     * - The ignoreThrottled flag, which is a deprecated flag that will filter out frozen indices.
      * @param allowAliasToMultipleIndices, allow aliases to multiple indices, true by default.
      * @param allowClosedIndices, allow closed indices, true by default.
      * @param allowFailureIndices, allow failure indices in the response, true by default
@@ -1211,7 +1223,7 @@ public record IndicesOptions(
             request.param(ConcreteTargetOptions.IGNORE_UNAVAILABLE),
             request.param(WildcardOptions.ALLOW_NO_INDICES),
             request.param(GatekeeperOptions.IGNORE_THROTTLED),
-            DataStream.isFailureStoreFeatureFlagEnabled() ? request.param(FAILURE_STORE) : INCLUDE_ONLY_REGULAR_INDICES,
+            DataStream.isFailureStoreFeatureFlagEnabled() ? request.param(FAILURE_STORE_QUERY_PARAM) : INCLUDE_ONLY_REGULAR_INDICES,
             defaultSettings
         );
     }
@@ -1227,7 +1239,7 @@ public record IndicesOptions(
                 map.containsKey(GatekeeperOptions.IGNORE_THROTTLED)
                     ? map.get(GatekeeperOptions.IGNORE_THROTTLED)
                     : map.get("ignoreThrottled"),
-                map.containsKey(FAILURE_STORE) ? map.get(FAILURE_STORE) : map.get("failureStore"),
+                map.containsKey(FAILURE_STORE_QUERY_PARAM) ? map.get(FAILURE_STORE_QUERY_PARAM) : map.get("failureStore"),
                 defaultSettings
             );
         }
@@ -1255,7 +1267,7 @@ public record IndicesOptions(
             || "ignoreThrottled".equals(name)
             || WildcardOptions.ALLOW_NO_INDICES.equals(name)
             || "allowNoIndices".equals(name)
-            || (DataStream.isFailureStoreFeatureFlagEnabled() && FAILURE_STORE.equals(name))
+            || (DataStream.isFailureStoreFeatureFlagEnabled() && FAILURE_STORE_QUERY_PARAM.equals(name))
             || (DataStream.isFailureStoreFeatureFlagEnabled() && "failureStore".equals(name));
     }
 
@@ -1300,6 +1312,10 @@ public record IndicesOptions(
             .build();
     }
 
+    /**
+     * @deprecated This method parses the query parameter failure_store. This is a deprecated param, and it will be replaced
+     * the selector suffix, for example `my-data-stream::data` or `my-data-stream::failures`
+     */
     @Deprecated
     private static SelectorOptions parseFailureStoreParameters(Object failureStoreValue, SelectorOptions defaultOptions) {
         if (failureStoreValue == null) {
@@ -1309,7 +1325,7 @@ public record IndicesOptions(
             case INCLUDE_ALL -> SelectorOptions.DATA_AND_FAILURE;
             case INCLUDE_ONLY_REGULAR_INDICES -> SelectorOptions.ONLY_DATA;
             case INCLUDE_ONLY_FAILURE_INDICES -> SelectorOptions.ONLY_FAILURES;
-            default -> throw new IllegalArgumentException("No valid " + FAILURE_STORE + " value [" + failureStoreValue + "]");
+            default -> throw new IllegalArgumentException("No valid " + FAILURE_STORE_QUERY_PARAM + " value [" + failureStoreValue + "]");
         };
     }
 
@@ -1327,7 +1343,7 @@ public record IndicesOptions(
             } else {
                 displayValue = INCLUDE_ONLY_FAILURE_INDICES;
             }
-            builder.field(FAILURE_STORE, displayValue);
+            builder.field(FAILURE_STORE_QUERY_PARAM, displayValue);
         }
         return builder;
     }
@@ -1336,7 +1352,7 @@ public record IndicesOptions(
     private static final ParseField IGNORE_UNAVAILABLE_FIELD = new ParseField(ConcreteTargetOptions.IGNORE_UNAVAILABLE);
     private static final ParseField IGNORE_THROTTLED_FIELD = new ParseField(GatekeeperOptions.IGNORE_THROTTLED).withAllDeprecated();
     private static final ParseField ALLOW_NO_INDICES_FIELD = new ParseField(WildcardOptions.ALLOW_NO_INDICES);
-    private static final ParseField FAILURE_STORE_FIELD = new ParseField(FAILURE_STORE);
+    private static final ParseField FAILURE_STORE_FIELD = new ParseField(FAILURE_STORE_QUERY_PARAM);
 
     public static IndicesOptions fromXContent(XContentParser parser) throws IOException {
         return fromXContent(parser, null);

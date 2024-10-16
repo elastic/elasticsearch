@@ -293,7 +293,6 @@ public class XContentMapValues {
         }
 
         List<SuffixMap> suffixMaps = extractSuffixMaps(pathElements, 0, map);
-
         if (suffixMaps.isEmpty()) {
             // This should never happen. Throw in case it does for some reason.
             throw new IllegalStateException("extractSuffixMaps returned an empty suffix map list");
@@ -349,8 +348,7 @@ public class XContentMapValues {
         } else {
             // The path terminated early on a non-traversable data type. This is ok, it means we can't insert the value at this particular
             // leaf node. Return an empty list to indicate this. The value will be inserted on the deepest appropriate parent map.
-            //
-            // This approach allows us to insert subobjects with "." chars in the key name that share a common prefix, like so:
+            // This approach allows us to insert fields with dots in the name that share a common prefix, like so:
             //
             // Map<String, Object> map = new HashMap<>();
             // XContentMapValues.insertValue("x.y", map, "value1");

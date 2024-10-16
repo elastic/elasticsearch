@@ -66,7 +66,7 @@ public class RolloverRequestTests extends ESTestCase {
             .endObject()
             .endObject();
         try (var parser = createParser(builder)) {
-            request.fromXContent(false, parser);
+            request.fromXContent(parser);
         }
         Map<String, Condition<?>> conditions = request.getConditions().getConditions();
         assertThat(conditions.size(), equalTo(10));
@@ -120,7 +120,7 @@ public class RolloverRequestTests extends ESTestCase {
             .endObject()
             .endObject();
         try (var parser = createParser(builder)) {
-            request.fromXContent(false, parser);
+            request.fromXContent(parser);
         }
         Map<String, Condition<?>> conditions = request.getConditions().getConditions();
         assertThat(conditions.size(), equalTo(3));
@@ -143,7 +143,7 @@ public class RolloverRequestTests extends ESTestCase {
             .endObject();
 
         try (var parser = createParser(builder)) {
-            request.fromXContent(false, parser);
+            request.fromXContent(parser);
         }
         CreateIndexRequest createIndexRequest = request.getCreateIndexRequest();
         String mapping = createIndexRequest.mappings();
@@ -216,7 +216,7 @@ public class RolloverRequestTests extends ESTestCase {
         BytesReference mutated = XContentTestUtils.insertRandomFields(xContentType, BytesReference.bytes(builder), null, random());
         expectThrows(XContentParseException.class, () -> {
             try (var parser = createParser(xContentType.xContent(), mutated)) {
-                request.fromXContent(false, parser);
+                request.fromXContent(parser);
             }
         });
     }

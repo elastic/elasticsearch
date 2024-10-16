@@ -16,11 +16,11 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.reindex.ReindexPlugin;
 import org.elasticsearch.search.SearchResponseUtils;
+import org.elasticsearch.node.ShutdownFenceService;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.shutdown.GetShutdownStatusAction;
 import org.elasticsearch.xpack.shutdown.PutShutdownNodeAction;
 import org.elasticsearch.xpack.shutdown.ShutdownPlugin;
 
@@ -31,10 +31,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-import static org.elasticsearch.node.Node.MAXIMUM_REINDEXING_TIMEOUT_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
 
 /**
  * Test that a large reindexing task completes even after the node coordinating the reindexing task
@@ -47,8 +44,7 @@ public class ReindexNodeShutdownIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(ReindexPlugin.class,
-            ShutdownPlugin.class);
+        return Arrays.asList(ReindexPlugin.class, ShutdownPlugin.class);
     }
 
     protected ReindexRequestBuilder reindex(String nodeName) {
@@ -72,11 +68,12 @@ public class ReindexNodeShutdownIT extends ESIntegTestCase {
 
     private void createReindexTask(final String dataNodeName, final String coordNodeName, final String masterNodeName) throws Exception {
 
-        // INDEX will be created on the datanode
+        // INDEX will be created on the dataNode
         createIndex(INDEX);
 
         AbstractBulkByScrollRequestBuilder<?, ?> builder = reindex(coordNodeName).source(INDEX).destination("dest");
         AbstractBulkByScrollRequest<?> reindexRequest = builder.request();
+        ShutdownFenceService shutdownFenceService = internalCluster().getInstance(ShutdownFenceService.class, coordNodeName);
 
         TaskManager taskManager = internalCluster().getInstance(TransportService.class).getTaskManager();
         // int numDocs = getNumShards(INDEX).numPrimaries * 10 * reindexRequest.getSlices();
@@ -116,13 +113,17 @@ public class ReindexNodeShutdownIT extends ESIntegTestCase {
 
         // Check for reindex task to appear in the tasks list and Immediately stop coordinating node
         TaskInfo mainTask = findTask(ReindexAction.INSTANCE.name(), reindexRequest.getSlices());
-        putShutdown(coordNodeName);
+        shutdownFenceService.prepareForShutdown();
+        internalCluster().stopNode(coordNodeName);
+        //putShutdown(coordNodeName);
+        /*
         GetShutdownStatusAction.Response getResp = client().execute(
             GetShutdownStatusAction.INSTANCE,
             new GetShutdownStatusAction.Request(TEST_REQUEST_TIMEOUT, coordNodeName)
         ).get();
         assertThat(getResp.getShutdownStatuses().get(0).pluginsStatus().getStatus(), equalTo(SingleNodeShutdownMetadata.Status.COMPLETE));
-        // System.out.println("Found task and initiated shutdown");
+        System.out.println("Found task and initiated shutdown");
+         */
         System.out.println("Shutdown complete");
 
         assertBusy(() -> assertTrue(indexExists("dest")));

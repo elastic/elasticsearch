@@ -40,7 +40,7 @@ public final class LongLongHash extends AbstractHash {
         super(capacity, maxLoadFactor, bigArrays);
         try {
             // `super` allocates a big array so we have to `close` if we fail here or we'll leak it.
-            keys = bigArrays.newLongArray(2 * capacity, false);
+            keys = bigArrays.newLongArray(2 * maxSize, false);
         } finally {
             if (keys == null) {
                 close();

@@ -43,18 +43,8 @@ public class MatchQueryTests extends ESTestCase {
     private static MatchQuery mutate(MatchQuery query) {
         List<Function<MatchQuery, MatchQuery>> options = Arrays.asList(
             q -> new MatchQuery(SourceTests.mutate(q.source()), q.name(), q.text(), q.predicate()),
-            q -> new MatchQuery(
-                q.source(),
-                randomValueOtherThan(q.name(), () -> randomAlphaOfLength(5)),
-                q.text(),
-                q.predicate()
-            ),
-            q -> new MatchQuery(
-                q.source(),
-                q.name(),
-                randomValueOtherThan(q.text(), () -> randomAlphaOfLength(5)),
-                q.predicate()
-            )
+            q -> new MatchQuery(q.source(), randomValueOtherThan(q.name(), () -> randomAlphaOfLength(5)), q.text(), q.predicate()),
+            q -> new MatchQuery(q.source(), q.name(), randomValueOtherThan(q.text(), () -> randomAlphaOfLength(5)), q.predicate())
         );
         // TODO mutate the predicate
         return randomFrom(options).apply(query);

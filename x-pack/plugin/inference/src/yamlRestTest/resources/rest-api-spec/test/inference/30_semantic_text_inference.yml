@@ -583,7 +583,7 @@ setup:
 "Can be used inside an object field":
   - requires:
       cluster_features: "semantic_text.in_object_field_fix"
-      reason: object field fix added in 8.16.0 & 8.15.3
+      reason: object field fix added in 8.16.0 & 8.15.4
 
   - do:
       indices.create:

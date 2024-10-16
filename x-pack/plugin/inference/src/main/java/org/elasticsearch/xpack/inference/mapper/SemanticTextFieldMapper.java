@@ -32,6 +32,7 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MapperMergeContext;
+import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.NestedObjectMapper;
 import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.mapper.SimpleMappedFieldType;
@@ -397,6 +398,25 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
 
         Map<String, Object> fieldValueMap = XContentMapValues.nodeMapValue(fieldValue, "Field [" + fullPath() + "]");
         return XContentMapValues.extractValue(TEXT_FIELD, fieldValueMap);
+    }
+
+    @Override
+    protected void doValidate(MappingLookup mappers) {
+        int parentPathIndex = fullPath().lastIndexOf(leafName());
+        if (parentPathIndex > 0) {
+            // Check that the parent object field allows subobjects.
+            // Subtract one from the parent path index to omit the trailing dot delimiter.
+            ObjectMapper parentMapper = mappers.objectMappers().get(fullPath().substring(0, parentPathIndex - 1));
+            if (parentMapper == null) {
+                throw new IllegalStateException(CONTENT_TYPE + " field [" + fullPath() + "] does not have a parent object mapper");
+            }
+
+            if (parentMapper.subobjects() == ObjectMapper.Subobjects.DISABLED) {
+                throw new IllegalArgumentException(
+                    CONTENT_TYPE + " field [" + fullPath() + "] cannot be in an object field with subobjects disabled"
+                );
+            }
+        }
     }
 
     public static class SemanticTextFieldType extends SimpleMappedFieldType {

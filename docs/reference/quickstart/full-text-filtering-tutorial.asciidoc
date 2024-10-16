@@ -21,7 +21,7 @@ To achieve these goals we'll use different Elasticsearch queries to perform full
 
 [discrete]
 [[full-text-filter-tutorial-create-index]]
-=== Create an index
+=== Step 1: Create an index
 
 Create the `cooking_blog` index and its mapping to get started.
 
@@ -101,7 +101,7 @@ This tutorial won't cover analysis in detail, but it's important to understand h
 
 [discrete]
 [[full-text-filter-tutorial-index-data]]
-=== Add sample blog posts to your index
+=== Step 2: Add sample blog posts to your index
 
 Now you'll need to index some example blog posts using the <<bulk, Bulk API>>.
 Note that `text` fields are analyzed and multi-fields are generated at index time.
@@ -124,7 +124,7 @@ POST /cooking_blog/_bulk
 
 [discrete]
 [[full-text-filter-tutorial-match-query]]
-=== Perform basic full-text searches
+=== Step 3: Perform basic full-text searches
 
 Full-text search involves executing text-based queries across one or more document fields.
 These queries calculate a relevance score for each matching document, based on how closely the document's content aligns with the search terms.
@@ -283,7 +283,7 @@ GET /cooking_blog/_search
 
 [discrete]
 [[full-text-filter-tutorial-multi-match]]
-=== Search across multiple fields at once
+=== Step 4: Search across multiple fields at once
 
 When users enter a search query, they often don't know (or care) whether their search terms appear in a specific field.
 A <<query-dsl-multi-match-query,`multi_match`>> query allows searching across multiple fields simultaneously, with the ability to apply different boosts to each field.
@@ -369,7 +369,7 @@ The `multi_match` query is often recommended over a single `match` query for mos
 
 [discrete]
 [[full-text-filter-tutorial-filtering]]
-=== Filter and find exact matches
+=== Step 5: Filter and find exact matches
 
 <<filter-context,Filtering>> allows you to narrow down your search results based on exact criteria.
 Unlike full-text searches, filters are binary (yes/no) and do not affect the relevance score.
@@ -455,7 +455,7 @@ Avoid using the `term` query for <<text,`text` fields>> because they are transfo
 
 [discrete]
 [[full-text-filter-tutorial-complex-bool]]
-=== Combine multiple search criteria
+=== Step 6: Combine multiple search criteria
 
 A <<query-dsl-bool-query,`bool`>> query allows you to combine multiple query clauses to create sophisticated searches.
 In this tutorial scenario it's useful for when users have complex requirements for finding recipes.

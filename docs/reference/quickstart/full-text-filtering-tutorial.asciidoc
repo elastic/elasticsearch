@@ -152,7 +152,7 @@ GET /cooking_blog/_search
   }
 }
 ----
-// TEST[skip:TODOwhackamole]
+// TEST[continued]
 <1> By default, the `match` query uses `OR` logic between the resulting tokens. This means it will match documents that contain either "fluffy" or "pancakes", or both, in the description field.
 <2> {es} defaults to the analyzer defined in the field mapping, so this field is unnecessary here. This is only required if you're using a different analyzer at search time, which is an <<different-analyzers,advanced use case>>.
 
@@ -162,11 +162,11 @@ GET /cooking_blog/_search
 [source,console-result]
 ----
 {
-  "took": 1,
+  "took": 2,
   "timed_out": false,
   "_shards": {
-    "total": 1,
-    "successful": 1,
+    "total": 5,
+    "successful": 5,
     "skipped": 0,
     "failed": 0
   },
@@ -175,12 +175,12 @@ GET /cooking_blog/_search
       "value": 1,
       "relation": "eq"
     },
-    "max_score": 1.8890164, <2>
+    "max_score": 0.39556286, <2>
     "hits": [
       {
         "_index": "cooking_blog",
         "_id": "1",
-        "_score": 1.8890164, <3>
+        "_score": 0.39556286, <3>
         "_source": {
           "title": "Perfect Pancakes: A Fluffy Breakfast Delight", <4>
           "description": "Learn the secrets to making the fluffiest pancakes you've ever tasted. This recipe uses buttermilk and a special folding technique to create light, airy pancakes that are perfect for lazy Sunday mornings.", <5>
@@ -196,8 +196,6 @@ GET /cooking_blog/_search
         }
       }
     ]
-  }
-}
 ----
 // TEST[continued]
 <1> The `hits` object contains the total number of matching documents and their relation to the total. <1> The `relation` field can have one of three values: "eq", "gte", or "lte".

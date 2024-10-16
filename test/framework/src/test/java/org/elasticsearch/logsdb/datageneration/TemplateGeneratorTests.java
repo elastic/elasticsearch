@@ -27,17 +27,15 @@ public class TemplateGeneratorTests extends ESTestCase {
         for (var entry : template.entrySet()) {
             assertNotNull(entry.getKey());
             assertFalse(entry.getKey().isEmpty());
-            switch (entry.getValue()) {
-                case Template.Leaf leaf -> {
-                    assertEquals(entry.getKey(), leaf.name());
-                    assertNotNull(leaf.type());
-                }
-                case Template.Object object -> {
-                    assertEquals(entry.getKey(), object.name());
-                    assertNotNull(object.children());
-                    validateMappingTemplate(object.children());
-                }
+            if (entry.getValue() instanceof Template.Leaf leaf) {
+                assertEquals(entry.getKey(), leaf.name());
+                assertNotNull(leaf.type());
+            } else if (entry.getValue() instanceof Template.Object object) {
+                assertEquals(entry.getKey(), object.name());
+                assertNotNull(object.children());
+                validateMappingTemplate(object.children());
             }
+
         }
     }
 }

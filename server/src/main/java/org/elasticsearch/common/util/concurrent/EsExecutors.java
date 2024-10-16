@@ -325,28 +325,22 @@ public class EsExecutors {
         return executorName(thread.getName());
     }
 
-    public static ThreadFactory daemonThreadFactory(Settings settings, String executorName) {
-        return createDaemonThreadFactory(threadName(settings, executorName), false);
+    public static ThreadFactory daemonThreadFactory(Settings settings, String namePrefix) {
+        return createDaemonThreadFactory(threadName(settings, namePrefix), false);
     }
 
-    public static ThreadFactory daemonThreadFactory(String nodeName, String executorName) {
-        assert nodeName != null && false == nodeName.isEmpty();
-        return createDaemonThreadFactory(threadName(nodeName, executorName), false);
+    public static ThreadFactory daemonThreadFactory(String nodeName, String namePrefix) {
+        return daemonThreadFactory(nodeName, namePrefix, false);
     }
 
-    public static ThreadFactory daemonThreadFactory(String nodeName, String executorName, boolean isSystemThread) {
+    public static ThreadFactory daemonThreadFactory(String nodeName, String namePrefix, boolean isSystemThread) {
         assert nodeName != null && false == nodeName.isEmpty();
-        return createDaemonThreadFactory(threadName(nodeName, executorName), isSystemThread);
+        return createDaemonThreadFactory(threadName(nodeName, namePrefix), isSystemThread);
     }
 
     public static ThreadFactory daemonThreadFactory(String name) {
         assert name != null && name.isEmpty() == false;
         return createDaemonThreadFactory(name, false);
-    }
-
-    public static ThreadFactory daemonThreadFactory(String name, boolean isSystemThread) {
-        assert name != null && name.isEmpty() == false;
-        return createDaemonThreadFactory(name, isSystemThread);
     }
 
     private static ThreadFactory createDaemonThreadFactory(String namePrefix, boolean isSystemThread) {

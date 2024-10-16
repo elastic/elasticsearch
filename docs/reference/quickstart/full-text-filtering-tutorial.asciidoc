@@ -4,7 +4,7 @@
 <titleabbrev>Basics: Full-text search and filtering</titleabbrev>
 ++++
 
-This is a hands-on introduction to the basics of full-text search with {es}, also known as _lexical search_, using the `_search` API and Query DSL.
+This is a hands-on introduction to the basics of full-text search with {es}, also known as _lexical search_, using the `_search` API and <<query-dsl,Query DSL>>.
 You'll also learn how to filter data, to narrow down search results based on exact criteria.
 
 In this scenario, we're implementing a search function for a cooking blog.
@@ -86,7 +86,8 @@ PUT /cooking_blog
 ----
 // TESTSETUP
 <1> The `standard` analyzer is used by default for `text` fields if an `analyzer` isn't specified. It's included here for demonstration purposes.
-<2> <<multi-fields,Multi-fields>> are used to index `text` fields as both `text` and `keyword` types. This enables both full-text search and exact matching/filtering on the same field.
+<2> <<multi-fields,Multi-fields>> are used to index `text` fields as both `text` and `keyword` <<mapping-types,data types>>. This enables both full-text search and exact matching/filtering on the same field.
+Note that if you used <<dynamic-field-mapping,dynamic mapping>>, these multi-fields would be created automatically.
 <3> The `ignore_above` parameter prevents indexing values longer than 256 characters in the `keyword` field. Again this is the default value, but it's included here for for demonstration purposes.
 This is a common practice to avoid <<mapping-explosion,mapping explosion>>.
 
@@ -376,7 +377,7 @@ The `multi_match` query is often recommended over a single `match` query for mos
 Unlike full-text searches, filters are binary (yes/no) and do not affect the relevance score.
 Filters execute faster than queries because excluded results don't need to be scored.
 
-This `bool` query will return only blog posts in the "Breakfast" category.
+This <<query-dsl-bool-query,`bool`>> query will return only blog posts in the "Breakfast" category.
 
 [source,console]
 ----

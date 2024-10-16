@@ -267,9 +267,9 @@ public class EsqlCapabilities {
         MV_PSERIES_WEIGHTED_SUM,
 
         /**
-         * Support for match operator
+         * Support for match operator as a colon. Previous support for match operator as MATCH has been removed
          */
-        MATCH_OPERATOR(true),
+        MATCH_OPERATOR_COLON(true),
 
         /**
          * Removing support for the {@code META} keyword.

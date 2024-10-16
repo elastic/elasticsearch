@@ -41,6 +41,7 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.gateway.MetadataStateFormat;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
@@ -945,8 +946,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         if (timestampRange.equals(this.timestampRange) && eventIngestedRange.equals(this.eventIngestedRange)) {
             return this;
         }
+        @UpdateForV9(owner = UpdateForV9.Owner.SEARCH_FOUNDATIONS) // remove this check when 8.15 is no longer communicable
         IndexLongFieldRange allowedEventIngestedRange = eventIngestedRange;
-        // remove this check when the EVENT_INGESTED_RANGE_IN_CLUSTER_STATE version is removed
         if (minClusterTransportVersion.before(TransportVersions.V_8_15_0)) {
             allowedEventIngestedRange = IndexLongFieldRange.UNKNOWN;
         }

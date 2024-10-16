@@ -14,6 +14,8 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import java.io.IOException;
 import java.util.Objects;
 
+import static java.util.Collections.emptyList;
+
 /**
  * All spatial aggregate functions extend this class to enable the planning of reading from doc values for higher performance.
  * The AggregateMapper class will generate multiple aggregation functions for each combination, allowing the planner to
@@ -22,8 +24,8 @@ import java.util.Objects;
 public abstract class SpatialAggregateFunction extends AggregateFunction {
     protected final boolean useDocValues;
 
-    protected SpatialAggregateFunction(Source source, Expression field, boolean useDocValues) {
-        super(source, field);
+    protected SpatialAggregateFunction(Source source, Expression field, Expression filter, boolean useDocValues) {
+        super(source, field, filter, emptyList());
         this.useDocValues = useDocValues;
     }
 

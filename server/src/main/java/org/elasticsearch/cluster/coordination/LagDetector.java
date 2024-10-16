@@ -24,7 +24,6 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.PrioritizedThrottledTaskRunner;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
@@ -271,9 +270,7 @@ public class LagDetector {
                     @Override
                     public void onResponse(Releasable releasable) {
                         boolean success = false;
-                        final ThreadContext threadContext = transportService.getThreadPool().getThreadContext();
-                        try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
-                            threadContext.markAsSystemContext();
+                        try (var ignored = transportService.getThreadPool().getThreadContext().newEmptySystemContext()) {
                             client.execute(
                                 TransportNodesHotThreadsAction.TYPE,
                                 new NodesHotThreadsRequest(

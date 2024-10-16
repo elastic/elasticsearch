@@ -12,11 +12,9 @@ package org.elasticsearch.script;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.PostingsEnum;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.index.TermState;
 import org.apache.lucene.index.TermStates;
-import org.apache.lucene.index.TermsEnum;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.util.IOSupplier;
 import org.elasticsearch.common.util.CachedSupplier;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
@@ -72,17 +70,15 @@ public class ScriptTermStats {
     public int matchedTermsCount() {
         final int docId = docIdSupplier.getAsInt();
         int matchedTerms = 0;
+        advancePostings(docId);
 
-        try {
-            for (PostingsEnum postingsEnum : postingsSupplier.get()) {
-                if (postingsEnum != null && postingsEnum.advance(docId) == docId && postingsEnum.freq() > 0) {
-                    matchedTerms++;
-                }
+        for (PostingsEnum postingsEnum : postingsSupplier.get()) {
+            if (postingsEnum != null && postingsEnum.docID() == docId) {
+                matchedTerms++;
             }
-            return matchedTerms;
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
         }
+
+        return matchedTerms;
     }
 
     /**
@@ -151,8 +147,9 @@ public class ScriptTermStats {
         final int docId = docIdSupplier.getAsInt();
 
         try {
+            advancePostings(docId);
             for (PostingsEnum postingsEnum : postingsSupplier.get()) {
-                if (postingsEnum == null || postingsEnum.advance(docId) != docId) {
+                if (postingsEnum == null || postingsEnum.docID() != docId) {
                     statsSummary.accept(0);
                 } else {
                     statsSummary.accept(postingsEnum.freq());
@@ -171,12 +168,13 @@ public class ScriptTermStats {
      * @return statistics on termPositions for the terms of the query in the current dac
      */
     public StatsSummary termPositions() {
-        try {
-            statsSummary.reset();
-            int docId = docIdSupplier.getAsInt();
+        statsSummary.reset();
+        int docId = docIdSupplier.getAsInt();
 
+        try {
+            advancePostings(docId);
             for (PostingsEnum postingsEnum : postingsSupplier.get()) {
-                if (postingsEnum == null || postingsEnum.advance(docId) != docId) {
+                if (postingsEnum == null || postingsEnum.docID() != docId) {
                     continue;
                 }
                 for (int i = 0; i < postingsEnum.freq(); i++) {
@@ -207,33 +205,24 @@ public class ScriptTermStats {
     private PostingsEnum[] loadPostings() {
         try {
             PostingsEnum[] postings = new PostingsEnum[terms.length];
-            TermStates[] contexts = termContextsSupplier.get();
 
             for (int i = 0; i < terms.length; i++) {
-                TermStates termStates = contexts[i];
-                if (termStates.docFreq() == 0) {
-                    postings[i] = null;
-                    continue;
-                }
-
-                IOSupplier<TermState> stateSupplier = termStates.get(leafReaderContext);
-                if (stateSupplier == null) {
-                    postings[i] = null;
-                    continue;
-                }
-                TermState state = stateSupplier.get();
-                if (state == null) {
-                    postings[i] = null;
-                    continue;
-                }
-
-                TermsEnum termsEnum = leafReaderContext.reader().terms(terms[i].field()).iterator();
-                termsEnum.seekExact(terms[i].bytes(), state);
-
-                postings[i] = termsEnum.postings(null, PostingsEnum.ALL);
+                postings[i] = leafReaderContext.reader().postings(terms[i], PostingsEnum.POSITIONS);
             }
 
             return postings;
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
+    private void advancePostings(int targetDocId) {
+        try {
+            for (PostingsEnum posting : postingsSupplier.get()) {
+                if (posting != null && posting.docID() < targetDocId && posting.docID() != DocIdSetIterator.NO_MORE_DOCS) {
+                    posting.advance(targetDocId);
+                }
+            }
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }

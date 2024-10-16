@@ -7,11 +7,13 @@
 
 package org.elasticsearch.xpack.esql.expression.function.aggregate;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.capabilities.Validatable;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -54,21 +56,30 @@ public class WeightedAvg extends AggregateFunction implements SurrogateExpressio
         @Param(name = "number", type = { "double", "integer", "long" }, description = "A numeric value.") Expression field,
         @Param(name = "weight", type = { "double", "integer", "long" }, description = "A numeric weight.") Expression weight
     ) {
-        super(source, field, List.of(weight));
+        this(source, field, Literal.TRUE, weight);
+    }
+
+    public WeightedAvg(Source source, Expression field, Expression filter, Expression weight) {
+        super(source, field, filter, List.of(weight));
         this.weight = weight;
     }
 
     private WeightedAvg(StreamInput in) throws IOException {
-        this(Source.readFrom((PlanStreamInput) in), in.readNamedWriteable(Expression.class), in.readNamedWriteable(Expression.class));
+        this(
+            Source.readFrom((PlanStreamInput) in),
+            in.readNamedWriteable(Expression.class),
+            in.getTransportVersion().onOrAfter(TransportVersions.ESQL_PER_AGGREGATE_FILTER)
+                ? in.readNamedWriteable(Expression.class)
+                : Literal.TRUE,
+            in.getTransportVersion().onOrAfter(TransportVersions.ESQL_PER_AGGREGATE_FILTER)
+                ? in.readNamedWriteableCollectionAsList(Expression.class).get(0)
+                : in.readNamedWriteable(Expression.class)
+        );
     }
 
     @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        source().writeTo(out);
-        List<Expression> fields = children();
-        assert fields.size() == 2;
-        out.writeNamedWriteable(fields.get(0));
-        out.writeNamedWriteable(fields.get(1));
+    protected void deprecatedWriteParams(StreamOutput out) throws IOException {
+        out.writeNamedWriteable(weight);
     }
 
     @Override
@@ -121,12 +132,17 @@ public class WeightedAvg extends AggregateFunction implements SurrogateExpressio
 
     @Override
     protected NodeInfo<WeightedAvg> info() {
-        return NodeInfo.create(this, WeightedAvg::new, field(), weight);
+        return NodeInfo.create(this, WeightedAvg::new, field(), filter(), weight);
     }
 
     @Override
     public WeightedAvg replaceChildren(List<Expression> newChildren) {
-        return new WeightedAvg(source(), newChildren.get(0), newChildren.get(1));
+        return new WeightedAvg(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2));
+    }
+
+    @Override
+    public WeightedAvg withFilter(Expression filter) {
+        return new WeightedAvg(source(), field(), filter, weight());
     }
 
     @Override

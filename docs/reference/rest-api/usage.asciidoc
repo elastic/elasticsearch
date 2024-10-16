@@ -210,7 +210,12 @@ GET /_xpack/usage
         "service": "elasticsearch",
         "task_type": "SPARSE_EMBEDDING",
         "count": 1
-      }
+      },
+      {
+        "service": "elasticsearch",
+        "task_type": "TEXT_EMBEDDING",
+        "count": 1
+      },
     ]
   },
   "logstash" : {

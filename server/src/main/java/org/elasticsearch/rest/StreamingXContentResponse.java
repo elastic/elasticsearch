@@ -25,7 +25,6 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.Streams;
 import org.elasticsearch.transport.Transports;
 import org.elasticsearch.xcontent.ToXContent;
@@ -125,9 +124,7 @@ public final class StreamingXContentResponse implements Releasable {
     }
 
     private Iterator<? extends ToXContent> getChunksIterator(StreamingFragment fragment) {
-        return xContentBuilder.getRestApiVersion() == RestApiVersion.V_7
-            ? fragment.fragment().toXContentChunkedV7(params)
-            : fragment.fragment().toXContentChunked(params);
+        return fragment.fragment().toXContentChunked(xContentBuilder.getRestApiVersion(), params);
     }
 
     /**

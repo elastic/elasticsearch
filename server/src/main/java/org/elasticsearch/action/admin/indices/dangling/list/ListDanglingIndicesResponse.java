@@ -79,7 +79,7 @@ public class ListDanglingIndicesResponse extends BaseNodesResponse<NodeListDangl
 
             builder.field("index_name", info.indexName);
             builder.field("index_uuid", info.indexUUID);
-            builder.timeField("creation_date_millis", "creation_date", info.creationDateMillis);
+            builder.timestampFieldsFromUnixEpochMillis("creation_date_millis", "creation_date", info.creationDateMillis);
 
             builder.array("node_ids", info.nodeIds.toArray(new String[0]));
 

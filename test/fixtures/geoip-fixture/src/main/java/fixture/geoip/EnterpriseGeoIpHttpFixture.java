@@ -11,20 +11,18 @@ package fixture.geoip;
 
 import com.sun.net.httpserver.HttpServer;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.hash.MessageDigests;
 import org.junit.rules.ExternalResource;
 
-import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.io.UncheckedIOException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
 import java.security.MessageDigest;
+import java.util.List;
+import java.util.Objects;
 
 /**
  * This fixture is used to simulate a maxmind-provided server for downloading maxmind geoip database files from the
@@ -32,21 +30,17 @@ import java.security.MessageDigest;
  */
 public class EnterpriseGeoIpHttpFixture extends ExternalResource {
 
-    private final Path source;
-    private final String[] databaseTypes;
+    private final List<String> maxmindDatabaseTypes;
+    private final List<String> ipinfoDatabaseTypes;
     private HttpServer server;
 
     /*
-     * The values in databaseTypes must be in DatabaseConfiguration.MAXMIND_NAMES, and must be one of the databases copied in the
-     * copyFiles method of thisi class.
+     * The values in maxmindDatabaseTypes must be in DatabaseConfiguration.MAXMIND_NAMES, and the ipinfoDatabaseTypes
+     * must be in DatabaseConfiguration.IPINFO_NAMES.
      */
-    public EnterpriseGeoIpHttpFixture(String... databaseTypes) {
-        this.databaseTypes = databaseTypes;
-        try {
-            this.source = Files.createTempDirectory("source");
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
-        }
+    public EnterpriseGeoIpHttpFixture(List<String> maxmindDatabaseTypes, List<String> ipinfoDatabaseTypes) {
+        this.maxmindDatabaseTypes = List.copyOf(maxmindDatabaseTypes);
+        this.ipinfoDatabaseTypes = List.copyOf(ipinfoDatabaseTypes);
     }
 
     public String getAddress() {
@@ -55,7 +49,6 @@ public class EnterpriseGeoIpHttpFixture extends ExternalResource {
 
     @Override
     protected void before() throws Throwable {
-        copyFiles();
         this.server = HttpServer.create(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
 
         // for expediency reasons, it is handy to have this test fixture be able to serve the dual purpose of actually stubbing
@@ -64,26 +57,33 @@ public class EnterpriseGeoIpHttpFixture extends ExternalResource {
         this.server.createContext("/", exchange -> {
             String response = "[]"; // an empty json array
             exchange.sendResponseHeaders(200, response.length());
-            try (OutputStream os = exchange.getResponseBody()) {
-                os.write(response.getBytes(StandardCharsets.UTF_8));
+            try (OutputStream out = exchange.getResponseBody()) {
+                out.write(response.getBytes(StandardCharsets.UTF_8));
             }
         });
 
         // register the file types for the download fixture
-        for (String databaseType : databaseTypes) {
-            createContextForEnterpriseDatabase(databaseType);
+        for (String databaseType : maxmindDatabaseTypes) {
+            createContextForMaxmindDatabase(databaseType);
+        }
+        for (String databaseType : ipinfoDatabaseTypes) {
+            createContextForIpinfoDatabase(databaseType);
         }
 
         server.start();
     }
 
-    private void createContextForEnterpriseDatabase(String databaseType) {
+    private static InputStream fixtureStream(String name) {
+        return Objects.requireNonNull(GeoIpHttpFixture.class.getResourceAsStream(name));
+    }
+
+    private void createContextForMaxmindDatabase(String databaseType) {
         this.server.createContext("/" + databaseType + "/download", exchange -> {
             exchange.sendResponseHeaders(200, 0);
             if (exchange.getRequestURI().toString().contains("sha256")) {
                 MessageDigest sha256 = MessageDigests.sha256();
-                try (InputStream inputStream = GeoIpHttpFixture.class.getResourceAsStream("/geoip-fixture/" + databaseType + ".tgz")) {
-                    sha256.update(inputStream.readAllBytes());
+                try (InputStream in = fixtureStream("/geoip-fixture/" + databaseType + ".tgz")) {
+                    sha256.update(in.readAllBytes());
                 }
                 exchange.getResponseBody()
                     .write(
@@ -93,10 +93,33 @@ public class EnterpriseGeoIpHttpFixture extends ExternalResource {
                     );
             } else {
                 try (
-                    OutputStream outputStream = exchange.getResponseBody();
-                    InputStream inputStream = GeoIpHttpFixture.class.getResourceAsStream("/geoip-fixture/" + databaseType + ".tgz")
+                    OutputStream out = exchange.getResponseBody();
+                    InputStream in = fixtureStream("/geoip-fixture/" + databaseType + ".tgz")
                 ) {
-                    inputStream.transferTo(outputStream);
+                    in.transferTo(out);
+                }
+            }
+            exchange.getResponseBody().close();
+        });
+    }
+
+    private void createContextForIpinfoDatabase(String databaseType) {
+        this.server.createContext("/free/" + databaseType + ".mmdb", exchange -> {
+            exchange.sendResponseHeaders(200, 0);
+            if (exchange.getRequestURI().toString().contains("checksum")) {
+                MessageDigest md5 = MessageDigests.md5();
+                try (InputStream in = fixtureStream("/ipinfo-fixture/ip_" + databaseType + "_sample.mmdb")) {
+                    md5.update(in.readAllBytes());
+                }
+                exchange.getResponseBody().write(Strings.format("""
+                    { "checksums": { "md5": "%s" } }
+                    """, MessageDigests.toHexString(md5.digest())).getBytes(StandardCharsets.UTF_8));
+            } else {
+                try (
+                    OutputStream out = exchange.getResponseBody();
+                    InputStream in = fixtureStream("/ipinfo-fixture/ip_" + databaseType + "_sample.mmdb")
+                ) {
+                    in.transferTo(out);
                 }
             }
             exchange.getResponseBody().close();
@@ -106,15 +129,5 @@ public class EnterpriseGeoIpHttpFixture extends ExternalResource {
     @Override
     protected void after() {
         server.stop(0);
-    }
-
-    private void copyFiles() throws Exception {
-        for (String databaseType : databaseTypes) {
-            Files.copy(
-                GeoIpHttpFixture.class.getResourceAsStream("/geoip-fixture/GeoIP2-City.tgz"),
-                source.resolve(databaseType + ".tgz"),
-                StandardCopyOption.REPLACE_EXISTING
-            );
-        }
     }
 }

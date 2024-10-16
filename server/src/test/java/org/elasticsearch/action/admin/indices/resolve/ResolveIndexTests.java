@@ -22,6 +22,7 @@ import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.ResolvedExpression;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
@@ -229,9 +230,19 @@ public class ResolveIndexTests extends ESTestCase {
             .metadata(buildMetadata(new Object[][] {}, indices))
             .build();
         String[] requestedIndex = new String[] { "<logs-pgsql-prod-{now/d}>" };
-        Set<String> resolvedIndices = resolver.resolveExpressions(clusterState, IndicesOptions.LENIENT_EXPAND_OPEN, true, requestedIndex);
+        Set<ResolvedExpression> resolvedIndices = resolver.resolveExpressions(
+            clusterState,
+            IndicesOptions.LENIENT_EXPAND_OPEN,
+            true,
+            requestedIndex
+        );
         assertThat(resolvedIndices.size(), is(1));
-        assertThat(resolvedIndices, contains(oneOf("logs-pgsql-prod-" + todaySuffix, "logs-pgsql-prod-" + tomorrowSuffix)));
+        assertThat(
+            resolvedIndices,
+            contains(
+                oneOf(new ResolvedExpression("logs-pgsql-prod-" + todaySuffix), new ResolvedExpression("logs-pgsql-prod-" + tomorrowSuffix))
+            )
+        );
     }
 
     public void testSystemIndexAccess() {

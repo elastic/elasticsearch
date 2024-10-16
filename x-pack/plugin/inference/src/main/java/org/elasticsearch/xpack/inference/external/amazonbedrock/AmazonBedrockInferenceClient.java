@@ -17,16 +17,21 @@ import software.amazon.awssdk.services.bedrockruntime.BedrockRuntimeAsyncClient;
 import software.amazon.awssdk.services.bedrockruntime.model.BedrockRuntimeException;
 import software.amazon.awssdk.services.bedrockruntime.model.ConverseRequest;
 import software.amazon.awssdk.services.bedrockruntime.model.ConverseResponse;
+import software.amazon.awssdk.services.bedrockruntime.model.ConverseStreamRequest;
+import software.amazon.awssdk.services.bedrockruntime.model.ConverseStreamResponseHandler;
 import software.amazon.awssdk.services.bedrockruntime.model.InvokeModelRequest;
 import software.amazon.awssdk.services.bedrockruntime.model.InvokeModelResponse;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockModel;
+import org.reactivestreams.FlowAdapters;
 import org.slf4j.LoggerFactory;
 
 import java.security.AccessController;
@@ -36,6 +41,7 @@ import java.time.Instant;
 import java.util.Objects;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Flow;
 
 /**
  * Not marking this as "final" so we can subclass it for mocking
@@ -53,19 +59,21 @@ public class AmazonBedrockInferenceClient extends AmazonBedrockBaseClient {
     private static final Duration DEFAULT_CLIENT_TIMEOUT_MS = Duration.ofMillis(10000);
 
     private final BedrockRuntimeAsyncClient internalClient;
+    private final ThreadPool threadPool;
     private volatile Instant expiryTimestamp;
 
-    public static AmazonBedrockBaseClient create(AmazonBedrockModel model, @Nullable TimeValue timeout) {
+    public static AmazonBedrockBaseClient create(AmazonBedrockModel model, @Nullable TimeValue timeout, ThreadPool threadPool) {
         try {
-            return new AmazonBedrockInferenceClient(model, timeout);
+            return new AmazonBedrockInferenceClient(model, timeout, threadPool);
         } catch (Exception e) {
             throw new ElasticsearchException("Failed to create Amazon Bedrock Client", e);
         }
     }
 
-    protected AmazonBedrockInferenceClient(AmazonBedrockModel model, @Nullable TimeValue timeout) {
+    protected AmazonBedrockInferenceClient(AmazonBedrockModel model, @Nullable TimeValue timeout, ThreadPool threadPool) {
         super(model, timeout);
         this.internalClient = createAmazonBedrockClient(model, timeout);
+        this.threadPool = Objects.requireNonNull(threadPool);
         setExpiryTimestamp();
     }
 
@@ -77,6 +85,16 @@ public class AmazonBedrockInferenceClient extends AmazonBedrockBaseClient {
         } catch (Exception e) {
             onFailure(responseListener, e, "converse");
         }
+    }
+
+    @Override
+    public Flow.Publisher<? extends ChunkedToXContent> converseStream(ConverseStreamRequest request) throws ElasticsearchException {
+        var awsResponseProcessor = new AmazonBedrockStreamingChatProcessor(threadPool);
+        internalClient.converseStream(
+            request,
+            ConverseStreamResponseHandler.builder().subscriber(() -> FlowAdapters.toSubscriber(awsResponseProcessor)).build()
+        );
+        return awsResponseProcessor;
     }
 
     private void onFailure(ActionListener<?> listener, Throwable t, String method) {

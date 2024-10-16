@@ -27,6 +27,10 @@
         "message_in": {
           "type": "float",
           "time_series_metric": "counter"
+        },
+        "message_out": {
+          "type": "integer",
+          "time_series_metric": "counter"
         }
       }
     }

@@ -88,7 +88,7 @@ public class ThreadWatchdogIT extends ESIntegTestCase {
             return List.of(new RestHandler() {
                 @Override
                 public List<Route> routes() {
-                    return List.of(Route.builder(RestRequest.Method.POST, "_slow").build());
+                    return List.of(new Route(RestRequest.Method.POST, "_slow"));
                 }
 
                 @Override

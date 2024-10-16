@@ -181,9 +181,6 @@ public class InternalDistributionDownloadPlugin implements Plugin<Project> {
         if (distribution.getType() == InternalElasticsearchDistributionTypes.DOCKER_WOLFI) {
             return projectName + "wolfi-docker" + archString + "-export";
         }
-        if (distribution.getType() == InternalElasticsearchDistributionTypes.DOCKER_WOLFI_ESS) {
-            return projectName + "wolfi-ess-docker" + archString + "-export";
-        }
         return projectName + distribution.getType().getName();
     }
 

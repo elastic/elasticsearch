@@ -68,4 +68,9 @@ public interface XContentBuilderExtension {
      * </pre>
      */
     Map<Class<?>, Function<Object, Object>> getDateTransformers();
+
+    /**
+     * Used to format a {@code long} representing the number of milliseconds since the Unix Epoch.
+     */
+    String formatUnixEpochMillis(long unixEpochMillis);
 }

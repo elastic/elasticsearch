@@ -169,27 +169,29 @@ public class ObjectMapperTests extends MapperServiceTestCase {
         assertEquals(ObjectMapper.Subobjects.ENABLED, objectMapper.subobjects());
         assertTrue(objectMapper.sourceKeepMode().isEmpty());
 
-        // Setting 'enabled' to true is allowed, and updates the mapping.
-        update = Strings.toString(
-            XContentFactory.jsonBuilder()
-                .startObject()
-                .startObject("properties")
-                .startObject("object")
-                .field("type", "object")
-                .field("enabled", true)
-                .field("subobjects", "auto")
-                .field(ObjectMapper.STORE_ARRAY_SOURCE_PARAM, true)
-                .endObject()
-                .endObject()
-                .endObject()
-        );
-        mapper = mapperService.merge("type", new CompressedXContent(update), MergeReason.INDEX_TEMPLATE);
+        if (ObjectMapper.SUB_OBJECTS_AUTO_FEATURE_FLAG.isEnabled()) {
+            // Setting 'enabled' to true is allowed, and updates the mapping.
+            update = Strings.toString(
+                XContentFactory.jsonBuilder()
+                    .startObject()
+                    .startObject("properties")
+                    .startObject("object")
+                    .field("type", "object")
+                    .field("enabled", true)
+                    .field("subobjects", "auto")
+                    .field(ObjectMapper.STORE_ARRAY_SOURCE_PARAM, true)
+                    .endObject()
+                    .endObject()
+                    .endObject()
+            );
+            mapper = mapperService.merge("type", new CompressedXContent(update), MergeReason.INDEX_TEMPLATE);
 
-        objectMapper = mapper.mappers().objectMappers().get("object");
-        assertNotNull(objectMapper);
-        assertTrue(objectMapper.isEnabled());
-        assertEquals(ObjectMapper.Subobjects.AUTO, objectMapper.subobjects());
-        assertEquals(Mapper.SourceKeepMode.ARRAYS, objectMapper.sourceKeepMode().orElse(Mapper.SourceKeepMode.NONE));
+            objectMapper = mapper.mappers().objectMappers().get("object");
+            assertNotNull(objectMapper);
+            assertTrue(objectMapper.isEnabled());
+            assertEquals(ObjectMapper.Subobjects.AUTO, objectMapper.subobjects());
+            assertEquals(Mapper.SourceKeepMode.ARRAYS, objectMapper.sourceKeepMode().orElse(Mapper.SourceKeepMode.NONE));
+        }
     }
 
     public void testFieldReplacementForIndexTemplates() throws IOException {
@@ -503,6 +505,7 @@ public class ObjectMapperTests extends MapperServiceTestCase {
     }
 
     public void testSubobjectsAuto() throws Exception {
+        assumeTrue("only test when feature flag for subobjects auto is enabled", ObjectMapper.SUB_OBJECTS_AUTO_FEATURE_FLAG.isEnabled());
         MapperService mapperService = createMapperService(mapping(b -> {
             b.startObject("metrics.service");
             {
@@ -532,6 +535,7 @@ public class ObjectMapperTests extends MapperServiceTestCase {
     }
 
     public void testSubobjectsAutoWithInnerObject() throws IOException {
+        assumeTrue("only test when feature flag for subobjects auto is enabled", ObjectMapper.SUB_OBJECTS_AUTO_FEATURE_FLAG.isEnabled());
         MapperService mapperService = createMapperService(mapping(b -> {
             b.startObject("metrics.service");
             {
@@ -565,6 +569,7 @@ public class ObjectMapperTests extends MapperServiceTestCase {
     }
 
     public void testSubobjectsAutoWithInnerNested() throws IOException {
+        assumeTrue("only test when feature flag for subobjects auto is enabled", ObjectMapper.SUB_OBJECTS_AUTO_FEATURE_FLAG.isEnabled());
         MapperService mapperService = createMapperService(mapping(b -> {
             b.startObject("metrics.service");
             {
@@ -586,6 +591,7 @@ public class ObjectMapperTests extends MapperServiceTestCase {
     }
 
     public void testSubobjectsAutoRoot() throws Exception {
+        assumeTrue("only test when feature flag for subobjects auto is enabled", ObjectMapper.SUB_OBJECTS_AUTO_FEATURE_FLAG.isEnabled());
         MapperService mapperService = createMapperService(mappingWithSubobjects(b -> {
             b.startObject("metrics.service.time");
             b.field("type", "long");
@@ -606,6 +612,7 @@ public class ObjectMapperTests extends MapperServiceTestCase {
     }
 
     public void testSubobjectsAutoRootWithInnerObject() throws IOException {
+        assumeTrue("only test when feature flag for subobjects auto is enabled", ObjectMapper.SUB_OBJECTS_AUTO_FEATURE_FLAG.isEnabled());
         MapperService mapperService = createMapperService(mappingWithSubobjects(b -> {
             b.startObject("metrics.service.time");
             {
@@ -626,6 +633,7 @@ public class ObjectMapperTests extends MapperServiceTestCase {
     }
 
     public void testSubobjectsAutoRootWithInnerNested() throws IOException {
+        assumeTrue("only test when feature flag for subobjects auto is enabled", ObjectMapper.SUB_OBJECTS_AUTO_FEATURE_FLAG.isEnabled());
         MapperService mapperService = createMapperService(mappingWithSubobjects(b -> {
             b.startObject("metrics.service");
             b.field("type", "nested");

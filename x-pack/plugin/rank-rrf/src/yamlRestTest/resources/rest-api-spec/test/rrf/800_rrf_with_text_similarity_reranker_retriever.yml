@@ -125,6 +125,9 @@ setup:
                               term: {
                                 topic: "science"
                               }
+                            },
+                            "sort": {
+                              "integer": "asc"
                             }
                           }
                         },
@@ -303,6 +306,9 @@ setup:
                               term: {
                                 topic: "science"
                               }
+                            },
+                            "sort": {
+                              "integer": "asc"
                             }
                           }
                         },

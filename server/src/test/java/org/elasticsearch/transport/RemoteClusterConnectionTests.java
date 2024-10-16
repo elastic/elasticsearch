@@ -311,11 +311,11 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                 TransportVersion.current()
             )
         ) {
-            DiscoveryNode seedNode = seedTransport.getLocalDiscoNode();
-            DiscoveryNode seedNode1 = seedTransport1.getLocalDiscoNode();
-            knownNodes.add(seedTransport.getLocalDiscoNode());
-            knownNodes.add(discoverableTransport.getLocalDiscoNode());
-            knownNodes.add(seedTransport1.getLocalDiscoNode());
+            DiscoveryNode seedNode = seedTransport.getLocalNode();
+            DiscoveryNode seedNode1 = seedTransport1.getLocalNode();
+            knownNodes.add(seedTransport.getLocalNode());
+            knownNodes.add(discoverableTransport.getLocalNode());
+            knownNodes.add(seedTransport1.getLocalNode());
             Collections.shuffle(knownNodes, random());
             List<String> seedNodes = addresses(seedNode1, seedNode);
             Collections.shuffle(seedNodes, random());
@@ -447,9 +447,9 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                 seedTransportSettings
             )
         ) {
-            DiscoveryNode node1 = transport1.getLocalDiscoNode();
-            DiscoveryNode node2 = transport3.getLocalDiscoNode();
-            DiscoveryNode node3 = transport2.getLocalDiscoNode();
+            DiscoveryNode node1 = transport1.getLocalNode();
+            DiscoveryNode node2 = transport3.getLocalNode();
+            DiscoveryNode node3 = transport2.getLocalNode();
             if (hasClusterCredentials) {
                 node1 = node1.withTransportAddress(transport1.boundRemoteAccessAddress().publishAddress());
                 node2 = node2.withTransportAddress(transport3.boundRemoteAccessAddress().publishAddress());
@@ -645,7 +645,7 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                 seedTransportSettings
             )
         ) {
-            DiscoveryNode seedNode = seedTransport.getLocalDiscoNode();
+            DiscoveryNode seedNode = seedTransport.getLocalNode();
             if (hasClusterCredentials) {
                 seedNode = seedNode.withTransportAddress(seedTransport.boundRemoteAccessAddress().publishAddress());
             }
@@ -725,8 +725,8 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                 TransportVersion.current()
             )
         ) {
-            DiscoveryNode seedNode = seedTransport.getLocalDiscoNode();
-            knownNodes.add(seedTransport.getLocalDiscoNode());
+            DiscoveryNode seedNode = seedTransport.getLocalNode();
+            knownNodes.add(seedTransport.getLocalNode());
             try (
                 MockTransportService service = MockTransportService.createNewService(
                     Settings.EMPTY,

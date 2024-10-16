@@ -79,4 +79,19 @@ public abstract class CollectionUtils {
         }
         return (int) (size / 0.75f + 1f);
     }
+
+    @SafeVarargs
+    @SuppressWarnings("varargs")
+    public static <T> List<T> nullSafeList(T... entries) {
+        if (entries == null || entries.length == 0) {
+            return emptyList();
+        }
+        List<T> list = new ArrayList<>(entries.length);
+        for (T entry : entries) {
+            if (entry != null) {
+                list.add(entry);
+            }
+        }
+        return list;
+    }
 }

@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.inference.services.amazonbedrock;
 
+import software.amazon.awssdk.services.bedrockruntime.model.BedrockRuntimeException;
+
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
@@ -33,7 +35,6 @@ import org.elasticsearch.xpack.core.inference.results.InferenceChunkedTextEmbedd
 import org.elasticsearch.xpack.core.inference.results.InferenceTextEmbeddingFloatResults;
 import org.elasticsearch.xpack.inference.Utils;
 import org.elasticsearch.xpack.inference.external.amazonbedrock.AmazonBedrockMockRequestSender;
-import org.elasticsearch.xpack.inference.external.amazonbedrock.AmazonBedrockRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.services.ServiceComponentsTests;
@@ -1265,12 +1266,19 @@ public class AmazonBedrockServiceTests extends ESTestCase {
         var factory = mock(HttpRequestSender.Factory.class);
         when(factory.createSender()).thenReturn(sender);
 
-        var amazonBedrockFactory = new AmazonBedrockRequestSender.Factory(
+        var amazonBedrockFactory = new AmazonBedrockMockRequestSender.Factory(
             ServiceComponentsTests.createWithSettings(threadPool, Settings.EMPTY),
             mockClusterServiceEmpty()
         );
 
-        try (var service = new AmazonBedrockService(factory, amazonBedrockFactory, createWithEmptySettings(threadPool))) {
+        try (
+            var service = new AmazonBedrockService(factory, amazonBedrockFactory, createWithEmptySettings(threadPool));
+            var requestSender = (AmazonBedrockMockRequestSender) amazonBedrockFactory.createSender()
+        ) {
+            requestSender.enqueue(
+                BedrockRuntimeException.builder().message("The security token included in the request is invalid").build()
+            );
+
             var model = AmazonBedrockEmbeddingsModelTests.createModel(
                 "id",
                 "us-east-1",

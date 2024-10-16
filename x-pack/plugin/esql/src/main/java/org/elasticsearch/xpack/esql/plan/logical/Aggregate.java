@@ -59,6 +59,7 @@ public class Aggregate extends UnaryPlan implements Stats {
     private final AggregateType aggregateType;
     private final List<Expression> groupings;
     private final List<? extends NamedExpression> aggregates;
+
     private List<Attribute> lazyOutput;
 
     public Aggregate(

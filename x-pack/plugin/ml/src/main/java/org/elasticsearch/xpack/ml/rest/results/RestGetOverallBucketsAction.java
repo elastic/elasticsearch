@@ -24,8 +24,8 @@ import java.util.List;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.xpack.core.ml.MachineLearningField.DEPRECATED_ALLOW_NO_JOBS_PARAM;
+import static org.elasticsearch.xpack.core.ml.job.config.Job.ID;
 import static org.elasticsearch.xpack.ml.MachineLearning.BASE_PATH;
-import static org.elasticsearch.xpack.ml.MachineLearning.PRE_V7_BASE_PATH;
 import static org.elasticsearch.xpack.ml.rest.RestCompatibilityChecker.checkAndSetDeprecatedParam;
 
 @ServerlessScope(Scope.PUBLIC)
@@ -34,12 +34,8 @@ public class RestGetOverallBucketsAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         return List.of(
-            Route.builder(GET, BASE_PATH + "anomaly_detectors/{" + Job.ID + "}/results/overall_buckets")
-                .replaces(GET, PRE_V7_BASE_PATH + "anomaly_detectors/{" + Job.ID + "}/results/overall_buckets", RestApiVersion.V_7)
-                .build(),
-            Route.builder(POST, BASE_PATH + "anomaly_detectors/{" + Job.ID + "}/results/overall_buckets")
-                .replaces(POST, PRE_V7_BASE_PATH + "anomaly_detectors/{" + Job.ID + "}/results/overall_buckets", RestApiVersion.V_7)
-                .build()
+            new Route(GET, BASE_PATH + "anomaly_detectors/{" + ID + "}/results/overall_buckets"),
+            new Route(POST, BASE_PATH + "anomaly_detectors/{" + ID + "}/results/overall_buckets")
         );
     }
 

@@ -10,7 +10,8 @@ package org.elasticsearch.xpack.inference.chunking;
 public enum ChunkingSettingsOptions {
     STRATEGY("strategy"),
     MAX_CHUNK_SIZE("max_chunk_size"),
-    OVERLAP("overlap");
+    OVERLAP("overlap"),
+    SENTENCE_OVERLAP("sentence_overlap");
 
     private final String chunkingSettingsOption;
 

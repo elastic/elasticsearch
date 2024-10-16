@@ -12,7 +12,6 @@ package org.elasticsearch.index.mapper;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.xcontent.XContentType;
 
@@ -147,10 +146,6 @@ public final class MappingParser {
                 assert fieldNodeMap.isEmpty();
 
                 if (metadataFieldMapper instanceof SourceFieldMapper sfm) {
-                    // Validation in other places should have failed first
-                    assert sfm.isSynthetic()
-                        || (sfm.isSynthetic() == false && mappingParserContext.getIndexSettings().getMode() != IndexMode.TIME_SERIES)
-                        : "synthetic source can't be disabled in a time series index";
                     isSourceSynthetic = sfm.isSynthetic();
                 }
 

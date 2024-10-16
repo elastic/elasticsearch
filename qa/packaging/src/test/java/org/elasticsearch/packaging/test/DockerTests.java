@@ -99,6 +99,7 @@ import static org.junit.Assume.assumeTrue;
  *     <li>The default image with a custom, small base image</li>
  *     <li>A UBI-based image</li>
  *     <li>Another UBI image for Iron Bank</li>
+ *     <li>A WOLFI-based image</li>
  *     <li>Images for Cloud</li>
  * </ul>
  */
@@ -170,9 +171,7 @@ public class DockerTests extends PackagingTestCase {
     public void test020PluginsListWithNoPlugins() {
         assumeTrue(
             "Only applies to non-Cloud images",
-            distribution.packaging != Packaging.DOCKER_CLOUD
-                && distribution().packaging != Packaging.DOCKER_CLOUD_ESS
-                && distribution().packaging != Packaging.DOCKER_WOLFI_ESS
+            distribution.packaging != Packaging.DOCKER_CLOUD && distribution().packaging != Packaging.DOCKER_CLOUD_ESS
         );
 
         final Installation.Executables bin = installation.executables();
@@ -203,15 +202,14 @@ public class DockerTests extends PackagingTestCase {
      * Checks that ESS images can install plugins from the local archive.
      */
     public void test022InstallPluginsFromLocalArchive() {
-        assumeTrue(
-            "Only ESS images have a local archive",
-            distribution().packaging == Packaging.DOCKER_CLOUD_ESS || distribution().packaging == Packaging.DOCKER_WOLFI_ESS
-        );
+        assumeTrue("Only ESS images have a local archive", distribution().packaging == Packaging.DOCKER_CLOUD_ESS);
 
         final String plugin = "analysis-icu";
         final Installation.Executables bin = installation.executables();
 
+        listPluginArchive().forEach(System.out::println);
         assertThat("Expected " + plugin + " to not be installed", listPlugins(), not(hasItems(plugin)));
+        assertThat("Expected " + plugin + " available in archive", listPluginArchive(), hasSize(16));
 
         // Stuff the proxy settings with garbage, so any attempt to go out to the internet would fail
         sh.getEnv()
@@ -259,10 +257,7 @@ public class DockerTests extends PackagingTestCase {
      * Checks that ESS images can manage plugins from the local archive by deploying a plugins config file.
      */
     public void test024InstallPluginFromArchiveUsingConfigFile() {
-        assumeTrue(
-            "Only ESS image has a plugin archive",
-            distribution().packaging == Packaging.DOCKER_CLOUD_ESS || distribution().packaging == Packaging.DOCKER_WOLFI_ESS
-        );
+        assumeTrue("Only ESS image has a plugin archive", distribution().packaging == Packaging.DOCKER_CLOUD_ESS);
 
         final String filename = "elasticsearch-plugins.yml";
         append(tempDir.resolve(filename), """
@@ -394,7 +389,7 @@ public class DockerTests extends PackagingTestCase {
         if (distribution.packaging == Packaging.DOCKER_UBI || distribution.packaging == Packaging.DOCKER_IRON_BANK) {
             // In these images, the `cacerts` file ought to be a symlink here
             assertThat(path, equalTo("/etc/pki/ca-trust/extracted/java/cacerts"));
-        } else if (distribution.packaging == Packaging.DOCKER_WOLFI || distribution.packaging == Packaging.DOCKER_WOLFI_ESS) {
+        } else if (distribution.packaging == Packaging.DOCKER_WOLFI || distribution.packaging == Packaging.DOCKER_CLOUD_ESS) {
             // In these images, the `cacerts` file ought to be a symlink here
             assertThat(path, equalTo("/etc/ssl/certs/java/cacerts"));
         } else {
@@ -1121,10 +1116,8 @@ public class DockerTests extends PackagingTestCase {
      */
     public void test171AdditionalCliOptionsAreForwarded() throws Exception {
         assumeTrue(
-            "Does not apply to Cloud and wolfi ess images, because they don't use the default entrypoint",
-            distribution.packaging != Packaging.DOCKER_CLOUD
-                && distribution().packaging != Packaging.DOCKER_CLOUD_ESS
-                && distribution().packaging != Packaging.DOCKER_WOLFI_ESS
+            "Does not apply to Cloud and Cloud ESS images, because they don't use the default entrypoint",
+            distribution.packaging != Packaging.DOCKER_CLOUD && distribution().packaging != Packaging.DOCKER_CLOUD_ESS
         );
 
         runContainer(distribution(), builder().runArgs("bin/elasticsearch", "-Ecluster.name=kimchy").envVar("ELASTIC_PASSWORD", PASSWORD));
@@ -1211,11 +1204,7 @@ public class DockerTests extends PackagingTestCase {
      * Check that the Cloud image contains the required Beats
      */
     public void test400CloudImageBundlesBeats() {
-        assumeTrue(
-            distribution.packaging == Packaging.DOCKER_CLOUD
-                || distribution.packaging == Packaging.DOCKER_CLOUD_ESS
-                || distribution.packaging == Packaging.DOCKER_WOLFI_ESS
-        );
+        assumeTrue(distribution.packaging == Packaging.DOCKER_CLOUD || distribution.packaging == Packaging.DOCKER_CLOUD_ESS);
 
         final List<String> contents = listContents("/opt");
         assertThat("Expected beats in /opt", contents, hasItems("filebeat", "metricbeat"));
@@ -1231,6 +1220,10 @@ public class DockerTests extends PackagingTestCase {
     private List<String> listPlugins() {
         final Installation.Executables bin = installation.executables();
         return sh.run(bin.pluginTool + " list").stdout().lines().collect(Collectors.toList());
+    }
+
+    private List<String> listPluginArchive() {
+        return sh.run("ls -lh /opt/plugins/archive").stdout().lines().collect(Collectors.toList());
     }
 
     /**

@@ -208,7 +208,7 @@ public class ExpressionTests extends ESTestCase {
     }
 
     public void testCommandNamesAsIdentifiers() {
-        Expression expr = whereExpression("from and where");
+        Expression expr = whereExpression("from and limit");
         assertThat(expr, instanceOf(And.class));
         And and = (And) expr;
 
@@ -216,7 +216,7 @@ public class ExpressionTests extends ESTestCase {
         assertThat(((UnresolvedAttribute) and.left()).name(), equalTo("from"));
 
         assertThat(and.right(), instanceOf(UnresolvedAttribute.class));
-        assertThat(((UnresolvedAttribute) and.right()).name(), equalTo("where"));
+        assertThat(((UnresolvedAttribute) and.right()).name(), equalTo("limit"));
     }
 
     public void testIdentifiersCaseSensitive() {

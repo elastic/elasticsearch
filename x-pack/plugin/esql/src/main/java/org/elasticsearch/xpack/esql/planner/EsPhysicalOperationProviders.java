@@ -56,7 +56,7 @@ import org.elasticsearch.xpack.esql.core.type.MultiTypeEsField;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.AbstractConvertFunction;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
-import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec.FieldSort;
+import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec.Sort;
 import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.DriverParallelism;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.LocalExecutionPlannerContext;
@@ -161,15 +161,14 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
     public final PhysicalOperation sourcePhysicalOperation(EsQueryExec esQueryExec, LocalExecutionPlannerContext context) {
         final LuceneOperator.Factory luceneFactory;
 
-        List<FieldSort> sorts = esQueryExec.sorts();
-        List<SortBuilder<?>> fieldSorts = null;
+        List<Sort> sorts = esQueryExec.sorts();
         assert esQueryExec.estimatedRowSize() != null : "estimated row size not initialized";
         int rowEstimatedSize = esQueryExec.estimatedRowSize();
         int limit = esQueryExec.limit() != null ? (Integer) esQueryExec.limit().fold() : NO_LIMIT;
         if (sorts != null && sorts.isEmpty() == false) {
-            fieldSorts = new ArrayList<>(sorts.size());
-            for (FieldSort sort : sorts) {
-                fieldSorts.add(sort.fieldSortBuilder());
+            List<SortBuilder<?>> sortBuilders = new ArrayList<>(sorts.size());
+            for (Sort sort : sorts) {
+                sortBuilders.add(sort.sortBuilder());
             }
             luceneFactory = new LuceneTopNSourceOperator.Factory(
                 shardContexts,
@@ -178,7 +177,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
                 context.queryPragmas().taskConcurrency(),
                 context.pageSize(rowEstimatedSize),
                 limit,
-                fieldSorts
+                sortBuilders
             );
         } else {
             if (esQueryExec.indexMode() == IndexMode.TIME_SERIES) {

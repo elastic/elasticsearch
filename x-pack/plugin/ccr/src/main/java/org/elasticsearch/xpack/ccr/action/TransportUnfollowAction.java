@@ -195,9 +195,8 @@ public class TransportUnfollowAction extends AcknowledgedTransportMasterNodeActi
                     threadContext.newRestorableContext(true),
                     listener
                 );
-                try (ThreadContext.StoredContext ignore = threadPool.getThreadContext().stashContext()) {
+                try (var ignore = threadPool.getThreadContext().newEmptySystemContext()) {
                     // we have to execute under the system context so that if security is enabled the removal is authorized
-                    threadContext.markAsSystemContext();
                     CcrRetentionLeases.asyncRemoveRetentionLease(leaderShardId, retentionLeaseId, remoteClient, preservedListener);
                 }
             }

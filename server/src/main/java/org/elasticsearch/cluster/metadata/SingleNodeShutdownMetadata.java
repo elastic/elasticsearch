@@ -266,7 +266,11 @@ public class SingleNodeShutdownMetadata implements SimpleDiffable<SingleNodeShut
             builder.field(NODE_ID_FIELD.getPreferredName(), nodeId);
             builder.field(TYPE_FIELD.getPreferredName(), type);
             builder.field(REASON_FIELD.getPreferredName(), reason);
-            builder.timeField(STARTED_AT_MILLIS_FIELD.getPreferredName(), STARTED_AT_READABLE_FIELD, startedAtMillis);
+            builder.timestampFieldsFromUnixEpochMillis(
+                STARTED_AT_MILLIS_FIELD.getPreferredName(),
+                STARTED_AT_READABLE_FIELD,
+                startedAtMillis
+            );
             builder.field(NODE_SEEN_FIELD.getPreferredName(), nodeSeen);
             if (allocationDelay != null) {
                 builder.field(ALLOCATION_DELAY_FIELD.getPreferredName(), allocationDelay.getStringRep());

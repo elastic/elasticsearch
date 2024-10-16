@@ -255,7 +255,7 @@ public class FlushJobAction extends ActionType<FlushJobAction.Response> {
             builder.startObject();
             builder.field("flushed", flushed);
             if (lastFinalizedBucketEnd != null) {
-                builder.timeField(
+                builder.timestampFieldsFromUnixEpochMillis(
                     FlushAcknowledgement.LAST_FINALIZED_BUCKET_END.getPreferredName(),
                     FlushAcknowledgement.LAST_FINALIZED_BUCKET_END.getPreferredName() + "_string",
                     lastFinalizedBucketEnd.toEpochMilli()

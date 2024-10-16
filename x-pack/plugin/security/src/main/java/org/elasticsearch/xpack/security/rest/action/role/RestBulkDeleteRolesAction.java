@@ -43,7 +43,7 @@ public class RestBulkDeleteRolesAction extends NativeRoleBaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(Route.builder(DELETE, "/_security/role").build());
+        return List.of(new Route(DELETE, "/_security/role"));
     }
 
     @Override

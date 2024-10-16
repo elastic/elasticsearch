@@ -488,6 +488,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     newAggregates.add(agg);
                 }
 
+                // TODO: remove this when Stats interface is removed
                 stats = changed.get() ? stats.with(stats.child(), groupings, newAggregates) : stats;
             }
 

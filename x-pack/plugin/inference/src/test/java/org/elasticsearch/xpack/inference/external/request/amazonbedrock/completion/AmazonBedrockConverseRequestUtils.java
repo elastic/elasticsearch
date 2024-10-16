@@ -15,12 +15,16 @@ import org.elasticsearch.core.Strings;
 
 import java.util.Collection;
 
+import static org.elasticsearch.xpack.inference.external.request.amazonbedrock.completion.AmazonBedrockConverseUtils.getConverseMessageList;
+import static org.elasticsearch.xpack.inference.external.request.amazonbedrock.completion.AmazonBedrockConverseUtils.inferenceConfig;
+
 public final class AmazonBedrockConverseRequestUtils {
     public static ConverseRequest getConverseRequest(String modelId, AmazonBedrockConverseRequestEntity requestEntity) {
-        var converseRequest = ConverseRequest.builder().modelId(modelId);
-        converseRequest = requestEntity.addMessages(converseRequest);
-        converseRequest = requestEntity.addInferenceConfig(converseRequest);
-        converseRequest = requestEntity.addAdditionalModelFields(converseRequest);
+        var converseRequest = ConverseRequest.builder()
+            .modelId(modelId)
+            .messages(getConverseMessageList(requestEntity.messages()))
+            .additionalModelResponseFieldPaths(requestEntity.additionalModelFields());
+        inferenceConfig(requestEntity).ifPresent(converseRequest::inferenceConfig);
         return converseRequest.build();
     }
 

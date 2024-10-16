@@ -14,7 +14,6 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.http.HttpChannel;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -28,7 +27,6 @@ import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
-import static org.elasticsearch.rest.RestRequest.Method.HEAD;
 import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
 
 @ServerlessScope(Scope.PUBLIC)
@@ -46,13 +44,8 @@ public class RestGetMappingAction extends BaseRestHandler {
         return List.of(
             new Route(GET, "/_mapping"),
             new Route(GET, "/_mappings"),
-            Route.builder(GET, "/{index}/{type}/_mapping").deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7).build(),
             new Route(GET, "/{index}/_mapping"),
-            new Route(GET, "/{index}/_mappings"),
-            Route.builder(GET, "/{index}/_mappings/{type}").deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7).build(),
-            Route.builder(GET, "/{index}/_mapping/{type}").deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7).build(),
-            Route.builder(HEAD, "/{index}/_mapping/{type}").deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7).build(),
-            Route.builder(GET, "/_mapping/{type}").deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7).build()
+            new Route(GET, "/{index}/_mappings")
         );
     }
 
@@ -63,26 +56,7 @@ public class RestGetMappingAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        if (request.getRestApiVersion() == RestApiVersion.V_7) {
-            if (request.hasParam(INCLUDE_TYPE_NAME_PARAMETER)) {
-                request.param(INCLUDE_TYPE_NAME_PARAMETER);
-                deprecationLogger.compatibleCritical("get_mapping_with_types", INCLUDE_TYPE_DEPRECATION_MSG);
-            }
-            final String[] types = request.paramAsStringArrayOrEmptyIfAll("type");
-            if (request.paramAsBoolean(INCLUDE_TYPE_NAME_PARAMETER, DEFAULT_INCLUDE_TYPE_NAME_POLICY) == false && types.length > 0) {
-                throw new IllegalArgumentException(
-                    "Types cannot be provided in get mapping requests, unless include_type_name is set to true."
-                );
-            }
-            if (request.method().equals(HEAD)) {
-                deprecationLogger.compatibleCritical(
-                    "get_mapping_types_removal",
-                    "Type exists requests are deprecated, as types have been deprecated."
-                );
-            }
-        }
         final String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
-
         final GetMappingsRequest getMappingsRequest = new GetMappingsRequest();
         getMappingsRequest.indices(indices);
         getMappingsRequest.indicesOptions(IndicesOptions.fromRequest(request, getMappingsRequest.indicesOptions()));

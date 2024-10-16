@@ -28,8 +28,8 @@ import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.xpack.core.ml.MachineLearningField.DEPRECATED_ALLOW_NO_DATAFEEDS_PARAM;
+import static org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig.ID;
 import static org.elasticsearch.xpack.ml.MachineLearning.BASE_PATH;
-import static org.elasticsearch.xpack.ml.MachineLearning.PRE_V7_BASE_PATH;
 import static org.elasticsearch.xpack.ml.rest.RestCompatibilityChecker.checkAndSetDeprecatedParam;
 
 @ServerlessScope(Scope.PUBLIC)
@@ -37,11 +37,7 @@ public class RestStopDatafeedAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(
-            Route.builder(POST, BASE_PATH + "datafeeds/{" + DatafeedConfig.ID + "}/_stop")
-                .replaces(POST, PRE_V7_BASE_PATH + "datafeeds/{" + DatafeedConfig.ID + "}/_stop", RestApiVersion.V_7)
-                .build()
-        );
+        return List.of(new Route(POST, BASE_PATH + "datafeeds/{" + ID + "}/_stop"));
     }
 
     @Override

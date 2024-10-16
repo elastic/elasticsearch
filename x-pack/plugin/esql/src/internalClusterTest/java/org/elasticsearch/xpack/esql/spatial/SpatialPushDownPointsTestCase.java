@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.spatial;
 
+import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.utils.GeometryValidator;
 import org.elasticsearch.geometry.utils.WellKnownText;
@@ -20,6 +21,7 @@ import org.hamcrest.TypeSafeMatcher;
 import java.io.IOException;
 import java.text.ParseException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Locale;
 
 import static org.hamcrest.Matchers.closeTo;
@@ -105,6 +107,61 @@ public abstract class SpatialPushDownPointsTestCase extends SpatialPushDownTestC
             Object notIndexedCentroid = response2.response().column(1).iterator().next();
             assertThat(spatialFunction + "[expected=" + toString(centroid) + "]", centroid, matchesCentroid(indexedCentroid));
             assertThat(spatialFunction + "[expected=" + toString(centroid) + "]", centroid, matchesCentroid(notIndexedCentroid));
+        }
+    }
+
+    public void testPushedDownDistanceSingleValue() throws RuntimeException {
+        assertPushedDownDistance(false);
+    }
+
+    public void testPushedDownDistanceMultiValue() throws RuntimeException {
+        assertPushedDownDistance(true);
+    }
+
+    private void assertPushedDownDistance(boolean multiValue) throws RuntimeException {
+        initIndexes();
+        for (int i = 0; i < random().nextInt(50, 100); i++) {
+            if (multiValue) {
+                final String[] values = new String[randomIntBetween(1, 5)];
+                for (int j = 0; j < values.length; j++) {
+                    values[j] = "\"" + WellKnownText.toWKT(getIndexGeometry()) + "\"";
+                }
+                index("indexed", i + "", "{\"location\" : " + Arrays.toString(values) + " }");
+                index("not-indexed", i + "", "{\"location\" : " + Arrays.toString(values) + " }");
+            } else {
+                final String value = WellKnownText.toWKT(getIndexGeometry());
+                index("indexed", i + "", "{\"location\" : \"" + value + "\" }");
+                index("not-indexed", i + "", "{\"location\" : \"" + value + "\" }");
+            }
+        }
+
+        refresh("indexed", "not-indexed");
+
+        for (int i = 0; i < 10; i++) {
+            final Geometry geometry = getIndexGeometry();
+            final String wkt = WellKnownText.toWKT(geometry);
+            assertDistanceFunction(wkt);
+        }
+    }
+
+    protected abstract double searchDistance();
+
+    protected void assertDistanceFunction(String wkt) {
+        String spatialFunction = "ST_DISTANCE";
+        String castingFunction = castingFunction().replaceAll("SHAPE", "POINT");
+        final String query1 = String.format(Locale.ROOT, """
+            FROM indexed | WHERE %s(location, %s("%s")) < %.1f | STATS COUNT(*)
+            """, spatialFunction, castingFunction, wkt, searchDistance());
+        final String query2 = String.format(Locale.ROOT, """
+            FROM not-indexed | WHERE %s(location, %s("%s")) < %.1f | STATS COUNT(*)
+            """, spatialFunction, castingFunction, wkt, searchDistance());
+        try (
+            EsqlQueryResponse response1 = EsqlQueryRequestBuilder.newRequestBuilder(client()).query(query1).get();
+            EsqlQueryResponse response2 = EsqlQueryRequestBuilder.newRequestBuilder(client()).query(query2).get();
+        ) {
+            Object indexedResult = response1.response().column(0).iterator().next();
+            Object notIndexedResult = response2.response().column(0).iterator().next();
+            assertEquals(spatialFunction, indexedResult, notIndexedResult);
         }
     }
 

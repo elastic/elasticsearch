@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.inference.external.request.googleaistudio.comple
 import org.apache.http.client.methods.HttpPost;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.inference.external.http.sender.DocumentsOnlyInput;
 import org.elasticsearch.xpack.inference.external.request.googleaistudio.GoogleAiStudioCompletionRequest;
 import org.elasticsearch.xpack.inference.services.googleaistudio.completion.GoogleAiStudioCompletionModelTests;
 
@@ -29,7 +30,7 @@ public class GoogleAiStudioCompletionRequestTests extends ESTestCase {
         var apiKey = "api_key";
         var input = "input";
 
-        var request = new GoogleAiStudioCompletionRequest(List.of(input), GoogleAiStudioCompletionModelTests.createModel("model", apiKey));
+        var request = new GoogleAiStudioCompletionRequest(listOf(input), GoogleAiStudioCompletionModelTests.createModel("model", apiKey));
 
         var httpRequest = request.createHttpRequest();
         assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
@@ -54,7 +55,7 @@ public class GoogleAiStudioCompletionRequestTests extends ESTestCase {
 
     public void testTruncate_ReturnsSameInstance() {
         var request = new GoogleAiStudioCompletionRequest(
-            List.of("input"),
+            listOf("input"),
             GoogleAiStudioCompletionModelTests.createModel("model", "api key")
         );
         var truncatedRequest = request.truncate();
@@ -64,10 +65,14 @@ public class GoogleAiStudioCompletionRequestTests extends ESTestCase {
 
     public void testTruncationInfo_ReturnsNull() {
         var request = new GoogleAiStudioCompletionRequest(
-            List.of("input"),
+            listOf("input"),
             GoogleAiStudioCompletionModelTests.createModel("model", "api key")
         );
 
         assertNull(request.getTruncationInfo());
+    }
+
+    private static DocumentsOnlyInput listOf(String... input) {
+        return new DocumentsOnlyInput(List.of(input));
     }
 }

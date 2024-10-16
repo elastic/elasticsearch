@@ -29,6 +29,7 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.ingest.geoip.IngestGeoIpMetadata;
 import org.elasticsearch.ingest.geoip.direct.PutDatabaseConfigurationAction.Request;
 import org.elasticsearch.injection.guice.Inject;
@@ -40,6 +41,8 @@ import java.time.Instant;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
+
+import static org.elasticsearch.ingest.IngestGeoIpFeatures.PUT_DATABASE_CONFIGURATION_ACTION_IPINFO;
 
 public class TransportPutDatabaseConfigurationAction extends TransportMasterNodeAction<Request, AcknowledgedResponse> {
 
@@ -58,6 +61,7 @@ public class TransportPutDatabaseConfigurationAction extends TransportMasterNode
         }
     };
 
+    private final FeatureService featureService;
     private final MasterServiceTaskQueue<UpdateDatabaseConfigurationTask> updateDatabaseConfigurationTaskQueue;
 
     @Inject
@@ -66,7 +70,8 @@ public class TransportPutDatabaseConfigurationAction extends TransportMasterNode
         ClusterService clusterService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        FeatureService featureService
     ) {
         super(
             PutDatabaseConfigurationAction.NAME,
@@ -79,6 +84,7 @@ public class TransportPutDatabaseConfigurationAction extends TransportMasterNode
             AcknowledgedResponse::readFrom,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
+        this.featureService = featureService;
         this.updateDatabaseConfigurationTaskQueue = clusterService.createTaskQueue(
             "update-geoip-database-configuration-state-update",
             Priority.NORMAL,
@@ -89,6 +95,19 @@ public class TransportPutDatabaseConfigurationAction extends TransportMasterNode
     @Override
     protected void masterOperation(Task task, Request request, ClusterState state, ActionListener<AcknowledgedResponse> listener) {
         final String id = request.getDatabase().id();
+
+        // if this is an ipinfo configuration, then make sure the whole cluster supports that feature
+        if (request.getDatabase().provider() instanceof DatabaseConfiguration.Ipinfo
+            && featureService.clusterHasFeature(clusterService.state(), PUT_DATABASE_CONFIGURATION_ACTION_IPINFO) == false) {
+            listener.onFailure(
+                new IllegalArgumentException(
+                    "Unable to use ipinfo database configurations in mixed-clusters with nodes that do not support feature "
+                        + PUT_DATABASE_CONFIGURATION_ACTION_IPINFO.id()
+                )
+            );
+            return;
+        }
+
         updateDatabaseConfigurationTaskQueue.submitTask(
             Strings.format("update-geoip-database-configuration-[%s]", id),
             new UpdateDatabaseConfigurationTask(listener, request.getDatabase()),

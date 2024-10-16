@@ -14,6 +14,7 @@ import org.elasticsearch.compute.aggregation.MedianAbsoluteDeviationDoubleAggreg
 import org.elasticsearch.compute.aggregation.MedianAbsoluteDeviationIntAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.MedianAbsoluteDeviationLongAggregatorFunctionSupplier;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
@@ -25,6 +26,8 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMedi
 
 import java.io.IOException;
 import java.util.List;
+
+import static java.util.Collections.emptyList;
 
 public class MedianAbsoluteDeviation extends NumericAggregate implements SurrogateExpression {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
@@ -64,7 +67,11 @@ public class MedianAbsoluteDeviation extends NumericAggregate implements Surroga
             ), }
     )
     public MedianAbsoluteDeviation(Source source, @Param(name = "number", type = { "double", "integer", "long" }) Expression field) {
-        super(source, field);
+        this(source, field, Literal.TRUE);
+    }
+
+    public MedianAbsoluteDeviation(Source source, Expression field, Expression filter) {
+        super(source, field, filter, emptyList());
     }
 
     private MedianAbsoluteDeviation(StreamInput in) throws IOException {
@@ -78,12 +85,17 @@ public class MedianAbsoluteDeviation extends NumericAggregate implements Surroga
 
     @Override
     protected NodeInfo<MedianAbsoluteDeviation> info() {
-        return NodeInfo.create(this, MedianAbsoluteDeviation::new, field());
+        return NodeInfo.create(this, MedianAbsoluteDeviation::new, field(), filter());
     }
 
     @Override
     public MedianAbsoluteDeviation replaceChildren(List<Expression> newChildren) {
-        return new MedianAbsoluteDeviation(source(), newChildren.get(0));
+        return new MedianAbsoluteDeviation(source(), newChildren.get(0), newChildren.get(1));
+    }
+
+    @Override
+    public MedianAbsoluteDeviation withFilter(Expression filter) {
+        return new MedianAbsoluteDeviation(source(), field(), filter);
     }
 
     @Override

@@ -53,7 +53,7 @@ import static org.hamcrest.Matchers.greaterThan;
  * This test uses simple mapping and document structure in order to allow easier debugging of the test itself.
  */
 public class StandardVersusLogsIndexModeChallengeRestIT extends AbstractChallengeRestTest {
-    private final int numShards = randomBoolean() ? randomIntBetween(2, 5) : 0;
+    private final int numShards = randomBoolean() ? randomIntBetween(2, 4) : 0;
     private final int numReplicas = randomBoolean() ? randomIntBetween(1, 3) : 0;
     private final boolean fullyDynamicMapping = randomBoolean();
 

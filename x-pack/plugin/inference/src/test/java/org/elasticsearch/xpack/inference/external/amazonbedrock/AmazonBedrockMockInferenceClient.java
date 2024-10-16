@@ -14,15 +14,19 @@ import software.amazon.awssdk.services.bedrockruntime.model.InvokeModelRequest;
 import software.amazon.awssdk.services.bedrockruntime.model.InvokeModelResponse;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockModel;
 
 import java.util.concurrent.CompletableFuture;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class AmazonBedrockMockInferenceClient extends AmazonBedrockInferenceClient {
     private CompletableFuture<ConverseResponse> converseResponseFuture = CompletableFuture.completedFuture(null);
@@ -33,7 +37,13 @@ public class AmazonBedrockMockInferenceClient extends AmazonBedrockInferenceClie
     }
 
     protected AmazonBedrockMockInferenceClient(AmazonBedrockModel model, @Nullable TimeValue timeout) {
-        super(model, timeout);
+        super(model, timeout, mockThreadPool());
+    }
+
+    private static ThreadPool mockThreadPool() {
+        ThreadPool threadPool = mock();
+        when(threadPool.executor(anyString())).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        return threadPool;
     }
 
     public void setExceptionToThrow(ElasticsearchException exceptionToThrow) {

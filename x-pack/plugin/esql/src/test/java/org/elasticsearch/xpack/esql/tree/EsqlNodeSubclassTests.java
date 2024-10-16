@@ -21,6 +21,8 @@ import org.elasticsearch.xpack.esql.core.capabilities.UnresolvedException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
+import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttributeTests;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedNamedExpression;
@@ -87,6 +89,7 @@ import java.util.jar.JarInputStream;
 
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.xpack.esql.ConfigurationTestUtils.randomConfiguration;
+import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_POINT;
 import static org.mockito.Mockito.mock;
 
 /**
@@ -163,6 +166,16 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
          * in the parameters and not included.
          */
         expectedCount -= 1;
+
+        // special exceptions with private constructors
+        if (MetadataAttribute.class.equals(subclass) || ReferenceAttribute.class.equals(subclass)) {
+            expectedCount++;
+        }
+
+        if (FieldAttribute.class.equals(subclass)) {
+            expectedCount += 2;
+        }
+
         assertEquals(expectedCount, info(node).properties().size());
     }
 
@@ -173,6 +186,9 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
      * implementations in the process.
      */
     public void testTransform() throws Exception {
+        if (FieldAttribute.class.equals(subclass)) {
+            assumeTrue("FieldAttribute private constructor", false);
+        }
         Constructor<T> ctor = longestCtor(subclass);
         Object[] nodeCtorArgs = ctorArgs(ctor);
         T node = ctor.newInstance(nodeCtorArgs);
@@ -421,7 +437,11 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
             // Grok.Parser is a record / final, cannot be mocked
             return Grok.pattern(Source.EMPTY, randomGrokPattern());
         } else if (argClass == EsQueryExec.FieldSort.class) {
+            // TODO: It appears neither FieldSort nor GeoDistanceSort are ever actually tested
             return randomFieldSort();
+        } else if (argClass == EsQueryExec.GeoDistanceSort.class) {
+            // TODO: It appears neither FieldSort nor GeoDistanceSort are ever actually tested
+            return randomGeoDistanceSort();
         } else if (toBuildClass == Pow.class && Expression.class.isAssignableFrom(argClass)) {
             return randomResolvedExpression(randomBoolean() ? FieldAttribute.class : Literal.class);
         } else if (isPlanNodeClass(toBuildClass) && Expression.class.isAssignableFrom(argClass)) {
@@ -676,6 +696,15 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
             field(randomAlphaOfLength(16), randomFrom(DATA_TYPES)),
             randomFrom(EnumSet.allOf(Order.OrderDirection.class)),
             randomFrom(EnumSet.allOf(Order.NullsPosition.class))
+        );
+    }
+
+    static EsQueryExec.GeoDistanceSort randomGeoDistanceSort() {
+        return new EsQueryExec.GeoDistanceSort(
+            field(randomAlphaOfLength(16), GEO_POINT),
+            randomFrom(EnumSet.allOf(Order.OrderDirection.class)),
+            randomDoubleBetween(-90, 90, false),
+            randomDoubleBetween(-180, 180, false)
         );
     }
 

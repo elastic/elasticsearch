@@ -1,9 +1,7 @@
 [[retrievers-overview]]
 === Retrievers
 
-preview::[]
-
-A retriever is an abstraction that was added to the Search API in *8.14.0*.
+A retriever is an abstraction that was added to the Search API in *8.14.0* and was made generally available in *8.16.0*.
 This abstraction enables the configuration of multi-stage retrieval pipelines within a single `_search` call.
 This simplifies your search application logic, because you no longer need to configure complex searches via multiple {es} calls or implement additional client-side logic to combine results from different queries.
 
@@ -32,8 +30,7 @@ with different relevance indicators into a single result set.
 An RRF retriever is a *compound retriever*, where its `filter` element is
 propagated to its sub retrievers.
 +
-Sub retrievers may not use elements that are restricted by having a compound retriever as part of the retriever tree.
-See the <<rrf-using-multiple-standard-retrievers,RRF documentation>> for detailed examples and information on how to use the RRF retriever.
+
 * <<text-similarity-reranker-retriever,*Text Similarity Re-ranker Retriever*>>. Used for <<semantic-reranking,semantic reranking>>.
 Requires first creating a `rerank` task using the <<put-inference-api,{es} Inference API>>.
 
@@ -72,82 +69,56 @@ When using compound retrievers, only the query element is allowed, which enforce
 [[retrievers-overview-example]]
 ==== Example
 
-The following example demonstrates how using retrievers simplify the composability of queries for RRF ranking.
+The following example demonstrates the powerful queries that we can now compose, and how retrievers simplify this process. We can use any combination of retrievers we want, propagating the
+results of a nested retriever to its parent. In this scenario, we'll make use of all 4 (currently) available retrievers, i.e. `standard`, `knn`, `text_similarity_reranker` and `rrf`.
+We'll first combine the results of a `semantic` query using the `standard` retriever, and that of a `knn` search on a dense vector field, using `rrf` to get the top 100 results.
+Finally, we'll then rerank the top-50 results of `rrf` using the `text_similarity_reranker`
 
 [source,js]
 ----
 GET example-index/_search
 {
   "retriever": {
-    "rrf": {
-      "retrievers": [
-        {
-          "standard": {
-            "query": {
-              "sparse_vector": {
-                "field": "vector.tokens",
-                "inference_id": "my-elser-endpoint",
-                "query": "What blue shoes are on sale?"
+    "text_similarity_reranker": {
+      "retriever": {
+        "rrf": {
+          "retrievers": [
+            {
+                "standard": {
+                  "query": {
+                    "semantic": {
+                      "field": "inference_field",
+                      "query": "state of the art vector database"
+                    }
+                  }
+                }
+            },
+            {
+              "knn": {
+                "query_vector": [
+                  0.54,
+                  ...,
+                  0.245
+                ],
+                "field": "embedding",
+                "k": 10,
+                "num_candidates": 15
               }
             }
-          }
-        },
-        {
-          "standard": {
-            "query": {
-              "match": {
-                "text": "blue shoes sale"
-              }
-            }
-          }
+          ],
+          "rank_window_size": 100,
+          "rank_constant": 10
         }
-      ]
+      },
+      "rank_window_size": 50,
+      "field": "description",
+      "inference_text": "what's the best way to create complex pipelines and retrieve documents?",
+      "inference_id": "my-awesome-rerank-model"
     }
   }
 }
 ----
 //NOTCONSOLE
-
-This example demonstrates how you can combine different retrieval strategies into a single `retriever` pipeline.
-
-Compare to `RRF` with `sub_searches` approach:
-
-.*Expand* for example
-[%collapsible]
-==============
-
-[source,js]
-----
-GET example-index/_search
-{
-  "sub_searches":[
-    {
-      "query":{
-        "match":{
-          "text":"blue shoes sale"
-        }
-      }
-    },
-    {
-      "query":{
-        "sparse_vector": {
-            "field": "vector.tokens",
-            "inference_id": "my-elser-endoint",
-            "query": "What blue shoes are on sale?"
-          }
-        }
-      }
-  ],
-  "rank":{
-    "rrf":{
-      "rank_window_size":50,
-      "rank_constant":20
-    }
-  }
-}
-----
-//NOTCONSOLE
-==============
 
 [discrete]
 [[retrievers-overview-glossary]]

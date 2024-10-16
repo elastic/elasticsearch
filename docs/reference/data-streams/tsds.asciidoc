@@ -109,7 +109,10 @@ parameter:
 * <<number,`unsigned_long`>>
 * <<boolean,`boolean`>>
 
-For a flattened field, use the `time_series_dimensions` parameter to configure an array of fields as dimensions. For details refer to <<flattened-params,`flattened`>>.
+For a flattened field, use the `time_series_dimensions` parameter to configure an array of fields as dimensions.
+For details refer to <<flattened-params,`flattened`>>.
+
+Dimension definitions can be simplified through <<passthrough-dimensions, pass-through>> fields.
 
 [discrete]
 [[time-series-metric]]
@@ -294,11 +297,14 @@ When you create the matching index template for a TSDS, you must specify one or
 more dimensions in the `index.routing_path` setting. Each document in a TSDS
 must contain one or more dimensions that match the `index.routing_path` setting.
 
-Dimensions in the `index.routing_path` setting must be plain `keyword` fields.
 The `index.routing_path` setting accepts wildcard patterns (for example `dim.*`)
 and can dynamically match new fields. However, {es} will reject any mapping
-updates that add scripted, runtime, or non-dimension, non-`keyword` fields that
+updates that add scripted, runtime, or non-dimension fields that
 match the `index.routing_path` value.
+
+<<passthrough-dimensions, Pass-through>> fields may be configured
+as dimension containers. In this case, their sub-fields get included to the
+routing path automatically.
 
 TSDS documents don't support a custom `_routing` value. Similarly, you can't
 require a `_routing` value in mappings for a TSDS.

@@ -150,7 +150,7 @@ public class SystemIndicesQA extends Plugin implements SystemIndexPlugin, Action
 
         @Override
         public List<Route> routes() {
-            return List.of(Route.builder(Method.PUT, "/_net_new_sys_index/_create").build());
+            return List.of(new Route(Method.PUT, "/_net_new_sys_index/_create"));
         }
 
         @Override

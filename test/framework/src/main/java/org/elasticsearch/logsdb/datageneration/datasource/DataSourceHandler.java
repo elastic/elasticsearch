@@ -73,4 +73,8 @@ public interface DataSourceHandler {
     default DataSourceResponse.ObjectMappingParametersGenerator handle(DataSourceRequest.ObjectMappingParametersGenerator request) {
         return null;
     }
+
+    default DataSourceResponse.DynamicMappingGenerator handle(DataSourceRequest.DynamicMappingGenerator request) {
+        return null;
+    }
 }

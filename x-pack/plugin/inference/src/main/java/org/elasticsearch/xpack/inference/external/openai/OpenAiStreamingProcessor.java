@@ -110,8 +110,6 @@ public class OpenAiStreamingProcessor extends DelegatingProcessor<Deque<ServerSe
     private static final String CHOICES_FIELD = "choices";
     private static final String DELTA_FIELD = "delta";
     private static final String CONTENT_FIELD = "content";
-    private static final String FINISH_REASON_FIELD = "finish_reason";
-    private static final String STOP_MESSAGE = "stop";
     private static final String DONE_MESSAGE = "[done]";
 
     @Override
@@ -162,21 +160,27 @@ public class OpenAiStreamingProcessor extends DelegatingProcessor<Deque<ServerSe
                 ensureExpectedToken(XContentParser.Token.START_OBJECT, currentToken, parser);
 
                 currentToken = parser.nextToken();
-                if (currentToken == XContentParser.Token.END_OBJECT) {
-                    consumeUntilObjectEnd(parser); // end choices
-                    return ""; // stopped
+
+                // continue until the end of delta
+                while (currentToken != null && currentToken != XContentParser.Token.END_OBJECT) {
+                    if (currentToken == XContentParser.Token.START_OBJECT || currentToken == XContentParser.Token.START_ARRAY) {
+                        parser.skipChildren();
+                    }
+
+                    if (currentToken == XContentParser.Token.FIELD_NAME && parser.currentName().equals(CONTENT_FIELD)) {
+                        parser.nextToken();
+                        ensureExpectedToken(XContentParser.Token.VALUE_STRING, parser.currentToken(), parser);
+                        var content = parser.text();
+                        consumeUntilObjectEnd(parser); // end delta
+                        consumeUntilObjectEnd(parser); // end choices
+                        return content;
+                    }
+
+                    currentToken = parser.nextToken();
                 }
 
-                if (currentToken == XContentParser.Token.FIELD_NAME && parser.currentName().equals(CONTENT_FIELD)) {
-                    parser.nextToken();
-                } else {
-                    positionParserAtTokenAfterField(parser, CONTENT_FIELD, FAILED_TO_FIND_FIELD_TEMPLATE);
-                }
-                ensureExpectedToken(XContentParser.Token.VALUE_STRING, parser.currentToken(), parser);
-                var content = parser.text();
-                consumeUntilObjectEnd(parser); // end delta
                 consumeUntilObjectEnd(parser); // end choices
-                return content;
+                return ""; // stopped
             }).stream()
                 .filter(Objects::nonNull)
                 .filter(Predicate.not(String::isEmpty))

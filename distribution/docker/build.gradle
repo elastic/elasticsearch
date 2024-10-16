@@ -381,7 +381,7 @@ private static List<String> generateTags(DockerBase base, Architecture architect
   String image = "elasticsearch${base.suffix}"
 
   String namespace = 'elasticsearch'
-  if (base == DockerBase.CLOUD || base == DockerBase.CLOUD_ESS || base == DockerBase.WOLFI_ESS) {
+  if (base == DockerBase.CLOUD || base == DockerBase.CLOUD_ESS) {
     namespace += '-ci'
   }
 
@@ -446,7 +446,8 @@ void addBuildDockerImageTask(Architecture architecture, DockerBase base) {
   }
 }
 
-void addBuildEssDockerImageTask(Architecture architecture, DockerBase dockerBase) {
+void addBuildEssDockerImageTask(Architecture architecture) {
+  DockerBase dockerBase = DockerBase.CLOUD_ESS
   String arch = architecture == Architecture.AARCH64 ? '-aarch64' : ''
   String contextDir = "${project.buildDir}/docker-context/elasticsearch${dockerBase.suffix}-${VersionProperties.elasticsearch}-docker-build-context${arch}"
 
@@ -460,22 +461,20 @@ void addBuildEssDockerImageTask(Architecture architecture, DockerBase dockerBase
         from configurations.allPlugins
       }
 
-      if (dockerBase == DockerBase.WOLFI_ESS) {
-        // If we're performing a release build, but `build.id` hasn't been set, we can
-        // infer that we're not at the Docker building stage of the build, and therefore
-        // we should skip the beats part of the build.
-        String buildId = providers.systemProperty('build.id').getOrNull()
-        boolean includeBeats = VersionProperties.isElasticsearchSnapshot() == true || buildId != null || useDra
+      // If we're performing a release build, but `build.id` hasn't been set, we can
+      // infer that we're not at the Docker building stage of the build, and therefore
+      // we should skip the beats part of the build.
+      String buildId = providers.systemProperty('build.id').getOrNull()
+      boolean includeBeats = VersionProperties.isElasticsearchSnapshot() == true || buildId != null || useDra
 
-        if (includeBeats) {
-          from configurations.getByName("filebeat_${architecture.classifier}")
-          from configurations.getByName("metricbeat_${architecture.classifier}")
-        }
-        // For some reason, the artifact name can differ depending on what repository we used.
-        rename ~/((?:file|metric)beat)-.*\.tar\.gz$/, "\$1-${VersionProperties.elasticsearch}.tar.gz"
+      if (includeBeats) {
+        from configurations.getByName("filebeat_${architecture.classifier}")
+        from configurations.getByName("metricbeat_${architecture.classifier}")
       }
+      // For some reason, the artifact name can differ depending on what repository we used.
+      rename ~/((?:file|metric)beat)-.*\.tar\.gz$/, "\$1-${VersionProperties.elasticsearch}.tar.gz"
 
-      String baseSuffix = dockerBase == DockerBase.CLOUD_ESS ? DockerBase.CLOUD.suffix : DockerBase.WOLFI.suffix
+      String baseSuffix = DockerBase.WOLFI.suffix
       from(projectDir.resolve("src/docker/Dockerfile.ess")) {
         expand(
           [
@@ -493,7 +492,7 @@ void addBuildEssDockerImageTask(Architecture architecture, DockerBase dockerBase
   final TaskProvider<DockerBuildTask> buildDockerImageTask =
     tasks.register(taskName("build", architecture, dockerBase, "DockerImage"), DockerBuildTask) {
 
-      DockerBase base = dockerBase == DockerBase.CLOUD_ESS ? DockerBase.CLOUD : DockerBase.WOLFI
+      DockerBase base = DockerBase.WOLFI
 
       TaskProvider<DockerBuildTask> buildBaseTask = tasks.named(taskName("build", architecture, base, "DockerImage"))
       inputs.files(buildBaseTask)
@@ -519,7 +518,7 @@ void addBuildEssDockerImageTask(Architecture architecture, DockerBase dockerBase
 
 for (final Architecture architecture : Architecture.values()) {
   for (final DockerBase base : DockerBase.values()) {
-    if (base == DockerBase.CLOUD_ESS || base == DockerBase.WOLFI_ESS) {
+    if (base == DockerBase.CLOUD_ESS) {
       continue
     }
     addBuildDockerContextTask(architecture, base)
@@ -527,8 +526,7 @@ for (final Architecture architecture : Architecture.values()) {
     addBuildDockerImageTask(architecture, base)
   }
 
-  addBuildEssDockerImageTask(architecture, DockerBase.CLOUD_ESS)
-  addBuildEssDockerImageTask(architecture, DockerBase.WOLFI_ESS)
+  addBuildEssDockerImageTask(architecture)
 }
 
 def exportDockerImages = tasks.register("exportDockerImages")
@@ -564,8 +562,7 @@ subprojects { Project subProject ->
         (base == DockerBase.CLOUD ? 'cloud.tar' :
           (base == DockerBase.CLOUD_ESS ? 'cloud-ess.tar' :
             (base == DockerBase.WOLFI ? 'wolfi.tar' :
-              (base == DockerBase.WOLFI_ESS ? 'wolfi-ess.tar' :
-                'docker.tar')))))
+                'docker.tar'))))
     final String artifactName = "elasticsearch${arch}${base.suffix}_test"
 
     final String exportTaskName = taskName("export", architecture, base, 'DockerImage')

@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.security.rest.action.user;
 
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
@@ -37,11 +36,7 @@ public class RestDeleteUserAction extends NativeUserBaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(
-            Route.builder(DELETE, "/_security/user/{username}")
-                .replaces(DELETE, "/_xpack/security/user/{username}", RestApiVersion.V_7)
-                .build()
-        );
+        return List.of(new Route(DELETE, "/_security/user/{username}"));
     }
 
     @Override

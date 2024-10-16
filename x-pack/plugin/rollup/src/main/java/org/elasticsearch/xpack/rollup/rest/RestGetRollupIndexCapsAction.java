@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.rollup.rest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
@@ -27,9 +26,7 @@ public class RestGetRollupIndexCapsAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(
-            Route.builder(GET, "/{index}/_rollup/data").replaces(GET, "/{index}/_xpack/rollup/data", RestApiVersion.V_7).build()
-        );
+        return List.of(new Route(GET, "/{index}/_rollup/data"));
     }
 
     @Override

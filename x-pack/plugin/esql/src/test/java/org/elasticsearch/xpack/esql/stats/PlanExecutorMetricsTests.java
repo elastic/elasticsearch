@@ -120,7 +120,7 @@ public class PlanExecutorMetricsTests extends ESTestCase {
             randomAlphaOfLength(10),
             EsqlTestUtils.TEST_CFG,
             enrichResolver,
-            new EsqlExecutionInfo(),
+            new EsqlExecutionInfo(randomBoolean()),
             groupIndicesByCluster,
             runPhase,
             new ActionListener<>() {
@@ -149,7 +149,7 @@ public class PlanExecutorMetricsTests extends ESTestCase {
             randomAlphaOfLength(10),
             EsqlTestUtils.TEST_CFG,
             enrichResolver,
-            new EsqlExecutionInfo(),
+            new EsqlExecutionInfo(randomBoolean()),
             groupIndicesByCluster,
             runPhase,
             new ActionListener<>() {

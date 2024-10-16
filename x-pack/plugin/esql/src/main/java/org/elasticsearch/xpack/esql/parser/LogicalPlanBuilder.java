@@ -298,13 +298,12 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         return input -> new Aggregate(source(ctx), input, Aggregate.AggregateType.STANDARD, stats.groupings, stats.aggregates);
     }
 
-    private record Stats(List<Expression> groupings, List<? extends NamedExpression> aggregates) {
+    private record Stats(List<Expression> groupings, List<? extends NamedExpression> aggregates) {}
 
-    }
-
-    private Stats stats(Source source, EsqlBaseParser.FieldsContext groupingsCtx, EsqlBaseParser.FieldsContext aggregatesCtx) {
+    private Stats stats(Source source, EsqlBaseParser.FieldsContext groupingsCtx, EsqlBaseParser.AggFieldsContext aggregatesCtx) {
         List<NamedExpression> groupings = visitGrouping(groupingsCtx);
-        List<NamedExpression> aggregates = new ArrayList<>(visitFields(aggregatesCtx));
+        List<NamedExpression> aggregates = new ArrayList<>(visitAggFields(aggregatesCtx));
+
         if (aggregates.isEmpty() && groupings.isEmpty()) {
             throw new ParsingException(source, "At least one aggregation or grouping expression required in [{}]", source.text());
         }
@@ -341,9 +340,11 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         if (false == EsqlPlugin.INLINESTATS_FEATURE_FLAG.isEnabled()) {
             throw new ParsingException(source(ctx), "INLINESTATS command currently requires a snapshot build");
         }
-        List<NamedExpression> aggregates = new ArrayList<>(visitFields(ctx.stats));
+        List<Alias> aggFields = visitAggFields(ctx.stats);
+        List<NamedExpression> aggregates = new ArrayList<>(aggFields);
         List<NamedExpression> groupings = visitGrouping(ctx.grouping);
         aggregates.addAll(groupings);
+        // TODO: add support for filters
         return input -> new InlineStats(source(ctx), input, new ArrayList<>(groupings), aggregates);
     }
 

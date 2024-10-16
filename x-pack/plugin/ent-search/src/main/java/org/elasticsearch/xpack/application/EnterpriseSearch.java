@@ -165,6 +165,8 @@ import org.elasticsearch.xpack.application.rules.action.RestGetQueryRulesetActio
 import org.elasticsearch.xpack.application.rules.action.RestListQueryRulesetsAction;
 import org.elasticsearch.xpack.application.rules.action.RestPutQueryRuleAction;
 import org.elasticsearch.xpack.application.rules.action.RestPutQueryRulesetAction;
+import org.elasticsearch.xpack.application.rules.action.RestTestQueryRulesetAction;
+import org.elasticsearch.xpack.application.rules.action.TestQueryRulesetAction;
 import org.elasticsearch.xpack.application.rules.action.TransportDeleteQueryRuleAction;
 import org.elasticsearch.xpack.application.rules.action.TransportDeleteQueryRulesetAction;
 import org.elasticsearch.xpack.application.rules.action.TransportGetQueryRuleAction;
@@ -172,6 +174,7 @@ import org.elasticsearch.xpack.application.rules.action.TransportGetQueryRuleset
 import org.elasticsearch.xpack.application.rules.action.TransportListQueryRulesetsAction;
 import org.elasticsearch.xpack.application.rules.action.TransportPutQueryRuleAction;
 import org.elasticsearch.xpack.application.rules.action.TransportPutQueryRulesetAction;
+import org.elasticsearch.xpack.application.rules.action.TransportTestQueryRulesetAction;
 import org.elasticsearch.xpack.application.search.SearchApplicationIndexService;
 import org.elasticsearch.xpack.application.search.action.DeleteSearchApplicationAction;
 import org.elasticsearch.xpack.application.search.action.GetSearchApplicationAction;
@@ -266,6 +269,7 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
                 new ActionHandler<>(DeleteQueryRuleAction.INSTANCE, TransportDeleteQueryRuleAction.class),
                 new ActionHandler<>(GetQueryRuleAction.INSTANCE, TransportGetQueryRuleAction.class),
                 new ActionHandler<>(PutQueryRuleAction.INSTANCE, TransportPutQueryRuleAction.class),
+                new ActionHandler<>(TestQueryRulesetAction.INSTANCE, TransportTestQueryRulesetAction.class),
 
                 usageAction,
                 infoAction
@@ -373,7 +377,8 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
                 new RestPutQueryRulesetAction(getLicenseState()),
                 new RestDeleteQueryRuleAction(getLicenseState()),
                 new RestGetQueryRuleAction(getLicenseState()),
-                new RestPutQueryRuleAction(getLicenseState())
+                new RestPutQueryRuleAction(getLicenseState()),
+                new RestTestQueryRulesetAction(getLicenseState())
             )
         );
 

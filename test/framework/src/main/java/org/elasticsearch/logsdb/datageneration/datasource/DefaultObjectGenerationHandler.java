@@ -14,7 +14,6 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.util.Optional;
 import java.util.Set;
-import java.util.function.Supplier;
 
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLengthBetween;
 import static org.elasticsearch.test.ESTestCase.randomDouble;
@@ -26,24 +25,25 @@ public class DefaultObjectGenerationHandler implements DataSourceHandler {
         return new DataSourceResponse.ChildFieldGenerator() {
             @Override
             public int generateChildFieldCount() {
+                // no child fields is legal
                 return ESTestCase.randomIntBetween(0, request.specification().maxFieldCountPerLevel());
             }
 
             @Override
             public boolean generateDynamicSubObject() {
-                // Using a static 5% change, this is just a chosen value that can be tweaked.
+                // Using a static 5% chance, this is just a chosen value that can be tweaked.
                 return randomDouble() <= 0.05;
             }
 
             @Override
             public boolean generateNestedSubObject() {
-                // Using a static 5% change, this is just a chosen value that can be tweaked.
+                // Using a static 5% chance, this is just a chosen value that can be tweaked.
                 return randomDouble() <= 0.05;
             }
 
             @Override
             public boolean generateRegularSubObject() {
-                // Using a static 5% change, this is just a chosen value that can be tweaked.
+                // Using a static 5% chance, this is just a chosen value that can be tweaked.
                 return randomDouble() <= 0.05;
             }
 
@@ -60,21 +60,10 @@ public class DefaultObjectGenerationHandler implements DataSourceHandler {
 
     @Override
     public DataSourceResponse.FieldTypeGenerator handle(DataSourceRequest.FieldTypeGenerator request) {
-        Supplier<DataSourceResponse.FieldTypeGenerator.FieldTypeInfo> generator = switch (request.dynamicMapping()) {
-            case FORBIDDEN -> () -> generateFieldTypeInfo(false);
-            case FORCED -> () -> generateFieldTypeInfo(true);
-            case SUPPORTED -> () -> generateFieldTypeInfo(ESTestCase.randomBoolean());
-        };
 
-        return new DataSourceResponse.FieldTypeGenerator(generator);
-    }
-
-    private static DataSourceResponse.FieldTypeGenerator.FieldTypeInfo generateFieldTypeInfo(boolean isDynamic) {
-        var excluded = isDynamic ? EXCLUDED_FROM_DYNAMIC_MAPPING : Set.of();
-
-        var fieldType = ESTestCase.randomValueOtherThanMany(excluded::contains, () -> ESTestCase.randomFrom(FieldType.values()));
-
-        return new DataSourceResponse.FieldTypeGenerator.FieldTypeInfo(fieldType, isDynamic);
+        return new DataSourceResponse.FieldTypeGenerator(
+            () -> new DataSourceResponse.FieldTypeGenerator.FieldTypeInfo(ESTestCase.randomFrom(FieldType.values()))
+        );
     }
 
     @Override
@@ -86,5 +75,13 @@ public class DefaultObjectGenerationHandler implements DataSourceHandler {
 
             return Optional.empty();
         });
+    }
+
+    @Override
+    public DataSourceResponse.DynamicMappingGenerator handle(DataSourceRequest.DynamicMappingGenerator request) {
+        // Using a static 5% chance for objects, this is just a chosen value that can be tweaked.
+        return new DataSourceResponse.DynamicMappingGenerator(
+            isObject -> isObject ? ESTestCase.randomDouble() <= 0.05 : ESTestCase.randomBoolean()
+        );
     }
 }

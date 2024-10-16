@@ -22,7 +22,6 @@ import org.elasticsearch.xpack.inference.external.request.amazonbedrock.completi
 import org.elasticsearch.xpack.inference.external.response.amazonbedrock.completion.AmazonBedrockChatCompletionResponseHandler;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.completion.AmazonBedrockChatCompletionModel;
 
-import java.util.List;
 import java.util.function.Supplier;
 
 public class AmazonBedrockChatCompletionRequestManager extends AmazonBedrockRequestManager {
@@ -45,9 +44,11 @@ public class AmazonBedrockChatCompletionRequestManager extends AmazonBedrockRequ
         Supplier<Boolean> hasRequestCompletedFunction,
         ActionListener<InferenceServiceResults> listener
     ) {
-        List<String> docsInput = DocumentsOnlyInput.of(inferenceInputs).getInputs();
+        var docsOnly = DocumentsOnlyInput.of(inferenceInputs);
+        var docsInput = docsOnly.getInputs();
+        var stream = docsOnly.stream();
         var requestEntity = AmazonBedrockChatCompletionEntityFactory.createEntity(model, docsInput);
-        var request = new AmazonBedrockChatCompletionRequest(model, requestEntity, timeout);
+        var request = new AmazonBedrockChatCompletionRequest(model, requestEntity, timeout, stream);
         var responseHandler = new AmazonBedrockChatCompletionResponseHandler();
 
         try {

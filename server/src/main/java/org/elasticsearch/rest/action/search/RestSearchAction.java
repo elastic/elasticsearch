@@ -20,7 +20,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -89,9 +88,7 @@ public class RestSearchAction extends BaseRestHandler {
             new Route(GET, "/_search"),
             new Route(POST, "/_search"),
             new Route(GET, "/{index}/_search"),
-            new Route(POST, "/{index}/_search"),
-            Route.builder(GET, "/{index}/{type}/_search").deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7).build(),
-            Route.builder(POST, "/{index}/{type}/_search").deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7).build()
+            new Route(POST, "/{index}/_search")
         );
     }
 
@@ -171,11 +168,6 @@ public class RestSearchAction extends BaseRestHandler {
         IntConsumer setSize,
         @Nullable SearchUsageHolder searchUsageHolder
     ) throws IOException {
-        if (request.getRestApiVersion() == RestApiVersion.V_7 && request.hasParam("type")) {
-            request.param("type");
-            deprecationLogger.compatibleCritical("search_with_types", TYPES_DEPRECATION_MESSAGE);
-        }
-
         if (searchRequest.source() == null) {
             searchRequest.source(new SearchSourceBuilder());
         }
@@ -252,19 +244,8 @@ public class RestSearchAction extends BaseRestHandler {
             searchSourceBuilder.from(request.paramAsInt("from", 0));
         }
         if (request.hasParam("size")) {
-            int size = request.paramAsInt("size", SearchService.DEFAULT_SIZE);
-            if (request.getRestApiVersion() == RestApiVersion.V_7 && size == -1) {
-                // we treat -1 as not-set, but deprecate it to be able to later remove this funny extra treatment
-                deprecationLogger.compatibleCritical(
-                    "search-api-size-1",
-                    "Using search size of -1 is deprecated and will be removed in future versions. "
-                        + "Instead, don't use the `size` parameter if you don't want to set it explicitly."
-                );
-            } else {
-                setSize.accept(size);
-            }
+            setSize.accept(request.paramAsInt("size", SearchService.DEFAULT_SIZE));
         }
-
         if (request.hasParam("explain")) {
             searchSourceBuilder.explain(request.paramAsBoolean("explain", null));
         }

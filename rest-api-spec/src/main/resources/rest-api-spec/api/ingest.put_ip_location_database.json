@@ -1,0 +1,36 @@
+{
+  "ingest.put_ip_location_database":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/put-ip-location-database-api.html",
+      "description":"Puts the configuration for a ip location database to be downloaded"
+    },
+    "stability":"stable",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"],
+      "content_type": ["application/json"]
+    },
+    "url":{
+      "paths":[
+        {
+          "path":"/_ingest/ip_location/database/{id}",
+          "methods":[
+            "PUT"
+          ],
+          "parts":{
+            "id":{
+              "type":"string",
+              "description":"The id of the database configuration"
+            }
+          }
+        }
+      ]
+    },
+    "params":{
+    },
+    "body":{
+      "description":"The database configuration definition",
+      "required":true
+    }
+  }
+}

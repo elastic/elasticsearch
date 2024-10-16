@@ -13,7 +13,7 @@ import org.elasticsearch.inference.ChunkingStrategy;
 import java.util.Map;
 
 public class ChunkingSettingsBuilder {
-    public static final WordBoundaryChunkingSettings DEFAULT_SETTINGS = new WordBoundaryChunkingSettings(250, 100);
+    public static final SentenceBoundaryChunkingSettings DEFAULT_SETTINGS = new SentenceBoundaryChunkingSettings(250, 1);
 
     public static ChunkingSettings fromMap(Map<String, Object> settings) {
         if (settings.isEmpty()) {

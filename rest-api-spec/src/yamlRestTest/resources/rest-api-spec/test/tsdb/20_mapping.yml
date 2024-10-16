@@ -456,13 +456,12 @@ nested fields:
   - match: {tsdb-synthetic.mappings._source.mode: synthetic}
 
 ---
-regular source:
+stored source is supported:
   - requires:
-      cluster_features: ["gte_v8.7.0"]
-      reason: synthetic source
+      cluster_features: ["mapper.source.remove_synthetic_source_only_validation"]
+      reason: requires new validation logic
 
   - do:
-      catch: '/time series indices only support synthetic source/'
       indices.create:
         index: tsdb_index
         body:
@@ -486,14 +485,21 @@ regular source:
                       uid:
                         type: keyword
                         time_series_dimension: true
----
-disabled source:
-  - requires:
-      cluster_features: ["gte_v8.7.0"]
-      reason: synthetic source
 
   - do:
-      catch: '/time series indices only support synthetic source/'
+      indices.get:
+        index: tsdb_index
+
+  - match: { tsdb_index.mappings._source.mode: "stored" }
+
+---
+disabled source is not supported:
+  - requires:
+      cluster_features: ["mapper.source.remove_synthetic_source_only_validation"]
+      reason: requires new error message
+
+  - do:
+      catch: bad_request
       indices.create:
         index: tsdb_index
         body:
@@ -517,6 +523,10 @@ disabled source:
                       uid:
                         type: keyword
                         time_series_dimension: true
+
+  - match: { error.type: "mapper_parsing_exception" }
+  - match: { error.root_cause.0.type: "mapper_parsing_exception" }
+  - match: { error.reason: "Failed to parse mapping: _source can not be disabled in index using [time_series] index mode" }
 
 ---
 source include/exclude:

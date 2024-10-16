@@ -1149,3 +1149,95 @@ POST product-index/_search
 ----
 //TEST[continued]
 
+[discrete]
+[[dense-vector-knn-search-reranking]]
+==== Oversampling and rescoring for quantized vectors
+
+All forms of quantization will result in some accuracy loss and as the quantization level increases the accuracy loss will also increase.
+Generally, we have found that:
+- `int8` requires minimal if any rescoring
+- `int4` requires some rescoring for higher accuracy and larger recall scenarios. Generally, oversampling by 1.5x-2x recovers most of the accuracy loss.
+- `bbq` requires rescoring except on exceptionally large indices or models specifically designed for quantization. We have found that between 3x-5x oversampling is generally sufficient. But for fewer dimensions or vectors that do not quantize well, higher oversampling may be required.
+
+There are two main ways to oversample and rescore. The first is to utilize the <<rescore, rescore section>> in the `_search` request.
+
+Here is an example using the top level `knn` search with oversampling and using `rescore` to rerank the results:
+
+[source,console]
+--------------------------------------------------
+POST /my-index/_search
+{
+  "size": 10, <1>
+  "knn": {
+    "query_vector": [0.04283529, 0.85670587, -0.51402352, 0],
+    "field": "my_int4_vector",
+    "k": 20, <2>
+    "num_candidates": 50
+  },
+  "rescore": {
+    "window_size": 20, <3>
+    "query": {
+      "rescore_query": {
+        "script_score": {
+          "query": {
+            "match_all": {}
+          },
+          "script": {
+            "source": "(dotProduct(params.queryVector, 'my_int4_vector') + 1.0)", <4>
+            "params": {
+              "queryVector": [0.04283529, 0.85670587, -0.51402352, 0]
+            }
+          }
+        }
+      },
+      "query_weight": 0, <5>
+      "rescore_query_weight": 1 <6>
+    }
+  }
+}
+--------------------------------------------------
+// TEST[skip: setup not provided]
+<1> The number of results to return, note its only 10 and we will oversample by 2x, gathering 20 nearest neighbors.
+<2> The number of results to return from the KNN search. This will do an approximate KNN search with 50 candidates
+per HNSW graph and use the quantized vectors, returning the 20 most similar vectors
+according to the quantized score. Additionally, since this is the top-level `knn` object, the global top 20 results
+will from all shards will be gathered before rescoring. Combining with `rescore`, this is oversampling by `2x`, meaning
+gathering 20 nearest neighbors according to quantized scoring and rescoring with higher fidelity float vectors.
+<3> The number of results to rescore, if you want to rescore all results, set this to the same value as `k`
+<4> The script to rescore the results. Script score will interact directly with the originally provided float32 vector.
+<5> The weight of the original query, here we simply throw away the original score
+<6> The weight of the rescore query, here we only use the rescore query
+
+The second way is to score per shard with the <<query-dsl-knn-query, knn query>> and <<query-dsl-script-score-query, script_score query >>. Generally, this means that there will be more rescoring per shard, but this
+can increase overall recall at the cost of compute.
+
+[source,console]
+--------------------------------------------------
+POST /my-index/_search
+{
+  "size": 10, <1>
+  "query": {
+    "script_score": {
+      "query": {
+        "knn": { <2>
+          "query_vector": [0.04283529, 0.85670587, -0.51402352, 0],
+          "field": "my_int4_vector",
+          "num_candidates": 20 <3>
+        }
+      },
+      "script": {
+        "source": "(dotProduct(params.queryVector, 'my_int4_vector') + 1.0)", <4>
+        "params": {
+          "queryVector": [0.04283529, 0.85670587, -0.51402352, 0]
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
+// TEST[skip: setup not provided]
+<1> The number of results to return
+<2> The `knn` query to perform the initial search, this is executed per-shard
+<3> The number of candidates to use for the initial approximate `knn` search. This will search using the quantized vectors
+and return the top 20 candidates per shard to then be scored
+<4> The script to score the results. Script score will interact directly with the originally provided float32 vector.

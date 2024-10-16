@@ -10,7 +10,6 @@ import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestRequest;
@@ -60,18 +59,10 @@ public class RestHasPrivilegesAction extends SecurityBaseRestHandler {
     @Override
     public List<Route> routes() {
         return List.of(
-            Route.builder(GET, "/_security/user/{username}/_has_privileges")
-                .replaces(GET, "/_xpack/security/user/{username}/_has_privileges", RestApiVersion.V_7)
-                .build(),
-            Route.builder(POST, "/_security/user/{username}/_has_privileges")
-                .replaces(POST, "/_xpack/security/user/{username}/_has_privileges", RestApiVersion.V_7)
-                .build(),
-            Route.builder(GET, "/_security/user/_has_privileges")
-                .replaces(GET, "/_xpack/security/user/_has_privileges", RestApiVersion.V_7)
-                .build(),
-            Route.builder(POST, "/_security/user/_has_privileges")
-                .replaces(POST, "/_xpack/security/user/_has_privileges", RestApiVersion.V_7)
-                .build()
+            new Route(GET, "/_security/user/{username}/_has_privileges"),
+            new Route(POST, "/_security/user/{username}/_has_privileges"),
+            new Route(GET, "/_security/user/_has_privileges"),
+            new Route(POST, "/_security/user/_has_privileges")
         );
     }
 

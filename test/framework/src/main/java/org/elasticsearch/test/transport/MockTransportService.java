@@ -80,6 +80,8 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
@@ -104,6 +106,7 @@ public class MockTransportService extends TransportService {
     private final Map<DiscoveryNode, List<Transport.Connection>> openConnections = new HashMap<>();
 
     private final List<Runnable> onStopListeners = new CopyOnWriteArrayList<>();
+    private final AtomicReference<Consumer<Transport.Connection>> onConnectionClosedCallback = new AtomicReference<>();
 
     public static class TestPlugin extends Plugin {
         @Override
@@ -788,6 +791,19 @@ public class MockTransportService extends TransportService {
         }));
     }
 
+    public void setOnConnectionClosedCallback(Consumer<Transport.Connection> callback) {
+        onConnectionClosedCallback.set(callback);
+    }
+
+    @Override
+    public void onConnectionClosed(Transport.Connection connection) {
+        final Consumer<Transport.Connection> callback = onConnectionClosedCallback.get();
+        if (callback != null) {
+            callback.accept(connection);
+        }
+        super.onConnectionClosed(connection);
+    }
+
     public void addOnStopListener(Runnable listener) {
         onStopListeners.add(listener);
     }
@@ -814,9 +830,4 @@ public class MockTransportService extends TransportService {
             assertTrue(ThreadPool.terminate(testExecutor, 10, TimeUnit.SECONDS));
         }
     }
-
-    public DiscoveryNode getLocalDiscoNode() {
-        return this.getLocalNode();
-    }
-
 }

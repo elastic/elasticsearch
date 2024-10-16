@@ -3,6 +3,8 @@
  * or more contributor license agreements. Licensed under the Elastic License
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
+ *
+ * this file contains code contributed by a generative AI
  */
 
 package org.elasticsearch.xpack.inference.registry;
@@ -21,14 +23,19 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.support.GroupedActionListener;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
+import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.TaskType;
@@ -49,10 +56,14 @@ import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -81,27 +92,33 @@ public class ModelRegistry {
     private static final Logger logger = LogManager.getLogger(ModelRegistry.class);
 
     private final OriginSettingClient client;
-    private Map<String, UnparsedModel> defaultConfigs;
+    private final List<InferenceService.DefaultConfigId> defaultConfigIds;
+
+    private final Set<String> preventDeletionLock = Collections.newSetFromMap(new ConcurrentHashMap<>());
 
     public ModelRegistry(Client client) {
         this.client = new OriginSettingClient(client, ClientHelper.INFERENCE_ORIGIN);
-        this.defaultConfigs = new HashMap<>();
+        defaultConfigIds = new ArrayList<>();
     }
 
-    public void addDefaultConfiguration(UnparsedModel serviceDefaultConfig) {
-        if (defaultConfigs.containsKey(serviceDefaultConfig.inferenceEntityId())) {
+    /**
+     * Set the default inference ids provided by the services
+     * @param defaultConfigIds The defaults
+     */
+    public void addDefaultIds(InferenceService.DefaultConfigId defaultConfigIds) {
+        var matched = idMatchedDefault(defaultConfigIds.inferenceId(), this.defaultConfigIds);
+        if (matched.isPresent()) {
             throw new IllegalStateException(
                 "Cannot add default endpoint to the inference endpoint registry with duplicate inference id ["
-                    + serviceDefaultConfig.inferenceEntityId()
+                    + defaultConfigIds.inferenceId()
                     + "] declared by service ["
-                    + serviceDefaultConfig.service()
+                    + defaultConfigIds.service().name()
                     + "]. The inference Id is already use by ["
-                    + defaultConfigs.get(serviceDefaultConfig.inferenceEntityId()).service()
+                    + matched.get().service().name()
                     + "] service."
             );
         }
-
-        defaultConfigs.put(serviceDefaultConfig.inferenceEntityId(), serviceDefaultConfig);
+        this.defaultConfigIds.add(defaultConfigIds);
     }
 
     /**
@@ -110,15 +127,15 @@ public class ModelRegistry {
      * @param listener Model listener
      */
     public void getModelWithSecrets(String inferenceEntityId, ActionListener<UnparsedModel> listener) {
-        if (defaultConfigs.containsKey(inferenceEntityId)) {
-            listener.onResponse(deepCopyDefaultConfig(defaultConfigs.get(inferenceEntityId)));
-            return;
-        }
-
         ActionListener<SearchResponse> searchListener = listener.delegateFailureAndWrap((delegate, searchResponse) -> {
-            // There should be a hit for the configurations and secrets
+            // There should be a hit for the configurations
             if (searchResponse.getHits().getHits().length == 0) {
-                delegate.onFailure(inferenceNotFoundException(inferenceEntityId));
+                var maybeDefault = idMatchedDefault(inferenceEntityId, defaultConfigIds);
+                if (maybeDefault.isPresent()) {
+                    getDefaultConfig(maybeDefault.get(), listener);
+                } else {
+                    delegate.onFailure(inferenceNotFoundException(inferenceEntityId));
+                }
                 return;
             }
 
@@ -141,15 +158,15 @@ public class ModelRegistry {
      * @param listener Model listener
      */
     public void getModel(String inferenceEntityId, ActionListener<UnparsedModel> listener) {
-        if (defaultConfigs.containsKey(inferenceEntityId)) {
-            listener.onResponse(deepCopyDefaultConfig(defaultConfigs.get(inferenceEntityId)));
-            return;
-        }
-
         ActionListener<SearchResponse> searchListener = listener.delegateFailureAndWrap((delegate, searchResponse) -> {
-            // There should be a hit for the configurations and secrets
+            // There should be a hit for the configurations
             if (searchResponse.getHits().getHits().length == 0) {
-                delegate.onFailure(inferenceNotFoundException(inferenceEntityId));
+                var maybeDefault = idMatchedDefault(inferenceEntityId, defaultConfigIds);
+                if (maybeDefault.isPresent()) {
+                    getDefaultConfig(maybeDefault.get(), listener);
+                } else {
+                    delegate.onFailure(inferenceNotFoundException(inferenceEntityId));
+                }
                 return;
             }
 
@@ -180,29 +197,9 @@ public class ModelRegistry {
      */
     public void getModelsByTaskType(TaskType taskType, ActionListener<List<UnparsedModel>> listener) {
         ActionListener<SearchResponse> searchListener = listener.delegateFailureAndWrap((delegate, searchResponse) -> {
-            var defaultConfigsForTaskType = defaultConfigs.values()
-                .stream()
-                .filter(m -> m.taskType() == taskType)
-                .map(ModelRegistry::deepCopyDefaultConfig)
-                .toList();
-
-            // Not an error if no models of this task_type
-            if (searchResponse.getHits().getHits().length == 0 && defaultConfigsForTaskType.isEmpty()) {
-                delegate.onResponse(List.of());
-                return;
-            }
-
             var modelConfigs = parseHitsAsModels(searchResponse.getHits()).stream().map(ModelRegistry::unparsedModelFromMap).toList();
-
-            if (defaultConfigsForTaskType.isEmpty() == false) {
-                var allConfigs = new ArrayList<UnparsedModel>();
-                allConfigs.addAll(modelConfigs);
-                allConfigs.addAll(defaultConfigsForTaskType);
-                allConfigs.sort(Comparator.comparing(UnparsedModel::inferenceEntityId));
-                delegate.onResponse(allConfigs);
-            } else {
-                delegate.onResponse(modelConfigs);
-            }
+            var defaultConfigsForTaskType = taskTypeMatchedDefaults(taskType, defaultConfigIds);
+            addAllDefaultConfigsIfMissing(modelConfigs, defaultConfigsForTaskType, delegate);
         });
 
         QueryBuilder queryBuilder = QueryBuilders.constantScoreQuery(QueryBuilders.termsQuery(TASK_TYPE_FIELD, taskType.toString()));
@@ -224,19 +221,8 @@ public class ModelRegistry {
      */
     public void getAllModels(ActionListener<List<UnparsedModel>> listener) {
         ActionListener<SearchResponse> searchListener = listener.delegateFailureAndWrap((delegate, searchResponse) -> {
-            var defaults = defaultConfigs.values().stream().map(ModelRegistry::deepCopyDefaultConfig).toList();
-
-            if (searchResponse.getHits().getHits().length == 0 && defaults.isEmpty()) {
-                delegate.onResponse(List.of());
-                return;
-            }
-
             var foundConfigs = parseHitsAsModels(searchResponse.getHits()).stream().map(ModelRegistry::unparsedModelFromMap).toList();
-            var allConfigs = new ArrayList<UnparsedModel>();
-            allConfigs.addAll(foundConfigs);
-            allConfigs.addAll(defaults);
-            allConfigs.sort(Comparator.comparing(UnparsedModel::inferenceEntityId));
-            delegate.onResponse(allConfigs);
+            addAllDefaultConfigsIfMissing(foundConfigs, defaultConfigIds, delegate);
         });
 
         // In theory the index should only contain model config documents
@@ -252,6 +238,67 @@ public class ModelRegistry {
             .request();
 
         client.search(modelSearch, searchListener);
+    }
+
+    private void addAllDefaultConfigsIfMissing(
+        List<UnparsedModel> foundConfigs,
+        List<InferenceService.DefaultConfigId> matchedDefaults,
+        ActionListener<List<UnparsedModel>> listener
+    ) {
+        var foundIds = foundConfigs.stream().map(UnparsedModel::inferenceEntityId).collect(Collectors.toSet());
+        var missing = matchedDefaults.stream().filter(d -> foundIds.contains(d.inferenceId()) == false).toList();
+
+        if (missing.isEmpty()) {
+            listener.onResponse(foundConfigs);
+        } else {
+            var groupedListener = new GroupedActionListener<UnparsedModel>(
+                missing.size(),
+                listener.delegateFailure((delegate, listOfModels) -> {
+                    var allConfigs = new ArrayList<UnparsedModel>();
+                    allConfigs.addAll(foundConfigs);
+                    allConfigs.addAll(listOfModels);
+                    allConfigs.sort(Comparator.comparing(UnparsedModel::inferenceEntityId));
+                    delegate.onResponse(allConfigs);
+                })
+            );
+
+            for (var required : missing) {
+                getDefaultConfig(required, groupedListener);
+            }
+        }
+    }
+
+    private void getDefaultConfig(InferenceService.DefaultConfigId defaultConfig, ActionListener<UnparsedModel> listener) {
+        defaultConfig.service().defaultConfigs(listener.delegateFailureAndWrap((delegate, models) -> {
+            boolean foundModel = false;
+            for (var m : models) {
+                if (m.getInferenceEntityId().equals(defaultConfig.inferenceId())) {
+                    foundModel = true;
+                    storeDefaultEndpoint(m, () -> listener.onResponse(modelToUnparsedModel(m)));
+                    break;
+                }
+            }
+
+            if (foundModel == false) {
+                listener.onFailure(
+                    new IllegalStateException("Configuration not found for default inference id [" + defaultConfig.inferenceId() + "]")
+                );
+            }
+        }));
+    }
+
+    public void storeDefaultEndpoint(Model preconfigured, Runnable runAfter) {
+        var responseListener = ActionListener.<Boolean>wrap(success -> {
+            logger.debug("Added default inference endpoint [{}]", preconfigured.getInferenceEntityId());
+        }, exception -> {
+            if (exception instanceof ResourceAlreadyExistsException) {
+                logger.debug("Default inference id [{}] already exists", preconfigured.getInferenceEntityId());
+            } else {
+                logger.error("Failed to store default inference id [" + preconfigured.getInferenceEntityId() + "]", exception);
+            }
+        });
+
+        storeModel(preconfigured, ActionListener.runAfter(responseListener, runAfter));
     }
 
     private ArrayList<ModelConfigMap> parseHitsAsModels(SearchHits hits) {
@@ -306,7 +353,139 @@ public class ModelRegistry {
         );
     }
 
+    public void updateModelTransaction(Model newModel, Model existingModel, ActionListener<Boolean> finalListener) {
+
+        String inferenceEntityId = newModel.getConfigurations().getInferenceEntityId();
+        logger.info("Attempting to store update to inference endpoint [{}]", inferenceEntityId);
+
+        if (preventDeletionLock.contains(inferenceEntityId)) {
+            logger.warn(format("Attempted to update endpoint [{}] that is already being updated", inferenceEntityId));
+            finalListener.onFailure(
+                new ElasticsearchStatusException(
+                    "Endpoint [{}] is currently being updated. Try again once the update completes",
+                    RestStatus.CONFLICT,
+                    inferenceEntityId
+                )
+            );
+            return;
+        } else {
+            preventDeletionLock.add(inferenceEntityId);
+        }
+
+        SubscribableListener.<BulkResponse>newForked((subListener) -> {
+            // in this block, we try to update the stored model configurations
+            IndexRequest configRequest = createIndexRequest(
+                Model.documentId(inferenceEntityId),
+                InferenceIndex.INDEX_NAME,
+                newModel.getConfigurations(),
+                true
+            );
+
+            ActionListener<BulkResponse> storeConfigListener = subListener.delegateResponse((l, e) -> {
+                // this block will only be called if the bulk unexpectedly throws an exception
+                preventDeletionLock.remove(inferenceEntityId);
+                l.onFailure(e);
+            });
+
+            client.prepareBulk().add(configRequest).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).execute(storeConfigListener);
+
+        }).<BulkResponse>andThen((subListener, configResponse) -> {
+            // in this block, we respond to the success or failure of updating the model configurations, then try to store the new secrets
+            if (configResponse.hasFailures()) {
+                // if storing the model configurations failed, it won't throw an exception, we need to check the BulkResponse and handle the
+                // exceptions ourselves.
+                logger.error(
+                    format("Failed to update inference endpoint [%s] due to [%s]", inferenceEntityId, configResponse.buildFailureMessage())
+                );
+                // Since none of our updates succeeded at this point, we can simply return.
+                finalListener.onFailure(
+                    new ElasticsearchStatusException(
+                        format("Failed to update inference endpoint [%s] due to [%s]", inferenceEntityId),
+                        RestStatus.INTERNAL_SERVER_ERROR,
+                        configResponse.buildFailureMessage()
+                    )
+                );
+            } else {
+                // Since the model configurations were successfully updated, we can now try to store the new secrets
+                IndexRequest secretsRequest = createIndexRequest(
+                    Model.documentId(newModel.getConfigurations().getInferenceEntityId()),
+                    InferenceSecretsIndex.INDEX_NAME,
+                    newModel.getSecrets(),
+                    true
+                );
+
+                ActionListener<BulkResponse> storeSecretsListener = subListener.delegateResponse((l, e) -> {
+                    // this block will only be called if the bulk unexpectedly throws an exception
+                    preventDeletionLock.remove(inferenceEntityId);
+                    l.onFailure(e);
+                });
+
+                client.prepareBulk()
+                    .add(secretsRequest)
+                    .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+                    .execute(storeSecretsListener);
+            }
+        }).<BulkResponse>andThen((subListener, secretsResponse) -> {
+            // in this block, we respond to the success or failure of updating the model secrets
+            if (secretsResponse.hasFailures()) {
+                // since storing the secrets failed, we will try to restore / roll-back-to the previous model configurations
+                IndexRequest configRequest = createIndexRequest(
+                    Model.documentId(inferenceEntityId),
+                    InferenceIndex.INDEX_NAME,
+                    existingModel.getConfigurations(),
+                    true
+                );
+                logger.error(
+                    "Failed to update inference endpoint secrets [{}], attempting rolling back to previous state",
+                    inferenceEntityId
+                );
+
+                ActionListener<BulkResponse> rollbackConfigListener = subListener.delegateResponse((l, e) -> {
+                    // this block will only be called if the bulk unexpectedly throws an exception
+                    preventDeletionLock.remove(inferenceEntityId);
+                    l.onFailure(e);
+                });
+                client.prepareBulk()
+                    .add(configRequest)
+                    .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+                    .execute(rollbackConfigListener);
+            } else {
+                // since updating the secrets was successful, we can remove the lock and respond to the final listener
+                preventDeletionLock.remove(inferenceEntityId);
+                finalListener.onResponse(true);
+            }
+        }).<BulkResponse>andThen((subListener, configResponse) -> {
+            // this block will be called if the secrets response failed, and the rollback didn't throw an exception.
+            // The rollback still could have failed though, so we need to check for that.
+            preventDeletionLock.remove(inferenceEntityId);
+            if (configResponse.hasFailures()) {
+                logger.error(
+                    format("Failed to update inference endpoint [%s] due to [%s]", inferenceEntityId, configResponse.buildFailureMessage())
+                );
+                finalListener.onFailure(
+                    new ElasticsearchStatusException(
+                        format(
+                            "Failed to rollback while handling failure to update inference endpoint [%s]. "
+                                + "Endpoint may be in an inconsistent state due to [%s]",
+                            inferenceEntityId
+                        ),
+                        RestStatus.INTERNAL_SERVER_ERROR,
+                        configResponse.buildFailureMessage()
+                    )
+                );
+            } else {
+                logger.warn("Failed to update inference endpoint [{}], successfully rolled back to previous state", inferenceEntityId);
+                finalListener.onResponse(false);
+            }
+        });
+
+    }
+
+    /**
+     * Note: storeModel does not overwrite existing models and thus does not need to check the lock
+     */
     public void storeModel(Model model, ActionListener<Boolean> listener) {
+
         ActionListener<BulkResponse> bulkResponseActionListener = getStoreModelListener(model, listener);
 
         IndexRequest configRequest = createIndexRequest(
@@ -405,6 +584,16 @@ public class ModelRegistry {
     }
 
     public void deleteModel(String inferenceEntityId, ActionListener<Boolean> listener) {
+        if (preventDeletionLock.contains(inferenceEntityId)) {
+            listener.onFailure(
+                new ElasticsearchStatusException(
+                    "Model is currently being updated, you may delete the model once the update completes",
+                    RestStatus.CONFLICT
+                )
+            );
+            return;
+        }
+
         DeleteByQueryRequest request = new DeleteByQueryRequest().setAbortOnVersionConflict(false);
         request.indices(InferenceIndex.INDEX_PATTERN, InferenceSecretsIndex.INDEX_PATTERN);
         request.setQuery(documentIdQuery(inferenceEntityId));
@@ -428,60 +617,36 @@ public class ModelRegistry {
         }
     }
 
+    private static UnparsedModel modelToUnparsedModel(Model model) {
+        try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
+            model.getConfigurations()
+                .toXContent(builder, new ToXContent.MapParams(Map.of(ModelConfigurations.USE_ID_FOR_INDEX, Boolean.TRUE.toString())));
+
+            var modelConfigMap = XContentHelper.convertToMap(BytesReference.bytes(builder), false, builder.contentType()).v2();
+            return unparsedModelFromMap(new ModelConfigMap(modelConfigMap, new HashMap<>()));
+
+        } catch (IOException ex) {
+            throw new ElasticsearchException("[{}] Error serializing inference endpoint configuration", model.getInferenceEntityId(), ex);
+        }
+    }
+
     private QueryBuilder documentIdQuery(String inferenceEntityId) {
         return QueryBuilders.constantScoreQuery(QueryBuilders.idsQuery().addIds(Model.documentId(inferenceEntityId)));
     }
 
-    static UnparsedModel deepCopyDefaultConfig(UnparsedModel other) {
-        // Because the default config uses immutable maps
-        return new UnparsedModel(
-            other.inferenceEntityId(),
-            other.taskType(),
-            other.service(),
-            copySettingsMap(other.settings()),
-            copySecretsMap(other.secrets())
-        );
+    static Optional<InferenceService.DefaultConfigId> idMatchedDefault(
+        String inferenceId,
+        List<InferenceService.DefaultConfigId> defaultConfigIds
+    ) {
+        return defaultConfigIds.stream().filter(defaultConfigId -> defaultConfigId.inferenceId().equals(inferenceId)).findFirst();
     }
 
-    @SuppressWarnings("unchecked")
-    static Map<String, Object> copySettingsMap(Map<String, Object> other) {
-        var result = new HashMap<String, Object>();
-
-        var serviceSettings = (Map<String, Object>) other.get(ModelConfigurations.SERVICE_SETTINGS);
-        if (serviceSettings != null) {
-            var copiedServiceSettings = copyMap1LevelDeep(serviceSettings);
-            result.put(ModelConfigurations.SERVICE_SETTINGS, copiedServiceSettings);
-        }
-
-        var taskSettings = (Map<String, Object>) other.get(ModelConfigurations.TASK_SETTINGS);
-        if (taskSettings != null) {
-            var copiedTaskSettings = copyMap1LevelDeep(taskSettings);
-            result.put(ModelConfigurations.TASK_SETTINGS, copiedTaskSettings);
-        }
-
-        var chunkSettings = (Map<String, Object>) other.get(ModelConfigurations.CHUNKING_SETTINGS);
-        if (chunkSettings != null) {
-            var copiedChunkSettings = copyMap1LevelDeep(chunkSettings);
-            result.put(ModelConfigurations.CHUNKING_SETTINGS, copiedChunkSettings);
-        }
-
-        return result;
-    }
-
-    static Map<String, Object> copySecretsMap(Map<String, Object> other) {
-        return copyMap1LevelDeep(other);
-    }
-
-    @SuppressWarnings("unchecked")
-    static Map<String, Object> copyMap1LevelDeep(Map<String, Object> other) {
-        var result = new HashMap<String, Object>();
-        for (var entry : other.entrySet()) {
-            if (entry.getValue() instanceof Map<?, ?>) {
-                result.put(entry.getKey(), new HashMap<>((Map<String, Object>) entry.getValue()));
-            } else {
-                result.put(entry.getKey(), entry.getValue());
-            }
-        }
-        return result;
+    static List<InferenceService.DefaultConfigId> taskTypeMatchedDefaults(
+        TaskType taskType,
+        List<InferenceService.DefaultConfigId> defaultConfigIds
+    ) {
+        return defaultConfigIds.stream()
+            .filter(defaultConfigId -> defaultConfigId.taskType().equals(taskType))
+            .collect(Collectors.toList());
     }
 }

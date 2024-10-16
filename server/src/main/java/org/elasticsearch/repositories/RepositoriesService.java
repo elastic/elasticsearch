@@ -937,8 +937,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
     private static RepositoryConflictException newRepositoryConflictException(String repository, String reason) {
         return new RepositoryConflictException(
             repository,
-            "trying to modify or unregister repository that is currently used (" + reason + ')',
-            "trying to modify or unregister repository [" + repository + "] that is currently used (" + reason + ')'
+            "trying to modify or unregister repository that is currently used (" + reason + ')'
         );
     }
 

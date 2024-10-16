@@ -10,10 +10,7 @@
 package org.elasticsearch.rest.action.admin.cluster;
 
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.node.NodeClient;
-import org.elasticsearch.core.RestApiVersion;
-import org.elasticsearch.repositories.RepositoryConflictException;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
@@ -47,23 +44,15 @@ public class RestPutRepositoryAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        String name = request.param("repository");
-        final var putRepositoryRequest = new PutRepositoryRequest(getMasterNodeTimeout(request), getAckTimeout(request), name);
+        final var putRepositoryRequest = new PutRepositoryRequest(
+            getMasterNodeTimeout(request),
+            getAckTimeout(request),
+            request.param("repository")
+        );
         try (XContentParser parser = request.contentParser()) {
             putRepositoryRequest.source(parser.mapOrdered());
         }
         putRepositoryRequest.verify(request.paramAsBoolean("verify", true));
-        return channel -> client.admin()
-            .cluster()
-            .putRepository(
-                putRepositoryRequest,
-                new RestToXContentListener<AcknowledgedResponse>(channel).delegateResponse((delegate, err) -> {
-                    if (request.getRestApiVersion().equals(RestApiVersion.V_7) && err instanceof RepositoryConflictException) {
-                        delegate.onFailure(new IllegalStateException(((RepositoryConflictException) err).getBackwardCompatibleMessage()));
-                    } else {
-                        delegate.onFailure(err);
-                    }
-                })
-            );
+        return channel -> client.admin().cluster().putRepository(putRepositoryRequest, new RestToXContentListener<>(channel));
     }
 }

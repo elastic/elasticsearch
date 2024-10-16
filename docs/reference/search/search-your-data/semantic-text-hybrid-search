@@ -1,0 +1,254 @@
+[[semantic-text-hybrid-search]]
+=== Tutorial: hybrid search with `semantic_text`
+++++
+<titleabbrev>Hybrid search with `semantic_text`</titleabbrev>
+++++
+
+This tutorial demonstrates how to perform hybrid search, combining semantic search with traditional full-text search.
+
+In hybrid search, semantic search retrieves results based on the meaning of the text, while full-text search focuses on exact word matches. By combining both methods, hybrid search delivers more relevant results, particularly in cases where relying on a single approach may not be sufficient.
+
+The recommended way to use hybrid search in the {stack} is following the `semantic_text` workflow. This tutorial uses the <<inference-example-elser,`elser` service>> for demonstration, but you can use any service and its supported models offered by the {infer-cap} API.
+
+[discrete]
+[[semantic-text-hybrid-infer-endpoint]]
+==== Create the {infer} endpoint
+
+Create an inference endpoint by using the <<put-inference-api>>:
+
+[source,console]
+------------------------------------------------------------
+PUT _inference/sparse_embedding/my-elser-endpoint <1>
+{
+  "service": "elser", <2>
+  "service_settings": {
+    "adaptive_allocations": { <3>
+      "enabled": true,
+      "min_number_of_allocations": 3,
+      "max_number_of_allocations": 10
+    },
+    "num_threads": 1
+  }
+}
+------------------------------------------------------------
+// TEST[skip:TBD]
+<1> The task type is `sparse_embedding` in the path as the `elser` service will
+be used and ELSER creates sparse vectors. The `inference_id` is
+`my-elser-endpoint`.
+<2> The `elser` service is used in this example.
+<3> This setting enables and configures adaptive allocations.
+Adaptive allocations make it possible for ELSER to automatically scale up or down resources based on the current load on the process.
+
+[NOTE]
+====
+You might see a 502 bad gateway error in the response when using the {kib} Console.
+This error usually just reflects a timeout, while the model downloads in the background.
+You can check the download progress in the {ml-app} UI.
+====
+
+[discrete]
+[[hybrid-search-create-index-mapping]]
+==== Create an index mapping for hybrid search
+
+The destination index will contain both the embeddings for semantic search and the original text field for full-text search. This structure enables the combination of semantic search and full-text search.
+
+[source,console]
+------------------------------------------------------------
+PUT semantic-embeddings
+{
+  "mappings": {
+    "properties": {
+      "semantic_text": { <1>
+        "type": "semantic_text", 
+        "inference_id": "my-elser-endpoint" <2>
+      },
+      "content": { <3>
+        "type": "text",
+        "copy_to": "semantic_text" <4>
+      }
+    }
+  }
+}
+------------------------------------------------------------
+// TEST[skip:TBD]
+<1> The name of the field to contain the generated embeddings for semantic search.
+<2> The identifier of the inference endpoint that generates the embeddings based on the input text.
+<3> The name of the field to contain the original text for lexical search.
+<4> The textual data stored in the `content` field will be copied to `semantic_text` and processed by the {infer} endpoint.
+
+[NOTE]
+====
+If you want to run a search on indices that were populated by web crawlers or connectors, you have to
+<<indices-put-mapping,update the index mappings>> for these indices to
+include the `semantic_text` field. Once the mapping is updated, you'll need to run a full web crawl or a full connector sync. This ensures that all existing
+documents are reprocessed and updated with the new semantic embeddings, enabling hybrid search on the updated data.
+====
+
+[discrete]
+[[semantic-text-hybrid-load-data]]
+==== Load data
+
+In this step, you load the data that you later use to create embeddings from.
+
+Use the `msmarco-passagetest2019-top1000` data set, which is a subset of the MS MARCO Passage Ranking data set. It consists of 200 queries, each accompanied by a list of relevant text passages. All unique passages, along with their IDs, have been extracted from that data set and compiled into a https://github.com/elastic/stack-docs/blob/main/docs/en/stack/ml/nlp/data/msmarco-passagetest2019-unique.tsv[tsv file].
+
+Download the file and upload it to your cluster using the {kibana-ref}/connect-to-elasticsearch.html#upload-data-kibana[Data Visualizer] in the {ml-app} UI. After your data is analyzed, click **Override settings**. Under **Edit field names**, assign `id` to the first column and `content` to the second. Click **Apply**, then **Import**. Name the index `test-data`, and click **Import**. After the upload is complete, you will see an index named `test-data` with 182,469 documents.
+
+[discrete]
+[[hybrid-search-reindex-data]]
+==== Reindex the data for hybrid search
+
+Reindex the data from the `test-data` index into the `semantic-embeddings` index.
+The data in the `content` field of the source index is copied into the `content` field of the destination index. 
+The `copy_to` parameter set in the index mapping creation ensures that the content is copied into the `semantic_text` field. The data is processed by the {infer} endpoint at ingest time to generate embeddings.
+
+[NOTE]
+====
+This step uses the reindex API to simulate data ingestion. If you are working with data that has already been indexed,
+rather than using the `test-data` set, reindexing is still required to ensure that the data is processed by the {infer} endpoint
+and the necessary embeddings are generated.
+====
+
+[source,console]
+------------------------------------------------------------
+POST _reindex?wait_for_completion=false
+{
+  "source": {
+    "index": "test-data",
+    "size": 10 <1>
+  },
+  "dest": {
+    "index": "semantic-embeddings"
+  }
+}
+------------------------------------------------------------
+// TEST[skip:TBD]
+<1> The default batch size for reindexing is 1000. Reducing size to a smaller
+number makes the update of the reindexing process quicker which enables you to
+follow the progress closely and detect errors early.
+
+The call returns a task ID to monitor the progress:
+
+[source,console]
+------------------------------------------------------------
+GET _tasks/<task_id>
+------------------------------------------------------------
+// TEST[skip:TBD]
+
+Reindexing large datasets can take a long time. You can test this workflow using only a subset of the dataset.
+
+To cancel the reindexing process and generate embeddings for the subset that was reindexed:
+
+[source,console]
+------------------------------------------------------------
+POST _tasks/<task_id>/_cancel
+------------------------------------------------------------
+// TEST[skip:TBD]
+
+[discrete]
+[[hybrid-search-perform-search]]
+==== Perform hybrid search
+
+After reindexing the data into the `semantic-embeddings` index, you can perform hybrid search by using <<rrf,reciprocal rank fusion (RRF)>>. RRF is a technique that merges the rankings from both semantic and lexical queries, giving more weight to results that rank high in either search. This ensures that the final results are balanced and relevant.
+
+[source,console]
+------------------------------------------------------------
+GET semantic-embeddings/_search
+{
+  "retriever": {
+    "rrf": {
+      "retrievers": [
+        {
+          "standard": { <1>
+            "query": {
+              "match": {
+                "content": "How to avoid muscle soreness while running?" <2>
+              }
+            }
+          }
+        },
+        {
+          "standard": { <3>
+            "query": {
+              "semantic": {
+                "field": "semantic_text", <4>
+                "query": "How to avoid muscle soreness while running?"
+              }
+            }
+          }
+        }
+      ]
+    }
+  }
+}
+------------------------------------------------------------
+// TEST[skip:TBD]
+<1> The first `standard` retriever represents the traditional lexical search.
+<2> Lexical search is performed on the `content` field using the specified phrase.
+<3> The second `standard` retriever refers to the semantic search.
+<4> The `semantic_text` field is used to perform the semantic search.
+
+
+After performing the hybrid search, the query will return the top 10 documents that match both semantic and lexical search criteria. The results include detailed information about each document:
+
+[source,console-result]
+------------------------------------------------------------
+{
+  "took": 107,
+  "timed_out": false,
+  "_shards": {
+    "total": 1,
+    "successful": 1,
+    "skipped": 0,
+    "failed": 0
+  },
+  "hits": {
+    "total": {
+      "value": 473,
+      "relation": "eq"
+    },
+    "max_score": null,
+    "hits": [
+      {
+        "_index": "semantic-embeddings",
+        "_id": "wv65epIBEMBRnhfTsOFM", 
+        "_score": 0.032786883,
+        "_rank": 1,
+        "_source": {
+          "semantic_text": {
+            "inference": {
+              "inference_id": "my-elser-endpoint",
+              "model_settings": {
+                "task_type": "sparse_embedding"
+              },
+              "chunks": [
+                {
+                  "text": "What so many out there do not realize is the importance of what you do after you work out. You may have done the majority of the work, but how you treat your body in the minutes and hours after you exercise has a direct effect on muscle soreness, muscle strength and growth, and staying hydrated. Cool Down. After your last exercise, your workout is not over. The first thing you need to do is cool down. Even if running was all that you did, you still should do light cardio for a few minutes. This brings your heart rate down at a slow and steady pace, which helps you avoid feeling sick after a workout.",
+                  "embeddings": {
+                    "exercise": 1.571044,
+                    "after": 1.3603843,
+                    "sick": 1.3281639,
+                    "cool": 1.3227621,
+                    "muscle": 1.2645415,
+                    "sore": 1.2561599,
+                    "cooling": 1.2335974,
+                    "running": 1.1750668,
+                    "hours": 1.1104802,
+                    "out": 1.0991782,
+                    "##io": 1.0794281,
+                    "last": 1.0474665,
+                   (...) 
+                  }
+                }
+              ]
+            }
+          },
+          "id": 8408852,
+          "content": "What so many out there do not realize is the importance of (...)"
+        }
+      }
+    ]
+  }
+}
+------------------------------------------------------------
+// NOTCONSOLE

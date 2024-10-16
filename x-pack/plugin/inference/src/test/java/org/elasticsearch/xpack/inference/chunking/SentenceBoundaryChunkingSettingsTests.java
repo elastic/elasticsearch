@@ -59,13 +59,12 @@ public class SentenceBoundaryChunkingSettingsTests extends AbstractWireSerializi
 
     @Override
     protected SentenceBoundaryChunkingSettings createTestInstance() {
-        return new SentenceBoundaryChunkingSettings(randomNonNegativeInt());
+        return new SentenceBoundaryChunkingSettings(randomNonNegativeInt(), randomBoolean() ? 0 : 1);
     }
 
     @Override
     protected SentenceBoundaryChunkingSettings mutateInstance(SentenceBoundaryChunkingSettings instance) throws IOException {
         var chunkSize = randomValueOtherThan(instance.maxChunkSize, ESTestCase::randomNonNegativeInt);
-
-        return new SentenceBoundaryChunkingSettings(chunkSize);
+        return new SentenceBoundaryChunkingSettings(chunkSize, instance.sentenceOverlap);
     }
 }

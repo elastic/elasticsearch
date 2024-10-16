@@ -62,8 +62,7 @@ public class EsqlDataTypeConverterTests extends ESTestCase {
     }
 
     public void testCommonTypeStrings() {
-        List<DataType> STRINGS = Arrays.stream(DataType.values()).filter(DataType::isString).toList();
-        for (DataType dataType1 : STRINGS) {
+        for (DataType dataType1 : DataType.stringTypes()) {
             for (DataType dataType2 : DataType.values()) {
                 if (dataType2 == NULL) {
                     assertEqualsCommonType(dataType1, NULL, dataType1);

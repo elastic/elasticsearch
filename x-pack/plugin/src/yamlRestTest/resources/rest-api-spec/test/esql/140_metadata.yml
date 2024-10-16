@@ -155,3 +155,19 @@ setup:
       esql.query:
         body:
           query: 'FROM test [metadata _source] | STATS COUNT_DISTINCT(_source)'
+
+---
+"sort on _source not allowed":
+  - requires:
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [sorting_on_source_and_counters_forbidden]
+      reason: "Sorting on _source shouldn't have been possible"
+  - do:
+      catch: /cannot sort on _source/
+      esql.query:
+        body:
+          query: 'FROM test metadata _source | sort _source'

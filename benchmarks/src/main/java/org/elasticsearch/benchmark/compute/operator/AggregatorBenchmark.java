@@ -30,10 +30,13 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
+import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.compute.data.OrdinalBytesRefVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.AggregationOperator;
 import org.elasticsearch.compute.operator.DriverContext;
@@ -78,7 +81,10 @@ public class AggregatorBenchmark {
     private static final String DOUBLES = "doubles";
     private static final String BOOLEANS = "booleans";
     private static final String BYTES_REFS = "bytes_refs";
+    private static final String ORDINALS = "ordinals";
     private static final String TWO_LONGS = "two_" + LONGS;
+    private static final String TWO_BYTES_REFS = "two_" + BYTES_REFS;
+    private static final String TWO_ORDINALS = "two_" + ORDINALS;
     private static final String LONGS_AND_BYTES_REFS = LONGS + "_and_" + BYTES_REFS;
     private static final String TWO_LONGS_AND_BYTES_REFS = "two_" + LONGS + "_and_" + BYTES_REFS;
 
@@ -119,7 +125,21 @@ public class AggregatorBenchmark {
         }
     }
 
-    @Param({ NONE, LONGS, INTS, DOUBLES, BOOLEANS, BYTES_REFS, TWO_LONGS, LONGS_AND_BYTES_REFS, TWO_LONGS_AND_BYTES_REFS })
+    @Param(
+        {
+            NONE,
+            LONGS,
+            INTS,
+            DOUBLES,
+            BOOLEANS,
+            BYTES_REFS,
+            ORDINALS,
+            TWO_LONGS,
+            TWO_BYTES_REFS,
+            TWO_ORDINALS,
+            LONGS_AND_BYTES_REFS,
+            TWO_LONGS_AND_BYTES_REFS }
+    )
     public String grouping;
 
     @Param({ COUNT, COUNT_DISTINCT, MIN, MAX, SUM })
@@ -144,8 +164,12 @@ public class AggregatorBenchmark {
             case INTS -> List.of(new BlockHash.GroupSpec(0, ElementType.INT));
             case DOUBLES -> List.of(new BlockHash.GroupSpec(0, ElementType.DOUBLE));
             case BOOLEANS -> List.of(new BlockHash.GroupSpec(0, ElementType.BOOLEAN));
-            case BYTES_REFS -> List.of(new BlockHash.GroupSpec(0, ElementType.BYTES_REF));
+            case BYTES_REFS, ORDINALS -> List.of(new BlockHash.GroupSpec(0, ElementType.BYTES_REF));
             case TWO_LONGS -> List.of(new BlockHash.GroupSpec(0, ElementType.LONG), new BlockHash.GroupSpec(1, ElementType.LONG));
+            case TWO_BYTES_REFS, TWO_ORDINALS -> List.of(
+                new BlockHash.GroupSpec(0, ElementType.BYTES_REF),
+                new BlockHash.GroupSpec(1, ElementType.BYTES_REF)
+            );
             case LONGS_AND_BYTES_REFS -> List.of(
                 new BlockHash.GroupSpec(0, ElementType.LONG),
                 new BlockHash.GroupSpec(1, ElementType.BYTES_REF)
@@ -217,6 +241,10 @@ public class AggregatorBenchmark {
             case TWO_LONGS -> {
                 checkGroupingBlock(prefix, LONGS, page.getBlock(0));
                 checkGroupingBlock(prefix, LONGS, page.getBlock(1));
+            }
+            case TWO_BYTES_REFS, TWO_ORDINALS -> {
+                checkGroupingBlock(prefix, BYTES_REFS, page.getBlock(0));
+                checkGroupingBlock(prefix, BYTES_REFS, page.getBlock(1));
             }
             case LONGS_AND_BYTES_REFS -> {
                 checkGroupingBlock(prefix, LONGS, page.getBlock(0));
@@ -379,7 +407,7 @@ public class AggregatorBenchmark {
                     throw new AssertionError(prefix + "bad group expected [true] but was [" + groups.getBoolean(1) + "]");
                 }
             }
-            case BYTES_REFS -> {
+            case BYTES_REFS, ORDINALS -> {
                 BytesRefBlock groups = (BytesRefBlock) block;
                 for (int g = 0; g < GROUPS; g++) {
                     if (false == groups.getBytesRef(g, new BytesRef()).equals(bytesGroup(g))) {
@@ -508,6 +536,8 @@ public class AggregatorBenchmark {
     private static List<Block> groupingBlocks(String grouping, String blockType) {
         return switch (grouping) {
             case TWO_LONGS -> List.of(groupingBlock(LONGS, blockType), groupingBlock(LONGS, blockType));
+            case TWO_BYTES_REFS -> List.of(groupingBlock(BYTES_REFS, blockType), groupingBlock(BYTES_REFS, blockType));
+            case TWO_ORDINALS -> List.of(groupingBlock(ORDINALS, blockType), groupingBlock(ORDINALS, blockType));
             case LONGS_AND_BYTES_REFS -> List.of(groupingBlock(LONGS, blockType), groupingBlock(BYTES_REFS, blockType));
             case TWO_LONGS_AND_BYTES_REFS -> List.of(
                 groupingBlock(LONGS, blockType),
@@ -569,6 +599,19 @@ public class AggregatorBenchmark {
                     }
                 }
                 yield builder.build();
+            }
+            case ORDINALS -> {
+                IntVector.Builder ordinals = blockFactory.newIntVectorBuilder(BLOCK_LENGTH * valuesPerGroup);
+                for (int i = 0; i < BLOCK_LENGTH; i++) {
+                    for (int v = 0; v < valuesPerGroup; v++) {
+                        ordinals.appendInt(i % GROUPS);
+                    }
+                }
+                BytesRefVector.Builder bytes = blockFactory.newBytesRefVectorBuilder(BLOCK_LENGTH * valuesPerGroup);
+                for (int i = 0; i < GROUPS; i++) {
+                    bytes.appendBytesRef(bytesGroup(i));
+                }
+                yield new OrdinalBytesRefVector(ordinals.build(), bytes.build()).asBlock();
             }
             default -> throw new UnsupportedOperationException("unsupported grouping [" + grouping + "]");
         };

@@ -54,9 +54,6 @@ public class WordBoundaryChunkerTests extends ESTestCase {
             + " خليفہ المومنين يا خليفہ المسلمين يا صحابی يا رضي الله عنه چئي۔ (ب) آنحضور ﷺ جي گھروارين کان علاوه ڪنھن کي ام المومنين "
             + "چئي۔ (ج) آنحضور ﷺ جي خاندان جي اھل بيت کان علاوہڍه ڪنھن کي اھل بيت چئي۔ (د) پنھنجي عبادت گاھ کي مسجد چئي۔" };
 
-    private static final int DEFAULT_MAX_CHUNK_SIZE = 250;
-    private static final int DEFAULT_OVERLAP = 100;
-
     public static int NUM_WORDS_IN_TEST_TEXT;
     static {
         var wordIterator = BreakIterator.getWordInstance(Locale.ROOT);
@@ -139,7 +136,7 @@ public class WordBoundaryChunkerTests extends ESTestCase {
     }
 
     public void testInvalidChunkingSettingsProvided() {
-        ChunkingSettings chunkingSettings = new SentenceBoundaryChunkingSettings(randomNonNegativeInt());
+        ChunkingSettings chunkingSettings = new SentenceBoundaryChunkingSettings(randomNonNegativeInt(), 0);
         assertThrows(IllegalArgumentException.class, () -> { new WordBoundaryChunker().chunk(TEST_TEXT, chunkingSettings); });
     }
 

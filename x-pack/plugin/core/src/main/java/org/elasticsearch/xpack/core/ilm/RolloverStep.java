@@ -127,7 +127,7 @@ public class RolloverStep extends AsyncActionStep {
         if (targetFailureStore) {
             rolloverRequest.setIndicesOptions(
                 IndicesOptions.builder(rolloverRequest.indicesOptions())
-                    .failureStoreOptions(opts -> opts.includeFailureIndices(true).includeRegularIndices(false))
+                    .selectorOptions(IndicesOptions.SelectorOptions.ONLY_FAILURES)
                     .build()
             );
         }

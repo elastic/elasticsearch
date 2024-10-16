@@ -327,11 +327,8 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
         ensureGreen("myindex");
 
         putNodeShutdown(primaryNodeId, SingleNodeShutdownMetadata.Type.RESTART, null);
-        // registering node shutdown entry does not perform reroute, neither should it.
-        // we provoke it here in the test to ensure that auto-expansion has run.
-        updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude.name", "non-existent"), "myindex");
 
-        assertBusy(() -> assertIndexSetting("myindex", "index.number_of_replicas", "1"));
+        assertIndexSetting("myindex", "index.number_of_replicas", "1");
         indexRandomData("myindex");
 
         internalCluster().restartNode(primaryNode, new InternalTestCluster.RestartCallback() {
@@ -361,9 +358,6 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
         var replacementNodeName = "node_t2";
 
         putNodeShutdown(nodeIdToReplace, SingleNodeShutdownMetadata.Type.REPLACE, replacementNodeName);
-        // registering node shutdown entry does not perform reroute, neither should it.
-        // we provoke it here in the test to ensure that auto-expansion has run.
-        updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude.name", "non-existent"), "index");
 
         ensureGreen("index");
         assertIndexSetting("index", "index.number_of_replicas", "1");
@@ -379,6 +373,32 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
 
         ensureGreen("index");
         assertIndexSetting("index", "index.number_of_replicas", "1");
+    }
+
+    public void testAutoExpandDuringShutdown() throws Exception {
+
+        var node1 = internalCluster().startNode();
+        var node2 = internalCluster().startNode();
+
+        createIndex("index", indexSettings(1, 0).put("index.auto_expand_replicas", randomFrom("0-all", "0-1")).build());
+        indexRandomData("index");
+
+        ensureGreen("index");
+        assertIndexSetting("index", "index.number_of_replicas", "1");
+
+        var nodeNameToShutdown = randomFrom(node1, node2);
+        var nodeIdToShutdown = getNodeId(nodeNameToShutdown);
+
+        putNodeShutdown(nodeIdToShutdown, SingleNodeShutdownMetadata.Type.REMOVE, null);
+
+        ensureGreen("index");
+        assertIndexSetting("index", "index.number_of_replicas", "0");
+
+        assertBusy(() -> assertNodeShutdownStatus(nodeIdToShutdown, COMPLETE));
+        internalCluster().stopNode(nodeIdToShutdown);
+
+        ensureGreen("index");
+        assertIndexSetting("index", "index.number_of_replicas", "0");
     }
 
     public void testNodeShutdownWithUnassignedShards() throws Exception {

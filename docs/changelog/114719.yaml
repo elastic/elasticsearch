@@ -1,0 +1,5 @@
+pr: 114719
+summary: Wait for allocation on scale up
+area: Machine Learning
+type: enhancement
+issues: []

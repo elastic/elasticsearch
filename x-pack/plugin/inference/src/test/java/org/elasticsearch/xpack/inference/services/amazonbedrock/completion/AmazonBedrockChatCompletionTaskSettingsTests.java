@@ -32,6 +32,74 @@ import static org.hamcrest.Matchers.is;
 public class AmazonBedrockChatCompletionTaskSettingsTests extends AbstractBWCWireSerializationTestCase<
     AmazonBedrockChatCompletionTaskSettings> {
 
+    public void testIsEmpty() {
+        var randomSettings = createRandom();
+        var stringRep = Strings.toString(randomSettings);
+        assertEquals(stringRep, randomSettings.isEmpty(), stringRep.equals("{}"));
+    }
+
+    public void updatedTaskSettings_WithEmptyMap_ReturnsSameSettings() {
+        var initialSettings = createRandom();
+        AmazonBedrockChatCompletionTaskSettings updatedSettings = (AmazonBedrockChatCompletionTaskSettings) initialSettings
+            .updatedTaskSettings(Map.of());
+        assertEquals(initialSettings, updatedSettings);
+    }
+
+    public void updatedTaskSettings_WithNewTemperature_ReturnsUpdatedSettings() {
+        var initialSettings = createRandom();
+        Map<String, Object> newSettings = Map.of(TEMPERATURE_FIELD, 0.7);
+        AmazonBedrockChatCompletionTaskSettings updatedSettings = (AmazonBedrockChatCompletionTaskSettings) initialSettings
+            .updatedTaskSettings(newSettings);
+        assertEquals(0.7, (double) updatedSettings.temperature(), 0.001);
+        assertEquals(initialSettings.topP(), updatedSettings.topP());
+        assertEquals(initialSettings.topK(), updatedSettings.topK());
+        assertEquals(initialSettings.maxNewTokens(), updatedSettings.maxNewTokens());
+    }
+
+    public void updatedTaskSettings_WithNewTopP_ReturnsUpdatedSettings() {
+        var initialSettings = createRandom();
+        Map<String, Object> newSettings = Map.of(TOP_P_FIELD, 0.8);
+        AmazonBedrockChatCompletionTaskSettings updatedSettings = (AmazonBedrockChatCompletionTaskSettings) initialSettings
+            .updatedTaskSettings(newSettings);
+        assertEquals(0.8, (double) updatedSettings.topP(), 0.001);
+        assertEquals(initialSettings.temperature(), updatedSettings.temperature());
+        assertEquals(initialSettings.topK(), updatedSettings.topK());
+        assertEquals(initialSettings.maxNewTokens(), updatedSettings.maxNewTokens());
+    }
+
+    public void updatedTaskSettings_WithNewTopK_ReturnsUpdatedSettings() {
+        var initialSettings = createRandom();
+        Map<String, Object> newSettings = Map.of(TOP_K_FIELD, 0.9);
+        AmazonBedrockChatCompletionTaskSettings updatedSettings = (AmazonBedrockChatCompletionTaskSettings) initialSettings
+            .updatedTaskSettings(newSettings);
+        assertEquals(0.9, (double) updatedSettings.topK(), 0.001);
+        assertEquals(initialSettings.temperature(), updatedSettings.temperature());
+        assertEquals(initialSettings.topP(), updatedSettings.topP());
+        assertEquals(initialSettings.maxNewTokens(), updatedSettings.maxNewTokens());
+    }
+
+    public void updatedTaskSettings_WithNewMaxNewTokens_ReturnsUpdatedSettings() {
+        var initialSettings = createRandom();
+        Map<String, Object> newSettings = Map.of(MAX_NEW_TOKENS_FIELD, 256);
+        AmazonBedrockChatCompletionTaskSettings updatedSettings = (AmazonBedrockChatCompletionTaskSettings) initialSettings
+            .updatedTaskSettings(newSettings);
+        assertEquals(256, (double) updatedSettings.maxNewTokens(), 0.001);
+        assertEquals(initialSettings.temperature(), updatedSettings.temperature());
+        assertEquals(initialSettings.topP(), updatedSettings.topP());
+        assertEquals(initialSettings.topK(), updatedSettings.topK());
+    }
+
+    public void updatedTaskSettings_WithMultipleNewValues_ReturnsUpdatedSettings() {
+        var initialSettings = createRandom();
+        Map<String, Object> newSettings = Map.of(TEMPERATURE_FIELD, 0.7, TOP_P_FIELD, 0.8, TOP_K_FIELD, 0.9, MAX_NEW_TOKENS_FIELD, 256);
+        AmazonBedrockChatCompletionTaskSettings updatedSettings = (AmazonBedrockChatCompletionTaskSettings) initialSettings
+            .updatedTaskSettings(newSettings);
+        assertEquals(0.7, (double) updatedSettings.temperature(), 0.001);
+        assertEquals(0.8, (double) updatedSettings.topP(), 0.001);
+        assertEquals(0.9, (double) updatedSettings.topK(), 0.001);
+        assertEquals(256, (int) updatedSettings.maxNewTokens(), 0.001);
+    }
+
     public void testFromMap_AllValues() {
         var taskMap = getChatCompletionTaskSettingsMap(1.0, 0.5, 0.6, 512);
         assertEquals(

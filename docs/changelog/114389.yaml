@@ -1,0 +1,5 @@
+pr: 114389
+summary: Filter empty task settings objects from the API response
+area: Machine Learning
+type: enhancement
+issues: []

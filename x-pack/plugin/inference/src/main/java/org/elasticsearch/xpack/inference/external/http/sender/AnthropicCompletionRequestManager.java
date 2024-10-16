@@ -19,7 +19,6 @@ import org.elasticsearch.xpack.inference.external.request.anthropic.AnthropicCha
 import org.elasticsearch.xpack.inference.external.response.anthropic.AnthropicChatCompletionResponseEntity;
 import org.elasticsearch.xpack.inference.services.anthropic.completion.AnthropicChatCompletionModel;
 
-import java.util.List;
 import java.util.Objects;
 import java.util.function.Supplier;
 
@@ -47,13 +46,15 @@ public class AnthropicCompletionRequestManager extends AnthropicRequestManager {
         Supplier<Boolean> hasRequestCompletedFunction,
         ActionListener<InferenceServiceResults> listener
     ) {
-        List<String> docsInput = DocumentsOnlyInput.of(inferenceInputs).getInputs();
-        AnthropicChatCompletionRequest request = new AnthropicChatCompletionRequest(docsInput, model);
+        var docsOnly = DocumentsOnlyInput.of(inferenceInputs);
+        var docsInput = docsOnly.getInputs();
+        var stream = docsOnly.stream();
+        AnthropicChatCompletionRequest request = new AnthropicChatCompletionRequest(docsInput, model, stream);
 
         execute(new ExecutableInferenceRequest(requestSender, logger, request, HANDLER, hasRequestCompletedFunction, listener));
     }
 
     private static ResponseHandler createCompletionHandler() {
-        return new AnthropicResponseHandler("anthropic completions", AnthropicChatCompletionResponseEntity::fromResponse);
+        return new AnthropicResponseHandler("anthropic completions", AnthropicChatCompletionResponseEntity::fromResponse, true);
     }
 }

@@ -115,7 +115,7 @@ public class FieldAttribute extends TypedAttribute {
         this(
             Source.readFrom((StreamInput & PlanStreamInput) in),
             in.readOptionalWriteable(FieldAttribute::readFrom),
-            in.readString(),
+            ((PlanStreamInput) in).readCachedString(),
             DataType.readFrom(in),
             EsField.readFrom(in),
             in.readOptionalString(),
@@ -130,7 +130,7 @@ public class FieldAttribute extends TypedAttribute {
         if (((PlanStreamOutput) out).writeAttributeCacheHeader(this)) {
             Source.EMPTY.writeTo(out);
             out.writeOptionalWriteable(parent);
-            out.writeString(name());
+            ((PlanStreamOutput) out).writeCachedString(name());
             dataType().writeTo(out);
             field.writeTo(out);
             // We used to write the qualifier here. We can still do if needed in the future.

@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.inference.services.alibabacloudsearch.sparse;
 
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
@@ -39,6 +40,7 @@ public class AlibabaCloudSearchSparseModel extends AlibabaCloudSearchModel {
         String service,
         Map<String, Object> serviceSettings,
         Map<String, Object> taskSettings,
+        ChunkingSettings chunkingSettings,
         @Nullable Map<String, Object> secrets,
         ConfigurationParseContext context
     ) {
@@ -48,6 +50,7 @@ public class AlibabaCloudSearchSparseModel extends AlibabaCloudSearchModel {
             service,
             AlibabaCloudSearchSparseServiceSettings.fromMap(serviceSettings, context),
             AlibabaCloudSearchSparseTaskSettings.fromMap(taskSettings),
+            chunkingSettings,
             DefaultSecretSettings.fromMap(secrets)
         );
     }
@@ -59,10 +62,11 @@ public class AlibabaCloudSearchSparseModel extends AlibabaCloudSearchModel {
         String service,
         AlibabaCloudSearchSparseServiceSettings serviceSettings,
         AlibabaCloudSearchSparseTaskSettings taskSettings,
+        ChunkingSettings chunkingSettings,
         @Nullable DefaultSecretSettings secretSettings
     ) {
         super(
-            new ModelConfigurations(modelId, taskType, service, serviceSettings, taskSettings),
+            new ModelConfigurations(modelId, taskType, service, serviceSettings, taskSettings, chunkingSettings),
             new ModelSecrets(secretSettings),
             serviceSettings.getCommonSettings()
         );

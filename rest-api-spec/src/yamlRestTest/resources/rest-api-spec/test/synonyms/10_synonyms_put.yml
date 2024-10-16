@@ -52,13 +52,6 @@ setup:
           synonyms_set:
             - synonyms: "other, another"
 
-  - do:
-      cluster.health:
-        index: .synonyms-2
-        level: shards
-        wait_for_status: green
-        timeout: 1m
-
   - match: { result: "updated" }
   - match: { reload_analyzers_details._shards.total: 0 }
   - length: { reload_analyzers_details.reload_details: 0 }

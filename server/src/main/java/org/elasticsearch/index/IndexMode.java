@@ -118,11 +118,6 @@ public enum IndexMode {
 
         @Override
         public void validateSourceFieldMapper(SourceFieldMapper sourceFieldMapper) {}
-
-        @Override
-        public boolean isSyntheticSourceEnabled() {
-            return false;
-        }
     },
     TIME_SERIES("time_series") {
         @Override
@@ -221,11 +216,6 @@ public enum IndexMode {
                 throw new IllegalArgumentException("_source can not be disabled in index using [" + IndexMode.TIME_SERIES + "] index mode");
             }
         }
-
-        @Override
-        public boolean isSyntheticSourceEnabled() {
-            return true;
-        }
     },
     LOGSDB("logsdb") {
         @Override
@@ -297,11 +287,6 @@ public enum IndexMode {
             if (sourceFieldMapper.enabled() == false) {
                 throw new IllegalArgumentException("_source can not be disabled in index using [" + IndexMode.LOGSDB + "] index mode");
             }
-        }
-
-        @Override
-        public boolean isSyntheticSourceEnabled() {
-            return true;
         }
 
         @Override
@@ -458,11 +443,6 @@ public enum IndexMode {
      * Validates the source field mapper
      */
     public abstract void validateSourceFieldMapper(SourceFieldMapper sourceFieldMapper);
-
-    /**
-     * @return whether synthetic source is the only allowed source mode.
-     */
-    public abstract boolean isSyntheticSourceEnabled();
 
     public String getDefaultCodec() {
         return CodecService.DEFAULT_CODEC;

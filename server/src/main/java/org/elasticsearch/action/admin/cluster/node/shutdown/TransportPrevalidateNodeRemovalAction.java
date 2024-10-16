@@ -229,7 +229,8 @@ public class TransportPrevalidateNodeRemovalAction extends TransportMasterNodeRe
                 ) // Convert to ShardId
                 .collect(Collectors.toSet());
             var nodeIds = requestNodes.stream().map(DiscoveryNode::getId).toList().toArray(new String[0]);
-            var checkShardsRequest = new PrevalidateShardPathRequest(redShards, nodeIds).timeout(request.timeout());
+            var checkShardsRequest = new PrevalidateShardPathRequest(redShards, nodeIds);
+            checkShardsRequest.setTimeout(request.timeout());
             client.execute(TransportPrevalidateShardPathAction.TYPE, checkShardsRequest, new ActionListener<>() {
                 @Override
                 public void onResponse(PrevalidateShardPathResponse response) {

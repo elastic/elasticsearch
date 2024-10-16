@@ -18,6 +18,7 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -25,6 +26,28 @@ import static org.elasticsearch.xpack.inference.services.googlevertexai.embeddin
 import static org.hamcrest.Matchers.is;
 
 public class GoogleVertexAiEmbeddingsTaskSettingsTests extends AbstractBWCWireSerializationTestCase<GoogleVertexAiEmbeddingsTaskSettings> {
+    public void testIsEmpty() {
+        var randomSettings = createRandom();
+        var stringRep = Strings.toString(randomSettings);
+        assertEquals(stringRep, randomSettings.isEmpty(), stringRep.equals("{}"));
+    }
+
+    public void testUpdatedTaskSettings() {
+        var initialSettings = createRandom();
+        var newSettings = createRandom();
+        Map<String, Object> newSettingsMap = new HashMap<>();
+        if (newSettings.autoTruncate() != null) {
+            newSettingsMap.put(GoogleVertexAiEmbeddingsTaskSettings.AUTO_TRUNCATE, newSettings.autoTruncate());
+        }
+        GoogleVertexAiEmbeddingsTaskSettings updatedSettings = (GoogleVertexAiEmbeddingsTaskSettings) initialSettings.updatedTaskSettings(
+            Collections.unmodifiableMap(newSettingsMap)
+        );
+        if (newSettings.autoTruncate() == null) {
+            assertEquals(initialSettings.autoTruncate(), updatedSettings.autoTruncate());
+        } else {
+            assertEquals(newSettings.autoTruncate(), updatedSettings.autoTruncate());
+        }
+    }
 
     public void testFromMap_AutoTruncateIsSet() {
         var autoTruncate = true;

@@ -22,10 +22,13 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.anEmptyMap;
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.oneOf;
 
 public class CohereServiceUpgradeIT extends InferenceUpgradeTestCase {
@@ -122,7 +125,7 @@ public class CohereServiceUpgradeIT extends InferenceUpgradeTestCase {
             assertThat(serviceSettings, hasEntry("model_id", "embed-english-light-v3.0"));
             assertThat(serviceSettings, hasEntry("embedding_type", "byte"));
             var taskSettings = (Map<String, Object>) configs.get(0).get("task_settings");
-            assertThat(taskSettings.keySet(), empty());
+            assertThat(taskSettings, anyOf(nullValue(), anEmptyMap()));
 
             // Inference on old cluster models
             assertEmbeddingInference(oldClusterIdInt8, CohereEmbeddingType.BYTE);

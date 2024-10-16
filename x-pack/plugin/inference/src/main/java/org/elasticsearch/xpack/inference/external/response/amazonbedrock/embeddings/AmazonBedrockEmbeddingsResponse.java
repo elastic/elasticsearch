@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.inference.external.response.amazonbedrock.embeddings;
 
-import com.amazonaws.services.bedrockruntime.model.InvokeModelResult;
+import software.amazon.awssdk.services.bedrockruntime.model.InvokeModelResponse;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
@@ -33,9 +33,9 @@ import static org.elasticsearch.xpack.inference.external.response.XContentUtils.
 
 public class AmazonBedrockEmbeddingsResponse extends AmazonBedrockResponse {
     private static final String FAILED_TO_FIND_FIELD_TEMPLATE = "Failed to find required field [%s] in Amazon Bedrock embeddings response";
-    private final InvokeModelResult result;
+    private final InvokeModelResponse result;
 
-    public AmazonBedrockEmbeddingsResponse(InvokeModelResult invokeModelResult) {
+    public AmazonBedrockEmbeddingsResponse(InvokeModelResponse invokeModelResult) {
         this.result = invokeModelResult;
     }
 
@@ -48,9 +48,9 @@ public class AmazonBedrockEmbeddingsResponse extends AmazonBedrockResponse {
         throw new ElasticsearchException("unexpected request type [" + request.getClass() + "]");
     }
 
-    public static InferenceTextEmbeddingFloatResults fromResponse(InvokeModelResult response, AmazonBedrockProvider provider) {
+    public static InferenceTextEmbeddingFloatResults fromResponse(InvokeModelResponse response, AmazonBedrockProvider provider) {
         var charset = StandardCharsets.UTF_8;
-        var bodyText = String.valueOf(charset.decode(response.getBody()));
+        var bodyText = String.valueOf(charset.decode(response.body().asByteBuffer()));
 
         var parserConfig = XContentParserConfiguration.EMPTY.withDeprecationHandler(LoggingDeprecationHandler.INSTANCE);
 

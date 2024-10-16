@@ -52,6 +52,10 @@ public final class SocketAccess {
         }
     }
 
+    public static <E extends Exception> void doPrivilegedVoidExceptionExplicit(Class<E> exception, StorageRunnable action) throws E {
+        doPrivilegedVoidException(action);
+    }
+
     @FunctionalInterface
     public interface StorageRunnable {
         void executeCouldThrow() throws URISyntaxException, IOException;

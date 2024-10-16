@@ -236,49 +236,30 @@ public class AzureBlobStore implements BlobStore {
         }
     }
 
-    public DeleteResult deleteBlobDirectory(OperationPurpose purpose, String path) {
+    public DeleteResult deleteBlobDirectory(OperationPurpose purpose, String path) throws IOException {
         final AtomicInteger blobsDeleted = new AtomicInteger(0);
         final AtomicLong bytesDeleted = new AtomicLong(0);
         final List<String> blobNames = new ArrayList<>();
 
-        SocketAccess.doPrivilegedVoidException(() -> {
+        SocketAccess.doPrivilegedVoidExceptionExplicit(IOException.class, () -> {
             final AzureBlobServiceClient client = getAzureBlobServiceClientClient(purpose);
             final BlobContainerClient blobContainerClient = client.getSyncClient().getBlobContainerClient(container);
-            try {
-                final ListBlobsOptions options = new ListBlobsOptions().setPrefix(path)
-                    .setDetails(new BlobListDetails().setRetrieveMetadata(true));
-                for (BlobItem blobItem : blobContainerClient.listBlobs(options, null)) {
-                    if (blobItem.isPrefix()) {
-                        continue;
-                    }
-                    blobNames.add(blobItem.getName());
-                    bytesDeleted.addAndGet(blobItem.getProperties().getContentLength());
-                    blobsDeleted.incrementAndGet();
+            final ListBlobsOptions options = new ListBlobsOptions().setPrefix(path)
+                .setDetails(new BlobListDetails().setRetrieveMetadata(true));
+            for (BlobItem blobItem : blobContainerClient.listBlobs(options, null)) {
+                if (blobItem.isPrefix()) {
+                    continue;
                 }
-                if (blobNames.isEmpty() == false) {
-                    deleteListOfBlobs(client, blobNames.iterator());
-                }
-            } catch (Exception e) {
-                filterDeleteExceptionsAndRethrow(e, new IOException("Deleting directory [" + path + "] failed"));
+                blobNames.add(blobItem.getName());
+                bytesDeleted.addAndGet(blobItem.getProperties().getContentLength());
+                blobsDeleted.incrementAndGet();
+            }
+            if (blobNames.isEmpty() == false) {
+                deleteListOfBlobs(client, blobNames.iterator());
             }
         });
 
         return new DeleteResult(blobsDeleted.get(), bytesDeleted.get());
-    }
-
-    private static void filterDeleteExceptionsAndRethrow(Exception e, IOException exception) throws IOException {
-        int suppressedCount = 0;
-        for (Throwable suppressed : e.getSuppressed()) {
-            // We're only interested about the blob deletion exceptions and not in the reactor internals exceptions
-            if (suppressed instanceof IOException) {
-                exception.addSuppressed(suppressed);
-                suppressedCount++;
-                if (suppressedCount > 10) {
-                    break;
-                }
-            }
-        }
-        throw exception;
     }
 
     @Override
@@ -286,7 +267,10 @@ public class AzureBlobStore implements BlobStore {
         if (blobNames.hasNext() == false) {
             return;
         }
-        SocketAccess.doPrivilegedVoidException(() -> deleteListOfBlobs(getAzureBlobServiceClientClient(purpose), blobNames));
+        SocketAccess.doPrivilegedVoidExceptionExplicit(
+            IOException.class,
+            () -> deleteListOfBlobs(getAzureBlobServiceClientClient(purpose), blobNames)
+        );
     }
 
     private void deleteListOfBlobs(AzureBlobServiceClient azureBlobServiceClient, Iterator<String> blobNames) throws IOException {
@@ -306,19 +290,45 @@ public class AzureBlobStore implements BlobStore {
             }
             batchResponses.add(batchAsyncClient.submitBatch(currentBatch));
         }
-        try {
-            Flux.merge(batchResponses).collectList().block();
-        } catch (BlobBatchStorageException bbse) {
+
+        // The selective exception handling is easier to do this way than with what is thrown by Mono#whenDelayError
+        IOException exceptionToThrow = null;
+        for (Mono<Void> batchResponse : batchResponses) {
+            try {
+                batchResponse.block();
+            } catch (Exception e) {
+                if (isIgnorableBatchDeleteException(e)) {
+                    continue;
+                }
+                if (exceptionToThrow == null) {
+                    exceptionToThrow = new IOException("Error deleting batch");
+                }
+                exceptionToThrow.addSuppressed(e);
+            }
+        }
+        if (exceptionToThrow != null) {
+            throw exceptionToThrow;
+        }
+    }
+
+    /**
+     * We can ignore {@link BlobBatchStorageException}s when they are just telling us some of the files were not found
+     *
+     * @param exception An exception throw by batch delete
+     * @return true if it is safe to ignore, false otherwise
+     */
+    private boolean isIgnorableBatchDeleteException(Exception exception) {
+        if (exception instanceof BlobBatchStorageException bbse) {
             final Iterable<BlobStorageException> batchExceptions = bbse.getBatchExceptions();
             for (BlobStorageException bse : batchExceptions) {
                 // If one of the requests failed with something other than a BLOB_NOT_FOUND, throw the encompassing exception
                 if (BlobErrorCode.BLOB_NOT_FOUND.equals(bse.getErrorCode()) == false) {
-                    throw new IOException("Failed to delete batch", bbse);
+                    return false;
                 }
             }
-        } catch (Exception e) {
-            throw new IOException("Unable to delete blobs", e);
+            return true;
         }
+        return false;
     }
 
     public InputStream getInputStream(OperationPurpose purpose, String blob, long position, final @Nullable Long length) {

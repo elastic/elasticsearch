@@ -92,6 +92,42 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         true
     );
 
+    private static final SourceFieldMapper DEFAULT_DISABLED = new SourceFieldMapper(
+        Mode.DISABLED,
+        Explicit.IMPLICIT_TRUE,
+        Strings.EMPTY_ARRAY,
+        Strings.EMPTY_ARRAY,
+        null,
+        true
+    );
+
+    private static final SourceFieldMapper DEFAULT_DISABLED_NO_RECOVERY_SOURCE = new SourceFieldMapper(
+        Mode.DISABLED,
+        Explicit.IMPLICIT_TRUE,
+        Strings.EMPTY_ARRAY,
+        Strings.EMPTY_ARRAY,
+        null,
+        false
+    );
+
+    private static final SourceFieldMapper DEFAULT_SYNTHETIC = new SourceFieldMapper(
+        Mode.SYNTHETIC,
+        Explicit.IMPLICIT_TRUE,
+        Strings.EMPTY_ARRAY,
+        Strings.EMPTY_ARRAY,
+        null,
+        true
+    );
+
+    private static final SourceFieldMapper DEFAULT_SYNTHETIC_NO_RECOVERY_SOURCE = new SourceFieldMapper(
+        Mode.SYNTHETIC,
+        Explicit.IMPLICIT_TRUE,
+        Strings.EMPTY_ARRAY,
+        Strings.EMPTY_ARRAY,
+        null,
+        false
+    );
+
     private static final SourceFieldMapper DEFAULT_NO_RECOVERY_SOURCE = new SourceFieldMapper(
         null,
         Explicit.IMPLICIT_TRUE,
@@ -301,7 +337,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
                 ? INDEX_MAPPER_SOURCE_MODE_SETTING.get(settings)
                 : mode.get();
             if (isDefault(sourceMode)) {
-                return resolveSourceMode(indexMode, sourceMode, enableRecoverySource);
+                return resolveSourceMode(indexMode, sourceMode == null ? Mode.STORED : sourceMode, enableRecoverySource);
 
             }
             if (supportsNonDefaultParameterValues == false) {
@@ -344,27 +380,38 @@ public class SourceFieldMapper extends MetadataFieldMapper {
     }
 
     private static SourceFieldMapper resolveSourceMode(final IndexMode indexMode, final Mode sourceMode, boolean enableRecoverySource) {
-        if (indexMode == IndexMode.STANDARD) {
-            return enableRecoverySource ? DEFAULT : DEFAULT_NO_RECOVERY_SOURCE;
-        }
-        final SourceFieldMapper syntheticWithoutRecoverySource = indexMode == IndexMode.TIME_SERIES
-            ? TSDB_DEFAULT_NO_RECOVERY_SOURCE
-            : LOGSDB_DEFAULT_NO_RECOVERY_SOURCE;
-        final SourceFieldMapper syntheticWithRecoverySource = indexMode == IndexMode.TIME_SERIES ? TSDB_DEFAULT : LOGSDB_DEFAULT;
-        final SourceFieldMapper storedWithoutRecoverySource = indexMode == IndexMode.TIME_SERIES
-            ? TSDB_DEFAULT_NO_RECOVERY_SOURCE_STORED
-            : LOGSDB_DEFAULT_NO_RECOVERY_SOURCE_STORED;
-        final SourceFieldMapper storedWithRecoverySource = indexMode == IndexMode.TIME_SERIES ? TSDB_DEFAULT_STORED : LOGSDB_DEFAULT_STORED;
-
-        switch (sourceMode) {
-            case SYNTHETIC:
-                return enableRecoverySource ? syntheticWithRecoverySource : syntheticWithoutRecoverySource;
-            case STORED:
-                return enableRecoverySource ? storedWithRecoverySource : storedWithoutRecoverySource;
-            case DISABLED:
-                throw new IllegalArgumentException("_source cannot be disabled in index using [" + indexMode + "] index mode");
+        switch (indexMode) {
+            case STANDARD:
+                switch (sourceMode) {
+                    case SYNTHETIC:
+                        return enableRecoverySource ? DEFAULT_SYNTHETIC : DEFAULT_SYNTHETIC_NO_RECOVERY_SOURCE;
+                    case STORED:
+                        return enableRecoverySource ? DEFAULT : DEFAULT_NO_RECOVERY_SOURCE;
+                    case DISABLED:
+                        return enableRecoverySource ? DEFAULT_DISABLED : DEFAULT_DISABLED_NO_RECOVERY_SOURCE;
+                    default:
+                        throw new IllegalArgumentException("Unsupported source mode: " + sourceMode);
+                }
+            case TIME_SERIES:
+            case LOGSDB:
+                switch (sourceMode) {
+                    case SYNTHETIC:
+                        return enableRecoverySource
+                            ? (indexMode == IndexMode.TIME_SERIES ? TSDB_DEFAULT : LOGSDB_DEFAULT)
+                            : (indexMode == IndexMode.TIME_SERIES ? TSDB_DEFAULT_NO_RECOVERY_SOURCE : LOGSDB_DEFAULT_NO_RECOVERY_SOURCE);
+                    case STORED:
+                        return enableRecoverySource
+                            ? (indexMode == IndexMode.TIME_SERIES ? TSDB_DEFAULT_STORED : LOGSDB_DEFAULT_STORED)
+                            : (indexMode == IndexMode.TIME_SERIES
+                                ? TSDB_DEFAULT_NO_RECOVERY_SOURCE_STORED
+                                : LOGSDB_DEFAULT_NO_RECOVERY_SOURCE_STORED);
+                    case DISABLED:
+                        throw new IllegalArgumentException("_source can not be disabled in index using [" + indexMode + "] index mode");
+                    default:
+                        throw new IllegalArgumentException("Unsupported source mode: " + sourceMode);
+                }
             default:
-                throw new IllegalStateException("Unexpected value: " + sourceMode);
+                throw new IllegalArgumentException("Unsupported index mode: " + indexMode);
         }
     }
 
@@ -378,7 +425,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
                 return enableRecoverySource ? TSDB_LEGACY_DEFAULT : TSDB_LEGACY_DEFAULT_NO_RECOVERY_SOURCE;
             }
         }
-        return resolveSourceMode(indexMode, settingSourceMode, enableRecoverySource);
+        return resolveSourceMode(indexMode, settingSourceMode == null ? Mode.STORED : settingSourceMode, enableRecoverySource);
     },
         c -> new Builder(
             c.getIndexSettings().getMode(),
@@ -547,5 +594,13 @@ public class SourceFieldMapper extends MetadataFieldMapper {
 
     public boolean isSynthetic() {
         return mode == Mode.SYNTHETIC;
+    }
+
+    public boolean isDisabled() {
+        return mode == Mode.DISABLED;
+    }
+
+    public boolean isStored() {
+        return mode == null || mode == Mode.STORED;
     }
 }

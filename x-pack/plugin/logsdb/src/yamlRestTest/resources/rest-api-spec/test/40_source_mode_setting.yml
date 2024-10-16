@@ -559,7 +559,7 @@ create an index with time_series index mode and disabled source:
                 time_series_dimension: true
 
   - match: { error.type: "mapper_parsing_exception" }
-  - match: { error.reason: "Failed to parse mapping: _source cannot be disabled in index using [time_series] index mode" }
+  - match: { error.reason: "Failed to parse mapping: _source can not be disabled in index using [time_series] index mode" }
 
 ---
 create an index with logsdb index mode and disabled source:
@@ -574,7 +574,7 @@ create an index with logsdb index mode and disabled source:
               mapping.source.mode: disabled
 
   - match: { error.type: "mapper_parsing_exception" }
-  - match: { error.reason: "Failed to parse mapping: _source cannot be disabled in index using [logsdb] index mode" }
+  - match: { error.reason: "Failed to parse mapping: _source can not be disabled in index using [logsdb] index mode" }
 
 ---
 modify final setting after index creation:

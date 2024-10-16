@@ -393,6 +393,8 @@ tests:
 - class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
   method: test {yaml=reference/esql/esql-across-clusters/line_197}
   issue: https://github.com/elastic/elasticsearch/issues/114947
+- class: org.elasticsearch.ingest.geoip.HttpClientTests
+  issue: https://github.com/elastic/elasticsearch/issues/112618
 
 # Examples:
 #

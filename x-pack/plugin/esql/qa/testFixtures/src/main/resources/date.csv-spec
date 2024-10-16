@@ -367,7 +367,7 @@ date1:date               | dd_ms:integer
 2023-12-02T11:00:00.000Z | 1000
 ;
 
-evalDateDiffMonthAsWhole0Months
+evalDateDiffMonthAsWhole0Months#[skip:-8.14.1, reason:omitting millis/timezone not allowed before 8.14]
 
 ROW from=TO_DATETIME("2023-12-31T23:59:59.999Z"), to=TO_DATETIME("2024-01-01T00:00:00")
 | EVAL msecs=DATE_DIFF("milliseconds", from, to), months=DATE_DIFF("month", from, to)
@@ -378,7 +378,7 @@ ROW from=TO_DATETIME("2023-12-31T23:59:59.999Z"), to=TO_DATETIME("2024-01-01T00:
 
 ;
 
-evalDateDiffMonthAsWhole1Month
+evalDateDiffMonthAsWhole1Month#[skip:-8.14.1, reason:omitting millis/timezone not allowed before 8.14]
 
 ROW from=TO_DATETIME("2023-12-31T23:59:59.999Z"), to=TO_DATETIME("2024-02-01T00:00:00")
 | EVAL secs=DATE_DIFF("seconds", from, to), months=DATE_DIFF("month", from, to)

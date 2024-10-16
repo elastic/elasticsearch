@@ -94,12 +94,6 @@ tests:
 - class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
   method: test {yaml=reference/rest-api/watcher/put-watch/line_120}
   issue: https://github.com/elastic/elasticsearch/issues/99517
-- class: org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialCentroidTests
-  method: "testAggregateIntermediate {TestCase=<geo_point> #2}"
-  issue: https://github.com/elastic/elasticsearch/issues/112461
-- class: org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialCentroidTests
-  method: testAggregateIntermediate {TestCase=<geo_point>}
-  issue: https://github.com/elastic/elasticsearch/issues/112463
 - class: org.elasticsearch.xpack.esql.action.ManyShardsIT
   method: testRejection
   issue: https://github.com/elastic/elasticsearch/issues/112406

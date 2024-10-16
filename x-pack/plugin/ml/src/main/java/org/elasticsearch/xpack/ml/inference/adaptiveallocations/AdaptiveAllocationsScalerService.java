@@ -25,6 +25,7 @@ import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ClientHelper;
+import org.elasticsearch.xpack.core.ml.action.CreateTrainedModelAssignmentAction;
 import org.elasticsearch.xpack.core.ml.action.GetDeploymentStatsAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AssignmentStats;
@@ -40,6 +41,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 
@@ -183,6 +185,12 @@ public class AdaptiveAllocationsScalerService implements ClusterStateListener {
      */
     private static final long SCALE_UP_COOLDOWN_TIME_MILLIS = TimeValue.timeValueMinutes(5).getMillis();
 
+    /**
+     * The time interval without any requests that has to pass, before scaling down
+     * to zero allocations (in case min_allocations = 0).
+     */
+    private static final long SCALE_TO_ZERO_AFTER_NO_REQUESTS_TIME_SECONDS = TimeValue.timeValueMinutes(15).getSeconds();
+
     private static final Logger logger = LogManager.getLogger(AdaptiveAllocationsScalerService.class);
 
     private final int timeIntervalSeconds;
@@ -200,6 +208,10 @@ public class AdaptiveAllocationsScalerService implements ClusterStateListener {
 
     private volatile Scheduler.Cancellable cancellable;
     private final AtomicBoolean busy;
+
+    private final long scaleToZeroAfterNoRequestsSeconds;
+
+    private final Set<String> deploymentIdsWithInFlightScaleFromZeroRequests = new ConcurrentSkipListSet<>();
 
     public AdaptiveAllocationsScalerService(
         ThreadPool threadPool,
@@ -236,6 +248,7 @@ public class AdaptiveAllocationsScalerService implements ClusterStateListener {
         scalers = new HashMap<>();
         metrics = new Metrics();
         busy = new AtomicBoolean(false);
+        scaleToZeroAfterNoRequestsSeconds = SCALE_TO_ZERO_AFTER_NO_REQUESTS_TIME_SECONDS;
     }
 
     public synchronized void start() {
@@ -279,7 +292,11 @@ public class AdaptiveAllocationsScalerService implements ClusterStateListener {
                 && assignment.getAdaptiveAllocationsSettings().getEnabled() == Boolean.TRUE) {
                 AdaptiveAllocationsScaler adaptiveAllocationsScaler = scalers.computeIfAbsent(
                     assignment.getDeploymentId(),
-                    key -> new AdaptiveAllocationsScaler(assignment.getDeploymentId(), assignment.totalTargetAllocations())
+                    key -> new AdaptiveAllocationsScaler(
+                        assignment.getDeploymentId(),
+                        assignment.totalTargetAllocations(),
+                        scaleToZeroAfterNoRequestsSeconds
+                    )
                 );
                 adaptiveAllocationsScaler.setMinMaxNumberOfAllocations(
                     assignment.getAdaptiveAllocationsSettings().getMinNumberOfAllocations(),
@@ -404,22 +421,42 @@ public class AdaptiveAllocationsScalerService implements ClusterStateListener {
                 if (newNumberOfAllocations > numberOfAllocations.get(deploymentId)) {
                     lastScaleUpTimesMillis.put(deploymentId, now);
                 }
-                updateNumberOfAllocations(deploymentId, newNumberOfAllocations);
+                updateNumberOfAllocations(
+                    deploymentId,
+                    newNumberOfAllocations,
+                    updateAssigmentListener(deploymentId, newNumberOfAllocations)
+                );
             }
         }
     }
 
     public boolean maybeStartAllocation(TrainedModelAssignment assignment) {
         if (assignment.getAdaptiveAllocationsSettings() != null
-            && assignment.getAdaptiveAllocationsSettings().getEnabled() == Boolean.TRUE) {
-            lastScaleUpTimesMillis.put(assignment.getDeploymentId(), System.currentTimeMillis());
-            updateNumberOfAllocations(assignment.getDeploymentId(), 1);
+            && assignment.getAdaptiveAllocationsSettings().getEnabled() == Boolean.TRUE
+            && assignment.getAdaptiveAllocationsSettings().getMinNumberOfAllocations() == 0) {
+
+            // Prevent against a flurry of scale up requests.
+            if (deploymentIdsWithInFlightScaleFromZeroRequests.contains(assignment.getDeploymentId()) == false) {
+                lastScaleUpTimesMillis.put(assignment.getDeploymentId(), System.currentTimeMillis());
+                var updateListener = updateAssigmentListener(assignment.getDeploymentId(), 1);
+                var cleanUpListener = ActionListener.runAfter(
+                    updateListener,
+                    () -> deploymentIdsWithInFlightScaleFromZeroRequests.remove(assignment.getDeploymentId())
+                );
+
+                deploymentIdsWithInFlightScaleFromZeroRequests.add(assignment.getDeploymentId());
+                updateNumberOfAllocations(assignment.getDeploymentId(), 1, cleanUpListener);
+            }
             return true;
         }
         return false;
     }
 
-    private void updateNumberOfAllocations(String deploymentId, int numberOfAllocations) {
+    private void updateNumberOfAllocations(
+        String deploymentId,
+        int numberOfAllocations,
+        ActionListener<CreateTrainedModelAssignmentAction.Response> listener
+    ) {
         UpdateTrainedModelDeploymentAction.Request updateRequest = new UpdateTrainedModelDeploymentAction.Request(deploymentId);
         updateRequest.setNumberOfAllocations(numberOfAllocations);
         updateRequest.setIsInternal(true);
@@ -428,35 +465,38 @@ public class AdaptiveAllocationsScalerService implements ClusterStateListener {
             ClientHelper.ML_ORIGIN,
             UpdateTrainedModelDeploymentAction.INSTANCE,
             updateRequest,
-            ActionListener.wrap(updateResponse -> {
-                logger.info("adaptive allocations scaler: scaled [{}] to [{}] allocations.", deploymentId, numberOfAllocations);
-                threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME)
-                    .execute(
-                        () -> inferenceAuditor.info(
-                            deploymentId,
-                            Strings.format(
-                                "adaptive allocations scaler: scaled [%s] to [%s] allocations.",
-                                deploymentId,
-                                numberOfAllocations
-                            )
-                        )
-                    );
-            }, e -> {
-                logger.atLevel(Level.WARN)
-                    .withThrowable(e)
-                    .log("adaptive allocations scaler: scaling [{}] to [{}] allocations failed.", deploymentId, numberOfAllocations);
-                threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME)
-                    .execute(
-                        () -> inferenceAuditor.warning(
-                            deploymentId,
-                            Strings.format(
-                                "adaptive allocations scaler: scaling [%s] to [%s] allocations failed.",
-                                deploymentId,
-                                numberOfAllocations
-                            )
-                        )
-                    );
-            })
+            listener
         );
+    }
+
+    private ActionListener<CreateTrainedModelAssignmentAction.Response> updateAssigmentListener(
+        String deploymentId,
+        int numberOfAllocations
+    ) {
+        return ActionListener.wrap(updateResponse -> {
+            logger.debug("adaptive allocations scaler: scaled [{}] to [{}] allocations.", deploymentId, numberOfAllocations);
+            threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME)
+                .execute(
+                    () -> inferenceAuditor.info(
+                        deploymentId,
+                        Strings.format("adaptive allocations scaler: scaled [%s] to [%s] allocations.", deploymentId, numberOfAllocations)
+                    )
+                );
+        }, e -> {
+            logger.atLevel(Level.WARN)
+                .withThrowable(e)
+                .log("adaptive allocations scaler: scaling [{}] to [{}] allocations failed.", deploymentId, numberOfAllocations);
+            threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME)
+                .execute(
+                    () -> inferenceAuditor.warning(
+                        deploymentId,
+                        Strings.format(
+                            "adaptive allocations scaler: scaling [%s] to [%s] allocations failed.",
+                            deploymentId,
+                            numberOfAllocations
+                        )
+                    )
+                );
+        });
     }
 }

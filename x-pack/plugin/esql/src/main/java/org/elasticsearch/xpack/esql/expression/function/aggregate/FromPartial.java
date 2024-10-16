@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.expression.function.aggregate;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -21,6 +22,7 @@ import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -44,18 +46,29 @@ public class FromPartial extends AggregateFunction implements ToAggregator {
     private final Expression function;
 
     public FromPartial(Source source, Expression field, Expression function) {
-        super(source, field, List.of(function));
+        this(source, field, Literal.TRUE, function);
+    }
+
+    public FromPartial(Source source, Expression field, Expression filter, Expression function) {
+        super(source, field, filter, List.of(function));
         this.function = function;
     }
 
     private FromPartial(StreamInput in) throws IOException {
-        this(Source.readFrom((PlanStreamInput) in), in.readNamedWriteable(Expression.class), in.readNamedWriteable(Expression.class));
+        this(
+            Source.readFrom((PlanStreamInput) in),
+            in.readNamedWriteable(Expression.class),
+            in.getTransportVersion().onOrAfter(TransportVersions.ESQL_PER_AGGREGATE_FILTER)
+                ? in.readNamedWriteable(Expression.class)
+                : Literal.TRUE,
+            in.getTransportVersion().onOrAfter(TransportVersions.ESQL_PER_AGGREGATE_FILTER)
+                ? in.readNamedWriteableCollectionAsList(Expression.class).get(0)
+                : in.readNamedWriteable(Expression.class)
+        );
     }
 
     @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        source().writeTo(out);
-        out.writeNamedWriteable(field());
+    protected void deprecatedWriteParams(StreamOutput out) throws IOException {
         out.writeNamedWriteable(function);
     }
 
@@ -85,12 +98,17 @@ public class FromPartial extends AggregateFunction implements ToAggregator {
 
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
-        return new FromPartial(source(), newChildren.get(0), newChildren.get(1));
+        return new FromPartial(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2));
     }
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, FromPartial::new, field(), function);
+        return NodeInfo.create(this, FromPartial::new, field(), filter(), function);
+    }
+
+    @Override
+    public FromPartial withFilter(Expression filter) {
+        return new FromPartial(source(), field(), filter, function);
     }
 
     @Override

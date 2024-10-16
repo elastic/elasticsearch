@@ -16,9 +16,9 @@ base {
 
 dependencies {
   compileOnly project(path: xpackModule('core'))
-  api "org.antlr:antlr4-runtime:${versions.antlr4}"
-  api project(path: xpackModule('mapper-version'))
+  compileOnly "org.antlr:antlr4-runtime:${versions.antlr4}"
 
+  testImplementation "org.antlr:antlr4-runtime:${versions.antlr4}"
   testImplementation project(':test:framework')
   testImplementation(testArtifact(project(xpackModule('core'))))
 }
@@ -30,7 +30,6 @@ dependencies {
 if (BuildParams.isSnapshotBuild()) {
   addQaCheckDependencies(project)
 }
-
 
 /**********************************
  * KQL parser configuration       *

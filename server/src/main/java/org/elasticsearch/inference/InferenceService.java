@@ -129,10 +129,10 @@ public interface InferenceService extends Closeable {
     /**
      * Stop the model deployment.
      * The default action does nothing except acknowledge the request (true).
-     * @param modelId The ID of the model to be stopped
+     * @param unparsedModel The unparsed model configuration
      * @param listener The listener
      */
-    default void stop(String modelId, ActionListener<Boolean> listener) {
+    default void stop(UnparsedModel unparsedModel, ActionListener<Boolean> listener) {
         listener.onResponse(true);
     }
 

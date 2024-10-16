@@ -582,13 +582,13 @@ public class IndexingShardRelocationIT extends AbstractStatelessIntegTestCase {
             nodeAMockTransportService.addRequestHandlingBehavior(recoveryActionToBlock, (handler, request, channel, task) -> {
                 logger.info("--> preventing {} response by closing response channel", recoveryActionToBlock);
                 requestFailed.countDown();
-                nodeBMockTransportService.disconnectFromNode(nodeAMockTransportService.getLocalDiscoNode());
+                nodeBMockTransportService.disconnectFromNode(nodeAMockTransportService.getLocalNode());
                 handler.messageReceived(request, channel, task);
             });
             nodeBMockTransportService.addRequestHandlingBehavior(recoveryActionToBlock, (handler, request, channel, task) -> {
                 logger.info("--> preventing {} response by closing response channel", recoveryActionToBlock);
                 requestFailed.countDown();
-                nodeAMockTransportService.disconnectFromNode(nodeBMockTransportService.getLocalDiscoNode());
+                nodeAMockTransportService.disconnectFromNode(nodeBMockTransportService.getLocalNode());
                 handler.messageReceived(request, channel, task);
             });
         }

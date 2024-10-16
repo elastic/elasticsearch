@@ -21,7 +21,6 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.NumericUtils;
-import org.elasticsearch.xpack.esql.expression.function.scalar.convert.AbstractConvertFunction;
 import org.elasticsearch.xpack.versionfield.Version;
 import org.hamcrest.Matcher;
 
@@ -91,7 +90,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         List<TypedDataSupplier> lhsSuppliers = new ArrayList<>();
         List<TypedDataSupplier> rhsSuppliers = new ArrayList<>();
         List<TestCaseSupplier> suppliers = new ArrayList<>();
-        for (DataType type : AbstractConvertFunction.STRING_TYPES) {
+        for (DataType type : DataType.stringTypes()) {
             lhsSuppliers.addAll(stringCases(type));
             rhsSuppliers.addAll(stringCases(type));
             casesCrossProduct(
@@ -760,7 +759,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         Function<BytesRef, Object> expectedValue,
         Function<BytesRef, List<String>> expectedWarnings
     ) {
-        for (DataType type : AbstractConvertFunction.STRING_TYPES) {
+        for (DataType type : DataType.stringTypes()) {
             unary(
                 suppliers,
                 expectedEvaluatorToString,

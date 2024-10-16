@@ -37,7 +37,10 @@ public class KqlParserTests extends AbstractBuilderTestCase {
         }
 
         {
-            ParsingException e = assertThrows(ParsingException.class, () -> parser.parseKqlQuery("foo: (bar baz AND qux", searchExecutionContext));
+            ParsingException e = assertThrows(
+                ParsingException.class,
+                () -> parser.parseKqlQuery("foo: (bar baz AND qux", searchExecutionContext)
+            );
             assertThat(e.getLineNumber(), equalTo(1));
             assertThat(e.getColumnNumber(), equalTo(15));
             assertThat(e.getMessage(), equalTo("line 1:15: missing ')' at 'AND'"));

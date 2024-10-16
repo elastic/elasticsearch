@@ -21,7 +21,6 @@ import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.expression.function.Function;
 import org.elasticsearch.xpack.esql.core.expression.predicate.BinaryOperator;
-import org.elasticsearch.xpack.esql.core.expression.predicate.fulltext.FullTextPredicate;
 import org.elasticsearch.xpack.esql.core.expression.predicate.fulltext.MatchQueryPredicate;
 import org.elasticsearch.xpack.esql.core.expression.predicate.logical.BinaryLogic;
 import org.elasticsearch.xpack.esql.core.expression.predicate.logical.Not;
@@ -192,7 +191,7 @@ public class Verifier {
             checkBinaryComparison(p, failures);
             checkForSortableDataTypes(p, failures);
 
-            checkFullTextPredicates(p, failures);
+            checkMatchQueryPredicates(p, failures);
             checkFullTextQueryFunctions(p, failures);
         });
         checkRemoteEnrich(plan, failures);
@@ -625,16 +624,17 @@ public class Verifier {
         });
     }
 
-    private static void checkFullTextPredicates(LogicalPlan plan, Set<Failure> failures) {
+    private static void checkMatchQueryPredicates(LogicalPlan plan, Set<Failure> failures) {
         if (plan instanceof Filter f) {
             Expression condition = f.condition();
             checkMatchPredicateTypes(plan, failures);
-            checkCommandsBeforeFullTextPredicates(plan, condition, failures);
-            checkFullTextPredicateConditions(condition, failures);
+            checkCommandsBeforeMatchPredicates(plan, condition, failures);
+            checkMatchPredicateConditions(condition, failures);
         } else {
-            plan.forEachExpression(FullTextPredicate.class, ftf -> {
-                failures.add(fail(ftf, "[{}] operator is only supported in WHERE commands", ftf.name()));
-            });
+            plan.forEachExpression(
+                MatchQueryPredicate.class,
+                ftf -> { failures.add(fail(ftf, "[:] operator is only supported in WHERE commands")); }
+            );
         }
     }
 
@@ -670,35 +670,28 @@ public class Verifier {
         }
     }
 
-    private static void checkCommandsBeforeFullTextPredicates(LogicalPlan plan, Expression condition, Set<Failure> failures) {
-        condition.forEachDown(FullTextPredicate.class, qsf -> {
+    private static void checkCommandsBeforeMatchPredicates(LogicalPlan plan, Expression condition, Set<Failure> failures) {
+        condition.forEachDown(MatchQueryPredicate.class, qsf -> {
             plan.forEachDown(LogicalPlan.class, lp -> {
                 if (lp instanceof Limit) {
                     failures.add(
-                        fail(
-                            plan,
-                            "[{}] operator cannot be used after {}",
-                            qsf.name(),
-                            lp.sourceText().split(" ")[0].toUpperCase(Locale.ROOT)
-                        )
+                        fail(plan, "[:] operator cannot be used after {}", lp.sourceText().split(" ")[0].toUpperCase(Locale.ROOT))
                     );
                 }
             });
         });
     }
 
-    private static void checkFullTextPredicateConditions(Expression condition, Set<Failure> failures) {
+    private static void checkMatchPredicateConditions(Expression condition, Set<Failure> failures) {
         condition.forEachUp(Or.class, or -> {
-            checkFullTextPredicateInDisjunction(failures, or, or.left());
-            checkFullTextPredicateInDisjunction(failures, or, or.right());
+            checkMatchPredicateInDisjunction(failures, or, or.left());
+            checkMatchPredicateInDisjunction(failures, or, or.right());
         });
     }
 
-    private static void checkFullTextPredicateInDisjunction(Set<Failure> failures, Or or, Expression expression) {
-        expression.forEachDown(FullTextPredicate.class, ftp -> {
-            failures.add(
-                fail(or, "Invalid condition [{}]. [{}] operator can't be used as part of an or condition", or.sourceText(), ftp.name())
-            );
+    private static void checkMatchPredicateInDisjunction(Set<Failure> failures, Or or, Expression expression) {
+        expression.forEachDown(MatchQueryPredicate.class, ftp -> {
+            failures.add(fail(or, "Invalid condition [{}]. [:] operator can't be used as part of an or condition", or.sourceText()));
         });
     }
 

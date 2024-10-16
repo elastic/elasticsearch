@@ -1,5 +1,0 @@
-pr: 114911
-summary: Replace empty queue conditional from slicing logic
-area: Search
-type: bug
-issues: []

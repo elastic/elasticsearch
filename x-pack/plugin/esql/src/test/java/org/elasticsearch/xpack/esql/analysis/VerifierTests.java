@@ -1119,7 +1119,7 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testMatchFilter() throws Exception {
-        assumeTrue("Match operator is available just for snapshots", EsqlCapabilities.Cap.MATCH_OPERATOR.isEnabled());
+        assumeTrue("Match operator is available just for snapshots", EsqlCapabilities.Cap.MATCH_OPERATOR_COLON.isEnabled());
 
         assertEquals(
             "1:63: [:] operator requires a mapped index field, found [name]",
@@ -1255,7 +1255,7 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testMatchOperatorWithDisjunctions() {
-        assumeTrue("skipping because MATCH operator is not enabled", EsqlCapabilities.Cap.MATCH_OPERATOR.isEnabled());
+        assumeTrue("skipping because MATCH operator is not enabled", EsqlCapabilities.Cap.MATCH_OPERATOR_COLON.isEnabled());
 
         checkWithDisjunctions(":", "first_name : \"Anna\"", "operator");
     }
@@ -1353,7 +1353,7 @@ public class VerifierTests extends ESTestCase {
             error("from test | stats max_salary = max(salary) by emp_no | where match(first_name, \"Anna\")")
         );
 
-        assumeTrue("skipping because MATCH operator is not enabled", EsqlCapabilities.Cap.MATCH_OPERATOR.isEnabled());
+        assumeTrue("skipping because MATCH operator is not enabled", EsqlCapabilities.Cap.MATCH_OPERATOR_COLON.isEnabled());
         assertEquals(
             "1:62: Unknown column [first_name]",
             error("from test | stats max_salary = max(salary) by emp_no | where first_name : \"Anna\"")
@@ -1374,7 +1374,7 @@ public class VerifierTests extends ESTestCase {
     public void testMatchTargetsExistingField() throws Exception {
         assertEquals("1:39: Unknown column [first_name]", error("from test | keep emp_no | where match(first_name, \"Anna\")"));
 
-        assumeTrue("skipping because MATCH operator is not enabled", EsqlCapabilities.Cap.MATCH_OPERATOR.isEnabled());
+        assumeTrue("skipping because MATCH operator is not enabled", EsqlCapabilities.Cap.MATCH_OPERATOR_COLON.isEnabled());
         assertEquals("1:33: Unknown column [first_name]", error("from test | keep emp_no | where first_name : \"Anna\""));
     }
 

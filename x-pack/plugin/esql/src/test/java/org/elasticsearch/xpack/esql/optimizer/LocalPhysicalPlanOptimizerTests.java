@@ -572,7 +572,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
      *       query[{"match":{"last_name":{"query":"Smith","fuzziness":"2"}}}]
      */
     public void testMatchOperatorFuzzinessDefault() {
-        assumeTrue("skipping because MATCH operator is not enabled", EsqlCapabilities.Cap.MATCH_OPERATOR.isEnabled());
+        assumeTrue("skipping because MATCH operator is not enabled", EsqlCapabilities.Cap.MATCH_OPERATOR_COLON.isEnabled());
 
         var plan = plannerOptimizer.plan("""
             from test
@@ -590,7 +590,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
     }
 
     public void testMatchOperatorFuzzinessExplicit() {
-        assumeTrue("skipping because MATCH operator is not enabled", EsqlCapabilities.Cap.MATCH_OPERATOR.isEnabled());
+        assumeTrue("skipping because MATCH operator is not enabled", EsqlCapabilities.Cap.MATCH_OPERATOR_COLON.isEnabled());
 
         var plan = plannerOptimizer.plan("""
             from test
@@ -631,7 +631,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
      *       query[{"match":{"last_name":{"query":"Smith","fuzziness":"AUTO:3,5"}}}]
      */
     public void testMatchOperatorFuzzinessAuto() {
-        assumeTrue("skipping because MATCH operator is not enabled", EsqlCapabilities.Cap.MATCH_OPERATOR.isEnabled());
+        assumeTrue("skipping because MATCH operator is not enabled", EsqlCapabilities.Cap.MATCH_OPERATOR_COLON.isEnabled());
 
         var plan = plannerOptimizer.plan("""
             from test
@@ -660,7 +660,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
      *       query[{"match":{"last_name":{"query":"Smith","boost":3.2}}}]
      */
     public void testMatchOperatorBoost() {
-        assumeTrue("skipping because MATCH operator is not enabled", EsqlCapabilities.Cap.MATCH_OPERATOR.isEnabled());
+        assumeTrue("skipping because MATCH operator is not enabled", EsqlCapabilities.Cap.MATCH_OPERATOR_COLON.isEnabled());
 
         var plan = plannerOptimizer.plan("""
             from test
@@ -689,7 +689,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
      *       query[{"match":{"last_name":{"query":"Smith","fuzziness":"1","boost":3.2}}}]
      */
     public void testMatchOperatorBoostAndFuzziness() {
-        assumeTrue("skipping because MATCH operator is not enabled", EsqlCapabilities.Cap.MATCH_OPERATOR.isEnabled());
+        assumeTrue("skipping because MATCH operator is not enabled", EsqlCapabilities.Cap.MATCH_OPERATOR_COLON.isEnabled());
 
         var plan = plannerOptimizer.plan("""
             from test
@@ -1196,7 +1196,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
      *       estimatedRowSize[324]
      */
     public void testSingleMatchFilterPushdown() {
-        assumeTrue("skipping because MATCH operator is not enabled", EsqlCapabilities.Cap.MATCH_OPERATOR.isEnabled());
+        assumeTrue("skipping because MATCH operator is not enabled", EsqlCapabilities.Cap.MATCH_OPERATOR_COLON.isEnabled());
 
         var plan = plannerOptimizer.plan("""
             from test
@@ -1228,7 +1228,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
      *         [_doc{f}#22], limit[1000], sort[[FieldSort[field=emp_no{f}#12, direction=ASC, nulls=LAST]]] estimatedRowSize[336]
      */
     public void testMultipleMatchFilterPushdown() {
-        assumeTrue("skipping because MATCH operator is not enabled", EsqlCapabilities.Cap.MATCH_OPERATOR.isEnabled());
+        assumeTrue("skipping because MATCH operator is not enabled", EsqlCapabilities.Cap.MATCH_OPERATOR_COLON.isEnabled());
 
         String query = """
             from test

@@ -1,7 +1,7 @@
 percentileOfNull
 required_capability: extend_aggs_on_constants_support
 row x = null::integer, y = null, z = 123 - null 
-| stats percIntNull = percentile(y, 90), 
+| stats percIntNull = percentile(x, 90), 
         percNull = percentile(y, 90), 
         percentile(null, 90), 
         percentile(null+2, 90), 

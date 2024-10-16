@@ -28,8 +28,6 @@ import org.elasticsearch.core.TimeValue;
 import java.io.IOException;
 import java.util.Objects;
 
-import static co.elastic.elasticsearch.serverless.constants.ServerlessTransportVersions.PUBLISH_NODE_SEARCH_LOAD_QUALITY;
-
 public class PublishNodeSearchLoadRequest extends MasterNodeRequest<PublishNodeSearchLoadRequest> {
 
     private final String nodeId;
@@ -50,11 +48,7 @@ public class PublishNodeSearchLoadRequest extends MasterNodeRequest<PublishNodeS
         this.nodeId = in.readString();
         this.seqNo = in.readLong();
         this.searchLoad = in.readDouble();
-        if (in.getTransportVersion().onOrAfter(PUBLISH_NODE_SEARCH_LOAD_QUALITY)) {
-            this.quality = in.readEnum(MetricQuality.class);
-        } else {
-            this.quality = MetricQuality.EXACT;
-        }
+        this.quality = in.readEnum(MetricQuality.class);
     }
 
     @Override
@@ -63,9 +57,7 @@ public class PublishNodeSearchLoadRequest extends MasterNodeRequest<PublishNodeS
         out.writeString(nodeId);
         out.writeLong(seqNo);
         out.writeDouble(searchLoad);
-        if (out.getTransportVersion().onOrAfter(PUBLISH_NODE_SEARCH_LOAD_QUALITY)) {
-            out.writeEnum(quality);
-        }
+        out.writeEnum(quality);
     }
 
     public String getNodeId() {

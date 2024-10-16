@@ -17,8 +17,6 @@
 
 package co.elastic.elasticsearch.stateless.autoscaling.memory;
 
-import co.elastic.elasticsearch.serverless.constants.ServerlessTransportVersions;
-
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -28,20 +26,14 @@ import java.io.IOException;
 public record ShardMappingSize(long mappingSizeInBytes, int numSegments, int totalFields, String nodeId) implements Writeable {
 
     public static ShardMappingSize from(StreamInput in) throws IOException {
-        if (in.getTransportVersion().onOrAfter(ServerlessTransportVersions.SHARD_FIELD_INFOS)) {
-            return new ShardMappingSize(in.readVLong(), in.readVInt(), in.readVInt(), in.readString());
-        } else {
-            return new ShardMappingSize(in.readVLong(), 0, 0, in.readString());
-        }
+        return new ShardMappingSize(in.readVLong(), in.readVInt(), in.readVInt(), in.readString());
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVLong(mappingSizeInBytes);
-        if (out.getTransportVersion().onOrAfter(ServerlessTransportVersions.SHARD_FIELD_INFOS)) {
-            out.writeVInt(numSegments);
-            out.writeVInt(totalFields);
-        }
+        out.writeVInt(numSegments);
+        out.writeVInt(totalFields);
         out.writeString(nodeId);
     }
 }

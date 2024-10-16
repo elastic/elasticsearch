@@ -17,12 +17,9 @@
 
 package co.elastic.elasticsearch.stateless.autoscaling.memory;
 
-import co.elastic.elasticsearch.serverless.constants.ServerlessTransportVersions;
-
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
@@ -39,34 +36,13 @@ public record HeapMemoryUsage(long publicationSeqNo, Map<ShardId, ShardMappingSi
     }
 
     public static HeapMemoryUsage from(StreamInput in) throws IOException {
-        final Writeable.Reader<ShardId> keyReader;
-        if (in.getTransportVersion().onOrAfter(ServerlessTransportVersions.SHARD_FIELD_INFOS)) {
-            keyReader = ShardId::new;
-        } else {
-            keyReader = is -> new ShardId(new Index(is), 0);
-        }
-        return new HeapMemoryUsage(in.readVLong(), in.readMap(keyReader, ShardMappingSize::from), readClusterStateVersion(in));
-    }
-
-    private static long readClusterStateVersion(StreamInput in) throws IOException {
-        if (in.getTransportVersion().onOrAfter(ServerlessTransportVersions.CLUSTER_STATE_VERSION_IN_PUBLISH_MEMORY_METRICS_REQUEST)) {
-            return in.readLong();
-        }
-        return UNKNOWN_VERSION;
+        return new HeapMemoryUsage(in.readVLong(), in.readMap(ShardId::new, ShardMappingSize::from), in.readLong());
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVLong(publicationSeqNo);
-        final Writeable.Writer<ShardId> keyWriter;
-        if (out.getTransportVersion().onOrAfter(ServerlessTransportVersions.SHARD_FIELD_INFOS)) {
-            keyWriter = (o, v) -> v.writeTo(o);
-        } else {
-            keyWriter = (o, v) -> v.getIndex().writeTo(o);
-        }
-        out.writeMap(shardMappingSizes, keyWriter, (o, shard) -> shard.writeTo(o));
-        if (out.getTransportVersion().onOrAfter(ServerlessTransportVersions.CLUSTER_STATE_VERSION_IN_PUBLISH_MEMORY_METRICS_REQUEST)) {
-            out.writeLong(clusterStateVersion);
-        }
+        out.writeMap(shardMappingSizes, StreamOutput::writeWriteable, StreamOutput::writeWriteable);
+        out.writeLong(clusterStateVersion);
     }
 }

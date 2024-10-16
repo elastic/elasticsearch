@@ -80,9 +80,6 @@ tests:
 - class: org.elasticsearch.xpack.restart.CoreFullClusterRestartIT
   method: testSnapshotRestore {cluster=UPGRADED}
   issue: https://github.com/elastic/elasticsearch/issues/111799
-- class: org.elasticsearch.xpack.inference.InferenceRestIT
-  method: test {p0=inference/80_random_rerank_retriever/Random rerank retriever predictably shuffles results}
-  issue: https://github.com/elastic/elasticsearch/issues/111999
 - class: org.elasticsearch.smoketest.SmokeTestMultiNodeClientYamlTestSuiteIT
   issue: https://github.com/elastic/elasticsearch/issues/112147
 - class: org.elasticsearch.smoketest.WatcherYamlRestIT
@@ -259,12 +256,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.expression.function.aggregate.AvgTests
   method: "testFold {TestCase=<double> #7}"
   issue: https://github.com/elastic/elasticsearch/issues/114175
-- class: org.elasticsearch.action.bulk.IncrementalBulkIT
-  method: testMultipleBulkPartsWithBackoff
-  issue: https://github.com/elastic/elasticsearch/issues/114181
-- class: org.elasticsearch.action.bulk.IncrementalBulkIT
-  method: testIncrementalBulkLowWatermarkBackOff
-  issue: https://github.com/elastic/elasticsearch/issues/114182
 - class: org.elasticsearch.xpack.ilm.ExplainLifecycleIT
   method: testStepInfoPreservedOnAutoRetry
   issue: https://github.com/elastic/elasticsearch/issues/114220

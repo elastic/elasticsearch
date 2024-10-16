@@ -2242,6 +2242,7 @@ null
 
 weightedAvgWeightConstantMvWarning
 required_capability: agg_weighted_avg
+required_capability: extend_aggs_on_constants_support
 from employees
 | eval w = [1, 2, 3]
 | stats w_avg = weighted_avg(salary, w)

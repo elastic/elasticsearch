@@ -13,6 +13,7 @@ import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
+import org.elasticsearch.index.mapper.DataTierFieldMapper;
 import org.elasticsearch.index.mapper.DocCountFieldMapper;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.IdFieldMapper;
@@ -81,7 +82,7 @@ public class IndicesModuleTests extends ESTestCase {
         }
     });
 
-    private static final String[] EXPECTED_METADATA_FIELDS = new String[] {
+    private static final String[] EXPECTED_METADATA_FIELDS = new String[]{
         IgnoredFieldMapper.NAME,
         IdFieldMapper.NAME,
         RoutingFieldMapper.NAME,
@@ -96,7 +97,8 @@ public class IndicesModuleTests extends ESTestCase {
         SeqNoFieldMapper.NAME,
         DocCountFieldMapper.NAME,
         DataStreamTimestampFieldMapper.NAME,
-        FieldNamesFieldMapper.NAME };
+        DataTierFieldMapper.NAME,
+        FieldNamesFieldMapper.NAME};
 
     @UpdateForV9(owner = UpdateForV9.Owner.SEARCH_FOUNDATIONS)
     @AwaitsFix(bugUrl = "test is referencing 7.x index versions so needs to be updated for 9.0 bump")

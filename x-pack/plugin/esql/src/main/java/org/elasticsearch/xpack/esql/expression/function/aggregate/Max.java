@@ -128,7 +128,7 @@ public class Max extends AggregateFunction implements ToAggregator, SurrogateExp
         if (type == DataType.IP) {
             return new MaxIpAggregatorFunctionSupplier(inputChannels);
         }
-        if (type == DataType.VERSION || type == DataType.KEYWORD || type == DataType.TEXT) {
+        if (type == DataType.VERSION || DataType.isString(type)) {
             return new MaxBytesRefAggregatorFunctionSupplier(inputChannels);
         }
         throw EsqlIllegalArgumentException.illegalDataType(type);

@@ -24,6 +24,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.scheduler.SchedulerEngine;
 import org.elasticsearch.common.scheduler.TimeValueSchedule;
@@ -41,7 +42,6 @@ import org.elasticsearch.health.ImpactArea;
 import org.elasticsearch.health.node.HealthInfo;
 import org.elasticsearch.xcontent.XContentBuilder;
 
-import java.io.Closeable;
 import java.io.IOException;
 import java.time.Clock;
 import java.util.List;
@@ -57,7 +57,7 @@ import java.util.function.Supplier;
  * - YELLOW, if the last observed result was GREEN, but it was observed longer than X times the poll interval
  * - RED, if there was an error during the last check or if the current check has exceeded the timeout.
  */
-public class BlobStoreHealthIndicator implements HealthIndicatorService, Closeable, SchedulerEngine.Listener {
+public class BlobStoreHealthIndicator extends AbstractLifecycleComponent implements HealthIndicatorService, SchedulerEngine.Listener {
 
     private static final Logger logger = LogManager.getLogger(BlobStoreHealthIndicator.class);
 
@@ -123,9 +123,17 @@ public class BlobStoreHealthIndicator implements HealthIndicatorService, Closeab
     public BlobStoreHealthIndicator init() {
         clusterService.getClusterSettings().addSettingsUpdateConsumer(POLL_INTERVAL_SETTING, this::updatePollInterval);
         clusterService.getClusterSettings().addSettingsUpdateConsumer(CHECK_TIMEOUT_SETTING, this::updateTimeout);
-        maybeScheduleJob();
         return this;
     }
+
+    @Override
+    protected void doStart() {
+        logger.info("starting");
+        maybeScheduleJob();
+    }
+
+    @Override
+    protected void doStop() {}
 
     @Override
     public String name() {
@@ -297,7 +305,8 @@ public class BlobStoreHealthIndicator implements HealthIndicatorService, Closeab
     }
 
     @Override
-    public void close() {
+    protected void doClose() {
+        logger.info("closing");
         SchedulerEngine engine = scheduler.get();
         if (engine != null) {
             engine.stop();
@@ -319,6 +328,9 @@ public class BlobStoreHealthIndicator implements HealthIndicatorService, Closeab
 
     // default visibility for testing purposes
     void runCheck() {
+        if (lifecycle.started() == false) {
+            return;
+        }
         if (inProgress.compareAndSet(false, true)) {
             lastCheckStartedTimeMillis = currentTimeMillisSupplier.get();
             electionStrategy.readLease(ActionListener.releaseAfter(new ActionListener<>() {

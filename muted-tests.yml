@@ -388,6 +388,9 @@ tests:
 - class: org.elasticsearch.xpack.enrich.EnrichIT
   method: testDeleteIsCaseSensitive
   issue: https://github.com/elastic/elasticsearch/issues/114840
+- class: org.elasticsearch.packaging.test.EnrollmentProcessTests
+  method: test20DockerAutoFormCluster
+  issue: https://github.com/elastic/elasticsearch/issues/114885
 
 # Examples:
 #

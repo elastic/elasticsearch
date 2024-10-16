@@ -181,6 +181,11 @@ public class EsqlCapabilities {
         SPATIAL_DISTANCE_PUSHDOWN_ENHANCEMENTS,
 
         /**
+         * Fix for spatial centroid when no records are found.
+         */
+        SPATIAL_CENTROID_NO_RECORDS,
+
+        /**
          * Fix to GROK and DISSECT that allows extracting attributes with the same name as the input
          * https://github.com/elastic/elasticsearch/issues/110184
          */

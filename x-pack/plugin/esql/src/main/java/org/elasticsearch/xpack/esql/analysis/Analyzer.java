@@ -51,6 +51,7 @@ import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.AbstractConvertFunction;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.FoldablesConvertFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToInteger;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToLong;
@@ -1225,6 +1226,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             if (convert.field() instanceof FieldAttribute fa && fa.field() instanceof InvalidMappedField imf) {
                 HashMap<TypeResolutionKey, Expression> typeResolutions = new HashMap<>();
                 Set<DataType> supportedTypes = convert.supportedTypes();
+                if (convert instanceof FoldablesConvertFunction fcf && supportedTypes.isEmpty()) {
+                    // FoldablesConvertFunction does not accept fields as inputs, they only accept constants
+                    return resolveFoldablesConvertFunction(fcf);
+                }
                 imf.types().forEach(type -> {
                     if (supportedTypes.contains(type.widenSmallNumeric())) {
                         TypeResolutionKey key = new TypeResolutionKey(fa.name(), type);
@@ -1241,6 +1246,25 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 return convert.replaceChildren(Collections.singletonList(resolveConvertFunction(subConvert, unionFieldAttributes)));
             }
             return convert;
+        }
+
+        private static Expression resolveFoldablesConvertFunction(FoldablesConvertFunction fcf) {
+            if (fcf.field() instanceof FieldAttribute fa && fa.field() instanceof InvalidMappedField imf) {
+                String unresolvedMessage = "argument of ["
+                    + fcf.sourceText()
+                    + "] must be a constant, received ["
+                    + Expressions.name(fa)
+                    + "]";
+                String types = imf.getTypesToIndices().keySet().stream().collect(Collectors.joining(","));
+                Expression ua = new UnsupportedAttribute(
+                    fa.source(),
+                    fa.name(),
+                    new UnsupportedEsField(imf.getName(), types),
+                    unresolvedMessage
+                );
+                return fcf.replaceChildren(Collections.singletonList(ua));
+            }
+            return fcf;
         }
 
         private Expression createIfDoesNotAlreadyExist(

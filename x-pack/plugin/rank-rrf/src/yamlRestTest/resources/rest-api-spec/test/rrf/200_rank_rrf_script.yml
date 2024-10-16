@@ -74,7 +74,7 @@ setup:
 
   - do:
       warnings:
-        - "Deprecated field [rank] used, this field is unused and will be removed entirely in a future release. Please consider using the appropriate [retriever] to rank your results."
+        - "Deprecated field [rank] used, replaced by [retriever]"
       search:
         index: test
         body:
@@ -154,7 +154,7 @@ setup:
 
   - do:
       warnings:
-        - "Deprecated field [rank] used, this field is unused and will be removed entirely in a future release. Please consider using the appropriate [retriever] to rank your results."
+        - "Deprecated field [rank] used, replaced by [retriever]"
       search:
         index: test
         body:
@@ -216,7 +216,7 @@ setup:
 
   - do:
       warnings:
-        - "Deprecated field [rank] used, this field is unused and will be removed entirely in a future release. Please consider using the appropriate [retriever] to rank your results."
+        - "Deprecated field [rank] used, replaced by [retriever]"
       search:
         index: test
         body:

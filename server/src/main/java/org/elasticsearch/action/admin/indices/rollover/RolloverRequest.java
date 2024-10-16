@@ -147,8 +147,8 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
             );
         }
 
-        var failureStoreOptions = indicesOptions.failureStoreOptions();
-        if (failureStoreOptions.includeRegularIndices() && failureStoreOptions.includeFailureIndices()) {
+        var selectors = indicesOptions.selectorOptions().defaultSelectors();
+        if (selectors.size() > 1) {
             validationException = addValidationError(
                 "rollover cannot be applied to both regular and failure indices at the same time",
                 validationException
@@ -188,7 +188,7 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
      * @return true of the rollover request targets the failure store, false otherwise.
      */
     public boolean targetsFailureStore() {
-        return DataStream.isFailureStoreFeatureFlagEnabled() && indicesOptions.failureStoreOptions().includeFailureIndices();
+        return DataStream.isFailureStoreFeatureFlagEnabled() && indicesOptions.includeFailureIndices();
     }
 
     public void setIndicesOptions(IndicesOptions indicesOptions) {

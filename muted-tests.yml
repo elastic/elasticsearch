@@ -315,18 +315,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
   method: test {categorize.Categorize ASYNC}
   issue: https://github.com/elastic/elasticsearch/issues/113721
-- class: org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvPercentileTests
-  method: "testEvaluateBlockWithoutNulls {TestCase=field: <positive mv UNORDERED longs>, percentile: <small positive double>}"
-  issue: https://github.com/elastic/elasticsearch/issues/114585
-- class: org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvPercentileTests
-  method: "testEvaluateBlockWithoutNulls {TestCase=field: <positive mv SORTED_ASCENDING longs>, percentile: <small positive double>}"
-  issue: https://github.com/elastic/elasticsearch/issues/114586
-- class: org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvPercentileTests
-  method: "testEvaluateBlockWithoutNulls {TestCase=field: <positive mv DEDUPLICATED_AND_SORTED_ASCENDING longs>, percentile: <small positive double>}"
-  issue: https://github.com/elastic/elasticsearch/issues/114587
-- class: org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvPercentileTests
-  method: "testEvaluateBlockWithoutNulls {TestCase=field: <positive mv DEDUPLICATED_UNORDERD longs>, percentile: <small positive double>}"
-  issue: https://github.com/elastic/elasticsearch/issues/114588
 - class: org.elasticsearch.action.search.SearchQueryThenFetchAsyncActionTests
   method: testMinimumVersionSameAsNewVersion
   issue: https://github.com/elastic/elasticsearch/issues/114593
@@ -342,6 +330,57 @@ tests:
 - class: org.elasticsearch.action.search.SearchQueryThenFetchAsyncActionTests
   method: testMinimumVersionShardDuringPhaseExecution
   issue: https://github.com/elastic/elasticsearch/issues/114611
+- class: org.elasticsearch.kibana.KibanaThreadPoolIT
+  method: testBlockedThreadPoolsRejectUserRequests
+  issue: https://github.com/elastic/elasticsearch/issues/113939
+- class: org.elasticsearch.xpack.inference.integration.ModelRegistryIT
+  method: testGetModel
+  issue: https://github.com/elastic/elasticsearch/issues/114657
+- class: org.elasticsearch.xpack.inference.TextEmbeddingCrudIT
+  method: testPutE5WithTrainedModelAndInference
+  issue: https://github.com/elastic/elasticsearch/issues/114023
+- class: org.elasticsearch.xpack.enrich.EnrichRestIT
+  method: test {p0=enrich/40_synthetic_source/enrich documents over _bulk}
+  issue: https://github.com/elastic/elasticsearch/issues/114825
+- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
+  method: test {p0=search.vectors/70_dense_vector_telemetry/Field mapping stats}
+  issue: https://github.com/elastic/elasticsearch/issues/114556
+- class: org.elasticsearch.threadpool.SimpleThreadPoolIT
+  method: testThreadPoolMetrics
+  issue: https://github.com/elastic/elasticsearch/issues/108320
+- class: org.elasticsearch.xpack.eql.EqlRestValidationIT
+  method: testDefaultIndicesOptions
+  issue: https://github.com/elastic/elasticsearch/issues/114771
+- class: org.elasticsearch.xpack.enrich.EnrichRestIT
+  method: test {p0=enrich/10_basic/Test enrich crud apis}
+  issue: https://github.com/elastic/elasticsearch/issues/114766
+- class: org.elasticsearch.xpack.inference.TextEmbeddingCrudIT
+  method: testPutE5Small_withPlatformAgnosticVariant
+  issue: https://github.com/elastic/elasticsearch/issues/113983
+- class: org.elasticsearch.xpack.eql.EqlRestIT
+  method: testIndexWildcardPatterns
+  issue: https://github.com/elastic/elasticsearch/issues/114749
+- class: org.elasticsearch.xpack.enrich.EnrichRestIT
+  method: test {p0=enrich/20_standard_index/enrich stats REST response structure}
+  issue: https://github.com/elastic/elasticsearch/issues/114753
+- class: org.elasticsearch.ingest.geoip.DatabaseNodeServiceIT
+  method: testGzippedDatabase
+  issue: https://github.com/elastic/elasticsearch/issues/113752
+- class: org.elasticsearch.xpack.enrich.EnrichRestIT
+  method: test {p0=enrich/10_basic/Test using the deprecated elasticsearch_version field results in a warning}
+  issue: https://github.com/elastic/elasticsearch/issues/114748
+- class: org.elasticsearch.xpack.enrich.EnrichRestIT
+  method: test {p0=enrich/20_standard_index/enrich documents over _bulk via an alias}
+  issue: https://github.com/elastic/elasticsearch/issues/114763
+- class: org.elasticsearch.xpack.eql.EqlRestValidationIT
+  method: testAllowNoIndicesOption
+  issue: https://github.com/elastic/elasticsearch/issues/114789
+- class: org.elasticsearch.xpack.enrich.EnrichRestIT
+  method: test {p0=enrich/20_standard_index/enrich documents over _bulk}
+  issue: https://github.com/elastic/elasticsearch/issues/114768
+- class: org.elasticsearch.datastreams.LazyRolloverDuringDisruptionIT
+  method: testRolloverIsExecutedOnce
+  issue: https://github.com/elastic/elasticsearch/issues/112634
 
 # Examples:
 #

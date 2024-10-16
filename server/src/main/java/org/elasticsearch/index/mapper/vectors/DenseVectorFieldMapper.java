@@ -45,6 +45,8 @@ import org.elasticsearch.index.codec.vectors.ES813Int8FlatVectorFormat;
 import org.elasticsearch.index.codec.vectors.ES814HnswScalarQuantizedVectorsFormat;
 import org.elasticsearch.index.codec.vectors.ES815BitFlatVectorFormat;
 import org.elasticsearch.index.codec.vectors.ES815HnswBitVectorsFormat;
+import org.elasticsearch.index.codec.vectors.ES816BinaryQuantizedVectorsFormat;
+import org.elasticsearch.index.codec.vectors.ES816HnswBinaryQuantizedVectorsFormat;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.ArraySourceValueFetcher;
@@ -98,6 +100,7 @@ import static org.elasticsearch.index.IndexVersions.DEFAULT_DENSE_VECTOR_TO_INT8
 public class DenseVectorFieldMapper extends FieldMapper {
     public static final String COSINE_MAGNITUDE_FIELD_SUFFIX = "._magnitude";
     private static final float EPS = 1e-3f;
+    static final int BBQ_MIN_DIMS = 64;
 
     public static boolean isNotUnitVector(float magnitude) {
         return Math.abs(magnitude - 1.0f) > EPS;
@@ -105,6 +108,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
     public static final NodeFeature INT4_QUANTIZATION = new NodeFeature("mapper.vectors.int4_quantization");
     public static final NodeFeature BIT_VECTORS = new NodeFeature("mapper.vectors.bit_vectors");
+    public static final NodeFeature BBQ_FORMAT = new NodeFeature("mapper.vectors.bbq");
 
     public static final IndexVersion MAGNITUDE_STORED_INDEX_VERSION = IndexVersions.V_7_5_0;
     public static final IndexVersion INDEXED_BY_DEFAULT_INDEX_VERSION = IndexVersions.FIRST_DETACHED_INDEX_VERSION;
@@ -1162,7 +1166,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
         abstract boolean updatableTo(IndexOptions update);
 
-        public final void validateDimension(int dim) {
+        public void validateDimension(int dim) {
             if (type.supportsDimension(dim)) {
                 return;
             }
@@ -1341,6 +1345,50 @@ public class DenseVectorFieldMapper extends FieldMapper {
             @Override
             public boolean supportsDimension(int dims) {
                 return dims % 2 == 0;
+            }
+        },
+        BBQ_HNSW("bbq_hnsw") {
+            @Override
+            public IndexOptions parseIndexOptions(String fieldName, Map<String, ?> indexOptionsMap) {
+                Object mNode = indexOptionsMap.remove("m");
+                Object efConstructionNode = indexOptionsMap.remove("ef_construction");
+                if (mNode == null) {
+                    mNode = Lucene99HnswVectorsFormat.DEFAULT_MAX_CONN;
+                }
+                if (efConstructionNode == null) {
+                    efConstructionNode = Lucene99HnswVectorsFormat.DEFAULT_BEAM_WIDTH;
+                }
+                int m = XContentMapValues.nodeIntegerValue(mNode);
+                int efConstruction = XContentMapValues.nodeIntegerValue(efConstructionNode);
+                MappingParser.checkNoRemainingFields(fieldName, indexOptionsMap);
+                return new BBQHnswIndexOptions(m, efConstruction);
+            }
+
+            @Override
+            public boolean supportsElementType(ElementType elementType) {
+                return elementType == ElementType.FLOAT;
+            }
+
+            @Override
+            public boolean supportsDimension(int dims) {
+                return dims >= BBQ_MIN_DIMS;
+            }
+        },
+        BBQ_FLAT("bbq_flat") {
+            @Override
+            public IndexOptions parseIndexOptions(String fieldName, Map<String, ?> indexOptionsMap) {
+                MappingParser.checkNoRemainingFields(fieldName, indexOptionsMap);
+                return new BBQFlatIndexOptions();
+            }
+
+            @Override
+            public boolean supportsElementType(ElementType elementType) {
+                return elementType == ElementType.FLOAT;
+            }
+
+            @Override
+            public boolean supportsDimension(int dims) {
+                return dims >= BBQ_MIN_DIMS;
             }
         };
 
@@ -1704,6 +1752,102 @@ public class DenseVectorFieldMapper extends FieldMapper {
         @Override
         public String toString() {
             return "{type=" + type + ", m=" + m + ", ef_construction=" + efConstruction + "}";
+        }
+    }
+
+    static class BBQHnswIndexOptions extends IndexOptions {
+        private final int m;
+        private final int efConstruction;
+
+        BBQHnswIndexOptions(int m, int efConstruction) {
+            super(VectorIndexType.BBQ_HNSW);
+            this.m = m;
+            this.efConstruction = efConstruction;
+        }
+
+        @Override
+        KnnVectorsFormat getVectorsFormat(ElementType elementType) {
+            assert elementType == ElementType.FLOAT;
+            return new ES816HnswBinaryQuantizedVectorsFormat(m, efConstruction);
+        }
+
+        @Override
+        boolean updatableTo(IndexOptions update) {
+            return update.type.equals(this.type);
+        }
+
+        @Override
+        boolean doEquals(IndexOptions other) {
+            BBQHnswIndexOptions that = (BBQHnswIndexOptions) other;
+            return m == that.m && efConstruction == that.efConstruction;
+        }
+
+        @Override
+        int doHashCode() {
+            return Objects.hash(m, efConstruction);
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            builder.field("type", type);
+            builder.field("m", m);
+            builder.field("ef_construction", efConstruction);
+            builder.endObject();
+            return builder;
+        }
+
+        @Override
+        public void validateDimension(int dim) {
+            if (type.supportsDimension(dim)) {
+                return;
+            }
+            throw new IllegalArgumentException(type.name + " does not support dimensions fewer than " + BBQ_MIN_DIMS + "; provided=" + dim);
+        }
+    }
+
+    static class BBQFlatIndexOptions extends IndexOptions {
+        private final int CLASS_NAME_HASH = this.getClass().getName().hashCode();
+
+        BBQFlatIndexOptions() {
+            super(VectorIndexType.BBQ_FLAT);
+        }
+
+        @Override
+        KnnVectorsFormat getVectorsFormat(ElementType elementType) {
+            assert elementType == ElementType.FLOAT;
+            return new ES816BinaryQuantizedVectorsFormat();
+        }
+
+        @Override
+        boolean updatableTo(IndexOptions update) {
+            return update.type.equals(this.type);
+        }
+
+        @Override
+        boolean doEquals(IndexOptions other) {
+            return other instanceof BBQFlatIndexOptions;
+        }
+
+        @Override
+        int doHashCode() {
+            return CLASS_NAME_HASH;
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            builder.field("type", type);
+            builder.endObject();
+            return builder;
+        }
+
+        @Override
+        public void validateDimension(int dim) {
+            if (type.supportsDimension(dim)) {
+                return;
+            }
+            throw new IllegalArgumentException(type.name + " does not support dimensions fewer than " + BBQ_MIN_DIMS + "; provided=" + dim);
         }
     }
 
@@ -2108,9 +2252,12 @@ public class DenseVectorFieldMapper extends FieldMapper {
             throw new MapperParsingException("[index_options] requires field [type] to be configured");
         }
         String type = XContentMapValues.nodeStringValue(typeNode);
-        return VectorIndexType.fromString(type)
-            .orElseThrow(() -> new MapperParsingException("Unknown vector index options type [" + type + "] for field [" + fieldName + "]"))
-            .parseIndexOptions(fieldName, indexOptionsMap);
+        Optional<VectorIndexType> vectorIndexType = VectorIndexType.fromString(type);
+        if (vectorIndexType.isEmpty()) {
+            throw new MapperParsingException("Unknown vector index options type [" + type + "] for field [" + fieldName + "]");
+        }
+        VectorIndexType parsedType = vectorIndexType.get();
+        return parsedType.parseIndexOptions(fieldName, indexOptionsMap);
     }
 
     /**
@@ -2270,7 +2417,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             if (indexCreatedVersion.onOrAfter(LITTLE_ENDIAN_FLOAT_STORED_INDEX_VERSION)) {
                 byteBuffer.order(ByteOrder.LITTLE_ENDIAN);
             }
-            int dims = fieldType().dims;
+            int dims = fieldType().elementType == ElementType.BIT ? fieldType().dims / Byte.SIZE : fieldType().dims;
             for (int dim = 0; dim < dims; dim++) {
                 fieldType().elementType.readAndWriteValue(byteBuffer, b);
             }

@@ -45,4 +45,18 @@ public class DatabaseTests extends ESTestCase {
         // n.b. this is just a choice we decided to make here at Elastic
         assertThat(Database.Enterprise.defaultProperties(), equalTo(Database.City.defaultProperties()));
     }
+
+    public void testDatabaseVariantPropertyInvariants() {
+        // the second ASN variant database is like a specialization of the ASN database
+        assertThat(Sets.difference(Database.Asn.properties(), Database.AsnV2.properties()), is(empty()));
+        assertThat(Database.Asn.defaultProperties(), equalTo(Database.AsnV2.defaultProperties()));
+
+        // the second City variant database is like a version of the ordinary City database but lacking many fields
+        assertThat(Sets.difference(Database.CityV2.properties(), Database.City.properties()), is(empty()));
+        assertThat(Sets.difference(Database.CityV2.defaultProperties(), Database.City.defaultProperties()), is(empty()));
+
+        // the second Country variant database is like a version of the ordinary Country database but lacking come fields
+        assertThat(Sets.difference(Database.CountryV2.properties(), Database.CountryV2.properties()), is(empty()));
+        assertThat(Database.CountryV2.defaultProperties(), equalTo(Database.Country.defaultProperties()));
+    }
 }

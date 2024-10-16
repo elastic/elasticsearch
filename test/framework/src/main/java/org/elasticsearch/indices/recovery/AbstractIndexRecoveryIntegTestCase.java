@@ -156,11 +156,11 @@ public abstract class AbstractIndexRecoveryIntegTestCase extends ESIntegTestCase
         Runnable connectionBreaker = () -> {
             // Always break connection from source to remote to ensure that actions are retried
             logger.info("--> closing connections from source node to target node");
-            blueTransportService.disconnectFromNode(redTransportService.getLocalDiscoNode());
+            blueTransportService.disconnectFromNode(redTransportService.getLocalNode());
             if (randomBoolean()) {
                 // Sometimes break connection from remote to source to ensure that recovery is re-established
                 logger.info("--> closing connections from target node to source node");
-                redTransportService.disconnectFromNode(blueTransportService.getLocalDiscoNode());
+                redTransportService.disconnectFromNode(blueTransportService.getLocalNode());
             }
         };
         TransientReceiveRejected handlingBehavior = new TransientReceiveRejected(recoveryActionToBlock, recoveryStarted, connectionBreaker);
@@ -258,13 +258,13 @@ public abstract class AbstractIndexRecoveryIntegTestCase extends ESIntegTestCase
             blueMockTransportService.addRequestHandlingBehavior(recoveryActionToBlock, (handler, request, channel, task) -> {
                 logger.info("--> preventing {} response by closing response channel", recoveryActionToBlock);
                 requestFailed.countDown();
-                redMockTransportService.disconnectFromNode(blueMockTransportService.getLocalDiscoNode());
+                redMockTransportService.disconnectFromNode(blueMockTransportService.getLocalNode());
                 handler.messageReceived(request, channel, task);
             });
             redMockTransportService.addRequestHandlingBehavior(recoveryActionToBlock, (handler, request, channel, task) -> {
                 logger.info("--> preventing {} response by closing response channel", recoveryActionToBlock);
                 requestFailed.countDown();
-                blueMockTransportService.disconnectFromNode(redMockTransportService.getLocalDiscoNode());
+                blueMockTransportService.disconnectFromNode(redMockTransportService.getLocalNode());
                 handler.messageReceived(request, channel, task);
             });
         }

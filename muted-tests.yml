@@ -388,6 +388,9 @@ tests:
 - class: org.elasticsearch.xpack.enrich.EnrichRestIT
   method: test {p0=enrich/40_synthetic_source/enrich documents over _bulk}
   issue: https://github.com/elastic/elasticsearch/issues/114825
+- class: org.elasticsearch.xpack.inference.DefaultEndPointsIT
+  method: testInferDeploysDefaultElser
+  issue: https://github.com/elastic/elasticsearch/issues/114913
 
 # Examples:
 #

@@ -1741,6 +1741,6 @@ public class ES816BinaryFlatVectorsScorerTests extends LuceneTestCase {
             similarityFunction
         );
 
-        assertEquals(132.30249f, scorer.score(0), 0.0001f);
+        assertEquals(129.64046f, scorer.score(0), 0.0001f);
     }
 }

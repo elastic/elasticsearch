@@ -41,7 +41,7 @@
       "include":{
         "type":"string",
         "required":false,
-        "description":"A comma-separate list of fields to optionally include. Valid options are 'definition' and 'total_feature_importance'. Default is none."
+        "description":"A comma-separate list of fields to optionally include. Valid options are 'definition', 'total_feature_importance', 'feature_importance_baseline', 'hyperparameters' and 'definition_status'. Default is none."
       },
       "include_model_definition":{
         "type":"boolean",

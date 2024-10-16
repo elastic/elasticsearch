@@ -4,7 +4,7 @@
 <titleabbrev>Basics: Full-text search and filtering</titleabbrev>
 ++++
 
-This is a hands-on introduction to the basics of full-text search with {es}, also known as _lexical search_, using the `_search` API and <<query-dsl,Query DSL>>.
+This is a hands-on introduction to the basics of full-text search with {es}, also known as _lexical search_, using the <<search-search,`_search` API>> and <<query-dsl,Query DSL>>.
 You'll also learn how to filter data, to narrow down search results based on exact criteria.
 
 In this scenario, we're implementing a search function for a cooking blog.

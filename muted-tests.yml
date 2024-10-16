@@ -94,12 +94,6 @@ tests:
 - class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
   method: test {yaml=reference/rest-api/watcher/put-watch/line_120}
   issue: https://github.com/elastic/elasticsearch/issues/99517
-- class: org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialCentroidTests
-  method: "testAggregateIntermediate {TestCase=<geo_point> #2}"
-  issue: https://github.com/elastic/elasticsearch/issues/112461
-- class: org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialCentroidTests
-  method: testAggregateIntermediate {TestCase=<geo_point>}
-  issue: https://github.com/elastic/elasticsearch/issues/112463
 - class: org.elasticsearch.xpack.esql.action.ManyShardsIT
   method: testRejection
   issue: https://github.com/elastic/elasticsearch/issues/112406
@@ -265,12 +259,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.expression.function.aggregate.AvgTests
   method: "testFold {TestCase=<double> #7}"
   issue: https://github.com/elastic/elasticsearch/issues/114175
-- class: org.elasticsearch.action.bulk.IncrementalBulkIT
-  method: testMultipleBulkPartsWithBackoff
-  issue: https://github.com/elastic/elasticsearch/issues/114181
-- class: org.elasticsearch.action.bulk.IncrementalBulkIT
-  method: testIncrementalBulkLowWatermarkBackOff
-  issue: https://github.com/elastic/elasticsearch/issues/114182
 - class: org.elasticsearch.xpack.ilm.ExplainLifecycleIT
   method: testStepInfoPreservedOnAutoRetry
   issue: https://github.com/elastic/elasticsearch/issues/114220
@@ -382,15 +370,21 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/114839
 - class: org.elasticsearch.license.LicensingTests
   issue: https://github.com/elastic/elasticsearch/issues/114865
-- class: org.elasticsearch.datastreams.logsdb.qa.LogsDbVersusLogsDbReindexedIntoStandardModeChallengeRestIT
-  method: testTermsQuery
-  issue: https://github.com/elastic/elasticsearch/issues/114873
 - class: org.elasticsearch.xpack.enrich.EnrichIT
   method: testDeleteIsCaseSensitive
   issue: https://github.com/elastic/elasticsearch/issues/114840
 - class: org.elasticsearch.packaging.test.EnrollmentProcessTests
   method: test20DockerAutoFormCluster
   issue: https://github.com/elastic/elasticsearch/issues/114885
+- class: org.elasticsearch.test.rest.ClientYamlTestSuiteIT
+  method: test {yaml=cluster.stats/30_ccs_stats/cross-cluster search stats search}
+  issue: https://github.com/elastic/elasticsearch/issues/114902
+- class: org.elasticsearch.xpack.enrich.EnrichRestIT
+  method: test {p0=enrich/40_synthetic_source/enrich documents over _bulk}
+  issue: https://github.com/elastic/elasticsearch/issues/114825
+- class: org.elasticsearch.xpack.inference.DefaultEndPointsIT
+  method: testInferDeploysDefaultElser
+  issue: https://github.com/elastic/elasticsearch/issues/114913
 
 # Examples:
 #

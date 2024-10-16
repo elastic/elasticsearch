@@ -80,7 +80,7 @@ public class BlobStoreHealthIndicator implements HealthIndicatorService, Closeab
     public static final String CHECK_TIMEOUT = "health.blob_storage.check.timeout";
     public static final Setting<TimeValue> CHECK_TIMEOUT_SETTING = Setting.timeSetting(
         CHECK_TIMEOUT,
-        TimeValue.timeValueSeconds(30),
+        TimeValue.timeValueSeconds(90),
         TimeValue.timeValueSeconds(1),
         Setting.Property.Dynamic,
         Setting.Property.NodeScope

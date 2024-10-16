@@ -392,7 +392,11 @@ public class EnrichPolicyResolver {
     }
 
     protected void getRemoteConnection(String cluster, ActionListener<Transport.Connection> listener) {
-        remoteClusterService.maybeEnsureConnectedAndGetConnection(cluster, true, listener);
+        remoteClusterService.maybeEnsureConnectedAndGetConnection(
+            cluster,
+            remoteClusterService.isSkipUnavailable(cluster) == false,
+            listener
+        );
     }
 
     public Map<String, List<String>> groupIndicesPerCluster(String[] indices) {

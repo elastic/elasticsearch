@@ -82,7 +82,9 @@ BuildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
       user username: "non_operator", password: 'x-pack-test-password', role: "superuser"
     }
 
-    extraConfigFile 'operator/settings.json', file("${project.projectDir}/src/test/resources/operator_defined_role_mappings.json")
+    if (bwcVersion.onOrAfter('8.4.0')) {
+      extraConfigFile 'operator/settings.json', file("${project.projectDir}/src/test/resources/operator_defined_role_mappings.json")
+    }
 
     user username: "test_user", password: "x-pack-test-password"
 

@@ -68,7 +68,6 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
     // fields that are not Writeable since they are only needed on the primary CCS coordinator
     private final transient Predicate<String> skipUnavailablePredicate;
     private final transient Long relativeStartNanos;  // start time for an ESQL query for calculating took times
-    // TODO: make this a SetOnce?
     private transient TimeValue planningTookTime;  // time elapsed since start of query to calling ComputeService.execute
 
     public EsqlExecutionInfo(boolean includeCCSMetadata) {
@@ -160,7 +159,6 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
         overallTook = new TimeValue(System.nanoTime() - relativeStartNanos, TimeUnit.NANOSECONDS);
     }
 
-    // TODO: remove this?
     // for testing only - use markEndQuery in production code
     void overallTook(TimeValue took) {
         this.overallTook = took;

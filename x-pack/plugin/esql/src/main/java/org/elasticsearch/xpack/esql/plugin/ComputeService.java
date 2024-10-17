@@ -245,12 +245,13 @@ public class ComputeService {
         }
     }
 
-    // For queries like: FROM logs*,remote*:logs* | LIMIT 0
+    // For queries like: FROM logs* | LIMIT 0 (including cross-cluster LIMIT 0 queries)
     private static void updateExecutionInfoAfterCoordinatorOnlyQuery(EsqlExecutionInfo execInfo) {
         execInfo.markEndQuery();  // TODO: revisit this time recording model as part of INLINESTATS improvements
         if (execInfo.isCrossClusterSearch()) {
             assert execInfo.planningTookTime() != null : "Planning took time should be set on EsqlExecutionInfo but is null";
             for (String clusterAlias : execInfo.clusterAliases()) {
+                // took time and shard counts for SKIPPED clusters were added at end of planning, so only update other cases here
                 if (execInfo.getCluster(clusterAlias).getStatus() != EsqlExecutionInfo.Cluster.Status.SKIPPED) {
                     execInfo.swapCluster(
                         clusterAlias,

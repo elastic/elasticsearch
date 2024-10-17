@@ -187,7 +187,7 @@ setup:
 "RRF rank should fail if size > rank_window_size":
 
   - do:
-      catch: "/\\[rank\\] requires \\[rank_window_size: 2\\] be greater than or equal to \\[size: 10\\]/"
+      catch: "/\\[rrf\\] requires \\[rank_window_size: 2\\] be greater than or equal to \\[size: 10\\]/"
       search:
         index: test
         body:

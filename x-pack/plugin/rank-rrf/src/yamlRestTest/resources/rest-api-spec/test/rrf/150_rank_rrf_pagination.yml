@@ -1,4 +1,9 @@
 setup:
+  - skip:
+      features:
+        - close_to
+        - contains
+
   - requires:
       cluster_features: "gte_v8.15.0"
       reason: 'pagination for rrf was added in 8.15'
@@ -594,9 +599,9 @@ setup:
 "Pagination within interleaved results, different result set sizes, rank_window_size covering all results":
   # perform multiple searches with different "from" parameter, ensuring that results are consistent
   # rank_window_size covers the entire result set for both queries, so pagination should be consistent
-  # queryA has a result set of [5, 1] and
+  # queryA has a result set of [1] and
   # queryB has a result set of [4, 3, 1, 2]
-  # so for rank_constant=10, the expected order is [1, 5, 4, 3, 2]
+  # so for rank_constant=10, the expected order is [1, 4, 3, 2]
   - do:
       search:
         index: test
@@ -604,30 +609,15 @@ setup:
           track_total_hits: true
           sub_searches: [
             {
-              # this should clause would generate the result set [5, 1]
+              # this should clause would generate the result set [1]
               "query": {
-                bool: {
-                  should: [
-                    {
-                      term: {
-                        number_val: {
-                          value: "5",
-                          boost: 10.0
-                        }
-                      }
-                    },
-                    {
-                      term: {
-                        number_val: {
-                          value: "1",
-                          boost: 9.0
-                        }
-                      }
-                    }
-                  ]
+                term: {
+                  number_val: {
+                    value: "1",
+                    boost: 9.0
+                  }
                 }
               }
-
             },
             {
               # this should clause would generate the result set [4, 3, 1, 2]
@@ -679,10 +669,14 @@ setup:
           from : 0
           size : 2
 
-  - match: { hits.total.value : 5 }
+  - match: { hits.total.value : 4 }
   - length: { hits.hits : 2 }
   - match: { hits.hits.0._id: "1" }
-  - match: { hits.hits.1._id: "5" }
+    # score for doc 1 is (1/12 + 1/13)
+  - close_to: {hits.hits.0._score: {value:  0.1678, error: 0.001}}
+  - match: { hits.hits.1._id: "4" }
+    # score for doc 4 is (1/11)
+  - close_to: {hits.hits.1._score: {value:  0.0909, error: 0.001}}
 
   - do:
       search:
@@ -691,30 +685,15 @@ setup:
           track_total_hits: true
           sub_searches: [
             {
-              # this should clause would generate the result set [5, 1]
+              # this should clause would generate the result set [1]
               "query": {
-                bool: {
-                  should: [
-                    {
-                      term: {
-                        number_val: {
-                          value: "5",
-                          boost: 10.0
-                        }
-                      }
-                    },
-                    {
-                      term: {
-                        number_val: {
-                          value: "1",
-                          boost: 9.0
-                        }
-                      }
-                    }
-                  ]
+                term: {
+                  number_val: {
+                    value: "1",
+                    boost: 9.0
+                  }
                 }
               }
-
             },
             {
               # this should clause would generate the result set [4, 3, 1, 2]
@@ -766,10 +745,14 @@ setup:
           from : 2
           size : 2
 
-  - match: { hits.total.value : 5 }
+  - match: { hits.total.value : 4 }
   - length: { hits.hits : 2 }
-  - match: { hits.hits.0._id: "4" }
-  - match: { hits.hits.1._id: "3" }
+  - match: { hits.hits.0._id: "3" }
+    # score for doc 3 is (1/12)
+  - close_to: {hits.hits.0._score: {value:  0.0833, error: 0.001}}
+  - match: { hits.hits.1._id: "2" }
+    # score for doc 2 is (1/14)
+  - close_to: {hits.hits.1._score: {value:  0.0714, error: 0.001}}
 
   - do:
       search:
@@ -778,30 +761,15 @@ setup:
           track_total_hits: true
           sub_searches: [
             {
-              # this should clause would generate the result set [5, 1]
+              # this should clause would generate the result set [1]
               "query": {
-                bool: {
-                  should: [
-                    {
-                      term: {
-                        number_val: {
-                          value: "5",
-                          boost: 10.0
-                        }
-                      }
-                    },
-                    {
-                      term: {
-                        number_val: {
-                          value: "1",
-                          boost: 9.0
-                        }
-                      }
-                    }
-                  ]
+                term: {
+                  number_val: {
+                    value: "1",
+                    boost: 9.0
+                  }
                 }
               }
-
             },
             {
               # this should clause would generate the result set [4, 3, 1, 2]
@@ -843,7 +811,6 @@ setup:
                   ]
                 }
               }
-
             }
           ]
           rank:
@@ -853,10 +820,8 @@ setup:
           from: 4
           size: 2
 
-  - match: { hits.total.value: 5 }
-  - length: { hits.hits: 1 }
-  - match: { hits.hits.0._id: "2" }
-
+  - match: { hits.total.value: 4 }
+  - length: { hits.hits: 0 }
 
 ---
 "Pagination within interleaved results, different result set sizes, rank_window_size not covering all results":

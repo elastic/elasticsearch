@@ -195,30 +195,28 @@ public class RRFRankBuilder extends RankBuilder {
         if (totalQueries < 2) {
             throw new IllegalArgumentException("[rrf] requires at least 2 sub-queries to be defined");
         }
-        if (source.size() != -1 && source.size() > rankWindowSize()) {
-            throw new IllegalArgumentException("");
-        }
         List<CompoundRetrieverBuilder.RetrieverSource> retrieverSources = new ArrayList<>(totalQueries);
         for (int i = 0; i < source.subSearches().size(); i++) {
+            RetrieverBuilder standardRetriever = new StandardRetrieverBuilder(source.subSearches().get(i).getQueryBuilder());
+            standardRetriever.retrieverName(source.subSearches().get(i).getQueryBuilder().queryName());
             retrieverSources.add(
-                new CompoundRetrieverBuilder.RetrieverSource(
-                    new StandardRetrieverBuilder(source.subSearches().get(i).getQueryBuilder()),
-                    null
-                )
+                new CompoundRetrieverBuilder.RetrieverSource(standardRetriever,null)
             );
         }
         for (int i = 0; i < source.knnSearch().size(); i++) {
             KnnSearchBuilder knnSearchBuilder = source.knnSearch().get(i);
+            RetrieverBuilder knnRetriever = new KnnRetrieverBuilder(
+                knnSearchBuilder.getField(),
+                knnSearchBuilder.getQueryVector().asFloatVector(),
+                knnSearchBuilder.getQueryVectorBuilder(),
+                knnSearchBuilder.k(),
+                knnSearchBuilder.getNumCands(),
+                knnSearchBuilder.getSimilarity()
+            );
+            knnRetriever.retrieverName(knnSearchBuilder.queryName());
             retrieverSources.add(
                 new CompoundRetrieverBuilder.RetrieverSource(
-                    new KnnRetrieverBuilder(
-                        knnSearchBuilder.getField(),
-                        knnSearchBuilder.getQueryVector().asFloatVector(),
-                        knnSearchBuilder.getQueryVectorBuilder(),
-                        knnSearchBuilder.k(),
-                        knnSearchBuilder.getNumCands(),
-                        knnSearchBuilder.getSimilarity()
-                    ),
+                  knnRetriever,
                     null
                 )
             );

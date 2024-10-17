@@ -195,6 +195,12 @@ public enum DataType {
      * mapping and should be hidden from users.
      */
     PARTIAL_AGG(builder().esType("partial_agg").unknownSize()),
+    /**
+     * String fields that are split into chunks, where each chunk has attached embeddings
+     * used for semantic search. Generally ESQL only sees {@code semantic_text} fields when
+     * loaded from the index and ESQL will load these fields as strings without their attached
+     * chunks or embeddings.
+     */
     SEMANTIC_TEXT(builder().esType("semantic_text").unknownSize());
 
     /**
@@ -203,6 +209,7 @@ public enum DataType {
      * They aren't included in generated documentation. And the tests don't
      * check that sending them to a function produces a sane error message.
      */
+
     public static final Map<DataType, FeatureFlag> UNDER_CONSTRUCTION = Map.ofEntries(
         Map.entry(DATE_NANOS, EsqlCorePlugin.DATE_NANOS_FEATURE_FLAG),
         Map.entry(SEMANTIC_TEXT, EsqlCorePlugin.SEMANTIC_TEXT_FEATURE_FLAG)

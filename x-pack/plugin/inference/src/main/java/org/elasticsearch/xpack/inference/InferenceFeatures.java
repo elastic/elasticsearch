@@ -23,4 +23,8 @@ public class InferenceFeatures implements FeatureSpecification {
         return Set.of(TextSimilarityRankRetrieverBuilder.TEXT_SIMILARITY_RERANKER_RETRIEVER_SUPPORTED);
     }
 
+    @Override
+    public Set<NodeFeature> getTestFeatures() {
+        return Set.of(SemanticTextFieldMapper.SEMANTIC_TEXT_IN_OBJECT_FIELD_FIX);
+    }
 }

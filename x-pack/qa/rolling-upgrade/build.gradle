@@ -93,7 +93,7 @@ BuildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
     if (bwcVersion.onOrAfter('8.4.0')) {
       extraConfigFile 'operator/settings.json', file("${project.projectDir}/src/test/resources/operator_defined_role_mappings.json")
     }
-    
+
     // Old versions of the code contain an invalid assertion that trips
     // during tests.  Versions 5.6.9 and 6.2.4 have been fixed by removing
     // the assertion, but this is impossible for released versions.

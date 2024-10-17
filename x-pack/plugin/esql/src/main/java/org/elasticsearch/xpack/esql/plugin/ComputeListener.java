@@ -213,7 +213,9 @@ final class ComputeListener implements Releasable {
                     TimeValue planningTookTime = esqlExecutionInfo.planningTookTime();
                     tookOnCluster = new TimeValue(planningTookTime.nanos() + remoteExecutionTime.nanos(), TimeUnit.NANOSECONDS);
                 } else {
-                    tookOnCluster = null;
+                    // if the cluster is an older version and does not send back took time, then calculate it here on the coordinator
+                    long remoteTook = System.nanoTime() - esqlExecutionInfo.getRelativeStartNanos();
+                    tookOnCluster = new TimeValue(remoteTook, TimeUnit.NANOSECONDS);
                 }
                 esqlExecutionInfo.swapCluster(
                     computeClusterAlias,

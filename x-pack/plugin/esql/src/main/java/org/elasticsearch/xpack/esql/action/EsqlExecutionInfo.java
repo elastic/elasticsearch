@@ -139,6 +139,7 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
 
     public void markEndPlanning() {
         assert planningTookTime == null : "markEndPlanning should only be called once";
+        assert relativeStartNanos != null : "Relative start time must be set when markEndPlanning is called";
         planningTookTime = new TimeValue(System.nanoTime() - relativeStartNanos, TimeUnit.NANOSECONDS);
     }
 
@@ -147,7 +148,7 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
     }
 
     public void markEndQuery() {
-        assert overallTook == null : "markEndQuery should only be called once";
+        assert relativeStartNanos != null : "Relative start time must be set when markEndQuery is called";
         overallTook = new TimeValue(System.nanoTime() - relativeStartNanos, TimeUnit.NANOSECONDS);
     }
 

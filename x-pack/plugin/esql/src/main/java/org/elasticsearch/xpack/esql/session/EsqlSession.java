@@ -163,6 +163,7 @@ public class EsqlSession {
         LogicalPlan firstPhase = Phased.extractFirstPhase(optimizedPlan);
         if (firstPhase == null) {
             runPhase.accept(logicalPlanToPhysicalPlan(optimizedPlan, request), listener);
+            updateExecutionInfoAtEndOfPlanning(executionInfo);
         } else {
             executePhased(new ArrayList<>(), optimizedPlan, request, executionInfo, firstPhase, runPhase, listener);
         }
@@ -263,46 +264,6 @@ public class EsqlSession {
                 ll.onResponse(action.apply(indexResolution, enrichResolution));
             }), matchFields);
         }));
-    }
-
-    // visible for testing
-    static void updateExecutionInfoWithUnavailableClusters(EsqlExecutionInfo executionInfo, Set<String> unavailableClusters) {
-        for (String clusterAlias : unavailableClusters) {
-            executionInfo.swapCluster(
-                clusterAlias,
-                (k, v) -> new EsqlExecutionInfo.Cluster.Builder(v).setStatus(EsqlExecutionInfo.Cluster.Status.SKIPPED).build()
-            );
-            // TODO: follow-on PR will set SKIPPED status when skip_unavailable=true and throw an exception when skip_un=false
-        }
-    }
-
-    // visible for testing
-    static void updateExecutionInfoWithClustersWithNoMatchingIndices(EsqlExecutionInfo executionInfo, IndexResolution indexResolution) {
-        Set<String> clustersWithResolvedIndices = new HashSet<>();
-        // determine missing clusters
-        for (String indexName : indexResolution.get().indexNameWithModes().keySet()) {
-            clustersWithResolvedIndices.add(RemoteClusterAware.parseClusterAlias(indexName));
-        }
-        Set<String> clustersRequested = executionInfo.clusterAliases();
-        Set<String> clustersWithNoMatchingIndices = Sets.difference(clustersRequested, clustersWithResolvedIndices);
-        clustersWithNoMatchingIndices.removeAll(indexResolution.getUnavailableClusters());
-        /*
-         * These are clusters in the original request that are not present in the field-caps response. They were
-         * specified with an index or indices that do not exist, so the search on that cluster is done.
-         * Mark it as SKIPPED with 0 shards searched and took=0.
-         */
-        for (String c : clustersWithNoMatchingIndices) {
-            executionInfo.swapCluster(
-                c,
-                (k, v) -> new EsqlExecutionInfo.Cluster.Builder(v).setStatus(EsqlExecutionInfo.Cluster.Status.SKIPPED)
-                    .setTook(new TimeValue(0))
-                    .setTotalShards(0)
-                    .setSuccessfulShards(0)
-                    .setSkippedShards(0)
-                    .setFailedShards(0)
-                    .build()
-            );
-        }
     }
 
     private void preAnalyzeIndices(
@@ -483,5 +444,67 @@ public class EsqlSession {
         var plan = physicalPlanOptimizer.optimize(physicalPlan(optimizedPlan));
         LOGGER.debug("Optimized physical plan:\n{}", plan);
         return plan;
+    }
+
+    // visible for testing
+    static void updateExecutionInfoWithUnavailableClusters(EsqlExecutionInfo executionInfo, Set<String> unavailableClusters) {
+        for (String clusterAlias : unavailableClusters) {
+            executionInfo.swapCluster(
+                clusterAlias,
+                (k, v) -> new EsqlExecutionInfo.Cluster.Builder(v).setStatus(EsqlExecutionInfo.Cluster.Status.SKIPPED).build()
+            );
+            // TODO: follow-on PR will set SKIPPED status when skip_unavailable=true and throw an exception when skip_un=false
+        }
+    }
+
+    // visible for testing
+    static void updateExecutionInfoWithClustersWithNoMatchingIndices(EsqlExecutionInfo executionInfo, IndexResolution indexResolution) {
+        Set<String> clustersWithResolvedIndices = new HashSet<>();
+        // determine missing clusters
+        for (String indexName : indexResolution.get().indexNameWithModes().keySet()) {
+            clustersWithResolvedIndices.add(RemoteClusterAware.parseClusterAlias(indexName));
+        }
+        Set<String> clustersRequested = executionInfo.clusterAliases();
+        Set<String> clustersWithNoMatchingIndices = Sets.difference(clustersRequested, clustersWithResolvedIndices);
+        clustersWithNoMatchingIndices.removeAll(indexResolution.getUnavailableClusters());
+        /*
+         * These are clusters in the original request that are not present in the field-caps response. They were
+         * specified with an index or indices that do not exist, so the search on that cluster is done.
+         * Mark it as SKIPPED with 0 shards searched and took=0.
+         */
+        for (String c : clustersWithNoMatchingIndices) {
+            executionInfo.swapCluster(
+                c,
+                (k, v) -> new EsqlExecutionInfo.Cluster.Builder(v).setStatus(EsqlExecutionInfo.Cluster.Status.SKIPPED)
+                    .setTook(new TimeValue(0))
+                    .setTotalShards(0)
+                    .setSuccessfulShards(0)
+                    .setSkippedShards(0)
+                    .setFailedShards(0)
+                    .build()
+            );
+        }
+    }
+
+    // visible for testing
+    static void updateExecutionInfoAtEndOfPlanning(EsqlExecutionInfo execInfo) {
+        // TODO: this logic assumes a single phase execution model, so it may need to altered once INLINESTATS is made CCS compatible
+        if (execInfo.isCrossClusterSearch()) {
+            execInfo.markEndPlanning();
+            for (String clusterAlias : execInfo.clusterAliases()) {
+                EsqlExecutionInfo.Cluster cluster = execInfo.getCluster(clusterAlias);
+                if (cluster.getStatus() == EsqlExecutionInfo.Cluster.Status.SKIPPED) {
+                    execInfo.swapCluster(
+                        clusterAlias,
+                        (k, v) -> new EsqlExecutionInfo.Cluster.Builder(v).setTook(execInfo.planningTookTime())
+                            .setTotalShards(0)
+                            .setSuccessfulShards(0)
+                            .setSkippedShards(0)
+                            .setFailedShards(0)
+                            .build()
+                    );
+                }
+            }
+        }
     }
 }

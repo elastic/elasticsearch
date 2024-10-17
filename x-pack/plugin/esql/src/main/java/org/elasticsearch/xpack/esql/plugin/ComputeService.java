@@ -136,7 +136,6 @@ public class ComputeService {
         EsqlExecutionInfo execInfo,
         ActionListener<Result> listener
     ) {
-        updateExecutionInfoAtStartOfQueryExecution(execInfo);
         Tuple<PhysicalPlan, PhysicalPlan> coordinatorAndDataNodePlan = PlannerUtils.breakPlanBetweenCoordinatorAndDataNode(
             physicalPlan,
             configuration
@@ -206,7 +205,7 @@ public class ComputeService {
             Releasable ignored = exchangeSource.addEmptySink();
             // this is the top level ComputeListener called once at the end (e.g., once all clusters have finished for a CCS)
             var computeListener = ComputeListener.create(local, transportService, rootTask, execInfo, listener.map(r -> {
-                execInfo.markEndQuery();
+                execInfo.markEndQuery();  // TODO: revisit this time recording model as part of INLINESTATS improvements
                 return new Result(outputAttributes, collectedPages, r.getProfiles(), execInfo);
             }))
         ) {
@@ -246,32 +245,11 @@ public class ComputeService {
         }
     }
 
-    // visible for testing
-    static void updateExecutionInfoAtStartOfQueryExecution(EsqlExecutionInfo execInfo) {
-        execInfo.markEndPlanning();
-        for (String clusterAlias : execInfo.clusterAliases()) {
-            EsqlExecutionInfo.Cluster cluster = execInfo.getCluster(clusterAlias);
-            if (cluster.getStatus() == EsqlExecutionInfo.Cluster.Status.SKIPPED) {
-                execInfo.swapCluster(
-                    clusterAlias,
-                    (k, v) -> new EsqlExecutionInfo.Cluster.Builder(v).setTook(execInfo.planningTookTime())
-                        .setTotalShards(0)
-                        .setSuccessfulShards(0)
-                        .setSkippedShards(0)
-                        .setFailedShards(0)
-                        .build()
-                );
-            }
-        }
-    }
-
     // For queries like: FROM logs*,remote*:logs* | LIMIT 0
     private static void updateExecutionInfoAfterCoordinatorOnlyQuery(EsqlExecutionInfo execInfo) {
-        assert execInfo.getRelativeStartNanos() != null : "Relative start time should be set on EsqlExecutionInfo but is null";
-        assert execInfo.planningTookTime() != null : "Planning took time should be set on EsqlExecutionInfo but is null";
-
-        execInfo.markEndQuery();
+        execInfo.markEndQuery();  // TODO: revisit this time recording model as part of INLINESTATS improvements
         if (execInfo.isCrossClusterSearch()) {
+            assert execInfo.planningTookTime() != null : "Planning took time should be set on EsqlExecutionInfo but is null";
             for (String clusterAlias : execInfo.clusterAliases()) {
                 if (execInfo.getCluster(clusterAlias).getStatus() != EsqlExecutionInfo.Cluster.Status.SKIPPED) {
                     execInfo.swapCluster(

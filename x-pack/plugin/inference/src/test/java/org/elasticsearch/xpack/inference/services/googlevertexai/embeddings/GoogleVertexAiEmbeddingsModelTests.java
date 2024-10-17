@@ -63,6 +63,31 @@ public class GoogleVertexAiEmbeddingsModelTests extends ESTestCase {
         );
     }
 
+    public static GoogleVertexAiEmbeddingsModel createModel(
+        String modelId,
+        @Nullable Boolean autoTruncate,
+        SimilarityMeasure similarityMeasure
+    ) {
+        return new GoogleVertexAiEmbeddingsModel(
+            "id",
+            TaskType.TEXT_EMBEDDING,
+            "service",
+            new GoogleVertexAiEmbeddingsServiceSettings(
+                randomAlphaOfLength(8),
+                randomAlphaOfLength(8),
+                modelId,
+                false,
+                null,
+                null,
+                similarityMeasure,
+                null
+            ),
+            new GoogleVertexAiEmbeddingsTaskSettings(autoTruncate),
+            null,
+            new GoogleVertexAiSecretSettings(new SecureString(randomAlphaOfLength(8).toCharArray()))
+        );
+    }
+
     public static GoogleVertexAiEmbeddingsModel createModel(String modelId, @Nullable Boolean autoTruncate) {
         return new GoogleVertexAiEmbeddingsModel(
             "id",

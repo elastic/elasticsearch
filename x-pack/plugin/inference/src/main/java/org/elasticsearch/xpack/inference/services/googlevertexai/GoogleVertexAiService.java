@@ -11,7 +11,6 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkedInferenceServiceResults;
@@ -38,6 +37,7 @@ import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.googlevertexai.embeddings.GoogleVertexAiEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.googlevertexai.embeddings.GoogleVertexAiEmbeddingsServiceSettings;
 import org.elasticsearch.xpack.inference.services.googlevertexai.rerank.GoogleVertexAiRerankModel;
+import org.elasticsearch.xpack.inference.services.validation.ModelValidatorBuilder;
 
 import java.util.List;
 import java.util.Map;
@@ -156,15 +156,8 @@ public class GoogleVertexAiService extends SenderService {
 
     @Override
     public void checkModelConfig(Model model, ActionListener<Model> listener) {
-        if (model instanceof GoogleVertexAiEmbeddingsModel embeddingsModel) {
-            ServiceUtils.getEmbeddingSize(
-                model,
-                this,
-                listener.delegateFailureAndWrap((l, size) -> l.onResponse(updateModelWithEmbeddingDetails(embeddingsModel, size)))
-            );
-        } else {
-            listener.onResponse(model);
-        }
+        // TODO: Remove this function once all services have been updated to use the new model validators
+        ModelValidatorBuilder.buildModelValidator(model.getTaskType()).validate(this, model, listener);
     }
 
     @Override
@@ -224,34 +217,26 @@ public class GoogleVertexAiService extends SenderService {
         }
     }
 
-    private GoogleVertexAiEmbeddingsModel updateModelWithEmbeddingDetails(GoogleVertexAiEmbeddingsModel model, int embeddingSize) {
-        if (model.getServiceSettings().dimensionsSetByUser()
-            && model.getServiceSettings().dimensions() != null
-            && model.getServiceSettings().dimensions() != embeddingSize) {
-            throw new ElasticsearchStatusException(
-                Strings.format(
-                    "The retrieved embeddings size [%s] does not match the size specified in the settings [%s]. "
-                        + "Please recreate the [%s] configuration with the correct dimensions",
-                    embeddingSize,
-                    model.getServiceSettings().dimensions(),
-                    model.getConfigurations().getInferenceEntityId()
-                ),
-                RestStatus.BAD_REQUEST
+    @Override
+    public Model updateModelWithEmbeddingDetails(Model model, int embeddingSize) {
+        if (model instanceof GoogleVertexAiEmbeddingsModel embeddingsModel) {
+            var serviceSettings = embeddingsModel.getServiceSettings();
+
+            var updatedServiceSettings = new GoogleVertexAiEmbeddingsServiceSettings(
+                serviceSettings.location(),
+                serviceSettings.projectId(),
+                serviceSettings.modelId(),
+                serviceSettings.dimensionsSetByUser(),
+                serviceSettings.maxInputTokens(),
+                embeddingSize,
+                serviceSettings.similarity(),
+                serviceSettings.rateLimitSettings()
             );
+
+            return new GoogleVertexAiEmbeddingsModel(embeddingsModel, updatedServiceSettings);
+        } else {
+            throw ServiceUtils.invalidModelTypeForUpdateModelWithEmbeddingDetails(model.getClass());
         }
-
-        GoogleVertexAiEmbeddingsServiceSettings serviceSettings = new GoogleVertexAiEmbeddingsServiceSettings(
-            model.getServiceSettings().location(),
-            model.getServiceSettings().projectId(),
-            model.getServiceSettings().modelId(),
-            model.getServiceSettings().dimensionsSetByUser(),
-            model.getServiceSettings().maxInputTokens(),
-            embeddingSize,
-            model.getServiceSettings().similarity(),
-            model.getServiceSettings().rateLimitSettings()
-        );
-
-        return new GoogleVertexAiEmbeddingsModel(model, serviceSettings);
     }
 
     private static GoogleVertexAiModel createModelFromPersistent(

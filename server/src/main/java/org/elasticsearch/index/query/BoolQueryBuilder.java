@@ -356,6 +356,7 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
         if (mustClauses.size() == 0
             && filterClauses.size() == 0
             && shouldClauses.size() > 0
+            && mustNotClauses.size() == 0
             && newBuilder.shouldClauses.stream().allMatch(b -> b instanceof MatchNoneQueryBuilder)) {
             return new MatchNoneQueryBuilder("The \"" + getName() + "\" query was rewritten to a \"match_none\" query.");
         }

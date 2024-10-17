@@ -75,6 +75,8 @@ import java.util.function.Function;
 import java.util.function.LongConsumer;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.index.IndexSettings.INDEX_FAST_REFRESH_SETTING;
+
 /**
  * {@link Engine} implementation for index shards
  */
@@ -87,6 +89,7 @@ public class IndexEngine extends InternalEngine {
     private final TranslogReplicator translogReplicator;
     private final StatelessCommitService statelessCommitService;
     private final Function<String, BlobContainer> translogBlobContainer;
+    private final boolean fastRefresh;
     private final RefreshThrottler refreshThrottler;
     private final IndexEngineLocalReaderListener localReaderListener;
     private final CommitBCCResolver commitBCCResolver;
@@ -118,6 +121,7 @@ public class IndexEngine extends InternalEngine {
         this.translogReplicator = translogReplicator;
         this.translogBlobContainer = translogBlobContainer;
         this.statelessCommitService = statelessCommitService;
+        this.fastRefresh = INDEX_FAST_REFRESH_SETTING.get(config().getIndexSettings().getSettings());
         this.refreshThrottler = refreshThrottlerFactory.create(this::doExternalRefresh);
         this.localReaderListener = localReaderListener;
         this.commitBCCResolver = commitBCCResolver;
@@ -232,9 +236,13 @@ public class IndexEngine extends InternalEngine {
 
     @Override
     public boolean refreshNeeded() {
-        // It is possible that the index writer has uncommitted changes. We could check here, but we will check before actually
-        // triggering the flush anyway.
-        return hasUncommittedChanges() || super.refreshNeeded();
+        if (fastRefresh) {
+            return super.refreshNeeded();
+        } else {
+            // It is possible that the index writer has uncommitted changes. We could check here, but we will check before actually
+            // triggering the flush anyway.
+            return hasUncommittedChanges() || super.refreshNeeded();
+        }
     }
 
     @Override
@@ -341,43 +349,53 @@ public class IndexEngine extends InternalEngine {
 
     @Override
     public void maybeRefresh(String source, ActionListener<RefreshResult> listener) throws EngineException {
-        try {
-            IS_FLUSH_BY_REFRESH.set(true);
-            Thread originalThread = Thread.currentThread();
-            // Maybe refresh is called on scheduled periodic refreshes and needs to flush so that the search shards received the data.
-            flush(false, false, listener.delegateFailure((l, flushResult) -> {
-                ActionRunnable<RefreshResult> refreshRunnable = new ActionRunnable<>(listener) {
+        if (fastRefresh) {
+            super.maybeRefresh(source, listener);
+        } else {
+            try {
+                IS_FLUSH_BY_REFRESH.set(true);
+                Thread originalThread = Thread.currentThread();
+                // Maybe refresh is called on scheduled periodic refreshes and needs to flush so that the search shards received the data.
+                flush(false, false, listener.delegateFailure((l, flushResult) -> {
+                    ActionRunnable<RefreshResult> refreshRunnable = new ActionRunnable<>(listener) {
 
-                    @Override
-                    protected void doRun() {
-                        IndexEngine.super.maybeRefresh(source, listener);
-                    }
-                };
+                        @Override
+                        protected void doRun() {
+                            IndexEngine.super.maybeRefresh(source, listener);
+                        }
+                    };
 
-                dispatchRefreshRunnable(originalThread, refreshRunnable);
-            }));
-        } finally {
-            IS_FLUSH_BY_REFRESH.set(false);
+                    dispatchRefreshRunnable(originalThread, refreshRunnable);
+                }));
+            } finally {
+                IS_FLUSH_BY_REFRESH.set(false);
+            }
         }
+
     }
 
     private void doExternalRefresh(RefreshThrottler.Request request) {
-        try {
-            IS_FLUSH_BY_REFRESH.set(true);
-            Thread originalThread = Thread.currentThread();
-            flush(true, true, request.listener().delegateFailure((l, flushResult) -> {
-                ActionRunnable<RefreshResult> refreshRunnable = new ActionRunnable<>(l) {
+        if (fastRefresh) {
+            IndexEngine.super.externalRefresh(request.source(), request.listener());
+        } else {
+            try {
+                IS_FLUSH_BY_REFRESH.set(true);
+                Thread originalThread = Thread.currentThread();
+                flush(true, true, request.listener().delegateFailure((l, flushResult) -> {
+                    ActionRunnable<RefreshResult> refreshRunnable = new ActionRunnable<>(l) {
 
-                    @Override
-                    protected void doRun() {
-                        IndexEngine.super.externalRefresh(request.source(), listener);
-                    }
-                };
-                dispatchRefreshRunnable(originalThread, refreshRunnable);
-            }));
-        } finally {
-            IS_FLUSH_BY_REFRESH.set(false);
+                        @Override
+                        protected void doRun() {
+                            IndexEngine.super.externalRefresh(request.source(), listener);
+                        }
+                    };
+                    dispatchRefreshRunnable(originalThread, refreshRunnable);
+                }));
+            } finally {
+                IS_FLUSH_BY_REFRESH.set(false);
+            }
         }
+
     }
 
     private void dispatchRefreshRunnable(Thread originalThread, ActionRunnable<RefreshResult> refreshRunnable) {

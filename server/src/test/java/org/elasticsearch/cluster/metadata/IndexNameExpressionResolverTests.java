@@ -17,6 +17,7 @@ import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.support.IndexComponentSelector;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.cluster.ClusterName;
@@ -54,6 +55,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.backingIndexEqualTo;
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.createBackingIndex;
@@ -133,7 +135,8 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
             assertThat(results, arrayContainingInAnyOrder("foofoo", "foobar"));
 
             results = indexNameExpressionResolver.concreteIndexNames(context, "foofoobar");
-            assertEquals(new HashSet<>(Arrays.asList("foo", "foobar")), new HashSet<>(Arrays.asList(results)));
+            assertEquals(2, results.length);
+            assertThat(results, arrayContainingInAnyOrder("foo", "foobar"));
 
             {
                 IndexNotFoundException infe = expectThrows(
@@ -203,7 +206,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
 
             results = indexNameExpressionResolver.concreteIndexNames(context, "foofoobar");
             assertEquals(2, results.length);
-            assertEquals(new HashSet<>(Arrays.asList("foo", "foobar")), new HashSet<>(Arrays.asList(results)));
+            assertThat(results, arrayContainingInAnyOrder("foo", "foobar"));
 
             results = indexNameExpressionResolver.concreteIndexNames(context, "foo", "bar");
             assertEquals(1, results.length);
@@ -1581,26 +1584,21 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
             .put(indexBuilder("test-1").state(State.OPEN).putAlias(AliasMetadata.builder("alias-1")));
         ClusterState state = ClusterState.builder(new ClusterName("_name")).metadata(mdBuilder).build();
 
-        assertEquals(
-            Set.of(new ResolvedExpression("alias-0"), new ResolvedExpression("alias-1")),
-            indexNameExpressionResolver.resolveExpressions(state, "alias-*")
+        assertThat(
+            indexNameExpressionResolver.resolveExpressions(state, "alias-*"),
+            equalTo(resolvedExpressionsSet(IndexComponentSelector.DATA, "alias-0", "alias-1"))
         );
-        assertEquals(
-            Set.of(new ResolvedExpression("test-0"), new ResolvedExpression("alias-0"), new ResolvedExpression("alias-1")),
-            indexNameExpressionResolver.resolveExpressions(state, "test-0", "alias-*")
+        assertThat(
+            indexNameExpressionResolver.resolveExpressions(state, "test-0", "alias-*"),
+            equalTo(resolvedExpressionsSet(IndexComponentSelector.DATA, "test-0", "alias-0", "alias-1"))
         );
-        assertEquals(
-            Set.of(
-                new ResolvedExpression("test-0"),
-                new ResolvedExpression("test-1"),
-                new ResolvedExpression("alias-0"),
-                new ResolvedExpression("alias-1")
-            ),
-            indexNameExpressionResolver.resolveExpressions(state, "test-*", "alias-*")
+        assertThat(
+            indexNameExpressionResolver.resolveExpressions(state, "test-*", "alias-*"),
+            equalTo(resolvedExpressionsSet(IndexComponentSelector.DATA, "test-0", "test-1", "alias-0", "alias-1"))
         );
-        assertEquals(
-            Set.of(new ResolvedExpression("test-1"), new ResolvedExpression("alias-1")),
-            indexNameExpressionResolver.resolveExpressions(state, "*-1")
+        assertThat(
+            indexNameExpressionResolver.resolveExpressions(state, "*-1"),
+            equalTo(resolvedExpressionsSet(IndexComponentSelector.DATA, "test-1", "alias-1"))
         );
     }
 
@@ -2723,7 +2721,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         }
     }
 
-    public void testDataStreamsWithFailureStore() {
+    public void testDataStreamsWithFailureStoreDefaultSelector() {
         final String dataStreamName = "my-data-stream";
         IndexMetadata index1 = createBackingIndex(dataStreamName, 1, epochMillis).build();
         IndexMetadata index2 = createBackingIndex(dataStreamName, 2, epochMillis).build();
@@ -2913,6 +2911,125 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
                     DataStream.getDefaultFailureStoreName(dataStreamName, 2, epochMillis),
                     DataStream.getDefaultFailureStoreName(dataStreamName, 1, epochMillis)
                 )
+            );
+        }
+    }
+
+    public void testDataStreamsWithFailureStoreWithSelector() {
+        final String dataStreamName = "my-data-stream";
+        IndexMetadata index1 = createBackingIndex(dataStreamName, 1, epochMillis).build();
+        IndexMetadata index2 = createBackingIndex(dataStreamName, 2, epochMillis).build();
+        IndexMetadata failureIndex1 = createFailureStore(dataStreamName, 1, epochMillis).build();
+        IndexMetadata failureIndex2 = createFailureStore(dataStreamName, 2, epochMillis).build();
+        IndexMetadata otherIndex = indexBuilder("my-other-index", Settings.EMPTY).state(State.OPEN).build();
+
+        Metadata.Builder mdBuilder = Metadata.builder()
+            .put(index1, false)
+            .put(index2, false)
+            .put(failureIndex1, false)
+            .put(failureIndex2, false)
+            .put(otherIndex, false)
+            .put(
+                newInstance(
+                    dataStreamName,
+                    List.of(index1.getIndex(), index2.getIndex()),
+                    List.of(failureIndex1.getIndex(), failureIndex2.getIndex())
+                )
+            );
+        ClusterState state = ClusterState.builder(new ClusterName("_name")).metadata(mdBuilder).build();
+
+        // We will specify selectors on every test case, so the value of the default selector shouldn't matter
+        IndicesOptions indicesOptions = IndicesOptions.builder()
+            .selectorOptions(IndicesOptions.SelectorOptions.builder().defaultSelectors(randomFrom(IndexComponentSelector.values())))
+            .build();
+
+        // Test only data with an exact data stream name
+        {
+            Index[] result = indexNameExpressionResolver.concreteIndices(state, indicesOptions, true, "my-data-stream::data");
+            assertThat(result.length, equalTo(2));
+            assertThat(result[0].getName(), equalTo(DataStream.getDefaultBackingIndexName(dataStreamName, 1, epochMillis)));
+            assertThat(result[1].getName(), equalTo(DataStream.getDefaultBackingIndexName(dataStreamName, 2, epochMillis)));
+        }
+
+        // Test include failure store with an exact data stream name
+        {
+            Index[] result = indexNameExpressionResolver.concreteIndices(state, indicesOptions, true, "my-data-stream::*");
+            assertThat(result.length, equalTo(4));
+            assertThat(result[0].getName(), equalTo(DataStream.getDefaultBackingIndexName(dataStreamName, 1, epochMillis)));
+            assertThat(result[1].getName(), equalTo(DataStream.getDefaultBackingIndexName(dataStreamName, 2, epochMillis)));
+            assertThat(result[2].getName(), equalTo(DataStream.getDefaultFailureStoreName(dataStreamName, 1, epochMillis)));
+            assertThat(result[3].getName(), equalTo(DataStream.getDefaultFailureStoreName(dataStreamName, 2, epochMillis)));
+        }
+
+        // Test only failure store with an exact data stream name
+        {
+            Index[] result = indexNameExpressionResolver.concreteIndices(state, indicesOptions, true, "my-data-stream::failures");
+            assertThat(result.length, equalTo(2));
+            assertThat(result[0].getName(), equalTo(DataStream.getDefaultFailureStoreName(dataStreamName, 1, epochMillis)));
+            assertThat(result[1].getName(), equalTo(DataStream.getDefaultFailureStoreName(dataStreamName, 2, epochMillis)));
+        }
+
+        // Test all supported with wildcard expression
+        {
+            Index[] result = indexNameExpressionResolver.concreteIndices(state, indicesOptions, true, "my-*::*");
+            assertThat(result.length, equalTo(5));
+            List<String> indexNames = Arrays.stream(result).map(Index::getName).toList();
+            assertThat(
+                indexNames,
+                containsInAnyOrder(
+                    DataStream.getDefaultBackingIndexName(dataStreamName, 2, epochMillis),
+                    DataStream.getDefaultBackingIndexName(dataStreamName, 1, epochMillis),
+                    otherIndex.getIndex().getName(),
+                    DataStream.getDefaultFailureStoreName(dataStreamName, 1, epochMillis),
+                    DataStream.getDefaultFailureStoreName(dataStreamName, 2, epochMillis)
+                )
+            );
+        }
+
+        // Test include only data with wildcard expression
+        {
+            Index[] result = indexNameExpressionResolver.concreteIndices(state, indicesOptions, true, "my-*::data");
+            assertThat(result.length, equalTo(3));
+            List<String> indexNames = Arrays.stream(result).map(Index::getName).toList();
+            assertThat(
+                indexNames,
+                containsInAnyOrder(
+                    DataStream.getDefaultBackingIndexName(dataStreamName, 2, epochMillis),
+                    DataStream.getDefaultBackingIndexName(dataStreamName, 1, epochMillis),
+                    otherIndex.getIndex().getName()
+                )
+            );
+        }
+
+        // Test only failure store with wildcard expression
+        {
+            Index[] result = indexNameExpressionResolver.concreteIndices(state, indicesOptions, true, "my-*::failures");
+            assertThat(result.length, equalTo(2));
+            List<String> indexNames = Arrays.stream(result).map(Index::getName).toList();
+            assertThat(
+                indexNames,
+                containsInAnyOrder(
+                    DataStream.getDefaultFailureStoreName(dataStreamName, 2, epochMillis),
+                    DataStream.getDefaultFailureStoreName(dataStreamName, 1, epochMillis)
+                )
+            );
+        }
+
+        // Test provide selector when selectors not allowed
+        {
+            IndicesOptions noSelectors = setAllowSelectors(indicesOptions, false);
+            IllegalArgumentException exception = expectThrows(
+                IllegalArgumentException.class,
+                () -> indexNameExpressionResolver.concreteIndices(
+                    state,
+                    noSelectors,
+                    true,
+                    "my-data-stream::" + randomFrom(IndexComponentSelector.values()).getKey()
+                )
+            );
+            assertThat(
+                exception.getMessage(),
+                containsString("Index component selectors are not supported in this context but found selector in expression")
             );
         }
     }
@@ -3457,6 +3574,20 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
             .matchClosed(false)
             .includeHidden(randomBoolean())
             .allowEmptyExpressions(lenient)
+            .build();
+    }
+
+    static List<ResolvedExpression> resolvedExpressions(IndexComponentSelector selector, String... expressions) {
+        return Arrays.stream(expressions).map(expr -> new ResolvedExpression(expr, selector)).toList();
+    }
+
+    static Set<ResolvedExpression> resolvedExpressionsSet(IndexComponentSelector selector, String... expressions) {
+        return Arrays.stream(expressions).map(expr -> new ResolvedExpression(expr, selector)).collect(Collectors.toSet());
+    }
+
+    static IndicesOptions setAllowSelectors(IndicesOptions indicesOptions, boolean allowSelectors) {
+        return IndicesOptions.builder(indicesOptions)
+            .gatekeeperOptions(IndicesOptions.GatekeeperOptions.builder(indicesOptions.gatekeeperOptions()).allowSelectors(allowSelectors))
             .build();
     }
 }

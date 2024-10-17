@@ -20,15 +20,15 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.indices.SystemIndices.SystemIndexAccessLevel;
 import org.elasticsearch.test.ESTestCase;
 
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
-import java.util.Set;
 import java.util.function.Predicate;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.createBackingIndex;
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.createFailureStore;
+import static org.elasticsearch.cluster.metadata.IndexNameExpressionResolverTests.resolvedExpressions;
+import static org.elasticsearch.cluster.metadata.IndexNameExpressionResolverTests.resolvedExpressionsSet;
+import static org.elasticsearch.cluster.metadata.IndexNameExpressionResolverTests.setAllowSelectors;
 import static org.elasticsearch.common.util.set.Sets.newHashSet;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
@@ -1126,19 +1126,5 @@ public class WildcardExpressionResolverTests extends ESTestCase {
             )
         );
         assertEquals(wildcardExpression, infe.getIndex().getName());
-    }
-
-    private List<ResolvedExpression> resolvedExpressions(IndexComponentSelector selector, String... expressions) {
-        return Arrays.stream(expressions).map(expr -> new ResolvedExpression(expr, selector)).toList();
-    }
-
-    private Set<ResolvedExpression> resolvedExpressionsSet(IndexComponentSelector selector, String... expressions) {
-        return Arrays.stream(expressions).map(expr -> new ResolvedExpression(expr, selector)).collect(Collectors.toSet());
-    }
-
-    private static IndicesOptions setAllowSelectors(IndicesOptions indicesOptions, boolean allowSelectors) {
-        return IndicesOptions.builder(indicesOptions)
-            .gatekeeperOptions(IndicesOptions.GatekeeperOptions.builder(indicesOptions.gatekeeperOptions()).allowSelectors(allowSelectors))
-            .build();
     }
 }

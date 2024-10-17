@@ -170,7 +170,8 @@ public class DefaultBuiltInExecutorBuilders implements BuiltInExecutorBuilders {
                 ThreadPool.Names.SYSTEM_READ,
                 halfProcMaxAt5,
                 2000,
-                EsExecutors.TaskTrackingConfig.DO_NOT_TRACK
+                EsExecutors.TaskTrackingConfig.DO_NOT_TRACK,
+                true
             )
         );
         result.put(
@@ -180,7 +181,8 @@ public class DefaultBuiltInExecutorBuilders implements BuiltInExecutorBuilders {
                 ThreadPool.Names.SYSTEM_WRITE,
                 halfProcMaxAt5,
                 1000,
-                new EsExecutors.TaskTrackingConfig(true, indexAutoscalingEWMA)
+                new EsExecutors.TaskTrackingConfig(true, indexAutoscalingEWMA),
+                true
             )
         );
         result.put(
@@ -190,7 +192,8 @@ public class DefaultBuiltInExecutorBuilders implements BuiltInExecutorBuilders {
                 ThreadPool.Names.SYSTEM_CRITICAL_READ,
                 halfProcMaxAt5,
                 2000,
-                EsExecutors.TaskTrackingConfig.DO_NOT_TRACK
+                EsExecutors.TaskTrackingConfig.DO_NOT_TRACK,
+                true
             )
         );
         result.put(
@@ -200,7 +203,8 @@ public class DefaultBuiltInExecutorBuilders implements BuiltInExecutorBuilders {
                 ThreadPool.Names.SYSTEM_CRITICAL_WRITE,
                 halfProcMaxAt5,
                 1500,
-                new EsExecutors.TaskTrackingConfig(true, indexAutoscalingEWMA)
+                new EsExecutors.TaskTrackingConfig(true, indexAutoscalingEWMA),
+                true
             )
         );
         return unmodifiableMap(result);

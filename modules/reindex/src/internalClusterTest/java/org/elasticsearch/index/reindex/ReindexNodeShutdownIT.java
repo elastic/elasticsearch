@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.reindex;
@@ -13,10 +14,10 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.node.ShutdownFenceService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.reindex.ReindexPlugin;
 import org.elasticsearch.search.SearchResponseUtils;
-import org.elasticsearch.node.ShutdownFenceService;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -32,8 +33,13 @@ import static org.elasticsearch.node.Node.MAXIMUM_REINDEXING_TIMEOUT_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 
 /**
- * Test that a large reindexing task completes even after the node coordinating the reindexing task
- * is shutdown, due to the wait for reindexing tasks added during shutdown.
+ * Test that a wait added during shutdown is necessary for a large reindexing task to complete.
+ * The test works as follows:
+ * 1. Start a large reindexing request on the coordinator-only node.
+ * 2. Check that the reindexing task appears on the coordinating node
+ * 3. Using a 5s timeout value for MAXIMUM_REINDEXING_TIMEOUT_SETTING,
+ *    wait for the reindexing task to complete before closing the node
+ * 4. Confirm that the reindexing task succeeds with the wait but fails without it
  */
 @ESIntegTestCase.ClusterScope(numDataNodes = 0, numClientNodes = 0, scope = ESIntegTestCase.Scope.TEST)
 public class ReindexNodeShutdownIT extends ESIntegTestCase {
@@ -52,12 +58,11 @@ public class ReindexNodeShutdownIT extends ESIntegTestCase {
     public void testReindexWithShutdown() throws Exception {
         final String masterNodeName = internalCluster().startMasterOnlyNode();
         final String dataNodeName = internalCluster().startDataOnlyNode();
-        //final String coordNodeName = internalCluster().startCoordinatingOnlyNode(Settings.EMPTY);
 
-        final Settings COORD_SETTINGS =
-            Settings.builder().put(MAXIMUM_REINDEXING_TIMEOUT_SETTING.getKey(), TimeValue.timeValueSeconds(5)).build();
+        final Settings COORD_SETTINGS = Settings.builder()
+            .put(MAXIMUM_REINDEXING_TIMEOUT_SETTING.getKey(), TimeValue.timeValueSeconds(5))
+            .build();
         final String coordNodeName = internalCluster().startCoordinatingOnlyNode(COORD_SETTINGS);
-
 
         ensureStableCluster(3);
 
@@ -73,10 +78,8 @@ public class ReindexNodeShutdownIT extends ESIntegTestCase {
         AbstractBulkByScrollRequest<?> reindexRequest = builder.request();
         ShutdownFenceService shutdownFenceService = internalCluster().getInstance(ShutdownFenceService.class, coordNodeName);
 
-        TaskManager taskManager = internalCluster().getInstance(TransportService.class).getTaskManager();
-        // int numDocs = getNumShards(INDEX).numPrimaries * 10 * reindexRequest.getSlices();
-        int numDocs = 10000;
-        System.out.println("numDocs =" + numDocs + "\n");
+        TaskManager taskManager = internalCluster().getInstance(TransportService.class, coordNodeName).getTaskManager();
+        int numDocs = 20000;
 
         logger.debug("setting up [{}] docs", numDocs);
         indexRandom(
@@ -89,7 +92,7 @@ public class ReindexNodeShutdownIT extends ESIntegTestCase {
         );
 
         // Checks that the all documents have been indexed and correctly counted
-        assertHitCount(prepareSearch(INDEX).setSize(0), numDocs);
+        assertHitCount(prepareSearch(INDEX).setSize(0).setTrackTotalHits(true), numDocs);
 
         // Now execute the reindex action...
         ActionListener<BulkByScrollResponse> reindexListener = new ActionListener<BulkByScrollResponse>() {
@@ -97,66 +100,35 @@ public class ReindexNodeShutdownIT extends ESIntegTestCase {
             public void onResponse(BulkByScrollResponse bulkByScrollResponse) {
                 assertNull(bulkByScrollResponse.getReasonCancelled());
                 logger.debug(bulkByScrollResponse.toString());
-                System.out.println("Got Response!");
-                System.out.println(bulkByScrollResponse.toString());
             }
 
             @Override
             public void onFailure(Exception e) {
                 logger.debug("Encounterd " + e.toString());
-                // System.out.println("Encounterd " + e.toString());
             }
         };
         internalCluster().client(coordNodeName).execute(ReindexAction.INSTANCE, reindexRequest, reindexListener);
 
         // Check for reindex task to appear in the tasks list and Immediately stop coordinating node
-        TaskInfo mainTask = findTask(ReindexAction.INSTANCE.name(), reindexRequest.getSlices());
-        shutdownFenceService.prepareForShutdown();
-        mainTask = findTask(ReindexAction.INSTANCE.name(), reindexRequest.getSlices());
-        System.err.println(mainTask);
+        TaskInfo mainTask = findTask(ReindexAction.INSTANCE.name(), reindexRequest.getSlices(), coordNodeName);
+        shutdownFenceService.prepareForShutdown(taskManager);
         internalCluster().stopNode(coordNodeName);
-        //putShutdown(coordNodeName);
-        /*
-        GetShutdownStatusAction.Response getResp = client().execute(
-            GetShutdownStatusAction.INSTANCE,
-            new GetShutdownStatusAction.Request(TEST_REQUEST_TIMEOUT, coordNodeName)
-        ).get();
-        assertThat(getResp.getShutdownStatuses().get(0).pluginsStatus().getStatus(), equalTo(SingleNodeShutdownMetadata.Status.COMPLETE));
-        System.out.println("Found task and initiated shutdown");
-         */
-        System.out.println("Shutdown complete");
 
         assertTrue(indexExists("dest"));
         flushAndRefresh("dest");
         assertTrue("Number of documents in source and dest indexes does not match", waitUntil(() -> {
-            final TotalHits totalHits =
-                SearchResponseUtils.getTotalHits(client(dataNodeName).prepareSearch("dest").setSize(0).setTrackTotalHits(true));
+            final TotalHits totalHits = SearchResponseUtils.getTotalHits(
+                client(dataNodeName).prepareSearch("dest").setSize(0).setTrackTotalHits(true)
+            );
             return totalHits.relation == TotalHits.Relation.EQUAL_TO && totalHits.value == numDocs;
         }, 10, TimeUnit.SECONDS));
-        System.out.println("End of test");
     }
 
-    /*
-    private void putShutdown(String shutdownNode) throws InterruptedException, ExecutionException {
-        PutShutdownNodeAction.Request putShutdownRequest = new PutShutdownNodeAction.Request(
-            TEST_REQUEST_TIMEOUT,
-            TEST_REQUEST_TIMEOUT,
-            shutdownNode,
-            SingleNodeShutdownMetadata.Type.REMOVE,
-            this.getTestName(),
-            null,
-            null,
-            null
-        );
-        assertTrue(client().execute(PutShutdownNodeAction.INSTANCE, putShutdownRequest).get().isAcknowledged());
-    }
-     */
-
-    private static TaskInfo findTask(String actionName, int workerCount) {
+    private static TaskInfo findTask(String actionName, int workerCount, String nodeName) {
         ListTasksResponse tasks;
         long start = System.nanoTime();
         do {
-            tasks = clusterAdmin().prepareListTasks().setActions(actionName).setDetailed(true).get();
+            tasks = clusterAdmin().prepareListTasks(nodeName).setActions(actionName).setDetailed(true).get();
             tasks.rethrowFailures("Find my task");
             for (TaskInfo taskInfo : tasks.getTasks()) {
                 // Skip tasks with a parent because those are children of the task we want

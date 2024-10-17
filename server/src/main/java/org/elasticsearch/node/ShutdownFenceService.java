@@ -32,23 +32,20 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.core.Strings.format;
 
+/**
+ * Extracted out the logic from {@link Node#prepareForClose()} to facilitate testing.
+ */
 public class ShutdownFenceService {
 
     private final Logger logger = LogManager.getLogger(ShutdownFenceService.class);
     Settings settings;
     HttpServerTransport httpServerTransport;
-    TaskManager taskManager;
     TerminationHandler terminationHandler;
+    private volatile boolean hasBeenShutdown = false;
 
-    public ShutdownFenceService(
-        Settings settings,
-        HttpServerTransport httpServerTransport,
-        TaskManager taskManager,
-        TerminationHandler terminationHandler
-    ) {
+    public ShutdownFenceService(Settings settings, HttpServerTransport httpServerTransport, TerminationHandler terminationHandler) {
         this.settings = settings;
         this.httpServerTransport = httpServerTransport;
-        this.taskManager = taskManager;
         this.terminationHandler = terminationHandler;
     }
 
@@ -60,8 +57,9 @@ public class ShutdownFenceService {
      * Note that this class is part of infrastructure to react to signals from the operating system - most graceful shutdown
      * logic should use Node Shutdown, see {@link org.elasticsearch.cluster.metadata.NodesShutdownMetadata}.
      */
-    public void prepareForShutdown() {
-
+    public void prepareForShutdown(TaskManager taskManager) {
+        assert hasBeenShutdown == false;
+        hasBeenShutdown = true;
         final var maxTimeout = Node.MAXIMUM_SHUTDOWN_TIMEOUT_SETTING.get(settings);
         final var reindexTimeout = Node.MAXIMUM_REINDEXING_TIMEOUT_SETTING.get(settings);
 
@@ -90,8 +88,8 @@ public class ShutdownFenceService {
             };
 
             stopperRunner.accept("http-server-transport-stop", httpServerTransport::close);
-            stopperRunner.accept("async-search-stop", () -> awaitSearchTasksComplete(maxTimeout));
-            stopperRunner.accept("reindex-stop", () -> awaitReindexTasksComplete(reindexTimeout));
+            stopperRunner.accept("async-search-stop", () -> awaitSearchTasksComplete(maxTimeout, taskManager));
+            stopperRunner.accept("reindex-stop", () -> awaitReindexTasksComplete(reindexTimeout, taskManager));
             if (terminationHandler != null) {
                 stopperRunner.accept("termination-handler-stop", terminationHandler::handleTermination);
             }
@@ -119,12 +117,11 @@ public class ShutdownFenceService {
         }
     }
 
-    private void waitForTasks(TimeValue timeout, String taskName) {
+    private void waitForTasks(TimeValue timeout, String taskName, TaskManager taskManager) {
         long millisWaited = 0;
         while (true) {
-            long searchTasksRemaining = taskManager.getTasks().values().stream().filter(task -> taskName.equals(task.getAction())).count();
-            System.err.println("tasksRemaining = " + searchTasksRemaining);
-            if (searchTasksRemaining == 0) {
+            long tasksRemaining = taskManager.getTasks().values().stream().filter(task -> taskName.equals(task.getAction())).count();
+            if (tasksRemaining == 0) {
                 logger.debug("all " + taskName + " tasks complete");
                 return;
             } else {
@@ -136,22 +133,16 @@ public class ShutdownFenceService {
                 millisWaited += pollPeriod.millis();
                 if (TimeValue.ZERO.equals(timeout) == false && millisWaited >= timeout.millis()) {
                     logger.warn(
-                        format(
-                            "timed out after waiting [%s] for [%d] " + taskName + " tasks to finish",
-                            timeout.toString(),
-                            searchTasksRemaining
-                        )
+                        format("timed out after waiting [%s] for [%d] " + taskName + " tasks to finish", timeout.toString(), tasksRemaining)
                     );
                     return;
                 }
-                logger.debug(
-                    format("waiting for [%s] " + taskName + " tasks to finish, next poll in [%s]", searchTasksRemaining, pollPeriod)
-                );
+                logger.debug(format("waiting for [%s] " + taskName + " tasks to finish, next poll in [%s]", tasksRemaining, pollPeriod));
                 try {
                     Thread.sleep(pollPeriod.millis());
                 } catch (InterruptedException ex) {
                     logger.warn(
-                        format("interrupted while waiting [%s] for [%d] search tasks to finish", timeout.toString(), searchTasksRemaining)
+                        format("interrupted while waiting [%s] for [%d] search tasks to finish", timeout.toString(), tasksRemaining)
                     );
                     return;
                 }
@@ -159,12 +150,12 @@ public class ShutdownFenceService {
         }
     }
 
-    private void awaitSearchTasksComplete(TimeValue asyncSearchTimeout) {
-        waitForTasks(asyncSearchTimeout, TransportSearchAction.NAME);
+    private void awaitSearchTasksComplete(TimeValue asyncSearchTimeout, TaskManager taskManager) {
+        waitForTasks(asyncSearchTimeout, TransportSearchAction.NAME, taskManager);
     }
 
-    private void awaitReindexTasksComplete(TimeValue asyncReindexTimeout) {
-        waitForTasks(asyncReindexTimeout, ReindexAction.NAME);
+    private void awaitReindexTasksComplete(TimeValue asyncReindexTimeout, TaskManager taskManager) {
+        waitForTasks(asyncReindexTimeout, ReindexAction.NAME, taskManager);
     }
 
 }

@@ -30,6 +30,7 @@ import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.index.reindex.ReindexAction;
 import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TaskTransportChannel;
@@ -233,6 +234,7 @@ public class TaskManager implements ClusterStateApplier {
         CancellableTask cancellableTask = (CancellableTask) task;
         CancellableTaskHolder holder = new CancellableTaskHolder(cancellableTask);
         cancellableTasks.put(task, requestId, holder);
+
         if (traceRequest) {
             startTrace(threadPool.getThreadContext(), task);
         }
@@ -248,6 +250,9 @@ public class TaskManager implements ClusterStateApplier {
                     unregister(task);
                 }
             }
+        }
+        if (task.getAction().contains("reindex")) {
+            long searchTasksRemaining = this.getTasks().values().stream().filter(t -> ReindexAction.NAME.equals(t.getAction())).count();
         }
     }
 

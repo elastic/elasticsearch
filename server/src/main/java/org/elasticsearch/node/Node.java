@@ -158,8 +158,7 @@ public class Node implements Closeable {
 
     public static final Setting<TimeValue> MAXIMUM_REINDEXING_TIMEOUT_SETTING = Setting.positiveTimeSetting(
         "node.maximum_reindexing_grace_period",
-        // TimeValue.timeValueSeconds(10),
-        TimeValue.timeValueMillis(1),
+        TimeValue.timeValueMillis(10),
         Setting.Property.NodeScope
     );
 
@@ -603,116 +602,8 @@ public class Node implements Closeable {
      * logic should use Node Shutdown, see {@link org.elasticsearch.cluster.metadata.NodesShutdownMetadata}.
      */
     public void prepareForClose() {
-        injector.getInstance(ShutdownFenceService.class).prepareForShutdown();
+        injector.getInstance(ShutdownFenceService.class).prepareForShutdown(injector.getInstance(TransportService.class).getTaskManager());
     }
-
-    /*
-    public void prepareForClose() {
-        final var maxTimeout = MAXIMUM_SHUTDOWN_TIMEOUT_SETTING.get(this.settings());
-        final var reindexTimeout = MAXIMUM_REINDEXING_TIMEOUT_SETTING.get(this.settings());
-
-        record Stopper(String name, SubscribableListener<Void> listener) {
-            boolean isIncomplete() {
-                return listener().isDone() == false;
-            }
-        }
-
-        final var stoppers = new ArrayList<Stopper>();
-        final var allStoppersFuture = new PlainActionFuture<Void>();
-        try (var listeners = new RefCountingListener(allStoppersFuture)) {
-            final BiConsumer<String, Runnable> stopperRunner = (name, action) -> {
-                final var stopper = new Stopper(name, new SubscribableListener<>());
-                stoppers.add(stopper);
-                stopper.listener().addListener(listeners.acquire());
-                new Thread(() -> {
-                    try {
-                        action.run();
-                    } catch (Exception ex) {
-                        logger.warn("unexpected exception in shutdown task [" + stopper.name() + "]", ex);
-                    } finally {
-                        stopper.listener().onResponse(null);
-                    }
-                }, stopper.name()).start();
-            };
-
-            stopperRunner.accept("http-server-transport-stop", injector.getInstance(HttpServerTransport.class)::close);
-            stopperRunner.accept("async-search-stop", () -> awaitSearchTasksComplete(maxTimeout));
-            stopperRunner.accept("reindex-stop", () -> awaitReindexTasksComplete(reindexTimeout));
-            if (terminationHandler != null) {
-                stopperRunner.accept("termination-handler-stop", terminationHandler::handleTermination);
-            }
-        }
-
-        final Supplier<String> incompleteStoppersDescriber = () -> stoppers.stream()
-            .filter(Stopper::isIncomplete)
-            .map(Stopper::name)
-            .collect(Collectors.joining(", ", "[", "]"));
-
-        try {
-            if (TimeValue.ZERO.equals(maxTimeout)) {
-                allStoppersFuture.get();
-            } else {
-                allStoppersFuture.get(maxTimeout.millis(), TimeUnit.MILLISECONDS);
-            }
-        } catch (ExecutionException e) {
-            assert false : e; // listeners are never completed exceptionally
-            logger.warn("failed during graceful shutdown tasks", e);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            logger.warn("interrupted while waiting for graceful shutdown tasks: " + incompleteStoppersDescriber.get(), e);
-        } catch (TimeoutException e) {
-            logger.warn("timed out while waiting for graceful shutdown tasks: " + incompleteStoppersDescriber.get());
-        }
-    }
-
-    private void waitForTasks(TimeValue timeout, String taskName) {
-        TaskManager taskManager = injector.getInstance(TransportService.class).getTaskManager();
-        long millisWaited = 0;
-        while (true) {
-            long searchTasksRemaining = taskManager.getTasks().values().stream().filter(task -> taskName.equals(task.getAction())).count();
-            if (searchTasksRemaining == 0) {
-                logger.debug("all " + taskName + " tasks complete");
-                return;
-            } else {
-                // Let the system work on those tasks for a while. We're on a dedicated thread to manage app shutdown, so we
-                // literally just want to wait and not take up resources on this thread for now. Poll period chosen to allow short
-                // response times, but checking the tasks list is relatively expensive, and we don't want to waste CPU time we could
-                // be spending on finishing those tasks.
-                final TimeValue pollPeriod = TimeValue.timeValueMillis(500);
-                millisWaited += pollPeriod.millis();
-                if (TimeValue.ZERO.equals(timeout) == false && millisWaited >= timeout.millis()) {
-                    logger.warn(
-                        format(
-                            "timed out after waiting [%s] for [%d] " + taskName + " tasks to finish",
-                            timeout.toString(),
-                            searchTasksRemaining
-                        )
-                    );
-                    return;
-                }
-                logger.debug(
-                    format("waiting for [%s] " + taskName + " tasks to finish, next poll in [%s]", searchTasksRemaining, pollPeriod)
-                );
-                try {
-                    Thread.sleep(pollPeriod.millis());
-                } catch (InterruptedException ex) {
-                    logger.warn(
-                        format("interrupted while waiting [%s] for [%d] search tasks to finish", timeout.toString(), searchTasksRemaining)
-                    );
-                    return;
-                }
-            }
-        }
-    }
-
-    private void awaitSearchTasksComplete(TimeValue asyncSearchTimeout) {
-        waitForTasks(asyncSearchTimeout, TransportSearchAction.NAME);
-    }
-
-    private void awaitReindexTasksComplete(TimeValue asyncReindexTimeout) {
-        waitForTasks(asyncReindexTimeout, ReindexAction.NAME);
-    }
-    */
 
     /**
      * Wait for this node to be effectively closed.

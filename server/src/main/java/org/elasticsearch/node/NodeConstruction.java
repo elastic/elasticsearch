@@ -1099,12 +1099,7 @@ class NodeConstruction {
             telemetryProvider.getTracer()
         );
 
-        final ShutdownFenceService shutdownFenceService = new ShutdownFenceService(
-            settings,
-            httpServerTransport,
-            taskManager,
-            terminationHandler
-        );
+        final ShutdownFenceService shutdownFenceService = new ShutdownFenceService(settings, httpServerTransport, terminationHandler);
 
         modules.add(
             loadPersistentTasksService(

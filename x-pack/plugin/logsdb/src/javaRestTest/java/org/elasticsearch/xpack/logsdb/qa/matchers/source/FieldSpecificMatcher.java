@@ -1,18 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the "Elastic License
- * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
- * Public License v 1"; you may not use this file except in compliance with, at
- * your election, the "Elastic License 2.0", the "GNU Affero General Public
- * License v3.0 only", or the "Server Side Public License, v 1".
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
-package org.elasticsearch.datastreams.logsdb.qa.matchers.source;
+package org.elasticsearch.xpack.logsdb.qa.matchers.source;
 
 import org.apache.lucene.sandbox.document.HalfFloatPoint;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.datastreams.logsdb.qa.matchers.MatchResult;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.logsdb.qa.matchers.MatchResult;
 
 import java.math.BigInteger;
 import java.util.List;
@@ -22,8 +20,8 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.datastreams.logsdb.qa.matchers.Messages.formatErrorMessage;
-import static org.elasticsearch.datastreams.logsdb.qa.matchers.Messages.prettyPrintCollections;
+import static org.elasticsearch.xpack.logsdb.qa.matchers.Messages.formatErrorMessage;
+import static org.elasticsearch.xpack.logsdb.qa.matchers.Messages.prettyPrintCollections;
 
 interface FieldSpecificMatcher {
     MatchResult match(List<Object> actual, List<Object> expected, Map<String, Object> actualMapping, Map<String, Object> expectedMapping);

@@ -914,9 +914,6 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
 
             SemanticTextFieldMapper.insertValue("xxx", map, "value3");
             assertThat(getMapValue(map, "xxx"), equalTo("value3"));
-
-            SemanticTextFieldMapper.insertValue("xxx.yyy.zzz", map, "value4");
-            assertThat(getMapValue(map, "xxx\\.yyy\\.zzz"), equalTo("value4"));
         }
         {
             XContentBuilder builder = XContentFactory.jsonBuilder().startObject();
@@ -935,15 +932,10 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
             SemanticTextFieldMapper.insertValue("path1.path2.path3.path4.test", map, "value2");
             assertThat(getMapValue(map, "path1\\.path2.path3\\.path4.test"), equalTo("value2"));
 
-            SemanticTextFieldMapper.insertValue("path1.path2.path3", map, "value3");
-            assertThat(getMapValue(map, "path1\\.path2.path3"), equalTo("value3"));
 
-            SemanticTextFieldMapper.insertValue("path1.path2.path3.path4.test2", map, "value4");
-            assertThat(getMapValue(map, "path1\\.path2.path3\\.path4.test2"), equalTo("value4"));
-            assertThat(
-                getMapValue(map, "path1\\.path2"),
-                equalTo(Map.of("path3", "value3", "path3.path4", Map.of("test", "value2", "test2", "value4")))
-            );
+            SemanticTextFieldMapper.insertValue("path1.path2.path3.path4.test2", map, "value3");
+            assertThat(getMapValue(map, "path1\\.path2.path3\\.path4.test2"), equalTo("value3"));
+            assertThat(getMapValue(map, "path1\\.path2.path3\\.path4"), equalTo(Map.of("test", "value2", "test2", "value3")));
         }
     }
 
@@ -984,16 +976,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
 
             ex = assertThrows(
                 IllegalArgumentException.class,
-                () -> SemanticTextFieldMapper.insertValue("path1.path2.path3.test1.test2", map, "value4")
-            );
-            assertThat(
-                ex.getMessage(),
-                equalTo("Path [path1.path2.path3.test1.test2] could be inserted in 2 distinct ways, it is ambiguous which one to use")
-            );
-
-            ex = assertThrows(
-                IllegalArgumentException.class,
-                () -> SemanticTextFieldMapper.insertValue("path1.path2.path3.test3", map, "value5")
+                () -> SemanticTextFieldMapper.insertValue("path1.path2.path3.test3", map, "value4")
             );
             assertThat(
                 ex.getMessage(),
@@ -1039,16 +1022,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
 
             ex = assertThrows(
                 IllegalArgumentException.class,
-                () -> SemanticTextFieldMapper.insertValue("path1.path2.path3.test1.test2", map, "value4")
-            );
-            assertThat(
-                ex.getMessage(),
-                equalTo("Path [path1.path2.path3.test1.test2] could be inserted in 2 distinct ways, it is ambiguous which one to use")
-            );
-
-            ex = assertThrows(
-                IllegalArgumentException.class,
-                () -> SemanticTextFieldMapper.insertValue("path1.path2.path3.test3", map, "value5")
+                () -> SemanticTextFieldMapper.insertValue("path1.path2.path3.test3", map, "value4")
             );
             assertThat(
                 ex.getMessage(),
@@ -1057,6 +1031,35 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
 
             assertThat(map, equalTo(originalMap));
         }
+    }
+
+    public void testInsertValueCannotTraversePath() throws IOException {
+        XContentBuilder builder = XContentFactory.jsonBuilder().startObject();
+        {
+            builder.startObject("path1");
+            {
+                builder.startArray("path2");
+                builder.startArray();
+                builder.startObject().field("test", "value1").endObject();
+                builder.endArray();
+                builder.endArray();
+            }
+            builder.endObject();
+        }
+        builder.endObject();
+        Map<String, Object> map = toSourceMap(Strings.toString(builder));
+        final Map<String, Object> originalMap = Collections.unmodifiableMap(toSourceMap(Strings.toString(builder)));
+
+        IllegalArgumentException ex = assertThrows(
+            IllegalArgumentException.class,
+            () -> SemanticTextFieldMapper.insertValue("path1.path2.test.test2", map, "value2")
+        );
+        assertThat(
+            ex.getMessage(),
+            equalTo("Path [path1.path2.test] has value [value1] of type [String], which cannot be traversed into further")
+        );
+
+        assertThat(map, equalTo(originalMap));
     }
 
     @Override

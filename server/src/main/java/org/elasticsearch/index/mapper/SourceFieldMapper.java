@@ -77,62 +77,6 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         SYNTHETIC
     }
 
-    private static final SourceFieldMapper DEFAULT = new SourceFieldMapper(
-        null,
-        Explicit.IMPLICIT_TRUE,
-        Strings.EMPTY_ARRAY,
-        Strings.EMPTY_ARRAY,
-        null
-    );
-
-    private static final SourceFieldMapper DEFAULT_DISABLED = new SourceFieldMapper(
-        Mode.DISABLED,
-        Explicit.IMPLICIT_TRUE,
-        Strings.EMPTY_ARRAY,
-        Strings.EMPTY_ARRAY,
-        null
-    );
-
-    private static final SourceFieldMapper DEFAULT_SYNTHETIC = new SourceFieldMapper(
-        Mode.SYNTHETIC,
-        Explicit.IMPLICIT_TRUE,
-        Strings.EMPTY_ARRAY,
-        Strings.EMPTY_ARRAY,
-        null
-    );
-
-    private static final SourceFieldMapper TSDB_DEFAULT = new SourceFieldMapper(
-        Mode.SYNTHETIC,
-        Explicit.IMPLICIT_TRUE,
-        Strings.EMPTY_ARRAY,
-        Strings.EMPTY_ARRAY,
-        IndexMode.TIME_SERIES
-    );
-
-    private static final SourceFieldMapper TSDB_DEFAULT_STORED = new SourceFieldMapper(
-        Mode.STORED,
-        Explicit.IMPLICIT_TRUE,
-        Strings.EMPTY_ARRAY,
-        Strings.EMPTY_ARRAY,
-        IndexMode.TIME_SERIES
-    );
-
-    private static final SourceFieldMapper LOGSDB_DEFAULT = new SourceFieldMapper(
-        Mode.SYNTHETIC,
-        Explicit.IMPLICIT_TRUE,
-        Strings.EMPTY_ARRAY,
-        Strings.EMPTY_ARRAY,
-        IndexMode.LOGSDB
-    );
-
-    private static final SourceFieldMapper LOGSDB_DEFAULT_STORED = new SourceFieldMapper(
-        Mode.STORED,
-        Explicit.IMPLICIT_TRUE,
-        Strings.EMPTY_ARRAY,
-        Strings.EMPTY_ARRAY,
-        IndexMode.LOGSDB
-    );
-
     /*
      * Synthetic source was added as the default for TSDB in v.8.7. The legacy field mapper below
      * is used in bwc tests and mixed clusters containing time series indexes created in an earlier version.
@@ -228,11 +172,8 @@ public class SourceFieldMapper extends MetadataFieldMapper {
                     throw new MapperParsingException("Cannot set both [mode] and [enabled] parameters");
                 }
             }
-            // NOTE: if the `index.mapper.source.mode` exists it takes precedence to determine the source mode for `_source`
-            // otherwise the mode is determined according to `index.mode` and `_source.mode`.
-            final Mode sourceMode = INDEX_MAPPER_SOURCE_MODE_SETTING.exists(settings)
-                ? INDEX_MAPPER_SOURCE_MODE_SETTING.get(settings)
-                : mode.get();
+
+            Mode sourceMode = resolveSourceMode(indexMode, settings, mode.get());
 
             if (supportsNonDefaultParameterValues == false) {
                 List<String> disallowed = new ArrayList<>();
@@ -269,18 +210,32 @@ public class SourceFieldMapper extends MetadataFieldMapper {
             }
             return sourceFieldMapper;
         }
+    }
 
+    private static Mode resolveSourceMode(IndexMode indexMode, Settings settings, Mode mappingParameterMode) {
+        // NOTE: if the `index.mapper.source.mode` exists it takes precedence to determine the source mode for `_source`
+        // otherwise the mode is determined according to `index.mode` and `_source.mode`.
+        Mode resolvedSourceMode = INDEX_MAPPER_SOURCE_MODE_SETTING.exists(settings)
+            ? INDEX_MAPPER_SOURCE_MODE_SETTING.get(settings)
+            : mappingParameterMode;
+
+        if (indexMode == IndexMode.STANDARD && (resolvedSourceMode == null || resolvedSourceMode == Mode.STORED)) {
+            return null;
+        }
+
+        return resolvedSourceMode;
     }
 
     public static final TypeParser PARSER = new ConfigurableTypeParser(c -> {
         final IndexMode indexMode = c.getIndexSettings().getMode();
-        final Mode settingSourceMode = INDEX_MAPPER_SOURCE_MODE_SETTING.get(c.getSettings());
 
         if (indexMode == IndexMode.TIME_SERIES && c.getIndexSettings().getIndexVersionCreated().before(IndexVersions.V_8_7_0)) {
             return TSDB_LEGACY_DEFAULT;
         }
 
-        return new SourceFieldMapper(settingSourceMode, Explicit.IMPLICIT_TRUE, Strings.EMPTY_ARRAY, Strings.EMPTY_ARRAY, indexMode);
+        Mode sourceMode = resolveSourceMode(indexMode, c.getSettings(), null);
+
+        return new SourceFieldMapper(sourceMode, Explicit.IMPLICIT_TRUE, Strings.EMPTY_ARRAY, Strings.EMPTY_ARRAY, indexMode);
     },
         c -> new Builder(
             c.getIndexSettings().getMode(),

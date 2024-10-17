@@ -37,49 +37,37 @@ class KqlBaseBaseListener implements KqlBaseListener {
      *
      * <p>The default implementation does nothing.</p>
      */
-    @Override public void enterLogicalNot(KqlBaseParser.LogicalNotContext ctx) { }
+    @Override public void enterNotQuery(KqlBaseParser.NotQueryContext ctx) { }
     /**
      * {@inheritDoc}
      *
      * <p>The default implementation does nothing.</p>
      */
-    @Override public void exitLogicalNot(KqlBaseParser.LogicalNotContext ctx) { }
+    @Override public void exitNotQuery(KqlBaseParser.NotQueryContext ctx) { }
     /**
      * {@inheritDoc}
      *
      * <p>The default implementation does nothing.</p>
      */
-    @Override public void enterQueryDefault(KqlBaseParser.QueryDefaultContext ctx) { }
+    @Override public void enterBooleanQuery(KqlBaseParser.BooleanQueryContext ctx) { }
     /**
      * {@inheritDoc}
      *
      * <p>The default implementation does nothing.</p>
      */
-    @Override public void exitQueryDefault(KqlBaseParser.QueryDefaultContext ctx) { }
+    @Override public void exitBooleanQuery(KqlBaseParser.BooleanQueryContext ctx) { }
     /**
      * {@inheritDoc}
      *
      * <p>The default implementation does nothing.</p>
      */
-    @Override public void enterLogicalAnd(KqlBaseParser.LogicalAndContext ctx) { }
+    @Override public void enterDefaultQuery(KqlBaseParser.DefaultQueryContext ctx) { }
     /**
      * {@inheritDoc}
      *
      * <p>The default implementation does nothing.</p>
      */
-    @Override public void exitLogicalAnd(KqlBaseParser.LogicalAndContext ctx) { }
-    /**
-     * {@inheritDoc}
-     *
-     * <p>The default implementation does nothing.</p>
-     */
-    @Override public void enterLogicalOr(KqlBaseParser.LogicalOrContext ctx) { }
-    /**
-     * {@inheritDoc}
-     *
-     * <p>The default implementation does nothing.</p>
-     */
-    @Override public void exitLogicalOr(KqlBaseParser.LogicalOrContext ctx) { }
+    @Override public void exitDefaultQuery(KqlBaseParser.DefaultQueryContext ctx) { }
     /**
      * {@inheritDoc}
      *

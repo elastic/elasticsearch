@@ -26,53 +26,41 @@ interface KqlBaseListener extends ParseTreeListener {
      */
     void exitTopLevelQuery(KqlBaseParser.TopLevelQueryContext ctx);
     /**
-     * Enter a parse tree produced by the {@code logicalNot}
+     * Enter a parse tree produced by the {@code notQuery}
      * labeled alternative in {@link KqlBaseParser#query}.
      * @param ctx the parse tree
      */
-    void enterLogicalNot(KqlBaseParser.LogicalNotContext ctx);
+    void enterNotQuery(KqlBaseParser.NotQueryContext ctx);
     /**
-     * Exit a parse tree produced by the {@code logicalNot}
+     * Exit a parse tree produced by the {@code notQuery}
      * labeled alternative in {@link KqlBaseParser#query}.
      * @param ctx the parse tree
      */
-    void exitLogicalNot(KqlBaseParser.LogicalNotContext ctx);
+    void exitNotQuery(KqlBaseParser.NotQueryContext ctx);
     /**
-     * Enter a parse tree produced by the {@code queryDefault}
+     * Enter a parse tree produced by the {@code booleanQuery}
      * labeled alternative in {@link KqlBaseParser#query}.
      * @param ctx the parse tree
      */
-    void enterQueryDefault(KqlBaseParser.QueryDefaultContext ctx);
+    void enterBooleanQuery(KqlBaseParser.BooleanQueryContext ctx);
     /**
-     * Exit a parse tree produced by the {@code queryDefault}
+     * Exit a parse tree produced by the {@code booleanQuery}
      * labeled alternative in {@link KqlBaseParser#query}.
      * @param ctx the parse tree
      */
-    void exitQueryDefault(KqlBaseParser.QueryDefaultContext ctx);
+    void exitBooleanQuery(KqlBaseParser.BooleanQueryContext ctx);
     /**
-     * Enter a parse tree produced by the {@code logicalAnd}
+     * Enter a parse tree produced by the {@code defaultQuery}
      * labeled alternative in {@link KqlBaseParser#query}.
      * @param ctx the parse tree
      */
-    void enterLogicalAnd(KqlBaseParser.LogicalAndContext ctx);
+    void enterDefaultQuery(KqlBaseParser.DefaultQueryContext ctx);
     /**
-     * Exit a parse tree produced by the {@code logicalAnd}
+     * Exit a parse tree produced by the {@code defaultQuery}
      * labeled alternative in {@link KqlBaseParser#query}.
      * @param ctx the parse tree
      */
-    void exitLogicalAnd(KqlBaseParser.LogicalAndContext ctx);
-    /**
-     * Enter a parse tree produced by the {@code logicalOr}
-     * labeled alternative in {@link KqlBaseParser#query}.
-     * @param ctx the parse tree
-     */
-    void enterLogicalOr(KqlBaseParser.LogicalOrContext ctx);
-    /**
-     * Exit a parse tree produced by the {@code logicalOr}
-     * labeled alternative in {@link KqlBaseParser#query}.
-     * @param ctx the parse tree
-     */
-    void exitLogicalOr(KqlBaseParser.LogicalOrContext ctx);
+    void exitDefaultQuery(KqlBaseParser.DefaultQueryContext ctx);
     /**
      * Enter a parse tree produced by {@link KqlBaseParser#simpleQuery}.
      * @param ctx the parse tree

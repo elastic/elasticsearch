@@ -26,10 +26,9 @@ topLevelQuery
     ;
 
 query
-    : query AND query               #logicalAnd
-    | query OR query                #logicalOr
-    | NOT subQuery=simpleQuery      #logicalNot
-    | simpleQuery                   #queryDefault
+    : query (AND | OR) query #booleanQuery
+    | NOT subQuery=simpleQuery        #notQuery
+    | simpleQuery                     #defaultQuery
     ;
 
 simpleQuery

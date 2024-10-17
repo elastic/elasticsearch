@@ -25,33 +25,26 @@ interface KqlBaseVisitor<T> extends ParseTreeVisitor<T> {
      */
     T visitTopLevelQuery(KqlBaseParser.TopLevelQueryContext ctx);
     /**
-     * Visit a parse tree produced by the {@code logicalNot}
+     * Visit a parse tree produced by the {@code notQuery}
      * labeled alternative in {@link KqlBaseParser#query}.
      * @param ctx the parse tree
      * @return the visitor result
      */
-    T visitLogicalNot(KqlBaseParser.LogicalNotContext ctx);
+    T visitNotQuery(KqlBaseParser.NotQueryContext ctx);
     /**
-     * Visit a parse tree produced by the {@code queryDefault}
+     * Visit a parse tree produced by the {@code booleanQuery}
      * labeled alternative in {@link KqlBaseParser#query}.
      * @param ctx the parse tree
      * @return the visitor result
      */
-    T visitQueryDefault(KqlBaseParser.QueryDefaultContext ctx);
+    T visitBooleanQuery(KqlBaseParser.BooleanQueryContext ctx);
     /**
-     * Visit a parse tree produced by the {@code logicalAnd}
+     * Visit a parse tree produced by the {@code defaultQuery}
      * labeled alternative in {@link KqlBaseParser#query}.
      * @param ctx the parse tree
      * @return the visitor result
      */
-    T visitLogicalAnd(KqlBaseParser.LogicalAndContext ctx);
-    /**
-     * Visit a parse tree produced by the {@code logicalOr}
-     * labeled alternative in {@link KqlBaseParser#query}.
-     * @param ctx the parse tree
-     * @return the visitor result
-     */
-    T visitLogicalOr(KqlBaseParser.LogicalOrContext ctx);
+    T visitDefaultQuery(KqlBaseParser.DefaultQueryContext ctx);
     /**
      * Visit a parse tree produced by {@link KqlBaseParser#simpleQuery}.
      * @param ctx the parse tree

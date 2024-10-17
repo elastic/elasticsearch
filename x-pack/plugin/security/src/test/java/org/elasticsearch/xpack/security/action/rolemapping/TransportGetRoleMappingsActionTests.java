@@ -58,7 +58,7 @@ public class TransportGetRoleMappingsActionTests extends ESTestCase {
             null,
             Collections.emptySet()
         );
-        action = new TransportGetRoleMappingsAction(mock(ActionFilters.class), transportService, store);
+        action = new TransportGetRoleMappingsAction(mock(ActionFilters.class), transportService, store, mock());
 
         namesRef = new AtomicReference<>(null);
         result = Collections.emptyList();

@@ -24,8 +24,7 @@ public final class ReservedRoleMappingXContentNameFieldHelper {
     private ReservedRoleMappingXContentNameFieldHelper() {}
 
     public static ExpressionRoleMapping copyWithNameInMetadata(ExpressionRoleMapping roleMapping) {
-        // xcontent should already give us back a hashmap but make sure we have one, so we can modify it
-        Map<String, Object> metadata = toHashMap(roleMapping.getMetadata());
+        Map<String, Object> metadata = new HashMap<>(roleMapping.getMetadata());
         // note: can't use Maps.copyWith... since these create maps that don't support `null` values in map entries
         if (metadata.put(METADATA_NAME_FIELD, roleMapping.getName()) != null) {
             logger.error(
@@ -63,14 +62,6 @@ public final class ReservedRoleMappingXContentNameFieldHelper {
         } else {
             // This is valid the first time we recover from cluster-state: the old format metadata won't have a name stored in metadata yet
             return FALLBACK_NAME;
-        }
-    }
-
-    private static <K, V> HashMap<K, V> toHashMap(Map<K, V> map) {
-        if (map instanceof HashMap) {
-            return (HashMap<K, V>) map;
-        } else {
-            return new HashMap<>(map);
         }
     }
 }

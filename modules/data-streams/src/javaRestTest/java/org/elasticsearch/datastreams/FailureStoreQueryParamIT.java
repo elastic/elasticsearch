@@ -78,13 +78,13 @@ public class FailureStoreQueryParamIT extends DisabledSecurityDataStreamTestCase
             assertThat(indices.containsKey(failureStoreIndex), is(true));
         }
         {
-            final Response indicesResponse = client().performRequest(new Request("GET", "/" + DATA_STREAM_NAME + "?failure_store=exclude"));
+            final Response indicesResponse = client().performRequest(new Request("GET", "/" + DATA_STREAM_NAME + "::data"));
             Map<String, Object> indices = entityAsMap(indicesResponse);
             assertThat(indices.size(), is(1));
             assertThat(indices.containsKey(backingIndex), is(true));
         }
         {
-            final Response indicesResponse = client().performRequest(new Request("GET", "/" + DATA_STREAM_NAME + "?failure_store=only"));
+            final Response indicesResponse = client().performRequest(new Request("GET", "/" + DATA_STREAM_NAME + "::failures"));
             Map<String, Object> indices = entityAsMap(indicesResponse);
             assertThat(indices.size(), is(1));
             assertThat(indices.containsKey(failureStoreIndex), is(true));
@@ -100,18 +100,14 @@ public class FailureStoreQueryParamIT extends DisabledSecurityDataStreamTestCase
             assertThat(indices.containsKey(backingIndex), is(true));
         }
         {
-            final Response statsResponse = client().performRequest(
-                new Request("GET", "/" + DATA_STREAM_NAME + "/_stats?failure_store=include")
-            );
+            final Response statsResponse = client().performRequest(new Request("GET", "/" + DATA_STREAM_NAME + "::*/_stats"));
             Map<String, Object> indices = (Map<String, Object>) entityAsMap(statsResponse).get("indices");
             assertThat(indices.size(), is(2));
             assertThat(indices.containsKey(backingIndex), is(true));
             assertThat(indices.containsKey(failureStoreIndex), is(true));
         }
         {
-            final Response statsResponse = client().performRequest(
-                new Request("GET", "/" + DATA_STREAM_NAME + "/_stats?failure_store=only")
-            );
+            final Response statsResponse = client().performRequest(new Request("GET", "/" + DATA_STREAM_NAME + "::failures/_stats"));
             Map<String, Object> indices = (Map<String, Object>) entityAsMap(statsResponse).get("indices");
             assertThat(indices.size(), is(1));
             assertThat(indices.containsKey(failureStoreIndex), is(true));
@@ -126,18 +122,14 @@ public class FailureStoreQueryParamIT extends DisabledSecurityDataStreamTestCase
             assertThat(indices.containsKey(backingIndex), is(true));
         }
         {
-            final Response indicesResponse = client().performRequest(
-                new Request("GET", "/" + DATA_STREAM_NAME + "/_settings?failure_store=include")
-            );
+            final Response indicesResponse = client().performRequest(new Request("GET", "/" + DATA_STREAM_NAME + "::*/_settings"));
             Map<String, Object> indices = entityAsMap(indicesResponse);
             assertThat(indices.size(), is(2));
             assertThat(indices.containsKey(backingIndex), is(true));
             assertThat(indices.containsKey(failureStoreIndex), is(true));
         }
         {
-            final Response indicesResponse = client().performRequest(
-                new Request("GET", "/" + DATA_STREAM_NAME + "/_settings?failure_store=only")
-            );
+            final Response indicesResponse = client().performRequest(new Request("GET", "/" + DATA_STREAM_NAME + "::failures/_settings"));
             Map<String, Object> indices = entityAsMap(indicesResponse);
             assertThat(indices.size(), is(1));
             assertThat(indices.containsKey(failureStoreIndex), is(true));
@@ -152,18 +144,14 @@ public class FailureStoreQueryParamIT extends DisabledSecurityDataStreamTestCase
             assertThat(indices.containsKey(backingIndex), is(true));
         }
         {
-            final Response indicesResponse = client().performRequest(
-                new Request("GET", "/" + DATA_STREAM_NAME + "/_mapping?failure_store=include")
-            );
+            final Response indicesResponse = client().performRequest(new Request("GET", "/" + DATA_STREAM_NAME + "::*/_mapping"));
             Map<String, Object> indices = entityAsMap(indicesResponse);
             assertThat(indices.size(), is(2));
             assertThat(indices.containsKey(backingIndex), is(true));
             assertThat(indices.containsKey(failureStoreIndex), is(true));
         }
         {
-            final Response indicesResponse = client().performRequest(
-                new Request("GET", "/" + DATA_STREAM_NAME + "/_mapping?failure_store=only")
-            );
+            final Response indicesResponse = client().performRequest(new Request("GET", "/" + DATA_STREAM_NAME + "::failures/_mapping"));
             Map<String, Object> indices = entityAsMap(indicesResponse);
             assertThat(indices.size(), is(1));
             assertThat(indices.containsKey(failureStoreIndex), is(true));
@@ -186,7 +174,7 @@ public class FailureStoreQueryParamIT extends DisabledSecurityDataStreamTestCase
             assertAcknowledged(client().performRequest(mappingRequest));
         }
         {
-            final Request mappingRequest = new Request("PUT", "/" + DATA_STREAM_NAME + "/_mapping?failure_store=include");
+            final Request mappingRequest = new Request("PUT", "/" + DATA_STREAM_NAME + "::*/_mapping");
             mappingRequest.setJsonEntity("""
                 {
                   "properties": {

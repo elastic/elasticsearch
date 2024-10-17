@@ -12,6 +12,7 @@ package org.elasticsearch.action.support;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.Nullable;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -63,12 +64,9 @@ public enum IndexComponentSelector implements Writeable {
         ID_REGISTRY = Collections.unmodifiableMap(idRegistry);
     }
 
+    @Nullable
     public static IndexComponentSelector getByKey(String key) {
-        IndexComponentSelector indexComponentSelector = KEY_REGISTRY.get(key);
-        if (indexComponentSelector == null) {
-            throw new IllegalArgumentException("Unknown index component selector [" + key + "]");
-        }
-        return indexComponentSelector;
+        return KEY_REGISTRY.get(key);
     }
 
     public static IndexComponentSelector read(StreamInput in) throws IOException {
@@ -83,5 +81,13 @@ public enum IndexComponentSelector implements Writeable {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeByte(id);
+    }
+
+    public boolean shouldIncludeData() {
+        return this == ALL_APPLICABLE || this == DATA;
+    }
+
+    public boolean shouldIncludeFailures() {
+        return this == ALL_APPLICABLE || this == FAILURES;
     }
 }

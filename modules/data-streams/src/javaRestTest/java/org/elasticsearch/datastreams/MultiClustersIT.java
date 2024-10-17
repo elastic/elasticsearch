@@ -278,7 +278,7 @@ public class MultiClustersIT extends ESRestTestCase {
                 assertThat(hostName, hasSize(1));
                 List<Number> messageId = (List<Number>) hit.get("message_id");
                 assertThat(messageId, hasSize(1));
-                return new Fields(messageId.getFirst().longValue(), hostName.getFirst());
+                return new Fields(messageId.get(0).longValue(), hostName.get(0));
             }
         }
         // remote only

@@ -71,7 +71,8 @@ public class CoordinatorRewriteContext extends QueryRewriteContext {
     }
 
     /**
-     * @param fieldName Must be one of DataStream.TIMESTAMP_FIELD_FIELD or IndexMetadata.EVENT_INGESTED_FIELD_NAME
+     * @param fieldName Must be one of DataStream.TIMESTAMP_FIELD_FIELD, IndexMetadata.EVENT_INGESTED_FIELD_NAME, or
+     *                  DataTierFiledMapper.NAME
      * @return MappedField with type for the field. Returns null if fieldName is not one of the allowed field names.
      */
     @Nullable
@@ -107,7 +108,7 @@ public class CoordinatorRewriteContext extends QueryRewriteContext {
         return this;
     }
 
-    public String getTier() {
+    public String tier() {
         return tier;
     }
 }

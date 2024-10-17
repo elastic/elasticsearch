@@ -57,27 +57,6 @@ public record IndicesOptions(
     SelectorOptions selectorOptions
 ) implements ToXContentFragment {
 
-    /**
-     * @deprecated this query param will be replaced by the selector `::` on the expression level
-     */
-    @Deprecated
-    public static final String FAILURE_STORE_QUERY_PARAM = "failure_store";
-    /**
-     * @deprecated this value will be replaced by the selector `::*` on the expression level
-     */
-    @Deprecated
-    public static final String INCLUDE_ALL = "include";
-    /**
-     * @deprecated this value will be replaced by the selector `::data` on the expression level
-     */
-    @Deprecated
-    public static final String INCLUDE_ONLY_REGULAR_INDICES = "exclude";
-    /**
-     * @deprecated this value will be replaced by the selector `::failures` on the expression level
-     */
-    @Deprecated
-    public static final String INCLUDE_ONLY_FAILURE_INDICES = "only";
-
     public static IndicesOptions.Builder builder() {
         return new Builder();
     }
@@ -1275,26 +1254,11 @@ public record IndicesOptions(
             request.param(ConcreteTargetOptions.IGNORE_UNAVAILABLE),
             request.param(WildcardOptions.ALLOW_NO_INDICES),
             request.param(GatekeeperOptions.IGNORE_THROTTLED),
-            DataStream.isFailureStoreFeatureFlagEnabled() ? request.param(FAILURE_STORE_QUERY_PARAM) : INCLUDE_ONLY_REGULAR_INDICES,
             defaultSettings
         );
     }
 
     public static IndicesOptions fromMap(Map<String, Object> map, IndicesOptions defaultSettings) {
-        if (DataStream.isFailureStoreFeatureFlagEnabled()) {
-            return fromParameters(
-                map.containsKey(WildcardOptions.EXPAND_WILDCARDS) ? map.get(WildcardOptions.EXPAND_WILDCARDS) : map.get("expandWildcards"),
-                map.containsKey(ConcreteTargetOptions.IGNORE_UNAVAILABLE)
-                    ? map.get(ConcreteTargetOptions.IGNORE_UNAVAILABLE)
-                    : map.get("ignoreUnavailable"),
-                map.containsKey(WildcardOptions.ALLOW_NO_INDICES) ? map.get(WildcardOptions.ALLOW_NO_INDICES) : map.get("allowNoIndices"),
-                map.containsKey(GatekeeperOptions.IGNORE_THROTTLED)
-                    ? map.get(GatekeeperOptions.IGNORE_THROTTLED)
-                    : map.get("ignoreThrottled"),
-                map.containsKey(FAILURE_STORE_QUERY_PARAM) ? map.get(FAILURE_STORE_QUERY_PARAM) : map.get("failureStore"),
-                defaultSettings
-            );
-        }
         return fromParameters(
             map.containsKey(WildcardOptions.EXPAND_WILDCARDS) ? map.get(WildcardOptions.EXPAND_WILDCARDS) : map.get("expandWildcards"),
             map.containsKey(ConcreteTargetOptions.IGNORE_UNAVAILABLE)
@@ -1318,9 +1282,7 @@ public record IndicesOptions(
             || GatekeeperOptions.IGNORE_THROTTLED.equals(name)
             || "ignoreThrottled".equals(name)
             || WildcardOptions.ALLOW_NO_INDICES.equals(name)
-            || "allowNoIndices".equals(name)
-            || (DataStream.isFailureStoreFeatureFlagEnabled() && FAILURE_STORE_QUERY_PARAM.equals(name))
-            || (DataStream.isFailureStoreFeatureFlagEnabled() && "failureStore".equals(name));
+            || "allowNoIndices".equals(name);
     }
 
     public static IndicesOptions fromParameters(
@@ -1330,55 +1292,19 @@ public record IndicesOptions(
         Object ignoreThrottled,
         IndicesOptions defaultSettings
     ) {
-        return fromParameters(wildcardsString, ignoreUnavailableString, allowNoIndicesString, ignoreThrottled, null, defaultSettings);
-    }
-
-    public static IndicesOptions fromParameters(
-        Object wildcardsString,
-        Object ignoreUnavailableString,
-        Object allowNoIndicesString,
-        Object ignoreThrottled,
-        Object failureStoreString,
-        IndicesOptions defaultSettings
-    ) {
-        if (wildcardsString == null
-            && ignoreUnavailableString == null
-            && allowNoIndicesString == null
-            && ignoreThrottled == null
-            && failureStoreString == null) {
+        if (wildcardsString == null && ignoreUnavailableString == null && allowNoIndicesString == null && ignoreThrottled == null) {
             return defaultSettings;
         }
 
         WildcardOptions wildcards = WildcardOptions.parseParameters(wildcardsString, allowNoIndicesString, defaultSettings.wildcardOptions);
         GatekeeperOptions gatekeeperOptions = GatekeeperOptions.parseParameter(ignoreThrottled, defaultSettings.gatekeeperOptions);
-        SelectorOptions selectorOptions = DataStream.isFailureStoreFeatureFlagEnabled()
-            ? parseFailureStoreParameters(failureStoreString, defaultSettings.selectorOptions)
-            : SelectorOptions.DEFAULT;
 
         // note that allowAliasesToMultipleIndices is not exposed, always true (only for internal use)
         return IndicesOptions.builder()
             .concreteTargetOptions(ConcreteTargetOptions.fromParameter(ignoreUnavailableString, defaultSettings.concreteTargetOptions))
             .wildcardOptions(wildcards)
             .gatekeeperOptions(gatekeeperOptions)
-            .selectorOptions(selectorOptions)
             .build();
-    }
-
-    /**
-     * @deprecated This method parses the query parameter failure_store. This is a deprecated param, and it will be replaced
-     * the selector suffix, for example `my-data-stream::data` or `my-data-stream::failures`
-     */
-    @Deprecated
-    private static SelectorOptions parseFailureStoreParameters(Object failureStoreValue, SelectorOptions defaultOptions) {
-        if (failureStoreValue == null) {
-            return defaultOptions;
-        }
-        return switch (failureStoreValue.toString()) {
-            case INCLUDE_ALL -> SelectorOptions.ALL_SUPPORTED;
-            case INCLUDE_ONLY_REGULAR_INDICES -> SelectorOptions.ONLY_DATA;
-            case INCLUDE_ONLY_FAILURE_INDICES -> SelectorOptions.ONLY_FAILURES;
-            default -> throw new IllegalArgumentException("No valid " + FAILURE_STORE_QUERY_PARAM + " value [" + failureStoreValue + "]");
-        };
     }
 
     @Override
@@ -1386,17 +1312,6 @@ public record IndicesOptions(
         concreteTargetOptions.toXContent(builder, params);
         wildcardOptions.toXContent(builder, params);
         gatekeeperOptions.toXContent(builder, params);
-        if (DataStream.isFailureStoreFeatureFlagEnabled()) {
-            String displayValue;
-            if (SelectorOptions.ALL_SUPPORTED.equals(selectorOptions())) {
-                displayValue = INCLUDE_ALL;
-            } else if (SelectorOptions.ONLY_DATA.equals(selectorOptions())) {
-                displayValue = INCLUDE_ONLY_REGULAR_INDICES;
-            } else {
-                displayValue = INCLUDE_ONLY_FAILURE_INDICES;
-            }
-            builder.field(FAILURE_STORE_QUERY_PARAM, displayValue);
-        }
         return builder;
     }
 
@@ -1404,7 +1319,6 @@ public record IndicesOptions(
     private static final ParseField IGNORE_UNAVAILABLE_FIELD = new ParseField(ConcreteTargetOptions.IGNORE_UNAVAILABLE);
     private static final ParseField IGNORE_THROTTLED_FIELD = new ParseField(GatekeeperOptions.IGNORE_THROTTLED).withAllDeprecated();
     private static final ParseField ALLOW_NO_INDICES_FIELD = new ParseField(WildcardOptions.ALLOW_NO_INDICES);
-    private static final ParseField FAILURE_STORE_FIELD = new ParseField(FAILURE_STORE_QUERY_PARAM);
 
     public static IndicesOptions fromXContent(XContentParser parser) throws IOException {
         return fromXContent(parser, null);
@@ -1465,14 +1379,11 @@ public record IndicesOptions(
                     allowNoIndices = parser.booleanValue();
                 } else if (IGNORE_THROTTLED_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     generalOptions.ignoreThrottled(parser.booleanValue());
-                } else if (DataStream.isFailureStoreFeatureFlagEnabled()
-                    && FAILURE_STORE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                        selectorOptions = parseFailureStoreParameters(parser.text(), selectorOptions);
-                    } else {
-                        throw new ElasticsearchParseException(
-                            "could not read indices options. Unexpected index option [" + currentFieldName + "]"
-                        );
-                    }
+                } else {
+                    throw new ElasticsearchParseException(
+                        "could not read indices options. Unexpected index option [" + currentFieldName + "]"
+                    );
+                }
             } else {
                 throw new ElasticsearchParseException("could not read indices options. Unexpected object field [" + currentFieldName + "]");
             }
@@ -1645,6 +1556,8 @@ public record IndicesOptions(
                     + includeFailureIndices()
                     + ", allow_failure_indices="
                     + allowFailureIndices()
+                    + ", allow_selectors="
+                    + allowSelectors()
                 : "")
             + ']';
     }

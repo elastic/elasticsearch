@@ -261,7 +261,7 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
         }
         this.filterQueries = in.readNamedWriteableCollectionAsList(QueryBuilder.class);
         this.boost = in.readFloat();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.TOP_LEVEL_KNN_SUPPORT_QUERY_NAME)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
             this.queryName = in.readOptionalString();
         } else {
             this.queryName = null;
@@ -501,7 +501,7 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
         }
         out.writeNamedWriteableCollection(filterQueries);
         out.writeFloat(boost);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.TOP_LEVEL_KNN_SUPPORT_QUERY_NAME)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
             out.writeOptionalString(queryName);
         }
         if (out.getTransportVersion().before(TransportVersions.V_8_7_0) && queryVectorBuilder != null) {

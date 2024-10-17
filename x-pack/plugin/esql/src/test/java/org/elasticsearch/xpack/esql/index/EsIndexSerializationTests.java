@@ -216,6 +216,10 @@ public class EsIndexSerializationTests extends AbstractWireSerializingTestCase<E
      */
     public void testDeeplyNestedFields() throws IOException {
         ByteSizeValue expectedSize = ByteSizeValue.ofBytes(9425494);
+        /*
+         * History:
+         *  9425494b - string serialization #112929
+         */
 
         int depth = 6;
         int childrenPerLevel = 9;

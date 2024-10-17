@@ -11,6 +11,7 @@ import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.capabilities.Unresolvable;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -63,11 +64,11 @@ public final class UnsupportedAttribute extends FieldAttribute implements Unreso
         this(source, name, field, null);
     }
 
-    public UnsupportedAttribute(Source source, String name, UnsupportedEsField field, String customMessage) {
+    public UnsupportedAttribute(Source source, String name, UnsupportedEsField field, @Nullable String customMessage) {
         this(source, name, field, customMessage, null);
     }
 
-    public UnsupportedAttribute(Source source, String name, UnsupportedEsField field, String customMessage, NameId id) {
+    public UnsupportedAttribute(Source source, String name, UnsupportedEsField field, @Nullable String customMessage, @Nullable NameId id) {
         super(source, null, name, field, Nullability.TRUE, id, false);
         this.hasCustomMessage = customMessage != null;
         this.message = customMessage == null ? errorMessage(name(), field) : customMessage;

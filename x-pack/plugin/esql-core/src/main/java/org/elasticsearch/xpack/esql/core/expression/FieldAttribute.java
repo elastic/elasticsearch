@@ -45,11 +45,11 @@ public class FieldAttribute extends TypedAttribute {
         this(source, null, name, field);
     }
 
-    public FieldAttribute(Source source, String parentName, String name, EsField field) {
+    public FieldAttribute(Source source, @Nullable String parentName, String name, EsField field) {
         this(source, parentName, name, field, Nullability.TRUE, null, false);
     }
 
-    public FieldAttribute(Source source, String parentName, String name, EsField field, boolean synthetic) {
+    public FieldAttribute(Source source, @Nullable String parentName, String name, EsField field, boolean synthetic) {
         this(source, parentName, name, field, Nullability.TRUE, null, synthetic);
     }
 
@@ -59,7 +59,7 @@ public class FieldAttribute extends TypedAttribute {
         String name,
         EsField field,
         Nullability nullability,
-        NameId id,
+        @Nullable NameId id,
         boolean synthetic
     ) {
         this(source, parentName, name, field.getDataType(), field, nullability, id, synthetic);
@@ -71,12 +71,12 @@ public class FieldAttribute extends TypedAttribute {
      */
     FieldAttribute(
         Source source,
-        String parentName,
+        @Nullable String parentName,
         String name,
         DataType type,
         EsField field,
         Nullability nullability,
-        NameId id,
+        @Nullable NameId id,
         boolean synthetic
     ) {
         super(source, name, type, nullability, id, synthetic);
@@ -90,13 +90,13 @@ public class FieldAttribute extends TypedAttribute {
      */
     private FieldAttribute(
         Source source,
-        String parentName,
+        @Nullable String parentName,
         String name,
         DataType type,
         EsField field,
-        String qualifier,
+        @Nullable String qualifier,
         Nullability nullability,
-        NameId id,
+        @Nullable NameId id,
         boolean synthetic
     ) {
         this(source, parentName, name, type, field, nullability, id, synthetic);
@@ -148,14 +148,10 @@ public class FieldAttribute extends TypedAttribute {
         if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_FIELD_ATTRIBUTE_PARENT_SIMPLIFIED)) {
             ((PlanStreamOutput) out).writeOptionalCachedString(parentName);
         } else {
-            if (parentName() == null) {
-                out.writeOptionalWriteable((FieldAttribute) null);
-            } else {
-                // Previous versions only used the parent field attribute to retrieve the parent's name, so we can use just any
-                // fake FieldAttribute here.
-                FieldAttribute fakeParent = new FieldAttribute(Source.EMPTY, parentName(), field());
-                out.writeOptionalWriteable(fakeParent);
-            }
+            // Previous versions only used the parent field attribute to retrieve the parent's name, so we can use just any
+            // fake FieldAttribute here as long as the name is correct.
+            FieldAttribute fakeParent = parentName() == null ? null : new FieldAttribute(Source.EMPTY, parentName(), field());
+            out.writeOptionalWriteable(fakeParent);
         }
     }
 

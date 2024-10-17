@@ -261,10 +261,7 @@ public final class PlanStreamInput extends NamedWriteableAwareStreamInput
 
     @Override
     public String readOptionalCachedString() throws IOException {
-        if (readBoolean()) {
-            return readCachedString();
-        }
-        return null;
+        return readBoolean() ? readCachedString() : null;
     }
 
     private EsField esFieldFromCache(int id) throws IOException {

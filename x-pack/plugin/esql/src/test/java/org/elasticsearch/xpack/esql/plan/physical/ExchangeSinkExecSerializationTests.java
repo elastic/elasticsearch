@@ -87,7 +87,8 @@ public class ExchangeSinkExecSerializationTests extends AbstractPhysicalPlanSeri
          * 43.3mb - Cache attribute subclasses #111447
          *  5.6mb - shorten error messages for UnsupportedAttributes #111973
          *  3.1mb - cache EsFields #112008
-         *  2.6mb - string serialization #112929
+         *  2774214b - string serialization #112929
+         *  2774192b - remove field attribute #112881
          */
     }
 
@@ -103,6 +104,11 @@ public class ExchangeSinkExecSerializationTests extends AbstractPhysicalPlanSeri
      */
     public void testDeeplyNestedFields() throws IOException {
         ByteSizeValue expected = ByteSizeValue.ofBytes(47252411);
+        /*
+         * History:
+         *  48223371b - string serialization #112929
+         *  47252411b - remove field attribute #112881
+         */
 
         int depth = 6;
         int childrenPerLevel = 8;
@@ -118,6 +124,12 @@ public class ExchangeSinkExecSerializationTests extends AbstractPhysicalPlanSeri
      */
     public void testDeeplyNestedFieldsKeepOnlyOne() throws IOException {
         ByteSizeValue expected = ByteSizeValue.ofBytes(9425806);
+        ByteSizeValue expected = ByteSizeValue.ofBytes(47252411);
+        /*
+         * History:
+         *  9426058b - string serialization #112929
+         *  9425806b - remove field attribute #112881
+         */
 
         int depth = 6;
         int childrenPerLevel = 9;

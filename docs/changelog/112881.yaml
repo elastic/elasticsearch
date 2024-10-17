@@ -1,0 +1,5 @@
+pr: 112881
+summary: "ESQL: Remove parent from `FieldAttribute`"
+area: ES|QL
+type: enhancement
+issues: []

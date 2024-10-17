@@ -34,19 +34,40 @@ public class GetInferenceModelAction extends ActionType<GetInferenceModelAction.
 
     public static class Request extends AcknowledgedRequest<GetInferenceModelAction.Request> {
 
+        private static boolean DEFAULT_DO_NOT_PERSIST_DEFAULT_CONFIGS = false;
+
         private final String inferenceEntityId;
         private final TaskType taskType;
+        // Default endpoint configurations are persisted on first read.
+        // Set to true to avoid persisting on read.
+        // This setting only applies to GET * requests it has
+        // no effect when getting a single model
+        private final boolean doNotPersistDefaultConfigs;
 
         public Request(String inferenceEntityId, TaskType taskType) {
             super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, DEFAULT_ACK_TIMEOUT);
             this.inferenceEntityId = Objects.requireNonNull(inferenceEntityId);
             this.taskType = Objects.requireNonNull(taskType);
+            this.doNotPersistDefaultConfigs = DEFAULT_DO_NOT_PERSIST_DEFAULT_CONFIGS;
+        }
+
+        public Request(String inferenceEntityId, TaskType taskType, boolean doNotPersistDefaultConfigs) {
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, DEFAULT_ACK_TIMEOUT);
+            this.inferenceEntityId = Objects.requireNonNull(inferenceEntityId);
+            this.taskType = Objects.requireNonNull(taskType);
+            this.doNotPersistDefaultConfigs = doNotPersistDefaultConfigs;
         }
 
         public Request(StreamInput in) throws IOException {
             super(in);
             this.inferenceEntityId = in.readString();
             this.taskType = TaskType.fromStream(in);
+            if (in.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_DONT_PERSIST_ON_READ)) {
+                this.doNotPersistDefaultConfigs = in.readBoolean();
+            } else {
+                this.doNotPersistDefaultConfigs = DEFAULT_DO_NOT_PERSIST_DEFAULT_CONFIGS;
+            }
+
         }
 
         public String getInferenceEntityId() {
@@ -57,11 +78,18 @@ public class GetInferenceModelAction extends ActionType<GetInferenceModelAction.
             return taskType;
         }
 
+        public boolean isDoNotPersistDefaultConfigs() {
+            return doNotPersistDefaultConfigs;
+        }
+
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeString(inferenceEntityId);
             taskType.writeTo(out);
+            if (out.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_DONT_PERSIST_ON_READ)) {
+                out.writeBoolean(this.doNotPersistDefaultConfigs);
+            }
         }
 
         @Override
@@ -69,12 +97,13 @@ public class GetInferenceModelAction extends ActionType<GetInferenceModelAction.
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Request request = (Request) o;
-            return Objects.equals(inferenceEntityId, request.inferenceEntityId) && taskType == request.taskType;
+            return Objects.equals(inferenceEntityId, request.inferenceEntityId) && taskType == request.taskType &&
+                doNotPersistDefaultConfigs == request.doNotPersistDefaultConfigs;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(inferenceEntityId, taskType);
+            return Objects.hash(inferenceEntityId, taskType, doNotPersistDefaultConfigs);
         }
     }
 

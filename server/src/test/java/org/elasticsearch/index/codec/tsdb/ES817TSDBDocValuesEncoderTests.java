@@ -21,12 +21,12 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Random;
 
-public class ES87TSDBDocValuesEncoderTests extends LuceneTestCase {
+public class ES817TSDBDocValuesEncoderTests extends LuceneTestCase {
 
     private final TSDBDocValuesEncoder encoder;
-    private final int blockSize = ES87TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE;
+    private final int blockSize = ES817TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE;
 
-    public ES87TSDBDocValuesEncoderTests() {
+    public ES817TSDBDocValuesEncoderTests() {
         this.encoder = new TSDBDocValuesEncoder(blockSize);
     }
 

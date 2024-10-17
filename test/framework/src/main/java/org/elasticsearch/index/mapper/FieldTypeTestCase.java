@@ -8,6 +8,7 @@
  */
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.index.DocValuesSkipIndexType;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FieldInfos;
@@ -139,6 +140,7 @@ public abstract class FieldTypeTestCase extends ESTestCase {
             randomBoolean(),
             IndexOptions.NONE,
             DocValuesType.NONE,
+            DocValuesSkipIndexType.NONE,
             -1,
             new HashMap<>(),
             1,

@@ -33,14 +33,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import static org.hamcrest.Matchers.equalTo;
 
 public class MultiBucketCollectorTests extends ESTestCase {
-    private static class ScoreAndDoc extends Scorable {
+    private static class Score extends Scorable {
         float score;
-        int doc = -1;
-
-        @Override
-        public int docID() {
-            return doc;
-        }
 
         @Override
         public float score() {
@@ -247,7 +241,7 @@ public class MultiBucketCollectorTests extends ESTestCase {
         collector1 = new TerminateAfterBucketCollector(collector1, 1);
         collector2 = new TerminateAfterBucketCollector(collector2, 2);
 
-        Scorable scorer = new ScoreAndDoc();
+        Scorable scorer = new Score();
 
         List<BucketCollector> collectors = Arrays.asList(collector1, collector2);
         Collections.shuffle(collectors, random());
@@ -274,5 +268,79 @@ public class MultiBucketCollectorTests extends ESTestCase {
         leafCollector.setScorer(scorer);
         assertFalse(setScorerCalled1.get());
         assertFalse(setScorerCalled2.get());
+    }
+
+    public void testCacheScores() throws IOException {
+        ScoringBucketCollector scoringBucketCollector1 = new ScoringBucketCollector();
+        ScoringBucketCollector scoringBucketCollector2 = new ScoringBucketCollector();
+
+        DummyScorable scorable = new DummyScorable();
+
+        // First test the tester
+        LeafBucketCollector leafBucketCollector1 = scoringBucketCollector1.getLeafCollector(null);
+        LeafBucketCollector leafBucketCollector2 = scoringBucketCollector2.getLeafCollector(null);
+        leafBucketCollector1.setScorer(scorable);
+        leafBucketCollector2.setScorer(scorable);
+        leafBucketCollector1.collect(0, 0);
+        leafBucketCollector2.collect(0, 0);
+        assertEquals(2, scorable.numScoreCalls);
+
+        // reset
+        scorable.numScoreCalls = 0;
+        LeafBucketCollector leafBucketCollector = MultiBucketCollector.wrap(
+            randomBoolean(),
+            Arrays.asList(scoringBucketCollector1, scoringBucketCollector2)
+        ).getLeafCollector(null);
+        leafBucketCollector.setScorer(scorable);
+        leafBucketCollector.collect(0, 0);
+        // Even though both leaf collectors called scorable.score(), it only got called once thanks to caching
+        assertEquals(1, scorable.numScoreCalls);
+    }
+
+    private static class ScoringBucketCollector extends BucketCollector {
+        @Override
+        public ScoreMode scoreMode() {
+            return ScoreMode.COMPLETE; // needs scores
+        }
+
+        @Override
+        public LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx) throws IOException {
+            return new ScoringLeafBucketCollector();
+        }
+
+        @Override
+        public void preCollection() throws IOException {
+
+        }
+
+        @Override
+        public void postCollection() throws IOException {
+
+        }
+    }
+
+    private static class ScoringLeafBucketCollector extends LeafBucketCollector {
+
+        private Scorable scorable;
+
+        @Override
+        public void setScorer(Scorable scorer) throws IOException {
+            this.scorable = scorer;
+        }
+
+        @Override
+        public void collect(int doc, long owningBucketOrd) throws IOException {
+            scorable.score();
+        }
+    }
+
+    private static class DummyScorable extends Scorable {
+        int numScoreCalls = 0;
+
+        @Override
+        public float score() throws IOException {
+            numScoreCalls++;
+            return 42f;
+        }
     }
 }

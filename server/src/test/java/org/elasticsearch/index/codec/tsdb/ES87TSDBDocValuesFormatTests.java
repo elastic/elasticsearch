@@ -115,7 +115,6 @@ public class ES87TSDBDocValuesFormatTests extends BaseDocValuesFormatTestCase {
                     assertEquals(0, field.nextOrd());
                     BytesRef scratch = field.lookupOrd(0);
                     assertEquals("value", scratch.utf8ToString());
-                    assertEquals(SortedSetDocValues.NO_MORE_ORDS, field.nextOrd());
                 }
                 assertEquals(DocIdSetIterator.NO_MORE_DOCS, field.nextDoc());
                 for (int i = 0; i < NUM_DOCS; i++) {
@@ -126,7 +125,6 @@ public class ES87TSDBDocValuesFormatTests extends BaseDocValuesFormatTestCase {
                     BytesRef scratch = fieldN.lookupOrd(0);
                     assertEquals("value" + i, scratch.utf8ToString());
                     assertEquals(DocIdSetIterator.NO_MORE_DOCS, fieldN.nextDoc());
-                    assertEquals(SortedSetDocValues.NO_MORE_ORDS, fieldN.nextOrd());
                 }
             }
         }

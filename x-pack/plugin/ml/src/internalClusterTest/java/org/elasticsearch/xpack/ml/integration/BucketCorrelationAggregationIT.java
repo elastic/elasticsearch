@@ -77,7 +77,7 @@ public class BucketCorrelationAggregationIT extends MlSingleNodeTestCase {
                 .setSize(0)
                 .setTrackTotalHits(true),
             percentilesSearch -> {
-                long totalHits = percentilesSearch.getHits().getTotalHits().value;
+                long totalHits = percentilesSearch.getHits().getTotalHits().value();
                 Percentiles percentiles = percentilesSearch.getAggregations().get("percentiles");
                 Tuple<RangeAggregationBuilder, BucketCorrelationAggregationBuilder> aggs = buildRangeAggAndSetExpectations(
                     percentiles,

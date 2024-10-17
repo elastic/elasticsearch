@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.security.authz.store;
 
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.Logger;
-import org.apache.lucene.util.automaton.MinimizationOperations;
+import org.apache.lucene.tests.util.automaton.AutomatonTestUtil;
 import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
@@ -137,8 +137,8 @@ public class FileRolesStoreTests extends ESTestCase {
         assertThat(group.indices().length, is(1));
         assertThat(group.indices()[0], equalTo("idx3"));
         assertThat(group.privilege(), notNullValue());
-        assertTrue(Operations.subsetOf(IndexPrivilege.READ.getAutomaton(), group.privilege().getAutomaton()));
-        assertTrue(Operations.subsetOf(IndexPrivilege.WRITE.getAutomaton(), group.privilege().getAutomaton()));
+        assertTrue(AutomatonTestUtil.subsetOf(IndexPrivilege.READ.getAutomaton(), group.privilege().getAutomaton()));
+        assertTrue(AutomatonTestUtil.subsetOf(IndexPrivilege.WRITE.getAutomaton(), group.privilege().getAutomaton()));
 
         descriptor = roles.get("role1.ab");
         assertNotNull(descriptor);
@@ -181,9 +181,9 @@ public class FileRolesStoreTests extends ESTestCase {
         assertThat(group.indices()[0], equalTo("/.*_.*/"));
         assertThat(group.privilege(), notNullValue());
         assertTrue(
-            Operations.sameLanguage(
+            AutomatonTestUtil.sameLanguage(
                 group.privilege().getAutomaton(),
-                MinimizationOperations.minimize(
+                Operations.determinize(
                     Operations.union(IndexPrivilege.READ.getAutomaton(), IndexPrivilege.WRITE.getAutomaton()),
                     Operations.DEFAULT_DETERMINIZE_WORK_LIMIT
                 )
@@ -236,7 +236,7 @@ public class FileRolesStoreTests extends ESTestCase {
         assertThat(group.indices().length, is(1));
         assertThat(group.indices()[0], equalTo("field_idx"));
         assertThat(group.privilege(), notNullValue());
-        assertTrue(Operations.sameLanguage(group.privilege().getAutomaton(), IndexPrivilege.READ.getAutomaton()));
+        assertTrue(AutomatonTestUtil.sameLanguage(group.privilege().getAutomaton(), IndexPrivilege.READ.getAutomaton()));
         assertTrue(group.getFieldPermissions().grantsAccessTo("foo"));
         assertTrue(group.getFieldPermissions().grantsAccessTo("boo"));
         assertTrue(group.getFieldPermissions().hasFieldLevelSecurity());
@@ -258,7 +258,7 @@ public class FileRolesStoreTests extends ESTestCase {
         assertThat(group.indices().length, is(1));
         assertThat(group.indices()[0], equalTo("query_idx"));
         assertThat(group.privilege(), notNullValue());
-        assertTrue(Operations.sameLanguage(group.privilege().getAutomaton(), IndexPrivilege.READ.getAutomaton()));
+        assertTrue(AutomatonTestUtil.sameLanguage(group.privilege().getAutomaton(), IndexPrivilege.READ.getAutomaton()));
         assertFalse(group.getFieldPermissions().hasFieldLevelSecurity());
         assertThat(group.getQuery(), notNullValue());
 
@@ -279,7 +279,7 @@ public class FileRolesStoreTests extends ESTestCase {
         assertThat(group.indices().length, is(1));
         assertThat(group.indices()[0], equalTo("query_fields_idx"));
         assertThat(group.privilege(), notNullValue());
-        assertTrue(Operations.sameLanguage(group.privilege().getAutomaton(), IndexPrivilege.READ.getAutomaton()));
+        assertTrue(AutomatonTestUtil.sameLanguage(group.privilege().getAutomaton(), IndexPrivilege.READ.getAutomaton()));
         assertTrue(group.getFieldPermissions().grantsAccessTo("foo"));
         assertTrue(group.getFieldPermissions().grantsAccessTo("boo"));
         assertTrue(group.getFieldPermissions().hasFieldLevelSecurity());

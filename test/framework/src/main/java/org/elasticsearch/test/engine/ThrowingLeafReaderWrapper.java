@@ -86,13 +86,6 @@ public class ThrowingLeafReaderWrapper extends SequentialStoredFieldsLeafReader 
         return terms;
     }
 
-    @Override
-    public Fields getTermVectors(int docID) throws IOException {
-        Fields fields = super.getTermVectors(docID);
-        thrower.maybeThrow(Flags.TermVectors);
-        return fields == null ? null : new ThrowingFields(fields, thrower);
-    }
-
     /**
      * Wraps a Fields but with additional asserts
      */

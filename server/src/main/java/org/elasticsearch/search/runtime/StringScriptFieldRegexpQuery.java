@@ -10,6 +10,7 @@
 package org.elasticsearch.search.runtime;
 
 import org.apache.lucene.util.automaton.ByteRunAutomaton;
+import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.StringFieldScript;
@@ -34,7 +35,12 @@ public class StringScriptFieldRegexpQuery extends AbstractStringScriptFieldAutom
             script,
             leafFactory,
             fieldName,
-            new ByteRunAutomaton(new RegExp(Objects.requireNonNull(pattern), syntaxFlags, matchFlags).toAutomaton(maxDeterminizedStates))
+            new ByteRunAutomaton(
+                Operations.determinize(
+                    new RegExp(Objects.requireNonNull(pattern), syntaxFlags, matchFlags).toAutomaton(),
+                    maxDeterminizedStates
+                )
+            )
         );
         this.pattern = pattern;
         this.syntaxFlags = syntaxFlags;

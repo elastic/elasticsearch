@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.graph.test;
 
-import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.IndexSearcher;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.admin.indices.segments.IndexShardSegments;
 import org.elasticsearch.action.admin.indices.segments.ShardSegments;
@@ -165,7 +165,7 @@ public class GraphTests extends ESSingleNodeTestCase {
         VertexRequest peopleNames = hop1.addVertexRequest("people").minDocCount(1);
         peopleNames.addInclude("john", 1);
 
-        for (int i = 0; i < BooleanQuery.getMaxClauseCount() + 1; i++) {
+        for (int i = 0; i < IndexSearcher.getMaxClauseCount() + 1; i++) {
             peopleNames.addInclude("unknown" + i, 1);
         }
 

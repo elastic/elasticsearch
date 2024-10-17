@@ -856,7 +856,7 @@ public class ProfileIntegTests extends AbstractProfileIntegTestCase {
         final SuggestProfilesRequest suggestProfilesRequest = new SuggestProfilesRequest(dataKeys, name, 10, hint);
         final SuggestProfilesResponse suggestProfilesResponse = client().execute(SuggestProfilesAction.INSTANCE, suggestProfilesRequest)
             .actionGet();
-        assertThat(suggestProfilesResponse.getTotalHits().relation, is(TotalHits.Relation.EQUAL_TO));
+        assertThat(suggestProfilesResponse.getTotalHits().relation(), is(TotalHits.Relation.EQUAL_TO));
         return suggestProfilesResponse.getProfileHits();
     }
 

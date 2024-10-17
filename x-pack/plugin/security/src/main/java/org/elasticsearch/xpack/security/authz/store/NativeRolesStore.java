@@ -279,7 +279,7 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
                     TransportSearchAction.TYPE,
                     searchRequest,
                     ActionListener.wrap(searchResponse -> {
-                        long total = searchResponse.getHits().getTotalHits().value;
+                        long total = searchResponse.getHits().getTotalHits().value();
                         if (total == 0) {
                             logger.debug("No roles found for query [{}]", searchRequest.source().query());
                             listener.onResponse(QueryRoleResult.EMPTY);
@@ -731,28 +731,28 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
                             if (responses[0].isFailure()) {
                                 usageStats.put("size", 0);
                             } else {
-                                usageStats.put("size", responses[0].getResponse().getHits().getTotalHits().value);
+                                usageStats.put("size", responses[0].getResponse().getHits().getTotalHits().value());
                             }
                             if (responses[1].isFailure()) {
                                 usageStats.put("fls", false);
                             } else {
-                                usageStats.put("fls", responses[1].getResponse().getHits().getTotalHits().value > 0L);
+                                usageStats.put("fls", responses[1].getResponse().getHits().getTotalHits().value() > 0L);
                             }
 
                             if (responses[2].isFailure()) {
                                 usageStats.put("dls", false);
                             } else {
-                                usageStats.put("dls", responses[2].getResponse().getHits().getTotalHits().value > 0L);
+                                usageStats.put("dls", responses[2].getResponse().getHits().getTotalHits().value() > 0L);
                             }
                             if (responses[3].isFailure()) {
                                 usageStats.put("remote_indices", 0);
                             } else {
-                                usageStats.put("remote_indices", responses[3].getResponse().getHits().getTotalHits().value);
+                                usageStats.put("remote_indices", responses[3].getResponse().getHits().getTotalHits().value());
                             }
                             if (responses[4].isFailure()) {
                                 usageStats.put("remote_cluster", 0);
                             } else {
-                                usageStats.put("remote_cluster", responses[4].getResponse().getHits().getTotalHits().value);
+                                usageStats.put("remote_cluster", responses[4].getResponse().getHits().getTotalHits().value());
                             }
                             delegate.onResponse(usageStats);
                         }

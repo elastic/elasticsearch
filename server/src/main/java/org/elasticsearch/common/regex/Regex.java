@@ -69,7 +69,7 @@ public class Regex {
             previous = i + 1;
         }
         automata.add(Automata.makeString(pattern.substring(previous)));
-        return Operations.concatenate(automata);
+        return Operations.determinize(Operations.concatenate(automata), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
     }
 
     /**
@@ -113,7 +113,7 @@ public class Regex {
             prefixAutomaton.add(Automata.makeAnyString());
             automata.add(Operations.concatenate(prefixAutomaton));
         }
-        return Operations.union(automata);
+        return Operations.determinize(Operations.union(automata), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
     }
 
     /**

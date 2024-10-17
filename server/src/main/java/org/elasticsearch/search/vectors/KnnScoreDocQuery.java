@@ -18,6 +18,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.Weight;
 
 import java.io.IOException;
@@ -88,13 +89,13 @@ public class KnnScoreDocQuery extends Query {
             }
 
             @Override
-            public Scorer scorer(LeafReaderContext context) {
+            public ScorerSupplier scorerSupplier(LeafReaderContext context) throws IOException {
                 // Segment starts indicate how many docs are in the segment,
                 // upper equalling lower indicates no documents for this segment
                 if (segmentStarts[context.ord] == segmentStarts[context.ord + 1]) {
                     return null;
                 }
-                return new Scorer(this) {
+                Scorer scorer = new Scorer() {
                     final int lower = segmentStarts[context.ord];
                     final int upper = segmentStarts[context.ord + 1];
                     int upTo = -1;
@@ -177,6 +178,7 @@ public class KnnScoreDocQuery extends Query {
                     }
 
                 };
+                return new DefaultScorerSupplier(scorer);
             }
 
             @Override

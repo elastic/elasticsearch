@@ -201,6 +201,7 @@ public class CohereServiceUpgradeIT extends InferenceUpgradeTestCase {
         var testTaskType = TaskType.RERANK;
 
         if (isOldCluster()) {
+            cohereRerankServer.enqueue(new MockResponse().setResponseCode(200).setBody(rerankResponse()));
             put(oldClusterId, rerankConfig(getUrl(cohereRerankServer)), testTaskType);
             var configs = (List<Map<String, Object>>) get(testTaskType, oldClusterId).get(old_cluster_endpoint_identifier);
             assertThat(configs, hasSize(1));
@@ -229,6 +230,7 @@ public class CohereServiceUpgradeIT extends InferenceUpgradeTestCase {
             assertRerank(oldClusterId);
 
             // New endpoint
+            cohereRerankServer.enqueue(new MockResponse().setResponseCode(200).setBody(rerankResponse()));
             put(upgradedClusterId, rerankConfig(getUrl(cohereRerankServer)), testTaskType);
             configs = (List<Map<String, Object>>) get(upgradedClusterId).get("endpoints");
             assertThat(configs, hasSize(1));

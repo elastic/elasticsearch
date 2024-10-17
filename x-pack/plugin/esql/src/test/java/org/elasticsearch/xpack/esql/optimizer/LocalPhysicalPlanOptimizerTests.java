@@ -664,7 +664,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
 
         var plan = plannerOptimizer.plan("""
             from test
-            | where last_name : "Smith"^3.2
+            | where last_name^3.2 : "Smith"
             """, IS_SV_STATS);
 
         var limit = as(plan, LimitExec.class);
@@ -693,7 +693,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
 
         var plan = plannerOptimizer.plan("""
             from test
-            | where last_name : "Smith"^3.2~1
+            | where last_name^3.2 : "Smith"~1
             """, IS_SV_STATS);
 
         var limit = as(plan, LimitExec.class);
@@ -704,13 +704,6 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         assertThat(query.limit().fold(), is(1000));
         var expected = QueryBuilders.matchQuery("last_name", "Smith").boost(3.2F).fuzziness(Fuzziness.ONE);
         assertThat(query.query().toString(), is(expected.toString()));
-
-        // Check we can use in any order fuzziness and boosting
-        var newPlan = plannerOptimizer.plan("""
-            from test
-            | where last_name : "Smith"~1^3.2
-            """, IS_SV_STATS);
-        assertThat(newPlan, equalTo(plan));
     }
 
     /**

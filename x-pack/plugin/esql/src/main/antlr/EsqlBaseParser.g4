@@ -68,7 +68,7 @@ booleanExpression
     | left=booleanExpression operator=OR right=booleanExpression                 #logicalBinary
     | valueExpression (NOT)? IN LP valueExpression (COMMA valueExpression)* RP   #logicalIn
     | valueExpression IS NOT? NULL                                               #isNull
-    | {this.isDevVersion()}? matchOperatorExpression                             #matchOpExpression
+    | {this.isDevVersion()}? matchBooleanExpression                              #matchExpression
     ;
 
 regexBooleanExpression
@@ -76,13 +76,8 @@ regexBooleanExpression
     | valueExpression (NOT)? kind=RLIKE pattern=string
     ;
 
-matchOperatorExpression
-    : valueExpression COLON queryString=string matchOptions
-    ;
-
-matchOptions
-    : (boostExpression)? (fuzzinessExpression)?
-    | (fuzzinessExpression)? (boostExpression)?
+matchBooleanExpression
+    : valueExpression (boostExpression)? COLON queryString=string (fuzzinessExpression)?
     ;
 
 fuzzinessExpression

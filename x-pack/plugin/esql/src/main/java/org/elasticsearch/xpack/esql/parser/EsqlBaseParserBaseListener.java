@@ -97,6 +97,18 @@ public class EsqlBaseParserBaseListener implements EsqlBaseParserListener {
    *
    * <p>The default implementation does nothing.</p>
    */
+  @Override public void enterMatchExpression(EsqlBaseParser.MatchExpressionContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitMatchExpression(EsqlBaseParser.MatchExpressionContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
   @Override public void enterLogicalNot(EsqlBaseParser.LogicalNotContext ctx) { }
   /**
    * {@inheritDoc}
@@ -145,18 +157,6 @@ public class EsqlBaseParserBaseListener implements EsqlBaseParserListener {
    *
    * <p>The default implementation does nothing.</p>
    */
-  @Override public void enterMatchOpExpression(EsqlBaseParser.MatchOpExpressionContext ctx) { }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation does nothing.</p>
-   */
-  @Override public void exitMatchOpExpression(EsqlBaseParser.MatchOpExpressionContext ctx) { }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation does nothing.</p>
-   */
   @Override public void enterLogicalIn(EsqlBaseParser.LogicalInContext ctx) { }
   /**
    * {@inheritDoc}
@@ -193,25 +193,13 @@ public class EsqlBaseParserBaseListener implements EsqlBaseParserListener {
    *
    * <p>The default implementation does nothing.</p>
    */
-  @Override public void enterMatchOperatorExpression(EsqlBaseParser.MatchOperatorExpressionContext ctx) { }
+  @Override public void enterMatchBooleanExpression(EsqlBaseParser.MatchBooleanExpressionContext ctx) { }
   /**
    * {@inheritDoc}
    *
    * <p>The default implementation does nothing.</p>
    */
-  @Override public void exitMatchOperatorExpression(EsqlBaseParser.MatchOperatorExpressionContext ctx) { }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation does nothing.</p>
-   */
-  @Override public void enterMatchOptions(EsqlBaseParser.MatchOptionsContext ctx) { }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation does nothing.</p>
-   */
-  @Override public void exitMatchOptions(EsqlBaseParser.MatchOptionsContext ctx) { }
+  @Override public void exitMatchBooleanExpression(EsqlBaseParser.MatchBooleanExpressionContext ctx) { }
   /**
    * {@inheritDoc}
    *

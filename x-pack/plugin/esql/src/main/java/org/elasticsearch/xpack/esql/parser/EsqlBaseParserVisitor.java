@@ -57,6 +57,13 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitWhereCommand(EsqlBaseParser.WhereCommandContext ctx);
   /**
+   * Visit a parse tree produced by the {@code matchExpression}
+   * labeled alternative in {@link EsqlBaseParser#booleanExpression}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitMatchExpression(EsqlBaseParser.MatchExpressionContext ctx);
+  /**
    * Visit a parse tree produced by the {@code logicalNot}
    * labeled alternative in {@link EsqlBaseParser#booleanExpression}.
    * @param ctx the parse tree
@@ -85,13 +92,6 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitRegexExpression(EsqlBaseParser.RegexExpressionContext ctx);
   /**
-   * Visit a parse tree produced by the {@code matchOpExpression}
-   * labeled alternative in {@link EsqlBaseParser#booleanExpression}.
-   * @param ctx the parse tree
-   * @return the visitor result
-   */
-  T visitMatchOpExpression(EsqlBaseParser.MatchOpExpressionContext ctx);
-  /**
    * Visit a parse tree produced by the {@code logicalIn}
    * labeled alternative in {@link EsqlBaseParser#booleanExpression}.
    * @param ctx the parse tree
@@ -112,17 +112,11 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitRegexBooleanExpression(EsqlBaseParser.RegexBooleanExpressionContext ctx);
   /**
-   * Visit a parse tree produced by {@link EsqlBaseParser#matchOperatorExpression}.
+   * Visit a parse tree produced by {@link EsqlBaseParser#matchBooleanExpression}.
    * @param ctx the parse tree
    * @return the visitor result
    */
-  T visitMatchOperatorExpression(EsqlBaseParser.MatchOperatorExpressionContext ctx);
-  /**
-   * Visit a parse tree produced by {@link EsqlBaseParser#matchOptions}.
-   * @param ctx the parse tree
-   * @return the visitor result
-   */
-  T visitMatchOptions(EsqlBaseParser.MatchOptionsContext ctx);
+  T visitMatchBooleanExpression(EsqlBaseParser.MatchBooleanExpressionContext ctx);
   /**
    * Visit a parse tree produced by {@link EsqlBaseParser#fuzzinessExpression}.
    * @param ctx the parse tree

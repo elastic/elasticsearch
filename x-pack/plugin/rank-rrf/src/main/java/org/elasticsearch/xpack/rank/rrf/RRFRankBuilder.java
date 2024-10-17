@@ -14,6 +14,7 @@ import org.elasticsearch.TransportVersions;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.rank.RankBuilder;
@@ -38,6 +39,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
+import java.util.function.Predicate;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
@@ -190,7 +192,12 @@ public class RRFRankBuilder extends RankBuilder {
     }
 
     @Override
-    public RetrieverBuilder toRetriever(SearchSourceBuilder source) {
+    public RetrieverBuilder toRetriever(SearchSourceBuilder source, Predicate<NodeFeature> clusterSupportsFeature) {
+        if (false == clusterSupportsFeature.test(RRFRetrieverBuilder.RRF_RETRIEVER_COMPOSITION_SUPPORTED)) {
+            throw new UnsupportedOperationException(
+                "all nodes need to support the [rrf_retriever_composition_supported] feature to use [rrf]"
+            );
+        }
         int totalQueries = source.subSearches().size() + source.knnSearch().size();
         if (totalQueries < 2) {
             throw new IllegalArgumentException("[rrf] requires at least 2 sub-queries to be defined");
@@ -199,9 +206,7 @@ public class RRFRankBuilder extends RankBuilder {
         for (int i = 0; i < source.subSearches().size(); i++) {
             RetrieverBuilder standardRetriever = new StandardRetrieverBuilder(source.subSearches().get(i).getQueryBuilder());
             standardRetriever.retrieverName(source.subSearches().get(i).getQueryBuilder().queryName());
-            retrieverSources.add(
-                new CompoundRetrieverBuilder.RetrieverSource(standardRetriever,null)
-            );
+            retrieverSources.add(new CompoundRetrieverBuilder.RetrieverSource(standardRetriever, null));
         }
         for (int i = 0; i < source.knnSearch().size(); i++) {
             KnnSearchBuilder knnSearchBuilder = source.knnSearch().get(i);
@@ -214,12 +219,7 @@ public class RRFRankBuilder extends RankBuilder {
                 knnSearchBuilder.getSimilarity()
             );
             knnRetriever.retrieverName(knnSearchBuilder.queryName());
-            retrieverSources.add(
-                new CompoundRetrieverBuilder.RetrieverSource(
-                  knnRetriever,
-                    null
-                )
-            );
+            retrieverSources.add(new CompoundRetrieverBuilder.RetrieverSource(knnRetriever, null));
         }
         return new RRFRetrieverBuilder(retrieverSources, rankWindowSize(), rankConstant());
     }

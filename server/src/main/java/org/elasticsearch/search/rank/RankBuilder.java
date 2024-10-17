@@ -18,6 +18,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.UpdateForV10;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.rank.context.QueryPhaseRankCoordinatorContext;
@@ -32,6 +33,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
+import java.util.function.Predicate;
 
 /**
  * {@code RankBuilder} is used as a base class to manage input, parsing, and subsequent generation of appropriate contexts
@@ -121,7 +123,7 @@ public abstract class RankBuilder implements VersionedNamedWriteable, ToXContent
      */
     @UpdateForV10(owner = UpdateForV10.Owner.SEARCH_RELEVANCE) // remove for 10.0 once we remove support for the rank parameter in SearchAPI
     @Nullable
-    public RetrieverBuilder toRetriever(SearchSourceBuilder searchSourceBuilder) {
+    public RetrieverBuilder toRetriever(SearchSourceBuilder searchSourceBuilder, Predicate<NodeFeature> clusterSupportsFeature) {
         return null;
     }
 

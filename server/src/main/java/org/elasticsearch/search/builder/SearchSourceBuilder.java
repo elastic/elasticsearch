@@ -1637,7 +1637,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
 
         knnSearch = knnBuilders.stream().map(knnBuilder -> knnBuilder.build(size())).collect(Collectors.toList());
         if (rankBuilder != null) {
-            RetrieverBuilder transformedRetriever = rankBuilder.toRetriever(this);
+            RetrieverBuilder transformedRetriever = rankBuilder.toRetriever(this, clusterSupportsFeature);
             if (transformedRetriever != null) {
                 this.retriever(transformedRetriever);
                 rankBuilder = null;

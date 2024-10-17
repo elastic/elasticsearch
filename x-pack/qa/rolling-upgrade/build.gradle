@@ -26,10 +26,8 @@ tasks.named("forbiddenPatterns").configure {
 String outputDir = "${buildDir}/generated-resources/${project.name}"
 
 tasks.register("copyTestNodeKeyMaterial", Copy) {
-  from project(':x-pack:plugin:core').files(
-    'src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.pem',
-    'src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt'
-  )
+  from project(':x-pack:plugin:core').files('src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.pem',
+    'src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt')
   into outputDir
 }
 
@@ -93,7 +91,7 @@ BuildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
     if (bwcVersion.onOrAfter('8.4.0')) {
       extraConfigFile 'operator/settings.json', file("${project.projectDir}/src/test/resources/operator_defined_role_mappings.json")
     }
-
+    
     // Old versions of the code contain an invalid assertion that trips
     // during tests.  Versions 5.6.9 and 6.2.4 have been fixed by removing
     // the assertion, but this is impossible for released versions.
@@ -123,14 +121,13 @@ BuildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
     systemProperty 'tests.rest.suite', 'old_cluster'
     systemProperty 'tests.upgrade_from_version', oldVersion
     systemProperty 'tests.path.searchable.snapshots.repo', searchableSnapshotRepository
-    nonInputProperties.systemProperty('tests.rest.cluster', baseCluster.map(c -> c.allHttpSocketURI.join(",")))
+    nonInputProperties.systemProperty('tests.rest.cluster', baseCluster.map(c->c.allHttpSocketURI.join(",")))
     nonInputProperties.systemProperty('tests.clustername', baseName)
 
     // Disable ML tests for incompatible systems
     if (BwcVersions.isMlCompatible(bwcVersion) == false) {
       systemProperty 'tests.ml.skip', 'true'
-      systemProperty 'tests.rest.blacklist',
-        ['old_cluster/30_ml_jobs_crud/*', 'old_cluster/40_ml_datafeed_crud/*', 'old_cluster/90_ml_data_frame_analytics_crud'].join(',')
+      systemProperty 'tests.rest.blacklist', ['old_cluster/30_ml_jobs_crud/*', 'old_cluster/40_ml_datafeed_crud/*', 'old_cluster/90_ml_data_frame_analytics_crud'].join(',')
     }
   }
 
@@ -140,7 +137,7 @@ BuildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
     doFirst {
       baseCluster.get().nextNodeToNextVersion()
     }
-    nonInputProperties.systemProperty('tests.rest.cluster', baseCluster.map(c -> c.allHttpSocketURI.join(",")))
+    nonInputProperties.systemProperty('tests.rest.cluster', baseCluster.map(c->c.allHttpSocketURI.join(",")))
     nonInputProperties.systemProperty('tests.clustername', baseName)
     systemProperty 'tests.rest.suite', 'mixed_cluster'
     systemProperty 'tests.first_round', 'true'
@@ -187,8 +184,7 @@ BuildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
     // Disable ML tests for incompatible systems
     if (BwcVersions.isMlCompatible(bwcVersion) == false) {
       systemProperty 'tests.ml.skip', 'true'
-      systemProperty 'tests.rest.blacklist',
-        ['mixed_cluster/30_ml_jobs_crud/*', 'mixed_cluster/40_ml_datafeed_crud/*', 'mixed_cluster/90_ml_data_frame_analytics_crud'].join(',')
+      systemProperty 'tests.rest.blacklist', ['mixed_cluster/30_ml_jobs_crud/*', 'mixed_cluster/40_ml_datafeed_crud/*', 'mixed_cluster/90_ml_data_frame_analytics_crud'].join(',')
     }
   }
 
@@ -207,8 +203,7 @@ BuildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
     // Disable ML tests for incompatible systems
     if (BwcVersions.isMlCompatible(bwcVersion) == false) {
       systemProperty 'tests.ml.skip', 'true'
-      systemProperty 'tests.rest.blacklist',
-        ['upgraded_cluster/30_ml_jobs_crud/*', 'upgraded_cluster/40_ml_datafeed_crud/*', 'upgraded_cluster/90_ml_data_frame_analytics_crud'].join(',')
+      systemProperty 'tests.rest.blacklist', ['upgraded_cluster/30_ml_jobs_crud/*', 'upgraded_cluster/40_ml_datafeed_crud/*', 'upgraded_cluster/90_ml_data_frame_analytics_crud'].join(',')
     }
   }
 

@@ -155,11 +155,7 @@ public class Greatest extends EsqlScalarFunction implements OptionalArgument {
         if (dataType == DataType.LONG || dataType == DataType.DATETIME) {
             return new GreatestLongEvaluator.Factory(source(), factories);
         }
-        if (dataType == DataType.KEYWORD
-            || dataType == DataType.TEXT
-            || dataType == DataType.IP
-            || dataType == DataType.VERSION
-            || dataType == DataType.UNSUPPORTED) {
+        if (DataType.isString(dataType) || dataType == DataType.IP || dataType == DataType.VERSION || dataType == DataType.UNSUPPORTED) {
 
             return new GreatestBytesRefEvaluator.Factory(source(), factories);
         }

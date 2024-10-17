@@ -11,6 +11,7 @@ package org.elasticsearch.action.admin.indices.rollover;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
+import org.elasticsearch.action.support.IndexComponentSelector;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -33,7 +34,9 @@ import org.elasticsearch.xcontent.XContentType;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.util.EnumSet;
 import java.util.Map;
+import java.util.Set;
 
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -176,7 +179,12 @@ public class RolloverRequestTests extends ESTestCase {
         originalRequest.lazy(randomBoolean());
         originalRequest.setIndicesOptions(
             IndicesOptions.builder(originalRequest.indicesOptions())
-                .failureStoreOptions(new IndicesOptions.FailureStoreOptions(randomBoolean(), randomBoolean()))
+                .selectorOptions(
+                    IndicesOptions.SelectorOptions.builder()
+                        .setDefaultSelectors(
+                            EnumSet.copyOf(randomNonEmptySubsetOf(Set.of(IndexComponentSelector.DATA, IndexComponentSelector.FAILURES)))
+                        )
+                )
                 .build()
         );
 
@@ -188,10 +196,7 @@ public class RolloverRequestTests extends ESTestCase {
                 assertThat(cloneRequest.getNewIndexName(), equalTo(originalRequest.getNewIndexName()));
                 assertThat(cloneRequest.getRolloverTarget(), equalTo(originalRequest.getRolloverTarget()));
                 assertThat(cloneRequest.isLazy(), equalTo(originalRequest.isLazy()));
-                assertThat(
-                    cloneRequest.indicesOptions().failureStoreOptions(),
-                    equalTo(originalRequest.indicesOptions().failureStoreOptions())
-                );
+                assertThat(cloneRequest.indicesOptions().selectorOptions(), equalTo(originalRequest.indicesOptions().selectorOptions()));
                 for (Map.Entry<String, Condition<?>> entry : cloneRequest.getConditions().getConditions().entrySet()) {
                     Condition<?> condition = originalRequest.getConditions().getConditions().get(entry.getKey());
                     // here we compare the string representation as there is some information loss when serializing
@@ -261,7 +266,7 @@ public class RolloverRequestTests extends ESTestCase {
             RolloverRequest rolloverRequest = new RolloverRequest("alias-index", "new-index-name");
             rolloverRequest.setIndicesOptions(
                 IndicesOptions.builder(rolloverRequest.indicesOptions())
-                    .failureStoreOptions(new IndicesOptions.FailureStoreOptions(true, true))
+                    .selectorOptions(IndicesOptions.SelectorOptions.DATA_AND_FAILURE)
                     .build()
             );
             ActionRequestValidationException validationException = rolloverRequest.validate();

@@ -17,12 +17,16 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkedInferenceServiceResults;
 import org.elasticsearch.inference.ChunkingOptions;
 import org.elasticsearch.inference.ChunkingSettings;
+import org.elasticsearch.inference.InferenceServiceConfiguration;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
+import org.elasticsearch.inference.ServiceConfiguration;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.inference.configuration.ServiceConfigurationDisplayType;
+import org.elasticsearch.inference.configuration.ServiceConfigurationFieldType;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.inference.ChunkingSettingsFeatureFlag;
 import org.elasticsearch.xpack.inference.chunking.ChunkingSettingsBuilder;
@@ -38,16 +42,22 @@ import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.googlevertexai.embeddings.GoogleVertexAiEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.googlevertexai.embeddings.GoogleVertexAiEmbeddingsServiceSettings;
 import org.elasticsearch.xpack.inference.services.googlevertexai.rerank.GoogleVertexAiRerankModel;
+import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
+import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.inference.services.ServiceFields.MODEL_ID;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInvalidModelException;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.parsePersistedConfigErrorMsg;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrDefaultEmpty;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrThrowIfNull;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwIfNotEmptyMap;
 import static org.elasticsearch.xpack.inference.services.googlevertexai.GoogleVertexAiServiceFields.EMBEDDING_MAX_BATCH_SIZE;
+import static org.elasticsearch.xpack.inference.services.googlevertexai.GoogleVertexAiServiceFields.LOCATION;
+import static org.elasticsearch.xpack.inference.services.googlevertexai.GoogleVertexAiServiceFields.PROJECT_ID;
 
 public class GoogleVertexAiService extends SenderService {
 
@@ -147,6 +157,19 @@ public class GoogleVertexAiService extends SenderService {
             null,
             parsePersistedConfigErrorMsg(inferenceEntityId, NAME)
         );
+    }
+
+    @Override
+    public InferenceServiceConfiguration getConfiguration() {
+        return new InferenceServiceConfiguration.Builder().setProvider(NAME)
+            .setTaskTypes(supportedTaskTypes())
+            .setConfiguration(GoogleVertexAiService.Configuration.get())
+            .build();
+    }
+
+    @Override
+    public EnumSet<TaskType> supportedTaskTypes() {
+        return EnumSet.of(TaskType.TEXT_EMBEDDING, TaskType.RERANK);
     }
 
     @Override
@@ -307,5 +330,58 @@ public class GoogleVertexAiService extends SenderService {
             );
             default -> throw new ElasticsearchStatusException(failureMessage, RestStatus.BAD_REQUEST);
         };
+    }
+
+    private static class Configuration {
+        public static Map<String, ServiceConfiguration> get() {
+            var configurationMap = new HashMap<String, ServiceConfiguration>();
+
+            configurationMap.put(
+                MODEL_ID,
+                new ServiceConfiguration.Builder().setDisplay(ServiceConfigurationDisplayType.TEXTBOX)
+                    .setLabel("Model ID")
+                    .setOrder(2)
+                    .setRequired(true)
+                    .setSensitive(false)
+                    .setTooltip("ID of the LLM you're using.")
+                    .setType(ServiceConfigurationFieldType.STRING)
+                    .build()
+            );
+
+            configurationMap.put(
+                LOCATION,
+                new ServiceConfiguration.Builder().setDisplay(ServiceConfigurationDisplayType.TEXTBOX)
+                    .setLabel("GCP Region")
+                    .setOrder(2)
+                    .setRequired(true)
+                    .setSensitive(false)
+                    .setTooltip(
+                        "Please provide the GCP region where the Vertex AI API(s) is enabled. "
+                            + "For more information, refer to the {geminiVertexAIDocs}."
+                    )
+                    .setType(ServiceConfigurationFieldType.STRING)
+                    .build()
+            );
+
+            configurationMap.put(
+                PROJECT_ID,
+                new ServiceConfiguration.Builder().setDisplay(ServiceConfigurationDisplayType.TEXTBOX)
+                    .setLabel("GCP Project")
+                    .setOrder(3)
+                    .setRequired(true)
+                    .setSensitive(false)
+                    .setTooltip(
+                        "The GCP Project ID which has Vertex AI API(s) enabled. For more information "
+                            + "on the URL, refer to the {geminiVertexAIDocs}."
+                    )
+                    .setType(ServiceConfigurationFieldType.STRING)
+                    .build()
+            );
+
+            configurationMap.putAll(GoogleVertexAiSecretSettings.toServiceConfiguration());
+            configurationMap.putAll(RateLimitSettings.toServiceConfiguration());
+
+            return configurationMap;
+        }
     }
 }

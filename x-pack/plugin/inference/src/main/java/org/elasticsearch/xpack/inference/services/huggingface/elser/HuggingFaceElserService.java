@@ -17,10 +17,14 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkedInferenceServiceResults;
 import org.elasticsearch.inference.ChunkingOptions;
 import org.elasticsearch.inference.ChunkingSettings;
+import org.elasticsearch.inference.InferenceServiceConfiguration;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
+import org.elasticsearch.inference.ServiceConfiguration;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.inference.configuration.ServiceConfigurationDisplayType;
+import org.elasticsearch.inference.configuration.ServiceConfigurationFieldType;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.inference.results.ErrorChunkedInferenceResults;
 import org.elasticsearch.xpack.core.inference.results.InferenceChunkedSparseEmbeddingResults;
@@ -34,11 +38,16 @@ import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.huggingface.HuggingFaceBaseService;
 import org.elasticsearch.xpack.inference.services.huggingface.HuggingFaceModel;
+import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
+import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
+import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.core.inference.results.ResultUtils.createInvalidChunkedResultException;
+import static org.elasticsearch.xpack.inference.services.huggingface.elser.HuggingFaceElserServiceSettings.URL;
 
 public class HuggingFaceElserService extends HuggingFaceBaseService {
     public static final String NAME = "hugging_face_elser";
@@ -107,7 +116,43 @@ public class HuggingFaceElserService extends HuggingFaceBaseService {
     }
 
     @Override
+    public InferenceServiceConfiguration getConfiguration() {
+        return new InferenceServiceConfiguration.Builder().setProvider(NAME)
+            .setTaskTypes(supportedTaskTypes())
+            .setConfiguration(HuggingFaceElserService.Configuration.get())
+            .build();
+    }
+
+    @Override
+    public EnumSet<TaskType> supportedTaskTypes() {
+        return EnumSet.of(TaskType.SPARSE_EMBEDDING);
+    }
+
+    @Override
     public TransportVersion getMinimalSupportedVersion() {
         return TransportVersions.V_8_12_0;
+    }
+
+    private static class Configuration {
+        public static Map<String, ServiceConfiguration> get() {
+            var configurationMap = new HashMap<String, ServiceConfiguration>();
+
+            configurationMap.put(
+                URL,
+                new ServiceConfiguration.Builder().setDisplay(ServiceConfigurationDisplayType.TEXTBOX)
+                    .setLabel("URL")
+                    .setOrder(1)
+                    .setRequired(true)
+                    .setSensitive(false)
+                    .setTooltip("The URL endpoint to use for the requests.")
+                    .setType(ServiceConfigurationFieldType.STRING)
+                    .build()
+            );
+
+            configurationMap.putAll(DefaultSecretSettings.toServiceConfiguration());
+            configurationMap.putAll(RateLimitSettings.toServiceConfiguration());
+
+            return configurationMap;
+        }
     }
 }

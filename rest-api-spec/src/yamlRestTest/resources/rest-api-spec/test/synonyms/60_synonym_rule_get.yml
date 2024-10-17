@@ -13,11 +13,40 @@ setup:
               id: "test-id-2"
             - synonyms: "test => check"
               id: "test-id-3"
+
+  - do:
+      cluster.put_settings:
+        body:
+          persistent:
+            logger.org.elasticsearch: DEBUG
+
+  # This is to ensure that all index shards (write and read) are available. In serverless this can take some time.
   - do:
       cluster.health:
-        index: .synonyms
-        timeout: 1m
+        index: .synonyms-2
+        level: shards
+        timeout: 60s
         wait_for_status: green
+        ignore: 408
+
+  - do:
+      cluster.allocation_explain:
+        body: { "index": ".synonyms-2", "shard": 0, "primary": false }
+
+  - do:
+      cluster.health:
+        index: .synonyms-2
+        level: shards
+        timeout: 20s
+        wait_for_status: green
+
+---
+teardown:
+  - do:
+      cluster.put_settings:
+        body:
+          persistent:
+            logger.org.elasticsearch: INFO
 
 ---
 "Get a synonym rule":

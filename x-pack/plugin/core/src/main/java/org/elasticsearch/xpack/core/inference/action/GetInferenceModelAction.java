@@ -97,8 +97,9 @@ public class GetInferenceModelAction extends ActionType<GetInferenceModelAction.
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Request request = (Request) o;
-            return Objects.equals(inferenceEntityId, request.inferenceEntityId) && taskType == request.taskType &&
-                doNotPersistDefaultConfigs == request.doNotPersistDefaultConfigs;
+            return Objects.equals(inferenceEntityId, request.inferenceEntityId)
+                && taskType == request.taskType
+                && doNotPersistDefaultConfigs == request.doNotPersistDefaultConfigs;
         }
 
         @Override

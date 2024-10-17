@@ -962,7 +962,7 @@ public record IndicesOptions(
      * @return Whether execution on failure indices is allowed.
      */
     public boolean allowSelectors() {
-        return gatekeeperOptions.allowFailureIndices();
+        return gatekeeperOptions.allowSelectors();
     }
 
     /**

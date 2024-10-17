@@ -272,6 +272,22 @@ public class SecuritySystemIndices {
                             builder.startObject("allow_restricted_indices");
                             builder.field("type", "boolean");
                             builder.endObject();
+
+                            builder.startObject("selectors");
+                            {
+                                builder.startObject("properties");
+                                {
+                                    builder.startObject("data");
+                                    builder.field("type", "boolean");
+                                    builder.endObject();
+
+                                    builder.startObject("failure");
+                                    builder.field("type", "boolean");
+                                    builder.endObject();
+                                }
+                                builder.endObject();
+                            }
+                            builder.endObject();
                         }
                         builder.endObject();
                     }

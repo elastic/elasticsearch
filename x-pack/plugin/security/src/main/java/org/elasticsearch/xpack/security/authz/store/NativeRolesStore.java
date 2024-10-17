@@ -31,6 +31,7 @@ import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
@@ -94,6 +95,7 @@ import static org.elasticsearch.xpack.core.security.authz.RoleDescriptor.ROLE_TY
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.Availability.PRIMARY_SHARDS;
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.Availability.SEARCH_SHARDS;
 import static org.elasticsearch.xpack.security.support.SecurityMigrations.ROLE_METADATA_FLATTENED_MIGRATION_VERSION;
+import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_FAILURE_STORE_AUTH;
 import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_MAIN_ALIAS;
 import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_ROLES_METADATA_FLATTENED;
 
@@ -451,41 +453,57 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
     private Exception validateRoleDescriptor(RoleDescriptor role) {
         ActionRequestValidationException validationException = null;
         validationException = RoleDescriptorRequestValidator.validate(role, validationException);
+        ClusterState clusterState = clusterService.state();
 
         if (reservedRoleNameChecker.isReserved(role.getName())) {
             throw addValidationError("Role [" + role.getName() + "] is reserved and may not be used.", validationException);
         }
 
+        if (featureService.clusterHasFeature(clusterState, SECURITY_FAILURE_STORE_AUTH) == false) {
+            for (var indexPriv : role.getIndicesPrivileges()) {
+                if (indexPriv.dataSelector() != IndicesPrivileges.DEFAULT_DATA_SELECTOR
+                    && indexPriv.failureSelector() != IndicesPrivileges.DEFAULT_FAILURE_SELECTOR) {
+                    throw addValidationError(
+                        "Role ["
+                            + role.getName()
+                            + "] cannot use selectors because selectors are not supported by all nodes in this cluster. Please ensure "
+                            + "all nodes are up to date in order to use selectors in role descriptors.",
+                        validationException
+                    );
+                }
+            }
+        }
+
         if (role.isUsingDocumentOrFieldLevelSecurity() && DOCUMENT_LEVEL_SECURITY_FEATURE.checkWithoutTracking(licenseState) == false) {
             return LicenseUtils.newComplianceException("field and document level security");
-        } else if (role.hasRemoteIndicesPrivileges()
-            && clusterService.state().getMinTransportVersion().before(TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY)) {
+        } else {
+            if (role.hasRemoteIndicesPrivileges()
+                && clusterState.getMinTransportVersion().before(TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY)) {
                 return new IllegalStateException(
                     "all nodes must have version ["
                         + TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY.toReleaseVersion()
                         + "] or higher to support remote indices privileges"
                 );
-            } else if (role.hasRemoteClusterPermissions()
-                && clusterService.state().getMinTransportVersion().before(ROLE_REMOTE_CLUSTER_PRIVS)) {
+            } else if (role.hasRemoteClusterPermissions() && clusterState.getMinTransportVersion().before(ROLE_REMOTE_CLUSTER_PRIVS)) {
+                return new IllegalStateException(
+                    "all nodes must have version [" + ROLE_REMOTE_CLUSTER_PRIVS + "] or higher to support remote cluster privileges"
+                );
+            } else if (role.hasDescription() && clusterState.getMinTransportVersion().before(TransportVersions.SECURITY_ROLE_DESCRIPTION)) {
+                return new IllegalStateException(
+                    "all nodes must have version ["
+                        + TransportVersions.SECURITY_ROLE_DESCRIPTION.toReleaseVersion()
+                        + "] or higher to support specifying role description"
+                );
+            } else if (Arrays.stream(role.getConditionalClusterPrivileges())
+                .anyMatch(privilege -> privilege instanceof ConfigurableClusterPrivileges.ManageRolesPrivilege)
+                && clusterState.getMinTransportVersion().before(TransportVersions.ADD_MANAGE_ROLES_PRIVILEGE)) {
                     return new IllegalStateException(
-                        "all nodes must have version [" + ROLE_REMOTE_CLUSTER_PRIVS + "] or higher to support remote cluster privileges"
+                        "all nodes must have version ["
+                            + TransportVersions.ADD_MANAGE_ROLES_PRIVILEGE.toReleaseVersion()
+                            + "] or higher to support the manage roles privilege"
                     );
-                } else if (role.hasDescription()
-                    && clusterService.state().getMinTransportVersion().before(TransportVersions.SECURITY_ROLE_DESCRIPTION)) {
-                        return new IllegalStateException(
-                            "all nodes must have version ["
-                                + TransportVersions.SECURITY_ROLE_DESCRIPTION.toReleaseVersion()
-                                + "] or higher to support specifying role description"
-                        );
-                    } else if (Arrays.stream(role.getConditionalClusterPrivileges())
-                        .anyMatch(privilege -> privilege instanceof ConfigurableClusterPrivileges.ManageRolesPrivilege)
-                        && clusterService.state().getMinTransportVersion().before(TransportVersions.ADD_MANAGE_ROLES_PRIVILEGE)) {
-                            return new IllegalStateException(
-                                "all nodes must have version ["
-                                    + TransportVersions.ADD_MANAGE_ROLES_PRIVILEGE.toReleaseVersion()
-                                    + "] or higher to support the manage roles privilege"
-                            );
-                        }
+                }
+        }
         try {
             DLSRoleQueryValidator.validateQueryField(role.getIndicesPrivileges(), xContentRegistry);
         } catch (ElasticsearchException | IllegalArgumentException e) {

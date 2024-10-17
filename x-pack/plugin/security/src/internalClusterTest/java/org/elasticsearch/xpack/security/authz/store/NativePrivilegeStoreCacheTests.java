@@ -286,7 +286,7 @@ public class NativePrivilegeStoreCacheTests extends SecuritySingleNodeTestCase {
         final String testRoleCacheUser = "test_role_cache_user";
         final PutRoleResponse putRoleResponse = new PutRoleRequestBuilder(client).name(testRole)
             .cluster("all")
-            .addIndices(new String[] { "*" }, new String[] { "read" }, null, null, null, false)
+            .addIndices(new String[] { "*" }, new String[] { "read" }, null, null, null, false, true, randomBoolean())
             .get();
         assertTrue(putRoleResponse.isCreated());
         final Hasher hasher = getFastStoredHashAlgoForTests();

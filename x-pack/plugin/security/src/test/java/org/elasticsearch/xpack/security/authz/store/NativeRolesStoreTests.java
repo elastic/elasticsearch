@@ -755,7 +755,14 @@ public class NativeRolesStoreTests extends ESTestCase {
                     roleName,
                     randomSubsetOf(ClusterPrivilegeResolver.names()).toArray(String[]::new),
                     new IndicesPrivileges[] {
-                        IndicesPrivileges.builder().privileges("READ").indices("*").grantedFields("*").deniedFields("foo").build() },
+                        IndicesPrivileges.builder()
+                            .privileges("READ")
+                            .indices("*")
+                            .grantedFields("*")
+                            .deniedFields("foo")
+                            .dataStoreSelector(randomBoolean())
+                            .failureStoreSelector(randomBoolean())
+                            .build() },
                     randomApplicationPrivileges(),
                     randomClusterPrivileges(),
                     generateRandomStringArray(5, randomIntBetween(2, 8), true, true),
@@ -834,6 +841,9 @@ public class NativeRolesStoreTests extends ESTestCase {
             RoleDescriptor.Fields.INDEX,
             RoleDescriptor.Fields.NAMES,
             RoleDescriptor.Fields.ALLOW_RESTRICTED_INDICES,
+            RoleDescriptor.Fields.SELECTORS,
+            RoleDescriptor.Fields.DATA_SELECTOR,
+            RoleDescriptor.Fields.FAILURE_SELECTOR,
             RoleDescriptor.Fields.RESOURCES,
             RoleDescriptor.Fields.QUERY,
             RoleDescriptor.Fields.PRIVILEGES,

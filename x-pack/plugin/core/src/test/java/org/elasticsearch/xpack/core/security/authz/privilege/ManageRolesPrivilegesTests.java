@@ -276,7 +276,7 @@ public class ManageRolesPrivilegesTests extends AbstractNamedWriteableTestCase<C
         {
             final PutRoleRequest putRoleRequest = new PutRoleRequest();
             putRoleRequest.name(randomAlphaOfLength(3));
-            putRoleRequest.addIndex(indexPatterns, privileges, null, null, null, false);
+            putRoleRequest.addIndex(indexPatterns, privileges, null, null, null, false, true, false);
             assertThat(permissionCheck(permission, "cluster:admin/xpack/security/role/put", putRoleRequest), is(expected));
         }
         {

@@ -114,7 +114,9 @@ public class PutRoleRequest extends ActionRequest {
         String[] grantedFields,
         String[] deniedFields,
         @Nullable BytesReference query,
-        boolean allowRestrictedIndices
+        boolean allowRestrictedIndices,
+        boolean dataSelector,
+        boolean failureSelector
     ) {
         this.indicesPrivileges.add(
             RoleDescriptor.IndicesPrivileges.builder()
@@ -124,6 +126,8 @@ public class PutRoleRequest extends ActionRequest {
                 .deniedFields(deniedFields)
                 .query(query)
                 .allowRestrictedIndices(allowRestrictedIndices)
+                .dataStoreSelector(dataSelector)
+                .failureStoreSelector(failureSelector)
                 .build()
         );
     }

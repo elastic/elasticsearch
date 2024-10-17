@@ -196,7 +196,7 @@ primary shard that has reached the maximum number of allocation retry attempts.
         {
           "decider": "max_retry",
           "decision" : "NO",
-          "explanation": "shard has exceeded the maximum number of retries [5] on failed allocation attempts - manually call [POST /_cluster/reroute?retry_failed&metric=none] to retry, [unassigned_info[[reason=ALLOCATION_FAILED], at[2024-07-30T21:04:12.166Z], failed_attempts[5], failed_nodes[[mEKjwwzLT1yJVb8UxT6anw]], delayed=false, details[failed shard on node [mEKjwwzLT1yJVb8UxT6anw]: failed recovery, failure RecoveryFailedException], allocation_status[deciders_no]]]"
+          "explanation": "shard has exceeded the maximum number of retries [5] on failed allocation attempts - manually call [POST /_cluster/reroute?retry_failed] to retry, [unassigned_info[[reason=ALLOCATION_FAILED], at[2024-07-30T21:04:12.166Z], failed_attempts[5], failed_nodes[[mEKjwwzLT1yJVb8UxT6anw]], delayed=false, details[failed shard on node [mEKjwwzLT1yJVb8UxT6anw]: failed recovery, failure RecoveryFailedException], allocation_status[deciders_no]]]"
         }
       ]
     }
@@ -204,11 +204,11 @@ primary shard that has reached the maximum number of allocation retry attempts.
 }
 ----
 // NOTCONSOLE
-Elasticsearch queues shard allocation retries in batches. If there are long-running shard
-recoveries or a high quantity of shard recoveries occurring within the cluster, this
-process may time out for some shards, resulting in `max_retry`. This surfaces infrequently
-but is expected to prevent infinite retries which may impact cluster performance. When
-encountered, run the <<cluster-reroute,cluster reroute>> API to retry allocation.
+When Elasticsearch is unable to allocate a shard, it will attempt to retry allocation up to
+the maximum number of retries allowed. After this, Elasticsearch will stop attempting to
+allocate the shard in order to prevent infinite retries which may impact cluster
+performance. Run the <<cluster-reroute,cluster reroute>> API to retry allocation, which
+will allocate the shard if the issue preventing allocation has been resolved.
 
 [[no-valid-shard-copy]]
 ====== No valid shard copy

@@ -170,21 +170,21 @@ public class ClusterStateTests extends ESTestCase {
 
         // project indices
         assertThat(toString, containsString("""
-               ProjectId[id=tb5W0bx765nDVIwqJPw92G]:
+               project[tb5W0bx765nDVIwqJPw92G]:
                   [common-index/tE62Ga40yvlmOSujUvruVw]: v[2], mv[1], sv[1], av[1]
                   0: p_term [0], isa_ids []
                   1: p_term [0], isa_ids []
                   2: p_term [0], isa_ids []
             """));
-        assertThat(toString, containsString("\n   ProjectId[id=3LftaL7hgfXAsF60Gm6jcD]:\n"));
+        assertThat(toString, containsString("\n   project[3LftaL7hgfXAsF60Gm6jcD]:\n"));
         assertThat(toString, containsString("\n      [common-index/dyQMAHOKifstVZeq1fbe2g]: "));
         assertThat(toString, containsString("\n      [another-index/3BgcDKea85VWlp4Tr514s6]: "));
-        assertThat(toString, containsString("\n   ProjectId[id=WHyuJ0uqBYOPgHX9kYUXlZ]: -\n"));
+        assertThat(toString, containsString("\n   project[WHyuJ0uqBYOPgHX9kYUXlZ]: -\n"));
 
         // project customs
-        assertThat(toString, containsString("\n   ProjectId[id=tb5W0bx765nDVIwqJPw92G]:\n      index-graveyard: IndexGraveyard[[]]\n"));
-        assertThat(toString, containsString("\n   ProjectId[id=3LftaL7hgfXAsF60Gm6jcD]:\n      index-graveyard: IndexGraveyard[[]]\n"));
-        assertThat(toString, containsString("\n   ProjectId[id=WHyuJ0uqBYOPgHX9kYUXlZ]:\n      index-graveyard: IndexGraveyard[[]]\n"));
+        assertThat(toString, containsString("\n   project[tb5W0bx765nDVIwqJPw92G]:\n      index-graveyard: IndexGraveyard[[]]\n"));
+        assertThat(toString, containsString("\n   project[3LftaL7hgfXAsF60Gm6jcD]:\n      index-graveyard: IndexGraveyard[[]]\n"));
+        assertThat(toString, containsString("\n   project[WHyuJ0uqBYOPgHX9kYUXlZ]:\n      index-graveyard: IndexGraveyard[[]]\n"));
 
         // nodes
         assertThat(toString, containsString("\ncluster features:\n   node0"));
@@ -197,10 +197,10 @@ public class ClusterStateTests extends ESTestCase {
         assertThat(toString, containsString("\n   {node03}{" + node3.getEphemeralId() + "}{0.0.0.0}{"));
 
         // routing table
-        assertThat(toString, containsString("global_routing_table{[ProjectId[id="));
-        assertThat(toString, containsString("ProjectId[id=tb5W0bx765nDVIwqJPw92G]=>routing_table:\n"));
-        assertThat(toString, containsString("ProjectId[id=3LftaL7hgfXAsF60Gm6jcD]=>routing_table:\n"));
-        assertThat(toString, containsString("ProjectId[id=WHyuJ0uqBYOPgHX9kYUXlZ]=>routing_table:\n"));
+        assertThat(toString, containsString("global_routing_table{"));
+        assertThat(toString, containsString("tb5W0bx765nDVIwqJPw92G=>routing_table:\n"));
+        assertThat(toString, containsString("3LftaL7hgfXAsF60Gm6jcD=>routing_table:\n"));
+        assertThat(toString, containsString("WHyuJ0uqBYOPgHX9kYUXlZ=>routing_table:\n"));
         assertThat(toString, containsString("-- index [[another-index/3BgcDKea85VWlp4Tr514s6]]\n----shard_id [another-index][0]\n"));
         assertThat(toString, containsString("-- index [[common-index/tE62Ga40yvlmOSujUvruVw]]\n----shard_id [common-index][0]\n"));
         assertThat(toString, containsString("\n----shard_id [common-index][1]\n"));

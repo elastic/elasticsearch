@@ -44,4 +44,9 @@ public record ProjectId(String id) implements Writeable, ToXContent {
     public static ProjectId ofNullable(@Nullable String id, @Nullable ProjectId fallback) {
         return id == null ? fallback : new ProjectId(id);
     }
+
+    @Override
+    public String toString() {
+        return this.id;
+    }
 }

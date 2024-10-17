@@ -101,10 +101,12 @@ public abstract class BlockSourceReader implements BlockLoader.RowStrideReader {
     private abstract static class SourceBlockLoader implements BlockLoader {
         protected final ValueFetcher fetcher;
         private final LeafIteratorLookup lookup;
+        private final SourceFieldMapper.Mode sourceMode;
 
-        private SourceBlockLoader(ValueFetcher fetcher, LeafIteratorLookup lookup) {
+        private SourceBlockLoader(ValueFetcher fetcher, LeafIteratorLookup lookup, SourceFieldMapper.Mode sourceMode) {
             this.fetcher = fetcher;
             this.lookup = lookup;
+            this.sourceMode = sourceMode;
         }
 
         @Override
@@ -114,7 +116,7 @@ public abstract class BlockSourceReader implements BlockLoader.RowStrideReader {
 
         @Override
         public final StoredFieldsSpec rowStrideStoredFieldSpec() {
-            return NEEDS_SOURCE_AND_IGNORED_SOURCE;
+            return sourceMode == SourceFieldMapper.Mode.SYNTHETIC ? NEEDS_SOURCE_AND_IGNORED_SOURCE : StoredFieldsSpec.NEEDS_SOURCE;
         }
 
         @Override
@@ -150,8 +152,8 @@ public abstract class BlockSourceReader implements BlockLoader.RowStrideReader {
      * Load {@code boolean}s from {@code _source}.
      */
     public static class BooleansBlockLoader extends SourceBlockLoader {
-        public BooleansBlockLoader(ValueFetcher fetcher, LeafIteratorLookup lookup) {
-            super(fetcher, lookup);
+        public BooleansBlockLoader(ValueFetcher fetcher, LeafIteratorLookup lookup, SourceFieldMapper.Mode sourceMode) {
+            super(fetcher, lookup, sourceMode);
         }
 
         @Override
@@ -190,8 +192,8 @@ public abstract class BlockSourceReader implements BlockLoader.RowStrideReader {
      * Load {@link BytesRef}s from {@code _source}.
      */
     public static class BytesRefsBlockLoader extends SourceBlockLoader {
-        public BytesRefsBlockLoader(ValueFetcher fetcher, LeafIteratorLookup lookup) {
-            super(fetcher, lookup);
+        public BytesRefsBlockLoader(ValueFetcher fetcher, LeafIteratorLookup lookup, SourceFieldMapper.Mode sourceMode) {
+            super(fetcher, lookup, sourceMode);
         }
 
         @Override
@@ -201,7 +203,7 @@ public abstract class BlockSourceReader implements BlockLoader.RowStrideReader {
 
         @Override
         protected RowStrideReader rowStrideReader(LeafReaderContext context, DocIdSetIterator iter) throws IOException {
-            return new BytesRefs(fetcher, iter);
+            return new BytesRefs(fetcher, iter, null);
         }
 
         @Override
@@ -211,8 +213,8 @@ public abstract class BlockSourceReader implements BlockLoader.RowStrideReader {
     }
 
     public static class GeometriesBlockLoader extends SourceBlockLoader {
-        public GeometriesBlockLoader(ValueFetcher fetcher, LeafIteratorLookup lookup) {
-            super(fetcher, lookup);
+        public GeometriesBlockLoader(ValueFetcher fetcher, LeafIteratorLookup lookup, SourceFieldMapper.Mode sourceMode) {
+            super(fetcher, lookup, sourceMode);
         }
 
         @Override
@@ -222,7 +224,7 @@ public abstract class BlockSourceReader implements BlockLoader.RowStrideReader {
 
         @Override
         protected RowStrideReader rowStrideReader(LeafReaderContext context, DocIdSetIterator iter) {
-            return new Geometries(fetcher, iter);
+            return new Geometries(fetcher, iter, null);
         }
 
         @Override
@@ -234,7 +236,7 @@ public abstract class BlockSourceReader implements BlockLoader.RowStrideReader {
     private static class BytesRefs extends BlockSourceReader {
         private final BytesRef scratch = new BytesRef();
 
-        BytesRefs(ValueFetcher fetcher, DocIdSetIterator iter) {
+        BytesRefs(ValueFetcher fetcher, DocIdSetIterator iter, SourceFieldMapper.Mode sourceMode) {
             super(fetcher, iter);
         }
 
@@ -251,7 +253,7 @@ public abstract class BlockSourceReader implements BlockLoader.RowStrideReader {
 
     private static class Geometries extends BlockSourceReader {
 
-        Geometries(ValueFetcher fetcher, DocIdSetIterator iter) {
+        Geometries(ValueFetcher fetcher, DocIdSetIterator iter, SourceFieldMapper.Mode sourceMode) {
             super(fetcher, iter);
         }
 
@@ -274,8 +276,8 @@ public abstract class BlockSourceReader implements BlockLoader.RowStrideReader {
      * Load {@code double}s from {@code _source}.
      */
     public static class DoublesBlockLoader extends SourceBlockLoader {
-        public DoublesBlockLoader(ValueFetcher fetcher, LeafIteratorLookup lookup) {
-            super(fetcher, lookup);
+        public DoublesBlockLoader(ValueFetcher fetcher, LeafIteratorLookup lookup, SourceFieldMapper.Mode sourceMode) {
+            super(fetcher, lookup, sourceMode);
         }
 
         @Override
@@ -314,8 +316,8 @@ public abstract class BlockSourceReader implements BlockLoader.RowStrideReader {
      * Load {@code int}s from {@code _source}.
      */
     public static class IntsBlockLoader extends SourceBlockLoader {
-        public IntsBlockLoader(ValueFetcher fetcher, LeafIteratorLookup lookup) {
-            super(fetcher, lookup);
+        public IntsBlockLoader(ValueFetcher fetcher, LeafIteratorLookup lookup, SourceFieldMapper.Mode sourceMode) {
+            super(fetcher, lookup, sourceMode);
         }
 
         @Override
@@ -354,8 +356,8 @@ public abstract class BlockSourceReader implements BlockLoader.RowStrideReader {
      * Load {@code long}s from {@code _source}.
      */
     public static class LongsBlockLoader extends SourceBlockLoader {
-        public LongsBlockLoader(ValueFetcher fetcher, LeafIteratorLookup lookup) {
-            super(fetcher, lookup);
+        public LongsBlockLoader(ValueFetcher fetcher, LeafIteratorLookup lookup, SourceFieldMapper.Mode sourceMode) {
+            super(fetcher, lookup, sourceMode);
         }
 
         @Override

@@ -636,7 +636,8 @@ public final class KeywordFieldMapper extends FieldMapper {
                 return new BlockStoredFieldsReader.BytesFromBytesRefsBlockLoader(name());
             }
             SourceValueFetcher fetcher = sourceValueFetcher(blContext.sourcePaths(name()));
-            return new BlockSourceReader.BytesRefsBlockLoader(fetcher, sourceBlockLoaderLookup(blContext));
+            var sourceMode = blContext.indexSettings().getIndexMappingSourceMode();
+            return new BlockSourceReader.BytesRefsBlockLoader(fetcher, sourceBlockLoaderLookup(blContext), sourceMode);
         }
 
         private BlockSourceReader.LeafIteratorLookup sourceBlockLoaderLookup(BlockLoaderContext blContext) {

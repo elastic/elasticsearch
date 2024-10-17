@@ -1022,7 +1022,8 @@ public final class TextFieldMapper extends FieldMapper {
                 return null;
             }
             SourceValueFetcher fetcher = SourceValueFetcher.toString(blContext.sourcePaths(name()));
-            return new BlockSourceReader.BytesRefsBlockLoader(fetcher, blockReaderDisiLookup(blContext));
+            var sourceMode = blContext.indexSettings().getIndexMappingSourceMode();
+            return new BlockSourceReader.BytesRefsBlockLoader(fetcher, blockReaderDisiLookup(blContext), sourceMode);
         }
 
         /**

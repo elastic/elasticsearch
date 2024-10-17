@@ -1707,7 +1707,6 @@ public class CompositeRolesStoreTests extends ESTestCase {
             healthStatus,
             IndexMetadata.State.OPEN,
             "my_uuid",
-            Set.of(),
             Set.of()
         );
     }

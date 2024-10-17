@@ -909,7 +909,6 @@ public class NativePrivilegeStoreTests extends ESTestCase {
             healthStatus,
             IndexMetadata.State.OPEN,
             "my_uuid",
-            Set.of(),
             Set.of()
         );
     }

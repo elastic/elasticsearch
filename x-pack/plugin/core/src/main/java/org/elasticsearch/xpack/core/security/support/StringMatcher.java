@@ -72,6 +72,10 @@ public class StringMatcher implements Predicate<String> {
         return predicate == Predicates.<String>always();
     }
 
+    public boolean isEmpty() {
+        return predicate == Predicates.<String>never();
+    }
+
     // For testing
     Predicate<String> getPredicate() {
         return predicate;

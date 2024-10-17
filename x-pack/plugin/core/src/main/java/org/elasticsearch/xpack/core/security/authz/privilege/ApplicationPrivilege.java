@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.core.security.authz.privilege;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.xpack.core.security.support.Automatons;
+import org.elasticsearch.xpack.core.security.support.StringMatcher;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -31,7 +32,7 @@ import java.util.stream.Collectors;
  * The action patterns are entirely optional - many application will find that simple "privilege names" are sufficient, but
  * they allow applications to define high level abstract privileges that map to multiple low level capabilities.
  */
-public final class ApplicationPrivilege extends Privilege {
+public final class ApplicationPrivilege {
 
     private static final Pattern VALID_APPLICATION_PREFIX = Pattern.compile("^[a-z][A-Za-z0-9]*$");
     private static final Pattern WHITESPACE = Pattern.compile("[\\v\\h]");
@@ -47,21 +48,40 @@ public final class ApplicationPrivilege extends Privilege {
 
     private final String application;
     private final String[] patterns;
+    public final Set<String> name;
+    private final StringMatcher patternMatcher;
 
     // TODO make this private once ApplicationPrivilegeTests::createPrivilege uses ApplicationPrivilege::get
     ApplicationPrivilege(String application, Set<String> name, String... patterns) {
-        super(name, patterns);
         this.application = application;
         this.patterns = patterns;
+        this.name = name;
+        this.patternMatcher = StringMatcher.of(patterns);
     }
 
     public String getApplication() {
         return application;
     }
 
-    // Package level for testing
-    String[] getPatterns() {
+    public String[] getPatterns() {
         return patterns;
+    }
+
+    public boolean patternsTotal() {
+        return patternMatcher.isTotal();
+    }
+
+    public boolean patternsEmpty() {
+        return patternMatcher.isEmpty();
+    }
+
+    public boolean supersetOfPatterns(String... patterns) {
+        for (var pattern : patterns) {
+            if (false == patternMatcher.test(pattern)) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /**
@@ -250,7 +270,12 @@ public final class ApplicationPrivilege extends Privilege {
         }
 
         patterns.addAll(actions);
-        return new ApplicationPrivilege(application, names, patterns.toArray(new String[patterns.size()]));
+
+        return new ApplicationPrivilege(application, names, patterns.toArray(new String[0]));
+    }
+
+    public Set<String> name() {
+        return name;
     }
 
     @Override
@@ -260,7 +285,7 @@ public final class ApplicationPrivilege extends Privilege {
 
     @Override
     public int hashCode() {
-        int result = super.hashCode();
+        int result = Objects.hashCode(name);
         result = 31 * result + Objects.hashCode(application);
         result = 31 * result + Arrays.hashCode(patterns);
         return result;
@@ -268,9 +293,12 @@ public final class ApplicationPrivilege extends Privilege {
 
     @Override
     public boolean equals(Object o) {
-        return super.equals(o)
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+
+        ApplicationPrivilege privilege = (ApplicationPrivilege) o;
+        return Objects.equals(name, privilege.name)
             && Objects.equals(this.application, ((ApplicationPrivilege) o).application)
             && Arrays.equals(this.patterns, ((ApplicationPrivilege) o).patterns);
     }
-
 }

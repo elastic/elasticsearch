@@ -186,6 +186,24 @@ public class FailureStoreQueryParamIT extends DisabledSecurityDataStreamTestCase
                 """);
             ResponseException responseException = expectThrows(ResponseException.class, () -> client().performRequest(mappingRequest));
             Map<String, Object> response = entityAsMap(responseException.getResponse());
+            assertThat(
+                ((Map<String, Object>) response.get("error")).get("reason"),
+                is("Index component selectors are not supported in this context but found selector in expression [failure-data-stream::*]")
+            );
+        }
+        {
+            final Request mappingRequest = new Request("PUT", "/" + failureStoreIndex + "/_mapping");
+            mappingRequest.setJsonEntity("""
+                {
+                  "properties": {
+                    "email": {
+                      "type": "keyword"
+                    }
+                  }
+                }
+                """);
+            ResponseException responseException = expectThrows(ResponseException.class, () -> client().performRequest(mappingRequest));
+            Map<String, Object> response = entityAsMap(responseException.getResponse());
             assertThat(((Map<String, Object>) response.get("error")).get("reason"), is("failure index not supported"));
         }
     }

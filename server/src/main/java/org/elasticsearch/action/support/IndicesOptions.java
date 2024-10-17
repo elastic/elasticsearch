@@ -31,6 +31,7 @@ import java.util.EnumSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
@@ -413,6 +414,10 @@ public record IndicesOptions(
         public static Builder builder(GatekeeperOptions gatekeeperOptions) {
             return new Builder(gatekeeperOptions);
         }
+
+        public GatekeeperOptions applyUpdate(Function<Builder, Builder> update) {
+            return update.apply(builder(this)).build();
+        }
     }
 
     /**
@@ -525,7 +530,7 @@ public record IndicesOptions(
         IGNORE_THROTTLED,
 
         ALLOW_FAILURE_INDICES, // Added in 8.14
-        ALLOW_SELECTORS        // Added in 8.16
+        ALLOW_SELECTORS        // Added in 8.17
     }
 
     private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(IndicesOptions.class);

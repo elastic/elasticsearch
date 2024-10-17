@@ -87,9 +87,10 @@ public class ReservedStateUpdateTask implements ClusterStateTaskListener {
 
         ReservedStateMetadata existingMetadata = currentState.metadata().reservedStateMetadata().get(namespace);
         Map<String, Object> reservedState = stateChunk.state();
-        ReservedStateVersion reservedStateVersion = stateChunk.metadata();
+        ReservedStateVersionParameters reservedStateVersionParameters = stateChunk.versionParameters();
+        ReservedStateVersion reservedStateVersion = reservedStateVersionParameters.version();
 
-        if (checkMetadataVersion(namespace, existingMetadata, reservedStateVersion) == false) {
+        if (checkMetadataVersion(namespace, existingMetadata, reservedStateVersionParameters) == false) {
             return currentState;
         }
 
@@ -110,7 +111,7 @@ public class ReservedStateUpdateTask implements ClusterStateTaskListener {
             }
         }
 
-        checkAndThrowOnError(errors, reservedStateVersion);
+        checkAndThrowOnError(errors, reservedStateVersionParameters);
 
         // Remove the last error if we had previously encountered any in prior processing of reserved state
         reservedMetadataBuilder.errorMetadata(null);
@@ -121,17 +122,12 @@ public class ReservedStateUpdateTask implements ClusterStateTaskListener {
         return stateBuilder.metadata(metadataBuilder).build();
     }
 
-    private void checkAndThrowOnError(List<String> errors, ReservedStateVersion reservedStateVersion) {
+    private void checkAndThrowOnError(List<String> errors, ReservedStateVersionParameters versionParameters) {
         // Any errors should be discovered through validation performed in the transform calls
         if (errors.isEmpty() == false) {
             logger.debug("Error processing state change request for [{}] with the following errors [{}]", namespace, errors);
 
-            var errorState = new ErrorState(
-                namespace,
-                reservedStateVersion.version(),
-                errors,
-                ReservedStateErrorMetadata.ErrorKind.VALIDATION
-            );
+            var errorState = new ErrorState(namespace, versionParameters, errors, ReservedStateErrorMetadata.ErrorKind.VALIDATION);
 
             /*
              * It doesn't matter this reporter needs to re-access the base state,
@@ -155,8 +151,9 @@ public class ReservedStateUpdateTask implements ClusterStateTaskListener {
     static boolean checkMetadataVersion(
         String namespace,
         ReservedStateMetadata existingMetadata,
-        ReservedStateVersion reservedStateVersion
+        ReservedStateVersionParameters reservedStateVersionParameters
     ) {
+        ReservedStateVersion reservedStateVersion = reservedStateVersionParameters.version();
         if (Version.CURRENT.before(reservedStateVersion.minCompatibleVersion())) {
             logger.warn(
                 () -> format(
@@ -184,19 +181,25 @@ public class ReservedStateUpdateTask implements ClusterStateTaskListener {
             return false;
         }
 
-        if (existingMetadata != null && existingMetadata.version() >= reservedStateVersion.version()) {
-            logger.warn(
-                () -> format(
-                    "Not updating reserved cluster state for namespace [%s], because version [%s] is less or equal"
-                        + " to the current metadata version [%s]",
-                    namespace,
-                    reservedStateVersion.version(),
-                    existingMetadata.version()
-                )
-            );
-            return false;
+        if (existingMetadata == null) {
+            return true;
         }
 
-        return true;
+        Long alreadyProcessedVersion = existingMetadata.version();
+        if (alreadyProcessedVersion < reservedStateVersion.version()
+            || (reservedStateVersionParameters.reprocessSameVersion() && alreadyProcessedVersion.equals(reservedStateVersion.version()))) {
+            return true;
+        }
+
+        logger.warn(
+            () -> format(
+                "Not updating reserved cluster state for namespace [%s], because version [%s] is less or equal"
+                    + " to the current metadata version [%s]",
+                namespace,
+                reservedStateVersion.version(),
+                alreadyProcessedVersion
+            )
+        );
+        return false;
     }
 }

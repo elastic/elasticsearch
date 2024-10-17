@@ -154,7 +154,17 @@ public class RoleMappingFileSettingsIT extends NativeRealmIntegTestCase {
     }
 
     public static void writeJSONFile(String node, String json, Logger logger, AtomicLong versionCounter) throws Exception {
-        long version = versionCounter.incrementAndGet();
+        writeJSONFile(node, json, logger, versionCounter, true);
+    }
+
+    public static void writeJSONFileWithoutVersionIncrement(String node, String json, Logger logger, AtomicLong versionCounter)
+        throws Exception {
+        writeJSONFile(node, json, logger, versionCounter, false);
+    }
+
+    private static void writeJSONFile(String node, String json, Logger logger, AtomicLong versionCounter, boolean incrementVersion)
+        throws Exception {
+        long version = incrementVersion ? versionCounter.incrementAndGet() : versionCounter.get();
 
         FileSettingsService fileSettingsService = internalCluster().getInstance(FileSettingsService.class, node);
         assertTrue(fileSettingsService.watching());

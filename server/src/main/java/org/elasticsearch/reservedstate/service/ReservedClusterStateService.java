@@ -110,7 +110,12 @@ public class ReservedClusterStateService {
         try {
             return stateChunkParser.apply(parser, null);
         } catch (Exception e) {
-            ErrorState errorState = new ErrorState(namespace, EMPTY_VERSION, e, ReservedStateErrorMetadata.ErrorKind.PARSING);
+            ErrorState errorState = new ErrorState(
+                namespace,
+                ReservedStateVersionParameters.EMPTY_VERSION,
+                e,
+                ReservedStateErrorMetadata.ErrorKind.PARSING
+            );
             updateErrorState(errorState);
             logger.debug("error processing state change request for [{}] with the following errors [{}]", namespace, errorState);
 
@@ -123,16 +128,22 @@ public class ReservedClusterStateService {
      *
      * @param namespace the namespace under which we'll store the reserved keys in the cluster state metadata
      * @param parser the XContentParser to process
+     * @param reprocessSameVersion whether processing should also run if the metadata version matches the file version
      * @param errorListener a consumer called with {@link IllegalStateException} if the content has errors and the
      *        cluster state cannot be correctly applied, null if successful or state couldn't be applied because of incompatible version.
      */
-    public void process(String namespace, XContentParser parser, Consumer<Exception> errorListener) {
+    public void process(String namespace, XContentParser parser, boolean reprocessSameVersion, Consumer<Exception> errorListener) {
         ReservedStateChunk stateChunk;
 
         try {
             stateChunk = parse(namespace, parser);
         } catch (Exception e) {
-            ErrorState errorState = new ErrorState(namespace, EMPTY_VERSION, e, ReservedStateErrorMetadata.ErrorKind.PARSING);
+            ErrorState errorState = new ErrorState(
+                namespace,
+                ReservedStateVersionParameters.EMPTY_VERSION,
+                e,
+                ReservedStateErrorMetadata.ErrorKind.PARSING
+            );
             updateErrorState(errorState);
             logger.debug("error processing state change request for [{}] with the following errors [{}]", namespace, errorState);
 
@@ -140,6 +151,13 @@ public class ReservedClusterStateService {
                 new IllegalStateException("Error processing state change request for " + namespace + ", errors: " + errorState, e)
             );
             return;
+        }
+
+        if (reprocessSameVersion) {
+            stateChunk = new ReservedStateChunk(
+                stateChunk.state(),
+                new ReservedStateVersionParameters(stateChunk.versionParameters().version(), true)
+            );
         }
 
         process(namespace, stateChunk, errorListener);
@@ -174,7 +192,7 @@ public class ReservedClusterStateService {
      */
     public void process(String namespace, ReservedStateChunk reservedStateChunk, Consumer<Exception> errorListener) {
         Map<String, Object> reservedState = reservedStateChunk.state();
-        final ReservedStateVersion reservedStateVersion = reservedStateChunk.metadata();
+        ReservedStateVersionParameters reservedStateVersionParameters = reservedStateChunk.versionParameters();
 
         LinkedHashSet<String> orderedHandlers;
         try {
@@ -182,7 +200,7 @@ public class ReservedClusterStateService {
         } catch (Exception e) {
             ErrorState errorState = new ErrorState(
                 namespace,
-                reservedStateVersion.version(),
+                reservedStateVersionParameters,
                 e,
                 ReservedStateErrorMetadata.ErrorKind.PARSING
             );
@@ -201,7 +219,7 @@ public class ReservedClusterStateService {
 
         // We check if we should exit early on the state version from clusterService. The ReservedStateUpdateTask
         // will check again with the most current state version if this continues.
-        if (checkMetadataVersion(namespace, existingMetadata, reservedStateVersion) == false) {
+        if (checkMetadataVersion(namespace, existingMetadata, reservedStateVersionParameters) == false) {
             errorListener.accept(null);
             return;
         }
@@ -209,7 +227,7 @@ public class ReservedClusterStateService {
         // We trial run all handler validations to ensure that we can process all of the cluster state error free.
         var trialRunErrors = trialRun(namespace, state, reservedStateChunk, orderedHandlers);
         // this is not using the modified trial state above, but that doesn't matter, we're just setting errors here
-        var error = checkAndReportError(namespace, trialRunErrors, reservedStateVersion);
+        var error = checkAndReportError(namespace, trialRunErrors, reservedStateVersionParameters);
 
         if (error != null) {
             errorListener.accept(error);
@@ -233,7 +251,7 @@ public class ReservedClusterStateService {
                     @Override
                     public void onFailure(Exception e) {
                         // Don't spam the logs on repeated errors
-                        if (isNewError(existingMetadata, reservedStateVersion.version())) {
+                        if (isNewError(existingMetadata, reservedStateVersionParameters)) {
                             logger.debug("Failed to apply reserved cluster state", e);
                             errorListener.accept(e);
                         } else {
@@ -247,14 +265,14 @@ public class ReservedClusterStateService {
     }
 
     // package private for testing
-    Exception checkAndReportError(String namespace, List<String> errors, ReservedStateVersion reservedStateVersion) {
+    Exception checkAndReportError(String namespace, List<String> errors, ReservedStateVersionParameters reservedStateVersionParameters) {
         // Any errors should be discovered through validation performed in the transform calls
         if (errors.isEmpty() == false) {
             logger.debug("Error processing state change request for [{}] with the following errors [{}]", namespace, errors);
 
             var errorState = new ErrorState(
                 namespace,
-                reservedStateVersion.version(),
+                reservedStateVersionParameters,
                 errors,
                 ReservedStateErrorMetadata.ErrorKind.VALIDATION
             );

@@ -27,74 +27,45 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 
 public class SecurityIndexRoleMappingCleanupIT extends AbstractUpgradeTestCase {
 
-    public void testCleanupDuplicateMappingsCreatedWithBug() throws Exception {
-        assumeTrue(
-            "Role mappings are in cluster state after transport version: " + SECURITY_ROLE_MAPPINGS_IN_CLUSTER_STATE,
-            minimumTransportVersion().after(SECURITY_ROLE_MAPPINGS_IN_CLUSTER_STATE)
-        );
-
+    public void testCleanupDuplicateMappings() throws Exception {
         if (CLUSTER_TYPE == ClusterType.OLD) {
+            // If we're in a state where the same operator-defined role mappings can exist both in cluster state and the native store
+            // (SECURITY_ROLE_MAPPINGS_IN_CLUSTER_STATE transport added to security.role_mapping_cleanup feature added), create a state
+            // where the native store will need to be cleaned up
             assumeTrue(
                 "Cleanup only needed before security.role_mapping_cleanup feature available in cluster",
                 clusterHasFeature("security.role_mapping_cleanup") == false
             );
-            // Since the old cluster has role mappings in cluster state, but doesn't check duplicates, create a duplicate
+            assumeTrue(
+                "If role mappings are in cluster state but cleanup has not been performed yet, create duplicated role mappings",
+                minimumTransportVersion().after(SECURITY_ROLE_MAPPINGS_IN_CLUSTER_STATE)
+            );
+            // Since the old cluster has role mappings in cluster state, but doesn't check duplicates, create duplicates
             createNativeRoleMapping("operator_role_mapping_1", Map.of("meta", "test"));
+            createNativeRoleMapping("operator_role_mapping_2", Map.of("meta", "test"));
+            // API will return only native role mappings
+            assertAllRoleMappings(client(), "operator_role_mapping_1", "operator_role_mapping_2");
+        }
+        if (CLUSTER_TYPE == ClusterType.MIXED) {
+            // Create a native role mapping that doesn't conflict with anything before the migration run
             createNativeRoleMapping("no_name_conflict", Map.of("meta", "test"));
-            assertAllRoleMappings(client(), "no_name_conflict", "operator_role_mapping_1");
         } else if (CLUSTER_TYPE == ClusterType.UPGRADED) {
             waitForSecurityMigrationCompletion(adminClient(), 2);
-            assertRoleMappingsExistsInClusterState("operator_role_mapping_1", "operator_role_mapping_2");
+            // TODO USE NEW CONSTANTS WHEN AVAILABLE
+            assertAllRoleMappings(
+                client(),
+                "operator_role_mapping_1 (Read Only)",
+                "operator_role_mapping_2 (Read Only)",
+                "no_name_conflict"
+            );
             // In the old cluster we might have created these (depending on the node features), so make sure they were removed
             assertFalse(roleMappingExistsInSecurityIndex("operator_role_mapping_1"));
             assertFalse(roleMappingExistsInSecurityIndex("operator_role_mapping_2"));
-            // Make sure we can create a conflicting role mapping again
+            assertTrue(roleMappingExistsInSecurityIndex("no_name_conflict"));
+            // Make sure we can create and delete a conflicting role mapping again
             createNativeRoleMapping("operator_role_mapping_1", Map.of("meta", "test"));
+            deleteNativeRoleMapping("operator_role_mapping_1");
         }
-    }
-
-    public void testCleanupDuplicateMappingsCreatedBeforeBug() throws Exception {
-        if (CLUSTER_TYPE == ClusterType.OLD) {
-            assumeTrue(
-                "Role mappings are in cluster state after transport version: " + SECURITY_ROLE_MAPPINGS_IN_CLUSTER_STATE,
-                minimumTransportVersion().before(SECURITY_ROLE_MAPPINGS_IN_CLUSTER_STATE)
-            );
-            createNativeRoleMapping("no_name_conflict", Map.of("meta", "test"));
-            // Assume operator defined role mappings were created in the native store
-            assertAllRoleMappings(client(), "no_name_conflict", "operator_role_mapping_1", "operator_role_mapping_2");
-        } else if (CLUSTER_TYPE == ClusterType.UPGRADED) {
-            waitForSecurityMigrationCompletion(adminClient(), 2);
-            assertRoleMappingsExistsInClusterState("operator_role_mapping_1", "operator_role_mapping_2");
-            // In the old cluster we might have created these (depending on the version), so make sure they were removed
-            assertFalse(roleMappingExistsInSecurityIndex("operator_role_mapping_1"));
-            assertFalse(roleMappingExistsInSecurityIndex("operator_role_mapping_2"));
-            // Make sure we can create a conflicting role mapping
-            createNativeRoleMapping("operator_role_mapping_1", Map.of("meta", "test"));
-        }
-    }
-
-    @SuppressWarnings("unchecked")
-    private void assertRoleMappingsExistsInClusterState(String... roleMappingNames) throws IOException {
-        final Request request = new Request("GET", "_cluster/state/metadata/");
-        Response response = adminClient().performRequest(request);
-        assertOK(response);
-        Map<String, Object> responseMap = responseAsMap(response);
-        Map<String, Object> metadata = ((Map<String, Object>) responseMap.get("metadata"));
-        assertNotNull(metadata);
-        List<Map<String, Object>> clusterStateRoleMappings = (List<Map<String, Object>>) ((Map<String, Object>) metadata.get(
-            "role_mappings"
-        )).get("role_mappings");
-
-        assertNotNull(clusterStateRoleMappings);
-        assertEquals(clusterStateRoleMappings.size(), roleMappingNames.length);
-
-        List<String> roleMappingHandlers = (List<String>) ((Map<String, Object>) ((Map<String, Object>) ((Map<String, Object>) ((Map<
-            String,
-            Object>) metadata.get("reserved_state")).get("file_settings")).get("handlers")).get("role_mappings")).get("keys");
-
-        assertNotNull(roleMappingHandlers);
-        assertEquals(clusterStateRoleMappings.size(), roleMappingHandlers.size());
-        assertThat(roleMappingHandlers, containsInAnyOrder(roleMappingNames));
     }
 
     @SuppressWarnings("unchecked")
@@ -144,6 +115,11 @@ public class SecurityIndexRoleMappingCleanupIT extends AbstractUpgradeTestCase {
             )
         );
         request.setJsonEntity(source.utf8ToString());
+        assertOK(client().performRequest(request));
+    }
+
+    private void deleteNativeRoleMapping(String roleMappingName) throws IOException {
+        final Request request = new Request("DELETE", "/_security/role_mapping/" + roleMappingName);
         assertOK(client().performRequest(request));
     }
 

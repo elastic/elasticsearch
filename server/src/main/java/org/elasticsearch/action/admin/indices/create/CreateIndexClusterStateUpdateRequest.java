@@ -14,6 +14,8 @@ import org.elasticsearch.action.admin.indices.shrink.ResizeType;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.indices.SystemDataStreamDescriptor;
@@ -27,6 +29,7 @@ import java.util.Set;
 public class CreateIndexClusterStateUpdateRequest {
 
     private final String cause;
+    private final ProjectId projectId;
     private final String index;
     private String dataStreamName;
     private final String providedName;
@@ -48,8 +51,17 @@ public class CreateIndexClusterStateUpdateRequest {
 
     private ComposableIndexTemplate matchingTemplate;
 
+    /**
+     * @deprecated project id ought always be specified
+     */
+    @Deprecated
     public CreateIndexClusterStateUpdateRequest(String cause, String index, String providedName) {
+        this(cause, Metadata.DEFAULT_PROJECT_ID, index, providedName);
+    }
+
+    public CreateIndexClusterStateUpdateRequest(String cause, ProjectId projectId, String index, String providedName) {
         this.cause = cause;
+        this.projectId = projectId;
         this.index = index;
         this.providedName = providedName;
     }
@@ -108,6 +120,10 @@ public class CreateIndexClusterStateUpdateRequest {
 
     public String index() {
         return index;
+    }
+
+    public ProjectId projectId() {
+        return projectId;
     }
 
     public Settings settings() {
@@ -202,6 +218,9 @@ public class CreateIndexClusterStateUpdateRequest {
         return "CreateIndexClusterStateUpdateRequest{"
             + "cause='"
             + cause
+            + '\''
+            + ", projectId='"
+            + projectId
             + '\''
             + ", index='"
             + index

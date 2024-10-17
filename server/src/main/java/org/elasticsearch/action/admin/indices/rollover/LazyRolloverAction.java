@@ -268,6 +268,7 @@ public final class LazyRolloverAction extends ActionType<RolloverResponse> {
                 // active shards, as well as return the names of the indices that were rolled/created
                 ActiveShardsObserver.waitForActiveShards(
                     clusterService,
+                    Metadata.DEFAULT_PROJECT_ID,
                     new String[] { rolloverIndexName },
                     rolloverRequest.getCreateIndexRequest().waitForActiveShards(),
                     waitForActiveShardsTimeout,

@@ -14,20 +14,28 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
+import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingRoleStrategy;
+import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.ByteBufferStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
+import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
+import java.util.List;
 
 /**
  * Tests for the {@link ActiveShardCount} class
@@ -46,6 +54,40 @@ public class ActiveShardCountTests extends ESTestCase {
         doWriteRead(ActiveShardCount.DEFAULT);
         doWriteRead(ActiveShardCount.NONE);
         doWriteRead(ActiveShardCount.from(randomIntBetween(1, 50)));
+    }
+
+    public void testEnoughShardsWhenProjectIsGone() {
+        String indexName = randomAlphaOfLength(8);
+        IndexMetadata indexMetadata = IndexMetadata.builder(indexName)
+            .settings(settings(IndexVersion.current()).put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID()))
+            .numberOfShards(randomIntBetween(1, 3))
+            .numberOfReplicas(randomIntBetween(1, 3))
+            .build();
+        ProjectMetadata projectMetadata = ProjectMetadata.builder(new ProjectId(randomUUID())).put(indexMetadata, randomBoolean()).build();
+        Index index = new Index(indexName, "_uuid");
+        ShardId shardId = new ShardId(index, 0);
+        ShardRouting shardRouting = ShardRouting.newUnassigned(
+            shardId,
+            true,
+            RecoverySource.EmptyStoreRecoverySource.INSTANCE,
+            new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, ""),
+            ShardRouting.Role.DEFAULT
+        );
+        shardRouting = shardRouting.initialize("node_id", null, 0L);
+        shardRouting = shardRouting.moveToStarted(ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
+        RoutingTable routingTable = RoutingTable.builder()
+            .add(IndexRoutingTable.builder(index).addIndexShard(new IndexShardRoutingTable.Builder(shardId).addShard(shardRouting)))
+            .build();
+        for (ActiveShardCount activeShardCount : List.of(
+            ActiveShardCount.ALL,
+            ActiveShardCount.DEFAULT,
+            ActiveShardCount.ONE,
+            ActiveShardCount.NONE
+        )) {
+            assertThat(activeShardCount.enoughShardsActive(null, null, indexName), Matchers.is(true));
+            assertThat(activeShardCount.enoughShardsActive(projectMetadata, null, indexName), Matchers.is(true));
+            assertThat(activeShardCount.enoughShardsActive(null, routingTable, indexName), Matchers.is(true));
+        }
     }
 
     public void testParseString() {

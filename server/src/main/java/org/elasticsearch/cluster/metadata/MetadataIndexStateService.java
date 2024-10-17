@@ -244,6 +244,7 @@ public class MetadataIndexStateService {
                         if (waitForIndices.length > 0) {
                             ActiveShardsObserver.waitForActiveShards(
                                 clusterService,
+                                Metadata.DEFAULT_PROJECT_ID,
                                 waitForIndices,
                                 task.request.waitForActiveShards(),
                                 task.request.ackTimeout(),
@@ -910,6 +911,7 @@ public class MetadataIndexStateService {
                 String[] indexNames = Arrays.stream(request.indices()).map(Index::getName).toArray(String[]::new);
                 ActiveShardsObserver.waitForActiveShards(
                     clusterService,
+                    Metadata.DEFAULT_PROJECT_ID,
                     indexNames,
                     request.waitForActiveShards(),
                     request.ackTimeout(),

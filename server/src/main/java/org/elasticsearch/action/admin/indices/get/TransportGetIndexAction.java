@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.IndexScopedSettings;
@@ -55,7 +56,8 @@ public class TransportGetIndexAction extends TransportClusterInfoAction<GetIndex
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
         IndicesService indicesService,
-        IndexScopedSettings indexScopedSettings
+        IndexScopedSettings indexScopedSettings,
+        ProjectResolver projectResolver
     ) {
         super(
             GetIndexAction.NAME,
@@ -65,7 +67,8 @@ public class TransportGetIndexAction extends TransportClusterInfoAction<GetIndex
             actionFilters,
             GetIndexRequest::new,
             indexNameExpressionResolver,
-            GetIndexResponse::new
+            GetIndexResponse::new,
+            projectResolver
         );
         this.indicesService = indicesService;
         this.settingsFilter = settingsFilter;
@@ -84,7 +87,7 @@ public class TransportGetIndexAction extends TransportClusterInfoAction<GetIndex
         Map<String, List<AliasMetadata>> aliasesResult = Map.of();
         Map<String, Settings> settings = Map.of();
         Map<String, Settings> defaultSettings = Map.of();
-        ProjectMetadata project = state.metadata().getProject();
+        ProjectMetadata project = projectResolver.getProjectMetadata(state);
         Map<String, String> dataStreams = project.findDataStreams(concreteIndices)
             .entrySet()
             .stream()

@@ -1,5 +1,3 @@
-import org.elasticsearch.gradle.internal.info.BuildParams
-
 apply plugin: 'elasticsearch.test-with-dependencies'
 apply plugin: 'elasticsearch.internal-cluster-test'
 apply plugin: 'elasticsearch.internal-yaml-rest-test'
@@ -19,4 +17,5 @@ restResources {
 
 dependencies {
   testImplementation project(path: ':test:test-clusters')
+  clusterModules project(':modules:multi-project')
 }

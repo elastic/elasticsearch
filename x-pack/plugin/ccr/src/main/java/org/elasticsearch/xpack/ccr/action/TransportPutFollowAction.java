@@ -308,6 +308,7 @@ public final class TransportPutFollowAction extends TransportMasterNodeAction<Pu
             listener.delegateFailureAndWrap(
                 (l, r) -> ActiveShardsObserver.waitForActiveShards(
                     clusterService,
+                    Metadata.DEFAULT_PROJECT_ID,
                     new String[] { request.getFollowerIndex() },
                     request.waitForActiveShards(),
                     request.ackTimeout(),

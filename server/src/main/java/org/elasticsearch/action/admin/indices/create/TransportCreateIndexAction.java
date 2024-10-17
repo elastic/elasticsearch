@@ -22,6 +22,8 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
@@ -50,6 +52,7 @@ public class TransportCreateIndexAction extends TransportMasterNodeAction<Create
 
     private final MetadataCreateIndexService createIndexService;
     private final SystemIndices systemIndices;
+    private final ProjectResolver projectResolver;
 
     @Inject
     public TransportCreateIndexAction(
@@ -59,7 +62,8 @@ public class TransportCreateIndexAction extends TransportMasterNodeAction<Create
         MetadataCreateIndexService createIndexService,
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
-        SystemIndices systemIndices
+        SystemIndices systemIndices,
+        ProjectResolver projectResolver
     ) {
         super(
             TYPE.name(),
@@ -74,6 +78,7 @@ public class TransportCreateIndexAction extends TransportMasterNodeAction<Create
         );
         this.createIndexService = createIndexService;
         this.systemIndices = systemIndices;
+        this.projectResolver = projectResolver;
     }
 
     @Override
@@ -128,6 +133,7 @@ public class TransportCreateIndexAction extends TransportMasterNodeAction<Create
             }
         }
 
+        final ProjectId projectId = projectResolver.getProjectId(state);
         final CreateIndexClusterStateUpdateRequest updateRequest;
 
         // Requests that a cluster generates itself are permitted to create a system index with
@@ -144,9 +150,9 @@ public class TransportCreateIndexAction extends TransportMasterNodeAction<Create
                 listener.onFailure(new IllegalStateException(message));
                 return;
             }
-            updateRequest = buildSystemIndexUpdateRequest(request, cause, descriptor);
+            updateRequest = buildSystemIndexUpdateRequest(request, cause, descriptor, projectId);
         } else {
-            updateRequest = buildUpdateRequest(request, cause, indexName, resolvedAt);
+            updateRequest = buildUpdateRequest(request, cause, indexName, resolvedAt, projectId);
         }
 
         createIndexService.createIndex(
@@ -162,14 +168,15 @@ public class TransportCreateIndexAction extends TransportMasterNodeAction<Create
         CreateIndexRequest request,
         String cause,
         String indexName,
-        long nameResolvedAt
+        long nameResolvedAt,
+        ProjectId projectId
     ) {
         Set<Alias> aliases = request.aliases().stream().peek(alias -> {
             if (systemIndices.isSystemName(alias.name())) {
                 alias.isHidden(true);
             }
         }).collect(Collectors.toSet());
-        return new CreateIndexClusterStateUpdateRequest(cause, indexName, request.index()).settings(request.settings())
+        return new CreateIndexClusterStateUpdateRequest(cause, projectId, indexName, request.index()).settings(request.settings())
             .mappings(request.mappings())
             .aliases(aliases)
             .nameResolvedInstant(nameResolvedAt)
@@ -179,7 +186,8 @@ public class TransportCreateIndexAction extends TransportMasterNodeAction<Create
     private static CreateIndexClusterStateUpdateRequest buildSystemIndexUpdateRequest(
         CreateIndexRequest request,
         String cause,
-        SystemIndexDescriptor descriptor
+        SystemIndexDescriptor descriptor,
+        ProjectId projectId
     ) {
         final Settings settings = Objects.requireNonNullElse(descriptor.getSettings(), Settings.EMPTY);
 
@@ -197,7 +205,7 @@ public class TransportCreateIndexAction extends TransportMasterNodeAction<Create
             );
         }
 
-        return new CreateIndexClusterStateUpdateRequest(cause, descriptor.getPrimaryIndex(), request.index()).aliases(aliases)
+        return new CreateIndexClusterStateUpdateRequest(cause, projectId, descriptor.getPrimaryIndex(), request.index()).aliases(aliases)
             .waitForActiveShards(ActiveShardCount.ALL)
             .mappings(descriptor.getMappings())
             .settings(settings);

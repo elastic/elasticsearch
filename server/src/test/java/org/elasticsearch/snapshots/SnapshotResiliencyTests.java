@@ -2383,7 +2383,8 @@ public class SnapshotResiliencyTests extends ESTestCase {
                         metadataCreateIndexService,
                         actionFilters,
                         indexNameExpressionResolver,
-                        EmptySystemIndices.INSTANCE
+                        EmptySystemIndices.INSTANCE,
+                        DefaultProjectResolver.INSTANCE
                     )
                 );
                 final MappingUpdatedAction mappingUpdatedAction = new MappingUpdatedAction(settings, clusterSettings);

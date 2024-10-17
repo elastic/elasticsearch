@@ -28,6 +28,7 @@ public interface ProjectResolver {
         return getProjectMetadata(clusterState.metadata());
     }
 
+    // TODO multi-project: change this so it doesn't take in any parameters
     /**
      * @return The identifier of the current project. This will be the same value as
      * {@link #getProjectMetadata(Metadata)}{@code .}{@link ProjectMetadata#id() id()}, but the resolver may implement it more efficiently

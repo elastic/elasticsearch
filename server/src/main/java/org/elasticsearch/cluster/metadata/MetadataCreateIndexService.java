@@ -29,6 +29,7 @@ import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.GlobalRoutingTable;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -275,12 +276,14 @@ public class MetadataCreateIndexService {
         onlyCreateIndex(masterNodeTimeout, ackTimeout, request, listener.delegateFailureAndWrap((delegate, response) -> {
             if (response.isAcknowledged()) {
                 logger.trace(
-                    "[{}] index creation acknowledged, waiting for active shards [{}]",
+                    "[{}] index creation in project [{}] acknowledged, waiting for active shards [{}]",
                     request.index(),
+                    request.projectId(),
                     request.waitForActiveShards()
                 );
                 ActiveShardsObserver.waitForActiveShards(
                     clusterService,
+                    request.projectId(),
                     new String[] { request.index() },
                     request.waitForActiveShards(),
                     waitForActiveShardsTimeout,
@@ -313,7 +316,7 @@ public class MetadataCreateIndexService {
 
         var delegate = new AllocationActionListener<>(listener, threadPool.getThreadContext());
         submitUnbatchedTask(
-            "create-index [" + request.index() + "], cause [" + request.cause() + "]",
+            "create-index [" + request.index() + "], in project [" + request.projectId() + "], cause [" + request.cause() + "]",
             new AckedClusterStateUpdateTask(Priority.URGENT, masterNodeTimeout, ackTimeout, delegate.clusterStateUpdate()) {
 
                 @Override
@@ -324,9 +327,9 @@ public class MetadataCreateIndexService {
                 @Override
                 public void onFailure(Exception e) {
                     if (e instanceof ResourceAlreadyExistsException) {
-                        logger.trace(() -> "[" + request.index() + "] failed to create", e);
+                        logger.trace(() -> "[" + request.index() + "] failed to create, in project [" + request.projectId() + "]", e);
                     } else {
-                        logger.debug(() -> "[" + request.index() + "] failed to create", e);
+                        logger.debug(() -> "[" + request.index() + "] failed to create, in project [" + request.projectId() + "]", e);
                     }
                     super.onFailure(e);
                 }
@@ -363,8 +366,14 @@ public class MetadataCreateIndexService {
         normalizeRequestSetting(request);
         logger.trace("executing IndexCreationTask for [{}] against cluster state version [{}]", request, currentState.version());
 
-        final ProjectMetadata projectMetadata = currentState.getMetadata().getProject();
-        final RoutingTable routingTable = currentState.routingTable();
+        final ProjectMetadata projectMetadata = currentState.getMetadata().projects().get(request.projectId());
+        final RoutingTable routingTable = currentState.globalRoutingTable().routingTables().get(request.projectId());
+        if (projectMetadata == null || routingTable == null) {
+            throw new IndexCreationException(
+                request.index(),
+                new IllegalArgumentException("no such project [" + request.projectId() + "]")
+            );
+        }
 
         validate(request, projectMetadata, routingTable);
 
@@ -523,8 +532,9 @@ public class MetadataCreateIndexService {
 
             logger.log(
                 silent ? Level.DEBUG : Level.INFO,
-                "[{}] creating index, cause [{}], templates {}, shards [{}]/[{}]",
+                "creating index [{}] in project [{}], cause [{}], templates {}, shards [{}]/[{}]",
                 request.index(),
+                request.projectId(),
                 request.cause(),
                 templatesApplied,
                 indexMetadata.getNumberOfShards(),
@@ -535,12 +545,17 @@ public class MetadataCreateIndexService {
 
             ClusterState updated = clusterStateCreateIndex(
                 currentState,
+                request.projectId(),
                 indexMetadata,
                 metadataTransformer,
                 allocationService.getShardRoutingRoleStrategy()
             );
             if (request.performReroute()) {
-                updated = allocationService.reroute(updated, "index [" + indexMetadata.getIndex().getName() + "] created", rerouteListener);
+                updated = allocationService.reroute(
+                    updated,
+                    "index [" + indexMetadata.getIndex().getName() + "] created in project [" + request.projectId() + "]",
+                    rerouteListener
+                );
             }
             return updated;
         });
@@ -603,8 +618,8 @@ public class MetadataCreateIndexService {
             mappings = new CompressedXContent(mappingsMap);
         }
 
-        final ProjectMetadata projectMetadata = currentState.getMetadata().getProject();
-        final RoutingTable routingTable = currentState.routingTable();
+        final ProjectMetadata projectMetadata = currentState.getMetadata().getProject(request.projectId());
+        final RoutingTable routingTable = currentState.routingTable(request.projectId());
 
         final Settings aggregatedIndexSettings = aggregateIndexSettings(
             projectMetadata,
@@ -671,8 +686,8 @@ public class MetadataCreateIndexService {
             );
         }
 
-        final ProjectMetadata projectMetadata = currentState.getMetadata().getProject();
-        final RoutingTable routingTable = currentState.routingTable();
+        final ProjectMetadata projectMetadata = currentState.getMetadata().getProject(request.projectId());
+        final RoutingTable routingTable = currentState.routingTable(request.projectId());
 
         final List<CompressedXContent> mappings = collectV2Mappings(
             request.mappings(),
@@ -731,8 +746,8 @@ public class MetadataCreateIndexService {
         final ActionListener<Void> rerouteListener
     ) throws Exception {
         logger.debug("applying create index request for system index [{}] matching pattern [{}]", request.index(), indexPattern);
-        final ProjectMetadata projectMetadata = currentState.getMetadata().getProject();
-        final RoutingTable routingTable = currentState.routingTable();
+        final ProjectMetadata projectMetadata = currentState.getMetadata().getProject(request.projectId());
+        final RoutingTable routingTable = currentState.routingTable(request.projectId());
 
         final Settings aggregatedIndexSettings = aggregateIndexSettings(
             projectMetadata,
@@ -796,8 +811,8 @@ public class MetadataCreateIndexService {
         final Map<String, ComponentTemplate> componentTemplates = request.systemDataStreamDescriptor().getComponentTemplates();
         final List<CompressedXContent> mappings = collectSystemV2Mappings(template, componentTemplates, xContentRegistry, request.index());
 
-        final ProjectMetadata projectMetadata = currentState.getMetadata().getProject();
-        final RoutingTable routingTable = currentState.routingTable();
+        final ProjectMetadata projectMetadata = currentState.getMetadata().getProject(request.projectId());
+        final RoutingTable routingTable = currentState.routingTable(request.projectId());
 
         final Settings aggregatedIndexSettings = aggregateIndexSettings(
             projectMetadata,
@@ -899,8 +914,8 @@ public class MetadataCreateIndexService {
             );
         }
 
-        final ProjectMetadata projectMetadata = currentState.getMetadata().getProject();
-        final RoutingTable routingTable = currentState.routingTable();
+        final ProjectMetadata projectMetadata = currentState.getMetadata().getProject(request.projectId());
+        final RoutingTable routingTable = currentState.routingTable(request.projectId());
 
         final Settings aggregatedIndexSettings = aggregateIndexSettings(
             projectMetadata,
@@ -1307,12 +1322,12 @@ public class MetadataCreateIndexService {
     @FixForMultiProject
     static ClusterState clusterStateCreateIndex(
         ClusterState currentState,
+        ProjectId projectId,
         IndexMetadata indexMetadata,
         BiConsumer<ProjectMetadata.Builder, IndexMetadata> projectMetadataTransformer,
         ShardRoutingRoleStrategy shardRoutingRoleStrategy
     ) {
-        // TODO multi-projects get the right project here
-        ProjectMetadata currentProjectMetadata = currentState.metadata().getProject();
+        ProjectMetadata currentProjectMetadata = currentState.metadata().getProject(projectId);
         final ProjectMetadata newProjectMetadata;
         if (projectMetadataTransformer != null) {
             ProjectMetadata.Builder projectMetadataBuilder = ProjectMetadata.builder(currentProjectMetadata);
@@ -1326,15 +1341,13 @@ public class MetadataCreateIndexService {
         var blocksBuilder = ClusterBlocks.builder().blocks(currentState.blocks());
         blocksBuilder.updateBlocks(indexMetadata);
 
-        // TODO multi-projects get the right project here
-        var routingTableBuilder = RoutingTable.builder(shardRoutingRoleStrategy, currentState.routingTable())
+        var routingTableBuilder = RoutingTable.builder(shardRoutingRoleStrategy, currentState.routingTable(projectId))
             .addAsNew(newProjectMetadata.index(indexMetadata.getIndex().getName()));
 
-        // TODO multi-projects get the right project here
         return ClusterState.builder(currentState)
             .blocks(blocksBuilder)
             .putProjectMetadata(newProjectMetadata)
-            .routingTable(routingTableBuilder)
+            .routingTable(GlobalRoutingTable.builder(currentState.globalRoutingTable()).put(projectId, routingTableBuilder).build())
             .build();
     }
 

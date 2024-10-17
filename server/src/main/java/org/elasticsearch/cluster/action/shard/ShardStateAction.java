@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.NotMasterException;
 import org.elasticsearch.cluster.coordination.FailedToCommitClusterStateException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RerouteService;
@@ -66,6 +67,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 
 import static org.apache.logging.log4j.Level.DEBUG;
@@ -314,7 +316,12 @@ public class ShardStateAction {
             for (final var taskContext : batchExecutionContext.taskContexts()) {
                 final var task = taskContext.getTask();
                 FailedShardEntry entry = task.entry();
-                IndexMetadata indexMetadata = initialState.metadata().getProject().index(entry.getShardId().getIndex());
+                final Optional<ProjectId> projectId = initialState.globalRoutingTable()
+                    .getProjectLookup()
+                    .project(entry.getShardId().getIndex());
+                IndexMetadata indexMetadata = projectId.map(
+                    id -> initialState.metadata().getProject(id).index(entry.getShardId().getIndex())
+                ).orElse(null);
                 if (indexMetadata == null) {
                     // tasks that correspond to non-existent indices are marked as successful
                     logger.debug(
@@ -364,7 +371,8 @@ public class ShardStateAction {
                         }
                     }
 
-                    ShardRouting matched = initialState.getRoutingTable().getByAllocationId(entry.getShardId(), entry.getAllocationId());
+                    ShardRouting matched = initialState.routingTable(projectId.get())
+                        .getByAllocationId(entry.getShardId(), entry.getAllocationId());
                     if (matched == null) {
                         Set<String> inSyncAllocationIds = indexMetadata.inSyncAllocationIds(entry.getShardId().id());
                         // mark shard copies without routing entries that are in in-sync allocations set only as stale if the reason why
@@ -624,8 +632,12 @@ public class ShardStateAction {
             for (var taskContext : batchExecutionContext.taskContexts()) {
                 final var task = taskContext.getTask();
                 StartedShardEntry startedShardEntry = task.getEntry();
-                final ShardRouting matched = initialState.getRoutingTable()
-                    .getByAllocationId(startedShardEntry.shardId, startedShardEntry.allocationId);
+                Optional<ProjectId> projectId = initialState.globalRoutingTable()
+                    .getProjectLookup()
+                    .project(startedShardEntry.shardId.getIndex());
+                final ShardRouting matched = projectId.map(
+                    id -> initialState.routingTable(id).getByAllocationId(startedShardEntry.shardId, startedShardEntry.allocationId)
+                ).orElse(null);
                 if (matched == null) {
                     // tasks that correspond to non-existent shards are marked as successful. The reason is that we resend shard started
                     // events on every cluster state publishing that does not contain the shard as started yet. This means that old stale
@@ -640,7 +652,7 @@ public class ShardStateAction {
                 } else {
                     if (matched.primary() && startedShardEntry.primaryTerm > 0) {
                         final IndexMetadata indexMetadata = initialState.metadata()
-                            .getProject()
+                            .getProject(projectId.get())
                             .index(startedShardEntry.shardId.getIndex());
                         assert indexMetadata != null;
                         final long currentPrimaryTerm = indexMetadata.primaryTerm(startedShardEntry.shardId.id());
@@ -704,7 +716,7 @@ public class ShardStateAction {
                                 ? null
                                 : clusterStateTimeRanges.eventIngestedRange();
 
-                            final IndexMetadata indexMetadata = initialState.metadata().getProject().index(index);
+                            final IndexMetadata indexMetadata = initialState.metadata().getProject(projectId.get()).index(index);
                             if (currentTimestampMillisRange == null) {
                                 currentTimestampMillisRange = indexMetadata.getTimestampRange();
                             }
@@ -753,8 +765,11 @@ public class ShardStateAction {
                     final Metadata.Builder metadataBuilder = Metadata.builder(maybeUpdatedState.metadata());
                     for (Map.Entry<Index, ClusterStateTimeRanges> updatedTimeRangesEntry : updatedTimestampRanges.entrySet()) {
                         ClusterStateTimeRanges timeRanges = updatedTimeRangesEntry.getValue();
-                        metadataBuilder.put(
-                            IndexMetadata.builder(metadataBuilder.getSafe(updatedTimeRangesEntry.getKey()))
+                        Index index = updatedTimeRangesEntry.getKey();
+                        var projectId = maybeUpdatedState.globalRoutingTable().getProjectLookup().project(index).get();
+                        var projectMetadataBuilder = metadataBuilder.getProject(projectId);
+                        projectMetadataBuilder.put(
+                            IndexMetadata.builder(projectMetadataBuilder.getSafe(index))
                                 .timestampRange(timeRanges.timestampRange())
                                 .eventIngestedRange(timeRanges.eventIngestedRange(), maybeUpdatedState.getMinTransportVersion())
                         );
@@ -779,24 +794,26 @@ public class ShardStateAction {
         }
 
         private static boolean assertStartedIndicesHaveCompleteTimestampRanges(ClusterState clusterState) {
-            for (Map.Entry<String, IndexRoutingTable> cursor : clusterState.getRoutingTable().getIndicesRouting().entrySet()) {
-                assert cursor.getValue().allPrimaryShardsActive() == false
-                    || clusterState.metadata().getProject().index(cursor.getKey()).getTimestampRange().isComplete()
-                    : "index ["
-                        + cursor.getKey()
-                        + "] should have complete timestamp range, but got "
-                        + clusterState.metadata().getProject().index(cursor.getKey()).getTimestampRange()
-                        + " for "
-                        + cursor.getValue().prettyPrint();
+            for (ProjectId projectId : clusterState.metadata().projects().keySet()) {
+                for (Map.Entry<String, IndexRoutingTable> cursor : clusterState.routingTable(projectId).getIndicesRouting().entrySet()) {
+                    assert cursor.getValue().allPrimaryShardsActive() == false
+                        || clusterState.metadata().getProject(projectId).index(cursor.getKey()).getTimestampRange().isComplete()
+                        : "index ["
+                            + cursor.getKey()
+                            + "] should have complete timestamp range, but got "
+                            + clusterState.metadata().getProject(projectId).index(cursor.getKey()).getTimestampRange()
+                            + " for "
+                            + cursor.getValue().prettyPrint();
 
-                assert cursor.getValue().allPrimaryShardsActive() == false
-                    || clusterState.metadata().getProject().index(cursor.getKey()).getEventIngestedRange().isComplete()
-                    : "index ["
-                        + cursor.getKey()
-                        + "] should have complete event.ingested range, but got "
-                        + clusterState.metadata().getProject().index(cursor.getKey()).getEventIngestedRange()
-                        + " for "
-                        + cursor.getValue().prettyPrint();
+                    assert cursor.getValue().allPrimaryShardsActive() == false
+                        || clusterState.metadata().getProject(projectId).index(cursor.getKey()).getEventIngestedRange().isComplete()
+                        : "index ["
+                            + cursor.getKey()
+                            + "] should have complete event.ingested range, but got "
+                            + clusterState.metadata().getProject(projectId).index(cursor.getKey()).getEventIngestedRange()
+                            + " for "
+                            + cursor.getValue().prettyPrint();
+                }
             }
             return true;
         }

@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -51,7 +52,7 @@ public class MultiProjectResolverTests extends ESTestCase {
         var expectedProject = ProjectMetadata.builder(new ProjectId(randomUUID())).build();
         projects.put(expectedProject.id(), expectedProject);
         var metadata = Metadata.builder().projectMetadata(projects).build();
-        threadPool.getThreadContext().putHeader(MultiProjectPlugin.PROJECT_ID_REST_HEADER, expectedProject.id().id());
+        threadPool.getThreadContext().putHeader(Task.X_ELASTIC_PROJECT_ID_HTTP_HEADER, expectedProject.id().id());
         var actualProject = resolver.getProjectMetadata(metadata);
         // Ideally, we'd want to use `assertSame` on the projects themselves, but because we're currently still "re-building" projects in
         // Metadata.Builder, the instances won't be exactly the same.
@@ -78,7 +79,7 @@ public class MultiProjectResolverTests extends ESTestCase {
             return Tuple.tuple(id, ProjectMetadata.builder(id).build());
         });
         var metadata = Metadata.builder().projectMetadata(projects).build();
-        threadPool.getThreadContext().putHeader(MultiProjectPlugin.PROJECT_ID_REST_HEADER, randomUUID());
+        threadPool.getThreadContext().putHeader(Task.X_ELASTIC_PROJECT_ID_HTTP_HEADER, randomUUID());
         assertThrows(IllegalArgumentException.class, () -> resolver.getProjectMetadata(metadata));
     }
 }

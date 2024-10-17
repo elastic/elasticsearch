@@ -44,6 +44,7 @@ public class PivotConfig implements Writeable, ToXContentObject {
 
     private final GroupConfig groups;
     private final AggregationConfig aggregationConfig;
+    private final ScriptConfig scriptConfig;
     private final Integer maxPageSearchSize;
 
     private static final ConstructingObjectParser<PivotConfig, Void> STRICT_PARSER = createParser(false);
@@ -70,22 +71,28 @@ public class PivotConfig implements Writeable, ToXContentObject {
                 throw new IllegalArgumentException("Required [aggregations]");
             }
 
-            return new PivotConfig(groups, aggregationConfig, (Integer) args[3]);
+            return new PivotConfig(groups, aggregationConfig, (ScriptConfig) args[3], (Integer) args[4]);
         });
 
         parser.declareObject(constructorArg(), (p, c) -> (GroupConfig.fromXContent(p, lenient)), TransformField.GROUP_BY);
-
         parser.declareObject(optionalConstructorArg(), (p, c) -> AggregationConfig.fromXContent(p, lenient), TransformField.AGGREGATIONS);
         parser.declareObject(optionalConstructorArg(), (p, c) -> AggregationConfig.fromXContent(p, lenient), TransformField.AGGS);
+        parser.declareObject(optionalConstructorArg(), (p, c) -> (ScriptConfig.fromXContent(p, lenient)), TransformField.SCRIPT);
         parser.declareInt(optionalConstructorArg(), TransformField.MAX_PAGE_SEARCH_SIZE);
 
         return parser;
     }
 
-    public PivotConfig(final GroupConfig groups, final AggregationConfig aggregationConfig, Integer maxPageSearchSize) {
+    public PivotConfig(
+        final GroupConfig groups,
+        final AggregationConfig aggregationConfig,
+        ScriptConfig scriptConfig,
+        Integer maxPageSearchSize
+    ) {
         this.groups = ExceptionsHelper.requireNonNull(groups, TransformField.GROUP_BY.getPreferredName());
         this.aggregationConfig = ExceptionsHelper.requireNonNull(aggregationConfig, TransformField.AGGREGATIONS.getPreferredName());
         this.maxPageSearchSize = maxPageSearchSize;
+        this.scriptConfig = scriptConfig;
 
         if (maxPageSearchSize != null) {
             deprecationLogger.warn(
@@ -99,6 +106,7 @@ public class PivotConfig implements Writeable, ToXContentObject {
     public PivotConfig(StreamInput in) throws IOException {
         this.groups = new GroupConfig(in);
         this.aggregationConfig = new AggregationConfig(in);
+        this.scriptConfig = new ScriptConfig(in);
         this.maxPageSearchSize = in.readOptionalInt();
     }
 
@@ -107,6 +115,7 @@ public class PivotConfig implements Writeable, ToXContentObject {
         builder.startObject();
         builder.field(TransformField.GROUP_BY.getPreferredName(), groups);
         builder.field(TransformField.AGGREGATIONS.getPreferredName(), aggregationConfig);
+        builder.field(TransformField.SCRIPT.getPreferredName(), scriptConfig);
         if (maxPageSearchSize != null) {
             builder.field(TransformField.MAX_PAGE_SEARCH_SIZE.getPreferredName(), maxPageSearchSize);
         }
@@ -118,6 +127,7 @@ public class PivotConfig implements Writeable, ToXContentObject {
     public void writeTo(StreamOutput out) throws IOException {
         groups.writeTo(out);
         aggregationConfig.writeTo(out);
+        scriptConfig.writeTo(out);
         out.writeOptionalInt(maxPageSearchSize);
     }
 
@@ -127,6 +137,10 @@ public class PivotConfig implements Writeable, ToXContentObject {
 
     public GroupConfig getGroupConfig() {
         return groups;
+    }
+
+    public ScriptConfig getScriptConfig() {
+        return scriptConfig;
     }
 
     @Nullable

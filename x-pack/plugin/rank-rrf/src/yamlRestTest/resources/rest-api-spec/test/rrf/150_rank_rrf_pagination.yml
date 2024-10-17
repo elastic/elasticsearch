@@ -916,8 +916,13 @@ setup:
 
   - match: { hits.total.value : 5 }
   - length: { hits.hits : 2 }
-  - match: { hits.hits.0._id: "5" }
-  - match: { hits.hits.1._id: "4" }
+
+  - contains: { hits.hits: { _id: "4" } }
+  - contains: { hits.hits: { _id: "5" } }
+
+    # both docs have the same score (1/11)
+  - close_to: {hits.hits.0._score: {value:  0.0909, error: 0.001}}
+  - close_to: {hits.hits.1._score: {value:  0.0909, error: 0.001}}
 
   - do:
       search:

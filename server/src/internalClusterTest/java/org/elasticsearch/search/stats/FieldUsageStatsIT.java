@@ -158,11 +158,8 @@ public class FieldUsageStatsIT extends ESIntegTestCase {
 
         assertTrue(stats.hasField("date_field"));
         assertEquals(Set.of(UsageContext.POINTS), stats.get("date_field").keySet());
-        // can_match does not enter search stats
-        // there is a special case though where we have no hit but we need to get at least one search response in order
-        // to produce a valid search result with all the aggs etc., so we hit one of the two shards
         assertEquals(
-            (2 * numShards) + 1,
+            2 * numShards,
             indicesAdmin().prepareStats("test")
                 .clear()
                 .setSearch(true)

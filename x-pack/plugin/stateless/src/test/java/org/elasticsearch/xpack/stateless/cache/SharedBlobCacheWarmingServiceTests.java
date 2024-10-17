@@ -136,7 +136,7 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
     public void testUploadWarmingMultiRegionCommit() throws IOException {
         var primaryTerm = 1;
         try (var fakeNode = createFakeNode(primaryTerm)) {
-            var indexCommits = fakeNode.generateIndexCommits(between(30, 40));
+            var indexCommits = fakeNode.generateIndexCommits(between(60, 80));
 
             var vbcc = new VirtualBatchedCompoundCommit(
                 fakeNode.shardId,
@@ -511,8 +511,8 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                 Settings settings = super.nodeSettings();
                 return Settings.builder()
                     .put(settings)
-                    .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), "1MB")
-                    .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), "32KB")
+                    .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), "2MB")
+                    .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), "64KB")
                     .build();
             }
         };

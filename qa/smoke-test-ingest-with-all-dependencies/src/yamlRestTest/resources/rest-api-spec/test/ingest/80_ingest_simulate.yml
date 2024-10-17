@@ -1377,6 +1377,9 @@ setup:
       cluster.health:
         wait_for_status: yellow
 
+  # Now that we have created a data stream, run the exact same simulate ingeset request to make sure we still get the same result, and that
+  # the substitutions and additions from the simulate ingest request are used instead of information from the data stream or its backing
+  # index.
   - do:
       headers:
         Content-Type: application/json

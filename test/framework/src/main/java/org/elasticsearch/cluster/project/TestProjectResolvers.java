@@ -40,12 +40,11 @@ public final class TestProjectResolvers {
     }
 
     public static ProjectResolver singleProjectOnly() {
-        return new ProjectResolver() {
-            @Override
-            public ProjectMetadata getProjectMetadata(Metadata metadata) {
-                return singleProjectMetadata(metadata);
-            }
-        };
+        return TestProjectResolvers::singleProjectMetadata;
+    }
+
+    public static ProjectResolver singleProject(ProjectId projectId) {
+        return metadata -> metadata.getProject(projectId);
     }
 
     public static ProjectResolver projects(Set<ProjectId> allowedProjectIds) {

@@ -382,9 +382,10 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
         Files.write(repo.resolve(getRepositoryDataBlobName(repositoryData.getGenId())), randomByteArrayOfLength(randomIntBetween(1, 100)));
 
         logger.info("--> verify loading repository data throws RepositoryException");
-        asInstanceOf(
+        safeAwaitFailure(
             RepositoryException.class,
-            safeAwaitFailure(RepositoryData.class, l -> repository.getRepositoryData(EsExecutors.DIRECT_EXECUTOR_SERVICE, l))
+            RepositoryData.class,
+            l -> repository.getRepositoryData(EsExecutors.DIRECT_EXECUTOR_SERVICE, l)
         );
 
         final String otherRepoName = "other-repo";
@@ -397,9 +398,10 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
         final Repository otherRepo = getRepositoryOnMaster(otherRepoName);
 
         logger.info("--> verify loading repository data from newly mounted repository throws RepositoryException");
-        asInstanceOf(
+        safeAwaitFailure(
             RepositoryException.class,
-            safeAwaitFailure(RepositoryData.class, l -> repository.getRepositoryData(EsExecutors.DIRECT_EXECUTOR_SERVICE, l))
+            RepositoryData.class,
+            l -> repository.getRepositoryData(EsExecutors.DIRECT_EXECUTOR_SERVICE, l)
         );
     }
 

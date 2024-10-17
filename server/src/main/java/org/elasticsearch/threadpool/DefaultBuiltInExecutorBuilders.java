@@ -73,16 +73,6 @@ public class DefaultBuiltInExecutorBuilders implements BuiltInExecutorBuilders {
             )
         );
         result.put(
-            ThreadPool.Names.SEARCH_WORKER,
-            new FixedExecutorBuilder(
-                settings,
-                ThreadPool.Names.SEARCH_WORKER,
-                searchOrGetThreadPoolSize,
-                -1,
-                EsExecutors.TaskTrackingConfig.DEFAULT
-            )
-        );
-        result.put(
             ThreadPool.Names.SEARCH_COORDINATION,
             new FixedExecutorBuilder(
                 settings,

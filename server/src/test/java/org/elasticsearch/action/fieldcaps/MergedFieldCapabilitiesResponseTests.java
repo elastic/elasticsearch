@@ -26,7 +26,7 @@ public class MergedFieldCapabilitiesResponseTests extends AbstractChunkedSeriali
 
     @Override
     protected FieldCapabilitiesResponse doParseInstance(XContentParser parser) throws IOException {
-        return FieldCapabilitiesResponse.fromXContent(parser);
+        return FieldCapsUtils.parseFieldCapsResponse(parser);
     }
 
     @Override

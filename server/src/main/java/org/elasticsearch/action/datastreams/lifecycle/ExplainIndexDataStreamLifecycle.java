@@ -82,7 +82,7 @@ public class ExplainIndexDataStreamLifecycle implements Writeable, ToXContentObj
     public ExplainIndexDataStreamLifecycle(StreamInput in) throws IOException {
         this.index = in.readString();
         this.managedByLifecycle = in.readBoolean();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.NO_GLOBAL_RETENTION_FOR_SYSTEM_DATA_STREAMS)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
             this.isInternalDataStream = in.readBoolean();
         } else {
             this.isInternalDataStream = false;
@@ -123,7 +123,7 @@ public class ExplainIndexDataStreamLifecycle implements Writeable, ToXContentObj
         builder.field(MANAGED_BY_LIFECYCLE_FIELD.getPreferredName(), managedByLifecycle);
         if (managedByLifecycle) {
             if (indexCreationDate != null) {
-                builder.timeField(
+                builder.timestampFieldsFromUnixEpochMillis(
                     INDEX_CREATION_DATE_MILLIS_FIELD.getPreferredName(),
                     INDEX_CREATION_DATE_FIELD.getPreferredName(),
                     indexCreationDate
@@ -134,7 +134,11 @@ public class ExplainIndexDataStreamLifecycle implements Writeable, ToXContentObj
                 );
             }
             if (rolloverDate != null) {
-                builder.timeField(ROLLOVER_DATE_MILLIS_FIELD.getPreferredName(), ROLLOVER_DATE_FIELD.getPreferredName(), rolloverDate);
+                builder.timestampFieldsFromUnixEpochMillis(
+                    ROLLOVER_DATE_MILLIS_FIELD.getPreferredName(),
+                    ROLLOVER_DATE_FIELD.getPreferredName(),
+                    rolloverDate
+                );
                 builder.field(TIME_SINCE_ROLLOVER_FIELD.getPreferredName(), getTimeSinceRollover(nowSupplier).toHumanReadableString(2));
             }
             if (generationDateMillis != null) {
@@ -161,7 +165,7 @@ public class ExplainIndexDataStreamLifecycle implements Writeable, ToXContentObj
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(index);
         out.writeBoolean(managedByLifecycle);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.NO_GLOBAL_RETENTION_FOR_SYSTEM_DATA_STREAMS)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
             out.writeBoolean(isInternalDataStream);
         }
         if (managedByLifecycle) {

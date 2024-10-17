@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.inference.services.amazonbedrock.embeddings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.EmptyTaskSettings;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
@@ -52,6 +53,65 @@ public class AmazonBedrockEmbeddingsModelTests extends ESTestCase {
         String region,
         String model,
         AmazonBedrockProvider provider,
+        ChunkingSettings chunkingSettings,
+        String accessKey,
+        String secretKey
+    ) {
+        return createModel(
+            inferenceId,
+            region,
+            model,
+            provider,
+            null,
+            false,
+            null,
+            null,
+            new RateLimitSettings(240),
+            chunkingSettings,
+            accessKey,
+            secretKey
+        );
+    }
+
+    public static AmazonBedrockEmbeddingsModel createModel(
+        String inferenceId,
+        String region,
+        String model,
+        AmazonBedrockProvider provider,
+        @Nullable Integer dimensions,
+        boolean dimensionsSetByUser,
+        @Nullable Integer maxTokens,
+        @Nullable SimilarityMeasure similarity,
+        RateLimitSettings rateLimitSettings,
+        ChunkingSettings chunkingSettings,
+        String accessKey,
+        String secretKey
+    ) {
+        return new AmazonBedrockEmbeddingsModel(
+            inferenceId,
+            TaskType.TEXT_EMBEDDING,
+            "amazonbedrock",
+            new AmazonBedrockEmbeddingsServiceSettings(
+                region,
+                model,
+                provider,
+                dimensions,
+                dimensionsSetByUser,
+                maxTokens,
+                similarity,
+                rateLimitSettings
+            ),
+            new EmptyTaskSettings(),
+            chunkingSettings,
+            new AmazonBedrockSecretSettings(new SecureString(accessKey), new SecureString(secretKey))
+        );
+    }
+
+    public static AmazonBedrockEmbeddingsModel createModel(
+        String inferenceId,
+        String region,
+        String model,
+        AmazonBedrockProvider provider,
         @Nullable Integer dimensions,
         boolean dimensionsSetByUser,
         @Nullable Integer maxTokens,
@@ -75,6 +135,7 @@ public class AmazonBedrockEmbeddingsModelTests extends ESTestCase {
                 rateLimitSettings
             ),
             new EmptyTaskSettings(),
+            null,
             new AmazonBedrockSecretSettings(new SecureString(accessKey), new SecureString(secretKey))
         );
     }

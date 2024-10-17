@@ -1,0 +1,6 @@
+pr: 112761
+summary: Fix collapse interaction with stored fields
+area: Search
+type: bug
+issues:
+ - 112646

@@ -15,6 +15,7 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.features.NodeFeature;
@@ -41,10 +42,13 @@ import java.util.stream.Stream;
 
 public class ObjectMapper extends Mapper {
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(ObjectMapper.class);
+    public static final FeatureFlag SUB_OBJECTS_AUTO_FEATURE_FLAG = new FeatureFlag("sub_objects_auto");
 
     public static final String CONTENT_TYPE = "object";
     static final String STORE_ARRAY_SOURCE_PARAM = "store_array_source";
     static final NodeFeature SUBOBJECTS_AUTO = new NodeFeature("mapper.subobjects_auto");
+    // No-op. All uses of this feature were reverted but node features can't be removed.
+    static final NodeFeature SUBOBJECTS_AUTO_FIXES = new NodeFeature("mapper.subobjects_auto_fixes");
 
     /**
      * Enhances the previously boolean option for subobjects support with an intermediate mode `auto` that uses
@@ -61,7 +65,7 @@ public class ObjectMapper extends Mapper {
             this.printedValue = printedValue;
         }
 
-        static Subobjects from(Object node) {
+        public static Subobjects from(Object node) {
             if (node instanceof Boolean value) {
                 return value ? Subobjects.ENABLED : Subobjects.DISABLED;
             }
@@ -72,7 +76,7 @@ public class ObjectMapper extends Mapper {
                 if (value.equalsIgnoreCase("false")) {
                     return DISABLED;
                 }
-                if (value.equalsIgnoreCase("auto")) {
+                if (SUB_OBJECTS_AUTO_FEATURE_FLAG.isEnabled() && value.equalsIgnoreCase("auto")) {
                     return AUTO;
                 }
             }
@@ -126,7 +130,7 @@ public class ObjectMapper extends Mapper {
     public static class Builder extends Mapper.Builder {
         protected Optional<Subobjects> subobjects;
         protected Explicit<Boolean> enabled = Explicit.IMPLICIT_TRUE;
-        protected Explicit<Boolean> storeArraySource = Defaults.STORE_ARRAY_SOURCE;
+        protected Optional<SourceKeepMode> sourceKeepMode = Optional.empty();
         protected Dynamic dynamic;
         protected final List<Mapper.Builder> mappersBuilders = new ArrayList<>();
 
@@ -140,8 +144,8 @@ public class ObjectMapper extends Mapper {
             return this;
         }
 
-        public Builder storeArraySource(boolean value) {
-            this.storeArraySource = Explicit.explicitBoolean(value);
+        public Builder sourceKeepMode(SourceKeepMode sourceKeepMode) {
+            this.sourceKeepMode = Optional.of(sourceKeepMode);
             return this;
         }
 
@@ -244,7 +248,7 @@ public class ObjectMapper extends Mapper {
                 context.buildFullName(leafName()),
                 enabled,
                 subobjects,
-                storeArraySource,
+                sourceKeepMode,
                 dynamic,
                 buildMappers(context.createChildContext(leafName(), dynamic))
             );
@@ -306,7 +310,10 @@ public class ObjectMapper extends Mapper {
                 builder.enabled(XContentMapValues.nodeBooleanValue(fieldNode, fieldName + ".enabled"));
                 return true;
             } else if (fieldName.equals(STORE_ARRAY_SOURCE_PARAM)) {
-                builder.storeArraySource(XContentMapValues.nodeBooleanValue(fieldNode, fieldName + ".store_array_source"));
+                builder.sourceKeepMode(SourceKeepMode.ARRAYS);
+                return true;
+            } else if (fieldName.equals(Mapper.SYNTHETIC_SOURCE_KEEP_PARAM)) {
+                builder.sourceKeepMode(SourceKeepMode.from(fieldNode.toString()));
                 return true;
             } else if (fieldName.equals("properties")) {
                 if (fieldNode instanceof Collection && ((Collection) fieldNode).isEmpty()) {
@@ -433,7 +440,7 @@ public class ObjectMapper extends Mapper {
 
     protected final Explicit<Boolean> enabled;
     protected final Optional<Subobjects> subobjects;
-    protected final Explicit<Boolean> storeArraySource;
+    protected final Optional<SourceKeepMode> sourceKeepMode;
     protected final Dynamic dynamic;
 
     protected final Map<String, Mapper> mappers;
@@ -443,7 +450,7 @@ public class ObjectMapper extends Mapper {
         String fullPath,
         Explicit<Boolean> enabled,
         Optional<Subobjects> subobjects,
-        Explicit<Boolean> storeArraySource,
+        Optional<SourceKeepMode> sourceKeepMode,
         Dynamic dynamic,
         Map<String, Mapper> mappers
     ) {
@@ -453,7 +460,7 @@ public class ObjectMapper extends Mapper {
         this.fullPath = internFieldName(fullPath);
         this.enabled = enabled;
         this.subobjects = subobjects;
-        this.storeArraySource = storeArraySource;
+        this.sourceKeepMode = sourceKeepMode;
         this.dynamic = dynamic;
         if (mappers == null) {
             this.mappers = Map.of();
@@ -481,7 +488,7 @@ public class ObjectMapper extends Mapper {
      * This is typically used in the context of a mapper merge when there's not enough budget to add the entire object.
      */
     ObjectMapper withoutMappers() {
-        return new ObjectMapper(leafName(), fullPath, enabled, subobjects, storeArraySource, dynamic, Map.of());
+        return new ObjectMapper(leafName(), fullPath, enabled, subobjects, sourceKeepMode, dynamic, Map.of());
     }
 
     @Override
@@ -519,8 +526,8 @@ public class ObjectMapper extends Mapper {
         return subobjects.orElse(Subobjects.ENABLED);
     }
 
-    public final boolean storeArraySource() {
-        return storeArraySource.value();
+    public final Optional<SourceKeepMode> sourceKeepMode() {
+        return sourceKeepMode;
     }
 
     @Override
@@ -549,7 +556,7 @@ public class ObjectMapper extends Mapper {
             fullPath,
             mergeResult.enabled,
             mergeResult.subObjects,
-            mergeResult.trackArraySource,
+            mergeResult.sourceKeepMode,
             mergeResult.dynamic,
             mergeResult.mappers
         );
@@ -558,7 +565,7 @@ public class ObjectMapper extends Mapper {
     protected record MergeResult(
         Explicit<Boolean> enabled,
         Optional<Subobjects> subObjects,
-        Explicit<Boolean> trackArraySource,
+        Optional<SourceKeepMode> sourceKeepMode,
         Dynamic dynamic,
         Map<String, Mapper> mappers
     ) {
@@ -592,26 +599,31 @@ public class ObjectMapper extends Mapper {
             } else {
                 subObjects = existing.subobjects;
             }
-            final Explicit<Boolean> trackArraySource;
-            if (mergeWithObject.storeArraySource.explicit()) {
+            final Optional<SourceKeepMode> sourceKeepMode;
+            if (mergeWithObject.sourceKeepMode.isPresent()) {
                 if (reason == MergeReason.INDEX_TEMPLATE) {
-                    trackArraySource = mergeWithObject.storeArraySource;
-                } else if (existing.storeArraySource != mergeWithObject.storeArraySource) {
+                    sourceKeepMode = mergeWithObject.sourceKeepMode;
+                } else if (existing.sourceKeepMode.isEmpty() || existing.sourceKeepMode.get() != mergeWithObject.sourceKeepMode.get()) {
                     throw new MapperException(
-                        "the [store_array_source] parameter can't be updated for the object mapping [" + existing.fullPath() + "]"
+                        "the [ "
+                            + Mapper.SYNTHETIC_SOURCE_KEEP_PARAM
+                            + " ] parameter can't be updated for the object mapping ["
+                            + existing.fullPath()
+                            + "]"
                     );
                 } else {
-                    trackArraySource = existing.storeArraySource;
+                    sourceKeepMode = existing.sourceKeepMode;
                 }
             } else {
-                trackArraySource = existing.storeArraySource;
+                sourceKeepMode = existing.sourceKeepMode;
             }
+
             MapperMergeContext objectMergeContext = existing.createChildContext(parentMergeContext, existing.leafName());
             Map<String, Mapper> mergedMappers = buildMergedMappers(existing, mergeWithObject, objectMergeContext, subObjects);
             return new MergeResult(
                 enabled,
                 subObjects,
-                trackArraySource,
+                sourceKeepMode,
                 mergeWithObject.dynamic != null ? mergeWithObject.dynamic : existing.dynamic,
                 mergedMappers
             );
@@ -732,6 +744,12 @@ public class ObjectMapper extends Mapper {
                     + ")"
             );
         }
+        if (sourceKeepMode.isPresent()) {
+            throwAutoFlatteningException(
+                path,
+                "the value of [" + Mapper.SYNTHETIC_SOURCE_KEEP_PARAM + "] is [ " + sourceKeepMode.get() + " ]"
+            );
+        }
         if (isEnabled() == false) {
             throwAutoFlatteningException(path, "the value of [enabled] is [false]");
         }
@@ -773,8 +791,8 @@ public class ObjectMapper extends Mapper {
         if (subobjects.isPresent()) {
             builder.field("subobjects", subobjects.get().printedValue);
         }
-        if (storeArraySource != Defaults.STORE_ARRAY_SOURCE) {
-            builder.field(STORE_ARRAY_SOURCE_PARAM, storeArraySource.value());
+        if (sourceKeepMode.isPresent()) {
+            builder.field("synthetic_source_keep", sourceKeepMode.get());
         }
         if (custom != null) {
             custom.toXContent(builder, params);

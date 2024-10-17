@@ -44,7 +44,7 @@ public final class MedianAbsoluteDeviationFloatGroupingAggregatorFunction implem
 
   public static MedianAbsoluteDeviationFloatGroupingAggregatorFunction create(
       List<Integer> channels, DriverContext driverContext) {
-    return new MedianAbsoluteDeviationFloatGroupingAggregatorFunction(channels, MedianAbsoluteDeviationFloatAggregator.initGrouping(driverContext.bigArrays()), driverContext);
+    return new MedianAbsoluteDeviationFloatGroupingAggregatorFunction(channels, MedianAbsoluteDeviationFloatAggregator.initGrouping(driverContext, driverContext.bigArrays()), driverContext);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

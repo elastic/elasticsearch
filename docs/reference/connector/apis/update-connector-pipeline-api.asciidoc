@@ -10,7 +10,8 @@ Updates the `pipeline` configuration of a connector.
 
 When you create a new connector, the configuration of an <<ingest-pipeline-search-details-generic-reference, ingest pipeline>> is populated with default settings.
 
-To get started with Connector APIs, check out the {enterprise-search-ref}/connectors-tutorial-api.html[tutorial^].
+To get started with Connector APIs, check out <<es-connectors-tutorial-api, our tutorial>>.
+
 
 [[update-connector-pipeline-api-request]]
 ==== {api-request-title}
@@ -20,7 +21,7 @@ To get started with Connector APIs, check out the {enterprise-search-ref}/connec
 [[update-connector-pipeline-api-prereq]]
 ==== {api-prereq-title}
 
-* To sync data using self-managed connectors, you need to deploy the {enterprise-search-ref}/build-connector.html[Elastic connector service] on your own infrastructure. This service runs automatically on Elastic Cloud for native connectors.
+* To sync data using self-managed connectors, you need to deploy the <<es-connectors-deploy-connector-service,Elastic connector service>>. on your own infrastructure. This service runs automatically on Elastic Cloud for Elastic managed connectors.
 * The `connector_id` parameter should reference an existing connector.
 
 [[update-connector-pipeline-api-path-params]]

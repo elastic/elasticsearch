@@ -176,6 +176,19 @@ public final class Utils {
     public static PersistedConfig getPersistedConfigMap(
         Map<String, Object> serviceSettings,
         Map<String, Object> taskSettings,
+        Map<String, Object> chunkingSettings,
+        Map<String, Object> secretSettings
+    ) {
+
+        var persistedConfigMap = getPersistedConfigMap(serviceSettings, taskSettings, secretSettings);
+        persistedConfigMap.config.put(ModelConfigurations.CHUNKING_SETTINGS, chunkingSettings);
+
+        return persistedConfigMap;
+    }
+
+    public static PersistedConfig getPersistedConfigMap(
+        Map<String, Object> serviceSettings,
+        Map<String, Object> taskSettings,
         Map<String, Object> secretSettings
     ) {
         var secrets = secretSettings == null ? null : new HashMap<String, Object>(Map.of(ModelSecrets.SECRET_SETTINGS, secretSettings));
@@ -195,6 +208,18 @@ public final class Utils {
             new HashMap<>(Map.of(ModelConfigurations.SERVICE_SETTINGS, serviceSettings, ModelConfigurations.TASK_SETTINGS, taskSettings)),
             null
         );
+    }
+
+    public static Map<String, Object> getRequestConfigMap(
+        Map<String, Object> serviceSettings,
+        Map<String, Object> taskSettings,
+        Map<String, Object> chunkingSettings,
+        Map<String, Object> secretSettings
+    ) {
+        var requestConfigMap = getRequestConfigMap(serviceSettings, taskSettings, secretSettings);
+        requestConfigMap.put(ModelConfigurations.CHUNKING_SETTINGS, chunkingSettings);
+
+        return requestConfigMap;
     }
 
     public static Map<String, Object> getRequestConfigMap(

@@ -1,0 +1,164 @@
+---
+setup:
+  - skip:
+      features: headers
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            _source:
+              mode: synthetic
+            properties:
+              object:
+                enabled: false
+
+  - do:
+      headers:
+        Content-Type: application/yaml
+      index:
+        index: test
+        id: "1"
+        refresh: true
+        body:
+          object:
+            name: "foo"
+            value: 10
+
+---
+"fetch stored fields wildcard":
+  - do:
+      headers:
+        Content-Type: application/yaml
+      search:
+        index: test
+        body:
+          stored_fields: [ "*" ]
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._ignored_source: null }
+
+---
+"fetch fields wildcard":
+  - do:
+      headers:
+        Content-Type: application/yaml
+      search:
+        index: test
+        body:
+          fields: [ "*" ]
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._ignored_source: null }
+
+---
+"fetch stored fields by name":
+  - do:
+      headers:
+        Content-Type: application/yaml
+      search:
+        index: test
+        body:
+          stored_fields: [ _ignored_source ]
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._ignored_source: !!binary "BgAAAG9iamVjdHktLS0KbmFtZTogImZvbyIKdmFsdWU6IDEwCg==" }
+
+---
+"fetch fields by name":
+  - do:
+      headers:
+        Content-Type: application/yaml
+      search:
+        index: test
+        body:
+          fields: [ _ignored_source ]
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._ignored_source: !!binary "BgAAAG9iamVjdHktLS0KbmFtZTogImZvbyIKdmFsdWU6IDEwCg==" }
+
+---
+"fields and stored fields combination":
+  - do:
+      headers:
+        Content-Type: application/yaml
+      search:
+        index: test
+        body:
+          stored_fields: [ _ignored_source ]
+          fields: [ _ignored_source ]
+          query:
+            match_all: {}
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0.fields.object: null }
+  - match: { hits.hits.0._ignored_source: !!binary "BgAAAG9iamVjdHktLS0KbmFtZTogImZvbyIKdmFsdWU6IDEwCg==" }
+
+---
+"wildcard fields and stored fields combination":
+  - do:
+      search:
+        index: test
+        body:
+          stored_fields: [ "*" ]
+          fields: [ "*" ]
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._ignored_source: null }
+
+---
+"fields with ignored source in stored fields":
+  - do:
+      headers:
+        Content-Type: application/yaml
+      search:
+        index: test
+        body:
+          stored_fields: [ _ignored_source ]
+          fields: [ object ]
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._ignored_source: !!binary "BgAAAG9iamVjdHktLS0KbmFtZTogImZvbyIKdmFsdWU6IDEwCg==" }
+  - match: { hits.hits.0.fields: null }
+
+---
+"fields with ignored source in fields":
+  - do:
+      headers:
+        Content-Type: application/yaml
+      search:
+        index: test
+        body:
+          stored_fields: [ object ]
+          fields: [ _ignored_source ]
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._ignored_source: !!binary "BgAAAG9iamVjdHktLS0KbmFtZTogImZvbyIKdmFsdWU6IDEwCg==" }
+
+---
+"ignored source via fields and wildcard stored fields":
+  - do:
+      headers:
+        Content-Type: application/yaml
+      search:
+        index: test
+        body:
+          stored_fields: [ "*" ]
+          fields: [ _ignored_source ]
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._ignored_source: !!binary "BgAAAG9iamVjdHktLS0KbmFtZTogImZvbyIKdmFsdWU6IDEwCg==" }
+
+---
+"wildcard fields and ignored source via stored fields":
+  - do:
+      headers:
+        Content-Type: application/yaml
+      search:
+        index: test
+        body:
+          stored_fields: [ _ignored_source ]
+          fields: [ "*" ]
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._ignored_source: !!binary "BgAAAG9iamVjdHktLS0KbmFtZTogImZvbyIKdmFsdWU6IDEwCg==" }

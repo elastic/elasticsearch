@@ -30,6 +30,9 @@ import java.io.IOException;
 import java.io.StringReader;
 import java.util.Collections;
 
+import static org.apache.lucene.tests.analysis.BaseTokenStreamTestCase.assertAnalyzesTo;
+import static org.apache.lucene.tests.analysis.BaseTokenStreamTestCase.assertTokenStreamContents;
+
 public class WordDelimiterGraphTokenFilterFactoryTests extends BaseWordDelimiterTokenFilterFactoryTestCase {
     public WordDelimiterGraphTokenFilterFactoryTests() {
         super("word_delimiter_graph");

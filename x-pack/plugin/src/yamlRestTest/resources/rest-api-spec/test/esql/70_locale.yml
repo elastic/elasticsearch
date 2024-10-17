@@ -29,7 +29,7 @@ setup:
   - do:
       allowed_warnings_regex:
         - "No limit defined, adding default limit of \\[.*\\]"
-        - "Date format \\[MMMM\\] contains textual field specifiers that could change in JDK 23"
+        - "Date format \\[MMMM\\] contains textual field specifiers that could change in JDK 23.*"
       esql.query:
         body:
           query: 'FROM events | eval fixed_format = date_format("MMMM", @timestamp), variable_format = date_format(format, @timestamp) | sort @timestamp | keep @timestamp, fixed_format, variable_format'
@@ -51,7 +51,7 @@ setup:
   - do:
       allowed_warnings_regex:
         - "No limit defined, adding default limit of \\[.*\\]"
-        - "Date format \\[MMMM\\] contains textual field specifiers that could change in JDK 23"
+        - "Date format \\[MMMM\\] contains textual field specifiers that could change in JDK 23.*"
       esql.query:
         body:
           query: 'FROM events | eval fixed_format = date_format("MMMM", @timestamp), variable_format = date_format(format, @timestamp) | sort @timestamp | keep @timestamp, fixed_format, variable_format'

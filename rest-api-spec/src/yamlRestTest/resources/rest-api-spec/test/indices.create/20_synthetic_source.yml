@@ -197,7 +197,7 @@ empty object with unmapped fields:
 ---
 disabled root object:
   - requires:
-      cluster_features: ["mapper.track_ignored_source"]
+      cluster_features: ["mapper.ignored_source.dont_expand_dots"]
       reason: requires tracking ignored source
 
   - do:
@@ -222,17 +222,19 @@ disabled root object:
         index: test
 
   - match: { hits.total.value: 1 }
-  - match: { hits.hits.0._source.name: aaaa }
-  - match: { hits.hits.0._source.some_string: AaAa }
-  - match: { hits.hits.0._source.some_int: 1000 }
-  - match: { hits.hits.0._source.some_double: 123.456789 }
-  - match: { hits.hits.0._source.a.very.deeply.nested.field: AAAA }
-
+  - match:
+      hits.hits.0._source:
+        name: aaaa
+        some_string: AaAa
+        some_int: 1000
+        some_double: 123.456789
+        some_bool: true
+        a.very.deeply.nested.field: AAAA
 
 ---
 disabled object:
   - requires:
-      cluster_features: ["mapper.track_ignored_source"]
+      cluster_features: ["mapper.ignored_source.dont_expand_dots"]
       reason: requires tracking ignored source
 
   - do:
@@ -261,14 +263,15 @@ disabled object:
 
   - match: { hits.total.value: 1 }
   - match: { hits.hits.0._source.name: aaaa }
-  - match: { hits.hits.0._source.path.some_int: 1000 }
-  - match: { hits.hits.0._source.path.to.a.very.deeply.nested.field: AAAA }
-
+  - match:
+      hits.hits.0._source.path:
+        some_int: 1000
+        to.a.very.deeply.nested.field: AAAA
 
 ---
 disabled object contains array:
   - requires:
-      cluster_features: ["mapper.track_ignored_source"]
+      cluster_features: ["mapper.ignored_source.dont_expand_dots"]
       reason: requires tracking ignored source
 
   - do:
@@ -297,10 +300,12 @@ disabled object contains array:
 
   - match: { hits.total.value: 1 }
   - match: { hits.hits.0._source.name: aaaa }
-  - match: { hits.hits.0._source.path.0.some_int: 1000 }
-  - match: { hits.hits.0._source.path.0.to.a.very.deeply.nested.field: AAAA }
-  - match: { hits.hits.0._source.path.1.some_double: 10.0 }
-  - match: { hits.hits.0._source.path.1.some_bool: true }
+  - match:
+      hits.hits.0._source.path:
+        - some_int: 1000
+          to.a.very.deeply.nested.field: AAAA
+        - some_double: 10.0
+          some_bool: true
 
 
 ---
@@ -429,7 +434,7 @@ mixed disabled and enabled objects:
 ---
 object with dynamic override:
   - requires:
-      cluster_features: ["mapper.track_ignored_source"]
+      cluster_features: ["mapper.ignored_source.dont_expand_dots"]
       reason: requires tracking ignored source
 
   - do:
@@ -467,7 +472,7 @@ object with dynamic override:
   - match: { hits.hits.0._source.name: a }
   - match: { hits.hits.0._source.path_no.name: foo }
   - match: { hits.hits.0._source.path_no.some_int: 10 }
-  - match: { hits.hits.0._source.path_no.to.a.very.deeply.nested.field: A }
+  - match: { hits.hits.0._source.path_no.to: { a.very.deeply.nested.field: A } }
   - match: { hits.hits.0._source.path_runtime.name: bar }
   - match: { hits.hits.0._source.path_runtime.some_int: 20 }
   - match: { hits.hits.0._source.path_runtime.to.a.very.deeply.nested.field: B }
@@ -524,7 +529,7 @@ subobject with dynamic override:
 ---
 object array in object with dynamic override:
   - requires:
-      cluster_features: ["mapper.track_ignored_source"]
+      cluster_features: ["mapper.synthetic_source_keep"]
       reason: requires tracking ignored source
 
   - do:
@@ -535,6 +540,8 @@ object array in object with dynamic override:
             _source:
               mode: synthetic
             properties:
+              id:
+                type: integer
               path_no:
                 dynamic: false
                 properties:
@@ -552,19 +559,25 @@ object array in object with dynamic override:
         refresh: true
         body:
           - '{ "create": { } }'
-          - '{ "path_no": [ { "some_int": 10 }, {"name": "foo"} ], "path_runtime": [ { "some_int": 20 }, {"name": "bar"} ], "name": "baz" }'
+          - '{ "id": 1, "path_no": [ { "some_int": 30 }, {"name": "baz"}, { "some_int": 20 }, {"name": "bar"} ], "name": "A" }'
+          - '{ "create": { } }'
+          - '{ "id": 2, "path_runtime": [ { "some_int": 30 }, {"name": "baz"}, { "some_int": 20 }, {"name": "bar"} ], "name": "B" }'
   - match: { errors: false }
 
   - do:
       search:
         index: test
+        sort: id
 
-  - match: { hits.total.value: 1 }
-  - match: { hits.hits.0._source.name: baz }
-  - match: { hits.hits.0._source.path_no.0.some_int: 10 }
-  - match: { hits.hits.0._source.path_no.1.name: foo }
-  - match: { hits.hits.0._source.path_runtime.0.some_int: 20 }
-  - match: { hits.hits.0._source.path_runtime.1.name: bar }
+  - match: { hits.hits.0._source.id: 1 }
+  - match: { hits.hits.0._source.name: A }
+  - match: { hits.hits.0._source.path_no.some_int: [ 30, 20 ] }
+  - match: { hits.hits.0._source.path_no.name: [ bar, baz ] }
+
+  - match: { hits.hits.1._source.id: 2 }
+  - match: { hits.hits.1._source.name: B }
+  - match: { hits.hits.1._source.path_runtime.some_int: [ 30, 20 ] }
+  - match: { hits.hits.1._source.path_runtime.name: [ bar, baz ] }
 
 
 ---
@@ -887,7 +900,7 @@ doubly nested object:
 ---
 subobjects auto:
   - requires:
-      cluster_features: ["mapper.subobjects_auto"]
+      cluster_features: ["mapper.subobjects_auto", "mapper.bwc_workaround_9_0"]
       reason: requires tracking ignored source and supporting subobjects auto setting
 
   - do:
@@ -912,7 +925,7 @@ subobjects auto:
                       id:
                         type: keyword
               stored:
-                store_array_source: true
+                synthetic_source_keep: arrays
                 properties:
                   span:
                     properties:

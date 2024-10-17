@@ -43,7 +43,7 @@ public final class MedianAbsoluteDeviationLongAggregatorFunction implements Aggr
 
   public static MedianAbsoluteDeviationLongAggregatorFunction create(DriverContext driverContext,
       List<Integer> channels) {
-    return new MedianAbsoluteDeviationLongAggregatorFunction(driverContext, channels, MedianAbsoluteDeviationLongAggregator.initSingle());
+    return new MedianAbsoluteDeviationLongAggregatorFunction(driverContext, channels, MedianAbsoluteDeviationLongAggregator.initSingle(driverContext));
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -57,11 +57,11 @@ public final class MedianAbsoluteDeviationLongAggregatorFunction implements Aggr
 
   @Override
   public void addRawInput(Page page, BooleanVector mask) {
-    if (mask.isConstant()) {
-      if (mask.getBoolean(0) == false) {
-        // Entire page masked away
-        return;
-      }
+    if (mask.allFalse()) {
+      // Entire page masked away
+      return;
+    }
+    if (mask.allTrue()) {
       // No masking
       LongBlock block = page.getBlock(channels.get(0));
       LongVector vector = block.asVector();

@@ -58,9 +58,7 @@ public class ConcatTests extends AbstractScalarFunctionTestCase {
                 if (rhs == DataType.NULL || DataType.isRepresentable(rhs) == false) {
                     continue;
                 }
-                boolean lhsIsString = lhs == DataType.KEYWORD || lhs == DataType.TEXT;
-                boolean rhsIsString = rhs == DataType.KEYWORD || rhs == DataType.TEXT;
-                if (lhsIsString && rhsIsString) {
+                if (DataType.isString(lhs) && DataType.isString(rhs)) {
                     continue;
                 }
 

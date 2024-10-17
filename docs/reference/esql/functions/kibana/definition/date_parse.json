@@ -80,5 +80,6 @@
   "examples" : [
     "ROW date_string = \"2022-05-06\"\n| EVAL date = DATE_PARSE(\"yyyy-MM-dd\", date_string)"
   ],
-  "preview" : false
+  "preview" : false,
+  "snapshot_only" : false
 }

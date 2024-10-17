@@ -370,14 +370,10 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
         Version oldVersion,
         int numberOfShards
     ) throws IOException {
-        RequestOptions v7RequestOptions = RequestOptions.DEFAULT.toBuilder()
-            .addHeader("Content-Type", "application/vnd.elasticsearch+json;compatible-with=7")
-            .addHeader("Accept", "application/vnd.elasticsearch+json;compatible-with=7")
-            .build();
-        RequestOptions randomRequestOptions = randomBoolean() ? RequestOptions.DEFAULT : v7RequestOptions;
+        RequestOptions requestOptions = RequestOptions.DEFAULT;
 
         // run a search against the index
-        SearchResponse searchResponse = search(index, null, randomRequestOptions);
+        SearchResponse searchResponse = search(index, null, requestOptions);
         try {
             logger.info(searchResponse);
             // check hit count
@@ -404,7 +400,7 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
             SearchSourceBuilder.searchSource()
                 .query(QueryBuilders.matchQuery("val", num))
                 .runtimeMappings(Map.of("val", Map.of("type", "long"))),
-            randomRequestOptions
+            requestOptions
         );
         try {
             logger.info(searchResponse);
@@ -422,7 +418,7 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
                 SearchSourceBuilder.searchSource()
                     .query(QueryBuilders.matchAllQuery())
                     .sort(SortBuilders.fieldSort("val").order(SortOrder.DESC)),
-                randomRequestOptions
+                requestOptions
             );
             try {
                 logger.info(searchResponse);
@@ -439,7 +435,7 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
             searchResponse = search(
                 index,
                 SearchSourceBuilder.searchSource().query(QueryBuilders.matchQuery("test", "test" + num)),
-                randomRequestOptions
+                requestOptions
             );
             try {
                 logger.info(searchResponse);
@@ -456,7 +452,7 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
                 searchResponse = search(
                     index,
                     SearchSourceBuilder.searchSource().query(QueryBuilders.termQuery("_type", randomType)),
-                    randomRequestOptions
+                    requestOptions
                 );
                 try {
                     logger.info(searchResponse);
@@ -482,7 +478,7 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
             searchResponse = search(
                 index,
                 SearchSourceBuilder.searchSource().query(QueryBuilders.rangeQuery("create_date").from("2020-02-01")),
-                randomRequestOptions
+                requestOptions
             );
             try {
                 logger.info(searchResponse);

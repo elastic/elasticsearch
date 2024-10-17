@@ -17,6 +17,7 @@ import org.elasticsearch.action.ingest.SimulateIndexResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
+import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
@@ -51,6 +52,7 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -69,6 +71,10 @@ import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.fi
 public class TransportSimulateBulkAction extends TransportAbstractBulkAction {
     public static final NodeFeature SIMULATE_MAPPING_VALIDATION = new NodeFeature("simulate.mapping.validation");
     public static final NodeFeature SIMULATE_MAPPING_VALIDATION_TEMPLATES = new NodeFeature("simulate.mapping.validation.templates");
+    public static final NodeFeature SIMULATE_COMPONENT_TEMPLATE_SUBSTITUTIONS = new NodeFeature(
+        "simulate.component.template.substitutions"
+    );
+    public static final NodeFeature SIMULATE_INDEX_TEMPLATE_SUBSTITUTIONS = new NodeFeature("simulate.index.template.substitutions");
     private final IndicesService indicesService;
     private final NamedXContentRegistry xContentRegistry;
     private final Set<IndexSettingProvider> indexSettingProviders;
@@ -115,11 +121,12 @@ public class TransportSimulateBulkAction extends TransportAbstractBulkAction {
             : "TransportSimulateBulkAction should only ever be called with a SimulateBulkRequest but got a " + bulkRequest.getClass();
         final AtomicArray<BulkItemResponse> responses = new AtomicArray<>(bulkRequest.requests.size());
         Map<String, ComponentTemplate> componentTemplateSubstitutions = bulkRequest.getComponentTemplateSubstitutions();
+        Map<String, ComposableIndexTemplate> indexTemplateSubstitutions = bulkRequest.getIndexTemplateSubstitutions();
         for (int i = 0; i < bulkRequest.requests.size(); i++) {
             DocWriteRequest<?> docRequest = bulkRequest.requests.get(i);
             assert docRequest instanceof IndexRequest : "TransportSimulateBulkAction should only ever be called with IndexRequests";
             IndexRequest request = (IndexRequest) docRequest;
-            Exception mappingValidationException = validateMappings(componentTemplateSubstitutions, request);
+            Exception mappingValidationException = validateMappings(componentTemplateSubstitutions, indexTemplateSubstitutions, request);
             responses.set(
                 i,
                 BulkItemResponse.success(
@@ -149,7 +156,11 @@ public class TransportSimulateBulkAction extends TransportAbstractBulkAction {
      * @param request The IndexRequest whose source will be validated against the mapping (if it exists) of its index
      * @return a mapping exception if the source does not match the mappings, otherwise null
      */
-    private Exception validateMappings(Map<String, ComponentTemplate> componentTemplateSubstitutions, IndexRequest request) {
+    private Exception validateMappings(
+        Map<String, ComponentTemplate> componentTemplateSubstitutions,
+        Map<String, ComposableIndexTemplate> indexTemplateSubstitutions,
+        IndexRequest request
+    ) {
         final SourceToParse sourceToParse = new SourceToParse(
             request.id(),
             request.source(),
@@ -163,7 +174,7 @@ public class TransportSimulateBulkAction extends TransportAbstractBulkAction {
         Exception mappingValidationException = null;
         IndexAbstraction indexAbstraction = state.metadata().getIndicesLookup().get(request.index());
         try {
-            if (indexAbstraction != null && componentTemplateSubstitutions.isEmpty()) {
+            if (indexAbstraction != null && componentTemplateSubstitutions.isEmpty() && indexTemplateSubstitutions.isEmpty()) {
                 /*
                  * In this case the index exists and we don't have any component template overrides. So we can just use withTempIndexService
                  * to do the mapping validation, using all the existing logic for validation.
@@ -194,12 +205,39 @@ public class TransportSimulateBulkAction extends TransportAbstractBulkAction {
                  * path for when the index does not exist). And it does not deal with system indices since we do not intend for users to
                  * simulate writing to system indices.
                  */
-                // First, we remove the index from the cluster state if necessary (since we're going to use the templates)
-                ClusterState simulatedState = indexAbstraction == null
-                    ? state
-                    : new ClusterState.Builder(state).metadata(Metadata.builder(state.metadata()).remove(request.index()).build()).build();
+                ClusterState.Builder simulatedClusterStateBuilder = new ClusterState.Builder(state);
+                Metadata.Builder simulatedMetadata = Metadata.builder(state.metadata());
+                if (indexAbstraction != null) {
+                    /*
+                     * We remove the index or data stream from the cluster state so that we are forced to fall back to the templates to get
+                     * mappings.
+                     */
+                    String indexRequest = request.index();
+                    assert indexRequest != null : "Index requests cannot be null in a simulate bulk call";
+                    if (indexRequest != null) {
+                        simulatedMetadata.remove(indexRequest);
+                        simulatedMetadata.removeDataStream(indexRequest);
+                    }
+                }
+                if (componentTemplateSubstitutions.isEmpty() == false) {
+                    /*
+                     * We put the template substitutions into the cluster state. If they have the same name as an existing one, the
+                     * existing one is replaced.
+                     */
+                    Map<String, ComponentTemplate> updatedComponentTemplates = new HashMap<>();
+                    updatedComponentTemplates.putAll(state.metadata().componentTemplates());
+                    updatedComponentTemplates.putAll(componentTemplateSubstitutions);
+                    simulatedMetadata.componentTemplates(updatedComponentTemplates);
+                }
+                if (indexTemplateSubstitutions.isEmpty() == false) {
+                    Map<String, ComposableIndexTemplate> updatedIndexTemplates = new HashMap<>();
+                    updatedIndexTemplates.putAll(state.metadata().templatesV2());
+                    updatedIndexTemplates.putAll(indexTemplateSubstitutions);
+                    simulatedMetadata.indexTemplates(updatedIndexTemplates);
+                }
+                ClusterState simulatedState = simulatedClusterStateBuilder.metadata(simulatedMetadata).build();
 
-                String matchingTemplate = findV2Template(state.metadata(), request.index(), false);
+                String matchingTemplate = findV2Template(simulatedState.metadata(), request.index(), false);
                 if (matchingTemplate != null) {
                     final Template template = TransportSimulateIndexTemplateAction.resolveTemplate(
                         matchingTemplate,
@@ -209,8 +247,7 @@ public class TransportSimulateBulkAction extends TransportAbstractBulkAction {
                         xContentRegistry,
                         indicesService,
                         systemIndices,
-                        indexSettingProviders,
-                        componentTemplateSubstitutions
+                        indexSettingProviders
                     );
                     CompressedXContent mappings = template.mappings();
                     if (mappings != null) {
@@ -244,7 +281,7 @@ public class TransportSimulateBulkAction extends TransportAbstractBulkAction {
                         });
                     }
                 } else {
-                    List<IndexTemplateMetadata> matchingTemplates = findV1Templates(state.metadata(), request.index(), false);
+                    List<IndexTemplateMetadata> matchingTemplates = findV1Templates(simulatedState.metadata(), request.index(), false);
                     final Map<String, Object> mappingsMap = MetadataCreateIndexService.parseV1Mappings(
                         "{}",
                         matchingTemplates.stream().map(IndexTemplateMetadata::getMappings).collect(toList()),

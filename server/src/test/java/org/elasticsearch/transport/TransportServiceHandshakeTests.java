@@ -186,9 +186,10 @@ public class TransportServiceHandshakeTests extends ESTestCase {
             )
         ) {
             assertThat(
-                asInstanceOf(
+                safeAwaitFailure(
                     IllegalStateException.class,
-                    safeAwaitFailure(DiscoveryNode.class, listener -> transportServiceA.handshake(connection, timeout, listener))
+                    DiscoveryNode.class,
+                    listener -> transportServiceA.handshake(connection, timeout, listener)
                 ).getMessage(),
                 containsString(
                     "handshake with [" + discoveryNode + "] failed: remote cluster name [b] does not match local cluster name [a]"
@@ -231,9 +232,10 @@ public class TransportServiceHandshakeTests extends ESTestCase {
             )
         ) {
             assertThat(
-                asInstanceOf(
+                safeAwaitFailure(
                     IllegalStateException.class,
-                    safeAwaitFailure(DiscoveryNode.class, listener -> transportServiceA.handshake(connection, timeout, listener))
+                    DiscoveryNode.class,
+                    listener -> transportServiceA.handshake(connection, timeout, listener)
                 ).getMessage(),
                 containsString(
                     "handshake with ["
@@ -303,12 +305,10 @@ public class TransportServiceHandshakeTests extends ESTestCase {
             .version(transportServiceB.getLocalNode().getVersionInformation())
             .build();
         assertThat(
-            asInstanceOf(
+            safeAwaitFailure(
                 ConnectTransportException.class,
-                safeAwaitFailure(
-                    Releasable.class,
-                    listener -> transportServiceA.connectToNode(discoveryNode, TestProfiles.LIGHT_PROFILE, listener)
-                )
+                Releasable.class,
+                listener -> transportServiceA.connectToNode(discoveryNode, TestProfiles.LIGHT_PROFILE, listener)
             ).getMessage(),
             allOf(
                 containsString("Connecting to [" + discoveryNode.getAddress() + "] failed"),
@@ -360,9 +360,10 @@ public class TransportServiceHandshakeTests extends ESTestCase {
         ) {
             assertThat(
                 ExceptionsHelper.unwrap(
-                    asInstanceOf(
+                    safeAwaitFailure(
                         TransportSerializationException.class,
-                        safeAwaitFailure(DiscoveryNode.class, listener -> transportServiceA.handshake(connection, timeout, listener))
+                        DiscoveryNode.class,
+                        listener -> transportServiceA.handshake(connection, timeout, listener)
                     ),
                     IllegalArgumentException.class
                 ).getMessage(),

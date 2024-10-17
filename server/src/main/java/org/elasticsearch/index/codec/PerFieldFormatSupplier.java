@@ -31,19 +31,17 @@ import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
  */
 public class PerFieldFormatSupplier {
 
-    private final MapperService mapperService;
-    private final DocValuesFormat docValuesFormat = new Lucene90DocValuesFormat();
-    private final KnnVectorsFormat knnVectorsFormat = new Lucene99HnswVectorsFormat();
-    private final ES87BloomFilterPostingsFormat bloomFilterPostingsFormat;
-    private final ES87TSDBDocValuesFormat tsdbDocValuesFormat;
+    private static final DocValuesFormat docValuesFormat = new Lucene90DocValuesFormat();
+    private static final KnnVectorsFormat knnVectorsFormat = new Lucene99HnswVectorsFormat();
+    private static final ES87TSDBDocValuesFormat tsdbDocValuesFormat = new ES87TSDBDocValuesFormat();
+    private static final ES812PostingsFormat es812PostingsFormat = new ES812PostingsFormat();
 
-    private final ES812PostingsFormat es812PostingsFormat;
+    private final ES87BloomFilterPostingsFormat bloomFilterPostingsFormat;
+    private final MapperService mapperService;
 
     public PerFieldFormatSupplier(MapperService mapperService, BigArrays bigArrays) {
         this.mapperService = mapperService;
         this.bloomFilterPostingsFormat = new ES87BloomFilterPostingsFormat(bigArrays, this::internalGetPostingsFormatForField);
-        this.tsdbDocValuesFormat = new ES87TSDBDocValuesFormat();
-        this.es812PostingsFormat = new ES812PostingsFormat();
     }
 
     public PostingsFormat getPostingsFormatForField(String field) {

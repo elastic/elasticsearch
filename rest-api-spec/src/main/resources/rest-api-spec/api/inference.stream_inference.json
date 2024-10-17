@@ -1,0 +1,49 @@
+{
+  "inference.stream_inference":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/post-stream-inference-api.html",
+      "description":"Perform streaming inference"
+    },
+    "stability":"experimental",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "text/event-stream"],
+      "content_type": ["application/json"]
+    },
+    "url":{
+      "paths":[
+        {
+          "path":"/_inference/{inference_id}/_stream",
+          "methods":[
+            "POST"
+          ],
+          "parts":{
+            "inference_id":{
+              "type":"string",
+              "description":"The inference Id"
+            }
+          }
+        },
+        {
+          "path":"/_inference/{task_type}/{inference_id}/_stream",
+          "methods":[
+            "POST"
+          ],
+          "parts":{
+            "task_type":{
+              "type":"string",
+              "description":"The task type"
+            },
+            "inference_id":{
+              "type":"string",
+              "description":"The inference Id"
+            }
+          }
+        }
+      ]
+    },
+    "body":{
+      "description":"The inference payload"
+    }
+  }
+}

@@ -181,7 +181,7 @@ public class ClusterApplierServiceTests extends ESTestCase {
                     fail();
                 }
             });
-            assertBusy(mockLog::assertAllExpectationsMatched);
+            mockLog.awaitAllExpectationsMatched();
         }
     }
 

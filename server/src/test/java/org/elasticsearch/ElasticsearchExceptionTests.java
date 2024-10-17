@@ -509,12 +509,12 @@ public class ElasticsearchExceptionTests extends ESTestCase {
     public void testToXContent() throws IOException {
         {
             ElasticsearchException e = new ElasticsearchException("test");
-            assertExceptionAsJson(e, """
+            assertThrowableAsJson(e, """
                 {"type":"exception","reason":"test"}""");
         }
         {
             ElasticsearchException e = new IndexShardRecoveringException(new ShardId("_test", "_0", 5));
-            assertExceptionAsJson(e, """
+            assertThrowableAsJson(e, """
                 {
                   "type": "index_shard_recovering_exception",
                   "reason": "CurrentState[RECOVERING] Already recovering",
@@ -529,7 +529,7 @@ public class ElasticsearchExceptionTests extends ESTestCase {
                 "foo",
                 new IllegalStateException("bar")
             );
-            assertExceptionAsJson(e, """
+            assertThrowableAsJson(e, """
                 {
                   "type": "illegal_state_exception",
                   "reason": "bar"
@@ -537,7 +537,7 @@ public class ElasticsearchExceptionTests extends ESTestCase {
         }
         {
             ElasticsearchException e = new ElasticsearchException(new IllegalArgumentException("foo"));
-            assertExceptionAsJson(e, """
+            assertThrowableAsJson(e, """
                 {
                   "type": "exception",
                   "reason": "java.lang.IllegalArgumentException: foo",
@@ -552,7 +552,7 @@ public class ElasticsearchExceptionTests extends ESTestCase {
                 "foo",
                 new ElasticsearchException("bar", new IllegalArgumentException("index is closed", new RuntimeException("foobar")))
             );
-            assertExceptionAsJson(ex, """
+            assertThrowableAsJson(ex, """
                 {
                   "type": "exception",
                   "reason": "foo",
@@ -573,7 +573,7 @@ public class ElasticsearchExceptionTests extends ESTestCase {
         {
             ElasticsearchException e = new ElasticsearchException("foo", new IllegalStateException("bar"));
 
-            assertExceptionAsJson(e, """
+            assertThrowableAsJson(e, """
                 {
                   "type": "exception",
                   "reason": "foo",
@@ -602,21 +602,91 @@ public class ElasticsearchExceptionTests extends ESTestCase {
         }
     }
 
+    public void testGenerateFailureToXContentWithNoDetails() throws IOException {
+        {
+            Exception ex = new FileNotFoundException("foo not found");
+            for (int i = 0; i < randomInt(10); i++) {
+                ex = new RemoteTransportException("foobar", ex);
+            }
+            assertFailureAsJson(ex, """
+                {"error":{"type":"file_not_found_exception","reason":"foo not found"}}""", false);
+        }
+        {
+            ParsingException ex = new ParsingException(1, 2, "foobar", null);
+            assertFailureAsJson(ex, """
+                {"error":{"type":"parsing_exception","reason":"foobar"}}""", false);
+        }
+
+        { // header and metadata shouldn't be rendered
+            ParsingException ex = new ParsingException(1, 2, "foobar", null);
+            ex.addMetadata("es.test1", "value1");
+            ex.addMetadata("es.test2", "value2");
+            ex.addHeader("test", "some value");
+            ex.addHeader("test_multi", "some value", "another value");
+
+            String expected = """
+                {"error":{"type": "parsing_exception","reason": "foobar"}}""";
+            assertFailureAsJson(ex, expected, false);
+        }
+    }
+
+    public void testGenerateFailureToXContentWithDetails() throws IOException {
+        {
+            Exception ex = new FileNotFoundException("foo not found");
+            for (int i = 0; i < randomInt(10); i++) {
+                ex = new RemoteTransportException("foobar", ex);
+            }
+            assertFailureAsJson(ex, """
+                {"error":{"type":"file_not_found_exception","reason":"foo not found",
+                "root_cause":[{"type":"file_not_found_exception","reason":"foo not found"}]}}""", true);
+        }
+        {
+            ParsingException ex = new ParsingException(1, 2, "foobar", null);
+            assertFailureAsJson(ex, """
+                {"error":{"type":"parsing_exception","reason":"foobar","line":1,"col":2,
+                "root_cause":[{"type":"parsing_exception","reason":"foobar","line":1,"col":2}]}}""", true);
+        }
+
+        { // render header and metadata
+            ParsingException ex = new ParsingException(1, 2, "foobar", null);
+            ex.addMetadata("es.test1", "value1");
+            ex.addMetadata("es.test2", "value2");
+            ex.addHeader("test", "some value");
+            ex.addHeader("test_multi", "some value", "another value");
+
+            String expectedFragment = """
+                {
+                  "type": "parsing_exception",
+                  "reason": "foobar",
+                  "line": 1,
+                  "col": 2,
+                  "test1": "value1",
+                  "test2": "value2",
+                  "header": {
+                    "test_multi": [
+                      "some value",
+                      "another value"
+                    ],
+                    "test": "some value"
+                  }
+                """;
+            String expected = "{\"error\":" + expectedFragment + ",\"root_cause\":[" + expectedFragment + "}]}}";
+            assertFailureAsJson(ex, expected, true);
+        }
+    }
+
     public void testGenerateThrowableToXContent() throws IOException {
         {
-            Exception ex;
-            if (randomBoolean()) {
-                // just a wrapper which is omitted
-                ex = new RemoteTransportException("foobar", new FileNotFoundException("foo not found"));
-            } else {
-                ex = new FileNotFoundException("foo not found");
+            Exception ex = new FileNotFoundException("foo not found");
+            for (int i = 0; i < randomInt(10); i++) {
+                ex = new RemoteTransportException("foobar", ex);
             }
-            assertExceptionAsJson(ex, """
+            assertThrowableAsJson(ex, """
                 {"type":"file_not_found_exception","reason":"foo not found"}""");
         }
         {
             ParsingException ex = new ParsingException(1, 2, "foobar", null);
-            assertExceptionAsJson(ex, """
+            assertThrowableAsJson(ex, """
                 {"type":"parsing_exception","reason":"foobar","line":1,"col":2}""");
         }
 
@@ -656,7 +726,7 @@ public class ElasticsearchExceptionTests extends ESTestCase {
                     "test": "some value"
                   }
                 }""";
-            assertExceptionAsJson(ex, expected);
+            assertThrowableAsJson(ex, expected);
         }
     }
 
@@ -697,7 +767,7 @@ public class ElasticsearchExceptionTests extends ESTestCase {
               }
             }""";
 
-        assertExceptionAsJson(e, expectedJson);
+        assertThrowableAsJson(e, expectedJson);
 
         ElasticsearchException parsed;
         try (XContentParser parser = createParser(XContentType.JSON.xContent(), expectedJson)) {
@@ -859,7 +929,7 @@ public class ElasticsearchExceptionTests extends ESTestCase {
         }
 
         assertNotNull(parsed);
-        assertEquals(parsed.getMessage(), "Elasticsearch exception [type=exception, reason=foo]");
+        assertEquals("Elasticsearch exception [type=exception, reason=foo]", parsed.getMessage());
         assertThat(parsed.getHeaderKeys(), hasSize(1));
         assertThat(parsed.getHeader("foo_1"), hasItem("foo1"));
         assertThat(parsed.getMetadataKeys(), hasSize(1));
@@ -1012,7 +1082,7 @@ public class ElasticsearchExceptionTests extends ESTestCase {
         }
 
         // Failure was null, expecting a "unknown" reason
-        assertEquals("Elasticsearch exception [type=exception, reason=unknown]", parsedFailure.getMessage());
+        assertEquals("Elasticsearch exception [type=unknown, reason=unknown]", parsedFailure.getMessage());
         assertEquals(0, parsedFailure.getHeaders().size());
         assertEquals(0, parsedFailure.getMetadata().size());
     }
@@ -1040,13 +1110,9 @@ public class ElasticsearchExceptionTests extends ESTestCase {
         }
         assertNotNull(parsedFailure);
 
-        String reason;
-        if (failure instanceof ElasticsearchException) {
-            reason = failure.getClass().getSimpleName() + "[" + failure.getMessage() + "]";
-        } else {
-            reason = "No ElasticsearchException found";
-        }
-        assertEquals(ElasticsearchException.buildMessage("exception", reason, null), parsedFailure.getMessage());
+        String type = ElasticsearchException.getExceptionName(failure);
+        String reason = failure.getMessage();
+        assertEquals(ElasticsearchException.buildMessage(type, reason, null), parsedFailure.getMessage());
         assertEquals(0, parsedFailure.getHeaders().size());
         assertEquals(0, parsedFailure.getMetadata().size());
         assertNull(parsedFailure.getCause());
@@ -1197,9 +1263,16 @@ public class ElasticsearchExceptionTests extends ESTestCase {
         assertToXContentEquivalent(new BytesArray(expectedJson), actual, XContentType.JSON);
     }
 
-    private static void assertExceptionAsJson(Exception e, String expectedJson) throws IOException {
+    private static void assertThrowableAsJson(Throwable e, String expectedJson) throws IOException {
         assertToXContentAsJson((builder, params) -> {
             ElasticsearchException.generateThrowableXContent(builder, params, e);
+            return builder;
+        }, expectedJson);
+    }
+
+    private static void assertFailureAsJson(Exception e, String expectedJson, boolean detailed) throws IOException {
+        assertToXContentAsJson((builder, params) -> {
+            ElasticsearchException.generateFailureXContent(builder, params, e, detailed);
             return builder;
         }, expectedJson);
     }

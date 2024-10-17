@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.core.expression;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.IgnoredFieldMapper;
@@ -60,7 +59,7 @@ public class MetadataAttribute extends TypedAttribute {
         String name,
         DataType dataType,
         Nullability nullability,
-        @Nullable NameId id,
+        NameId id,
         boolean synthetic,
         boolean searchable
     ) {
@@ -80,9 +79,9 @@ public class MetadataAttribute extends TypedAttribute {
         Source source,
         String name,
         DataType dataType,
-        @Nullable String qualifier,
+        String qualifier,
         Nullability nullability,
-        @Nullable NameId id,
+        NameId id,
         boolean synthetic,
         boolean searchable
     ) {

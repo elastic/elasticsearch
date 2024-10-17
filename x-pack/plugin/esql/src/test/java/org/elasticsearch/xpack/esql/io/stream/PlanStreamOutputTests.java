@@ -20,6 +20,7 @@ import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xpack.esql.Column;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
@@ -43,6 +44,7 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
 public class PlanStreamOutputTests extends ESTestCase {
@@ -116,13 +118,26 @@ public class PlanStreamOutputTests extends ESTestCase {
             for (int i = 0; i < occurrences; i++) {
                 planStream.writeNamedWriteable(attribute);
             }
-            assertThat(planStream.cachedAttributes.size(), is(1));
+            int depth = 0;
+            Attribute parent = attribute;
+            while (parent != null) {
+                depth++;
+                parent = parent instanceof FieldAttribute f ? f.parent() : null;
+            }
+            assertThat(planStream.cachedAttributes.size(), is(depth));
             try (PlanStreamInput in = new PlanStreamInput(out.bytes().streamInput(), REGISTRY, configuration)) {
                 Attribute first = in.readNamedWriteable(Attribute.class);
                 for (int i = 1; i < occurrences; i++) {
                     Attribute next = in.readNamedWriteable(Attribute.class);
                     assertThat(first, sameInstance(next));
                 }
+                for (int i = 0; i < depth; i++) {
+                    assertThat(first, equalTo(attribute));
+                    first = first instanceof FieldAttribute f ? f.parent() : null;
+                    attribute = attribute instanceof FieldAttribute f ? f.parent() : null;
+                }
+                assertThat(first, is(nullValue()));
+                assertThat(attribute, is(nullValue()));
             }
         }
     }

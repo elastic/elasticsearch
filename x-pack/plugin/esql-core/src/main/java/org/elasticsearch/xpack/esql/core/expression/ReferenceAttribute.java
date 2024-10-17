@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.core.expression;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -32,14 +31,7 @@ public class ReferenceAttribute extends TypedAttribute {
         this(source, name, dataType, Nullability.FALSE, null, false);
     }
 
-    public ReferenceAttribute(
-        Source source,
-        String name,
-        DataType dataType,
-        Nullability nullability,
-        @Nullable NameId id,
-        boolean synthetic
-    ) {
+    public ReferenceAttribute(Source source, String name, DataType dataType, Nullability nullability, NameId id, boolean synthetic) {
         super(source, name, dataType, nullability, id, synthetic);
     }
 

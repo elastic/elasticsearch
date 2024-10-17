@@ -12,9 +12,9 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 
 public class FieldAttributeTestUtils {
-    public static FieldAttribute newFieldAttributeWithType(
+    public static final FieldAttribute newFieldAttributeWithType(
         Source source,
-        String parentName,
+        FieldAttribute parent,
         String name,
         DataType type,
         EsField field,
@@ -22,6 +22,6 @@ public class FieldAttributeTestUtils {
         NameId id,
         boolean synthetic
     ) {
-        return new FieldAttribute(source, parentName, name, type, field, nullability, id, synthetic);
+        return new FieldAttribute(source, parent, name, type, field, nullability, id, synthetic);
     }
 }

@@ -407,10 +407,11 @@ public class TsdbDataStreamRestIT extends DisabledSecurityDataStreamTestCase {
         var response = client().performRequest(simulateIndexTemplateRequest);
         assertOK(response);
         var responseBody = entityAsMap(response);
-        assertThat(ObjectPath.evaluate(responseBody, "template.settings.index"), aMapWithSize(6));
+        assertThat(ObjectPath.evaluate(responseBody, "template.settings.index"), aMapWithSize(7));
         assertThat(ObjectPath.evaluate(responseBody, "template.settings.index.number_of_shards"), equalTo("2"));
         assertThat(ObjectPath.evaluate(responseBody, "template.settings.index.number_of_replicas"), equalTo("1"));
         assertThat(ObjectPath.evaluate(responseBody, "template.settings.index.mode"), equalTo("time_series"));
+        assertThat(ObjectPath.evaluate(responseBody, "template.settings.index.mapping.source.mode"), equalTo("synthetic"));
         assertThat(ObjectPath.evaluate(responseBody, "template.settings.index.time_series.start_time"), notNullValue());
         assertThat(ObjectPath.evaluate(responseBody, "template.settings.index.time_series.end_time"), notNullValue());
         assertThat(

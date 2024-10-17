@@ -123,14 +123,16 @@ final class ComputeListener implements Releasable {
                 );
             } else {
                 result = new ComputeResponse(collectedProfiles.isEmpty() ? List.of() : collectedProfiles.stream().toList());
-                if (coordinatingClusterIsSearchedInCCS()
-                    && esqlExecutionInfo.getCluster(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY)
-                        .getStatus() != EsqlExecutionInfo.Cluster.Status.SKIPPED) {
-                    // mark local cluster as finished once the coordinator and all data nodes have finished processing
-                    executionInfo.swapCluster(
-                        RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY,
-                        (k, v) -> new EsqlExecutionInfo.Cluster.Builder(v).setStatus(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL).build()
-                    );
+                if (coordinatingClusterIsSearchedInCCS()) {
+                    // if not already marked as SKIPPED, mark the local cluster as finished once the coordinator and all
+                    // data nodes have finished processing
+                    executionInfo.swapCluster(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY, (k, v) -> {
+                        if (v.getStatus() != EsqlExecutionInfo.Cluster.Status.SKIPPED) {
+                            return new EsqlExecutionInfo.Cluster.Builder(v).setStatus(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL).build();
+                        } else {
+                            return v;
+                        }
+                    });
                 }
             }
             delegate.onResponse(result);
@@ -206,34 +208,14 @@ final class ComputeListener implements Releasable {
                 return null;
             }
             if (isCCSListener(computeClusterAlias)) {
-                // this is the callback for the listener to the CCS compute
-                TimeValue tookOnCluster;
-                if (resp.getTook() != null) {
-                    TimeValue remoteExecutionTime = resp.getTook();
-                    TimeValue planningTookTime = esqlExecutionInfo.planningTookTime();
-                    tookOnCluster = new TimeValue(planningTookTime.nanos() + remoteExecutionTime.nanos(), TimeUnit.NANOSECONDS);
-                } else {
-                    // if the cluster is an older version and does not send back took time, then calculate it here on the coordinator
-                    long remoteTook = System.nanoTime() - esqlExecutionInfo.getRelativeStartNanos();
-                    tookOnCluster = new TimeValue(remoteTook, TimeUnit.NANOSECONDS);
-                }
-                esqlExecutionInfo.swapCluster(
-                    computeClusterAlias,
-                    (k, v) -> new EsqlExecutionInfo.Cluster.Builder(v)
-                        // for now ESQL doesn't return partial results, so set status to SUCCESSFUL
-                        .setStatus(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL)
-                        .setTook(tookOnCluster)
-                        .setTotalShards(resp.getTotalShards())
-                        .setSuccessfulShards(resp.getSuccessfulShards())
-                        .setSkippedShards(resp.getSkippedShards())
-                        .setFailedShards(resp.getFailedShards())
-                        .build()
-                );
+                // this is the callback for the listener on the primary coordinator that receives a remote ComputeResponse
+                updateExecutionInfoWithRemoteResponse(computeClusterAlias, resp);
+
             } else if (shouldRecordTookTime()) {
                 Long relativeStartNanos = esqlExecutionInfo.getRelativeStartNanos();
                 // handler for this cluster's data node and coordinator completion (runs on "local" and remote clusters)
                 assert relativeStartNanos != null : "queryStartTimeNanos not set properly";
-                TimeValue tookTime = new TimeValue(System.nanoTime() - relativeStartNanos.longValue(), TimeUnit.NANOSECONDS);
+                TimeValue tookTime = new TimeValue(System.nanoTime() - relativeStartNanos, TimeUnit.NANOSECONDS);
                 esqlExecutionInfo.swapCluster(computeClusterAlias, (k, v) -> {
                     if (v.getStatus() != EsqlExecutionInfo.Cluster.Status.SKIPPED
                         && (v.getTook() == null || v.getTook().nanos() < tookTime.nanos())) {
@@ -245,6 +227,40 @@ final class ComputeListener implements Releasable {
             }
             return null;
         });
+    }
+
+    private void updateExecutionInfoWithRemoteResponse(String computeClusterAlias, ComputeResponse resp) {
+        TimeValue tookOnCluster;
+        if (resp.getTook() != null) {
+            TimeValue remoteExecutionTime = resp.getTook();
+            TimeValue planningTookTime = esqlExecutionInfo.planningTookTime();
+            tookOnCluster = new TimeValue(planningTookTime.nanos() + remoteExecutionTime.nanos(), TimeUnit.NANOSECONDS);
+            esqlExecutionInfo.swapCluster(
+                computeClusterAlias,
+                (k, v) -> new EsqlExecutionInfo.Cluster.Builder(v)
+                    // for now ESQL doesn't return partial results, so set status to SUCCESSFUL
+                    .setStatus(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL)
+                    .setTook(tookOnCluster)
+                    .setTotalShards(resp.getTotalShards())
+                    .setSuccessfulShards(resp.getSuccessfulShards())
+                    .setSkippedShards(resp.getSkippedShards())
+                    .setFailedShards(resp.getFailedShards())
+                    .build()
+            );
+        } else {
+            // if the cluster is an older version and does not send back took time, then calculate it here on the coordinator
+            // and leave shard info unset, so it is not shown in the CCS metadata section of the JSON response
+            long remoteTook = System.nanoTime() - esqlExecutionInfo.getRelativeStartNanos();
+            tookOnCluster = new TimeValue(remoteTook, TimeUnit.NANOSECONDS);
+            esqlExecutionInfo.swapCluster(
+                computeClusterAlias,
+                (k, v) -> new EsqlExecutionInfo.Cluster.Builder(v)
+                    // for now ESQL doesn't return partial results, so set status to SUCCESSFUL
+                    .setStatus(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL)
+                    .setTook(tookOnCluster)
+                    .build()
+            );
+        }
     }
 
     /**

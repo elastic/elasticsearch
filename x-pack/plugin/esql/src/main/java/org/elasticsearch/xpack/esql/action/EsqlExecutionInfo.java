@@ -56,18 +56,18 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
     public static final ParseField DETAILS_FIELD = new ParseField("details");
     public static final ParseField TOOK = new ParseField("took");
 
-    // map key is clusterAlias on the primary querying cluster of a CCS minimize_roundtrips=true query
-    // the Map itself is immutable after construction - all Clusters will be accounted for at the start of the search
-    // updates to the Cluster occur with the updateCluster method that given the key to map transforms an
+    // Map key is clusterAlias on the primary querying cluster of a CCS minimize_roundtrips=true query
+    // The Map itself is immutable after construction - all Clusters will be accounted for at the start of the search.
+    // Updates to the Cluster occur with the updateCluster method that given the key to map transforms an
     // old Cluster Object to a new Cluster Object with the remapping function.
     public final Map<String, Cluster> clusterInfo;
     private TimeValue overallTook;
     // whether the user has asked for CCS metadata to be in the JSON response (the overall took will always be present)
     private final boolean includeCCSMetadata;
 
-    // fields that are not Writeable since it is only needed on the primary CCS coordinator
+    // fields that are not Writeable since they are only needed on the primary CCS coordinator
     private final transient Predicate<String> skipUnavailablePredicate;
-    private final transient Long relativeStartNanos;
+    private final transient Long relativeStartNanos;  // start time for an ESQL query for calculating took times
     // TODO: make this a SetOnce?
     private transient TimeValue planningTookTime;  // time elapsed since start of query to calling ComputeService.execute
 
@@ -137,6 +137,11 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
         return relativeStartNanos;
     }
 
+    /**
+     * Call when ES|QL "planning" phase is complete and query execution (in ComputeService) is about to start.
+     * Note this is currently only built for a single phase planning/execution model. When INLINESTATS
+     * moves towards GA we may need to revisit this model. Currently, it should never be called more than once.
+     */
     public void markEndPlanning() {
         assert planningTookTime == null : "markEndPlanning should only be called once";
         assert relativeStartNanos != null : "Relative start time must be set when markEndPlanning is called";
@@ -147,6 +152,9 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
         return planningTookTime;
     }
 
+    /**
+     * Call when ES|QL execution is complete in order to set the overall took time for an ES|QL query.
+     */
     public void markEndQuery() {
         assert relativeStartNanos != null : "Relative start time must be set when markEndQuery is called";
         overallTook = new TimeValue(System.nanoTime() - relativeStartNanos, TimeUnit.NANOSECONDS);

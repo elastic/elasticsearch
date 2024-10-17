@@ -124,7 +124,6 @@ public class ExchangeSinkExecSerializationTests extends AbstractPhysicalPlanSeri
      */
     public void testDeeplyNestedFieldsKeepOnlyOne() throws IOException {
         ByteSizeValue expected = ByteSizeValue.ofBytes(9425806);
-        ByteSizeValue expected = ByteSizeValue.ofBytes(47252411);
         /*
          * History:
          *  9426058b - string serialization #112929

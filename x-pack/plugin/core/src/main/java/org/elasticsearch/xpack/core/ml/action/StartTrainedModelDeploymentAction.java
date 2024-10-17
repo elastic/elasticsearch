@@ -623,6 +623,9 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
          * @return the estimated memory (in bytes) required for the model deployment to run
          */
         public long estimateMemoryUsageBytes() {
+            if (numberOfAllocations == 0) {
+                return 0;
+            }
             // We already take into account 2x the model bytes. If the cache size is larger than the model bytes, then
             // we need to take it into account when returning the estimate.
             if (cacheSize != null && cacheSize.getBytes() > modelBytes) {

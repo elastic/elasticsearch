@@ -47,7 +47,7 @@ public class ToUpperTests extends AbstractConfigurationFunctionTestCase {
         suppliers.add(supplier("text unicode", DataType.TEXT, () -> randomUnicodeOfLengthBetween(1, 10)));
 
         // add null as parameter
-        return parameterSuppliersFromTypedDataWithDefaultChecks(false, suppliers, (v, p) -> "string");
+        return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers, (v, p) -> "string");
     }
 
     public void testRandomLocale() {
@@ -87,7 +87,12 @@ public class ToUpperTests extends AbstractConfigurationFunctionTestCase {
             values.add(new TestCaseSupplier.TypedData(new BytesRef(value), type, "0"));
 
             String expectedValue = value.toUpperCase(EsqlTestUtils.TEST_CFG.locale());
-            return new TestCaseSupplier.TestCase(values, expectedToString, type, equalTo(new BytesRef(expectedValue)));
+            return new TestCaseSupplier.TestCase(
+                values,
+                expectedToString,
+                type == DataType.TEXT ? DataType.KEYWORD : type,
+                equalTo(new BytesRef(expectedValue))
+            );
         });
     }
 }

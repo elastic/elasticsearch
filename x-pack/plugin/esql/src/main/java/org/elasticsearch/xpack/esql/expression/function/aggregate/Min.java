@@ -35,6 +35,8 @@ import java.util.List;
 
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
+import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
+import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.isRepresentable;
 import static org.elasticsearch.xpack.esql.core.type.DataType.isSpatial;
@@ -43,7 +45,7 @@ public class Min extends AggregateFunction implements ToAggregator, SurrogateExp
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Min", Min::new);
 
     @FunctionInfo(
-        returnType = { "boolean", "double", "integer", "long", "date", "ip", "keyword", "text", "long", "version" },
+        returnType = { "boolean", "double", "integer", "long", "date", "ip", "keyword", "long", "version" },
         description = "The minimum value of a field.",
         isAggregation = true,
         examples = {
@@ -107,7 +109,8 @@ public class Min extends AggregateFunction implements ToAggregator, SurrogateExp
 
     @Override
     public DataType dataType() {
-        return field().dataType();
+        DataType t = field().dataType();
+        return t == TEXT ? KEYWORD : t;
     }
 
     @Override

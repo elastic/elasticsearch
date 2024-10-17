@@ -148,6 +148,10 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         );
     }
 
+    private Analyzer makeAnalyzer(String mappingFileName) {
+        return makeAnalyzer(mappingFileName, new EnrichResolution());
+    }
+
     /**
      * Expects
      * LimitExec[1000[INTEGER]]
@@ -450,7 +454,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
             from test
             | where qstr("last_name: Smith") and cidr_match(ip, "127.0.0.1/32")
             """;
-        var analyzer = makeAnalyzer("mapping-all-types.json", new EnrichResolution());
+        var analyzer = makeAnalyzer("mapping-all-types.json");
         var plan = plannerOptimizer.plan(queryText, IS_SV_STATS, analyzer);
 
         var limit = as(plan, LimitExec.class);
@@ -611,7 +615,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
             from test
             | where match(text, "beta") and cidr_match(ip, "127.0.0.1/32")
             """;
-        var analyzer = makeAnalyzer("mapping-all-types.json", new EnrichResolution());
+        var analyzer = makeAnalyzer("mapping-all-types.json");
         var plan = plannerOptimizer.plan(queryText, IS_SV_STATS, analyzer);
 
         var limit = as(plan, LimitExec.class);
@@ -893,8 +897,15 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
 
     private record OutOfRangeTestCase(String fieldName, String tooLow, String tooHigh) {};
 
+    private static final String LT = "<";
+    private static final String LTE = "<=";
+    private static final String GT = ">";
+    private static final String GTE = ">=";
+    private static final String EQ = "==";
+    private static final String NEQ = "!=";
+
     public void testOutOfRangeFilterPushdown() {
-        var allTypeMappingAnalyzer = makeAnalyzer("mapping-all-types.json", new EnrichResolution());
+        var allTypeMappingAnalyzer = makeAnalyzer("mapping-all-types.json");
 
         String largerThanInteger = String.valueOf(randomLongBetween(Integer.MAX_VALUE + 1L, Long.MAX_VALUE));
         String smallerThanInteger = String.valueOf(randomLongBetween(Long.MIN_VALUE, Integer.MIN_VALUE - 1L));
@@ -912,13 +923,6 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
             new OutOfRangeTestCase("long", smallerThanLong, largerThanLong)
             // TODO: add unsigned_long https://github.com/elastic/elasticsearch/issues/102935
         );
-
-        final String LT = "<";
-        final String LTE = "<=";
-        final String GT = ">";
-        final String GTE = ">=";
-        final String EQ = "==";
-        final String NEQ = "!=";
 
         for (OutOfRangeTestCase testCase : cases) {
             List<String> trueForSingleValuesPredicates = List.of(
@@ -972,8 +976,8 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         }
     }
 
-    public void testOutOfRangeFilterForDoubleFieldsPushdown() {
-        var allTypeMappingAnalyzer = makeAnalyzer("mapping-all-types.json", new EnrichResolution());
+    public void testOutOfRangeFilterPushdownWithFloatAndHalfFloat() {
+        var allTypeMappingAnalyzer = makeAnalyzer("mapping-all-types.json");
 
         String smallerThanFloat = String.valueOf(randomDoubleBetween(-Double.MAX_VALUE, -Float.MAX_VALUE - 1d, true));
         String largerThanFloat = String.valueOf(randomDoubleBetween(Float.MAX_VALUE + 1d, Double.MAX_VALUE, true));
@@ -982,13 +986,6 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
             new OutOfRangeTestCase("float", smallerThanFloat, largerThanFloat),
             new OutOfRangeTestCase("half_float", smallerThanFloat, largerThanFloat)
         );
-
-        final String LT = "<";
-        final String LTE = "<=";
-        final String GT = ">";
-        final String GTE = ">=";
-        final String EQ = "==";
-        final String NEQ = "!=";
 
         for (OutOfRangeTestCase testCase : cases) {
             for (var value : List.of(testCase.tooHigh, testCase.tooLow)) {
@@ -1017,6 +1014,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
                         assertThat(actualInnerLuceneQuery, equalTo(expectedInnerQuery));
                     } else { // one of LT, LTE, GT, GTE
                         assertTrue(actualInnerLuceneQuery instanceof RangeQueryBuilder);
+                        assertThat(((RangeQueryBuilder) actualInnerLuceneQuery).fieldName(), equalTo(testCase.fieldName));
                     }
                 }
             }

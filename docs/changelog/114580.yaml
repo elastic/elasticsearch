@@ -1,0 +1,15 @@
+pr: 114580
+summary: "Don't return or accept `node_version` in the Desired Nodes API"
+area: Distributed
+type: breaking
+issues: []
+breaking:
+  title: "Don't return or accept node_version in the Desired Nodes API"
+  area: REST API
+  details: |-
+    The Desired Nodes API includes a `node_version` field to perform validation on the new node version.
+    This kind of check is too broad, and it should be done by external logic.
+  impact: |- 
+    Users should update their usages of the Desired Nodes API to not depend on the `node_version` field 
+    of desired nodes.
+  notable: false

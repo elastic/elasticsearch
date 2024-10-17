@@ -61,4 +61,6 @@ tasks.named("yamlRestCompatTestTransform").configure({task ->
     task.skipTest("logsdb/20_source_mapping/disabled _source is not supported", "temporary until backported")
     task.skipTest("tsdb/20_mapping/regular source", "temporary until backported")
     task.skipTest("logsdb/20_source_mapping/stored _source mode is not supported", "temporary until backported")
+    task.skipTest("cluster.desired_nodes/10_basic/Test delete desired nodes with node_version generates a warning", "node_version warning is removed in 9.0")
+    task.skipTest("cluster.desired_nodes/10_basic/Test update desired nodes with node_version generates a warning", "node_version warning is removed in 9.0")
 })

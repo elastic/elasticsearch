@@ -106,7 +106,7 @@ public final class InnerHitsContext {
 
         protected Weight getInnerHitQueryWeight() throws IOException {
             if (innerHitQueryWeight == null) {
-                final boolean needsScores = size() != 0 && (sort() == null || sort().sort.needsScores());
+                final boolean needsScores = size() != 0 && (sort() == null || sort().sort().needsScores());
                 innerHitQueryWeight = context.searcher()
                     .createWeight(context.searcher().rewrite(query()), needsScores ? ScoreMode.COMPLETE : ScoreMode.COMPLETE_NO_SCORES, 1f);
             }

@@ -25,7 +25,7 @@ public final class CanMatchShardResponse extends SearchPhaseResult {
     public CanMatchShardResponse(StreamInput in) throws IOException {
         super(in);
         this.canMatch = in.readBoolean();
-        estimatedMinAndMax = in.readOptionalWriteable(MinAndMax::new);
+        estimatedMinAndMax = in.readOptionalWriteable(MinAndMax::readFrom);
     }
 
     public CanMatchShardResponse(boolean canMatch, MinAndMax<?> estimatedMinAndMax) {

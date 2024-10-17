@@ -11,17 +11,12 @@ package org.elasticsearch.search.sort;
 import org.apache.lucene.search.Sort;
 import org.elasticsearch.search.DocValueFormat;
 
-public final class SortAndFormats {
+public record SortAndFormats(Sort sort, DocValueFormat[] formats) {
 
-    public final Sort sort;
-    public final DocValueFormat[] formats;
-
-    public SortAndFormats(Sort sort, DocValueFormat[] formats) {
+    public SortAndFormats {
         if (sort.getSort().length != formats.length) {
             throw new IllegalArgumentException("Number of sort field mismatch: " + sort.getSort().length + " != " + formats.length);
         }
-        this.sort = sort;
-        this.formats = formats;
     }
 
 }

@@ -180,7 +180,10 @@ public class QueryPhase {
                         // skip to the desired doc
                         if (after != null) {
                             query = new BooleanQuery.Builder().add(query, BooleanClause.Occur.MUST)
-                                .add(new SearchAfterSortedDocQuery(searchContext.sort().sort, (FieldDoc) after), BooleanClause.Occur.FILTER)
+                                .add(
+                                    new SearchAfterSortedDocQuery(searchContext.sort().sort(), (FieldDoc) after),
+                                    BooleanClause.Occur.FILTER
+                                )
                                 .build();
                         }
                     }
@@ -243,10 +246,10 @@ public class QueryPhase {
      * with <code>sortAndFormats</code>.
      **/
     private static boolean canEarlyTerminate(IndexReader reader, SortAndFormats sortAndFormats) {
-        if (sortAndFormats == null || sortAndFormats.sort == null) {
+        if (sortAndFormats == null || sortAndFormats.sort() == null) {
             return false;
         }
-        final Sort sort = sortAndFormats.sort;
+        final Sort sort = sortAndFormats.sort();
         for (LeafReaderContext ctx : reader.leaves()) {
             Sort indexSort = ctx.reader().getMetaData().getSort();
             if (indexSort == null || Lucene.canEarlyTerminate(sort, indexSort) == false) {

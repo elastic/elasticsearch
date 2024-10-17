@@ -508,8 +508,8 @@ public class FieldSortBuilderTests extends AbstractSortTestCase<FieldSortBuilder
                             assertNull(getMinMaxOrNull(newContext, SortBuilders.fieldSort(fieldName)));
                         } else {
                             assertNull(getMinMaxOrNull(newContext, SortBuilders.fieldSort(fieldName + "-ni")));
-                            assertEquals(values[numDocs - 1], getMinMaxOrNull(newContext, SortBuilders.fieldSort(fieldName)).getMax());
-                            assertEquals(values[0], getMinMaxOrNull(newContext, SortBuilders.fieldSort(fieldName)).getMin());
+                            assertEquals(values[numDocs - 1], getMinMaxOrNull(newContext, SortBuilders.fieldSort(fieldName)).max());
+                            assertEquals(values[0], getMinMaxOrNull(newContext, SortBuilders.fieldSort(fieldName)).min());
                         }
                     }
                 }
@@ -535,8 +535,8 @@ public class FieldSortBuilderTests extends AbstractSortTestCase<FieldSortBuilder
                 Arrays.sort(values);
                 try (DirectoryReader reader = writer.getReader()) {
                     SearchExecutionContext newContext = createMockSearchExecutionContext(new AssertingIndexSearcher(random(), reader));
-                    assertEquals(values[numDocs - 1], getMinMaxOrNull(newContext, SortBuilders.fieldSort(fieldName)).getMax());
-                    assertEquals(values[0], getMinMaxOrNull(newContext, SortBuilders.fieldSort(fieldName)).getMin());
+                    assertEquals(values[numDocs - 1], getMinMaxOrNull(newContext, SortBuilders.fieldSort(fieldName)).max());
+                    assertEquals(values[0], getMinMaxOrNull(newContext, SortBuilders.fieldSort(fieldName)).min());
                 }
             }
         }
@@ -560,8 +560,8 @@ public class FieldSortBuilderTests extends AbstractSortTestCase<FieldSortBuilder
                 Arrays.sort(values);
                 try (DirectoryReader reader = writer.getReader()) {
                     SearchExecutionContext newContext = createMockSearchExecutionContext(new AssertingIndexSearcher(random(), reader));
-                    assertEquals(values[numDocs - 1], getMinMaxOrNull(newContext, SortBuilders.fieldSort(fieldName)).getMax());
-                    assertEquals(values[0], getMinMaxOrNull(newContext, SortBuilders.fieldSort(fieldName)).getMin());
+                    assertEquals(values[numDocs - 1], getMinMaxOrNull(newContext, SortBuilders.fieldSort(fieldName)).max());
+                    assertEquals(values[0], getMinMaxOrNull(newContext, SortBuilders.fieldSort(fieldName)).min());
                 }
             }
         }

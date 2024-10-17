@@ -25,7 +25,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.util.Objects;
 
 /**
  * A sort builder allowing to sort by score.
@@ -151,12 +150,12 @@ public final class ScoreSortBuilder extends SortBuilder<ScoreSortBuilder> {
             return false;
         }
         ScoreSortBuilder other = (ScoreSortBuilder) object;
-        return Objects.equals(order, other.order);
+        return order.equals(other.order);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(this.order);
+        return this.order.hashCode();
     }
 
     @Override

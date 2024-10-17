@@ -231,7 +231,7 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
                 throw new IllegalStateException("sorts must not be disabled in TopN");
             }
             // We don't use CollectorManager here as we don't retrieve the total hits and sort by score.
-            this.topFieldCollector = TopFieldCollector.create(sortAndFormats.get().sort, limit, 0);
+            this.topFieldCollector = TopFieldCollector.create(sortAndFormats.get().sort(), limit, 0);
         }
 
         LeafCollector getLeafCollector(LeafReaderContext leafReaderContext) throws IOException {

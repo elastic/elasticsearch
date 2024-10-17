@@ -171,9 +171,19 @@ public class EsqlCapabilities {
         SPATIAL_PREDICATES_SUPPORT_MULTIVALUES,
 
         /**
+         * Enable spatial distance function to support multi-values. Done in #114836.
+         */
+        SPATIAL_DISTANCE_SUPPORTS_MULTIVALUES,
+
+        /**
          * Support a number of fixes and enhancements to spatial distance pushdown. Done in #112938.
          */
         SPATIAL_DISTANCE_PUSHDOWN_ENHANCEMENTS,
+
+        /**
+         * Fix for spatial centroid when no records are found.
+         */
+        SPATIAL_CENTROID_NO_RECORDS,
 
         /**
          * Fix to GROK and DISSECT that allows extracting attributes with the same name as the input
@@ -344,7 +354,12 @@ public class EsqlCapabilities {
         /**
          * QSTR function
          */
-        QSTR_FUNCTION(true),
+        QSTR_FUNCTION,
+
+        /**
+         * MATCH function
+         */
+        MATCH_FUNCTION,
 
         /**
          * Don't optimize CASE IS NOT NULL function by not requiring the fields to be not null as well.
@@ -360,7 +375,17 @@ public class EsqlCapabilities {
         /**
          * Support named parameters for field names.
          */
-        NAMED_PARAMETER_FOR_FIELD_AND_FUNCTION_NAMES;
+        NAMED_PARAMETER_FOR_FIELD_AND_FUNCTION_NAMES(true),
+
+        /**
+         * Fix sorting not allowed on _source and counters.
+         */
+        SORTING_ON_SOURCE_AND_COUNTERS_FORBIDDEN,
+
+        /**
+         * Allow filter per individual aggregation.
+         */
+        PER_AGG_FILTERING;
 
         private final boolean snapshotOnly;
         private final FeatureFlag featureFlag;

@@ -51,6 +51,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.TransportVersions.FAILURE_STORE_AUTH;
 import static org.elasticsearch.common.xcontent.XContentHelper.createParserNotCompressed;
+import static org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissions.ROLE_REMOTE_CLUSTER_PRIVS;
 
 /**
  * A holder for a Role that contains user-readable information about the Role
@@ -59,6 +60,7 @@ import static org.elasticsearch.common.xcontent.XContentHelper.createParserNotCo
 public class RoleDescriptor implements ToXContentObject, Writeable {
 
     public static final TransportVersion WORKFLOWS_RESTRICTION_VERSION = TransportVersions.V_8_9_X;
+    public static final TransportVersion SECURITY_ROLE_DESCRIPTION = TransportVersions.V_8_15_0;
 
     public static final String ROLE_TYPE = "role";
 
@@ -221,12 +223,12 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
         } else {
             this.restriction = Restriction.NONE;
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.ROLE_REMOTE_CLUSTER_PRIVS)) {
+        if (in.getTransportVersion().onOrAfter(ROLE_REMOTE_CLUSTER_PRIVS)) {
             this.remoteClusterPermissions = new RemoteClusterPermissions(in);
         } else {
             this.remoteClusterPermissions = RemoteClusterPermissions.NONE;
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.SECURITY_ROLE_DESCRIPTION)) {
+        if (in.getTransportVersion().onOrAfter(SECURITY_ROLE_DESCRIPTION)) {
             this.description = in.readOptionalString();
         } else {
             this.description = "";
@@ -486,10 +488,10 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
         if (out.getTransportVersion().onOrAfter(WORKFLOWS_RESTRICTION_VERSION)) {
             restriction.writeTo(out);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ROLE_REMOTE_CLUSTER_PRIVS)) {
+        if (out.getTransportVersion().onOrAfter(ROLE_REMOTE_CLUSTER_PRIVS)) {
             remoteClusterPermissions.writeTo(out);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.SECURITY_ROLE_DESCRIPTION)) {
+        if (out.getTransportVersion().onOrAfter(SECURITY_ROLE_DESCRIPTION)) {
             out.writeOptionalString(description);
         }
     }

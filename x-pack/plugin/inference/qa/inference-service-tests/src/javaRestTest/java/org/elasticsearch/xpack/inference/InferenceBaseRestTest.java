@@ -207,7 +207,7 @@ public class InferenceBaseRestTest extends ESRestTestCase {
     }
 
     protected Map<String, Object> putModel(String modelId, String modelConfig, TaskType taskType) throws IOException {
-        String endpoint = Strings.format("_inference/%s/%s", taskType, modelId);
+        String endpoint = Strings.format("_inference/%s/%s?error_trace", taskType, modelId);
         return putRequest(endpoint, modelConfig);
     }
 

@@ -182,4 +182,51 @@ public class EsIndexSerializationTests extends AbstractWireSerializingTestCase<E
             assertThat(ByteSizeValue.ofBytes(out.bytes().length()), byteSizeEquals(expected));
         }
     }
+
+    public static EsIndex deeplyNestedIndex(int depth, int childrenPerLevel) {
+        String rootFieldName = "root";
+        Map<String, EsField> fields = Map.of(rootFieldName, fieldWithRecursiveChildren(depth, childrenPerLevel, rootFieldName));
+
+        return new EsIndex("deeply-nested", fields);
+    }
+
+    private static EsField fieldWithRecursiveChildren(int depth, int childrenPerLevel, String name) {
+        assert depth >= 1;
+
+        Map<String, EsField> children = new TreeMap<>();
+        String childName;
+        if (depth == 1) {
+            for (int i = 0; i < childrenPerLevel; i++) {
+                childName = "leaf" + i;
+                children.put(childName, new EsField(childName, DataType.KEYWORD, Map.of(), true));
+            }
+        } else {
+            for (int i = 0; i < childrenPerLevel; i++) {
+                childName = "level" + depth + "child" + i;
+                children.put(childName, fieldWithRecursiveChildren(depth - 1, childrenPerLevel, childName));
+            }
+        }
+
+        return new EsField(name, DataType.OBJECT, children, false);
+    }
+
+    /**
+     * Test de-/serialization and size on the wire for an index that has multiple levels of children:
+     * A single root with 9 children, each of which has 9 children etc. 6 levels deep.
+     */
+    public void testDeeplyNestedFields() throws IOException {
+        ByteSizeValue expectedSize = ByteSizeValue.ofBytes(9425494);
+        /*
+         * History:
+         *  9425494b - string serialization #112929
+         */
+
+        int depth = 6;
+        int childrenPerLevel = 9;
+
+        try (BytesStreamOutput out = new BytesStreamOutput(); var pso = new PlanStreamOutput(out, null)) {
+            deeplyNestedIndex(depth, childrenPerLevel).writeTo(pso);
+            assertThat(ByteSizeValue.ofBytes(out.bytes().length()), byteSizeEquals(expectedSize));
+        }
+    }
 }

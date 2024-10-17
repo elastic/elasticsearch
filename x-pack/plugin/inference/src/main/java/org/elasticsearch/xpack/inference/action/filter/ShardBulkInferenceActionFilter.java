@@ -397,7 +397,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                     ),
                     indexRequest.getContentType()
                 );
-                newDocMap.put(fieldName, result);
+                SemanticTextFieldMapper.insertValue(fieldName, newDocMap, result);
             }
             indexRequest.source(newDocMap, indexRequest.getContentType());
         }

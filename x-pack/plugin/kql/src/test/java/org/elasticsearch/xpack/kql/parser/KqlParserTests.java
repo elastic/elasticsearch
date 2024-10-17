@@ -28,7 +28,7 @@ import static org.hamcrest.Matchers.isA;
 
 public class KqlParserTests extends AbstractBuilderTestCase {
 
-    public void testEmptyQueryParsing() throws IOException {
+    public void testEmptyQueryParsing() {
         KqlParser parser = new KqlParser();
         SearchExecutionContext searchExecutionContext = createSearchExecutionContext();
         assertThat(parser.parseKqlQuery("", searchExecutionContext), isA(MatchAllQueryBuilder.class));
@@ -60,8 +60,7 @@ public class KqlParserTests extends AbstractBuilderTestCase {
         }
     }
 
-    public void testSyntaxErrorsHandling() throws IOException {
-
+    public void testSyntaxErrorsHandling() {
         KqlParser parser = new KqlParser();
         SearchExecutionContext searchExecutionContext = createSearchExecutionContext();
 

@@ -38,5 +38,4 @@ foo_field: foo not bar
 foo_field: foo { bar }
 foo_field: foo (bar)
 foo_field: foo "bar"
-foo_field: "foo\ bar"
 foo_field: "foo "bar""

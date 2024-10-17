@@ -173,7 +173,11 @@ public class SourceFieldMapper extends MetadataFieldMapper {
                 }
             }
 
-            Mode sourceMode = resolveSourceMode(indexMode, settings, mode.get());
+            // NOTE: if the `index.mapper.source.mode` exists it takes precedence to determine the source mode for `_source`
+            // otherwise the mode is determined according to `index.mode` and `_source.mode`.
+            Mode sourceMode = INDEX_MAPPER_SOURCE_MODE_SETTING.exists(settings)
+                ? INDEX_MAPPER_SOURCE_MODE_SETTING.get(settings)
+                : mode.get();
 
             if (supportsNonDefaultParameterValues == false) {
                 List<String> disallowed = new ArrayList<>();
@@ -212,20 +216,6 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         }
     }
 
-    private static Mode resolveSourceMode(IndexMode indexMode, Settings settings, Mode mappingParameterMode) {
-        // NOTE: if the `index.mapper.source.mode` exists it takes precedence to determine the source mode for `_source`
-        // otherwise the mode is determined according to `index.mode` and `_source.mode`.
-        Mode resolvedSourceMode = INDEX_MAPPER_SOURCE_MODE_SETTING.exists(settings)
-            ? INDEX_MAPPER_SOURCE_MODE_SETTING.get(settings)
-            : mappingParameterMode;
-
-        if (indexMode == IndexMode.STANDARD && (resolvedSourceMode == null || resolvedSourceMode == Mode.STORED)) {
-            return null;
-        }
-
-        return resolvedSourceMode;
-    }
-
     public static final TypeParser PARSER = new ConfigurableTypeParser(c -> {
         final IndexMode indexMode = c.getIndexSettings().getMode();
 
@@ -233,7 +223,11 @@ public class SourceFieldMapper extends MetadataFieldMapper {
             return TSDB_LEGACY_DEFAULT;
         }
 
-        Mode sourceMode = resolveSourceMode(indexMode, c.getSettings(), null);
+        Mode sourceMode = INDEX_MAPPER_SOURCE_MODE_SETTING.get(c.getSettings());
+        // Needed for bwc so that "mode" is not serialized in case of standard index with stored source.
+        if (indexMode == IndexMode.STANDARD && sourceMode == Mode.STORED) {
+            sourceMode = null;
+        }
 
         return new SourceFieldMapper(sourceMode, Explicit.IMPLICIT_TRUE, Strings.EMPTY_ARRAY, Strings.EMPTY_ARRAY, indexMode);
     },

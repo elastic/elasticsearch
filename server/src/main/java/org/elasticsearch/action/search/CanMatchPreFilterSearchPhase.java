@@ -72,7 +72,6 @@ final class CanMatchPreFilterSearchPhase extends SearchPhase {
     private final Map<String, AliasFilter> aliasFilter;
     private final SearchTask task;
     private final Executor executor;
-    private final boolean requireAtLeastOneMatch;
 
     private final CanMatchSearchPhaseResults results;
     private final CoordinatorRewriteContextProvider coordinatorRewriteContextProvider;
@@ -88,7 +87,6 @@ final class CanMatchPreFilterSearchPhase extends SearchPhase {
         GroupShardsIterator<SearchShardIterator> shardsIts,
         TransportSearchAction.SearchTimeProvider timeProvider,
         SearchTask task,
-        boolean requireAtLeastOneMatch,
         CoordinatorRewriteContextProvider coordinatorRewriteContextProvider,
         ActionListener<GroupShardsIterator<SearchShardIterator>> listener
     ) {
@@ -103,7 +101,6 @@ final class CanMatchPreFilterSearchPhase extends SearchPhase {
         this.concreteIndexBoosts = concreteIndexBoosts;
         this.aliasFilter = aliasFilter;
         this.task = task;
-        this.requireAtLeastOneMatch = requireAtLeastOneMatch;
         this.coordinatorRewriteContextProvider = coordinatorRewriteContextProvider;
         this.executor = executor;
         results = new CanMatchSearchPhaseResults(shardsIts.size());
@@ -468,24 +465,6 @@ final class CanMatchPreFilterSearchPhase extends SearchPhase {
         GroupShardsIterator<SearchShardIterator> shardsIts
     ) {
         FixedBitSet possibleMatches = results.getPossibleMatches();
-        // TODO: pick the local shard when possible
-        if (requireAtLeastOneMatch && results.getNumPossibleMatches() == 0) {
-            // this is a special case where we have no hit but we need to get at least one search response in order
-            // to produce a valid search result with all the aggs etc.
-            // Since it's possible that some of the shards that we're skipping are
-            // unavailable, we would try to query the node that at least has some
-            // shards available in order to produce a valid search result.
-            int shardIndexToQuery = 0;
-            for (int i = 0; i < shardsIts.size(); i++) {
-                SearchShardIterator it = shardsIts.get(i);
-                if (it.size() > 0) {
-                    shardIndexToQuery = i;
-                    it.skip(false); // un-skip which is needed when all the remote shards were skipped by the remote can_match
-                    break;
-                }
-            }
-            possibleMatches.set(shardIndexToQuery);
-        }
         int i = 0;
         for (SearchShardIterator iter : shardsIts) {
             iter.reset();

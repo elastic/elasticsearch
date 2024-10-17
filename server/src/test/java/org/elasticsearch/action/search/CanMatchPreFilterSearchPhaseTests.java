@@ -64,6 +64,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -154,7 +155,6 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
             shardsIter,
             timeProvider,
             null,
-            true,
             EMPTY_CONTEXT_PROVIDER,
             ActionTestUtils.assertNoFailureListener(iter -> {
                 result.set(iter);
@@ -172,8 +172,9 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
                 assertFalse(i.skip());
             }
         } else if (shard1 == false && shard2 == false) {
-            assertFalse(result.get().get(0).skip());
-            assertTrue(result.get().get(1).skip());
+            for (SearchShardIterator i : result.get()) {
+                assertTrue(i.skip());
+            }
         } else {
             assertEquals(0, result.get().get(0).shardId().id());
             assertEquals(1, result.get().get(1).shardId().id());
@@ -252,7 +253,6 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
             shardsIter,
             timeProvider,
             null,
-            true,
             EMPTY_CONTEXT_PROVIDER,
             ActionTestUtils.assertNoFailureListener(iter -> {
                 result.set(iter);
@@ -345,7 +345,6 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
                 shardsIter,
                 timeProvider,
                 null,
-                true,
                 EMPTY_CONTEXT_PROVIDER,
                 ActionTestUtils.assertNoFailureListener(iter -> {
                     result.set(iter);
@@ -387,8 +386,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
 
         for (SortOrder order : SortOrder.values()) {
             int numShards = randomIntBetween(2, 20);
-            List<ShardId> shardIds = new ArrayList<>();
-            Set<ShardId> shardToSkip = new HashSet<>();
+            Set<ShardId> shardToSkip = new CopyOnWriteArraySet<>();
 
             SearchTransportService searchTransportService = new SearchTransportService(null, null, null) {
                 @Override
@@ -409,11 +407,8 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
                             minMax = new MinAndMax<>(min, max);
                         }
                         boolean canMatch = frequently();
-                        synchronized (shardIds) {
-                            shardIds.add(shard.shardId());
-                            if (canMatch == false) {
-                                shardToSkip.add(shard.shardId());
-                            }
+                        if (canMatch == false) {
+                            shardToSkip.add(shard.shardId());
                         }
                         responses.add(new ResponseOrFailure(new CanMatchShardResponse(canMatch, minMax)));
                     }
@@ -447,7 +442,6 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
                 shardsIter,
                 timeProvider,
                 null,
-                shardsIter.size() > shardToSkip.size(),
                 EMPTY_CONTEXT_PROVIDER,
                 ActionTestUtils.assertNoFailureListener(iter -> {
                     result.set(iter);
@@ -516,20 +510,10 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
                     .filter(searchShardIterator -> searchShardIterator.skip() == false)
                     .toList();
 
-                int regularIndexShardCount = (int) updatedSearchShardIterators.stream()
-                    .filter(s -> regularIndices.contains(s.shardId().getIndex()))
-                    .count();
+                boolean allNonSkippedShardsAreFromRegularIndices = nonSkippedShards.stream()
+                    .allMatch(shardIterator -> regularIndices.contains(shardIterator.shardId().getIndex()));
 
-                // When all the shards can be skipped we should query at least 1
-                // in order to get a valid search response.
-                if (regularIndexShardCount == 0) {
-                    assertThat(nonSkippedShards.size(), equalTo(1)); // FIXME - fails here with expected 1 but was 11 OR
-                } else {
-                    boolean allNonSkippedShardsAreFromRegularIndices = nonSkippedShards.stream()
-                        .allMatch(shardIterator -> regularIndices.contains(shardIterator.shardId().getIndex()));
-
-                    assertThat(allNonSkippedShardsAreFromRegularIndices, equalTo(true)); // FIXME - OR fails here with "false"
-                }
+                assertThat(allNonSkippedShardsAreFromRegularIndices, equalTo(true)); // FIXME - OR fails here with "false"
 
                 boolean allSkippedShardAreFromDataStream = skippedShards.stream()
                     .allMatch(shardIterator -> dataStream.getIndices().contains(shardIterator.shardId().getIndex()));
@@ -563,7 +547,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
             );
         }
 
-        /**
+        /*
          * Expected behavior: if either @timestamp or 'event.ingested' filters in the query are "out of range" (do not
          * overlap the range in cluster state), then all shards in the datastream should be skipped.
          * Only if both @timestamp or 'event.ingested' filters are "in range" should the data stream shards be searched
@@ -1129,7 +1113,6 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
             shardsIter,
             timeProvider,
             null,
-            true,
             contextProvider,
             ActionTestUtils.assertNoFailureListener(iter -> {
                 result.set(iter);

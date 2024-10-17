@@ -178,7 +178,6 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
                     shardIterators,
                     timeProvider,
                     task,
-                    false,
                     searchService.getCoordinatorRewriteContextProvider(timeProvider::absoluteStartMillis),
                     listener.delegateFailureAndWrap(
                         (searchResponseActionListener, searchShardIterators) -> openPointInTimePhase(

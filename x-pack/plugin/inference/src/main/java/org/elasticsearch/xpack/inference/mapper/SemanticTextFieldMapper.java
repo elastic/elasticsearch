@@ -648,7 +648,8 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
      * @param map the map to search and modify in-place.
      * @param newValue the new value to assign to the path.
      *
-     * @throws IllegalArgumentException If there is ambiguity about where to insert the new value.
+     * @throws IllegalArgumentException If either the path cannot be fully traversed or there is ambiguity about where to insert the new
+     *                                  value.
      */
     public static void insertValue(String path, Map<?, ?> map, Object newValue) {
         String[] pathElements = path.split("\\.");
@@ -710,15 +711,15 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
 
             return suffixMaps;
         } else {
-            // The path terminated early on a non-traversable data type. This is ok, it means we can't insert the value at this particular
-            // leaf node. Return an empty list to indicate this. The value will be inserted on the deepest appropriate parent map.
-            // This approach allows us to insert fields with dots in the name that share a common prefix, like so:
-            //
-            // Map<String, Object> map = new HashMap<>();
-            // insertValue("x.y", map, "value1");
-            // insertValue("x", map, "value2");
-            // insertValue("x.y.z", map, "value3");
-            return List.of();
+            throw new IllegalArgumentException(
+                "Path ["
+                    + String.join(".", Arrays.copyOfRange(pathElements, 0, index))
+                    + "] has value ["
+                    + currentValue
+                    + "] of type ["
+                    + currentValue.getClass().getSimpleName()
+                    + "], which cannot be traversed into further"
+            );
         }
     }
 

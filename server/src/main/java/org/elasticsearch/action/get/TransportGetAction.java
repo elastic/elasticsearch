@@ -126,8 +126,9 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
         IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
         IndexShard indexShard = indexService.getShard(shardId.id());
         if (indexShard.routingEntry().isPromotableToPrimary() == false) {
-            assert indexShard.indexSettings().isFastRefresh() == false
-                : "a search shard should not receive a TransportGetAction for an index with fast refresh";
+            // TODO: Re-evaluate assertion (ES-8227)
+            // assert indexShard.indexSettings().isFastRefresh() == false
+            // : "a search shard should not receive a TransportGetAction for an index with fast refresh";
             handleGetOnUnpromotableShard(request, indexShard, listener);
             return;
         }

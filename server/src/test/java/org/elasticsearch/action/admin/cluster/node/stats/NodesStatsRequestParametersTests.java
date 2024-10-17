@@ -23,7 +23,7 @@ import java.util.List;
 public class NodesStatsRequestParametersTests extends ESTestCase {
 
     public void testReadWriteMetricSet() {
-        for (var version : List.of(TransportVersions.VERSIONED_MASTER_NODE_REQUESTS, TransportVersions.NODES_STATS_ENUM_SET)) {
+        for (var version : List.of(TransportVersions.V_8_15_0, TransportVersions.NODES_STATS_ENUM_SET)) {
             var randSet = randomSubsetOf(Metric.ALL);
             var metricsOut = randSet.isEmpty() ? EnumSet.noneOf(Metric.class) : EnumSet.copyOf(randSet);
             try {

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.services.mistral;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
@@ -41,7 +42,6 @@ import org.elasticsearch.xpack.inference.services.validation.ModelValidatorBuild
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.TransportVersions.ADD_MISTRAL_EMBEDDINGS_INFERENCE;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInvalidModelException;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.parsePersistedConfigErrorMsg;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrDefaultEmpty;
@@ -206,7 +206,7 @@ public class MistralService extends SenderService {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return ADD_MISTRAL_EMBEDDINGS_INFERENCE;
+        return TransportVersions.V_8_15_0;
     }
 
     private static MistralEmbeddingsModel createModel(

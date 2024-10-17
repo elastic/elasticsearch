@@ -324,7 +324,7 @@ public class EmbeddingRequestChunker {
         public void onFailure(Exception e) {
             var errorResult = new ErrorChunkedInferenceResults(e);
             for (var pos : positions) {
-                errors.setOnce(pos.inputIndex(), errorResult);
+                errors.set(pos.inputIndex(), errorResult);
             }
 
             if (resultCount.incrementAndGet() == totalNumberOfRequests) {

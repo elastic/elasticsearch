@@ -11,6 +11,7 @@ package org.elasticsearch.action.search;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.FixedBitSet;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.common.util.Maps;
@@ -132,6 +133,15 @@ final class CanMatchPreFilterSearchPhase extends SearchPhase {
     public void run() {
         assert assertSearchCoordinationThread();
         checkNoMissingShards();
+        Version version = request.minCompatibleShardNode();
+        if (version != null && Version.CURRENT.minimumCompatibilityVersion().equals(version) == false) {
+            if (checkMinimumVersion(shardsIts) == false) {
+                throw new VersionMismatchException(
+                    "One of the shards is incompatible with the required minimum version [{}]",
+                    request.minCompatibleShardNode()
+                );
+            }
+        }
         runCoordinatorRewritePhase();
     }
 
@@ -368,6 +378,21 @@ final class CanMatchPreFilterSearchPhase extends SearchPhase {
         );
     }
 
+    private boolean checkMinimumVersion(GroupShardsIterator<SearchShardIterator> shardsIts) {
+        for (SearchShardIterator it : shardsIts) {
+            if (it.getTargetNodeIds().isEmpty() == false) {
+                boolean isCompatible = it.getTargetNodeIds().stream().anyMatch(nodeId -> {
+                    Transport.Connection conn = getConnection(new SendingTarget(it.getClusterAlias(), nodeId));
+                    return conn == null || conn.getNode().getVersion().onOrAfter(request.minCompatibleShardNode());
+                });
+                if (isCompatible == false) {
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
+
     @Override
     public void start() {
         if (getNumShards() == 0) {
@@ -396,7 +421,12 @@ final class CanMatchPreFilterSearchPhase extends SearchPhase {
     }
 
     public Transport.Connection getConnection(SendingTarget sendingTarget) {
-        return nodeIdToConnection.apply(sendingTarget.clusterAlias, sendingTarget.nodeId);
+        Transport.Connection conn = nodeIdToConnection.apply(sendingTarget.clusterAlias, sendingTarget.nodeId);
+        Version minVersion = request.minCompatibleShardNode();
+        if (minVersion != null && conn != null && conn.getNode().getVersion().before(minVersion)) {
+            throw new VersionMismatchException("One of the shards is incompatible with the required minimum version [{}]", minVersion);
+        }
+        return conn;
     }
 
     private int getNumShards() {

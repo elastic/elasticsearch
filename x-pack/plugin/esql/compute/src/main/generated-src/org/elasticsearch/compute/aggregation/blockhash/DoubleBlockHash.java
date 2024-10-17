@@ -29,7 +29,7 @@ import java.util.BitSet;
 /**
  * Maps a {@link DoubleBlock} column to group ids.
  */
-final class DoubleBlockHash extends BlockHash {
+public final class DoubleBlockHash extends BlockHash {
     private final int channel;
     final LongHash hash;
 
@@ -71,7 +71,7 @@ final class DoubleBlockHash extends BlockHash {
         }
     }
 
-    IntVector add(DoubleVector vector) {
+    public IntVector add(DoubleVector vector) {
         int positions = vector.getPositionCount();
         try (var builder = blockFactory.newIntVectorFixedBuilder(positions)) {
             for (int i = 0; i < positions; i++) {
@@ -82,7 +82,7 @@ final class DoubleBlockHash extends BlockHash {
         }
     }
 
-    IntBlock add(DoubleBlock block) {
+    public IntBlock add(DoubleBlock block) {
         MultivalueDedupe.HashResult result = new MultivalueDedupeDouble(block).hashAdd(blockFactory, hash);
         seenNull |= result.sawNull();
         return result.ords();

@@ -33,7 +33,7 @@ import java.io.IOException;
 /**
  * Maps a {@link BytesRefBlock} column to group ids.
  */
-final class BytesRefBlockHash extends BlockHash {
+public final class BytesRefBlockHash extends BlockHash {
     private final int channel;
     final BytesRefHash hash;
 
@@ -75,7 +75,7 @@ final class BytesRefBlockHash extends BlockHash {
         }
     }
 
-    IntVector add(BytesRefVector vector) {
+    public IntVector add(BytesRefVector vector) {
         BytesRef scratch = new BytesRef();
         int positions = vector.getPositionCount();
         try (var builder = blockFactory.newIntVectorFixedBuilder(positions)) {
@@ -87,7 +87,7 @@ final class BytesRefBlockHash extends BlockHash {
         }
     }
 
-    IntBlock add(BytesRefBlock block) {
+    public IntBlock add(BytesRefBlock block) {
         var ordinals = block.asOrdinals();
         if (ordinals != null) {
             return addOrdinalsBlock(ordinals);

@@ -21,14 +21,13 @@ import org.elasticsearch.common.util.BitArray;
 import org.elasticsearch.common.util.BytesRefHash;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
-import org.elasticsearch.compute.aggregation.blockhash.LongBlockHash;
+import org.elasticsearch.compute.aggregation.blockhash.IntBlockHash;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.CompositeBlock;
-import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
@@ -181,13 +180,24 @@ public class Categorize extends GroupingFunction implements Validatable {
         private final boolean outputPartial;
         protected final TokenListCategorizer.CloseableTokenListCategorizer categorizer;
 
+        AbstractCategorizeBlockHash(
+            BlockFactory blockFactory,
+            boolean outputPartial,
+            TokenListCategorizer.CloseableTokenListCategorizer categorizer
+        ) {
+            super(blockFactory);
+            this.outputPartial = outputPartial;
+            this.categorizer = categorizer;
+        }
+
         @Override
         public Block[] getKeys() {
-            if (outputPartial)  {
+            if (outputPartial) {
                 // NOCOMMIT load partial
                 Block state = null;
-                Block keys ; // NOCOMMIT do we even need to send the keys? it's just going to be 0 to the length of state
-                return new Block[] {new CompositeBlock()};
+                Block keys; // NOCOMMIT do we even need to send the keys? it's just going to be 0 to the length of state
+                // return new Block[] {new CompositeBlock()};
+                return null;
             }
 
             // NOCOMMIT load final
@@ -219,16 +229,55 @@ public class Categorize extends GroupingFunction implements Validatable {
     private class CategorizeRawBlockHash extends AbstractCategorizeBlockHash {
         private final CategorizeEvaluator evaluator;
 
-        @Override
-        public void add(Page page, GroupingAggregatorFunction.AddInput addInput) {
-            addInput.add(0, evaluator.eval(page));
+        CategorizeRawBlockHash(
+            BlockFactory blockFactory,
+            boolean outputPartial,
+            TokenListCategorizer.CloseableTokenListCategorizer categorizer,
+            CategorizeEvaluator evaluator
+        ) {
+            super(blockFactory, outputPartial, categorizer);
+            this.evaluator = evaluator;
         }
 
+        @Override
+        public void add(Page page, GroupingAggregatorFunction.AddInput addInput) {
+            IntBlock result = (IntBlock) evaluator.eval(page);
+            addInput.add(0, result);
+        }
+
+        @Override
+        public IntVector nonEmpty() {
+            // TODO
+            return null;
+        }
+
+        @Override
+        public BitArray seenGroupIds(BigArrays bigArrays) {
+            // TODO
+            return null;
+        }
+
+        @Override
+        public void close() {
+            // TODO
+        }
     }
 
     private class CategorizedIntermediateBlockHash extends AbstractCategorizeBlockHash {
-        private final LongBlockHash hash;
+        private final IntBlockHash hash;
         private final int channel;
+
+        CategorizedIntermediateBlockHash(
+            BlockFactory blockFactory,
+            boolean outputPartial,
+            TokenListCategorizer.CloseableTokenListCategorizer categorizer,
+            IntBlockHash hash,
+            int channel
+        ) {
+            super(blockFactory, outputPartial, categorizer);
+            this.hash = hash;
+            this.channel = channel;
+        }
 
         public void add(Page page, GroupingAggregatorFunction.AddInput addInput) {
             CompositeBlock block = page.getBlock(channel);
@@ -240,11 +289,12 @@ public class Categorize extends GroupingFunction implements Validatable {
             } else {
                 idMap = Collections.emptyMap();
             }
-            try (IntBlock.Builder newIds = blockFactory.newIntBlockBuilder(groups.getTotalValueCount())) {
+            try (IntBlock.Builder newIdsBuilder = blockFactory.newIntBlockBuilder(groups.getTotalValueCount())) {
                 for (int i = 0; i < groups.getTotalValueCount(); i++) {
-                    newIds.appendInt(idMap.get(i));
+                    newIdsBuilder.appendInt(idMap.get(i));
                 }
-                addInput.add(page, hash.add(newIds.build()));
+                IntBlock newIds = newIdsBuilder.build();
+                addInput.add(0, hash.add(newIds));
             }
         }
 

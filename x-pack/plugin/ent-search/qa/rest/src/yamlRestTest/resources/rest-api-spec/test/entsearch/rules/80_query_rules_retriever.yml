@@ -5,7 +5,7 @@ setup:
 
   - do:
       indices.create:
-        index: test
+        index: test-index1
         body:
           settings:
             index:
@@ -15,7 +15,7 @@ setup:
   - do:
       bulk:
         refresh: true
-        index: test
+        index: test-index1
         body:
           - index:
               _id: foo
@@ -66,11 +66,11 @@ setup:
 
   - do:
       search:
-        index: test
+        index: test-index1
         body:
           retriever:
             rule:
-              match:criteria:
+              match_criteria:
                 foo: foo
                 bar: bar
               ruleset_ids:
@@ -81,7 +81,7 @@ setup:
                     query_string:
                       query: bar
 
-  - match: { hits.hits.size: 3 }
+  - match: { hits.total.value: 3 }
   - match: { hits.hits.0._id: foo }
   - match: { hits.hits.1._id: foo2 }
   - match: { hits.hits.2._id: bar_no_rule }
@@ -91,11 +91,11 @@ setup:
 
   - do:
       search:
-        index: test
+        index: test-index1
         body:
           retriever:
             rule:
-              match:criteria:
+              match_criteria:
                 foo: foo
                 bar: bar
               ruleset_ids:
@@ -104,15 +104,26 @@ setup:
                 rrf:
                   retrievers: [
                     {
-
+                      standard: {
+                        query: {
+                          query_string: {
+                            query: bar
+                          }
+                        }
+                      }
                     },
                     {
-                                          
+                      standard: {
+                        query: {
+                          query_string: {
+                            query: baz
+                          }
+                        }
+                      }
                     }
                   ]
 
-  - match: { hits.hits.size: 3 }
+  - match: { hits.total.value: 4 }
   - match: { hits.hits.0._id: foo }
   - match: { hits.hits.1._id: foo2 }
-  - match: { hits.hits.2._id: bar_no_rule }
 

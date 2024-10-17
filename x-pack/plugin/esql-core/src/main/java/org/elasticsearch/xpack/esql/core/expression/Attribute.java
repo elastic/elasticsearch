@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.esql.core.expression;
 
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 
@@ -42,15 +41,15 @@ public abstract class Attribute extends NamedExpression {
     // can the attr be null - typically used in JOINs
     private final Nullability nullability;
 
-    public Attribute(Source source, String name, @Nullable NameId id) {
+    public Attribute(Source source, String name, NameId id) {
         this(source, name, Nullability.TRUE, id);
     }
 
-    public Attribute(Source source, String name, Nullability nullability, @Nullable NameId id) {
+    public Attribute(Source source, String name, Nullability nullability, NameId id) {
         this(source, name, nullability, id, false);
     }
 
-    public Attribute(Source source, String name, Nullability nullability, @Nullable NameId id, boolean synthetic) {
+    public Attribute(Source source, String name, Nullability nullability, NameId id, boolean synthetic) {
         super(source, name, emptyList(), id, synthetic);
         this.nullability = nullability;
     }

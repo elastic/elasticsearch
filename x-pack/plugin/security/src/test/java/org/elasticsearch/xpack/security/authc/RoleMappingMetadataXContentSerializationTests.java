@@ -17,7 +17,6 @@ import org.elasticsearch.xpack.core.security.authz.RoleMappingMetadata;
 
 import java.io.IOException;
 import java.util.HashSet;
-import java.util.Objects;
 import java.util.Set;
 
 import static org.elasticsearch.xpack.security.authc.support.mapper.ExpressionRoleMappingTests.randomRoleMapping;
@@ -64,12 +63,7 @@ public class RoleMappingMetadataXContentSerializationTests extends AbstractChunk
         for (ExpressionRoleMapping expectedExpressionRoleMapping : expectedInstance.getRoleMappings()) {
             boolean found = false;
             for (ExpressionRoleMapping newExpressionRoleMapping : newInstance.getRoleMappings()) {
-                // everything equals except name, because the name is lost during deserialization of {@code RoleMappingMetadata}
-                found |= newExpressionRoleMapping.isEnabled() == expectedExpressionRoleMapping.isEnabled()
-                    && Objects.equals(newExpressionRoleMapping.getExpression(), expectedExpressionRoleMapping.getExpression())
-                    && Objects.equals(newExpressionRoleMapping.getRoles(), expectedExpressionRoleMapping.getRoles())
-                    && Objects.equals(newExpressionRoleMapping.getRoleTemplates(), expectedExpressionRoleMapping.getRoleTemplates())
-                    && Objects.equals(newExpressionRoleMapping.getMetadata(), expectedExpressionRoleMapping.getMetadata());
+                found |= newExpressionRoleMapping.equals(expectedExpressionRoleMapping);
             }
             assertTrue(found);
         }

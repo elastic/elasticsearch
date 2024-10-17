@@ -87,8 +87,8 @@ public class ReservedRoleMappingAction implements ReservedClusterStateHandler<Li
             throw illegalArgumentException;
         }
         return roleMappings.stream()
-            // Store name in metadata to make it available for XContent deserialization via `RoleMappingMetadata#fromXContent()`
-            .map(r -> ReservedRoleMappingXContentNameFieldHelper.copyWithNameInMetadata(r.getMapping()))
+            // user-defined values for the metadata name field must get stripped out
+            .map(r -> ReservedRoleMappingXContentNameFieldHelper.removeNameFromMetadata(r.getMapping(), true))
             .collect(Collectors.toUnmodifiableSet());
     }
 }

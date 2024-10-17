@@ -31,6 +31,7 @@ import java.util.Iterator;
 import java.util.LinkedHashSet;
 import java.util.Objects;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.metadata.Metadata.ALL_CONTEXTS;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
@@ -63,11 +64,13 @@ public final class RoleMappingMetadata extends AbstractNamedDiffable<Metadata.Cu
     private final Set<ExpressionRoleMapping> roleMappings;
 
     public RoleMappingMetadata(Set<ExpressionRoleMapping> roleMappings) {
-        this.roleMappings = roleMappings;
+        this.roleMappings = roleMappings.stream()
+            .map(ReservedRoleMappingXContentNameFieldHelper::copyWithNameInMetadata)
+            .collect(Collectors.toSet());
     }
 
     public RoleMappingMetadata(StreamInput input) throws IOException {
-        this.roleMappings = input.readCollectionAsSet(ExpressionRoleMapping::new);
+        this(input.readCollectionAsSet(ExpressionRoleMapping::new));
     }
 
     public Set<ExpressionRoleMapping> getRoleMappings() {

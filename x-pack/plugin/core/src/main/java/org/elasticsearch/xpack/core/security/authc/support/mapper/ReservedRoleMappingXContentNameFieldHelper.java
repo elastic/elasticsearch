@@ -12,8 +12,8 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.Map;
-import java.util.TreeMap;
 
 public final class ReservedRoleMappingXContentNameFieldHelper {
     private static final Logger logger = LogManager.getLogger(ReservedRoleMappingXContentNameFieldHelper.class);
@@ -24,10 +24,33 @@ public final class ReservedRoleMappingXContentNameFieldHelper {
     private ReservedRoleMappingXContentNameFieldHelper() {}
 
     public static ExpressionRoleMapping copyWithNameInMetadata(ExpressionRoleMapping roleMapping) {
-        // Use tree map to get deterministic order, and ensure we have a mutable map to work with
-        Map<String, Object> metadata = new TreeMap<>(roleMapping.getMetadata());
-        Object previousValue = metadata.put(METADATA_NAME_FIELD, roleMapping.getName());
-        if (previousValue != null) {
+        // metadata name field already present, nothing to do
+        if (roleMapping.getMetadata().containsKey(METADATA_NAME_FIELD)) {
+            return roleMapping;
+        }
+        // xcontent should already give us back a hashmap but make sure we have one, so we can modify it
+        // can't use Maps.copyWith... since these create maps that don't support `null` values in map entries
+        Map<String, Object> metadata = toHashMap(roleMapping.getMetadata());
+        metadata.put(METADATA_NAME_FIELD, roleMapping.getName());
+        return new ExpressionRoleMapping(
+            roleMapping.getName(),
+            roleMapping.getExpression(),
+            roleMapping.getRoles(),
+            roleMapping.getRoleTemplates(),
+            metadata,
+            roleMapping.isEnabled()
+        );
+    }
+
+    public static ExpressionRoleMapping removeNameFromMetadata(ExpressionRoleMapping roleMapping, boolean logError) {
+        if (roleMapping.getMetadata().containsKey(METADATA_NAME_FIELD) == false) {
+            return roleMapping;
+        }
+        // xcontent should already give us back a hashmap but make sure we have one, so we can modify it
+        // can't use Maps.copyWith... since these create maps that don't support `null` values in map entries
+        Map<String, Object> metadata = toHashMap(roleMapping.getMetadata());
+        metadata.remove(METADATA_NAME_FIELD);
+        if (logError) {
             logger.error(
                 "Metadata field [{}] is reserved and will be overwritten with an internal system value. "
                     + "Please rename this field in your role mapping configuration.",
@@ -60,14 +83,17 @@ public final class ReservedRoleMappingXContentNameFieldHelper {
         Map<String, Object> metadata = roleMapping.getMetadata();
         if (metadata.containsKey(METADATA_NAME_FIELD) && metadata.get(METADATA_NAME_FIELD) instanceof String name) {
             return name;
+        } else {
+            // This is valid the first time we recover from cluster-state: the old format metadata won't have a name stored in metadata yet
+            return FALLBACK_NAME;
         }
+    }
 
-        logger.error(
-            "Role mapping metadata is missing a required internal system field [{}]. "
-                + "This may result in inconsistent Role Mappings API behavior.",
-            METADATA_NAME_FIELD
-        );
-        assert false : "role mapping metadata should contain string field [" + METADATA_NAME_FIELD + "]";
-        return FALLBACK_NAME;
+    private static <K, V> HashMap<K, V> toHashMap(Map<K, V> map) {
+        if (map instanceof HashMap) {
+            return (HashMap<K, V>) map;
+        } else {
+            return new HashMap<>(map);
+        }
     }
 }

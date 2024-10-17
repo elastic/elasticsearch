@@ -1,5 +1,0 @@
-pr: 113410
-summary: "[ML][backport] Warn for model load failures if they have a status code <500"
-area: Machine Learning
-type: bug
-issues: []

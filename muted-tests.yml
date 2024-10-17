@@ -146,18 +146,12 @@ tests:
 - class: org.elasticsearch.action.admin.cluster.node.stats.NodeStatsTests
   method: testChunking
   issue: https://github.com/elastic/elasticsearch/issues/113139
-- class: org.elasticsearch.xpack.inference.rest.ServerSentEventsRestActionListenerTests
-  method: testResponse
-  issue: https://github.com/elastic/elasticsearch/issues/113148
 - class: org.elasticsearch.packaging.test.WindowsServiceTests
   method: test30StartStop
   issue: https://github.com/elastic/elasticsearch/issues/113160
 - class: org.elasticsearch.packaging.test.WindowsServiceTests
   method: test33JavaChanged
   issue: https://github.com/elastic/elasticsearch/issues/113177
-- class: org.elasticsearch.xpack.inference.rest.ServerSentEventsRestActionListenerTests
-  method: testErrorMidStream
-  issue: https://github.com/elastic/elasticsearch/issues/113179
 - class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
   method: test {categorize.Categorize SYNC}
   issue: https://github.com/elastic/elasticsearch/issues/113054

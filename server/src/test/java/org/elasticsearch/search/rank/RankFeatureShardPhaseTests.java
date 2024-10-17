@@ -196,7 +196,7 @@ public class RankFeatureShardPhaseTests extends ESTestCase {
 
             @Override
             public TransportVersion getMinimalSupportedVersion() {
-                return TransportVersions.RANK_FEATURE_PHASE_ADDED;
+                return TransportVersions.V_8_15_0;
             }
         };
     }

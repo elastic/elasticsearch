@@ -34,6 +34,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.TransportVersions.ADD_MANAGE_ROLES_PRIVILEGE;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
@@ -144,30 +145,24 @@ public class SecurityMigrations {
         }, ROLE_MAPPING_CLEANUP_DUPLICATES, new SecurityMigration() {
             @Override
             public void migrate(SecurityIndexManager indexManager, Client client, ActionListener<Void> listener) {
-                Set<String> clusterStateRoleMappingNames = indexManager.getReservedStateRoleMappingNames();
-
-                // No role mappings in cluster state -> no cleanup needed
-                if (clusterStateRoleMappingNames.isEmpty()) {
-                    listener.onResponse(null);
-                    return;
-                }
-
-                getNativeRoleMappings(client, ActionListener.wrap(roleMappings -> {
-                    logger.info("Found [" + roleMappings.size() + "] role mappings to cleanup in .security index.");
-                    deleteNativeRoleMappings(client, roleMappings.iterator(), listener);
-                }, listener::onFailure), clusterStateRoleMappingNames.toArray(String[]::new));
+                getRoleMappings(client, ActionListener.wrap(roleMappings -> {
+                    List<String> roleMappingsToDelete = getDuplicateRoleMappingNames(roleMappings);
+                    if (roleMappingsToDelete.isEmpty() == false) {
+                        logger.info("Found [" + roleMappingsToDelete.size() + "] role mappings to cleanup in .security index.");
+                        deleteNativeRoleMappings(client, roleMappingsToDelete.iterator(), listener);
+                    } else {
+                        listener.onResponse(null);
+                    }
+                }, listener::onFailure));
             }
 
-            private void getNativeRoleMappings(Client client, ActionListener<List<String>> listener, String... mappingNames) {
+            private void getRoleMappings(Client client, ActionListener<ExpressionRoleMapping[]> listener) {
                 executeAsyncWithOrigin(
                     client,
                     SECURITY_ORIGIN,
                     GetRoleMappingsAction.INSTANCE,
-                    new GetRoleMappingsRequestBuilder(client).names(mappingNames).request(),
-                    ActionListener.wrap(
-                        response -> listener.onResponse(Arrays.stream(response.mappings()).map(ExpressionRoleMapping::getName).toList()),
-                        listener::onFailure
-                    )
+                    new GetRoleMappingsRequestBuilder(client).request(),
+                    ActionListener.wrap(response -> listener.onResponse(response.mappings()), listener::onFailure)
                 );
             }
 
@@ -210,4 +205,31 @@ public class SecurityMigrations {
             }
         })
     );
+
+    // Visible for testing
+    protected static List<String> getDuplicateRoleMappingNames(ExpressionRoleMapping... roleMappings) {
+        // TODO REMOVE AND USE CONSTANT WHEN AVAILABLE!
+        final String METADATA_READ_ONLY_FLAG_KEY = "_read_only";
+        final String RESERVED_ROLE_MAPPING_SUFFIX = "(read only)";
+
+        Map<Boolean, List<ExpressionRoleMapping>> partitionedRoleMappings = Arrays.stream(roleMappings)
+            .collect(
+                Collectors.partitioningBy(
+                    roleMapping -> roleMapping.getMetadata() != null
+                        && roleMapping.getMetadata().get(METADATA_READ_ONLY_FLAG_KEY) != null
+                        && (boolean) roleMapping.getMetadata().get(METADATA_READ_ONLY_FLAG_KEY)
+                )
+            );
+
+        Set<String> clusterStateRoleMappings = partitionedRoleMappings.get(true).stream().map(ExpressionRoleMapping::getName).map(name -> {
+            int lastIndex = name.lastIndexOf(RESERVED_ROLE_MAPPING_SUFFIX);
+            return lastIndex > 0 ? name.substring(0, lastIndex) : name;
+        }).collect(Collectors.toSet());
+
+        return partitionedRoleMappings.get(false)
+            .stream()
+            .map(ExpressionRoleMapping::getName)
+            .filter(clusterStateRoleMappings::contains)
+            .toList();
+    }
 }

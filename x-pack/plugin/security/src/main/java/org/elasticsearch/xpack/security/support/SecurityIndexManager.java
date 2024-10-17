@@ -47,7 +47,6 @@ import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.core.security.authc.support.mapper.ExpressionRoleMapping;
 import org.elasticsearch.xpack.core.security.authz.RoleMappingMetadata;
 import org.elasticsearch.xpack.security.SecurityFeatures;
 
@@ -271,20 +270,15 @@ public class SecurityIndexManager implements ClusterStateListener {
         return indexVersionCreated != null && indexVersionCreated.onOrAfter(IndexVersion.current());
     }
 
-    private static Set<String> getFileSettingsMetadataHandlerRoleMappingKeys(ClusterState clusterState) {
+    private static boolean isReservedRoleMappingsSynced(ClusterState clusterState) {
         ReservedStateMetadata fileSettingsMetadata = clusterState.metadata().reservedStateMetadata().get(FILE_SETTINGS_METADATA_NAMESPACE);
         if (fileSettingsMetadata != null && fileSettingsMetadata.handlers().containsKey(HANDLER_ROLE_MAPPINGS_NAME)) {
-            return fileSettingsMetadata.handlers().get(HANDLER_ROLE_MAPPINGS_NAME).keys();
+            int fileSettingsMetadataSize = fileSettingsMetadata.handlers().get(HANDLER_ROLE_MAPPINGS_NAME).keys().size();
+            if (fileSettingsMetadataSize > 0) {
+                return fileSettingsMetadataSize == RoleMappingMetadata.getFromClusterState(clusterState).getRoleMappings().size();
+            }
         }
-        return Set.of();
-    }
-
-    private static Set<ExpressionRoleMapping> getRoleMappingMetadataMappings(ClusterState clusterState) {
-        RoleMappingMetadata roleMappingMetadata = RoleMappingMetadata.getFromClusterState(clusterState);
-        if (roleMappingMetadata != null) {
-            return roleMappingMetadata.getRoleMappings();
-        }
-        return Set.of();
+        return true;
     }
 
     @Override
@@ -304,9 +298,7 @@ public class SecurityIndexManager implements ClusterStateListener {
         Tuple<Boolean, Boolean> available = checkIndexAvailable(event.state());
         final boolean indexAvailableForWrite = available.v1();
         final boolean indexAvailableForSearch = available.v2();
-        final Set<String> reservedStateRoleMappingNames = getFileSettingsMetadataHandlerRoleMappingKeys(event.state());
-        final boolean reservedRoleMappingsSynced = reservedStateRoleMappingNames.size() == getRoleMappingMetadataMappings(event.state())
-            .size();
+        final boolean reservedRoleMappingsSynced = isReservedRoleMappingsSynced(event.state());
         final boolean mappingIsUpToDate = indexMetadata == null || checkIndexMappingUpToDate(event.state());
         final int migrationsVersion = getMigrationVersionFromIndexMetadata(indexMetadata);
         final SystemIndexDescriptor.MappingsVersion minClusterMappingVersion = getMinSecurityIndexMappingVersion(event.state());
@@ -347,8 +339,7 @@ public class SecurityIndexManager implements ClusterStateListener {
             indexUUID,
             allSecurityFeatures.stream()
                 .filter(feature -> featureService.clusterHasFeature(event.state(), feature))
-                .collect(Collectors.toSet()),
-            reservedStateRoleMappingNames
+                .collect(Collectors.toSet())
         );
         this.state = newState;
 
@@ -357,10 +348,6 @@ public class SecurityIndexManager implements ClusterStateListener {
                 listener.accept(previousState, newState);
             }
         }
-    }
-
-    public Set<String> getReservedStateRoleMappingNames() {
-        return state.reservedStateRoleMappingNames;
     }
 
     public static int getMigrationVersionFromIndexMetadata(IndexMetadata indexMetadata) {
@@ -709,7 +696,6 @@ public class SecurityIndexManager implements ClusterStateListener {
             null,
             null,
             null,
-            Set.of(),
             Set.of()
         );
         public final Instant creationTime;
@@ -729,7 +715,6 @@ public class SecurityIndexManager implements ClusterStateListener {
         public final IndexMetadata.State indexState;
         public final String indexUUID;
         public final Set<NodeFeature> securityFeatures;
-        public final Set<String> reservedStateRoleMappingNames;
 
         public State(
             Instant creationTime,
@@ -746,8 +731,7 @@ public class SecurityIndexManager implements ClusterStateListener {
             ClusterHealthStatus indexHealth,
             IndexMetadata.State indexState,
             String indexUUID,
-            Set<NodeFeature> securityFeatures,
-            Set<String> reservedStateRoleMappingNames
+            Set<NodeFeature> securityFeatures
         ) {
             this.creationTime = creationTime;
             this.isIndexUpToDate = isIndexUpToDate;
@@ -764,7 +748,6 @@ public class SecurityIndexManager implements ClusterStateListener {
             this.indexState = indexState;
             this.indexUUID = indexUUID;
             this.securityFeatures = securityFeatures;
-            this.reservedStateRoleMappingNames = reservedStateRoleMappingNames;
         }
 
         @Override
@@ -785,8 +768,7 @@ public class SecurityIndexManager implements ClusterStateListener {
                 && Objects.equals(concreteIndexName, state.concreteIndexName)
                 && indexHealth == state.indexHealth
                 && indexState == state.indexState
-                && Objects.equals(securityFeatures, state.securityFeatures)
-                && Objects.equals(reservedStateRoleMappingNames, state.reservedStateRoleMappingNames);
+                && Objects.equals(securityFeatures, state.securityFeatures);
         }
 
         public boolean indexExists() {
@@ -808,8 +790,7 @@ public class SecurityIndexManager implements ClusterStateListener {
                 indexMappingVersion,
                 concreteIndexName,
                 indexHealth,
-                securityFeatures,
-                reservedStateRoleMappingNames
+                securityFeatures
             );
         }
 
@@ -848,8 +829,6 @@ public class SecurityIndexManager implements ClusterStateListener {
                 + '\''
                 + ", securityFeatures="
                 + securityFeatures
-                + ", reservedStateRoleMappingNames="
-                + reservedStateRoleMappingNames
                 + '}';
         }
     }

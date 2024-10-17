@@ -536,7 +536,6 @@ public class ResolveIndexTests extends ESTestCase {
                                 }
                                 """, SystemIndexDescriptor.VERSION_META_KEY))
                             .setPrimaryIndex(".test-net-new-system-1")
-                            .setVersionMetaKey("version")
                             .setOrigin("system")
                             .build()
                     )

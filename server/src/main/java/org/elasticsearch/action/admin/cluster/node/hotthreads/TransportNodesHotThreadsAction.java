@@ -117,14 +117,14 @@ public class TransportNodesHotThreadsAction extends TransportNodesAction<
 
         NodeRequest(StreamInput in) throws IOException {
             super(in);
-            skipLegacyNodesRequestHeader(TransportVersions.MORE_LIGHTER_NODES_REQUESTS, in);
+            skipLegacyNodesRequestHeader(TransportVersions.V_8_15_0, in);
             requestOptions = HotThreads.RequestOptions.readFrom(in);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            sendLegacyNodesRequestHeader(TransportVersions.MORE_LIGHTER_NODES_REQUESTS, out);
+            sendLegacyNodesRequestHeader(TransportVersions.V_8_15_0, out);
             requestOptions.writeTo(out);
         }
     }

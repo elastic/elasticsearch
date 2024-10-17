@@ -948,7 +948,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         if (timestampRange.equals(this.timestampRange) && eventIngestedRange.equals(this.eventIngestedRange)) {
             return this;
         }
-        @UpdateForV9(owner = UpdateForV9.Owner.SEARCH_FOUNDATIONS) // remove this check when 8.15 is no longer communicable
+        @UpdateForV9 // remove this check when 8.15 is no longer communicable
         IndexLongFieldRange allowedEventIngestedRange = eventIngestedRange;
         if (minClusterTransportVersion.before(TransportVersions.V_8_15_0)) {
             allowedEventIngestedRange = IndexLongFieldRange.UNKNOWN;

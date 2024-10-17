@@ -41,7 +41,7 @@ import static org.elasticsearch.persistent.PersistentTasksCustomMetadata.getTask
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
-class GeoIpTaskState implements PersistentTaskState, VersionedNamedWriteable {
+public class GeoIpTaskState implements PersistentTaskState, VersionedNamedWriteable {
 
     private static boolean includeSha256(TransportVersion version) {
         return version.isPatchFrom(TransportVersions.ENTERPRISE_GEOIP_DOWNLOADER_BACKPORT_8_15)
@@ -150,7 +150,7 @@ class GeoIpTaskState implements PersistentTaskState, VersionedNamedWriteable {
         });
     }
 
-    record Metadata(long lastUpdate, int firstChunk, int lastChunk, String md5, long lastCheck, @Nullable String sha256)
+    public record Metadata(long lastUpdate, int firstChunk, int lastChunk, String md5, long lastCheck, @Nullable String sha256)
         implements
             ToXContentObject {
 
@@ -198,7 +198,7 @@ class GeoIpTaskState implements PersistentTaskState, VersionedNamedWriteable {
             }
         }
 
-        Metadata {
+        public Metadata {
             Objects.requireNonNull(md5);
         }
 

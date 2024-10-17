@@ -25,9 +25,15 @@ import org.elasticsearch.script.field.vectors.ESVectorUtil;
 
 import java.io.IOException;
 
+import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.MAX_DIMS_COUNT;
+
 class ES815BitFlatVectorsFormat extends FlatVectorsFormat {
 
     private final FlatVectorsFormat delegate = new Lucene99FlatVectorsFormat(FlatBitVectorScorer.INSTANCE);
+
+    protected ES815BitFlatVectorsFormat() {
+        super("ES815BitFlatVectorsFormat");
+    }
 
     @Override
     public FlatVectorsWriter fieldsWriter(SegmentWriteState segmentWriteState) throws IOException {
@@ -37,6 +43,11 @@ class ES815BitFlatVectorsFormat extends FlatVectorsFormat {
     @Override
     public FlatVectorsReader fieldsReader(SegmentReadState segmentReadState) throws IOException {
         return delegate.fieldsReader(segmentReadState);
+    }
+
+    @Override
+    public int getMaxDimensions(String fieldName) {
+        return MAX_DIMS_COUNT;
     }
 
     static class FlatBitVectorScorer implements FlatVectorsScorer {

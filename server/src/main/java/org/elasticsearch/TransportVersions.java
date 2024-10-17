@@ -225,6 +225,27 @@ public class TransportVersions {
     public static final TransportVersion ILM_ADD_SEARCHABLE_SNAPSHOT_TOTAL_SHARDS_PER_NODE = def(8_749_00_0);
     public static final TransportVersion SEMANTIC_TEXT_SEARCH_INFERENCE_ID = def(8_750_00_0);
     public static final TransportVersion ML_INFERENCE_CHUNKING_SETTINGS = def(8_751_00_0);
+    public static final TransportVersion SEMANTIC_QUERY_INNER_HITS = def(8_752_00_0);
+    public static final TransportVersion RETAIN_ILM_STEP_INFO = def(8_753_00_0);
+    public static final TransportVersion ADD_DATA_STREAM_OPTIONS = def(8_754_00_0);
+    public static final TransportVersion CCS_REMOTE_TELEMETRY_STATS = def(8_755_00_0);
+    public static final TransportVersion ESQL_CCS_EXECUTION_INFO = def(8_756_00_0);
+    public static final TransportVersion REGEX_AND_RANGE_INTERVAL_QUERIES = def(8_757_00_0);
+    public static final TransportVersion RRF_QUERY_REWRITE = def(8_758_00_0);
+    public static final TransportVersion SEARCH_FAILURE_STATS = def(8_759_00_0);
+    public static final TransportVersion INGEST_GEO_DATABASE_PROVIDERS = def(8_760_00_0);
+    public static final TransportVersion DATE_TIME_DOC_VALUES_LOCALES = def(8_761_00_0);
+    public static final TransportVersion FAST_REFRESH_RCO = def(8_762_00_0);
+    public static final TransportVersion TEXT_SIMILARITY_RERANKER_QUERY_REWRITE = def(8_763_00_0);
+    public static final TransportVersion SIMULATE_INDEX_TEMPLATES_SUBSTITUTIONS = def(8_764_00_0);
+    public static final TransportVersion RETRIEVERS_TELEMETRY_ADDED = def(8_765_00_0);
+    public static final TransportVersion ESQL_CACHED_STRING_SERIALIZATION = def(8_766_00_0);
+    public static final TransportVersion CHUNK_SENTENCE_OVERLAP_SETTING_ADDED = def(8_767_00_0);
+    public static final TransportVersion OPT_IN_ESQL_CCS_EXECUTION_INFO = def(8_768_00_0);
+    public static final TransportVersion QUERY_RULE_TEST_API = def(8_769_00_0);
+    public static final TransportVersion ESQL_PER_AGGREGATE_FILTER = def(8_770_00_0);
+    public static final TransportVersion ML_INFERENCE_ATTACH_TO_EXISTSING_DEPLOYMENT = def(8_771_00_0);
+    public static final TransportVersion CONVERT_FAILURE_STORE_OPTIONS_TO_SELECTOR_OPTIONS_INTERNALLY = def(8_772_00_0);
 
     /*
      * STOP! READ THIS FIRST! No, really,

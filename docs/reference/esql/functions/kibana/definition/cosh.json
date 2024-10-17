@@ -55,5 +55,7 @@
   ],
   "examples" : [
     "ROW a=1.8 \n| EVAL cosh=COSH(a)"
-  ]
+  ],
+  "preview" : false,
+  "snapshot_only" : false
 }

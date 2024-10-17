@@ -109,6 +109,7 @@ public class MasterService extends AbstractLifecycleComponent {
 
     protected final ThreadPool threadPool;
     private final TaskManager taskManager;
+    private final ThreadContext.StoredContext clusterStateUpdateContext;
 
     private volatile ExecutorService threadPoolExecutor;
     private final AtomicInteger totalQueueSize = new AtomicInteger();
@@ -129,6 +130,7 @@ public class MasterService extends AbstractLifecycleComponent {
 
         this.threadPool = threadPool;
         this.taskManager = taskManager;
+        this.clusterStateUpdateContext = getClusterStateUpdateContext(threadPool.getThreadContext());
 
         final var queuesByPriorityBuilder = new EnumMap<Priority, PerPriorityQueue>(Priority.class);
         for (final var priority : Priority.values()) {
@@ -136,6 +138,15 @@ public class MasterService extends AbstractLifecycleComponent {
         }
         this.queuesByPriority = Collections.unmodifiableMap(queuesByPriorityBuilder);
         this.unbatchedExecutor = new UnbatchedExecutor();
+    }
+
+    private static ThreadContext.StoredContext getClusterStateUpdateContext(ThreadContext threadContext) {
+        try (var ignored = threadContext.newStoredContext()) {
+            // capture the context in which to run all cluster state updates here where we know it to be very clean
+            assert threadContext.isDefaultContext() : "must only create MasterService in a clean ThreadContext";
+            threadContext.markAsSystemContext();
+            return threadContext.newStoredContext();
+        }
     }
 
     private void setSlowTaskLoggingThreshold(TimeValue slowTaskLoggingThreshold) {
@@ -1330,8 +1341,8 @@ public class MasterService extends AbstractLifecycleComponent {
 
         assert totalQueueSize.get() > 0;
         final var threadContext = threadPool.getThreadContext();
-        try (var ignored = threadContext.stashContext()) {
-            threadContext.markAsSystemContext();
+        try (var ignored = threadContext.newStoredContext()) {
+            clusterStateUpdateContext.restore();
             threadPoolExecutor.execute(queuesProcessor);
         }
     }

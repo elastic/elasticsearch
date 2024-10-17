@@ -31,5 +31,7 @@
   ],
   "examples" : [
     "ROW message = \"   some text  \",  color = \" red \"\n| EVAL message = TRIM(message)\n| EVAL color = TRIM(color)"
-  ]
+  ],
+  "preview" : false,
+  "snapshot_only" : false
 }

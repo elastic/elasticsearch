@@ -199,5 +199,7 @@
   ],
   "examples" : [
     "FROM employees\n| STATS top_salaries = TOP(salary, 3, \"desc\"), top_salary = MAX(salary)"
-  ]
+  ],
+  "preview" : false,
+  "snapshot_only" : false
 }

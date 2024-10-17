@@ -295,5 +295,7 @@
   ],
   "examples" : [
     "ROW y=12.9, x=.6\n| EVAL atan2=ATAN2(y, x)"
-  ]
+  ],
+  "preview" : false,
+  "snapshot_only" : false
 }

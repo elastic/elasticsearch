@@ -6,7 +6,8 @@ steps:
       provider: gcp
       image: family/elasticsearch-ubuntu-2204
       machineType: custom-32-98304
-      buildDirectory: /dev/shm/bk
+      localSsds: 1
+      localSsdInterface: nvme
       diskSizeGb: 350
   - wait
   # The hadoop build depends on the ES artifact

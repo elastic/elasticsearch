@@ -486,9 +486,9 @@ public class Docker {
         // Ensure the `elasticsearch` user and group exist.
         // These lines will both throw an exception if the command fails
         dockerShell.run("id elasticsearch");
-        dockerShell.run("getent group elasticsearch");
+        dockerShell.run("grep -E '^elasticsearch:' /etc/group");
 
-        final Shell.Result passwdResult = dockerShell.run("getent passwd elasticsearch");
+        final Shell.Result passwdResult = dockerShell.run("grep -E '^elasticsearch:' /etc/passwd");
         final String homeDir = passwdResult.stdout().trim().split(":")[5];
         assertThat("elasticsearch user's home directory is incorrect", homeDir, equalTo("/usr/share/elasticsearch"));
 

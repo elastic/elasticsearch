@@ -9,7 +9,6 @@
 
 package org.elasticsearch.index.codec.vectors;
 
-import org.apache.lucene.codecs.KnnFieldVectorsWriter;
 import org.apache.lucene.codecs.hnsw.DefaultFlatVectorScorer;
 import org.apache.lucene.codecs.hnsw.FlatFieldVectorsWriter;
 import org.apache.lucene.codecs.hnsw.FlatVectorsFormat;
@@ -42,6 +41,7 @@ import org.elasticsearch.simdvec.VectorSimilarityType;
 import java.io.IOException;
 
 import static org.apache.lucene.codecs.lucene99.Lucene99ScalarQuantizedVectorsFormat.DYNAMIC_CONFIDENCE_INTERVAL;
+import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.MAX_DIMS_COUNT;
 
 public class ES814ScalarQuantizedVectorsFormat extends FlatVectorsFormat {
 
@@ -67,6 +67,7 @@ public class ES814ScalarQuantizedVectorsFormat extends FlatVectorsFormat {
     private final boolean compress;
 
     public ES814ScalarQuantizedVectorsFormat(Float confidenceInterval, int bits, boolean compress) {
+        super(NAME);
         if (confidenceInterval != null
             && confidenceInterval != DYNAMIC_CONFIDENCE_INTERVAL
             && (confidenceInterval < MINIMUM_CONFIDENCE_INTERVAL || confidenceInterval > MAXIMUM_CONFIDENCE_INTERVAL)) {
@@ -137,8 +138,8 @@ public class ES814ScalarQuantizedVectorsFormat extends FlatVectorsFormat {
         }
 
         @Override
-        public FlatFieldVectorsWriter<?> addField(FieldInfo fieldInfo, KnnFieldVectorsWriter<?> knnFieldVectorsWriter) throws IOException {
-            return delegate.addField(fieldInfo, knnFieldVectorsWriter);
+        public FlatFieldVectorsWriter<?> addField(FieldInfo fieldInfo) throws IOException {
+            return delegate.addField(fieldInfo);
         }
 
         @Override
@@ -288,5 +289,10 @@ public class ES814ScalarQuantizedVectorsFormat extends FlatVectorsFormat {
             throws IOException {
             return delegate.getRandomVectorScorer(sim, values, query);
         }
+    }
+
+    @Override
+    public int getMaxDimensions(String fieldName) {
+        return MAX_DIMS_COUNT;
     }
 }

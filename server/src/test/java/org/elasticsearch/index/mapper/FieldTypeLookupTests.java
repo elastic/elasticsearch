@@ -20,6 +20,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 
 import static java.util.Collections.emptyList;
@@ -433,6 +434,7 @@ public class FieldTypeLookupTests extends ESTestCase {
             name,
             name,
             Explicit.EXPLICIT_TRUE,
+            Optional.empty(),
             ObjectMapper.Dynamic.FALSE,
             mappers,
             Explicit.EXPLICIT_FALSE,

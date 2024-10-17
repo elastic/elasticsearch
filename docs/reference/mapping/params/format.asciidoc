@@ -31,8 +31,38 @@ down to the nearest day.
 [[custom-date-formats]]
 ==== Custom date formats
 
-Completely customizable date formats are supported. The syntax for these is explained
-https://docs.oracle.com/javase/8/docs/api/java/time/format/DateTimeFormatter.html[DateTimeFormatter docs].
+Completely customizable date formats are supported. The syntax for these is explained in
+https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/time/format/DateTimeFormatter.html[DateTimeFormatter docs].
+
+[[custom-date-format-locales]]
+===== Differences in locale information between JDK versions
+
+There can be some differences in date formats between JDK versions and different locales. In particular,
+there can be differences in text strings used for textual date formats, and there can be differences
+in the results of week-date calculations.
+
+There can be differences in text strings used by the following field specifiers:
+
+* `B`, `E`, `G`, `O`, `a`, `v`, `z` of any length
+* `L`, `M`, `Q`, `q`, `c`, `e` of length 3 or greater
+* `Z` of length 4
+
+If the text format changes between Elasticsearch or JDK versions, it can cause significant problems
+with ingest, output, and re-indexing. It is recommended to always use numerical fields in custom date formats,
+which are not affected by locale information.
+
+There can also be differences in week-date calculations using the `Y`, `W`, and `w` field specifiers.
+The underlying data used to calculate week-dates can vary depending on the JDK version and locale;
+this can cause differences in the calculated week-date for the same calendar dates.
+It is recommended that the built-in week-date formats are used, which will always use ISO rules
+for calculating week-dates.
+
+In particular, there is a significant change in locale information between JDK releases 22 and 23.
+Elasticsearch will use the _COMPAT_ locale database when run on JDK 22 and before,
+and will use the _CLDR_ locale database when run on JDK 23 and above. This change can cause significant differences
+to the textual date formats accepted by Elasticsearch, and to calculated week-dates. If you are using
+affected specifiers, you may need to modify your ingest or output integration code to account
+for the differences between these two JDK versions.
 
 [[built-in-date-formats]]
 ==== Built In Formats
@@ -256,31 +286,37 @@ The following tables lists all the defaults ISO formats supported:
 `week_date` or `strict_week_date`::
 
     A formatter for a full date as four digit weekyear, two digit week of
-    weekyear, and one digit day of week: `xxxx-'W'ww-e`.
+    weekyear, and one digit day of week: `YYYY-'W'ww-e`.
+    This uses the ISO week-date definition.
 
 `week_date_time` or `strict_week_date_time`::
 
     A formatter that combines a full weekyear date and time, separated by a
-    'T': `xxxx-'W'ww-e'T'HH:mm:ss.SSSZ`.
+    'T': `YYYY-'W'ww-e'T'HH:mm:ss.SSSZ`.
+    This uses the ISO week-date definition.
 
 `week_date_time_no_millis` or `strict_week_date_time_no_millis`::
 
     A formatter that combines a full weekyear date and time without millis,
-    separated by a 'T': `xxxx-'W'ww-e'T'HH:mm:ssZ`.
+    separated by a 'T': `YYYY-'W'ww-e'T'HH:mm:ssZ`.
+    This uses the ISO week-date definition.
 
 `weekyear` or `strict_weekyear`::
 
-    A formatter for a four digit weekyear: `xxxx`.
+    A formatter for a four digit weekyear: `YYYY`.
+    This uses the ISO week-date definition.
 
 `weekyear_week` or `strict_weekyear_week`::
 
     A formatter for a four digit weekyear and two digit week of weekyear:
-    `xxxx-'W'ww`.
+    `YYYY-'W'ww`.
+    This uses the ISO week-date definition.
 
 `weekyear_week_day` or `strict_weekyear_week_day`::
 
     A formatter for a four digit weekyear, two digit week of weekyear, and one
-    digit day of week: `xxxx-'W'ww-e`.
+    digit day of week: `YYYY-'W'ww-e`.
+    This uses the ISO week-date definition.
 
 `year` or `strict_year`::
 

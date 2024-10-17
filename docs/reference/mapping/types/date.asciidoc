@@ -81,6 +81,14 @@ on those dates so they should be avoided.
 // end::decimal-warning[]
 ====
 
+[WARNING]
+====
+// tag::locale-warning[]
+The text strings accepted by textual date formats, and calculations for week-dates, depend on the JDK version
+that Elasticsearch is running on. For more information see <<custom-date-format-locales,custom date formats>>.
+// end::locale-warning[]
+====
+
 [[multiple-date-formats]]
 ==== Multiple date formats
 
@@ -125,13 +133,12 @@ The following parameters are accepted by `date` fields:
 `locale`::
 
     The locale to use when parsing dates since months do not have the same names
-    and/or abbreviations in all languages. The default is the
-    https://docs.oracle.com/javase/8/docs/api/java/util/Locale.html#ROOT[`ROOT` locale],
+    and/or abbreviations in all languages. The default is ENGLISH.
 
 <<ignore-malformed,`ignore_malformed`>>::
 
     If `true`, malformed numbers are ignored. If `false` (default), malformed
-    numbers throw an exception and reject the whole document.  Note that this
+    numbers throw an exception and reject the whole document. Note that this
     cannot be set if the `script` parameter is used.
 
 <<mapping-index,`index`>>::
@@ -249,8 +256,16 @@ Synthetic source always sorts `date` fields. For example:
 ----
 PUT idx
 {
+  "settings": {
+    "index": {
+      "mapping": {
+        "source": {
+          "mode": "synthetic"
+        }
+      }
+    }
+  },
   "mappings": {
-    "_source": { "mode": "synthetic" },
     "properties": {
       "date": { "type": "date" }
     }

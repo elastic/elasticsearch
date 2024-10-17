@@ -186,7 +186,7 @@ public class IndicesStatsMonitoringDocTests extends BaseFilteredMonitoringDocTes
         final IndexingStats.Stats indexingStats = new IndexingStats.Stats(3L, 4L, 0L, 0L, 0L, 0L, 0L, 0L, true, 5L, 0, 0);
         commonStats.getIndexing().add(new IndexingStats(indexingStats));
 
-        final SearchStats.Stats searchStats = new SearchStats.Stats(6L, 7L, 0L, 0L, 0L, 0L, 0L, 0L, 0L, 0L, 0L, 0L);
+        final SearchStats.Stats searchStats = new SearchStats.Stats(6L, 7L, 0L, 0L, 0L, 0L, 0L, 0L, 0L, 0L, 0L, 0L, 0L, 0L);
         commonStats.getSearch().add(new SearchStats(searchStats, 0L, null));
 
         final BulkStats bulkStats = new BulkStats(0L, 0L, 0L, 0L, 0L);

@@ -10,7 +10,7 @@ apply plugin: 'elasticsearch.internal-yaml-rest-test'
 
 restResources {
   restApi {
-    include '_common', 'bulk', 'count', 'cluster', 'field_caps', 'get', 'knn_search', 'index', 'indices', 'msearch',
+    include 'capabilities', '_common', 'bulk', 'count', 'cluster', 'field_caps', 'get', 'knn_search', 'index', 'indices', 'msearch',
       'search', 'async_search', 'graph', '*_point_in_time', 'info', 'scroll', 'clear_scroll', 'search_mvt', 'eql', 'sql'
   }
   restTests {

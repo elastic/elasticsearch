@@ -86,9 +86,30 @@ public final class MappingStats implements ToXContentFragment, Writeable {
                     FieldStats stats;
                     if (type.equals("dense_vector")) {
                         stats = fieldTypes.computeIfAbsent(type, DenseVectorFieldStats::new);
-                        boolean indexed = fieldMapping.containsKey("index") ? (boolean) fieldMapping.get("index") : false;
+                        DenseVectorFieldStats vStats = (DenseVectorFieldStats) stats;
+                        if (fieldMapping.containsKey("similarity")) {
+                            Object similarity = fieldMapping.get("similarity");
+                            vStats.vectorSimilarityTypeCount.compute(similarity.toString(), (t, c) -> c == null ? count : c + count);
+                        }
+                        String elementTypeStr = "float";
+                        if (fieldMapping.containsKey("element_type")) {
+                            Object elementType = fieldMapping.get("element_type");
+                            elementTypeStr = elementType.toString();
+                        }
+                        vStats.vectorElementTypeCount.compute(elementTypeStr, (t, c) -> c == null ? count : c + count);
+                        boolean indexed = fieldMapping.containsKey("index") && (boolean) fieldMapping.get("index");
                         if (indexed) {
-                            DenseVectorFieldStats vStats = (DenseVectorFieldStats) stats;
+                            Object indexOptions = fieldMapping.get("index_options");
+                            // NOTE, while the default for `float` is now `int8_hnsw`, that is actually added to the mapping
+                            // if the value is truly missing & we are indexed, we default to hnsw.
+                            String indexTypeStr = "hnsw";
+                            if (indexOptions instanceof Map<?, ?> indexOptionsMap) {
+                                Object indexType = indexOptionsMap.get("type");
+                                if (indexType != null) {
+                                    indexTypeStr = indexType.toString();
+                                }
+                            }
+                            vStats.vectorIndexTypeCount.compute(indexTypeStr, (t, c) -> c == null ? count : c + count);
                             vStats.indexedVectorCount += count;
                             Object obj = fieldMapping.get("dims");
                             if (obj != null) {
@@ -100,6 +121,8 @@ public final class MappingStats implements ToXContentFragment, Writeable {
                                     vStats.indexedVectorDimMax = dims;
                                 }
                             }
+                        } else {
+                            vStats.vectorIndexTypeCount.compute(DenseVectorFieldStats.NOT_INDEXED, (t, c) -> c == null ? 1 : c + 1);
                         }
                     } else {
                         stats = fieldTypes.computeIfAbsent(type, FieldStats::new);

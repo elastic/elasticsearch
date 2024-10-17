@@ -1553,7 +1553,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         SyntheticSourceExample example = syntheticSourceSupportForKeepTests(shouldUseIgnoreMalformed()).example(1);
         DocumentMapper mapper = createDocumentMapper(syntheticSourceMapping(b -> {
             b.startObject("field");
-            b.field(Mapper.SYNTHETIC_SOURCE_KEEP_PARAM, "none");
+            b.field("synthetic_source_keep", "none");
             example.mapping().accept(b);
             b.endObject();
         }));
@@ -1564,7 +1564,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         SyntheticSourceExample example = syntheticSourceSupportForKeepTests(shouldUseIgnoreMalformed()).example(1);
         DocumentMapper mapperAll = createDocumentMapper(syntheticSourceMapping(b -> {
             b.startObject("field");
-            b.field(Mapper.SYNTHETIC_SOURCE_KEEP_PARAM, "all");
+            b.field("synthetic_source_keep", "all");
             example.mapping().accept(b);
             b.endObject();
         }));
@@ -1581,12 +1581,12 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         SyntheticSourceExample example = syntheticSourceSupportForKeepTests(shouldUseIgnoreMalformed()).example(1);
         DocumentMapper mapperAll = createDocumentMapper(syntheticSourceMapping(b -> {
             b.startObject("field");
-            b.field(Mapper.SYNTHETIC_SOURCE_KEEP_PARAM, randomFrom("arrays", "all"));  // Both options keep array source.
+            b.field("synthetic_source_keep", randomFrom("arrays", "all"));  // Both options keep array source.
             example.mapping().accept(b);
             b.endObject();
         }));
 
-        int elementCount = randomIntBetween(1, 5);
+        int elementCount = randomIntBetween(2, 5);
         CheckedConsumer<XContentBuilder, IOException> buildInput = (XContentBuilder builder) -> {
             example.buildInputArray(builder, elementCount);
         };
@@ -1596,7 +1596,8 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         buildInput.accept(builder);
         builder.endObject();
         String expected = Strings.toString(builder);
-        assertThat(syntheticSource(mapperAll, buildInput), equalTo(expected));
+        String actual = syntheticSource(mapperAll, buildInput);
+        assertThat(actual, equalTo(expected));
     }
 
     @Override

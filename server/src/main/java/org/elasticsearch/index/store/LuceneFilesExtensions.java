@@ -57,6 +57,7 @@ public enum LuceneFilesExtensions {
     NVM("nvm", "Norms Metadata", true, false),
     PAY("pay", "Payloads", false, false),
     POS("pos", "Positions", false, false),
+    PSM("psm", "Postings Metadata", true, false),
     SI("si", "Segment Info", true, false),
     // Term dictionaries are typically performance-sensitive and hot in the page
     // cache, so we use mmap, which provides better performance.
@@ -80,7 +81,9 @@ public enum LuceneFilesExtensions {
     VEM("vem", "Vector Metadata", true, false),
     VEMF("vemf", "Flat Vector Metadata", true, false),
     VEMQ("vemq", "Scalar Quantized Vector Metadata", true, false),
-    VEQ("veq", "Scalar Quantized Vector Data", false, true);
+    VEQ("veq", "Scalar Quantized Vector Data", false, true),
+    VEMB("vemb", "Binarized Vector Metadata", true, false),
+    VEB("veb", "Binarized Vector Data", false, true);
 
     /**
      * Allow plugin developers of custom codecs to opt out of the assertion in {@link #fromExtension}

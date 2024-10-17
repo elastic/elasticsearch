@@ -99,10 +99,10 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
     public static final ParseField TIMEOUT_FIELD = new ParseField("timeout");
     public static final ParseField TERMINATE_AFTER_FIELD = new ParseField("terminate_after");
     public static final ParseField QUERY_FIELD = new ParseField("query");
-    public static final ParseField SUB_SEARCHES_FIELD = new ParseField("sub_searches");
+    public static final ParseField SUB_SEARCHES_FIELD = new ParseField("sub_searches").withAllDeprecated("retriever");
+    public static final ParseField RANK_FIELD = new ParseField("rank").withAllDeprecated("retriever");
     public static final ParseField POST_FILTER_FIELD = new ParseField("post_filter");
     public static final ParseField KNN_FIELD = new ParseField("knn");
-    public static final ParseField RANK_FIELD = new ParseField("rank");
     public static final ParseField MIN_SCORE_FIELD = new ParseField("min_score");
     public static final ParseField VERSION_FIELD = new ParseField("version");
     public static final ParseField SEQ_NO_PRIMARY_TERM_FIELD = new ParseField("seq_no_primary_term");
@@ -1409,6 +1409,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                         parser,
                         new RetrieverParserContext(searchUsage, clusterSupportsFeature)
                     );
+                    searchUsage.trackSectionUsage(RETRIEVER.getPreferredName());
                 } else if (QUERY_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     if (subSearchSourceBuilders.isEmpty() == false) {
                         throw new IllegalArgumentException(
@@ -2207,12 +2208,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         boolean allowPartialSearchResults
     ) {
         if (retriever() != null) {
-            if (allowPartialSearchResults && retriever().isCompound()) {
-                validationException = addValidationError(
-                    "cannot specify a compound retriever and [allow_partial_search_results]",
-                    validationException
-                );
-            }
+            validationException = retriever().validate(this, validationException, allowPartialSearchResults);
             List<String> specified = new ArrayList<>();
             if (subSearches().isEmpty() == false) {
                 specified.add(QUERY_FIELD.getPreferredName());
@@ -2228,9 +2224,6 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
             }
             if (sorts() != null) {
                 specified.add(SORT_FIELD.getPreferredName());
-            }
-            if (minScore() != null) {
-                specified.add(MIN_SCORE_FIELD.getPreferredName());
             }
             if (rankBuilder() != null) {
                 specified.add(RANK_FIELD.getPreferredName());
@@ -2331,20 +2324,9 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
             if (rescores() != null && rescores().isEmpty() == false) {
                 validationException = addValidationError("[rank] cannot be used with [rescore]", validationException);
             }
-            if (sorts() != null && sorts().isEmpty() == false) {
-                validationException = addValidationError("[rank] cannot be used with [sort]", validationException);
-            }
-            if (collapse() != null) {
-                validationException = addValidationError("[rank] cannot be used with [collapse]", validationException);
-            }
+
             if (suggest() != null && suggest().getSuggestions().isEmpty() == false) {
                 validationException = addValidationError("[rank] cannot be used with [suggest]", validationException);
-            }
-            if (highlighter() != null) {
-                validationException = addValidationError("[rank] cannot be used with [highlighter]", validationException);
-            }
-            if (pointInTimeBuilder() != null) {
-                validationException = addValidationError("[rank] cannot be used with [point in time]", validationException);
             }
         }
 

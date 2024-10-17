@@ -204,7 +204,7 @@ null
 date nanos to long, index version
 required_capability: to_date_nanos
 
-FROM date_nanos | WHERE millis > "2020-02-02" | EVAL l = TO_LONG(nanos) | KEEP l;
+FROM date_nanos | WHERE millis > "2020-02-02" | EVAL l = TO_LONG(nanos) | SORT nanos DESC | KEEP l;
 
 l:long
 1698069301543123456
@@ -219,7 +219,7 @@ l:long
 long to date nanos, index version
 required_capability: to_date_nanos
 
-FROM date_nanos | WHERE millis > "2020-02-02" | EVAL d = TO_DATE_NANOS(num) | KEEP d;
+FROM date_nanos | WHERE millis > "2020-02-02" | EVAL d = TO_DATE_NANOS(num) | SORT nanos DESC | KEEP d;
 
 d:date_nanos
 2023-10-23T13:55:01.543123456Z
@@ -234,7 +234,7 @@ d:date_nanos
 date_nanos to date nanos, index version
 required_capability: to_date_nanos
 
-FROM date_nanos | WHERE millis > "2020-02-02" | EVAL d = TO_DATE_NANOS(nanos) | KEEP d;
+FROM date_nanos | WHERE millis > "2020-02-02" | EVAL d = TO_DATE_NANOS(nanos) | SORT nanos DESC | KEEP d;
 
 d:date_nanos
 2023-10-23T13:55:01.543123456Z

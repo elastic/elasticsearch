@@ -1,0 +1,697 @@
+[#es-connectors-github]
+=== Elastic GitHub connector reference
+++++
+<titleabbrev>GitHub</titleabbrev>
+++++
+// Attributes used in this file
+:service-name: GitHub
+:service-name-stub: github
+
+The _Elastic GitHub connector_ is a <<es-connectors,connector>> for https://www.github.com[GitHub^].
+This connector is written in Python using the {connectors-python}[Elastic connector framework^]. 
+
+View the {connectors-python}/connectors/sources/{service-name-stub}.py[*source code* for this connector^] (branch _{connectors-branch}_, compatible with Elastic _{minor-version}_).
+
+.Choose your connector reference
+*******************************
+Are you using a managed connector on Elastic Cloud or a self-managed connector? Expand the documentation based on your deployment method.
+*******************************
+
+// //////// //// //// //// //// //// //// ////////
+// ////////   NATIVE CONNECTOR REFERENCE   ///////
+// //////// //// //// //// //// //// //// ////////
+
+[discrete#es-connectors-github-native-connector-reference]
+==== *Elastic managed connector reference*
+
+.View *Elastic managed connector* reference
+
+[%collapsible]
+===============
+
+[discrete#es-connectors-github-availability-prerequisites]
+===== Availability and prerequisites
+
+This connector is available as a *managed connector* as of Elastic version *8.11.0*.
+
+To use this connector natively in Elastic Cloud, satisfy all <<es-native-connectors-prerequisites,managed connector requirements>>.
+
+[discrete#es-connectors-github-create-native-connector]
+===== Create a {service-name} connector
+include::_connectors-create-native.asciidoc[]
+
+[discrete#es-connectors-github-usage]
+===== Usage
+
+To use this connector as a *managed connector*, see <<es-native-connectors>>.
+
+For additional operations, see <<es-connectors-usage>>.
+
+[discrete#es-connectors-github-personal-access-token]
+====== GitHub personal access token
+
+Configure a GitHub personal access token to fetch data from GitHub.
+
+Follow these steps to generate a GitHub personal access token:
+
+* Go to *GitHub Settings → Developer settings → Personal access tokens → Tokens(classic)*.
+* Select `Generate new token`.
+* Add a note and select the following scopes:
+** `repo`
+** `user`
+** `read:org`
+* Select `Generate token` and copy the token.
+
+[discrete#es-connectors-github-github-app]
+====== GitHub App
+
+Configure a GitHub App to fetch data from GitHub.
+
+Follow these steps to create a GitHub App:
+
+* Go to *GitHub Settings → Developer settings → GitHub Apps*.
+* Select `New GitHub App`.
+* Add a name and Homepage URL, deselect `Active` under `Webhook`.
+* Under `Permissions`, select `Read-only` for `Commit statuses`, `Contents`, `Issues`, `Metadata` and `Pull requests` under `Repository permissions`, select `Read-only` for `Members` under `Organization permissions`.
+* Select `Any account` for `Where can this GitHub App be installed?`.
+* Click `Create GitHub App`.
+* Scroll down to the section `Private keys`, and click `Generate a private key`.
+* Click `Install App` in the upper-left corner, select the organizations/personal accounts you want to install the GitHub App on, click `Install`.
+* You can choose to install it on all repositories or selected repositories, and click `Install`.
+
+[discrete#es-connectors-github-compatability]
+===== Compatibility
+
+Both GitHub and GitHub Enterprise are supported.
+
+[discrete#es-connectors-github-configuration]
+===== Configuration
+
+The following configuration fields are required:
+
+Data source::
+Toggle between GitHub Cloud or GitHub Server.
+
+Server URL::
+URL of the GitHub Server instance. (GitHub Server only)
+
+Authentication method::
+The method to authenticate the GitHub instance. Toggle between `Personal access token` and `GitHub App`.
+
+Token::
+GitHub personal access token to authenticate the GitHub instance. This field is only available for `Personal access token` authentication method.
+
+Repository Type::
+Toggle between `Organization` and `Other`.
+Note that document level security (DLS) is only available for `Organization` repositories.
+
+Organization Name::
+Name of the organization to fetch data from. This field is only available when `Authentication method` is set to `Personal access token` and `Repository Type` is set to `Organization`.
+
+App ID::
+App ID of the GitHub App. This field is only available when `Authentication method` is set to `GitHub App`.
+
+App private key::
+Private key generated for the GitHub App. This field is only available when `Authentication method` is set to `GitHub App`.
+
+List of repositories::
+Comma-separated list of repositories to fetch data from GitHub instance. If the value is `*` the connector will fetch data from all repositories present in the configured user's account.
++
+Default value is `*`.
++
+Examples:
++
+* `elasticsearch`,`elastic/kibana`
+* `*`
+[TIP]
+====
+*Repository ownership*
+
+If the "OWNER/" portion of the "OWNER/REPO" repository argument is omitted, it defaults to the name of the authenticating user.
+
+In the examples provided here:
+
+* the `elasticsearch` repo synced will be the `<OWNER>/elasticsearch` repo 
+* the `kibana` repo synced will be the Elastic owned repo 
+
+The "OWNER/" portion of the "OWNER/REPO" repository argument must be provided when `GitHub App` is selected as the `Authentication method`.
+====
+[NOTE]
+====
+This field can be bypassed by advanced sync rules.
+====
+
+Enable SSL::
+Enable SSL for the GitHub instance.
+
+SSL certificate::
+SSL certificate for the GitHub instance. Example:
++
+[source, txt]
+----
+-----BEGIN CERTIFICATE-----
+MIID+jCCAuKgAwIBAgIGAJJMzlxLMA0GCSqGSIb3DQEBCwUAMHoxCzAJBgNVBAYT
+...
+7RhLQyWn2u00L7/9Omw=
+-----END CERTIFICATE-----
+----
+
+Enable document level security::
+Toggle to enable <<es-dls, document level security (DLS)>>.
+When enabled, full syncs will fetch access control lists for each document and store them in the `_allow_access_control` field.
+DLS is only available when `Repository Type` is set to `Organization`.
+
+[discrete#es-connectors-github-documents-syncs]
+===== Documents and syncs
+
+The connector syncs the following objects and entities:
+
+* **Repositories**
+* **Pull Requests**
+* **Issues**
+* **Files & Folder**
+
+Only the following file extensions are ingested:
+
+* `.markdown`
+* `.md`
+* `.rst`
+
+[NOTE]
+====
+* Content from files bigger than 10 MB won't be extracted. (Self-managed connectors can use the <<es-connectors-content-extraction-local, self-managed local extraction service>> to handle larger binary files.)
+* Permissions are not synced. **All documents** indexed to an Elastic deployment will be visible to **all users with access** to that Elasticsearch Index.
+====
+
+[discrete#es-connectors-github-sync-types]
+====== Sync types
+
+<<es-connectors-sync-types-full,Full syncs>> are supported by default for all connectors.
+
+This connector also supports <<es-connectors-sync-types-incremental,incremental syncs>>.
+
+[discrete#es-connectors-github-sync-rules]
+===== Sync rules
+
+_Basic_ sync rules are identical for all connectors and are available by default.
+For more information read <<es-sync-rules-types>>.
+
+[discrete#es-connectors-github-sync-rules-advanced]
+====== Advanced sync rules
+
+[NOTE]
+====
+A <<es-connectors-sync-types-full, full sync>> is required for advanced sync rules to take effect.
+====
+
+The following section describes *advanced sync rules* for this connector.
+Advanced sync rules are defined through a source-specific DSL JSON snippet.
+
+The following sections provide examples of advanced sync rules for this connector.
+
+[discrete#es-connectors-github-sync-rules-advanced-branch]
+======= Indexing document and files based on branch name configured via branch key
+
+[source,js]
+----
+[
+  {
+    "repository": "repo_name",
+    "filter": {
+      "branch": "sync-rules-feature"
+    }
+  }
+]
+----
+// NOTCONSOLE
+
+[discrete#es-connectors-github-sync-rules-advanced-issue-key]
+======= Indexing document based on issue query related to bugs via issue key
+
+[source,js]
+----
+[
+  {
+    "repository": "repo_name",
+    "filter": {
+      "issue": "is:bug"
+    }
+  }
+]
+----
+// NOTCONSOLE
+
+[discrete#es-connectors-github-sync-rules-advanced-pr-key]
+======= Indexing document based on PR query related to open PR's via PR key
+
+[source,js]
+----
+[
+  {
+    "repository": "repo_name",
+    "filter": {
+      "pr": "is:open"
+    }
+  }
+]
+----
+// NOTCONSOLE
+
+[discrete#es-connectors-github-sync-rules-advanced-issue-query-branch-name]
+======= Indexing document and files based on queries and branch name
+
+[source,js]
+----
+[
+  {
+    "repository": "repo_name",
+    "filter": {
+      "issue": "is:bug",
+      "pr": "is:open",
+      "branch": "sync-rules-feature"
+    }
+  }
+]
+----
+// NOTCONSOLE
+
+[NOTE]
+====
+All documents pulled by a given rule are indexed regardless of whether the document has already been indexed by a previous rule.
+This can lead to document duplication, but the indexed documents count will differ in the logs.
+Check the Elasticsearch index for the actual document count.
+====
+
+[discrete#es-connectors-github-sync-rules-advanced-overlapping]
+======= Advanced rules for overlapping
+
+[source,js]
+----
+[
+  {
+    "filter": {
+      "pr": "is:pr is:merged label:auto-backport merged:>=2023-07-20"
+    },
+    "repository": "repo_name"
+  },
+  {
+    "filter": {
+      "pr": "is:pr is:merged label:auto-backport merged:>=2023-07-15"
+    },
+    "repository": "repo_name"
+  }
+]
+----
+// NOTCONSOLE
+
+[NOTE]
+====
+If `GitHub App` is selected as the authentication method, the  "OWNER/" portion of the "OWNER/REPO" repository argument must be provided.
+====
+
+[discrete#es-connectors-github-content-extraction]
+===== Content Extraction
+
+See <<es-connectors-content-extraction>>.
+
+[discrete#es-connectors-github-known-issues]
+===== Known issues
+
+There are currently no known issues for this connector.
+Refer to <<es-connectors-known-issues>> for a list of known issues for all connectors.
+
+[discrete#es-connectors-github-troubleshooting]
+===== Troubleshooting
+
+See <<es-connectors-troubleshooting>>.
+
+[discrete#es-connectors-github-security]
+===== Security
+
+See <<es-connectors-security>>.
+
+// Closing the collapsible section 
+===============
+
+
+// //////// //// //// //// //// //// //// ////////
+// //////// CONNECTOR CLIENT REFERENCE     ///////
+// //////// //// //// //// //// //// //// ////////
+
+[discrete#es-connectors-github-connector-client-reference]
+==== *Self-managed connector*
+
+.View *self-managed connector* reference
+
+[%collapsible]
+===============
+
+[discrete#es-connectors-github-client-availability-prerequisites]
+===== Availability and prerequisites
+
+This connector is available as a self-managed *self-managed connector*.
+
+This self-managed connector is compatible with Elastic versions *8.10.0+*.
+
+To use this connector, satisfy all <<es-build-connector,self-managed connector requirements>>.
+
+[discrete#es-connectors-github-create-connector-client]
+===== Create a {service-name} connector
+include::_connectors-create-client.asciidoc[]
+
+[discrete#es-connectors-github-client-usage]
+===== Usage
+
+To use this connector as a *self-managed connector*, see <<es-build-connector>>
+For additional usage operations, see <<es-connectors-usage>>.
+
+[discrete#es-connectors-github-client-personal-access-token]
+====== GitHub personal access token
+
+Configure a GitHub personal access token to fetch data from GitHub.
+
+Follow these steps to generate a GitHub  access token:
+
+* Go to *GitHub Settings → Developer settings → Personal access tokens → Tokens(classic)*.
+* Select `Generate new token`.
+* Add a note and select the following scopes:
+** `repo`
+** `user`
+** `read:org`
+* Select `Generate token` and copy the token.
+
+[discrete#es-connectors-github-client-github-app]
+====== GitHub App
+
+Configure a GitHub App to fetch data from GitHub.
+
+Follow these steps to create a GitHub App:
+
+* Go to *GitHub Settings → Developer settings → GitHub Apps*.
+* Select `New GitHub App`.
+* Add a name and Homepage URL, deselect `Active` under `Webhook`.
+* Under `Permissions`, select `Read-only` for `Commit statuses`, `Contents`, `Issues`, `Metadata` and `Pull requests` under `Repository permissions`, select `Read-only` for `Members` under `Organization permissions`.
+* Select `Any account` for `Where can this GitHub App be installed?`.
+* Click `Create GitHub App`.
+* Scroll down to the section `Private keys`, and click `Generate a private key`.
+* Click `Install App` in the upper-left corner, select the organizations/personal accounts you want to install the GitHub App on, click `Install`.
+* You can choose to install it on all repositories or selected repositories, and click `Install`.
+
+
+[discrete#es-connectors-github-client-compatability]
+===== Compatibility
+
+Both GitHub and GitHub Enterprise are supported.
+
+[discrete#es-connectors-github-client-configuration]
+===== Configuration
+
+[TIP]
+====
+When using the <<es-build-connector, build a connector>> workflow, initially these fields will use the default configuration set in the {connectors-python}/connectors/sources/github.py[connector source code^].
+These are set in the `get_default_configuration` function definition.
+
+These configurable fields will be rendered with their respective *labels* in the Kibana UI.
+Once connected, you'll be able to update these values in Kibana.
+====
+
+The following configuration fields are required:
+
+`data_source`::
+GitHub Cloud or GitHub Server.
+
+`host`::
+URL of the GitHub Server instance. (GitHub Server only)
+
+`auth_method`::
+The method to authenticate the GitHub instance. Toggle between `Personal access token` and `GitHub App`.
+
+`token`::
+GitHub personal access token to authenticate the GitHub instance.  This field is only available for `Personal access token` authentication method.
+
+`repo_type`::
+Toggle between `Organization` and `Other`.
+Note that document level security (DLS) is only available for `Organization` repositories.
+
+`org_name`::
+Name of the organization to fetch data from. This field is only available when `Authentication method` is set to `Personal access token` and `Repository Type` is set to `Organization`.
+
+`app_id`::
+App ID of the GitHub App. This field is only available when `Authentication method` is set to `GitHub App`.
+
+`private_key`::
+Private key generated for the GitHub App. This field is only available when `Authentication method` is set to `GitHub App`.
+
+`repositories`::
+Comma-separated list of repositories to fetch data from GitHub instance. If the value is `*` the connector will fetch data from all repositories present in the configured user's account.
++
+Default value is `*`.
++
+Examples:
++
+* `elasticsearch`,`elastic/kibana`
+* `*`
+[TIP]
+====
+*Repository ownership*
+
+If the "OWNER/" portion of the "OWNER/REPO" repository argument is omitted, it defaults to the name of the authenticating user.
+
+In the examples provided here:
+
+* the `elasticsearch` repo synced will be the `<OWNER>/elasticsearch` 
+* the `kibana` repo synced will be the Elastic owned repo 
+
+The "OWNER/" portion of the "OWNER/REPO" repository argument must be provided when `GitHub App` is selected as the `Authentication method`.
+====
+[NOTE]
+====
+This field can be bypassed by advanced sync rules.
+====
+
+`ssl_enabled`::
+Whether SSL verification will be enabled. Default value is `False`.
+
+`ssl_ca`::
+Content of SSL certificate. Note: If `ssl_enabled` is `False`, the value in this field is ignored. Example certificate:
++
+[source, txt]
+----
+-----BEGIN CERTIFICATE-----
+MIID+jCCAuKgAwIBAgIGAJJMzlxLMA0GCSqGSIb3DQEBCwUAMHoxCzAJBgNVBAYT
+...
+7RhLQyWn2u00L7/9Omw=
+-----END CERTIFICATE-----
+----
+
+`use_document_level_security`::
+Toggle to enable <<es-dls, document level security (DLS)>>.
+When enabled, full syncs will fetch access control lists for each document and store them in the `_allow_access_control` field.
+DLS is only available when `Repository Type` is set to `Organization`.
+
+`retry_count`::
+The number of retry attempts after failed request to GitHub. Default value is `3`.
+
+`use_text_extraction_service`::
+Requires a separate deployment of the <<es-connectors-content-extraction-local,Elastic Text Extraction Service>>. Requires that pipeline settings disable text extraction.
+Default value is `False`.
+
+[discrete#es-connectors-github-client-docker]
+===== Deployment using Docker
+
+include::_connectors-docker-instructions.asciidoc[]
+
+[discrete#es-connectors-github-client-documents-syncs]
+===== Documents and syncs
+
+The connector syncs the following objects and entities:
+
+* **Repositories**
+* **Pull Requests**
+* **Issues**
+* **Files & Folder**
+
+Only the following file extensions are ingested:
+
+* `.markdown`
+* `.md`
+* `.rst`
+
+[NOTE]
+====
+* Content of files bigger than 10 MB won't be extracted.
+* Permissions are not synced. **All documents** indexed to an Elastic deployment will be visible to **all users with access** to that Elasticsearch Index.
+====
+
+[discrete#es-connectors-github-client-sync-types]
+====== Sync types
+
+<<es-connectors-sync-types-full,Full syncs>> are supported by default for all connectors.
+
+This connector also supports <<es-connectors-sync-types-incremental,incremental syncs>>.
+
+[discrete#es-connectors-github-client-sync-rules]
+===== Sync rules
+
+_Basic_ sync rules are identical for all connectors and are available by default.
+For more information read <<es-sync-rules-types>>.
+
+[discrete#es-connectors-github-client-sync-rules-advanced]
+====== Advanced sync rules
+
+[NOTE]
+====
+A <<es-connectors-sync-types-full, full sync>> is required for advanced sync rules to take effect.
+====
+
+The following section describes *advanced sync rules* for this connector.
+Advanced sync rules are defined through a source-specific DSL JSON snippet.
+
+The following sections provide examples of advanced sync rules for this connector.
+
+[discrete#es-connectors-github-client-sync-rules-advanced-branch]
+======= Indexing document and files based on branch name configured via branch key
+
+[source,js]
+----
+[
+  {
+    "repository": "repo_name",
+    "filter": {
+      "branch": "sync-rules-feature"
+    }
+  }
+]
+----
+// NOTCONSOLE
+
+[discrete#es-connectors-github-client-sync-rules-advanced-issue-key]
+======= Indexing document based on issue query related to bugs via issue key
+
+[source,js]
+----
+[
+  {
+    "repository": "repo_name",
+    "filter": {
+      "issue": "is:bug"
+    }
+  }
+]
+----
+// NOTCONSOLE
+
+[discrete#es-connectors-github-client-sync-rules-advanced-pr-key]
+======= Indexing document based on PR query related to open PR's via PR key
+
+[source,js]
+----
+[
+  {
+    "repository": "repo_name",
+    "filter": {
+      "pr": "is:open"
+    }
+  }
+]
+----
+// NOTCONSOLE
+
+[discrete#es-connectors-github-client-sync-rules-advanced-issue-query-branch-name]
+======= Indexing document and files based on queries and branch name
+
+[source,js]
+----
+[
+  {
+    "repository": "repo_name",
+    "filter": {
+      "issue": "is:bug",
+      "pr": "is:open",
+      "branch": "sync-rules-feature"
+    }
+  }
+]
+----
+// NOTCONSOLE
+
+[NOTE]
+====
+All documents pulled by a given rule are indexed regardless of whether the document has already been indexed by a previous rule.
+This can lead to document duplication, but the indexed documents count will differ in the logs.
+Check the Elasticsearch index for the actual document count.
+====
+
+[discrete#es-connectors-github-client-sync-rules-advanced-overlapping]
+======= Advanced rules for overlapping
+
+[source,js]
+----
+[
+  {
+    "filter": {
+      "pr": "is:pr is:merged label:auto-backport merged:>=2023-07-20"
+    },
+    "repository": "repo_name"
+  },
+  {
+    "filter": {
+      "pr": "is:pr is:merged label:auto-backport merged:>=2023-07-15"
+    },
+    "repository": "repo_name"
+  }
+]
+----
+// NOTCONSOLE
+
+[NOTE]
+====
+If `GitHub App` is selected as the authentication method, the  "OWNER/" portion of the "OWNER/REPO" repository argument must be provided.
+====
+
+[discrete#es-connectors-github-client-content-extraction]
+===== Content Extraction
+
+See <<es-connectors-content-extraction>>.
+
+[discrete#es-connectors-github-client-connector-client-operations]
+===== Self-managed connector operations
+
+[discrete#es-connectors-github-client-testing]
+===== End-to-end testing
+
+The connector framework enables operators to run functional tests against a real data source.
+Refer to <<es-build-connector-testing>> for more details.
+
+To perform E2E testing for the GitHub connector, run the following command:
+
+[source,shell]
+----
+$ make ftest NAME=github
+----
+
+For faster tests, add the `DATA_SIZE=small` flag:
+
+[source,shell]
+----
+make ftest NAME=github DATA_SIZE=small
+----
+
+[discrete#es-connectors-github-client-known-issues]
+===== Known issues
+
+There are currently no known issues for this connector.
+Refer to <<es-connectors-known-issues>> for a list of known issues for all connectors.
+
+[discrete#es-connectors-github-client-troubleshooting]
+===== Troubleshooting
+
+See <<es-connectors-troubleshooting>>.
+
+[discrete#es-connectors-github-client-security]
+===== Security
+
+See <<es-connectors-security>>.
+
+// Closing the collapsible section 
+===============

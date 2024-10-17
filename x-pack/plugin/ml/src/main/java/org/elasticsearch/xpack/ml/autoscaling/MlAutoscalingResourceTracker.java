@@ -48,7 +48,8 @@ import static org.elasticsearch.xpack.ml.MachineLearning.MAX_OPEN_JOBS_PER_NODE;
 import static org.elasticsearch.xpack.ml.job.JobNodeSelector.AWAITING_LAZY_ASSIGNMENT;
 
 /**
- * backend for new kubernetes based autoscaler.
+ * This handles ML autoscaling just for serverless.
+ * For classic cloud, see: {@link MlAutoscalingDeciderService}.
  */
 public final class MlAutoscalingResourceTracker {
     private static final Logger logger = LogManager.getLogger(MlAutoscalingResourceTracker.class);

@@ -22,6 +22,7 @@ import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.inference.UnparsedModel;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
@@ -98,6 +99,12 @@ public abstract class BaseElasticsearchInternalService implements InferenceServi
                 return;
             }
 
+            if (esModel.usesExistingDeployment()) {
+                // don't start a deployment
+                finalListener.onResponse(Boolean.TRUE);
+                return;
+            }
+
             SubscribableListener.<Boolean>newForked(forkedListener -> { isBuiltinModelPut(model, forkedListener); })
                 .<Boolean>andThen((l, modelConfigExists) -> {
                     if (modelConfigExists == false) {
@@ -119,14 +126,28 @@ public abstract class BaseElasticsearchInternalService implements InferenceServi
     }
 
     @Override
-    public void stop(String inferenceEntityId, ActionListener<Boolean> listener) {
-        var request = new StopTrainedModelDeploymentAction.Request(inferenceEntityId);
-        request.setForce(true);
-        client.execute(
-            StopTrainedModelDeploymentAction.INSTANCE,
-            request,
-            listener.delegateFailureAndWrap((delegatedResponseListener, response) -> delegatedResponseListener.onResponse(Boolean.TRUE))
-        );
+    public void stop(UnparsedModel unparsedModel, ActionListener<Boolean> listener) {
+
+        var model = parsePersistedConfig(unparsedModel.inferenceEntityId(), unparsedModel.taskType(), unparsedModel.settings());
+        if (model instanceof ElasticsearchInternalModel esModel) {
+
+            var serviceSettings = esModel.getServiceSettings();
+            if (serviceSettings.getDeploymentId() != null) {
+                // configured with an existing deployment so do not stop it
+                listener.onResponse(Boolean.TRUE);
+                return;
+            }
+
+            var request = new StopTrainedModelDeploymentAction.Request(esModel.mlNodeDeploymentId());
+            request.setForce(true);
+            client.execute(
+                StopTrainedModelDeploymentAction.INSTANCE,
+                request,
+                listener.delegateFailureAndWrap((delegatedResponseListener, response) -> delegatedResponseListener.onResponse(Boolean.TRUE))
+            );
+        } else {
+            listener.onFailure(notElasticsearchModelException(model));
+        }
     }
 
     protected static IllegalStateException notElasticsearchModelException(Model model) {

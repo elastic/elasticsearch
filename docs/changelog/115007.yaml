@@ -1,5 +1,0 @@
-pr: 115007
-summary: "Reapply \"ESQL: Remove parent from `FieldAttribute\"` (#115006)"
-area: ES|QL
-type: enhancement
-issues: []

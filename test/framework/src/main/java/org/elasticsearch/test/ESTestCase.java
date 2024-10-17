@@ -578,9 +578,9 @@ public abstract class ESTestCase extends LuceneTestCase {
         }
     }
 
-    private final List<CircuitBreaker> breakers = Collections.synchronizedList(new ArrayList<>());
+    private static final List<CircuitBreaker> breakers = Collections.synchronizedList(new ArrayList<>());
 
-    protected final CircuitBreaker newLimitedBreaker(ByteSizeValue max) {
+    protected static CircuitBreaker newLimitedBreaker(ByteSizeValue max) {
         CircuitBreaker breaker = new MockBigArrays.LimitedBreaker("<es-test-case>", max);
         breakers.add(breaker);
         return breaker;
@@ -588,7 +588,10 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     @After
     public final void allBreakersMemoryReleased() {
-        for (CircuitBreaker breaker : breakers) {
+        var breakersToCheck = new ArrayList<>(breakers);
+        // We clear it now to avoid keeping old breakers if the assertion fails
+        breakers.clear();
+        for (CircuitBreaker breaker : breakersToCheck) {
             assertThat(breaker.getUsed(), equalTo(0L));
         }
     }
@@ -897,10 +900,11 @@ public abstract class ESTestCase extends LuceneTestCase {
      * @return a random instant between a min and a max value with a random nanosecond precision
      */
     public static Instant randomInstantBetween(Instant minInstant, Instant maxInstant) {
-        return Instant.ofEpochSecond(
-            randomLongBetween(minInstant.getEpochSecond(), maxInstant.getEpochSecond()),
-            randomLongBetween(0, 999999999)
-        );
+        long epochSecond = randomLongBetween(minInstant.getEpochSecond(), maxInstant.getEpochSecond());
+        long minNanos = epochSecond == minInstant.getEpochSecond() ? minInstant.getNano() : 0;
+        long maxNanos = epochSecond == maxInstant.getEpochSecond() ? maxInstant.getNano() : 999999999;
+        long nanos = randomLongBetween(minNanos, maxNanos);
+        return Instant.ofEpochSecond(epochSecond, nanos);
     }
 
     /**

@@ -137,7 +137,8 @@ public final class IndexLifecycleTransition {
             lifecycleState,
             newStepKey,
             nowSupplier,
-            forcePhaseDefinitionRefresh
+            forcePhaseDefinitionRefresh,
+            true
         );
 
         return LifecycleExecutionStateUtils.newClusterStateWithLifecycleState(state, idxMeta.getIndex(), newLifecycleState);
@@ -175,6 +176,7 @@ public final class IndexLifecycleTransition {
             currentState,
             new Step.StepKey(currentStep.phase(), currentStep.action(), ErrorStep.NAME),
             nowSupplier,
+            false,
             false
         );
 
@@ -243,7 +245,8 @@ public final class IndexLifecycleTransition {
                 lifecycleState,
                 nextStepKey,
                 nowSupplier,
-                forcePhaseDefinitionRefresh
+                forcePhaseDefinitionRefresh,
+                false
             );
 
             LifecycleExecutionState.Builder retryStepState = LifecycleExecutionState.builder(nextStepState);
@@ -277,7 +280,8 @@ public final class IndexLifecycleTransition {
         LifecycleExecutionState existingState,
         Step.StepKey newStep,
         LongSupplier nowSupplier,
-        boolean forcePhaseDefinitionRefresh
+        boolean forcePhaseDefinitionRefresh,
+        boolean allowNullPreviousStepInfo
     ) {
         Step.StepKey currentStep = Step.getCurrentStepKey(existingState);
         long nowAsMillis = nowSupplier.getAsLong();
@@ -289,6 +293,9 @@ public final class IndexLifecycleTransition {
 
         // clear any step info or error-related settings from the current step
         updatedState.setFailedStep(null);
+        if (allowNullPreviousStepInfo || existingState.stepInfo() != null) {
+            updatedState.setPreviousStepInfo(existingState.stepInfo());
+        }
         updatedState.setStepInfo(null);
         updatedState.setIsAutoRetryableError(null);
         updatedState.setFailedStepRetryCount(null);
@@ -389,6 +396,7 @@ public final class IndexLifecycleTransition {
         updatedState.setStep(nextStep.name());
         updatedState.setStepTime(nowAsMillis);
         updatedState.setFailedStep(null);
+        updatedState.setPreviousStepInfo(null);
         updatedState.setStepInfo(null);
         updatedState.setIsAutoRetryableError(null);
         updatedState.setFailedStepRetryCount(null);

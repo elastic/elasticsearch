@@ -160,7 +160,7 @@ public class DiskThresholdSettings implements Writeable {
         checkAutoReleaseIndexEnabled();
     }
 
-    @UpdateForV9 // this check is unnecessary in v9
+    @UpdateForV9(owner = UpdateForV9.Owner.DISTRIBUTED_COORDINATION) // this check is unnecessary in v9
     private static void checkAutoReleaseIndexEnabled() {
         final String AUTO_RELEASE_INDEX_ENABLED_KEY = "es.disk.auto_release_flood_stage_block";
         final String property = System.getProperty(AUTO_RELEASE_INDEX_ENABLED_KEY);

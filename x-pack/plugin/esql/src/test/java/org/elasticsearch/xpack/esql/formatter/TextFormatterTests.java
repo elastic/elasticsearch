@@ -17,6 +17,7 @@ import org.elasticsearch.geometry.Point;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.TestBlockFactory;
 import org.elasticsearch.xpack.esql.action.ColumnInfoImpl;
+import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 
 import java.util.Arrays;
@@ -80,7 +81,8 @@ public class TextFormatterTests extends ESTestCase {
         ),
         null,
         randomBoolean(),
-        randomBoolean()
+        randomBoolean(),
+        new EsqlExecutionInfo(randomBoolean())
     );
 
     TextFormatter formatter = new TextFormatter(esqlResponse);
@@ -154,7 +156,8 @@ public class TextFormatterTests extends ESTestCase {
             ),
             null,
             randomBoolean(),
-            randomBoolean()
+            randomBoolean(),
+            new EsqlExecutionInfo(randomBoolean())
         );
 
         String[] result = getTextBodyContent(new TextFormatter(response).format(false)).split("\n");
@@ -194,7 +197,8 @@ public class TextFormatterTests extends ESTestCase {
                         ),
                         null,
                         randomBoolean(),
-                        randomBoolean()
+                        randomBoolean(),
+                        new EsqlExecutionInfo(randomBoolean())
                     )
                 ).format(false)
             )

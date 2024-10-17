@@ -17,17 +17,23 @@ import org.apache.lucene.codecs.lucene99.Lucene99FlatVectorsFormat;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.index.VectorSimilarityFunction;
+import org.apache.lucene.util.VectorUtil;
 import org.apache.lucene.util.hnsw.RandomAccessVectorValues;
 import org.apache.lucene.util.hnsw.RandomVectorScorer;
 import org.apache.lucene.util.hnsw.RandomVectorScorerSupplier;
 import org.apache.lucene.util.quantization.RandomAccessQuantizedByteVectorValues;
-import org.elasticsearch.script.field.vectors.ESVectorUtil;
 
 import java.io.IOException;
 
+import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.MAX_DIMS_COUNT;
+
 class ES815BitFlatVectorsFormat extends FlatVectorsFormat {
 
-    private final FlatVectorsFormat delegate = new Lucene99FlatVectorsFormat(FlatBitVectorScorer.INSTANCE);
+    private static final FlatVectorsFormat delegate = new Lucene99FlatVectorsFormat(FlatBitVectorScorer.INSTANCE);
+
+    protected ES815BitFlatVectorsFormat() {
+        super("ES815BitFlatVectorsFormat");
+    }
 
     @Override
     public FlatVectorsWriter fieldsWriter(SegmentWriteState segmentWriteState) throws IOException {
@@ -37,6 +43,11 @@ class ES815BitFlatVectorsFormat extends FlatVectorsFormat {
     @Override
     public FlatVectorsReader fieldsReader(SegmentReadState segmentReadState) throws IOException {
         return delegate.fieldsReader(segmentReadState);
+    }
+
+    @Override
+    public int getMaxDimensions(String fieldName) {
+        return MAX_DIMS_COUNT;
     }
 
     static class FlatBitVectorScorer implements FlatVectorsScorer {
@@ -101,7 +112,7 @@ class ES815BitFlatVectorsFormat extends FlatVectorsFormat {
     }
 
     static float hammingScore(byte[] a, byte[] b) {
-        return ((a.length * Byte.SIZE) - ESVectorUtil.xorBitCount(a, b)) / (float) (a.length * Byte.SIZE);
+        return ((a.length * Byte.SIZE) - VectorUtil.xorBitCount(a, b)) / (float) (a.length * Byte.SIZE);
     }
 
     static class HammingVectorScorer extends RandomVectorScorer.AbstractRandomVectorScorer {

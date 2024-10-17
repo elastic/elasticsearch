@@ -660,51 +660,11 @@ node cannot continue to operate as a member of the cluster:
 
 Errors like this should be very rare. When in doubt, prefer `WARN` to `ERROR`.
 
-### Version numbers in the Elasticsearch codebase
+### Versioning Elasticsearch
 
-Starting in 8.8.0, we have separated out the version number representations
-of various aspects of Elasticsearch into their own classes, using their own
-numbering scheme separate to release version. The main ones are
-`TransportVersion` and `IndexVersion`, representing the version of the
-inter-node binary protocol and index data + metadata respectively.
-
-Separated version numbers are comprised of an integer number. The semantic
-meaning of a version number are defined within each `*Version` class.  There
-is no direct mapping between separated version numbers and the release version.
-The versions used by any particular instance of Elasticsearch can be obtained
-by querying `/_nodes/info` on the node.
-
-#### Using separated version numbers
-
-Whenever a change is made to a component versioned using a separated version
-number, there are a few rules that need to be followed:
-
-1. Each version number represents a specific modification to that component,
-   and should not be modified once it is defined. Each version is immutable
-   once merged into `main`.
-2. To create a new component version, add a new constant to the respective class
-   with a descriptive name of the change being made. Increment the integer
-   number according to the particular `*Version` class.
-
-If your pull request has a conflict around your new version constant,
-you need to update your PR from `main` and change your PR to use the next
-available version number.
-
-### Checking for cluster features
-
-As part of developing a new feature or change, you might need to determine
-if all nodes in a cluster have been upgraded to support your new feature.
-This can be done using `FeatureService`. To define and check for a new
-feature in a cluster:
-
-1. Define a new `NodeFeature` constant with a unique id for the feature
-   in a class related to the change you're doing.
-2. Return that constant from an instance of `FeatureSpecification.getFeatures`,
-   either an existing implementation or a new implementation. Make sure
-   the implementation is added as an SPI implementation in `module-info.java`
-   and `META-INF/services`.
-3. To check if all nodes in the cluster support the new feature, call
-`FeatureService.clusterHasFeature(ClusterState, NodeFeature)`
+There are various concepts used to identify running node versions,
+and the capabilities and compatibility of those nodes. For more information,
+see `docs/internal/Versioning.md`
 
 ### Creating a distribution
 

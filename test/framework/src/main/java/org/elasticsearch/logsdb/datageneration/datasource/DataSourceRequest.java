@@ -9,6 +9,7 @@
 
 package org.elasticsearch.logsdb.datageneration.datasource;
 
+import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.logsdb.datageneration.DataGeneratorSpecification;
 import org.elasticsearch.logsdb.datageneration.FieldType;
 import org.elasticsearch.logsdb.datageneration.fields.DynamicMapping;
@@ -92,7 +93,7 @@ public interface DataSourceRequest<TResponse extends DataSourceResponse> {
         }
     }
 
-    record FieldTypeGenerator(DynamicMapping dynamicMapping) implements DataSourceRequest<DataSourceResponse.FieldTypeGenerator> {
+    record FieldTypeGenerator() implements DataSourceRequest<DataSourceResponse.FieldTypeGenerator> {
         public DataSourceResponse.FieldTypeGenerator accept(DataSourceHandler handler) {
             return handler.handle(this);
         }
@@ -115,10 +116,16 @@ public interface DataSourceRequest<TResponse extends DataSourceResponse> {
         }
     }
 
-    record ObjectMappingParametersGenerator(boolean isNested)
+    record ObjectMappingParametersGenerator(boolean isRoot, boolean isNested, ObjectMapper.Subobjects parentSubobjects)
         implements
             DataSourceRequest<DataSourceResponse.ObjectMappingParametersGenerator> {
         public DataSourceResponse.ObjectMappingParametersGenerator accept(DataSourceHandler handler) {
+            return handler.handle(this);
+        }
+    }
+
+    record DynamicMappingGenerator() implements DataSourceRequest<DataSourceResponse.DynamicMappingGenerator> {
+        public DataSourceResponse.DynamicMappingGenerator accept(DataSourceHandler handler) {
             return handler.handle(this);
         }
     }

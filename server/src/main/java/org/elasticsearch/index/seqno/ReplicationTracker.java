@@ -471,7 +471,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
         return emptyIfNull(retentionLeases);
     }
 
-    @UpdateForV9
+    @UpdateForV9(owner = UpdateForV9.Owner.DISTRIBUTED_INDEXING)
     private static RetentionLeases emptyIfNull(RetentionLeases retentionLeases) {
         // we expect never to see a null in 8.x, so adjust this to throw an exception from v9 onwards.
         return retentionLeases == null ? RetentionLeases.EMPTY : retentionLeases;

@@ -38,6 +38,24 @@
       "params" : [
         {
           "name" : "first",
+          "type" : "date",
+          "optional" : false,
+          "description" : "First of the columns to evaluate."
+        },
+        {
+          "name" : "rest",
+          "type" : "date",
+          "optional" : true,
+          "description" : "The rest of the columns to evaluate."
+        }
+      ],
+      "variadic" : true,
+      "returnType" : "date"
+    },
+    {
+      "params" : [
+        {
+          "name" : "first",
           "type" : "double",
           "optional" : false,
           "description" : "First of the columns to evaluate."
@@ -212,5 +230,6 @@
   "examples" : [
     "ROW a = 10, b = 20\n| EVAL l = LEAST(a, b)"
   ],
-  "preview" : false
+  "preview" : false,
+  "snapshot_only" : false
 }

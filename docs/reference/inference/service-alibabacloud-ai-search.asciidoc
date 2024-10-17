@@ -24,9 +24,10 @@ include::inference-shared.asciidoc[tag=task-type]
 --
 Available task types:
 
-* `text_embedding`,
+* `completion`,
+* `rerank`
 * `sparse_embedding`,
-* `rerank`.
+* `text_embedding`.
 --
 
 [discrete]
@@ -55,6 +56,28 @@ A valid API key for the AlibabaCloud AI Search API.
 The name of the model service to use for the {infer} task.
 +
 --
+Available service_ids for the `completion` task:
+
+* `ops-qwen-turbo`
+* `qwen-turbo`
+* `qwen-plus`
+* `qwen-max`
+÷ `qwen-max-longcontext`
+
+For the supported `completion` service_ids, refer to the https://help.aliyun.com/zh/open-search/search-platform/developer-reference/text-generation-api-details[documentation].
+
+Available service_id for the `rerank` task is:
+
+* `ops-bge-reranker-larger`
+
+For the supported `rerank` service_id, refer to the https://help.aliyun.com/zh/open-search/search-platform/developer-reference/ranker-api-details[documentation].
+
+Available service_id for the `sparse_embedding` task:
+
+* `ops-text-sparse-embedding-001`
+
+For the supported `sparse_embedding` service_id, refer to the https://help.aliyun.com/zh/open-search/search-platform/developer-reference/text-sparse-embedding-api-details[documentation].
+
 Available service_ids for the `text_embedding` task:
 
 * `ops-text-embedding-001`
@@ -64,22 +87,12 @@ Available service_ids for the `text_embedding` task:
 
 For the supported `text_embedding` service_ids, refer to the https://help.aliyun.com/zh/open-search/search-platform/developer-reference/text-embedding-api-details[documentation].
 
-Available service_id for the `sparse_embedding` task:
-
-* `ops-text-sparse-embedding-001`
-
-For the supported `sparse_embedding` service_id, refer to the https://help.aliyun.com/zh/open-search/search-platform/developer-reference/text-sparse-embedding-api-details[documentation].
-
-Available service_id for the `rerank` task is:
-
-* `ops-bge-reranker-larger`
-
-For the supported `rerank` service_id, refer to the https://help.aliyun.com/zh/open-search/search-platform/developer-reference/ranker-api-details[documentation].
 --
 
 `host`:::
 (Required, string)
-The name of the host address used for the {infer} task. You can find the host address at https://opensearch.console.aliyun.com/cn-shanghai/rag/api-key[ the API keys section] of the documentation.
+The name of the host address used for the {infer} task.
+You can find the host address at https://opensearch.console.aliyun.com/cn-shanghai/rag/api-key[the API keys section] of the documentation.
 
 `workspace`:::
 (Required, string)
@@ -130,6 +143,60 @@ If `true`, the token name will be returned in the response. Defaults to `false` 
 [[inference-example-alibabacloud-ai-search]]
 ==== AlibabaCloud AI Search service examples
 
+The following example shows how to create an {infer} endpoint called `alibabacloud_ai_search_completion` to perform a `completion` task type.
+
+[source,console]
+------------------------------------------------------------
+PUT _inference/completion/alibabacloud_ai_search_completion
+{
+    "service": "alibabacloud-ai-search",
+    "service_settings": {
+        "host" : "default-j01.platform-cn-shanghai.opensearch.aliyuncs.com",
+        "api_key": "{{API_KEY}}",
+        "service_id": "ops-qwen-turbo",
+        "workspace" : "default"
+    }
+}
+------------------------------------------------------------
+// TEST[skip:TBD]
+
+
+The next example shows how to create an {infer} endpoint called `alibabacloud_ai_search_rerank` to perform a `rerank` task type.
+
+[source,console]
+------------------------------------------------------------
+PUT _inference/rerank/alibabacloud_ai_search_rerank
+{
+    "service": "alibabacloud-ai-search",
+    "service_settings": {
+        "api_key": "<api_key>",
+        "service_id": "ops-bge-reranker-larger",
+        "host": "default-j01.platform-cn-shanghai.opensearch.aliyuncs.com",
+        "workspace": "default"
+    }
+}
+------------------------------------------------------------
+// TEST[skip:TBD]
+
+
+The following example shows how to create an {infer} endpoint called `alibabacloud_ai_search_sparse` to perform a `sparse_embedding` task type.
+
+[source,console]
+------------------------------------------------------------
+PUT _inference/sparse_embedding/alibabacloud_ai_search_sparse
+{
+    "service": "alibabacloud-ai-search",
+    "service_settings": {
+        "api_key": "<api_key>",
+        "service_id": "ops-text-sparse-embedding-001",
+        "host": "default-j01.platform-cn-shanghai.opensearch.aliyuncs.com",
+        "workspace": "default"
+    }
+}
+------------------------------------------------------------
+// TEST[skip:TBD]
+
+
 The following example shows how to create an {infer} endpoint called `alibabacloud_ai_search_embeddings` to perform a `text_embedding` task type.
 
 [source,console]
@@ -147,38 +214,5 @@ PUT _inference/text_embedding/alibabacloud_ai_search_embeddings
 ------------------------------------------------------------
 // TEST[skip:TBD]
 
-The following example shows how to create an {infer} endpoint called
-`alibabacloud_ai_search_sparse` to perform a `sparse_embedding` task type.
 
-[source,console]
-------------------------------------------------------------
-PUT _inference/sparse_embedding/alibabacloud_ai_search_sparse
-{
-    "service": "alibabacloud-ai-search",
-    "service_settings": {
-        "api_key": "<api_key>",
-        "service_id": "ops-text-sparse-embedding-001",
-        "host": "default-j01.platform-cn-shanghai.opensearch.aliyuncs.com",
-        "workspace": "default"
-    }
-}
-------------------------------------------------------------
-// TEST[skip:TBD]
 
-The next example shows how to create an {infer} endpoint called
-`alibabacloud_ai_search_rerank` to perform a `rerank` task type.
-
-[source,console]
-------------------------------------------------------------
-PUT _inference/rerank/alibabacloud_ai_search_rerank
-{
-    "service": "alibabacloud-ai-search",
-    "service_settings": {
-        "api_key": "<api_key>",
-        "service_id": "ops-bge-reranker-larger",
-        "host": "default-j01.platform-cn-shanghai.opensearch.aliyuncs.com",
-        "workspace": "default"
-    }
-}
-------------------------------------------------------------
-// TEST[skip:TBD]

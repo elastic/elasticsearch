@@ -329,7 +329,7 @@ public class MetadataCreateDataStreamService {
             template.getDataStreamTemplate().isAllowCustomRouting(),
             indexMode,
             lifecycle == null && isDslOnlyMode ? DataStreamLifecycle.DEFAULT : lifecycle,
-            template.getDataStreamTemplate().hasFailureStore(),
+            template.getDataStreamTemplate().hasFailureStore() ? DataStreamOptions.FAILURE_STORE_ENABLED : DataStreamOptions.EMPTY,
             new DataStream.DataStreamIndices(DataStream.BACKING_INDEX_PREFIX, dsBackingIndices, false, null),
             // If the failure store shouldn't be initialized on data stream creation, we're marking it for "lazy rollover", which will
             // initialize the failure store on first write.

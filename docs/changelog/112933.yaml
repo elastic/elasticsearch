@@ -1,0 +1,5 @@
+pr: 112933
+summary: "Allow incubating Panama Vector in simdvec, and add vectorized `ipByteBin`"
+area: Search
+type: enhancement
+issues: []

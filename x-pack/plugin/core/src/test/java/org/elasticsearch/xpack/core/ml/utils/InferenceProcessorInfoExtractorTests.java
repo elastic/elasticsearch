@@ -30,6 +30,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -140,6 +141,18 @@ public class InferenceProcessorInfoExtractorTests extends ESTestCase {
         assertThat(InferenceProcessorInfoExtractor.countInferenceProcessors(cs), equalTo(3));
     }
 
+    public void testScriptProcessorStringConfig() throws IOException {
+        Set<String> expectedModelIds = Set.of("foo");
+
+        ClusterState clusterState = buildClusterStateWithPipelineConfigurations(
+            Map.of("processor_does_not_have_a_definition_object", newConfigurationWithScriptProcessor("foo"))
+        );
+        IngestMetadata ingestMetadata = clusterState.metadata().custom(IngestMetadata.TYPE);
+        Set<String> actualModelIds = InferenceProcessorInfoExtractor.getModelIdsFromInferenceProcessors(ingestMetadata);
+
+        assertThat(actualModelIds, equalTo(expectedModelIds));
+    }
+
     private static PipelineConfiguration newConfigurationWithOutInferenceProcessor(int i) throws IOException {
         try (
             XContentBuilder xContentBuilder = XContentFactory.jsonBuilder()
@@ -173,6 +186,12 @@ public class InferenceProcessorInfoExtractorTests extends ESTestCase {
         for (int i = 0; i < numPipelinesWithoutModel; i++) {
             configurations.put("pipeline_without_model_" + i, newConfigurationWithOutInferenceProcessor(i));
         }
+
+        return buildClusterStateWithPipelineConfigurations(configurations);
+    }
+
+    private static ClusterState buildClusterStateWithPipelineConfigurations(Map<String, PipelineConfiguration> configurations)
+        throws IOException {
         IngestMetadata ingestMetadata = new IngestMetadata(configurations);
 
         return ClusterState.builder(new ClusterName("_name"))
@@ -206,6 +225,24 @@ public class InferenceProcessorInfoExtractorTests extends ESTestCase {
         }
     }
 
+    private static PipelineConfiguration newConfigurationWithScriptProcessor(String modelId) throws IOException {
+        try (
+            XContentBuilder xContentBuilder = XContentFactory.jsonBuilder()
+                .map(
+                    Collections.singletonMap(
+                        "processors",
+                        List.of(forScriptProcessorWithStringConfig(), forEachProcessorWithInference(modelId))
+                    )
+                )
+        ) {
+            return new PipelineConfiguration(
+                "pipeline_with_script_and_model_" + modelId,
+                BytesReference.bytes(xContentBuilder),
+                XContentType.JSON
+            );
+        }
+    }
+
     private static Map<String, Object> forEachProcessorWithInference(String modelId) {
         return Collections.singletonMap("foreach", new HashMap<>() {
             {
@@ -229,4 +266,7 @@ public class InferenceProcessorInfoExtractorTests extends ESTestCase {
         });
     }
 
+    private static Map<String, Object> forScriptProcessorWithStringConfig() {
+        return Collections.singletonMap("script", "ctx.test=2;");
+    }
 }

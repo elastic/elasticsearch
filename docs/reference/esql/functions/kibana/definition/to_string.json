@@ -177,5 +177,6 @@
     "ROW a=10\n| EVAL j = TO_STRING(a)",
     "ROW a=[10, 9, 8]\n| EVAL j = TO_STRING(a)"
   ],
-  "preview" : false
+  "preview" : false,
+  "snapshot_only" : false
 }

@@ -45,7 +45,7 @@ public final class PercentileIntGroupingAggregatorFunction implements GroupingAg
 
   public static PercentileIntGroupingAggregatorFunction create(List<Integer> channels,
       DriverContext driverContext, double percentile) {
-    return new PercentileIntGroupingAggregatorFunction(channels, PercentileIntAggregator.initGrouping(driverContext.bigArrays(), percentile), driverContext, percentile);
+    return new PercentileIntGroupingAggregatorFunction(channels, PercentileIntAggregator.initGrouping(driverContext, percentile), driverContext, percentile);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

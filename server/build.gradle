@@ -44,6 +44,7 @@ dependencies {
   api "org.apache.lucene:lucene-core:${versions.lucene}"
   api "org.apache.lucene:lucene-analysis-common:${versions.lucene}"
   api "org.apache.lucene:lucene-backward-codecs:${versions.lucene}"
+  api "org.apache.lucene:lucene-facet:${versions.lucene}"
   api "org.apache.lucene:lucene-grouping:${versions.lucene}"
   api "org.apache.lucene:lucene-highlighter:${versions.lucene}"
   api "org.apache.lucene:lucene-join:${versions.lucene}"

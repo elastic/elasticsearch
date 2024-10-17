@@ -93,7 +93,12 @@ public class GlobalOrdCardinalityAggregator extends NumericMetricsAggregator.Sin
 
     @Override
     public ScoreMode scoreMode() {
-        if (field != null && valuesSource.needsScores() == false && maxOrd <= MAX_FIELD_CARDINALITY_FOR_DYNAMIC_PRUNING) {
+        // this check needs to line up with the dynamic pruning as it is the
+        // only case where TOP_DOCS make sense.branch
+        if (this.parent == null
+            && field != null
+            && valuesSource.needsScores() == false
+            && maxOrd <= MAX_FIELD_CARDINALITY_FOR_DYNAMIC_PRUNING) {
             return ScoreMode.TOP_DOCS;
         } else if (valuesSource.needsScores()) {
             return ScoreMode.COMPLETE;

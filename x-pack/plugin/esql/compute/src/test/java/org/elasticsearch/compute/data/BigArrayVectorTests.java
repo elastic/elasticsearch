@@ -37,7 +37,13 @@ public class BigArrayVectorTests extends SerializationTestCase {
 
     public void testBoolean() throws IOException {
         int positionCount = randomIntBetween(1, 16 * 1024);
-        Boolean[] values = IntStream.range(0, positionCount).mapToObj(i -> randomBoolean()).toArray(Boolean[]::new);
+        Boolean value = randomFrom(random(), null, true, false);
+        Boolean[] values = IntStream.range(0, positionCount).mapToObj(i -> {
+            if (value == null) {
+                return randomBoolean();
+            }
+            return value;
+        }).toArray(Boolean[]::new);
         BitArray array = new BitArray(positionCount, bigArrays);
         IntStream.range(0, positionCount).filter(i -> values[i]).forEach(array::set);
         try (var vector = new BooleanBigArrayVector(array, positionCount, blockFactory)) {
@@ -64,8 +70,8 @@ public class BigArrayVectorTests extends SerializationTestCase {
             if (positionCount > 1) {
                 assertLookup(
                     vector.asBlock(),
-                    positions(blockFactory, 1, 2, new int[] { 1, 2 }),
-                    List.of(List.of(values[1]), List.of(values[2]), List.of(values[1], values[2]))
+                    positions(blockFactory, 0, 1, new int[] { 0, 1 }),
+                    List.of(List.of(values[0]), List.of(values[1]), List.of(values[0], values[1]))
                 );
             }
             assertLookup(vector.asBlock(), positions(blockFactory, positionCount + 1000), singletonList(null));
@@ -76,6 +82,18 @@ public class BigArrayVectorTests extends SerializationTestCase {
                 assertThat(mask.hadMultivaluedFields(), equalTo(false));
                 for (int p = 0; p < values.length; p++) {
                     assertThat(mask.mask().getBoolean(p), equalTo(values[p]));
+                }
+            }
+            if (value == null) {
+                assertThat(vector.allTrue(), equalTo(Arrays.stream(values).allMatch(v -> v)));
+                assertThat(vector.allFalse(), equalTo(Arrays.stream(values).allMatch(v -> v == false)));
+            } else {
+                if (value) {
+                    assertTrue(vector.allTrue());
+                    assertFalse(vector.allFalse());
+                } else {
+                    assertFalse(vector.allTrue());
+                    assertTrue(vector.allFalse());
                 }
             }
         }
@@ -110,8 +128,8 @@ public class BigArrayVectorTests extends SerializationTestCase {
             if (positionCount > 1) {
                 assertLookup(
                     vector.asBlock(),
-                    positions(blockFactory, 1, 2, new int[] { 1, 2 }),
-                    List.of(List.of(values[1]), List.of(values[2]), List.of(values[1], values[2]))
+                    positions(blockFactory, 0, 1, new int[] { 0, 1 }),
+                    List.of(List.of(values[0]), List.of(values[1]), List.of(values[0], values[1]))
                 );
             }
             assertLookup(vector.asBlock(), positions(blockFactory, positionCount + 1000), singletonList(null));
@@ -152,8 +170,8 @@ public class BigArrayVectorTests extends SerializationTestCase {
             if (positionCount > 1) {
                 assertLookup(
                     vector.asBlock(),
-                    positions(blockFactory, 1, 2, new int[] { 1, 2 }),
-                    List.of(List.of(values[1]), List.of(values[2]), List.of(values[1], values[2]))
+                    positions(blockFactory, 0, 1, new int[] { 0, 1 }),
+                    List.of(List.of(values[0]), List.of(values[1]), List.of(values[0], values[1]))
                 );
             }
             assertLookup(vector.asBlock(), positions(blockFactory, positionCount + 1000), singletonList(null));
@@ -192,8 +210,8 @@ public class BigArrayVectorTests extends SerializationTestCase {
             if (positionCount > 1) {
                 assertLookup(
                     vector.asBlock(),
-                    positions(blockFactory, 1, 2, new int[] { 1, 2 }),
-                    List.of(List.of(values[1]), List.of(values[2]), List.of(values[1], values[2]))
+                    positions(blockFactory, 0, 1, new int[] { 0, 1 }),
+                    List.of(List.of(values[0]), List.of(values[1]), List.of(values[0], values[1]))
                 );
             }
             assertLookup(vector.asBlock(), positions(blockFactory, positionCount + 1000), singletonList(null));

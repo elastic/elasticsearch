@@ -191,7 +191,6 @@ public class TransportIndicesShardStoresAction extends TransportMasterNodeReadAc
                 Iterators.flatMap(Iterators.forArray(concreteIndices), this::getIndexIterator),
                 this::doShardRequest,
                 maxConcurrentShardRequests,
-                () -> {},
                 outerListener::close
             );
         }

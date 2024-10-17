@@ -305,7 +305,7 @@ public class DesiredBalanceReconciler {
                         unallocatedStatus = AllocationStatus.NO_ATTEMPT;
                     } else {
                         unallocatedStatus = AllocationStatus.DECIDERS_NO;
-                        final var nodeIdsIterator = new NodeIdsIterator(shard, assignment);
+                        final var nodeIdsIterator = new NodeIdsIterator(shard, assignment, routingNodes);
                         while (nodeIdsIterator.hasNext()) {
                             final var nodeId = nodeIdsIterator.next();
                             final var routingNode = routingNodes.node(nodeId);
@@ -367,7 +367,7 @@ public class DesiredBalanceReconciler {
         private final class NodeIdsIterator implements Iterator<String> {
 
             private final ShardRouting shard;
-
+            private final RoutingNodes routingNodes;
             /**
              * Contains the source of the nodeIds used for shard assignment. It could be:
              * * desired - when using desired nodes
@@ -380,8 +380,9 @@ public class DesiredBalanceReconciler {
 
             private boolean wasThrottled = false;
 
-            NodeIdsIterator(ShardRouting shard, ShardAssignment assignment) {
+            NodeIdsIterator(ShardRouting shard, ShardAssignment assignment, RoutingNodes routingNodes) {
                 this.shard = shard;
+                this.routingNodes = routingNodes;
 
                 var forcedInitialAllocation = allocation.deciders().getForcedInitialShardAllocationToNodes(shard, allocation);
                 if (forcedInitialAllocation.isPresent()) {
@@ -396,13 +397,29 @@ public class DesiredBalanceReconciler {
 
             @Override
             public boolean hasNext() {
-                if (nodeIds.hasNext() == false && source == NodeIdSource.DESIRED && shard.primary() && wasThrottled == false) {
+                if (nodeIds.hasNext() == false
+                    && source == NodeIdSource.DESIRED
+                    && wasThrottled == false
+                    && useFallback(shard, routingNodes)) {
                     var fallbackNodeIds = allocation.routingNodes().getAllNodeIds();
                     logger.debug("Shard [{}] assignment is temporarily not possible. Falling back to {}", shard.shardId(), fallbackNodeIds);
                     nodeIds = allocationOrdering.sort(fallbackNodeIds).iterator();
                     source = NodeIdSource.FALLBACK;
                 }
                 return nodeIds.hasNext();
+            }
+
+            private boolean useFallback(ShardRouting shard, RoutingNodes routingNodes) {
+                if (shard.primary()) {
+                    return true;
+                }
+                if (shard.role().equals(ShardRouting.Role.SEARCH_ONLY)) {
+                    // Allow only one search shard to fall back to allocation to an undesired node
+                    return routingNodes.assignedShards(shard.shardId())
+                        .stream()
+                        .noneMatch(s -> s.role().equals(ShardRouting.Role.SEARCH_ONLY));
+                }
+                return false;
             }
 
             @Override

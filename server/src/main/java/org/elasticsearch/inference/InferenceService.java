@@ -39,17 +39,9 @@ public interface InferenceService extends Closeable {
      * @param modelId               Model Id
      * @param taskType              The model task type
      * @param config                Configuration options including the secrets
-     * @param platformArchitectures The Set of platform architectures (OS name and hardware architecture)
-     *                              the cluster nodes and models are running on.
      * @param parsedModelListener   A listener which will handle the resulting model or failure
      */
-    void parseRequestConfig(
-        String modelId,
-        TaskType taskType,
-        Map<String, Object> config,
-        Set<String> platformArchitectures,
-        ActionListener<Model> parsedModelListener
-    );
+    void parseRequestConfig(String modelId, TaskType taskType, Map<String, Object> config, ActionListener<Model> parsedModelListener);
 
     /**
      * Parse model configuration from {@code config map} from persisted storage and return the parsed {@link Model}. This requires that
@@ -137,10 +129,10 @@ public interface InferenceService extends Closeable {
     /**
      * Stop the model deployment.
      * The default action does nothing except acknowledge the request (true).
-     * @param modelId The ID of the model to be stopped
+     * @param unparsedModel The unparsed model configuration
      * @param listener The listener
      */
-    default void stop(String modelId, ActionListener<Boolean> listener) {
+    default void stop(UnparsedModel unparsedModel, ActionListener<Boolean> listener) {
         listener.onResponse(true);
     }
 
@@ -154,17 +146,6 @@ public interface InferenceService extends Closeable {
     default void putModel(Model modelVariant, ActionListener<Boolean> listener) {
         listener.onResponse(true);
     }
-
-    /**
-     * Checks if the modelId has been downloaded to the local Elasticsearch cluster using the trained models API
-     * The default action does nothing except acknowledge the request (false).
-     * Any internal services should Override this method.
-     * @param model
-     * @param listener The listener
-     */
-    default void isModelDownloaded(Model model, ActionListener<Boolean> listener) {
-        listener.onResponse(false);
-    };
 
     /**
      * Optionally test the new model configuration in the inference service.
@@ -226,5 +207,24 @@ public interface InferenceService extends Closeable {
      */
     default boolean canStream(TaskType taskType) {
         return supportedStreamingTasks().contains(taskType);
+    }
+
+    record DefaultConfigId(String inferenceId, TaskType taskType, InferenceService service) {};
+
+    /**
+     * Get the Ids and task type of any default configurations provided by this service
+     * @return Defaults
+     */
+    default List<DefaultConfigId> defaultConfigIds() {
+        return List.of();
+    }
+
+    /**
+     * Call the listener with the default model configurations defined by
+     * the service
+     * @param defaultsListener The listener
+     */
+    default void defaultConfigs(ActionListener<List<Model>> defaultsListener) {
+        defaultsListener.onResponse(List.of());
     }
 }

@@ -15,7 +15,7 @@ Get started <<run-elasticsearch-locally,locally in Docker>> , or see our <<elast
 [[quickstart-list]]
 == Hands-on quick starts
 
-* <<getting-started,Basics: Add data using APIs>>. Learn how to add data to {es} and perform basic searches.
+* <<getting-started,Basics: Index and search data using {es} APIs>>. Learn about indices, documents, and mappings, and perform a basic search.
 
 [discrete]
 [[quickstart-python-links]]

@@ -152,7 +152,7 @@ public class TransportNodesCapabilitiesAction extends TransportNodesAction<
             this.restApiVersion = restApiVersion;
         }
 
-        @UpdateForV9 // 8.x blows up in a mixed cluster when trying to read RestApiVersion.forMajor(9)
+        @UpdateForV9(owner = UpdateForV9.Owner.CORE_INFRA) // 8.x blows up in a mixed cluster when trying to read RestApiVersion.forMajor(9)
         // ./gradlew ":qa:mixed-cluster:v8.16.0#mixedClusterTest"
         // -Dtests.class="org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT"
         // -Dtests.method="test {p0=capabilities/10_basic/Capabilities API}"

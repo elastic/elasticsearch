@@ -317,7 +317,7 @@ tasks.named('stringTemplates').configure {
   }
 
 
-  File inInputFile = file("src/main/java/org/elasticsearch/xpack/esql/expression/predicate/operator/comparison/InEvaluator.java.st")
+  File inInputFile = file("src/main/java/org/elasticsearch/xpack/esql/expression/predicate/operator/comparison/X-InEvaluator.java.st")
   template {
     it.properties = booleanProperties
     it.inputFile =  inInputFile

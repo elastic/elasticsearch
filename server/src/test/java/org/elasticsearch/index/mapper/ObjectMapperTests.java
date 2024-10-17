@@ -167,29 +167,31 @@ public class ObjectMapperTests extends MapperServiceTestCase {
         assertNotNull(objectMapper);
         assertFalse(objectMapper.isEnabled());
         assertEquals(ObjectMapper.Subobjects.ENABLED, objectMapper.subobjects());
-        assertFalse(objectMapper.storeArraySource());
+        assertTrue(objectMapper.sourceKeepMode().isEmpty());
 
-        // Setting 'enabled' to true is allowed, and updates the mapping.
-        update = Strings.toString(
-            XContentFactory.jsonBuilder()
-                .startObject()
-                .startObject("properties")
-                .startObject("object")
-                .field("type", "object")
-                .field("enabled", true)
-                .field("subobjects", "auto")
-                .field(ObjectMapper.STORE_ARRAY_SOURCE_PARAM, true)
-                .endObject()
-                .endObject()
-                .endObject()
-        );
-        mapper = mapperService.merge("type", new CompressedXContent(update), MergeReason.INDEX_TEMPLATE);
+        if (ObjectMapper.SUB_OBJECTS_AUTO_FEATURE_FLAG.isEnabled()) {
+            // Setting 'enabled' to true is allowed, and updates the mapping.
+            update = Strings.toString(
+                XContentFactory.jsonBuilder()
+                    .startObject()
+                    .startObject("properties")
+                    .startObject("object")
+                    .field("type", "object")
+                    .field("enabled", true)
+                    .field("subobjects", "auto")
+                    .field(ObjectMapper.STORE_ARRAY_SOURCE_PARAM, true)
+                    .endObject()
+                    .endObject()
+                    .endObject()
+            );
+            mapper = mapperService.merge("type", new CompressedXContent(update), MergeReason.INDEX_TEMPLATE);
 
-        objectMapper = mapper.mappers().objectMappers().get("object");
-        assertNotNull(objectMapper);
-        assertTrue(objectMapper.isEnabled());
-        assertEquals(ObjectMapper.Subobjects.AUTO, objectMapper.subobjects());
-        assertTrue(objectMapper.storeArraySource());
+            objectMapper = mapper.mappers().objectMappers().get("object");
+            assertNotNull(objectMapper);
+            assertTrue(objectMapper.isEnabled());
+            assertEquals(ObjectMapper.Subobjects.AUTO, objectMapper.subobjects());
+            assertEquals(Mapper.SourceKeepMode.ARRAYS, objectMapper.sourceKeepMode().orElse(Mapper.SourceKeepMode.NONE));
+        }
     }
 
     public void testFieldReplacementForIndexTemplates() throws IOException {
@@ -354,8 +356,12 @@ public class ObjectMapperTests extends MapperServiceTestCase {
                 b.field("subobjects", false);
                 b.startObject("properties");
                 {
-                    b.startObject("time").field("type", "long").endObject();
-                    b.startObject("time.max").field("type", "long").endObject();
+                    b.startObject("time");
+                    b.field("type", "long");
+                    b.endObject();
+                    b.startObject("time.max");
+                    b.field("type", "long");
+                    b.endObject();
                 }
                 b.endObject();
             }
@@ -376,7 +382,9 @@ public class ObjectMapperTests extends MapperServiceTestCase {
                     {
                         b.startObject("properties");
                         {
-                            b.startObject("max").field("type", "long").endObject();
+                            b.startObject("max");
+                            b.field("type", "long");
+                            b.endObject();
                         }
                         b.endObject();
                     }
@@ -397,7 +405,9 @@ public class ObjectMapperTests extends MapperServiceTestCase {
                 b.field("subobjects", false);
                 b.startObject("properties");
                 {
-                    b.startObject("time").field("type", "nested").endObject();
+                    b.startObject("time");
+                    b.field("type", "nested");
+                    b.endObject();
                 }
                 b.endObject();
             }
@@ -411,8 +421,12 @@ public class ObjectMapperTests extends MapperServiceTestCase {
 
     public void testSubobjectsFalseRoot() throws Exception {
         MapperService mapperService = createMapperService(mappingNoSubobjects(b -> {
-            b.startObject("metrics.service.time").field("type", "long").endObject();
-            b.startObject("metrics.service.time.max").field("type", "long").endObject();
+            b.startObject("metrics.service.time");
+            b.field("type", "long");
+            b.endObject();
+            b.startObject("metrics.service.time.max");
+            b.field("type", "long");
+            b.endObject();
         }));
         assertNotNull(mapperService.fieldType("metrics.service.time"));
         assertNotNull(mapperService.fieldType("metrics.service.time.max"));
@@ -429,7 +443,9 @@ public class ObjectMapperTests extends MapperServiceTestCase {
             {
                 b.startObject("properties");
                 {
-                    b.startObject("max").field("type", "long").endObject();
+                    b.startObject("max");
+                    b.field("type", "long");
+                    b.endObject();
                 }
                 b.endObject();
             }
@@ -441,7 +457,9 @@ public class ObjectMapperTests extends MapperServiceTestCase {
 
     public void testSubobjectsFalseRootWithInnerNested() {
         MapperParsingException exception = expectThrows(MapperParsingException.class, () -> createMapperService(mappingNoSubobjects(b -> {
-            b.startObject("metrics.service").field("type", "nested").endObject();
+            b.startObject("metrics.service");
+            b.field("type", "nested");
+            b.endObject();
         })));
         assertEquals(
             "Failed to parse mapping: Tried to add nested object [metrics.service] to object [_doc] which does not support subobjects",
@@ -457,7 +475,8 @@ public class ObjectMapperTests extends MapperServiceTestCase {
             "_doc",
             MergeReason.MAPPING_UPDATE,
             new CompressedXContent(BytesReference.bytes(fieldMapping(b -> {
-                b.field("type", "object").field("subobjects", "false");
+                b.field("type", "object");
+                b.field("subobjects", "false");
             })))
         );
         MapperException exception = expectThrows(
@@ -486,14 +505,19 @@ public class ObjectMapperTests extends MapperServiceTestCase {
     }
 
     public void testSubobjectsAuto() throws Exception {
+        assumeTrue("only test when feature flag for subobjects auto is enabled", ObjectMapper.SUB_OBJECTS_AUTO_FEATURE_FLAG.isEnabled());
         MapperService mapperService = createMapperService(mapping(b -> {
             b.startObject("metrics.service");
             {
                 b.field("subobjects", "auto");
                 b.startObject("properties");
                 {
-                    b.startObject("time").field("type", "long").endObject();
-                    b.startObject("time.max").field("type", "long").endObject();
+                    b.startObject("time");
+                    b.field("type", "long");
+                    b.endObject();
+                    b.startObject("time.max");
+                    b.field("type", "long");
+                    b.endObject();
                     b.startObject("attributes");
                     {
                         b.field("type", "object");
@@ -510,7 +534,8 @@ public class ObjectMapperTests extends MapperServiceTestCase {
         assertNotNull(mapperService.documentMapper().mappers().objectMappers().get("metrics.service.attributes"));
     }
 
-    public void testSubobjectsAutoWithInnerFlattenableObject() throws IOException {
+    public void testSubobjectsAutoWithInnerObject() throws IOException {
+        assumeTrue("only test when feature flag for subobjects auto is enabled", ObjectMapper.SUB_OBJECTS_AUTO_FEATURE_FLAG.isEnabled());
         MapperService mapperService = createMapperService(mapping(b -> {
             b.startObject("metrics.service");
             {
@@ -521,12 +546,16 @@ public class ObjectMapperTests extends MapperServiceTestCase {
                     {
                         b.startObject("properties");
                         {
-                            b.startObject("max").field("type", "long").endObject();
+                            b.startObject("max");
+                            b.field("type", "long");
+                            b.endObject();
                         }
                         b.endObject();
                     }
                     b.endObject();
-                    b.startObject("foo").field("type", "keyword").endObject();
+                    b.startObject("foo");
+                    b.field("type", "keyword");
+                    b.endObject();
                 }
                 b.endObject();
             }
@@ -535,48 +564,21 @@ public class ObjectMapperTests extends MapperServiceTestCase {
         assertNull(mapperService.fieldType("metrics.service.time"));
         assertNotNull(mapperService.fieldType("metrics.service.time.max"));
         assertNotNull(mapperService.fieldType("metrics.service.foo"));
-        assertNull(mapperService.documentMapper().mappers().objectMappers().get("metrics.service.time"));  // Gets flattened.
-        assertNotNull(mapperService.documentMapper().mappers().getMapper("metrics.service.foo"));
-    }
-
-    public void testSubobjectsAutoWithInnerNonFlattenableObject() throws IOException {
-        MapperService mapperService = createMapperService(mapping(b -> {
-            b.startObject("metrics.service");
-            {
-                b.field("subobjects", "auto");
-                b.startObject("properties");
-                {
-                    b.startObject("time");
-                    {
-                        b.field(ObjectMapper.STORE_ARRAY_SOURCE_PARAM, true);
-                        b.startObject("properties");
-                        {
-                            b.startObject("max").field("type", "long").endObject();
-                        }
-                        b.endObject();
-                    }
-                    b.endObject();
-                    b.startObject("foo").field("type", "keyword").endObject();
-                }
-                b.endObject();
-            }
-            b.endObject();
-        }));
-        assertNull(mapperService.fieldType("metrics.service.time"));
-        assertNotNull(mapperService.fieldType("metrics.service.time.max"));
-        assertNotNull(mapperService.fieldType("metrics.service.foo"));
-        assertNotNull(mapperService.documentMapper().mappers().objectMappers().get("metrics.service.time"));  // Not flattened.
+        assertNotNull(mapperService.documentMapper().mappers().objectMappers().get("metrics.service.time"));
         assertNotNull(mapperService.documentMapper().mappers().getMapper("metrics.service.foo"));
     }
 
     public void testSubobjectsAutoWithInnerNested() throws IOException {
+        assumeTrue("only test when feature flag for subobjects auto is enabled", ObjectMapper.SUB_OBJECTS_AUTO_FEATURE_FLAG.isEnabled());
         MapperService mapperService = createMapperService(mapping(b -> {
             b.startObject("metrics.service");
             {
                 b.field("subobjects", "auto");
                 b.startObject("properties");
                 {
-                    b.startObject("time").field("type", "nested").endObject();
+                    b.startObject("time");
+                    b.field("type", "nested");
+                    b.endObject();
                 }
                 b.endObject();
             }
@@ -589,9 +591,14 @@ public class ObjectMapperTests extends MapperServiceTestCase {
     }
 
     public void testSubobjectsAutoRoot() throws Exception {
+        assumeTrue("only test when feature flag for subobjects auto is enabled", ObjectMapper.SUB_OBJECTS_AUTO_FEATURE_FLAG.isEnabled());
         MapperService mapperService = createMapperService(mappingWithSubobjects(b -> {
-            b.startObject("metrics.service.time").field("type", "long").endObject();
-            b.startObject("metrics.service.time.max").field("type", "long").endObject();
+            b.startObject("metrics.service.time");
+            b.field("type", "long");
+            b.endObject();
+            b.startObject("metrics.service.time.max");
+            b.field("type", "long");
+            b.endObject();
             b.startObject("metrics.attributes");
             {
                 b.field("type", "object");
@@ -604,13 +611,16 @@ public class ObjectMapperTests extends MapperServiceTestCase {
         assertNotNull(mapperService.documentMapper().mappers().objectMappers().get("metrics.attributes"));
     }
 
-    public void testSubobjectsAutoRootWithInnerFlattenableObject() throws IOException {
+    public void testSubobjectsAutoRootWithInnerObject() throws IOException {
+        assumeTrue("only test when feature flag for subobjects auto is enabled", ObjectMapper.SUB_OBJECTS_AUTO_FEATURE_FLAG.isEnabled());
         MapperService mapperService = createMapperService(mappingWithSubobjects(b -> {
             b.startObject("metrics.service.time");
             {
                 b.startObject("properties");
                 {
-                    b.startObject("max").field("type", "long").endObject();
+                    b.startObject("max");
+                    b.field("type", "long");
+                    b.endObject();
                 }
                 b.endObject();
             }
@@ -618,51 +628,12 @@ public class ObjectMapperTests extends MapperServiceTestCase {
         }, "auto"));
         assertNull(mapperService.fieldType("metrics.service.time"));
         assertNotNull(mapperService.fieldType("metrics.service.time.max"));
-        assertNull(mapperService.documentMapper().mappers().objectMappers().get("metrics.service.time"));  // Gets flattened.
-
-        Mapper innerField = mapperService.documentMapper().mappers().getMapper("metrics.service.time.max");
-        assertNotNull(innerField);
-        assertEquals("metrics.service.time.max", innerField.leafName());
-    }
-
-    public void testSubobjectsAutoRootWithInnerNonFlattenableObject() throws IOException {
-        MapperService mapperService = createMapperService(mappingWithSubobjects(b -> {
-            b.startObject("metrics").startObject("properties");
-            {
-                b.startObject("service.time");
-                {
-                    b.field("subobjects", "auto");
-                    b.startObject("properties");
-                    {
-                        b.startObject("path").startObject("properties");
-                        {
-                            b.startObject("to").startObject("properties");
-                            {
-                                b.startObject("max").field("type", "long").endObject();
-                            }
-                            b.endObject().endObject();
-                        }
-                        b.endObject().endObject();
-                    }
-                    b.endObject();
-                }
-                b.endObject();
-            }
-            b.endObject().endObject();
-        }, "auto"));
-        assertNull(mapperService.fieldType("metrics.service.time"));
-        assertNotNull(mapperService.fieldType("metrics.service.time.path.to.max"));
-
-        ObjectMapper innerObject = mapperService.documentMapper().mappers().objectMappers().get("metrics.service.time");  // Not flattened.
-        assertNotNull(innerObject);
-        assertEquals("metrics.service.time", innerObject.leafName());
-
-        Mapper innerField = mapperService.documentMapper().mappers().getMapper("metrics.service.time.path.to.max");
-        assertNotNull(innerField);
-        assertEquals("path.to.max", innerField.leafName());
+        assertNotNull(mapperService.documentMapper().mappers().objectMappers().get("metrics.service.time"));
+        assertNotNull(mapperService.documentMapper().mappers().getMapper("metrics.service.time.max"));
     }
 
     public void testSubobjectsAutoRootWithInnerNested() throws IOException {
+        assumeTrue("only test when feature flag for subobjects auto is enabled", ObjectMapper.SUB_OBJECTS_AUTO_FEATURE_FLAG.isEnabled());
         MapperService mapperService = createMapperService(mappingWithSubobjects(b -> {
             b.startObject("metrics.service");
             b.field("type", "nested");
@@ -715,14 +686,14 @@ public class ObjectMapperTests extends MapperServiceTestCase {
 
     public void testStoreArraySourceinSyntheticSourceMode() throws IOException {
         DocumentMapper mapper = createDocumentMapper(syntheticSourceMapping(b -> {
-            b.startObject("o").field("type", "object").field(ObjectMapper.STORE_ARRAY_SOURCE_PARAM, true).endObject();
+            b.startObject("o").field("type", "object").field("synthetic_source_keep", "arrays").endObject();
         }));
         assertNotNull(mapper.mapping().getRoot().getMapper("o"));
     }
 
     public void testStoreArraySourceNoopInNonSyntheticSourceMode() throws IOException {
         DocumentMapper mapper = createDocumentMapper(mapping(b -> {
-            b.startObject("o").field("type", "object").field(ObjectMapper.STORE_ARRAY_SOURCE_PARAM, true).endObject();
+            b.startObject("o").field("type", "object").field("synthetic_source_keep", "arrays").endObject();
         }));
         assertNotNull(mapper.mapping().getRoot().getMapper("o"));
     }
@@ -764,7 +735,7 @@ public class ObjectMapperTests extends MapperServiceTestCase {
                 b.field("subobjects", false);
                 b.field("enabled", false);
                 b.field("dynamic", false);
-                b.field(ObjectMapper.STORE_ARRAY_SOURCE_PARAM, true);
+                b.field("synthetic_source_keep", "arrays");
                 b.startObject("properties");
                 propertiesBuilder.accept(b);
                 b.endObject();
@@ -779,7 +750,16 @@ public class ObjectMapperTests extends MapperServiceTestCase {
         ObjectMapper objectMapper = new ObjectMapper.Builder("parent", Optional.empty()).add(
             new ObjectMapper.Builder("child", Optional.empty()).add(new KeywordFieldMapper.Builder("keyword2", IndexVersion.current()))
         ).add(new KeywordFieldMapper.Builder("keyword1", IndexVersion.current())).build(rootContext);
-        List<String> fields = objectMapper.asFlattenedFieldMappers(rootContext, true).stream().map(Mapper::fullPath).toList();
+        List<String> fields = objectMapper.asFlattenedFieldMappers(rootContext).stream().map(FieldMapper::fullPath).toList();
+        assertThat(fields, containsInAnyOrder("parent.keyword1", "parent.child.keyword2"));
+    }
+
+    public void testFlattenSubobjectsAuto() {
+        MapperBuilderContext rootContext = MapperBuilderContext.root(false, false);
+        ObjectMapper objectMapper = new ObjectMapper.Builder("parent", Optional.of(ObjectMapper.Subobjects.AUTO)).add(
+            new ObjectMapper.Builder("child", Optional.empty()).add(new KeywordFieldMapper.Builder("keyword2", IndexVersion.current()))
+        ).add(new KeywordFieldMapper.Builder("keyword1", IndexVersion.current())).build(rootContext);
+        List<String> fields = objectMapper.asFlattenedFieldMappers(rootContext).stream().map(FieldMapper::fullPath).toList();
         assertThat(fields, containsInAnyOrder("parent.keyword1", "parent.child.keyword2"));
     }
 
@@ -788,7 +768,7 @@ public class ObjectMapperTests extends MapperServiceTestCase {
         ObjectMapper objectMapper = new ObjectMapper.Builder("parent", Optional.of(ObjectMapper.Subobjects.DISABLED)).add(
             new ObjectMapper.Builder("child", Optional.empty()).add(new KeywordFieldMapper.Builder("keyword2", IndexVersion.current()))
         ).add(new KeywordFieldMapper.Builder("keyword1", IndexVersion.current())).build(rootContext);
-        List<String> fields = objectMapper.asFlattenedFieldMappers(rootContext, true).stream().map(Mapper::fullPath).toList();
+        List<String> fields = objectMapper.asFlattenedFieldMappers(rootContext).stream().map(FieldMapper::fullPath).toList();
         assertThat(fields, containsInAnyOrder("parent.keyword1", "parent.child.keyword2"));
     }
 
@@ -800,7 +780,7 @@ public class ObjectMapperTests extends MapperServiceTestCase {
 
         IllegalArgumentException exception = expectThrows(
             IllegalArgumentException.class,
-            () -> objectMapper.asFlattenedFieldMappers(rootContext, true)
+            () -> objectMapper.asFlattenedFieldMappers(rootContext)
         );
         assertEquals(
             "Object mapper [parent.child] was found in a context where subobjects is set to false. "
@@ -816,28 +796,11 @@ public class ObjectMapperTests extends MapperServiceTestCase {
 
         IllegalArgumentException exception = expectThrows(
             IllegalArgumentException.class,
-            () -> objectMapper.asFlattenedFieldMappers(rootContext, true)
+            () -> objectMapper.asFlattenedFieldMappers(rootContext)
         );
         assertEquals(
             "Object mapper [parent] was found in a context where subobjects is set to false. "
                 + "Auto-flattening [parent] failed because the value of [enabled] is [false]",
-            exception.getMessage()
-        );
-    }
-
-    public void testFlattenSubobjectsAuto() {
-        MapperBuilderContext rootContext = MapperBuilderContext.root(false, false);
-        ObjectMapper objectMapper = new ObjectMapper.Builder("parent", Optional.of(ObjectMapper.Subobjects.AUTO)).add(
-            new ObjectMapper.Builder("child", Optional.empty()).add(new KeywordFieldMapper.Builder("keyword2", IndexVersion.current()))
-        ).add(new KeywordFieldMapper.Builder("keyword1", IndexVersion.current())).build(rootContext);
-
-        IllegalArgumentException exception = expectThrows(
-            IllegalArgumentException.class,
-            () -> objectMapper.asFlattenedFieldMappers(rootContext, true)
-        );
-        assertEquals(
-            "Object mapper [parent] was found in a context where subobjects is set to false. "
-                + "Auto-flattening [parent] failed because the value of [subobjects] is [auto]",
             exception.getMessage()
         );
     }
@@ -848,7 +811,7 @@ public class ObjectMapperTests extends MapperServiceTestCase {
 
         IllegalArgumentException exception = expectThrows(
             IllegalArgumentException.class,
-            () -> objectMapper.asFlattenedFieldMappers(rootContext, true)
+            () -> objectMapper.asFlattenedFieldMappers(rootContext)
         );
         assertEquals(
             "Object mapper [parent] was found in a context where subobjects is set to false. "

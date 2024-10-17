@@ -135,7 +135,7 @@ public class TransportSimulateBulkActionTests extends ESTestCase {
 
     public void testIndexData() throws IOException {
         Task task = mock(Task.class); // unused
-        BulkRequest bulkRequest = new SimulateBulkRequest(null, null);
+        BulkRequest bulkRequest = new SimulateBulkRequest(null, null, null);
         int bulkItemCount = randomIntBetween(0, 200);
         for (int i = 0; i < bulkItemCount; i++) {
             Map<String, ?> source = Map.of(randomAlphaOfLength(10), randomAlphaOfLength(5));
@@ -218,7 +218,7 @@ public class TransportSimulateBulkActionTests extends ESTestCase {
          * (7) An indexing request to a nonexistent index that matches no templates
          */
         Task task = mock(Task.class); // unused
-        BulkRequest bulkRequest = new SimulateBulkRequest(null, null);
+        BulkRequest bulkRequest = new SimulateBulkRequest(null, null, null);
         int bulkItemCount = randomIntBetween(0, 200);
         Map<String, IndexMetadata> indicesMap = new HashMap<>();
         Map<String, IndexTemplateMetadata> v1Templates = new HashMap<>();

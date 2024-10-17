@@ -40,6 +40,7 @@ public class NativeRealmTests extends ESTestCase {
             true,
             true,
             true,
+            false,
             null,
             null,
             null,

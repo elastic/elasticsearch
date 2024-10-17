@@ -323,6 +323,7 @@ public class NativePrivilegeStoreTests extends ESTestCase {
 
         // first call fails, second (after "wait" complete) succeeds
         when(securityIndex.isAvailable(SecurityIndexManager.Availability.SEARCH_SHARDS)).thenReturn(false).thenReturn(true);
+        when(securityIndex.indexInitializing()).thenReturn(true);
         when(securityIndex.getUnavailableReason(SecurityIndexManager.Availability.SEARCH_SHARDS)).thenReturn(unavailableShardsException());
         doAnswer(invocation -> {
             @SuppressWarnings("unchecked")
@@ -362,7 +363,7 @@ public class NativePrivilegeStoreTests extends ESTestCase {
 
     public void testGetPrivilegesFailsAfterWaitOnUnavailableShardException() {
         when(securityIndex.isAvailable(SecurityIndexManager.Availability.SEARCH_SHARDS)).thenReturn(false).thenReturn(false);
-
+        when(securityIndex.indexInitializing()).thenReturn(true);
         when(securityIndex.getUnavailableReason(SecurityIndexManager.Availability.SEARCH_SHARDS)).thenReturn(
             unavailableShardsException()
         );
@@ -389,6 +390,7 @@ public class NativePrivilegeStoreTests extends ESTestCase {
 
         // first call fails, second (after "wait" fail) succeeds
         when(securityIndex.isAvailable(SecurityIndexManager.Availability.SEARCH_SHARDS)).thenReturn(false).thenReturn(true);
+        when(securityIndex.indexInitializing()).thenReturn(true);
         when(securityIndex.getUnavailableReason(SecurityIndexManager.Availability.SEARCH_SHARDS)).thenReturn(unavailableShardsException());
 
         doAnswer(invocation -> {
@@ -901,6 +903,7 @@ public class NativePrivilegeStoreTests extends ESTestCase {
             true,
             true,
             true,
+            false,
             null,
             null,
             null,

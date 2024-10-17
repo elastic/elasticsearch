@@ -1,0 +1,12 @@
+pr: 114283
+summary: Remove lenient parsing of bulk actions
+area: CRUD
+type: breaking
+issues: []
+breaking:
+  title: Remove lenient parsing of bulk actions
+  area: CRUD
+  details: Please describe the details of this change for the release notes. You can
+    use asciidoc.
+  impact: Please describe the impact of this change to users
+  notable: false

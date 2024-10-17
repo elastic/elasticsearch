@@ -1,0 +1,12 @@
+pr: 114580
+summary: Remove `node_version` field from `DesiredNode` API output
+area: Distributed
+type: breaking
+issues: []
+breaking:
+  title: Remove `node_version` field from `DesiredNode` API output
+  area: Distributed
+  details: Please describe the details of this change for the release notes. You can
+    use asciidoc.
+  impact: Please describe the impact of this change to users
+  notable: false

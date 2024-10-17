@@ -27,7 +27,6 @@ import java.io.IOException;
 import java.time.ZoneId;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Function;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
@@ -168,9 +167,7 @@ public abstract class EsqlBinaryComparison extends BinaryComparison implements E
     }
 
     @Override
-    public EvalOperator.ExpressionEvaluator.Factory toEvaluator(
-        Function<Expression, EvalOperator.ExpressionEvaluator.Factory> toEvaluator
-    ) {
+    public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         // Our type is always boolean, so figure out the evaluator type from the inputs
         DataType commonType = commonType(left().dataType(), right().dataType());
         EvalOperator.ExpressionEvaluator.Factory lhs;

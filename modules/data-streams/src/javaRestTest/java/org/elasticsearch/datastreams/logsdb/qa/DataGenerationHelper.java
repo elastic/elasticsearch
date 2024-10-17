@@ -10,142 +10,96 @@
 package org.elasticsearch.datastreams.logsdb.qa;
 
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.mapper.Mapper;
-import org.elasticsearch.index.mapper.ObjectMapper;
-import org.elasticsearch.logsdb.datageneration.DataGenerator;
 import org.elasticsearch.logsdb.datageneration.DataGeneratorSpecification;
-import org.elasticsearch.logsdb.datageneration.FieldDataGenerator;
-import org.elasticsearch.logsdb.datageneration.datasource.DataSourceHandler;
-import org.elasticsearch.logsdb.datageneration.datasource.DataSourceRequest;
-import org.elasticsearch.logsdb.datageneration.datasource.DataSourceResponse;
+import org.elasticsearch.logsdb.datageneration.DocumentGenerator;
+import org.elasticsearch.logsdb.datageneration.FieldType;
+import org.elasticsearch.logsdb.datageneration.Mapping;
+import org.elasticsearch.logsdb.datageneration.MappingGenerator;
+import org.elasticsearch.logsdb.datageneration.Template;
+import org.elasticsearch.logsdb.datageneration.TemplateGenerator;
 import org.elasticsearch.logsdb.datageneration.fields.PredefinedField;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
 
 public class DataGenerationHelper {
-    private final ObjectMapper.Subobjects subobjects;
     private final boolean keepArraySource;
 
-    private final DataGenerator dataGenerator;
+    private final DocumentGenerator documentGenerator;
+
+    private final Template template;
+    private final Mapping mapping;
 
     public DataGenerationHelper() {
         this(b -> {});
     }
 
     public DataGenerationHelper(Consumer<DataGeneratorSpecification.Builder> builderConfigurator) {
-        // TODO enable subobjects: auto
-        // It is disabled because it currently does not have auto flattening and that results in asserts being triggered when using copy_to.
-        this.subobjects = ESTestCase.randomValueOtherThan(
-            ObjectMapper.Subobjects.AUTO,
-            () -> ESTestCase.randomFrom(ObjectMapper.Subobjects.values())
-        );
         this.keepArraySource = ESTestCase.randomBoolean();
 
-        var specificationBuilder = DataGeneratorSpecification.builder().withFullyDynamicMapping(ESTestCase.randomBoolean());
-        if (subobjects != ObjectMapper.Subobjects.ENABLED) {
-            specificationBuilder = specificationBuilder.withNestedFieldsLimit(0);
-        }
-
-        specificationBuilder.withDataSourceHandlers(List.of(new DataSourceHandler() {
-            @Override
-            public DataSourceResponse.ObjectMappingParametersGenerator handle(DataSourceRequest.ObjectMappingParametersGenerator request) {
-                if (subobjects == ObjectMapper.Subobjects.ENABLED) {
-                    // Use default behavior
-                    return null;
-                }
-
-                assert request.isNested() == false;
-
-                // "enabled: false" is not compatible with subobjects: false
-                // "dynamic: false/strict/runtime" is not compatible with subobjects: false
-                return new DataSourceResponse.ObjectMappingParametersGenerator(() -> {
-                    var parameters = new HashMap<String, Object>();
-                    parameters.put("subobjects", subobjects.toString());
-                    if (ESTestCase.randomBoolean()) {
-                        parameters.put("dynamic", "true");
-                    }
-                    if (ESTestCase.randomBoolean()) {
-                        parameters.put("enabled", "true");
-                    }
-                    return parameters;
-                });
-            }
-        }))
+        var specificationBuilder = DataGeneratorSpecification.builder()
+            .withFullyDynamicMapping(ESTestCase.randomBoolean())
             .withPredefinedFields(
                 List.of(
                     // Customized because it always needs doc_values for aggregations.
-                    new PredefinedField.WithGenerator("host.name", new FieldDataGenerator() {
-                        @Override
-                        public CheckedConsumer<XContentBuilder, IOException> mappingWriter() {
-                            return b -> b.startObject().field("type", "keyword").endObject();
-                        }
-
-                        @Override
-                        public CheckedConsumer<XContentBuilder, IOException> fieldValueGenerator() {
-                            return b -> b.value(ESTestCase.randomAlphaOfLength(5));
-                        }
-                    }),
+                    new PredefinedField.WithGenerator(
+                        "host.name",
+                        FieldType.KEYWORD,
+                        Map.of("type", "keyword"),
+                        () -> ESTestCase.randomAlphaOfLength(5)
+                    ),
                     // Needed for terms query
-                    new PredefinedField.WithGenerator("method", new FieldDataGenerator() {
-                        @Override
-                        public CheckedConsumer<XContentBuilder, IOException> mappingWriter() {
-                            return b -> b.startObject().field("type", "keyword").endObject();
-                        }
-
-                        @Override
-                        public CheckedConsumer<XContentBuilder, IOException> fieldValueGenerator() {
-                            return b -> b.value(ESTestCase.randomFrom("put", "post", "get"));
-                        }
-                    }),
+                    new PredefinedField.WithGenerator(
+                        "method",
+                        FieldType.KEYWORD,
+                        Map.of("type", "keyword"),
+                        () -> ESTestCase.randomFrom("put", "post", "get")
+                    ),
 
                     // Needed for histogram aggregation
-                    new PredefinedField.WithGenerator("memory_usage_bytes", new FieldDataGenerator() {
-                        @Override
-                        public CheckedConsumer<XContentBuilder, IOException> mappingWriter() {
-                            return b -> b.startObject().field("type", "long").endObject();
-                        }
-
-                        @Override
-                        public CheckedConsumer<XContentBuilder, IOException> fieldValueGenerator() {
-                            // We can generate this using standard long field but we would get "too many buckets"
-                            return b -> b.value(ESTestCase.randomLongBetween(1000, 2000));
-                        }
-                    })
+                    new PredefinedField.WithGenerator(
+                        "memory_usage_bytes",
+                        FieldType.LONG,
+                        Map.of("type", "long"),
+                        () -> ESTestCase.randomLongBetween(1000, 2000)
+                    )
                 )
             );
 
         // Customize builder if necessary
         builderConfigurator.accept(specificationBuilder);
 
-        this.dataGenerator = new DataGenerator(specificationBuilder.build());
-    }
+        var specification = specificationBuilder.build();
 
-    DataGenerator getDataGenerator() {
-        return dataGenerator;
+        this.documentGenerator = new DocumentGenerator(specification);
+
+        this.template = new TemplateGenerator(specification).generate();
+        this.mapping = new MappingGenerator(specification).generate(template);
     }
 
     void logsDbMapping(XContentBuilder builder) throws IOException {
-        dataGenerator.writeMapping(builder);
+        builder.map(mapping.raw());
     }
 
     void standardMapping(XContentBuilder builder) throws IOException {
-        if (subobjects != ObjectMapper.Subobjects.ENABLED) {
-            dataGenerator.writeMapping(builder, Map.of("subobjects", subobjects.toString()));
-        } else {
-            dataGenerator.writeMapping(builder);
-        }
+        builder.map(mapping.raw());
     }
 
     void logsDbSettings(Settings.Builder builder) {
         if (keepArraySource) {
             builder.put(Mapper.SYNTHETIC_SOURCE_KEEP_INDEX_SETTING.getKey(), "arrays");
         }
+    }
+
+    void generateDocument(XContentBuilder document, Map<String, Object> additionalFields) throws IOException {
+        var generated = documentGenerator.generate(template, mapping);
+        generated.putAll(additionalFields);
+
+        document.map(generated);
     }
 }

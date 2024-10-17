@@ -125,13 +125,12 @@ The following parameters are accepted by `date` fields:
 `locale`::
 
     The locale to use when parsing dates since months do not have the same names
-    and/or abbreviations in all languages. The default is the
-    https://docs.oracle.com/javase/8/docs/api/java/util/Locale.html#ROOT[`ROOT` locale].
+    and/or abbreviations in all languages. The default is ENGLISH.
 
 <<ignore-malformed,`ignore_malformed`>>::
 
     If `true`, malformed numbers are ignored. If `false` (default), malformed
-    numbers throw an exception and reject the whole document.  Note that this
+    numbers throw an exception and reject the whole document. Note that this
     cannot be set if the `script` parameter is used.
 
 <<mapping-index,`index`>>::
@@ -249,8 +248,16 @@ Synthetic source always sorts `date` fields. For example:
 ----
 PUT idx
 {
+  "settings": {
+    "index": {
+      "mapping": {
+        "source": {
+          "mode": "synthetic"
+        }
+      }
+    }
+  },
   "mappings": {
-    "_source": { "mode": "synthetic" },
     "properties": {
       "date": { "type": "date" }
     }

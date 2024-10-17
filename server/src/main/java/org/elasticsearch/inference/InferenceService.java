@@ -129,10 +129,10 @@ public interface InferenceService extends Closeable {
     /**
      * Stop the model deployment.
      * The default action does nothing except acknowledge the request (true).
-     * @param modelId The ID of the model to be stopped
+     * @param unparsedModel The unparsed model configuration
      * @param listener The listener
      */
-    default void stop(String modelId, ActionListener<Boolean> listener) {
+    default void stop(UnparsedModel unparsedModel, ActionListener<Boolean> listener) {
         listener.onResponse(true);
     }
 
@@ -190,5 +190,24 @@ public interface InferenceService extends Closeable {
      */
     default boolean canStream(TaskType taskType) {
         return supportedStreamingTasks().contains(taskType);
+    }
+
+    record DefaultConfigId(String inferenceId, TaskType taskType, InferenceService service) {};
+
+    /**
+     * Get the Ids and task type of any default configurations provided by this service
+     * @return Defaults
+     */
+    default List<DefaultConfigId> defaultConfigIds() {
+        return List.of();
+    }
+
+    /**
+     * Call the listener with the default model configurations defined by
+     * the service
+     * @param defaultsListener The listener
+     */
+    default void defaultConfigs(ActionListener<List<Model>> defaultsListener) {
+        defaultsListener.onResponse(List.of());
     }
 }

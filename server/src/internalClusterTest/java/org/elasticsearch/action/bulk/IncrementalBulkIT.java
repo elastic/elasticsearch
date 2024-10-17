@@ -233,6 +233,9 @@ public class IncrementalBulkIT extends ESIntegTestCase {
 
         handlers.add(handlerThrottled);
 
+        // Wait until we are ready for the next page
+        assertBusy(() -> assertTrue(nextPage.get()));
+
         for (IncrementalBulkService.Handler h : handlers) {
             refCounted.incRef();
             PlainActionFuture<BulkResponse> future = new PlainActionFuture<>();

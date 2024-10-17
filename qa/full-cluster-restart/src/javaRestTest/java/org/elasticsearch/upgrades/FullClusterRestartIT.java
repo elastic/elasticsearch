@@ -1602,10 +1602,6 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
 
     @SuppressWarnings("unchecked")
     public void testSystemIndexMetadataIsUpgraded() throws Exception {
-
-        @UpdateForV9(owner = UpdateForV9.Owner.CORE_INFRA) // assumeTrue can be removed (condition always true)
-        var originalClusterTaskIndexIsSystemIndex = oldClusterHasFeature(RestTestLegacyFeatures.TASK_INDEX_SYSTEM_INDEX);
-        assumeTrue(".tasks became a system index in 7.10.0", originalClusterTaskIndexIsSystemIndex);
         final String systemIndexWarning = "this request accesses system indices: [.tasks], but in a future major version, direct "
             + "access to system indices will be prevented by default";
         if (isRunningAgainstOldCluster()) {
@@ -1665,29 +1661,6 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
                     throw new AssertionError(".tasks index does not exist yet");
                 }
             });
-
-            // If we are on 7.x create an alias that includes both a system index and a non-system index so we can be sure it gets
-            // upgraded properly. If we're already on 8.x, skip this part of the test.
-            if (clusterHasFeature(RestTestLegacyFeatures.SYSTEM_INDICES_REST_ACCESS_ENFORCED) == false) {
-                // Create an alias to make sure it gets upgraded properly
-                Request putAliasRequest = newXContentRequest(HttpMethod.POST, "/_aliases", (builder, params) -> {
-                    builder.startArray("actions");
-                    for (var index : List.of(".tasks", "test_index_reindex")) {
-                        builder.startObject()
-                            .startObject("add")
-                            .field("index", index)
-                            .field("alias", "test-system-alias")
-                            .endObject()
-                            .endObject();
-                    }
-                    return builder.endArray();
-                });
-                putAliasRequest.setOptions(expectVersionSpecificWarnings(v -> {
-                    v.current(systemIndexWarning);
-                    v.compatible(systemIndexWarning);
-                }));
-                assertThat(client().performRequest(putAliasRequest).getStatusLine().getStatusCode(), is(200));
-            }
         } else {
             assertBusy(() -> {
                 Request clusterStateRequest = new Request("GET", "/_cluster/state/metadata");

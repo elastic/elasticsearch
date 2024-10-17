@@ -900,10 +900,11 @@ public abstract class ESTestCase extends LuceneTestCase {
      * @return a random instant between a min and a max value with a random nanosecond precision
      */
     public static Instant randomInstantBetween(Instant minInstant, Instant maxInstant) {
-        return Instant.ofEpochSecond(
-            randomLongBetween(minInstant.getEpochSecond(), maxInstant.getEpochSecond()),
-            randomLongBetween(0, 999999999)
-        );
+        long epochSecond = randomLongBetween(minInstant.getEpochSecond(), maxInstant.getEpochSecond());
+        long minNanos = epochSecond == minInstant.getEpochSecond() ? minInstant.getNano() : 0;
+        long maxNanos = epochSecond == maxInstant.getEpochSecond() ? maxInstant.getNano() : 999999999;
+        long nanos = randomLongBetween(minNanos, maxNanos);
+        return Instant.ofEpochSecond(epochSecond, nanos);
     }
 
     /**

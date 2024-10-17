@@ -81,6 +81,21 @@ public class InferenceBaseRestTest extends ESRestTestCase {
             """, taskType);
     }
 
+    static String updateConfig(@Nullable TaskType taskTypeInBody, String apiKey, int temperature) {
+        var taskType = taskTypeInBody == null ? "" : "\"task_type\": \"" + taskTypeInBody + "\",";
+        return Strings.format("""
+            {
+              %s
+              "service_settings": {
+                "api_key": "%s"
+              },
+              "task_settings": {
+                "temperature": %d
+              }
+            }
+            """, taskType, apiKey, temperature);
+    }
+
     static String mockCompletionServiceModelConfig(@Nullable TaskType taskTypeInBody) {
         var taskType = taskTypeInBody == null ? "" : "\"task_type\": \"" + taskTypeInBody + "\",";
         return Strings.format("""
@@ -192,7 +207,12 @@ public class InferenceBaseRestTest extends ESRestTestCase {
     }
 
     protected Map<String, Object> putModel(String modelId, String modelConfig, TaskType taskType) throws IOException {
-        String endpoint = Strings.format("_inference/%s/%s", taskType, modelId);
+        String endpoint = Strings.format("_inference/%s/%s?error_trace", taskType, modelId);
+        return putRequest(endpoint, modelConfig);
+    }
+
+    protected Map<String, Object> updateEndpoint(String inferenceID, String modelConfig, TaskType taskType) throws IOException {
+        String endpoint = Strings.format("_inference/%s/%s/_update", taskType, inferenceID);
         return putRequest(endpoint, modelConfig);
     }
 
@@ -270,7 +290,7 @@ public class InferenceBaseRestTest extends ESRestTestCase {
 
     @SuppressWarnings("unchecked")
     protected Map<String, Object> getModel(String modelId) throws IOException {
-        var endpoint = Strings.format("_inference/%s", modelId);
+        var endpoint = Strings.format("_inference/%s?error_trace", modelId);
         return ((List<Map<String, Object>>) getInternal(endpoint).get("endpoints")).get(0);
     }
 
@@ -293,9 +313,9 @@ public class InferenceBaseRestTest extends ESRestTestCase {
         return entityAsMap(response);
     }
 
-    protected Map<String, Object> inferOnMockService(String modelId, List<String> input) throws IOException {
+    protected Map<String, Object> infer(String modelId, List<String> input) throws IOException {
         var endpoint = Strings.format("_inference/%s", modelId);
-        return inferOnMockServiceInternal(endpoint, input);
+        return inferInternal(endpoint, input, Map.of());
     }
 
     protected Deque<ServerSentEvent> streamInferOnMockService(String modelId, TaskType taskType, List<String> input) throws Exception {
@@ -324,14 +344,23 @@ public class InferenceBaseRestTest extends ESRestTestCase {
         return responseConsumer.events();
     }
 
-    protected Map<String, Object> inferOnMockService(String modelId, TaskType taskType, List<String> input) throws IOException {
+    protected Map<String, Object> infer(String modelId, TaskType taskType, List<String> input) throws IOException {
         var endpoint = Strings.format("_inference/%s/%s", taskType, modelId);
-        return inferOnMockServiceInternal(endpoint, input);
+        return inferInternal(endpoint, input, Map.of());
     }
 
-    private Map<String, Object> inferOnMockServiceInternal(String endpoint, List<String> input) throws IOException {
+    protected Map<String, Object> infer(String modelId, TaskType taskType, List<String> input, Map<String, String> queryParameters)
+        throws IOException {
+        var endpoint = Strings.format("_inference/%s/%s?error_trace", taskType, modelId);
+        return inferInternal(endpoint, input, queryParameters);
+    }
+
+    private Map<String, Object> inferInternal(String endpoint, List<String> input, Map<String, String> queryParameters) throws IOException {
         var request = new Request("POST", endpoint);
         request.setJsonEntity(jsonBody(input));
+        if (queryParameters.isEmpty() == false) {
+            request.addParameters(queryParameters);
+        }
         var response = client().performRequest(request);
         assertOkOrCreated(response);
         return entityAsMap(response);

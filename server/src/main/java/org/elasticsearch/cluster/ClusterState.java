@@ -538,7 +538,7 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
         sb.append(TAB).append(TAB).append("voting tombstones: ").append(coordinationMetadata().getVotingConfigExclusions()).append("\n");
 
         for (var proj : metadata.projects().entrySet()) {
-            sb.append(TAB).append(proj.getKey()).append(":");
+            sb.append(TAB).append("project[").append(proj.getKey()).append("]:");
             if (proj.getValue().size() == 0) {
                 sb.append(" -\n");
             } else {
@@ -573,7 +573,7 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
         if (metadata.projects().values().stream().anyMatch(p -> p.customs().isEmpty() == false)) {
             sb.append("metadata customs (project):\n");
             for (var proj : metadata.projects().entrySet()) {
-                sb.append(TAB).append(proj.getKey()).append(":\n");
+                sb.append(TAB).append("project[").append(proj.getKey()).append("]:\n");
                 for (final Map.Entry<String, Metadata.ProjectCustom> cursor : proj.getValue().customs().entrySet()) {
                     final String type = cursor.getKey();
                     final Metadata.ProjectCustom custom = cursor.getValue();

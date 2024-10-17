@@ -14,6 +14,8 @@ import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
 import java.io.IOException;
 
+import static org.hamcrest.Matchers.equalTo;
+
 public class ProjectIdTests extends AbstractWireSerializingTestCase<ProjectId> {
 
     @Override
@@ -29,5 +31,11 @@ public class ProjectIdTests extends AbstractWireSerializingTestCase<ProjectId> {
     @Override
     protected ProjectId mutateInstance(ProjectId instance) throws IOException {
         return randomValueOtherThan(instance, this::createTestInstance);
+    }
+
+    public void testToString() {
+        String s = randomAlphaOfLengthBetween(8, 16);
+        ProjectId id = new ProjectId(s);
+        assertThat(id.toString(), equalTo(s));
     }
 }

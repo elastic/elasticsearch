@@ -13,9 +13,12 @@ Long passages are <<auto-text-chunking, automatically chunked>> to smaller secti
 The `semantic_text` field type specifies an inference endpoint identifier that will be used to generate embeddings.
 You can create the inference endpoint by using the <<put-inference-api>>.
 This field type and the <<query-dsl-semantic-query,`semantic` query>> type make it simpler to perform semantic search on your data.
+If you don't specify an inference endpoint, the <<infer-service-elser,ELSER service>> is used by default.
 
 Using `semantic_text`, you won't need to specify how to generate embeddings for your data, or how to index it.
 The {infer} endpoint automatically determines the embedding generation, indexing, and query to use.
+
+If you use the ELSER service, you can set up `semantic_text` with the following API request:
 
 [source,console]
 ------------------------------------------------------------
@@ -24,14 +27,31 @@ PUT my-index-000001
   "mappings": {
     "properties": {
       "inference_field": {
+        "type": "semantic_text"
+      }
+    }
+  }
+}
+------------------------------------------------------------
+
+If you use a service other than ELSER, you must create an {infer} endpoint using the <<put-inference-api>> and reference it when setting up `semantic_text` as the following example demonstrates:
+
+[source,console]
+------------------------------------------------------------
+PUT my-index-000002
+{
+  "mappings": {
+    "properties": {
+      "inference_field": {
         "type": "semantic_text",
-        "inference_id": "my-elser-endpoint"
+        "inference_id": "my-openai-endpoint" <1>
       }
     }
   }
 }
 ------------------------------------------------------------
 // TEST[skip:Requires inference endpoint]
+<1> The `inference_id` of the {infer} endpoint to use to generate embeddings.
 
 
 The recommended way to use semantic_text is by having dedicated {infer} endpoints for ingestion and search.
@@ -40,7 +60,7 @@ After creating dedicated {infer} endpoints for both, you can reference them usin
 
 [source,console]
 ------------------------------------------------------------
-PUT my-index-000002
+PUT my-index-000003
 {
   "mappings": {
     "properties": {

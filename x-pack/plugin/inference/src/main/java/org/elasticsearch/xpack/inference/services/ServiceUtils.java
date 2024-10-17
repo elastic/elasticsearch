@@ -24,7 +24,6 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.results.InferenceTextEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.inference.results.TextEmbedding;
-import org.elasticsearch.xpack.core.ml.inference.assignment.AdaptiveAllocationsFeatureFlag;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AdaptiveAllocationsSettings;
 import org.elasticsearch.xpack.inference.services.settings.ApiKeySecrets;
 
@@ -137,9 +136,6 @@ public final class ServiceUtils {
         String key,
         ValidationException validationException
     ) {
-        if (AdaptiveAllocationsFeatureFlag.isEnabled() == false) {
-            return null;
-        }
         Map<String, Object> settingsMap = ServiceUtils.removeFromMap(sourceMap, key);
         if (settingsMap == null) {
             return null;
@@ -203,6 +199,13 @@ public final class ServiceUtils {
             RestStatus.BAD_REQUEST,
             config,
             serviceName
+        );
+    }
+
+    public static ElasticsearchStatusException invalidModelTypeForUpdateModelWithEmbeddingDetails(Class<? extends Model> invalidModelType) {
+        throw new ElasticsearchStatusException(
+            Strings.format("Can't update embedding details for model with unexpected type %s", invalidModelType),
+            RestStatus.BAD_REQUEST
         );
     }
 
@@ -414,6 +417,24 @@ public final class ServiceUtils {
         return field;
     }
 
+    public static Integer extractRequiredPositiveIntegerLessThanOrEqualToMax(
+        Map<String, Object> map,
+        String settingName,
+        int maxValue,
+        String scope,
+        ValidationException validationException
+    ) {
+        Integer field = extractRequiredPositiveInteger(map, settingName, scope, validationException);
+
+        if (field != null && field > maxValue) {
+            validationException.addValidationError(
+                ServiceUtils.mustBeLessThanOrEqualNumberErrorMessage(settingName, scope, field, maxValue)
+            );
+        }
+
+        return field;
+    }
+
     public static Integer extractOptionalPositiveInteger(
         Map<String, Object> map,
         String settingName,
@@ -605,6 +626,40 @@ public final class ServiceUtils {
     }
 
     /**
+     * task_type can be specified as either a URL parameter or in the
+     * request body. Resolve which to use or throw if the settings are
+     * inconsistent
+     * @param urlTaskType Taken from the URL parameter. ANY means not specified.
+     * @param bodyTaskType Taken from the request body. Maybe null
+     * @return The resolved task type
+     */
+    public static TaskType resolveTaskType(TaskType urlTaskType, String bodyTaskType) {
+        if (bodyTaskType == null) {
+            if (urlTaskType == TaskType.ANY) {
+                throw new ElasticsearchStatusException("model is missing required setting [task_type]", RestStatus.BAD_REQUEST);
+            } else {
+                return urlTaskType;
+            }
+        }
+
+        TaskType parsedBodyTask = TaskType.fromStringOrStatusException(bodyTaskType);
+        if (parsedBodyTask == TaskType.ANY) {
+            throw new ElasticsearchStatusException("task_type [any] is not valid type for inference", RestStatus.BAD_REQUEST);
+        }
+
+        if (parsedBodyTask.isAnyOrSame(urlTaskType) == false) {
+            throw new ElasticsearchStatusException(
+                "Cannot resolve conflicting task_type parameter in the request URL [{}] and the request body [{}]",
+                RestStatus.BAD_REQUEST,
+                urlTaskType.toString(),
+                bodyTaskType
+            );
+        }
+
+        return parsedBodyTask;
+    }
+
+    /**
      * Functional interface for creating an enum from a string.
      * @param <E>
      */
@@ -645,6 +700,7 @@ public final class ServiceUtils {
             model,
             null,
             List.of(TEST_EMBEDDING_INPUT),
+            false,
             Map.of(),
             InputType.INGEST,
             InferenceAction.Request.DEFAULT_TIMEOUT,

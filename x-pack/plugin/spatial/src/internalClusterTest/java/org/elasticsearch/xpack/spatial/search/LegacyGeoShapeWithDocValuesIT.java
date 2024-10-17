@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.spatial.search;
 
+import org.apache.lucene.tests.util.LuceneTestCase;
+import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.geometry.Circle;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
@@ -27,6 +29,8 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.containsString;
 
+@UpdateForV9(owner = UpdateForV9.Owner.SEARCH_ANALYTICS)
+@LuceneTestCase.AwaitsFix(bugUrl = "this is testing legacy functionality so can likely be removed in 9.0")
 public class LegacyGeoShapeWithDocValuesIT extends GeoShapeIntegTestCase {
 
     @Override

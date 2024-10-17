@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.routing.allocation.decider.FilterAllocationDecider;
+import org.elasticsearch.cluster.routing.allocation.decider.IndexVersionAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.NodeReplacementAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.NodeShutdownAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.NodeVersionAllocationDecider;
@@ -74,6 +75,7 @@ public class SetSingleNodeAllocateStep extends AsyncActionStep {
                     new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
                 ),
                 DataTierAllocationDecider.INSTANCE,
+                new IndexVersionAllocationDecider(),
                 new NodeVersionAllocationDecider(),
                 new NodeShutdownAllocationDecider(),
                 new NodeReplacementAllocationDecider()

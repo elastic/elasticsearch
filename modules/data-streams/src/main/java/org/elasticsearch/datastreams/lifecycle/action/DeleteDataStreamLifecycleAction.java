@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.datastreams.lifecycle.action;
@@ -33,7 +34,26 @@ public class DeleteDataStreamLifecycleAction {
     public static final class Request extends AcknowledgedRequest<Request> implements IndicesRequest.Replaceable {
 
         private String[] names;
-        private IndicesOptions indicesOptions = IndicesOptions.fromOptions(false, true, true, true, false, false, true, false);
+        private IndicesOptions indicesOptions = IndicesOptions.builder()
+            .concreteTargetOptions(IndicesOptions.ConcreteTargetOptions.ERROR_WHEN_UNAVAILABLE_TARGETS)
+            .wildcardOptions(
+                IndicesOptions.WildcardOptions.builder()
+                    .matchOpen(true)
+                    .matchClosed(true)
+                    .includeHidden(false)
+                    .resolveAliases(false)
+                    .allowEmptyExpressions(true)
+                    .build()
+            )
+            .gatekeeperOptions(
+                IndicesOptions.GatekeeperOptions.builder()
+                    .allowAliasToMultipleIndices(false)
+                    .allowClosedIndices(true)
+                    .ignoreThrottled(false)
+                    .allowFailureIndices(false)
+                    .build()
+            )
+            .build();
 
         public Request(StreamInput in) throws IOException {
             super(in);

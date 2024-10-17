@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper.extras;
@@ -219,7 +220,7 @@ public class TokenCountFieldMapperTests extends MapperTestCase {
 
                 var textArray = values.stream().map(Value::text).toList();
 
-                var blockExpectedList = values.stream().map(Value::tokenCount).filter(Objects::nonNull).toList();
+                var blockExpectedList = values.stream().map(Value::tokenCount).filter(Objects::nonNull).sorted().toList();
                 var blockExpected = blockExpectedList.size() == 1 ? blockExpectedList.get(0) : blockExpectedList;
 
                 return new SyntheticSourceExample(textArray, textArray, blockExpected, this::mapping);
@@ -229,7 +230,7 @@ public class TokenCountFieldMapperTests extends MapperTestCase {
 
             private Value generateValue() {
                 if (rarely()) {
-                    return new Value(null, null);
+                    return new Value(null, nullValue);
                 }
 
                 var text = randomList(0, 10, () -> randomAlphaOfLengthBetween(0, 10)).stream().collect(Collectors.joining(" "));

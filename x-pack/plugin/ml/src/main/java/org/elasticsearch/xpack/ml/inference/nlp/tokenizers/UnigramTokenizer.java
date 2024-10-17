@@ -14,6 +14,7 @@ import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.analysis.tokenattributes.OffsetAttribute;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.UnicodeUtil;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Nullable;
 
@@ -49,7 +50,13 @@ public final class UnigramTokenizer extends Tokenizer {
     private final CharTermAttribute termAtt = addAttribute(CharTermAttribute.class);
     private final OffsetAttribute offsetAtt = addAttribute(OffsetAttribute.class);
 
-    static UnigramTokenizer build(List<String> neverSplit, List<String> dictionary, double[] scores, String unknownToken) {
+    static UnigramTokenizer build(
+        List<String> neverSplit,
+        List<String> dictionary,
+        double[] scores,
+        String unknownToken,
+        boolean byteFallback
+    ) {
         if (dictionary.isEmpty()) {
             throw new IllegalArgumentException("vocab empty");
         }
@@ -84,7 +91,8 @@ public final class UnigramTokenizer extends Tokenizer {
             Optional.ofNullable(tokenToId.get(new BytesRef(unknownToken)))
                 .orElseThrow(
                     () -> new IllegalArgumentException("provided vocabulary does not contain the unknown token of [" + unknownToken + "]")
-                )
+                ),
+            byteFallback
         );
     }
 
@@ -94,7 +102,7 @@ public final class UnigramTokenizer extends Tokenizer {
 
     private final double minScore;
     // This may be configurable in the future
-    private final boolean fuseUnk = true;
+    private boolean fuseUnk = true;
     private final double[] vocabScores;
     private final CharTrie neverSplit;
     private final CharArraySet neverSplitHash;
@@ -104,6 +112,7 @@ public final class UnigramTokenizer extends Tokenizer {
     // This is a buffer that is reused per token for decoding the normalized char-sequence into utf-8 bytes
     // It's usage is NOT thread safe
     private byte[] normalizedByteBuffer = new byte[128];
+    private boolean byteFallback = false; // If true, decompose unknown pieces into UTF-8 byte pieces
 
     public UnigramTokenizer(
         double minScore,
@@ -125,6 +134,31 @@ public final class UnigramTokenizer extends Tokenizer {
         this.unknownTokenId = unknownTokenId;
         this.vocabScores = vocabScores;
         this.whitespaceTokenizer = new SimpleWhitespaceTokenizer();
+    }
+
+    public UnigramTokenizer(
+        double minScore,
+        double[] vocabScores,
+        CharTrie neverSplit,
+        CharArraySet neverSplitHash,
+        Map<BytesRef, Integer> vocabToId,
+        BytesTrie vocabTrie,
+        int unknownTokenId,
+        boolean byteFallback
+    ) {
+        super();
+        this.tokens = new LinkedList<>();
+        this.tokenizedValues = new ArrayList<>();
+        this.minScore = minScore;
+        this.neverSplit = neverSplit;
+        this.neverSplitHash = neverSplitHash;
+        this.vocabToId = vocabToId;
+        this.vocabTrie = vocabTrie;
+        this.unknownTokenId = unknownTokenId;
+        this.vocabScores = vocabScores;
+        this.whitespaceTokenizer = new SimpleWhitespaceTokenizer();
+        this.byteFallback = byteFallback;
+        this.fuseUnk = byteFallback == false;
     }
 
     List<DelimitedToken.Encoded> getTokenizedValues() {
@@ -231,6 +265,21 @@ public final class UnigramTokenizer extends Tokenizer {
         return false;
     }
 
+    private int[] decomposeBytePieces(byte[] bytes) {
+        assert this.byteFallback;
+
+        int[] pieces = new int[bytes.length];
+        for (int i = 0; i < bytes.length; i++) {
+            BytesRef decomposedToken = new BytesRef(Strings.format("<0x%02X>", bytes[i]));
+            Integer piece = vocabToId.get(decomposedToken);
+            if (piece == null) {
+                piece = unknownTokenId;
+            }
+            pieces[i] = piece;
+        }
+        return pieces;
+    }
+
     /**
      * This algorithm does the following:
      *
@@ -309,7 +358,21 @@ public final class UnigramTokenizer extends Tokenizer {
         while (endsAtBytes > 0) {
             BestPathNode node = bestPathNodes[endsAtBytes];
             int startsAtBytes = node.startsAtBytePos;
-            if (node.id == unknownTokenId && fuseUnk) {
+            if (node.id == unknownTokenId && byteFallback) {
+                CharSequence multiByteSequence = inputSequence.subSequence(node.startsAtCharPos, endsAtChars);
+                byte[] bytes = multiByteSequence.toString().getBytes(StandardCharsets.UTF_8);
+                int[] pieces = decomposeBytePieces(bytes);
+                for (int i = pieces.length - 1; i >= 0; i--) {
+                    results.add(
+                        new DelimitedToken.Encoded(
+                            Strings.format("<0x%02X>", bytes[i]),
+                            pieces[i],
+                            offsetCorrection.apply(node.startsAtCharPos),
+                            offsetCorrection.apply(startsAtBytes + i)
+                        )
+                    );
+                }
+            } else if (node.id == unknownTokenId && fuseUnk) {
                 unknownTokens.add(
                     new DelimitedToken.Encoded(
                         new String(normalizedByteBuffer, startsAtBytes, endsAtBytes - startsAtBytes, StandardCharsets.UTF_8),

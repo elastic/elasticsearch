@@ -2,4 +2,4 @@
 
 *Description*
 
-Returns the {wikipedia}/Hyperbolic_functions[hyperbolic cosine] of an angle.
+Returns the {wikipedia}/Hyperbolic_functions[hyperbolic cosine] of a number.

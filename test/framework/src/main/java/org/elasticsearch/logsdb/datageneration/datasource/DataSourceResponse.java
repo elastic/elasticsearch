@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.logsdb.datageneration.datasource;
@@ -41,6 +42,8 @@ public interface DataSourceResponse {
     interface ChildFieldGenerator extends DataSourceResponse {
         int generateChildFieldCount();
 
+        boolean generateDynamicSubObject();
+
         boolean generateNestedSubObject();
 
         boolean generateRegularSubObject();
@@ -48,11 +51,15 @@ public interface DataSourceResponse {
         String generateFieldName();
     }
 
-    record FieldTypeGenerator(Supplier<FieldType> generator) implements DataSourceResponse {}
+    record FieldTypeGenerator(Supplier<FieldTypeInfo> generator) implements DataSourceResponse {
+        public record FieldTypeInfo(FieldType fieldType) {}
+    }
 
     record ObjectArrayGenerator(Supplier<Optional<Integer>> lengthGenerator) implements DataSourceResponse {}
 
     record LeafMappingParametersGenerator(Supplier<Map<String, Object>> mappingGenerator) implements DataSourceResponse {}
 
     record ObjectMappingParametersGenerator(Supplier<Map<String, Object>> mappingGenerator) implements DataSourceResponse {}
+
+    record DynamicMappingGenerator(Function<Boolean, Boolean> generator) implements DataSourceResponse {}
 }

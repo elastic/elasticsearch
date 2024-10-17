@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
@@ -31,20 +32,6 @@ public class SourceLoaderTests extends MapperServiceTestCase {
         assertTrue(mapper.mappers().newSourceLoader(SourceFieldMetrics.NOOP).reordersFieldValues());
         assertThat(syntheticSource(mapper, b -> b.field("kwd", "foo")), equalTo("""
             {"kwd":"foo"}"""));
-    }
-
-    public void testUnsupported() throws IOException {
-        Exception e = expectThrows(
-            IllegalArgumentException.class,
-            () -> createDocumentMapper(syntheticSourceMapping(b -> b.startObject("txt").field("type", "text").endObject()))
-        );
-        assertThat(
-            e.getMessage(),
-            equalTo(
-                "field [txt] of type [text] doesn't support synthetic source unless it is stored or has a sub-field "
-                    + "of type [keyword] with doc values or stored and without a normalizer"
-            )
-        );
     }
 
     public void testDotsInFieldName() throws IOException {

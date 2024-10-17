@@ -37,7 +37,6 @@ import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.SimpleMappedFieldType;
 import org.elasticsearch.index.mapper.SortedNumericDocValuesSyntheticFieldLoader;
-import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
@@ -72,7 +71,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 
@@ -268,7 +266,7 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
             metricFieldType.setMetricFields(metricFields);
             metricFieldType.setDefaultMetric(defaultMetric.getValue());
 
-            return new AggregateDoubleMetricFieldMapper(leafName(), metricFieldType, metricMappers, this);
+            return new AggregateDoubleMetricFieldMapper(leafName(), metricFieldType, metricMappers, builderParams(this, context), this);
         }
     }
 
@@ -471,8 +469,6 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
                             return 0; // Unknown
                         }
 
-                        @Override
-                        public void close() {}
                     };
                 }
 
@@ -544,9 +540,10 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
         String simpleName,
         MappedFieldType mappedFieldType,
         EnumMap<Metric, NumberFieldMapper> metricFieldMappers,
+        BuilderParams builderParams,
         Builder builder
     ) {
-        super(simpleName, mappedFieldType, MultiFields.empty(), CopyTo.empty());
+        super(simpleName, mappedFieldType, builderParams);
         this.ignoreMalformed = builder.ignoreMalformed.getValue();
         this.ignoreMalformedByDefault = builder.ignoreMalformed.getDefaultValue();
         this.metrics = builder.metrics.getValue();
@@ -711,21 +708,18 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected SyntheticSourceMode syntheticSourceMode() {
-        return SyntheticSourceMode.NATIVE;
-    }
-
-    @Override
-    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
-        return new CompositeSyntheticFieldLoader(
+    protected SyntheticSourceSupport syntheticSourceSupport() {
+        var loader = new CompositeSyntheticFieldLoader(
             leafName(),
             fullPath(),
             new AggregateMetricSyntheticFieldLoader(fullPath(), metrics),
             new CompositeSyntheticFieldLoader.MalformedValuesLayer(fullPath())
         );
+
+        return new SyntheticSourceSupport.Native(loader);
     }
 
-    public static class AggregateMetricSyntheticFieldLoader implements CompositeSyntheticFieldLoader.Layer {
+    public static class AggregateMetricSyntheticFieldLoader implements CompositeSyntheticFieldLoader.DocValuesLayer {
         private final String name;
         private final EnumSet<Metric> metrics;
         private final Map<Metric, SortedNumericDocValues> metricDocValues = new EnumMap<>(Metric.class);
@@ -744,11 +738,6 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
         @Override
         public long valueCount() {
             return hasValue() ? 1 : 0;
-        }
-
-        @Override
-        public Stream<Map.Entry<String, StoredFieldLoader>> storedFieldLoaders() {
-            return Stream.of();
         }
 
         @Override

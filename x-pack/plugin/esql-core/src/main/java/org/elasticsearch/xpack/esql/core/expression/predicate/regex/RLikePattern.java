@@ -41,4 +41,8 @@ public class RLikePattern extends AbstractStringPattern {
     public int hashCode() {
         return Objects.hash(regexpPattern);
     }
+
+    public String pattern() {
+        return regexpPattern;
+    }
 }

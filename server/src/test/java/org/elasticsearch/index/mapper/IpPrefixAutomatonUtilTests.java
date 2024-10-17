@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
@@ -172,6 +173,12 @@ public class IpPrefixAutomatonUtilTests extends ESTestCase {
             CompiledAutomaton a = buildIpPrefixAutomaton("255");
             assertTrue(accepts(a, "255.27.240.24"));
             assertTrue(accepts(a, "255:a360::25bb:828f:ffff:ffff"));
+        }
+        {
+            CompiledAutomaton a = buildIpPrefixAutomaton("23c9::");
+            assertTrue(accepts(a, "23c9::6063:7ac9:ffff:ffff"));
+            assertFalse(accepts(a, "0.0.0.0"));
+            assertFalse(accepts(a, "249.43.32.175"));
         }
     }
 

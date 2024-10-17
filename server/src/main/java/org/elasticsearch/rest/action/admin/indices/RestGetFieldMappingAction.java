@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.rest.action.admin.indices;
@@ -17,7 +18,6 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
@@ -44,13 +44,7 @@ public class RestGetFieldMappingAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(
-            new Route(GET, "/_mapping/field/{fields}"),
-            new Route(GET, "/{index}/_mapping/field/{fields}"),
-            Route.builder(GET, "/_mapping/{type}/field/{fields}").deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7).build(),
-            Route.builder(GET, "/{index}/{type}/_mapping/field/{fields}").deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7).build(),
-            Route.builder(GET, "/{index}/_mapping/{type}/field/{fields}").deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7).build()
-        );
+        return List.of(new Route(GET, "/_mapping/field/{fields}"), new Route(GET, "/{index}/_mapping/field/{fields}"));
     }
 
     @Override
@@ -62,25 +56,6 @@ public class RestGetFieldMappingAction extends BaseRestHandler {
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         final String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
         final String[] fields = Strings.splitStringByCommaToArray(request.param("fields"));
-
-        if (request.getRestApiVersion() == RestApiVersion.V_7) {
-            if (request.hasParam(INCLUDE_TYPE_NAME_PARAMETER)) {
-                deprecationLogger.compatibleCritical("get_field_mapping_with_types", INCLUDE_TYPE_DEPRECATION_MESSAGE);
-            }
-            boolean includeTypeName = request.paramAsBoolean(INCLUDE_TYPE_NAME_PARAMETER, DEFAULT_INCLUDE_TYPE_NAME_POLICY);
-            final String[] types = request.paramAsStringArrayOrEmptyIfAll("type");
-            if (includeTypeName == false && types.length > 0) {
-                throw new IllegalArgumentException("Types cannot be specified unless include_type_name is set to true.");
-            }
-
-            if (request.hasParam("local")) {
-                request.param("local");
-                deprecationLogger.compatibleCritical(
-                    "get_field_mapping_local",
-                    "Use [local] in get field mapping requests is deprecated. The parameter will be removed in the next major version"
-                );
-            }
-        }
 
         GetFieldMappingsRequest getMappingsRequest = new GetFieldMappingsRequest();
         getMappingsRequest.indices(indices).fields(fields).includeDefaults(request.paramAsBoolean("include_defaults", false));

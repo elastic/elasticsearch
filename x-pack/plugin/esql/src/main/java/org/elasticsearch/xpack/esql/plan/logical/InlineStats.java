@@ -113,6 +113,11 @@ public class InlineStats extends UnaryPlan implements NamedWriteable, Phased, St
     }
 
     @Override
+    public String commandName() {
+        return "INLINESTATS";
+    }
+
+    @Override
     public boolean expressionsResolved() {
         return Resolvables.resolved(groupings) && Resolvables.resolved(aggregates);
     }

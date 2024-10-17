@@ -35,7 +35,6 @@ public class OTelYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
         .module("x-pack-stack")
         .module("mapper-version")
         .setting("ingest.geoip.downloader.enabled", "false")
-        .setting("xpack.otel_data.registry.enabled", "true")
         .build();
 
     public OTelYamlTestSuiteIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {

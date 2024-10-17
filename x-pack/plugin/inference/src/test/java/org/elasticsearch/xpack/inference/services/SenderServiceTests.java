@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.inference.services;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkedInferenceServiceResults;
 import org.elasticsearch.inference.ChunkingOptions;
@@ -20,7 +19,9 @@ import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.inference.external.http.sender.DocumentsOnlyInput;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
+import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.junit.After;
 import org.junit.Before;
@@ -28,7 +29,6 @@ import org.junit.Before;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityPool;
@@ -105,20 +105,7 @@ public class SenderServiceTests extends ESTestCase {
         @Override
         protected void doInfer(
             Model model,
-            List<String> input,
-            Map<String, Object> taskSettings,
-            InputType inputType,
-            TimeValue timeout,
-            ActionListener<InferenceServiceResults> listener
-        ) {
-
-        }
-
-        @Override
-        protected void doInfer(
-            Model model,
-            @Nullable String query,
-            List<String> input,
+            InferenceInputs inputs,
             Map<String, Object> taskSettings,
             InputType inputType,
             TimeValue timeout,
@@ -130,8 +117,7 @@ public class SenderServiceTests extends ESTestCase {
         @Override
         protected void doChunkedInfer(
             Model model,
-            @Nullable String query,
-            List<String> input,
+            DocumentsOnlyInput inputs,
             Map<String, Object> taskSettings,
             InputType inputType,
             ChunkingOptions chunkingOptions,
@@ -151,7 +137,6 @@ public class SenderServiceTests extends ESTestCase {
             String inferenceEntityId,
             TaskType taskType,
             Map<String, Object> config,
-            Set<String> platformArchitectures,
             ActionListener<Model> parsedModelListener
         ) {
             parsedModelListener.onResponse(null);

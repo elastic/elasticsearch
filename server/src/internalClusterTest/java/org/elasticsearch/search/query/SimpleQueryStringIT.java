@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.query;
@@ -579,6 +580,32 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
             assertHitCount(response, 1);
             assertHits(response.getHits(), "1");
         });
+    }
+
+    public void testSimpleQueryStringWithAnalysisStopWords() throws Exception {
+        String mapping = Strings.toString(
+            XContentFactory.jsonBuilder()
+                .startObject()
+                .startObject("properties")
+                .startObject("body")
+                .field("type", "text")
+                .field("analyzer", "stop")
+                .endObject()
+                .endObject()
+                .endObject()
+        );
+
+        CreateIndexRequestBuilder mappingRequest = indicesAdmin().prepareCreate("test1").setMapping(mapping);
+        mappingRequest.get();
+        indexRandom(true, prepareIndex("test1").setId("1").setSource("body", "Some Text"));
+        refresh();
+
+        assertHitCount(
+            prepareSearch().setQuery(
+                simpleQueryStringQuery("the* text*").analyzeWildcard(true).defaultOperator(Operator.AND).field("body")
+            ),
+            1
+        );
     }
 
     private void assertHits(SearchHits hits, String... ids) {

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
@@ -1504,10 +1505,10 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
     public void testMergeNested() {
         NestedObjectMapper firstMapper = new NestedObjectMapper.Builder("nested1", IndexVersion.current(), query -> {
             throw new UnsupportedOperationException();
-        }).includeInParent(true).includeInRoot(true).build(MapperBuilderContext.root(false, false));
+        }, null).includeInParent(true).includeInRoot(true).build(MapperBuilderContext.root(false, false));
         NestedObjectMapper secondMapper = new NestedObjectMapper.Builder("nested1", IndexVersion.current(), query -> {
             throw new UnsupportedOperationException();
-        }).includeInParent(false).includeInRoot(true).build(MapperBuilderContext.root(false, false));
+        }, null).includeInParent(false).includeInRoot(true).build(MapperBuilderContext.root(false, false));
 
         MapperException e = expectThrows(
             MapperException.class,
@@ -1570,14 +1571,14 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
 
     public void testStoreArraySourceinSyntheticSourceMode() throws IOException {
         DocumentMapper mapper = createDocumentMapper(syntheticSourceMapping(b -> {
-            b.startObject("o").field("type", "nested").field(ObjectMapper.STORE_ARRAY_SOURCE_PARAM, true).endObject();
+            b.startObject("o").field("type", "nested").field("synthetic_source_keep", "all").endObject();
         }));
         assertNotNull(mapper.mapping().getRoot().getMapper("o"));
     }
 
     public void testStoreArraySourceNoopInNonSyntheticSourceMode() throws IOException {
         DocumentMapper mapper = createDocumentMapper(mapping(b -> {
-            b.startObject("o").field("type", "nested").field(ObjectMapper.STORE_ARRAY_SOURCE_PARAM, true).endObject();
+            b.startObject("o").field("type", "nested").field("synthetic_source_keep", "all").endObject();
         }));
         assertNotNull(mapper.mapping().getRoot().getMapper("o"));
     }
@@ -1854,7 +1855,7 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
         MergeReason mergeReason = randomFrom(MergeReason.values());
         MapperBuilderContext mapperBuilderContext = MapperBuilderContext.root(isSourceSynthetic, isDataStream, mergeReason);
         mapperBuilderContext = mapperBuilderContext.createChildContext("name", parentContainsDimensions, randomFrom(Dynamic.values()));
-        NestedObjectMapper.Builder builder = new NestedObjectMapper.Builder("name", IndexVersion.current(), query -> null);
+        NestedObjectMapper.Builder builder = new NestedObjectMapper.Builder("name", IndexVersion.current(), query -> null, null);
         builder.add(new Mapper.Builder("name") {
             @Override
             public Mapper build(MapperBuilderContext context) {
@@ -1875,7 +1876,7 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
         MergeReason mergeReason = randomFrom(MergeReason.values());
         {
             MapperBuilderContext mapperBuilderContext = MapperBuilderContext.root(false, false, mergeReason);
-            NestedObjectMapper.Builder builder = new NestedObjectMapper.Builder("name", IndexVersion.current(), query -> null);
+            NestedObjectMapper.Builder builder = new NestedObjectMapper.Builder("name", IndexVersion.current(), query -> null, null);
             NestedObjectMapper nestedObjectMapper = builder.build(mapperBuilderContext);
             MapperMergeContext mapperMergeContext = MapperMergeContext.root(isSourceSynthetic, isDataStream, mergeReason, randomLong());
             MapperMergeContext childMergeContext = nestedObjectMapper.createChildContext(mapperMergeContext, "name");
@@ -1906,7 +1907,7 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
         MergeReason mergeReason = randomFrom(MergeReason.values());
         MapperBuilderContext mapperBuilderContext = MapperBuilderContext.root(isSourceSynthetic, isDataStream, mergeReason);
         mapperBuilderContext = mapperBuilderContext.createChildContext("name", parentContainsDimensions, randomFrom(Dynamic.values()));
-        NestedObjectMapper.Builder builder = new NestedObjectMapper.Builder("name", IndexVersion.current(), query -> null);
+        NestedObjectMapper.Builder builder = new NestedObjectMapper.Builder("name", IndexVersion.current(), query -> null, null);
         NestedObjectMapper nestedObjectMapper = builder.build(mapperBuilderContext);
 
         MapperMergeContext mapperMergeContext = MapperMergeContext.from(mapperBuilderContext, randomLong());

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.cache.bitset;
@@ -57,8 +58,6 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 
-import static org.elasticsearch.index.IndexSettings.INDEX_FAST_REFRESH_SETTING;
-
 /**
  * This is a cache for {@link BitDocIdSet} based filters and is unbounded by size or time.
  * <p>
@@ -104,9 +103,7 @@ public final class BitsetFilterCache
         boolean loadFiltersEagerlySetting = settings.getValue(INDEX_LOAD_RANDOM_ACCESS_FILTERS_EAGERLY_SETTING);
         boolean isStateless = DiscoveryNode.isStateless(settings.getNodeSettings());
         if (isStateless) {
-            return DiscoveryNode.hasRole(settings.getNodeSettings(), DiscoveryNodeRole.INDEX_ROLE)
-                && loadFiltersEagerlySetting
-                && INDEX_FAST_REFRESH_SETTING.get(settings.getSettings());
+            return loadFiltersEagerlySetting && DiscoveryNode.hasRole(settings.getNodeSettings(), DiscoveryNodeRole.SEARCH_ROLE);
         } else {
             return loadFiltersEagerlySetting;
         }

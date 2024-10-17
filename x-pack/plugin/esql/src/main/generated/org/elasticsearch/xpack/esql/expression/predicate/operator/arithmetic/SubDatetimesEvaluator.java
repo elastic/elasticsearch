@@ -16,16 +16,16 @@ import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.expression.function.Warnings;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link Sub}.
  * This class is generated. Do not edit it.
  */
 public final class SubDatetimesEvaluator implements EvalOperator.ExpressionEvaluator {
-  private final Warnings warnings;
+  private final Source source;
 
   private final EvalOperator.ExpressionEvaluator datetime;
 
@@ -33,12 +33,14 @@ public final class SubDatetimesEvaluator implements EvalOperator.ExpressionEvalu
 
   private final DriverContext driverContext;
 
+  private Warnings warnings;
+
   public SubDatetimesEvaluator(Source source, EvalOperator.ExpressionEvaluator datetime,
       TemporalAmount temporalAmount, DriverContext driverContext) {
+    this.source = source;
     this.datetime = datetime;
     this.temporalAmount = temporalAmount;
     this.driverContext = driverContext;
-    this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
   }
 
   @Override
@@ -61,7 +63,7 @@ public final class SubDatetimesEvaluator implements EvalOperator.ExpressionEvalu
         }
         if (datetimeBlock.getValueCount(p) != 1) {
           if (datetimeBlock.getValueCount(p) > 1) {
-            warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+            warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
           }
           result.appendNull();
           continue position;
@@ -69,7 +71,7 @@ public final class SubDatetimesEvaluator implements EvalOperator.ExpressionEvalu
         try {
           result.appendLong(Sub.processDatetimes(datetimeBlock.getLong(datetimeBlock.getFirstValueIndex(p)), this.temporalAmount));
         } catch (ArithmeticException | DateTimeException e) {
-          warnings.registerException(e);
+          warnings().registerException(e);
           result.appendNull();
         }
       }
@@ -83,7 +85,7 @@ public final class SubDatetimesEvaluator implements EvalOperator.ExpressionEvalu
         try {
           result.appendLong(Sub.processDatetimes(datetimeVector.getLong(p), this.temporalAmount));
         } catch (ArithmeticException | DateTimeException e) {
-          warnings.registerException(e);
+          warnings().registerException(e);
           result.appendNull();
         }
       }
@@ -99,6 +101,18 @@ public final class SubDatetimesEvaluator implements EvalOperator.ExpressionEvalu
   @Override
   public void close() {
     Releasables.closeExpectNoException(datetime);
+  }
+
+  private Warnings warnings() {
+    if (warnings == null) {
+      this.warnings = Warnings.createWarnings(
+              driverContext.warningsMode(),
+              source.source().getLineNumber(),
+              source.source().getColumnNumber(),
+              source.text()
+          );
+    }
+    return warnings;
   }
 
   static class Factory implements EvalOperator.ExpressionEvaluator.Factory {

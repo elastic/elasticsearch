@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.env;
@@ -153,7 +154,7 @@ public class NodeEnvironmentIT extends ESIntegTestCase {
         String node = internalCluster().startNode();
         prepareCreate("test").get();
         indexRandom(true, prepareIndex("test").setId("1").setSource("{}", XContentType.JSON));
-        String nodeId = clusterAdmin().prepareState().get().getState().nodes().getMasterNodeId();
+        String nodeId = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState().nodes().getMasterNodeId();
 
         final Settings dataPathSettings = internalCluster().dataPathSettings(node);
         internalCluster().stopRandomDataNode();
@@ -235,7 +236,7 @@ public class NodeEnvironmentIT extends ESIntegTestCase {
         dataPaths.forEach(path -> assertTrue(Files.isDirectory(path.resolve("nodes"))));
         internalCluster().startNode(dataPathSettings);
         dataPaths.forEach(path -> assertTrue(Files.isRegularFile(path.resolve("nodes"))));
-        assertEquals(nodeId, clusterAdmin().prepareState().get().getState().nodes().getMasterNodeId());
+        assertEquals(nodeId, clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState().nodes().getMasterNodeId());
         assertTrue(indexExists("test"));
         ensureYellow("test");
         assertHitCount(prepareSearch().setQuery(matchAllQuery()), 1L);

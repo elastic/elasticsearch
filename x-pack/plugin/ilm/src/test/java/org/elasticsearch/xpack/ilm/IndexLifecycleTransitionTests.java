@@ -896,7 +896,7 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
         );
     }
 
-    public void testMoveClusterStateToPreviouslyFailedStepAsAutomaticRetry() {
+    public void testMoveClusterStateToPreviouslyFailedStepAsAutomaticRetryAndSetsPreviousStepInfo() {
         String indexName = "my_index";
         String policyName = "my_policy";
         long now = randomNonNegativeLong();
@@ -921,6 +921,8 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
         lifecycleState.setStep(errorStepKey.name());
         lifecycleState.setStepTime(now);
         lifecycleState.setFailedStep(failedStepKey.name());
+        String initialStepInfo = randomAlphaOfLengthBetween(10, 50);
+        lifecycleState.setStepInfo(initialStepInfo);
         ClusterState clusterState = buildClusterState(
             indexName,
             indexSettingsBuilder,
@@ -938,6 +940,7 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
         IndexLifecycleRunnerTests.assertClusterStateOnNextStep(clusterState, index, errorStepKey, failedStepKey, nextClusterState, now);
         LifecycleExecutionState executionState = nextClusterState.metadata().index(indexName).getLifecycleExecutionState();
         assertThat(executionState.failedStepRetryCount(), is(1));
+        assertThat(executionState.previousStepInfo(), is(initialStepInfo));
     }
 
     public void testMoveToFailedStepDoesntRefreshCachedPhaseWhenUnsafe() {

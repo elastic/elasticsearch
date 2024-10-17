@@ -68,7 +68,8 @@ public class ToUpperTests extends AbstractConfigurationFunctionTestCase {
             EsqlPlugin.QUERY_RESULT_TRUNCATION_DEFAULT_SIZE.getDefault(Settings.EMPTY),
             "",
             false,
-            Map.of()
+            Map.of(),
+            System.nanoTime()
         );
     }
 

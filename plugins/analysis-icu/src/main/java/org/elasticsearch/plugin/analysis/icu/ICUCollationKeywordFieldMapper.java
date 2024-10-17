@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.plugin.analysis.icu;
@@ -336,15 +337,7 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
                 ignoreAbove.getValue(),
                 meta.getValue()
             );
-            return new ICUCollationKeywordFieldMapper(
-                leafName(),
-                buildFieldType(),
-                ft,
-                multiFieldsBuilder.build(this, context),
-                copyTo,
-                collator,
-                this
-            );
+            return new ICUCollationKeywordFieldMapper(leafName(), buildFieldType(), ft, builderParams(this, context), collator, this);
         }
     }
 
@@ -474,12 +467,11 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
         String simpleName,
         FieldType fieldType,
         MappedFieldType mappedFieldType,
-        MultiFields multiFields,
-        CopyTo copyTo,
+        BuilderParams builderParams,
         Collator collator,
         Builder builder
     ) {
-        super(simpleName, mappedFieldType, multiFields, copyTo, false, null);
+        super(simpleName, mappedFieldType, builderParams);
         assert collator.isFrozen();
         this.fieldType = freezeAndDeduplicateFieldType(fieldType);
         this.params = builder.collatorParams();

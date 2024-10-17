@@ -59,6 +59,11 @@ public class ShowInfo extends LeafPlan {
     }
 
     @Override
+    public String commandName() {
+        return "SHOW";
+    }
+
+    @Override
     public boolean expressionsResolved() {
         return true;
     }

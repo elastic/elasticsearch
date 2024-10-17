@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.codec.tsdb;
@@ -69,11 +70,10 @@ public class DocValuesForUtilTests extends LuceneTestCase {
         {
             // decode
             IndexInput in = d.openInput("test.bin", IOContext.READONCE);
-            final DocValuesForUtil forUtil = new DocValuesForUtil();
             final long[] restored = new long[ES87TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE];
             for (int i = 0; i < iterations; ++i) {
                 final int bitsPerValue = in.readByte();
-                forUtil.decode(bitsPerValue, in, restored);
+                DocValuesForUtil.decode(bitsPerValue, in, restored);
                 assertArrayEquals(
                     Arrays.toString(restored),
                     ArrayUtil.copyOfSubArray(

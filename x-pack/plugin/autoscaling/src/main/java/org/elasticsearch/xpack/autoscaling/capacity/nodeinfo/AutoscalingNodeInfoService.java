@@ -15,6 +15,7 @@ import org.elasticsearch.action.admin.cluster.node.info.NodesInfoMetrics;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequestParameters;
+import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.support.nodes.BaseNodeResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -115,6 +116,18 @@ public class AutoscalingNodeInfoService {
         return null;
     }
 
+    private static NodesInfoRequest getNodesInfoRequest(NodesStatsResponse nodesStatsResponse, TimeValue timeout) {
+        // Only gather info for nodes that provided their stats
+        final var nodeIds = nodesStatsResponse.getNodes()
+            .stream()
+            .map(BaseNodeResponse::getNode)
+            .map(DiscoveryNode::getId)
+            .toArray(String[]::new);
+        final var nodesInfoRequest = new NodesInfoRequest(nodeIds).clear().addMetric(NodesInfoMetrics.Metric.OS.metricName());
+        nodesInfoRequest.setTimeout(timeout);
+        return nodesInfoRequest;
+    }
+
     private void sendToMissingNodes(Function<String, DiscoveryNode> nodeLookup, Set<DiscoveryNode> missingNodes) {
         final Runnable onError = () -> {
             synchronized (mutex) {
@@ -125,7 +138,8 @@ public class AutoscalingNodeInfoService {
         };
         final NodesStatsRequest nodesStatsRequest = new NodesStatsRequest(
             missingNodes.stream().map(DiscoveryNode::getId).toArray(String[]::new)
-        ).clear().addMetric(NodesStatsRequestParameters.Metric.OS).timeout(fetchTimeout);
+        ).clear().addMetric(NodesStatsRequestParameters.Metric.OS);
+        nodesStatsRequest.setTimeout(fetchTimeout);
         nodesStatsRequest.setIncludeShardsStats(false);
         client.admin()
             .cluster()
@@ -134,58 +148,47 @@ public class AutoscalingNodeInfoService {
                 ActionListener.wrap(
                     nodesStatsResponse -> client.admin()
                         .cluster()
-                        .nodesInfo(
-                            // Only gather info for nodes that provided their stats
-                            new NodesInfoRequest(
-                                nodesStatsResponse.getNodes()
-                                    .stream()
-                                    .map(BaseNodeResponse::getNode)
-                                    .map(DiscoveryNode::getId)
-                                    .toArray(String[]::new)
-                            ).clear().addMetric(NodesInfoMetrics.Metric.OS.metricName()).timeout(fetchTimeout),
-                            ActionListener.wrap(nodesInfoResponse -> {
-                                final Map<String, AutoscalingNodeInfo.Builder> builderBuilder = Maps.newHashMapWithExpectedSize(
-                                    nodesStatsResponse.getNodes().size()
+                        .nodesInfo(getNodesInfoRequest(nodesStatsResponse, fetchTimeout), ActionListener.wrap(nodesInfoResponse -> {
+                            final Map<String, AutoscalingNodeInfo.Builder> builderBuilder = Maps.newHashMapWithExpectedSize(
+                                nodesStatsResponse.getNodes().size()
+                            );
+                            nodesStatsResponse.getNodes()
+                                .forEach(
+                                    nodeStats -> builderBuilder.put(
+                                        nodeStats.getNode().getEphemeralId(),
+                                        AutoscalingNodeInfo.builder().setMemory(nodeStats.getOs().getMem().getAdjustedTotal().getBytes())
+                                    )
                                 );
-                                nodesStatsResponse.getNodes()
-                                    .forEach(
-                                        nodeStats -> builderBuilder.put(
-                                            nodeStats.getNode().getEphemeralId(),
-                                            AutoscalingNodeInfo.builder()
-                                                .setMemory(nodeStats.getOs().getMem().getAdjustedTotal().getBytes())
-                                        )
-                                    );
-                                nodesInfoResponse.getNodes().forEach(nodeInfo -> {
-                                    assert builderBuilder.containsKey(nodeInfo.getNode().getEphemeralId())
-                                        : "unexpected missing node when setting processors [" + nodeInfo.getNode().getEphemeralId() + "]";
-                                    builderBuilder.computeIfPresent(
-                                        nodeInfo.getNode().getEphemeralId(),
-                                        (n, b) -> b.setProcessors(nodeInfo.getInfo(OsInfo.class).getFractionalAllocatedProcessors())
-                                    );
-                                });
-                                synchronized (mutex) {
-                                    Map<String, AutoscalingNodeInfo> builder = new HashMap<>(nodeToMemory);
-                                    // Remove all from the builder that failed getting info and stats
-                                    Stream.concat(nodesStatsResponse.failures().stream(), nodesInfoResponse.failures().stream())
-                                        .map(FailedNodeException::nodeId)
-                                        .map(nodeLookup)
-                                        .map(DiscoveryNode::getEphemeralId)
-                                        .forEach(builder::remove);
+                            nodesInfoResponse.getNodes().forEach(nodeInfo -> {
+                                assert builderBuilder.containsKey(nodeInfo.getNode().getEphemeralId())
+                                    : "unexpected missing node when setting processors [" + nodeInfo.getNode().getEphemeralId() + "]";
+                                builderBuilder.computeIfPresent(
+                                    nodeInfo.getNode().getEphemeralId(),
+                                    (n, b) -> b.setProcessors(nodeInfo.getInfo(OsInfo.class).getFractionalAllocatedProcessors())
+                                );
+                            });
+                            synchronized (mutex) {
+                                Map<String, AutoscalingNodeInfo> builder = new HashMap<>(nodeToMemory);
+                                // Remove all from the builder that failed getting info and stats
+                                Stream.concat(nodesStatsResponse.failures().stream(), nodesInfoResponse.failures().stream())
+                                    .map(FailedNodeException::nodeId)
+                                    .map(nodeLookup)
+                                    .map(DiscoveryNode::getEphemeralId)
+                                    .forEach(builder::remove);
 
-                                    // we might add nodes that already died here,
-                                    // but those will be removed on next cluster state update anyway and is only a small waste.
-                                    builderBuilder.forEach((nodeEphemeralId, memoryProcessorBuilder) -> {
-                                        if (memoryProcessorBuilder.canBuild()) {
-                                            builder.put(nodeEphemeralId, memoryProcessorBuilder.build());
-                                        }
-                                    });
-                                    nodeToMemory = Collections.unmodifiableMap(builder);
-                                }
-                            }, e -> {
-                                onError.run();
-                                logger.warn(() -> String.format(Locale.ROOT, "Unable to obtain processor info from [%s]", missingNodes), e);
-                            })
-                        ),
+                                // we might add nodes that already died here,
+                                // but those will be removed on next cluster state update anyway and is only a small waste.
+                                builderBuilder.forEach((nodeEphemeralId, memoryProcessorBuilder) -> {
+                                    if (memoryProcessorBuilder.canBuild()) {
+                                        builder.put(nodeEphemeralId, memoryProcessorBuilder.build());
+                                    }
+                                });
+                                nodeToMemory = Collections.unmodifiableMap(builder);
+                            }
+                        }, e -> {
+                            onError.run();
+                            logger.warn(() -> String.format(Locale.ROOT, "Unable to obtain processor info from [%s]", missingNodes), e);
+                        })),
                     e -> {
                         onError.run();
                         logger.warn(() -> String.format(Locale.ROOT, "Unable to obtain memory info from [%s]", missingNodes), e);

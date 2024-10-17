@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.ingest.common;
 
@@ -15,14 +16,11 @@ import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.get.MultiGetResponse;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.ingest.PutPipelineRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
-import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.Strings;
@@ -79,7 +77,7 @@ public class IngestRestartIT extends ESIntegTestCase {
         internalCluster().ensureAtLeastNumDataNodes(1);
         internalCluster().startMasterOnlyNode();
         final String pipelineId = "foo";
-        clusterAdmin().preparePutPipeline(pipelineId, new BytesArray(Strings.format("""
+        putJsonPipeline(pipelineId, Strings.format("""
             {
               "processors": [
                 {
@@ -99,7 +97,7 @@ public class IngestRestartIT extends ESIntegTestCase {
                   }
                 }
               ]
-            }""", MockScriptEngine.NAME)), XContentType.JSON).get();
+            }""", MockScriptEngine.NAME));
 
         Exception e = expectThrows(
             Exception.class,
@@ -126,22 +124,16 @@ public class IngestRestartIT extends ESIntegTestCase {
         String pipelineIdWithScript = pipelineIdWithoutScript + "_script";
         internalCluster().startNode();
 
-        BytesReference pipelineWithScript = new BytesArray(Strings.format("""
+        putJsonPipeline(pipelineIdWithScript, Strings.format("""
             {
               "processors": [ { "script": { "lang": "%s", "source": "my_script" } } ]
             }""", MockScriptEngine.NAME));
-        BytesReference pipelineWithoutScript = new BytesArray("""
+        putJsonPipeline(pipelineIdWithoutScript, """
             {
               "processors": [ { "set": { "field": "y", "value": 0 } } ]
             }""");
 
-        Consumer<String> checkPipelineExists = (id) -> assertThat(
-            clusterAdmin().prepareGetPipeline(id).get().pipelines().get(0).getId(),
-            equalTo(id)
-        );
-
-        clusterAdmin().preparePutPipeline(pipelineIdWithScript, pipelineWithScript, XContentType.JSON).get();
-        clusterAdmin().preparePutPipeline(pipelineIdWithoutScript, pipelineWithoutScript, XContentType.JSON).get();
+        Consumer<String> checkPipelineExists = (id) -> assertThat(getPipelines(id).pipelines().get(0).getId(), equalTo(id));
 
         checkPipelineExists.accept(pipelineIdWithScript);
         checkPipelineExists.accept(pipelineIdWithoutScript);
@@ -197,14 +189,13 @@ public class IngestRestartIT extends ESIntegTestCase {
         putJsonStoredScript("1", Strings.format("""
             {"script": {"lang": "%s", "source": "my_script"} }
             """, MockScriptEngine.NAME));
-        BytesReference pipeline = new BytesArray("""
+        putJsonPipeline("_id", """
             {
               "processors" : [
                   {"set" : {"field": "y", "value": 0}},
                   {"script" : {"id": "1"}}
               ]
             }""");
-        clusterAdmin().preparePutPipeline("_id", pipeline, XContentType.JSON).get();
 
         prepareIndex("index").setId("1").setSource("x", 0).setPipeline("_id").setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
 
@@ -232,13 +223,12 @@ public class IngestRestartIT extends ESIntegTestCase {
         String node = internalCluster().startNode();
         String ingestNode = internalCluster().startNode(onlyRole(DiscoveryNodeRole.INGEST_ROLE));
 
-        BytesReference pipeline = new BytesArray("""
+        putJsonPipeline("_id", """
             {
               "processors" : [
                   {"set" : {"field": "y", "value": 0}}
               ]
             }""");
-        clusterAdmin().preparePutPipeline("_id", pipeline, XContentType.JSON).get();
 
         prepareIndex("index").setId("1").setSource("x", 0).setPipeline("_id").setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
 
@@ -264,7 +254,7 @@ public class IngestRestartIT extends ESIntegTestCase {
     public void testDefaultPipelineWaitForClusterStateRecovered() throws Exception {
         internalCluster().startNode();
 
-        final var pipeline = new BytesArray("""
+        putJsonPipeline("test_pipeline", """
             {
               "processors" : [
                 {
@@ -275,8 +265,8 @@ public class IngestRestartIT extends ESIntegTestCase {
                 }
               ]
             }""");
+
         final TimeValue timeout = TimeValue.timeValueSeconds(10);
-        client().admin().cluster().preparePutPipeline("test_pipeline", pipeline, XContentType.JSON).get(timeout);
         client().admin().indices().preparePutTemplate("pipeline_template").setPatterns(Collections.singletonList("*")).setSettings("""
             {
               "index" : {
@@ -357,15 +347,12 @@ public class IngestRestartIT extends ESIntegTestCase {
         // Create Bulk Request
         createIndex("index");
 
-        BytesReference source = new BytesArray("""
+        putJsonPipeline("_id", """
             {
               "processors" : [
                   {"set" : {"field": "y", "value": 0}}
               ]
             }""");
-
-        PutPipelineRequest putPipelineRequest = new PutPipelineRequest("_id", source, XContentType.JSON);
-        clusterAdmin().putPipeline(putPipelineRequest).get();
 
         int numRequests = scaledRandomIntBetween(32, 128);
         BulkRequest bulkRequest = new BulkRequest();

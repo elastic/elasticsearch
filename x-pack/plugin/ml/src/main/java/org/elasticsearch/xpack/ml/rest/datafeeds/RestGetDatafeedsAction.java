@@ -26,9 +26,9 @@ import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.xpack.core.ml.MachineLearningField.DEPRECATED_ALLOW_NO_DATAFEEDS_PARAM;
+import static org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig.ID;
 import static org.elasticsearch.xpack.core.ml.utils.ToXContentParams.EXCLUDE_GENERATED;
 import static org.elasticsearch.xpack.ml.MachineLearning.BASE_PATH;
-import static org.elasticsearch.xpack.ml.MachineLearning.PRE_V7_BASE_PATH;
 import static org.elasticsearch.xpack.ml.rest.RestCompatibilityChecker.checkAndSetDeprecatedParam;
 
 @ServerlessScope(Scope.PUBLIC)
@@ -36,12 +36,7 @@ public class RestGetDatafeedsAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(
-            Route.builder(GET, BASE_PATH + "datafeeds/{" + DatafeedConfig.ID + "}")
-                .replaces(GET, PRE_V7_BASE_PATH + "datafeeds/{" + DatafeedConfig.ID + "}", RestApiVersion.V_7)
-                .build(),
-            Route.builder(GET, BASE_PATH + "datafeeds").replaces(GET, PRE_V7_BASE_PATH + "datafeeds", RestApiVersion.V_7).build()
-        );
+        return List.of(new Route(GET, BASE_PATH + "datafeeds/{" + ID + "}"), new Route(GET, BASE_PATH + "datafeeds"));
     }
 
     @Override

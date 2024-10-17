@@ -89,7 +89,7 @@ public class DefaultOperatorPrivilegesTests extends ESTestCase {
         verifyNoMoreInteractions(operatorOnlyRegistry);
     }
 
-    public void testMarkOperatorUser() throws IllegalAccessException {
+    public void testMarkOperatorUser() {
         final Settings settings = Settings.builder().put("xpack.security.operator_privileges.enabled", true).build();
         when(xPackLicenseState.isAllowed(Security.OPERATOR_PRIVILEGES_FEATURE)).thenReturn(true);
         final User operatorUser = new User("operator_user");
@@ -204,7 +204,7 @@ public class DefaultOperatorPrivilegesTests extends ESTestCase {
         verify(operatorOnlyRegistry, never()).check(anyString(), any());
     }
 
-    public void testMaybeInterceptRequest() throws IllegalAccessException {
+    public void testMaybeInterceptRequest() {
         final boolean licensed = randomBoolean();
         when(xPackLicenseState.isAllowed(Security.OPERATOR_PRIVILEGES_FEATURE)).thenReturn(licensed);
 
@@ -279,11 +279,16 @@ public class DefaultOperatorPrivilegesTests extends ESTestCase {
         );
         assertThat(ex, instanceOf(ElasticsearchSecurityException.class));
         assertThat(ex, throwableWithMessage("violation!"));
+        verify(restRequest, never()).markAsOperatorRequest();
         Mockito.clearInvocations(operatorOnlyRegistry);
+        Mockito.clearInvocations(restRequest);
 
         // is an operator
         threadContext.putHeader(AuthenticationField.PRIVILEGE_CATEGORY_KEY, AuthenticationField.PRIVILEGE_CATEGORY_VALUE_OPERATOR);
         verifyNoInteractions(operatorOnlyRegistry);
         assertTrue(operatorPrivilegesService.checkRest(restHandler, restRequest, restChannel, threadContext));
+        verify(restRequest, times(1)).markAsOperatorRequest();
+        Mockito.clearInvocations(operatorOnlyRegistry);
+        Mockito.clearInvocations(restRequest);
     }
 }

@@ -4,19 +4,19 @@
 
 [source.merge.styled,esql]
 ----
-include::{esql-specs}/stats_percentile.csv-spec[tag=median-absolute-deviation]
+include::{esql-specs}/median_absolute_deviation.csv-spec[tag=median-absolute-deviation]
 ----
 [%header.monospaced.styled,format=dsv,separator=|]
 |===
-include::{esql-specs}/stats_percentile.csv-spec[tag=median-absolute-deviation-result]
+include::{esql-specs}/median_absolute_deviation.csv-spec[tag=median-absolute-deviation-result]
 |===
 The expression can use inline functions. For example, to calculate the the median absolute deviation of the maximum values of a multivalued column, first use `MV_MAX` to get the maximum value per row, and use the result with the `MEDIAN_ABSOLUTE_DEVIATION` function
 [source.merge.styled,esql]
 ----
-include::{esql-specs}/stats_percentile.csv-spec[tag=docsStatsMADNestedExpression]
+include::{esql-specs}/median_absolute_deviation.csv-spec[tag=docsStatsMADNestedExpression]
 ----
 [%header.monospaced.styled,format=dsv,separator=|]
 |===
-include::{esql-specs}/stats_percentile.csv-spec[tag=docsStatsMADNestedExpression-result]
+include::{esql-specs}/median_absolute_deviation.csv-spec[tag=docsStatsMADNestedExpression-result]
 |===
 

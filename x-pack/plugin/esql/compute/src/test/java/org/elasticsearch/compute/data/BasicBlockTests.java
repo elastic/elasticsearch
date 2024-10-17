@@ -800,6 +800,12 @@ public class BasicBlockTests extends ESTestCase {
             }
             assertLookup(block, positions(blockFactory, positionCount + 1000), singletonList(null));
             assertEmptyLookup(blockFactory, block);
+            try (ToMask mask = block.toMask()) {
+                assertThat(mask.hadMultivaluedFields(), equalTo(false));
+                for (int p = 0; p < positionCount; p++) {
+                    assertThat(mask.mask().getBoolean(p), equalTo(p % 10 == 0));
+                }
+            }
 
             try (BooleanBlock.Builder blockBuilder = blockFactory.newBooleanBlockBuilder(1)) {
                 BooleanBlock copy = blockBuilder.copyFrom(block, 0, block.getPositionCount()).build();
@@ -823,9 +829,29 @@ public class BasicBlockTests extends ESTestCase {
             BooleanVector.Builder vectorBuilder = blockFactory.newBooleanVectorBuilder(
                 randomBoolean() ? randomIntBetween(1, positionCount) : positionCount
             );
-            IntStream.range(0, positionCount).mapToObj(ii -> randomBoolean()).forEach(vectorBuilder::appendBoolean);
+            Boolean value = randomFrom(random(), null, true, false);
+            Boolean[] bools = IntStream.range(0, positionCount).mapToObj(ii -> {
+                if (value == null) {
+                    return randomBoolean();
+                }
+                return value;
+            }).toArray(Boolean[]::new);
+            Arrays.stream(bools).forEach(vectorBuilder::appendBoolean);
             BooleanVector vector = vectorBuilder.build();
             assertSingleValueDenseBlock(vector.asBlock());
+            assertToMask(vector);
+            if (value == null) {
+                assertThat(vector.allTrue(), equalTo(Arrays.stream(bools).allMatch(v -> v)));
+                assertThat(vector.allFalse(), equalTo(Arrays.stream(bools).allMatch(v -> v == false)));
+            } else {
+                if (value) {
+                    assertTrue(vector.allTrue());
+                    assertFalse(vector.allFalse());
+                } else {
+                    assertFalse(vector.allTrue());
+                    assertTrue(vector.allFalse());
+                }
+            }
             releaseAndAssertBreaker(vector.asBlock());
         }
     }
@@ -860,6 +886,13 @@ public class BasicBlockTests extends ESTestCase {
                 b -> assertThat(b, instanceOf(ConstantNullBlock.class))
             );
             assertEmptyLookup(blockFactory, block);
+            if (value) {
+                assertTrue(block.asVector().allTrue());
+                assertFalse(block.asVector().allFalse());
+            } else {
+                assertFalse(block.asVector().allTrue());
+                assertTrue(block.asVector().allFalse());
+            }
             releaseAndAssertBreaker(block);
         }
     }
@@ -1358,12 +1391,30 @@ public class BasicBlockTests extends ESTestCase {
         assertTrue(block.isNull(randomNullPosition));
         assertFalse(block.isNull(randomNonNullPosition));
         releaseAndAssertBreaker(block);
+        if (block instanceof BooleanBlock bb) {
+            try (ToMask mask = bb.toMask()) {
+                assertThat(mask.hadMultivaluedFields(), equalTo(false));
+                for (int p = 0; p < positionCount; p++) {
+                    assertThat(mask.mask().getBoolean(p), equalTo(nullsMask.get(p) == false && p % 10 == 0));
+                }
+            }
+        }
+    }
+
+    void assertZeroPositionsAndRelease(BooleanBlock block) {
+        assertToMaskZeroPositions(block);
+        assertZeroPositionsAndRelease((Block) block);
     }
 
     void assertZeroPositionsAndRelease(Block block) {
         assertThat(block.getPositionCount(), is(0));
         assertKeepMaskEmpty(block);
         releaseAndAssertBreaker(block);
+    }
+
+    void assertZeroPositionsAndRelease(BooleanVector vector) {
+        assertToMask(vector);
+        assertZeroPositionsAndRelease((Vector) vector);
     }
 
     void assertZeroPositionsAndRelease(Vector vector) {
@@ -1383,6 +1434,20 @@ public class BasicBlockTests extends ESTestCase {
     static void assertKeepMaskEmpty(Vector vector) {
         try (BooleanVector mask = randomMask(between(0, 1000)); Block masked = vector.keepMask(mask)) {
             assertThat(masked.asVector(), sameInstance(vector));
+        }
+    }
+
+    static void assertToMaskZeroPositions(BooleanBlock block) {
+        try (ToMask mask = block.toMask()) {
+            assertThat(mask.mask().getPositionCount(), equalTo(0));
+            assertThat(mask.hadMultivaluedFields(), equalTo(false));
+        }
+    }
+
+    static void assertToMask(BooleanVector vector) {
+        try (ToMask mask = vector.asBlock().toMask()) {
+            assertThat(mask.mask(), sameInstance(vector));
+            assertThat(mask.hadMultivaluedFields(), equalTo(false));
         }
     }
 
@@ -1836,7 +1901,7 @@ public class BasicBlockTests extends ESTestCase {
     /**
      * Build a random valid "mask" of single valued boolean fields that.
      */
-    private static BooleanVector randomMask(int positions) {
+    static BooleanVector randomMask(int positions) {
         try (BooleanVector.Builder builder = TestBlockFactory.getNonBreakingInstance().newBooleanVectorFixedBuilder(positions)) {
             for (int i = 0; i < positions; i++) {
                 builder.appendBoolean(randomBoolean());

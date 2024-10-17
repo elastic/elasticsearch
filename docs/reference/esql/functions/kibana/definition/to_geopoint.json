@@ -43,5 +43,7 @@
   ],
   "examples" : [
     "ROW wkt = \"POINT(42.97109630194 14.7552534413725)\"\n| EVAL pt = TO_GEOPOINT(wkt)"
-  ]
+  ],
+  "preview" : false,
+  "snapshot_only" : false
 }

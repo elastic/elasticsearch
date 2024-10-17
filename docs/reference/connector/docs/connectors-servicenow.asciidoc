@@ -1,0 +1,494 @@
+[#es-connectors-servicenow]
+=== Elastic ServiceNow connector reference
+++++
+<titleabbrev>ServiceNow</titleabbrev>
+++++
+// Attributes used in this file
+:service-name: ServiceNow
+:service-name-stub: servicenow
+
+The _Elastic ServiceNow connector_ is a <<es-connectors,connector>> for https://www.servicenow.com[ServiceNow^].
+
+This connector is written in Python using the {connectors-python}[Elastic connector framework^]. 
+
+View the {connectors-python}/connectors/sources/{service-name-stub}.py[*source code* for this connector^] (branch _{connectors-branch}_, compatible with Elastic _{minor-version}_).
+
+.Choose your connector reference
+*******************************
+Are you using a managed connector on Elastic Cloud or a self-managed connector? Expand the documentation based on your deployment method.
+*******************************
+
+// //////// //// //// //// //// //// //// ////////
+// ////////   NATIVE CONNECTOR REFERENCE   ///////
+// //////// //// //// //// //// //// //// ////////
+
+[discrete#es-connectors-servicenow-native-connector-reference]
+==== *Elastic managed connector reference*
+
+.View *Elastic managed connector* reference
+
+[%collapsible]
+===============
+
+[discrete#es-connectors-servicenow-availability-prerequisites]
+===== Availability and prerequisites
+
+The ServiceNow connector is available natively in Elastic Cloud since 8.10.0.
+
+To use this connector natively in Elastic Cloud, satisfy all <<es-native-connectors-prerequisites,managed connector requirements>>.
+
+[discrete#es-connectors-servicenow-create-native-connector]
+===== Create a {service-name} connector
+include::_connectors-create-native.asciidoc[]
+
+[discrete#es-connectors-servicenow-usage]
+===== Usage
+
+To use this connector natively in Elastic Cloud, see <<es-native-connectors>>.
+
+For additional operations, see <<es-connectors-usage>>
+
+[discrete#es-connectors-servicenow-compatibility]
+===== Compatibility
+
+The ServiceNow connector is compatible with the following versions of ServiceNow:
+
+* ServiceNow "Tokyo"
+* ServiceNow "San Diego"
+* ServiceNow "Rome"
+* ServiceNow "Utah"
+* ServiceNow "Vancouver"
+* ServiceNow "Washington"
+* ServiceNow "Xanadu"
+
+[discrete#es-connectors-servicenow-configuration]
+===== Configuration
+
+The following configuration fields are required to set up the connector:
+
+ServiceNow URL::
+The host URL of the ServiceNow instance.
+
+Username::
+The username of the account used for ServiceNow.
+
+Password::
+The password of the account used for ServiceNow.
+
+Comma-separated list of services::
+Comma-separated list of services to fetch data from ServiceNow. If the value is `*`, the connector will fetch data from the list of basic services provided by ServiceNow:
+- link:https://docs.servicenow.com/bundle/utah-platform-administration/page/administer/roles/concept/user.html[User]
+- link:https://docs.servicenow.com/bundle/tokyo-it-service-management/page/product/incident-management/concept/c_IncidentManagement.html[Incident]
+- link:https://docs.servicenow.com/bundle/tokyo-servicenow-platform/page/use/service-catalog-requests/task/t_AddNewRequestItems.html[Requested Item]
+- link:https://docs.servicenow.com/bundle/tokyo-customer-service-management/page/product/customer-service-management/task/t_SearchTheKnowledgeBase.html[Knowledge]
+- link:https://docs.servicenow.com/bundle/tokyo-it-service-management/page/product/change-management/task/t_CreateAChange.html[Change Request]
++
+[NOTE]
+====
+If you have configured a custom service, the `*` value will not fetch data from the basic services above by default. In this case you'll need to mention these service names explicitly.
+====
+Default value is `*`. Examples:
++
+  - `User, Incident, Requested Item, Knowledge, Change Request`
+  - `*`
+
+Enable document level security::
+Restrict access to documents based on a user's permissions.
+Refer to <<es-connectors-servicenow-dls>> for more details.
+
+[discrete#es-connectors-servicenow-documents-syncs]
+===== Documents and syncs
+
+All services and records the user has access to will be indexed according to the configurations provided.
+The connector syncs the following ServiceNow object types:
+
+* Records
+* Attachments
+
+[NOTE]
+====
+* Content from files bigger than 10 MB won't be extracted. (Self-managed connectors can use the <<es-connectors-content-extraction-local, self-managed local extraction service>> to handle larger binary files.)
+* Permissions are not synced by default. Refer to <<es-connectors-servicenow-dls>> for more details.
+====
+
+[discrete#es-connectors-servicenow-sync-types]
+====== Sync types
+
+<<es-connectors-sync-types-full,Full syncs>> are supported by default for all connectors.
+
+This connector also supports <<es-connectors-sync-types-incremental,incremental syncs>>.
+
+[discrete#es-connectors-servicenow-dls]
+===== Document level security
+
+<<es-dls, Document level security (DLS)>> ensures identities and permissions set in ServiceNow are maintained in Elasticsearch.
+This enables you to restrict and personalize read-access users and groups have to documents in this index.
+Access control syncs ensure this metadata is kept up to date in your Elasticsearch documents.
+
+The ServiceNow connector supports roles for access control lists (ACLs) to enable document level security in {es}. 
+For default services, connectors use the following roles to find users who have access to documents.
+
+|===
+| Service | Roles 
+
+| User | `admin` 
+
+| Incident | `admin`, `sn_incident_read`, `ml_report_user`, `ml_admin`, `itil` 
+
+| Requested Item | `admin`, `sn_request_read`, `asset`, `atf_test_designer`, `atf_test_admin` 
+
+| Knowledge | `admin`, `knowledge`, `knowledge_manager`, `knowledge_admin` 
+
+| Change Request | `admin`, `sn_change_read`, `itil` 
+|===
+
+For services other than these defaults, the connector iterates over access controls with `read` operations and finds the respective roles for those services.
+
+[NOTE]
+====
+The ServiceNow connector does not support scripted and conditional permissions.
+====
+
+[discrete#es-connectors-servicenow-sync-rules]
+===== Sync rules
+
+<<es-sync-rules-basic,Basic sync rules>> are identical for all connectors and are available by default.
+
+[discrete#es-connectors-servicenow-sync-rules-advanced]
+====== Advanced sync rules
+
+[NOTE]
+====
+A <<es-connectors-sync-types-full, full sync>> is required for advanced sync rules to take effect.
+====
+
+Advanced sync rules are defined through a source-specific DSL JSON snippet.
+
+The following sections provide examples of advanced sync rules for this connector.
+
+[discrete#es-connectors-servicenow-sync-rules-number-incident-service]
+======= Indexing document based on incident number for Incident service
+
+[source,js]
+----
+[
+  {
+    "service": "Incident",
+    "query": "numberSTARTSWITHINC001"
+  }
+]
+----
+// NOTCONSOLE
+
+[discrete#es-connectors-servicenow-sync-rules-active-false-user-service]
+======= Indexing document based on user activity state for User service
+
+[source,js]
+----
+[
+  {
+    "service": "User",
+    "query": "active=False"
+  }
+]
+----
+// NOTCONSOLE
+
+[discrete#es-connectors-servicenow-sync-rules-author-administrator-knowledge-service]
+======= Indexing document based on author name for Knowledge service
+
+[source,js]
+----
+[
+  {
+    "service": "Knowledge",
+    "query": "author.nameSTARTSWITHSystem Administrator"
+  }
+]
+----
+// NOTCONSOLE
+
+[discrete#es-connectors-servicenow-known-issues]
+===== Known issues
+
+There are no known issues for this connector.
+Refer to <<es-connectors-known-issues>> for a list of known issues that impact all connectors.
+
+[discrete#es-connectors-servicenow-troubleshooting]
+===== Troubleshooting
+
+See <<es-connectors-troubleshooting>>.
+
+[discrete#es-connectors-servicenow-security]
+===== Security
+
+See <<es-connectors-security>>.
+
+[discrete#es-connectors-servicenow-content-extraction]
+===== Content extraction
+
+See <<es-connectors-content-extraction>>.
+
+
+// Closing the collapsible section 
+===============
+
+
+// //////// //// //// //// //// //// //// ////////
+// //////// CONNECTOR CLIENT REFERENCE     ///////
+// //////// //// //// //// //// //// //// ////////
+
+[discrete#es-connectors-servicenow-connector-client-reference]
+==== *Self-managed connector*
+
+.View *self-managed connector* reference
+
+[%collapsible]
+===============
+
+[discrete#es-connectors-servicenow-client-availability-prerequisites]
+===== Availability and prerequisites
+
+The ServiceNow connector was introduced in Elastic version 8.9.0.
+This connector is available as a self-managed *self-managed connector*.
+To use this connector as a self-managed connector, satisfy all <<es-build-connector,self-managed connector requirements>>.
+
+[discrete#es-connectors-servicenow-create-connector-client]
+===== Create a {service-name} connector
+include::_connectors-create-client.asciidoc[]
+
+[discrete#es-connectors-servicenow-client-usage]
+===== Usage
+To use this connector as a *self-managed connector*, use the *Customized connector* workflow.
+
+For additional operations, see <<es-connectors-usage, Usage>>.
+
+[discrete#es-connectors-servicenow-client-compatibility]
+===== Compatibility
+
+The ServiceNow connector is compatible with the following versions of ServiceNow:
+
+* ServiceNow "Tokyo"
+* ServiceNow "San Diego"
+* ServiceNow "Rome"
+* ServiceNow "Utah"
+* ServiceNow "Vancouver"
+* ServiceNow "Washington"
+* ServiceNow "Xanadu"
+
+[discrete#es-connectors-servicenow-client-configuration]
+===== Configuration
+
+[TIP]
+====
+When using the <<es-build-connector, self-managed connector>> workflow, initially these fields will use the default configuration set in the {connectors-python}/connectors/sources/servicenow.py[connector source code^].
+These are set in the `get_default_configuration` function definition.
+
+These configurable fields will be rendered with their respective *labels* in the Kibana UI.
+Once connected, you'll be able to update these values in Kibana.
+====
+
+The following configuration fields are required to set up the connector:
+
+`url`::
+The host url of the ServiceNow instance.
+
+`username`::
+The username of the account for ServiceNow.
+
+`password`::
+The password of the account used for ServiceNow.
+
+`services`::
+Comma-separated list of services to fetch data from ServiceNow. If the value is `*`, the connector will fetch data from the list of basic services provided by ServiceNow:
+- link:https://docs.servicenow.com/bundle/utah-platform-administration/page/administer/roles/concept/user.html[User]
+- link:https://docs.servicenow.com/bundle/tokyo-it-service-management/page/product/incident-management/concept/c_IncidentManagement.html[Incident]
+- link:https://docs.servicenow.com/bundle/tokyo-servicenow-platform/page/use/service-catalog-requests/task/t_AddNewRequestItems.html[Requested Item]
+- link:https://docs.servicenow.com/bundle/tokyo-customer-service-management/page/product/customer-service-management/task/t_SearchTheKnowledgeBase.html[Knowledge]
+- link:https://docs.servicenow.com/bundle/tokyo-it-service-management/page/product/change-management/task/t_CreateAChange.html[Change Request]
++
+[NOTE]
+====
+If you have configured a custom service, the `*` value will not fetch data from the basic services above by default. In this case you'll need to mention these service names explicitly.
+====
+Default value is `*`. Examples:
++
+  - `User, Incident, Requested Item, Knowledge, Change Request`
+  - `*`
+
+`retry_count`::
+The number of retry attempts after a failed request to ServiceNow. Default value is `3`.
+
+`concurrent_downloads`::
+The number of concurrent downloads for fetching the attachment content. This speeds up the content extraction of attachments. Defaults to `10`.
+
+`use_text_extraction_service`::
+Requires a separate deployment of the <<es-connectors-content-extraction-local,Elastic Text Extraction Service>>.
+Requires that ingest pipeline settings disable text extraction.
+Default value is `False`.
+
+`use_document_level_security`::
+Restrict access to documents based on a user's permissions.
+Refer to <<es-connectors-servicenow-client-dls>> for more details.
+
+[discrete#es-connectors-servicenow-client-documents-syncs]
+===== Documents and syncs
+
+All services and records the user has access to will be indexed according to the configurations provided.
+The connector syncs the following ServiceNow object types:
+
+* Records
+* Attachments
+
+[NOTE]
+====
+* Content from files bigger than 10 MB won't be extracted. Use the <<es-connectors-content-extraction-local, self-managed local extraction service>> to handle larger binary files.
+* Permissions are not synced by default. You must enable <<es-dls,document level security>>. Otherwise, **all documents** indexed to an Elastic deployment will be visible to **all users with access** to that Elastic Deployment.
+====
+
+[discrete#es-connectors-servicenow-client-sync-types]
+====== Sync types
+
+<<es-connectors-sync-types-full,Full syncs>> are supported by default for all connectors.
+
+This connector also supports <<es-connectors-sync-types-incremental,incremental syncs>>.
+
+[discrete#es-connectors-servicenow-client-dls]
+===== Document level security
+
+<<es-dls, Document level security (DLS)>> ensures identities and permissions set in ServiceNow are maintained in Elasticsearch.
+This enables you to restrict and personalize read-access users and groups have to documents in this index.
+Access control syncs ensure this metadata is kept up to date in your Elasticsearch documents.
+
+The ServiceNow connector supports roles for access control lists (ACLs) to enable document level security in {es}. 
+For default services, connectors use the following roles to find users who have access to documents.
+
+|===
+| Service | Roles 
+
+| User | `admin` 
+
+| Incident | `admin`, `sn_incident_read`, `ml_report_user`, `ml_admin`, `itil` 
+
+| Requested Item | `admin`, `sn_request_read`, `asset`, `atf_test_designer`, `atf_test_admin` 
+
+| Knowledge | `admin`, `knowledge`, `knowledge_manager`, `knowledge_admin` 
+
+| Change Request | `admin`, `sn_change_read`, `itil` 
+|===
+
+For services other than these defaults, the connector iterates over access controls with `read` operations and finds the respective roles for those services.
+
+[NOTE]
+====
+The ServiceNow connector does not support scripted and conditional permissions.
+====
+
+[discrete#es-connectors-servicenow-client-docker]
+===== Deployment using Docker
+
+include::_connectors-docker-instructions.asciidoc[]
+
+[discrete#es-connectors-servicenow-client-sync-rules]
+===== Sync rules
+
+<<es-sync-rules-basic,Basic sync rules>> are identical for all connectors and are available by default.
+
+[discrete#es-connectors-servicenow-client-sync-rules-advanced]
+====== Advanced sync rules
+
+[NOTE]
+====
+A <<es-connectors-sync-types-full, full sync>> is required for advanced sync rules to take effect.
+====
+
+Advanced sync rules are defined through a source-specific DSL JSON snippet.
+
+The following sections provide examples of advanced sync rules for this connector.
+
+[discrete#es-connectors-servicenow-client-sync-rules-number-incident-service]
+======= Indexing document based on incident number for Incident service
+
+[source,js]
+----
+[
+  {
+    "service": "Incident",
+    "query": "numberSTARTSWITHINC001"
+  }
+]
+----
+// NOTCONSOLE
+
+[discrete#es-connectors-servicenow-client-sync-rules-active-false-user-service]
+======= Indexing document based on user activity state for User service
+
+[source,js]
+----
+[
+  {
+    "service": "User",
+    "query": "active=False"
+  }
+]
+----
+// NOTCONSOLE
+
+[discrete#es-connectors-servicenow-client-sync-rules-author-administrator-knowledge-service]
+======= Indexing document based on author name for Knowledge service
+
+[source,js]
+----
+[
+  {
+    "service": "Knowledge",
+    "query": "author.nameSTARTSWITHSystem Administrator"
+  }
+]
+----
+// NOTCONSOLE
+
+[discrete#es-connectors-servicenow-client-connector-client-operations-testing]
+===== End-to-end Testing
+
+The connector framework enables operators to run functional tests against a real data source.
+Refer to <<es-build-connector-testing>> for more details.
+
+To perform E2E testing for the ServiceNow connector, run the following command:
+
+[source,shell]
+----
+$ make ftest NAME=servicenow
+----
+
+Generate performance reports using the following flag: `PERF8=yes`.
+Toggle test data set size between SMALL, MEDIUM and LARGE with the argument `DATA_SIZE=`.
+By default, it is set to `MEDIUM`.
+
+Users do not need to have a running Elasticsearch instance or a ServiceNow source to run this test.
+Docker Compose manages the complete setup of the development environment.
+
+[discrete#es-connectors-servicenow-client-known-issues]
+===== Known issues
+
+There are no known issues for this connector.
+Refer to <<es-connectors-known-issues>> for a list of known issues that impact all connectors.
+
+[discrete#es-connectors-servicenow-client-troubleshooting]
+===== Troubleshooting
+
+See <<es-connectors-troubleshooting>>.
+
+[discrete#es-connectors-servicenow-client-security]
+===== Security
+
+See <<es-connectors-security>>.
+
+[discrete#es-connectors-servicenow-client-content-extraction]
+===== Content extraction
+
+See <<es-connectors-content-extraction>>.
+
+
+// Closing the collapsible section 
+===============

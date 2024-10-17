@@ -143,7 +143,7 @@ broader positional queries e.g. finding mentions of a `Guitarist` near to `strat
 
 WARNING: Any use of `=` signs in annotation values eg `[Prince](person=Prince)` will
 cause the document to be rejected with a parse failure. In future we hope to have a use for
-the equals signs so wil actively reject documents that contain this today.
+the equals signs so will actively reject documents that contain this today.
 
 [[annotated-text-synthetic-source]]
 ===== Synthetic `_source`
@@ -167,8 +167,16 @@ duplicates removed. So:
 ----
 PUT idx
 {
+  "settings": {
+    "index": {
+      "mapping": {
+        "source": {
+          "mode": "synthetic"
+        }
+      }
+    }
+  },
   "mappings": {
-    "_source": { "mode": "synthetic" },
     "properties": {
       "text": {
         "type": "annotated_text",
@@ -215,8 +223,16 @@ are preserved.
 ----
 PUT idx
 {
+  "settings": {
+    "index": {
+      "mapping": {
+        "source": {
+          "mode": "synthetic"
+        }
+      }
+    }
+  },
   "mappings": {
-    "_source": { "mode": "synthetic" },
     "properties": {
       "text": { "type": "annotated_text", "store": true }
     }

@@ -31,5 +31,7 @@
   ],
   "examples" : [
     "FROM airports\n| STATS centroid=ST_CENTROID_AGG(location)"
-  ]
+  ],
+  "preview" : false,
+  "snapshot_only" : false
 }

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster;
@@ -343,7 +344,7 @@ public class ClusterChangedEventTests extends ESTestCase {
         return ClusterState.builder(TEST_CLUSTER_NAME)
             .nodes(createDiscoveryNodes(numNodes, isLocalMaster))
             .metadata(metadata)
-            .routingTable(createRoutingTable(1, metadata))
+            .routingTable(createRoutingTable(metadata))
             .build();
     }
 
@@ -498,8 +499,8 @@ public class ClusterChangedEventTests extends ESTestCase {
     }
 
     // Create the routing table for a cluster state.
-    private static RoutingTable createRoutingTable(final long version, final Metadata metadata) {
-        final RoutingTable.Builder builder = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY).version(version);
+    private static RoutingTable createRoutingTable(final Metadata metadata) {
+        final RoutingTable.Builder builder = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY);
         for (IndexMetadata indexMetadata : metadata.indices().values()) {
             builder.addAsNew(indexMetadata);
         }

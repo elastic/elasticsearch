@@ -31,6 +31,7 @@ include::inference-shared.asciidoc[tag=task-type]
 Available task types:
 
 * `rerank`,
+* `sparse_embedding`,
 * `text_embedding`.
 --
 
@@ -178,6 +179,7 @@ PUT _inference/text_embedding/my-e5-model
       "min_number_of_allocations": 3,
       "max_number_of_allocations": 10
     },
+    "num_threads": 1,
     "model_id": ".multilingual-e5-small"
   }
 }

@@ -478,7 +478,7 @@ discovery:
       seed_providers: gce
 --------------------------------------------------
 
-Replaces `project_id` and `zone` with your settings.
+Replace `project_id` and `zone` with your settings.
 
 To run test:
 

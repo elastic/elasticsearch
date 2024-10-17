@@ -25,4 +25,9 @@ public interface StringPattern {
      * If the pattern is not exact, null is returned.
      */
     String exactMatch();
+
+    /**
+     * Returns the pattern as it was defined by the user.
+     */
+    String pattern();
 }

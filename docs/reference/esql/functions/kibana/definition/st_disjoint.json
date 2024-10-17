@@ -151,5 +151,7 @@
   ],
   "examples" : [
     "FROM airport_city_boundaries\n| WHERE ST_DISJOINT(city_boundary, TO_GEOSHAPE(\"POLYGON((-10 -60, 120 -60, 120 60, -10 60, -10 -60))\"))\n| KEEP abbrev, airport, region, city, city_location"
-  ]
+  ],
+  "preview" : false,
+  "snapshot_only" : false
 }

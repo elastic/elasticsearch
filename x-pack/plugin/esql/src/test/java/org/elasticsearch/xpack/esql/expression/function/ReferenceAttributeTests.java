@@ -14,10 +14,12 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 
 public class ReferenceAttributeTests extends AbstractAttributeTestCase<ReferenceAttribute> {
-    public static ReferenceAttribute randomReferenceAttribute() {
+    public static ReferenceAttribute randomReferenceAttribute(boolean onlyRepresentable) {
         Source source = Source.EMPTY;
         String name = randomAlphaOfLength(5);
-        DataType type = randomFrom(DataType.types());
+        DataType type = onlyRepresentable
+            ? randomValueOtherThanMany(t -> false == DataType.isRepresentable(t), () -> randomFrom(DataType.types()))
+            : randomFrom(DataType.types());
         Nullability nullability = randomFrom(Nullability.values());
         boolean synthetic = randomBoolean();
         return new ReferenceAttribute(source, name, type, nullability, new NameId(), synthetic);
@@ -25,7 +27,7 @@ public class ReferenceAttributeTests extends AbstractAttributeTestCase<Reference
 
     @Override
     protected ReferenceAttribute create() {
-        return randomReferenceAttribute();
+        return randomReferenceAttribute(false);
     }
 
     @Override

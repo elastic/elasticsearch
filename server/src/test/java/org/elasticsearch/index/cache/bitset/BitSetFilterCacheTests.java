@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.cache.bitset;
@@ -47,7 +48,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.elasticsearch.cluster.node.DiscoveryNode.STATELESS_ENABLED_SETTING_NAME;
-import static org.elasticsearch.index.IndexSettings.INDEX_FAST_REFRESH_SETTING;
 import static org.elasticsearch.index.cache.bitset.BitsetFilterCache.INDEX_LOAD_RANDOM_ACCESS_FILTERS_EAGERLY_SETTING;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -270,38 +270,23 @@ public class BitSetFilterCacheTests extends ESTestCase {
     public void testShouldLoadRandomAccessFiltersEagerly() {
         var values = List.of(true, false);
         for (var hasIndexRole : values) {
-            for (var indexFastRefresh : values) {
-                for (var loadFiltersEagerly : values) {
-                    for (var isStateless : values) {
-                        if (isStateless) {
-                            assertEquals(
-                                loadFiltersEagerly && indexFastRefresh && hasIndexRole,
-                                BitsetFilterCache.shouldLoadRandomAccessFiltersEagerly(
-                                    bitsetFilterCacheSettings(isStateless, hasIndexRole, loadFiltersEagerly, indexFastRefresh)
-                                )
-                            );
-                        } else {
-                            assertEquals(
-                                loadFiltersEagerly,
-                                BitsetFilterCache.shouldLoadRandomAccessFiltersEagerly(
-                                    bitsetFilterCacheSettings(isStateless, hasIndexRole, loadFiltersEagerly, indexFastRefresh)
-                                )
-                            );
-                        }
+            for (var loadFiltersEagerly : values) {
+                for (var isStateless : values) {
+                    boolean result = BitsetFilterCache.shouldLoadRandomAccessFiltersEagerly(
+                        bitsetFilterCacheSettings(isStateless, hasIndexRole, loadFiltersEagerly)
+                    );
+                    if (isStateless) {
+                        assertEquals(loadFiltersEagerly && hasIndexRole == false, result);
+                    } else {
+                        assertEquals(loadFiltersEagerly, result);
                     }
                 }
             }
         }
     }
 
-    private IndexSettings bitsetFilterCacheSettings(
-        boolean isStateless,
-        boolean hasIndexRole,
-        boolean loadFiltersEagerly,
-        boolean indexFastRefresh
-    ) {
+    private IndexSettings bitsetFilterCacheSettings(boolean isStateless, boolean hasIndexRole, boolean loadFiltersEagerly) {
         var indexSettingsBuilder = Settings.builder().put(INDEX_LOAD_RANDOM_ACCESS_FILTERS_EAGERLY_SETTING.getKey(), loadFiltersEagerly);
-        if (isStateless) indexSettingsBuilder.put(INDEX_FAST_REFRESH_SETTING.getKey(), indexFastRefresh);
 
         var nodeSettingsBuilder = Settings.builder()
             .putList(

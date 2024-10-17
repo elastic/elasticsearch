@@ -95,13 +95,13 @@ public abstract class ProfilingTestCase extends ESIntegTestCase {
 
     protected void waitForIndices(Collection<String> indices) throws Exception {
         assertBusy(() -> {
-            ClusterState state = clusterAdmin().prepareState().get().getState();
+            ClusterState state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
             assertTrue("Timed out waiting for indices to be created", state.metadata().indices().keySet().containsAll(indices));
         });
     }
 
     protected void updateProfilingTemplatesEnabled(boolean newValue) {
-        ClusterUpdateSettingsRequest request = new ClusterUpdateSettingsRequest();
+        ClusterUpdateSettingsRequest request = new ClusterUpdateSettingsRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT);
         request.persistentSettings(Settings.builder().put(ProfilingPlugin.PROFILING_TEMPLATES_ENABLED.getKey(), newValue).build());
         ClusterUpdateSettingsResponse response = clusterAdmin().updateSettings(request).actionGet();
         assertTrue("Update of profiling templates enabled setting is not acknowledged", response.isAcknowledged());

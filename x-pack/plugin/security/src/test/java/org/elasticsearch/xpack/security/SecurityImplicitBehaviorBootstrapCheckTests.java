@@ -10,9 +10,9 @@ package org.elasticsearch.xpack.security;
 import org.elasticsearch.Version;
 import org.elasticsearch.bootstrap.BootstrapCheck;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.env.BuildVersion;
 import org.elasticsearch.env.NodeMetadata;
 import org.elasticsearch.index.IndexVersion;
@@ -25,92 +25,13 @@ import org.elasticsearch.test.AbstractBootstrapCheckTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xpack.core.XPackSettings;
 
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 public class SecurityImplicitBehaviorBootstrapCheckTests extends AbstractBootstrapCheckTestCase {
 
-    public void testFailureUpgradeFrom7xWithImplicitSecuritySettings() throws Exception {
-        final BuildVersion previousVersion = toBuildVersion(
-            randomValueOtherThan(
-                Version.V_8_0_0,
-                () -> VersionUtils.randomVersionBetween(random(), Version.CURRENT.minimumCompatibilityVersion(), Version.V_8_0_0)
-            )
-        );
-        NodeMetadata nodeMetadata = new NodeMetadata(randomAlphaOfLength(10), previousVersion, IndexVersion.current());
-        nodeMetadata = nodeMetadata.upgradeToCurrentVersion();
-        ClusterStateLicenseService licenseService = mock(ClusterStateLicenseService.class);
-        Metadata metadata = createLicensesMetadata(
-            TrialLicenseVersion.fromXContent(previousVersion.toString()),
-            randomFrom("basic", "trial")
-        );
-        License license = mock(License.class);
-        when(licenseService.getLicense(metadata)).thenReturn(license);
-        when(license.operationMode()).thenReturn(randomFrom(License.OperationMode.BASIC, License.OperationMode.TRIAL));
-        BootstrapCheck.BootstrapCheckResult result = new SecurityImplicitBehaviorBootstrapCheck(nodeMetadata, licenseService).check(
-            createTestContext(Settings.EMPTY, metadata)
-        );
-        assertThat(result.isFailure(), is(true));
-        assertThat(
-            result.getMessage(),
-            equalTo(
-                "The default value for ["
-                    + XPackSettings.SECURITY_ENABLED.getKey()
-                    + "] has changed in the current version. "
-                    + " Security features were implicitly disabled for this node but they would now be enabled, possibly"
-                    + " preventing access to the node. "
-                    + "See "
-                    + ReferenceDocs.BOOTSTRAP_CHECK_SECURITY_MINIMAL_SETUP
-                    + " to configure security, or explicitly disable security by "
-                    + "setting [xpack.security.enabled] to \"false\" in elasticsearch.yml before restarting the node."
-            )
-        );
-    }
-
-    public void testUpgradeFrom7xWithImplicitSecuritySettingsOnGoldPlus() throws Exception {
-        final BuildVersion previousVersion = toBuildVersion(
-            randomValueOtherThan(
-                Version.V_8_0_0,
-                () -> VersionUtils.randomVersionBetween(random(), Version.CURRENT.minimumCompatibilityVersion(), Version.V_8_0_0)
-            )
-        );
-        NodeMetadata nodeMetadata = new NodeMetadata(randomAlphaOfLength(10), previousVersion, IndexVersion.current());
-        nodeMetadata = nodeMetadata.upgradeToCurrentVersion();
-        ClusterStateLicenseService licenseService = mock(ClusterStateLicenseService.class);
-        Metadata metadata = createLicensesMetadata(
-            TrialLicenseVersion.fromXContent(previousVersion.toString()),
-            randomFrom("gold", "platinum")
-        );
-        License license = mock(License.class);
-        when(licenseService.getLicense(metadata)).thenReturn(license);
-        when(license.operationMode()).thenReturn(randomFrom(License.OperationMode.GOLD, License.OperationMode.PLATINUM));
-        BootstrapCheck.BootstrapCheckResult result = new SecurityImplicitBehaviorBootstrapCheck(nodeMetadata, licenseService).check(
-            createTestContext(Settings.EMPTY, metadata)
-        );
-        assertThat(result.isSuccess(), is(true));
-    }
-
-    public void testUpgradeFrom7xWithExplicitSecuritySettings() throws Exception {
-        final BuildVersion previousVersion = toBuildVersion(
-            randomValueOtherThan(
-                Version.V_8_0_0,
-                () -> VersionUtils.randomVersionBetween(random(), Version.CURRENT.minimumCompatibilityVersion(), Version.V_8_0_0)
-            )
-        );
-        NodeMetadata nodeMetadata = new NodeMetadata(randomAlphaOfLength(10), previousVersion, IndexVersion.current());
-        nodeMetadata = nodeMetadata.upgradeToCurrentVersion();
-        ClusterStateLicenseService licenseService = mock(ClusterStateLicenseService.class);
-        BootstrapCheck.BootstrapCheckResult result = new SecurityImplicitBehaviorBootstrapCheck(nodeMetadata, licenseService).check(
-            createTestContext(
-                Settings.builder().put(XPackSettings.SECURITY_ENABLED.getKey(), true).build(),
-                createLicensesMetadata(TrialLicenseVersion.fromXContent(previousVersion.toString()), randomFrom("basic", "trial"))
-            )
-        );
-        assertThat(result.isSuccess(), is(true));
-    }
-
+    @UpdateForV9(owner = UpdateForV9.Owner.SECURITY)
+    @AwaitsFix(bugUrl = "requires updates for version 9.0 bump")
     public void testUpgradeFrom8xWithImplicitSecuritySettings() throws Exception {
         final BuildVersion previousVersion = toBuildVersion(VersionUtils.randomVersionBetween(random(), Version.V_8_0_0, null));
         NodeMetadata nodeMetadata = new NodeMetadata(randomAlphaOfLength(10), previousVersion, IndexVersion.current());
@@ -125,6 +46,8 @@ public class SecurityImplicitBehaviorBootstrapCheckTests extends AbstractBootstr
         assertThat(result.isSuccess(), is(true));
     }
 
+    @UpdateForV9(owner = UpdateForV9.Owner.SECURITY)
+    @AwaitsFix(bugUrl = "requires updates for version 9.0 bump")
     public void testUpgradeFrom8xWithExplicitSecuritySettings() throws Exception {
         final BuildVersion previousVersion = toBuildVersion(VersionUtils.randomVersionBetween(random(), Version.V_8_0_0, null));
         NodeMetadata nodeMetadata = new NodeMetadata(randomAlphaOfLength(10), previousVersion, IndexVersion.current());

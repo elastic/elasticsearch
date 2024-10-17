@@ -118,7 +118,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
     }
 
     public static final Setting<RelativeByteSizeValue> SHARED_CACHE_SIZE_SETTING = new Setting<>(
-        new Setting.SimpleKey(SHARED_CACHE_SETTINGS_PREFIX + "size"),
+        SHARED_CACHE_SETTINGS_PREFIX + "size",
         (settings) -> {
             if (DiscoveryNode.isDedicatedFrozenNode(settings) || isSearchOrIndexingNode(settings)) {
                 return "90%";
@@ -184,8 +184,8 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
     }
 
     public static final Setting<ByteSizeValue> SHARED_CACHE_SIZE_MAX_HEADROOM_SETTING = new Setting<>(
-        new Setting.SimpleKey(SHARED_CACHE_SETTINGS_PREFIX + "size.max_headroom"),
-        (settings) -> {
+        SHARED_CACHE_SETTINGS_PREFIX + "size.max_headroom",
+        settings -> {
             if (SHARED_CACHE_SIZE_SETTING.exists(settings) == false
                 && (DiscoveryNode.isDedicatedFrozenNode(settings) || isSearchOrIndexingNode(settings))) {
                 return "100GB";
@@ -967,12 +967,48 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                         listener.onResponse(false);
                         return;
                     }
-                    try (var gapsListener = new RefCountingListener(listener.map(unused -> true))) {
-                        assert writer.sharedInputStreamFactory(gaps) == null;
-                        for (SparseFileTracker.Gap gap : gaps) {
-                            executor.execute(
-                                fillGapRunnable(gap, writer, null, ActionListener.releaseAfter(gapsListener.acquire(), refs.acquire()))
-                            );
+                    final SourceInputStreamFactory streamFactory = writer.sharedInputStreamFactory(gaps);
+                    logger.trace(
+                        () -> Strings.format(
+                            "fill gaps %s %s shared input stream factory",
+                            gaps,
+                            streamFactory == null ? "without" : "with"
+                        )
+                    );
+                    if (streamFactory == null) {
+                        try (var parallelGapsListener = new RefCountingListener(listener.map(unused -> true))) {
+                            for (SparseFileTracker.Gap gap : gaps) {
+                                executor.execute(
+                                    fillGapRunnable(
+                                        gap,
+                                        writer,
+                                        null,
+                                        ActionListener.releaseAfter(parallelGapsListener.acquire(), refs.acquire())
+                                    )
+                                );
+                            }
+                        }
+                    } else {
+                        try (
+                            var sequentialGapsListener = new RefCountingListener(
+                                ActionListener.runBefore(listener.map(unused -> true), streamFactory::close)
+                            )
+                        ) {
+                            final List<Runnable> gapFillingTasks = gaps.stream()
+                                .map(
+                                    gap -> fillGapRunnable(
+                                        gap,
+                                        writer,
+                                        streamFactory,
+                                        ActionListener.releaseAfter(sequentialGapsListener.acquire(), refs.acquire())
+                                    )
+                                )
+                                .toList();
+                            executor.execute(() -> {
+                                // Fill the gaps in order. If a gap fails to fill for whatever reason, the task for filling the next
+                                // gap will still be executed.
+                                gapFillingTasks.forEach(Runnable::run);
+                            });
                         }
                     }
                 }
@@ -1019,8 +1055,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                             () -> Strings.format(
                                 "fill gaps %s %s shared input stream factory",
                                 gaps,
-                                (streamFactory == null ? "without" : "with"),
-                                (streamFactory == null ? "" : " " + streamFactory)
+                                streamFactory == null ? "without" : "with"
                             )
                         );
                         if (streamFactory == null) {

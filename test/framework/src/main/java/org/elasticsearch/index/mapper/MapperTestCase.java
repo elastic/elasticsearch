@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
@@ -55,6 +56,7 @@ import org.elasticsearch.search.lookup.SourceProvider;
 import org.elasticsearch.test.ListMatcher;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.hamcrest.Matcher;
 
@@ -82,7 +84,6 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.matchesPattern;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -506,22 +507,6 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             XContentHelper.convertToMap(BytesReference.bytes(mapping), false, mapping.contentType()).v2(),
             XContentHelper.convertToMap(mapperService.documentMapper().mappingSource().uncompressed(), false, mapping.contentType()).v2()
         );
-    }
-
-    public final void testDeprecatedBoostWarning() throws IOException {
-        try {
-            createMapperService(DEPRECATED_BOOST_INDEX_VERSION, fieldMapping(b -> {
-                minimalMapping(b, DEPRECATED_BOOST_INDEX_VERSION);
-                b.field("boost", 2.0);
-            }));
-            String[] warnings = Strings.concatStringArrays(
-                getParseMinimalWarnings(DEPRECATED_BOOST_INDEX_VERSION),
-                new String[] { "Parameter [boost] on field [field] is deprecated and has no effect" }
-            );
-            assertWarnings(warnings);
-        } catch (MapperParsingException e) {
-            assertThat(e.getMessage(), anyOf(containsString("Unknown parameter [boost]"), containsString("[boost : 2.0]")));
-        }
     }
 
     public void testBoostNotAllowed() throws IOException {
@@ -1085,6 +1070,14 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             inputValue.accept(b);
         }
 
+        private void buildInputArray(XContentBuilder b, int elementCount) throws IOException {
+            b.startArray("field");
+            for (int i = 0; i < elementCount; i++) {
+                inputValue.accept(b);
+            }
+            b.endArray();
+        }
+
         private String expected() throws IOException {
             XContentBuilder b = JsonXContent.contentBuilder().startObject().field("field");
             expectedForSyntheticSource.accept(b);
@@ -1507,17 +1500,6 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
     public final void testSyntheticSourceInvalid() throws IOException {
         boolean ignoreMalformed = shouldUseIgnoreMalformed();
         List<SyntheticSourceInvalidExample> examples = new ArrayList<>(syntheticSourceSupport(ignoreMalformed).invalidExample());
-        if (supportsCopyTo()) {
-            examples.add(
-                new SyntheticSourceInvalidExample(
-                    matchesPattern("field \\[field] of type \\[.+] doesn't support synthetic source because it declares copy_to"),
-                    b -> {
-                        syntheticSourceSupport(ignoreMalformed).example(5).mapping().accept(b);
-                        b.field("copy_to", "bar");
-                    }
-                )
-            );
-        }
         for (SyntheticSourceInvalidExample example : examples) {
             Exception e = expectThrows(
                 IllegalArgumentException.class,
@@ -1545,6 +1527,61 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             syntheticSourceExample.buildInput(b);
             b.endObject();
         }), equalTo("{\"obj\":" + syntheticSourceExample.expected() + "}"));
+    }
+
+    protected SyntheticSourceSupport syntheticSourceSupportForKeepTests(boolean ignoreMalformed) {
+        return syntheticSourceSupport(ignoreMalformed);
+    }
+
+    public void testSyntheticSourceKeepNone() throws IOException {
+        SyntheticSourceExample example = syntheticSourceSupportForKeepTests(shouldUseIgnoreMalformed()).example(1);
+        DocumentMapper mapper = createDocumentMapper(syntheticSourceMapping(b -> {
+            b.startObject("field");
+            b.field("synthetic_source_keep", "none");
+            example.mapping().accept(b);
+            b.endObject();
+        }));
+        assertThat(syntheticSource(mapper, example::buildInput), equalTo(example.expected()));
+    }
+
+    public void testSyntheticSourceKeepAll() throws IOException {
+        SyntheticSourceExample example = syntheticSourceSupportForKeepTests(shouldUseIgnoreMalformed()).example(1);
+        DocumentMapper mapperAll = createDocumentMapper(syntheticSourceMapping(b -> {
+            b.startObject("field");
+            b.field("synthetic_source_keep", "all");
+            example.mapping().accept(b);
+            b.endObject();
+        }));
+
+        var builder = XContentFactory.jsonBuilder();
+        builder.startObject();
+        example.buildInput(builder);
+        builder.endObject();
+        String expected = Strings.toString(builder);
+        assertThat(syntheticSource(mapperAll, example::buildInput), equalTo(expected));
+    }
+
+    public void testSyntheticSourceKeepArrays() throws IOException {
+        SyntheticSourceExample example = syntheticSourceSupportForKeepTests(shouldUseIgnoreMalformed()).example(1);
+        DocumentMapper mapperAll = createDocumentMapper(syntheticSourceMapping(b -> {
+            b.startObject("field");
+            b.field("synthetic_source_keep", randomFrom("arrays", "all"));  // Both options keep array source.
+            example.mapping().accept(b);
+            b.endObject();
+        }));
+
+        int elementCount = randomIntBetween(2, 5);
+        CheckedConsumer<XContentBuilder, IOException> buildInput = (XContentBuilder builder) -> {
+            example.buildInputArray(builder, elementCount);
+        };
+
+        var builder = XContentFactory.jsonBuilder();
+        builder.startObject();
+        buildInput.accept(builder);
+        builder.endObject();
+        String expected = Strings.toString(builder);
+        String actual = syntheticSource(mapperAll, buildInput);
+        assertThat(actual, equalTo(expected));
     }
 
     @Override

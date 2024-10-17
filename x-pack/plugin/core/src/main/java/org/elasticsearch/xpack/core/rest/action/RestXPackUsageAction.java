@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.core.rest.action;
 
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.protocol.xpack.XPackUsageRequest;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
@@ -23,6 +24,7 @@ import org.elasticsearch.xpack.core.action.XPackUsageResponse;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestStatus.OK;
@@ -58,5 +60,10 @@ public class RestXPackUsageAction extends BaseRestHandler {
                 }
             }
         );
+    }
+
+    @Override
+    public Set<String> supportedCapabilities() {
+        return Sets.union(super.supportedCapabilities(), Set.of("global_retention_telemetry"));
     }
 }

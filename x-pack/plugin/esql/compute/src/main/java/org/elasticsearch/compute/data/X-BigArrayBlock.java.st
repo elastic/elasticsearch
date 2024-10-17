@@ -86,6 +86,29 @@ public final class $Type$BigArrayBlock extends AbstractArrayBlock implements $Ty
         return null;
     }
 
+$if(boolean)$
+    @Override
+    public ToMask toMask() {
+        if (getPositionCount() == 0) {
+            return new ToMask(blockFactory().newConstantBooleanVector(false, 0), false);
+        }
+        try (BooleanVector.FixedBuilder builder = blockFactory().newBooleanVectorFixedBuilder(getPositionCount())) {
+            boolean hasMv = false;
+            for (int p = 0; p < getPositionCount(); p++) {
+                builder.appendBoolean(switch (getValueCount(p)) {
+                    case 0 -> false;
+                    case 1 -> getBoolean(getFirstValueIndex(p));
+                    default -> {
+                        hasMv = true;
+                        yield false;
+                    }
+                });
+            }
+            return new ToMask(builder.build(), hasMv);
+        }
+    }
+$endif$
+
     @Override
     public $type$ get$Type$(int valueIndex) {
         return vector.get$Type$(valueIndex);

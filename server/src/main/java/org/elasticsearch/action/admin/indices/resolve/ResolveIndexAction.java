@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.indices.resolve;
@@ -24,6 +25,7 @@ import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.ResolvedExpression;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
@@ -564,8 +566,8 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
             if (names.length == 1 && (Metadata.ALL.equals(names[0]) || Regex.isMatchAllPattern(names[0]))) {
                 names = new String[] { "**" };
             }
-            Set<String> resolvedIndexAbstractions = resolver.resolveExpressions(clusterState, indicesOptions, true, names);
-            for (String s : resolvedIndexAbstractions) {
+            Set<ResolvedExpression> resolvedIndexAbstractions = resolver.resolveExpressions(clusterState, indicesOptions, true, names);
+            for (ResolvedExpression s : resolvedIndexAbstractions) {
                 enrichIndexAbstraction(clusterState, s, indices, aliases, dataStreams);
             }
             indices.sort(Comparator.comparing(ResolvedIndexAbstraction::getName));
@@ -596,12 +598,12 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
 
         private static void enrichIndexAbstraction(
             ClusterState clusterState,
-            String indexAbstraction,
+            ResolvedExpression indexAbstraction,
             List<ResolvedIndex> indices,
             List<ResolvedAlias> aliases,
             List<ResolvedDataStream> dataStreams
         ) {
-            IndexAbstraction ia = clusterState.metadata().getIndicesLookup().get(indexAbstraction);
+            IndexAbstraction ia = clusterState.metadata().getIndicesLookup().get(indexAbstraction.resource());
             if (ia != null) {
                 switch (ia.getType()) {
                     case CONCRETE_INDEX -> {

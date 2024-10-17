@@ -272,7 +272,9 @@ filesystem snapshot of this repository.
 When restoring a repository from a backup, you must not register the repository
 with {es} until the repository contents are fully restored. If you alter the
 contents of a repository while it is registered with {es} then the repository
-may become unreadable or may silently lose some of its contents.
+may become unreadable or may silently lose some of its contents. After
+restoring a repository from a backup, use the <<verify-repo-integrity-api>> API
+to verify its integrity before you start to use the repository.
 
 include::repository-azure.asciidoc[]
 include::repository-gcs.asciidoc[]

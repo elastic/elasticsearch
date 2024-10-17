@@ -401,5 +401,7 @@
       "variadic" : false,
       "returnType" : "boolean"
     }
-  ]
+  ],
+  "preview" : false,
+  "snapshot_only" : false
 }

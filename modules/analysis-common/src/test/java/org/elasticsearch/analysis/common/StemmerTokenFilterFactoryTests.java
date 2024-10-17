@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.analysis.common;
 
@@ -26,12 +27,11 @@ import org.elasticsearch.test.index.IndexVersionUtils;
 import java.io.IOException;
 import java.io.StringReader;
 
-import static com.carrotsearch.randomizedtesting.RandomizedTest.scaledRandomIntBetween;
+import static org.apache.lucene.tests.analysis.BaseTokenStreamTestCase.assertAnalyzesTo;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_VERSION_CREATED;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class StemmerTokenFilterFactoryTests extends ESTokenStreamTestCase {
-
     private static final CommonAnalysisPlugin PLUGIN = new CommonAnalysisPlugin();
 
     public void testEnglishFilterFactory() throws IOException {
@@ -101,5 +101,31 @@ public class StemmerTokenFilterFactoryTests extends ESTokenStreamTestCase {
             () -> AnalysisTestsHelper.createTestAnalysisFromSettings(settings, PLUGIN)
         );
         assertEquals("Invalid stemmer class specified: [english, light_english]", e.getMessage());
+    }
+
+    public void testKpDeprecation() throws IOException {
+        IndexVersion v = IndexVersionUtils.randomVersion(random());
+        Settings settings = Settings.builder()
+            .put("index.analysis.filter.my_kp.type", "stemmer")
+            .put("index.analysis.filter.my_kp.language", "kp")
+            .put(SETTING_VERSION_CREATED, v)
+            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
+            .build();
+
+        AnalysisTestsHelper.createTestAnalysisFromSettings(settings, PLUGIN);
+        assertCriticalWarnings("The [dutch_kp] stemmer is deprecated and will be removed in a future version.");
+    }
+
+    public void testLovinsDeprecation() throws IOException {
+        IndexVersion v = IndexVersionUtils.randomVersion(random());
+        Settings settings = Settings.builder()
+            .put("index.analysis.filter.my_lovins.type", "stemmer")
+            .put("index.analysis.filter.my_lovins.language", "lovins")
+            .put(SETTING_VERSION_CREATED, v)
+            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
+            .build();
+
+        AnalysisTestsHelper.createTestAnalysisFromSettings(settings, PLUGIN);
+        assertCriticalWarnings("The [lovins] stemmer is deprecated and will be removed in a future version.");
     }
 }

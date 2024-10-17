@@ -51,8 +51,8 @@ $if(BytesRef)$
      * returns null. Callers must not release the returned vector as no extra reference is retained by this method.
      */
     OrdinalBytesRefVector asOrdinals();
-$endif$
 
+$endif$
     @Override
     $Type$Vector filter(int... positions);
 
@@ -72,6 +72,17 @@ $if(int)$
      * The maximum value in the Vector. An empty Vector will return {@link Integer#MIN_VALUE}.
      */
     int max();
+
+$elseif(boolean)$
+    /**
+     * Are all values {@code true}? This will scan all values to check and always answer accurately.
+     */
+    boolean allTrue();
+
+    /**
+     * Are all values {@code false}? This will scan all values to check and always answer accurately.
+     */
+    boolean allFalse();
 $endif$
 
     /**

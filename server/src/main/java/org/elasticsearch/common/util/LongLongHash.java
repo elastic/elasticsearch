@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.util;
@@ -83,7 +84,7 @@ public final class LongLongHash extends AbstractHash {
         for (long index = slot;; index = nextSlot(index, mask)) {
             final long curId = id(index);
             if (curId == -1) { // means unset
-                id(index, id);
+                setId(index, id);
                 append(id, key1, key2);
                 ++size;
                 return id;
@@ -103,13 +104,16 @@ public final class LongLongHash extends AbstractHash {
         keys.set(keyOffset + 1, key2);
     }
 
-    private void reset(long key1, long key2, long id) {
+    private void reset(long id) {
+        final LongArray keys = this.keys;
+        final long keyOffset = id * 2;
+        final long key1 = keys.get(keyOffset);
+        final long key2 = keys.get(keyOffset + 1);
         final long slot = slot(hash(key1, key2), mask);
         for (long index = slot;; index = nextSlot(index, mask)) {
             final long curId = id(index);
             if (curId == -1) { // means unset
-                id(index, id);
-                append(id, key1, key2);
+                setId(index, id);
                 break;
             }
         }
@@ -131,12 +135,9 @@ public final class LongLongHash extends AbstractHash {
 
     @Override
     protected void removeAndAdd(long index) {
-        final long id = id(index, -1);
+        final long id = getAndSetId(index, -1);
         assert id >= 0;
-        long keyOffset = id * 2;
-        final long key1 = keys.getAndSet(keyOffset, 0);
-        final long key2 = keys.getAndSet(keyOffset + 1, 0);
-        reset(key1, key2, id);
+        reset(id);
     }
 
     @Override

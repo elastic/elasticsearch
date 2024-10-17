@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.gradle.internal;
@@ -162,7 +163,13 @@ public abstract class ElasticsearchBuildCompletePlugin implements Plugin<Project
                     // So, if you change this such that the artifact will have a slash/directory in it, you'll need to update the logic
                     // below as well
                     pb.directory(uploadFileDir);
-                    pb.start().waitFor();
+                    try {
+                        // we are very generious here, as the upload can take
+                        // a long time depending on its size
+                        pb.start().waitFor(30, java.util.concurrent.TimeUnit.MINUTES);
+                    } catch (InterruptedException e) {
+                        System.out.println("Failed to upload buildkite artifact " + e.getMessage());
+                    }
 
                     System.out.println("Generating buildscan link for artifact...");
 

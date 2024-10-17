@@ -409,7 +409,7 @@ public abstract class CcrIntegTestCase extends ESTestCase {
         String color = clusterHealthStatus.name().toLowerCase(Locale.ROOT);
         String method = "ensure" + Strings.capitalize(color);
 
-        ClusterHealthRequest healthRequest = new ClusterHealthRequest(indices).masterNodeTimeout(timeout)
+        ClusterHealthRequest healthRequest = new ClusterHealthRequest(TEST_REQUEST_TIMEOUT, indices).masterNodeTimeout(timeout)
             .timeout(timeout)
             .waitForStatus(clusterHealthStatus)
             .waitForEvents(Priority.LANGUID)
@@ -431,9 +431,9 @@ public abstract class CcrIntegTestCase extends ESTestCase {
                     follower cluster tasks:
                     {}""",
                 method,
-                leaderClient().admin().cluster().prepareState().get().getState(),
+                leaderClient().admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).get().getState(),
                 ESIntegTestCase.getClusterPendingTasks(leaderClient()),
-                followerClient().admin().cluster().prepareState().get().getState(),
+                followerClient().admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).get().getState(),
                 ESIntegTestCase.getClusterPendingTasks(followerClient())
             );
             HotThreads.logLocalHotThreads(logger, Level.INFO, "hot threads at timeout", ReferenceDocs.LOGGING);
@@ -502,7 +502,7 @@ public abstract class CcrIntegTestCase extends ESTestCase {
                 empty()
             );
 
-            final ClusterState clusterState = followerClient().admin().cluster().prepareState().get().getState();
+            final ClusterState clusterState = followerClient().admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
             PersistentTasksCustomMetadata tasks = clusterState.metadata().custom(PersistentTasksCustomMetadata.TYPE);
             Collection<PersistentTasksCustomMetadata.PersistentTask<?>> ccrTasks = tasks.tasks()
                 .stream()
@@ -661,7 +661,7 @@ public abstract class CcrIntegTestCase extends ESTestCase {
     }
 
     private Map<Integer, List<DocIdSeqNoAndSource>> getDocIdAndSeqNos(InternalTestCluster cluster, String index) throws IOException {
-        final ClusterState state = cluster.client().admin().cluster().prepareState().get().getState();
+        final ClusterState state = cluster.client().admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
         List<ShardRouting> shardRoutings = state.routingTable().allShards(index);
         Randomness.shuffle(shardRoutings);
         final Map<Integer, List<DocIdSeqNoAndSource>> docs = new HashMap<>();

@@ -6,44 +6,65 @@
  */
 package org.elasticsearch.xpack.esql.index;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 
 import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 public class EsIndex implements Writeable {
 
     private final String name;
     private final Map<String, EsField> mapping;
-    private final Set<String> concreteIndices;
+    private final Map<String, IndexMode> indexNameWithModes;
 
     public EsIndex(String name, Map<String, EsField> mapping) {
-        this(name, mapping, Set.of());
+        this(name, mapping, Map.of());
     }
 
-    public EsIndex(String name, Map<String, EsField> mapping, Set<String> concreteIndices) {
+    public EsIndex(String name, Map<String, EsField> mapping, Map<String, IndexMode> indexNameWithModes) {
         assert name != null;
         assert mapping != null;
         this.name = name;
         this.mapping = mapping;
-        this.concreteIndices = concreteIndices;
+        this.indexNameWithModes = indexNameWithModes;
     }
 
-    @SuppressWarnings("unchecked")
     public EsIndex(StreamInput in) throws IOException {
-        this(in.readString(), in.readImmutableMap(StreamInput::readString, EsField::readFrom), (Set<String>) in.readGenericValue());
+        this(in.readString(), in.readImmutableMap(StreamInput::readString, EsField::readFrom), readIndexNameWithModes(in));
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(name());
         out.writeMap(mapping(), (o, x) -> x.writeTo(out));
-        out.writeGenericValue(concreteIndices());
+        writeIndexNameWithModes(indexNameWithModes, out);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Map<String, IndexMode> readIndexNameWithModes(StreamInput in) throws IOException {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_ADD_INDEX_MODE_CONCRETE_INDICES)) {
+            return in.readMap(IndexMode::readFrom);
+        } else {
+            Set<String> indices = (Set<String>) in.readGenericValue();
+            assert indices != null;
+            return indices.stream().collect(Collectors.toMap(e -> e, e -> IndexMode.STANDARD));
+        }
+    }
+
+    private static void writeIndexNameWithModes(Map<String, IndexMode> concreteIndices, StreamOutput out) throws IOException {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_ADD_INDEX_MODE_CONCRETE_INDICES)) {
+            out.writeMap(concreteIndices, (o, v) -> IndexMode.writeTo(v, out));
+        } else {
+            out.writeGenericValue(concreteIndices.keySet());
+        }
     }
 
     public String name() {
@@ -54,8 +75,12 @@ public class EsIndex implements Writeable {
         return mapping;
     }
 
+    public Map<String, IndexMode> indexNameWithModes() {
+        return indexNameWithModes;
+    }
+
     public Set<String> concreteIndices() {
-        return concreteIndices;
+        return indexNameWithModes.keySet();
     }
 
     @Override
@@ -65,7 +90,7 @@ public class EsIndex implements Writeable {
 
     @Override
     public int hashCode() {
-        return Objects.hash(name, mapping, concreteIndices);
+        return Objects.hash(name, mapping, indexNameWithModes);
     }
 
     @Override
@@ -81,6 +106,6 @@ public class EsIndex implements Writeable {
         EsIndex other = (EsIndex) obj;
         return Objects.equals(name, other.name)
             && Objects.equals(mapping, other.mapping)
-            && Objects.equals(concreteIndices, other.concreteIndices);
+            && Objects.equals(indexNameWithModes, other.indexNameWithModes);
     }
 }

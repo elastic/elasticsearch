@@ -1,19 +1,21 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.datastreams.logsdb.qa.matchers.source;
 
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.TreeMap;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 class SourceTransforms {
@@ -30,7 +32,7 @@ class SourceTransforms {
      * @return flattened map
      */
     public static Map<String, List<Object>> normalize(Map<String, Object> map) {
-        var flattened = new HashMap<String, List<Object>>();
+        var flattened = new TreeMap<String, List<Object>>();
 
         descend(null, map, flattened);
 
@@ -42,10 +44,20 @@ class SourceTransforms {
             return Collections.emptyList();
         }
 
+        return normalizeValues(values, Function.identity());
+    }
+
+    public static <T, U> List<U> normalizeValues(List<T> values, Function<T, U> transform) {
+        if (values == null) {
+            return Collections.emptyList();
+        }
+
         // Synthetic source modifications:
         // * null values are not present
         // * duplicates are removed
-        return new ArrayList<>(values.stream().filter(v -> v != null && Objects.equals(v, "null") == false).collect(Collectors.toSet()));
+        return new ArrayList<>(
+            values.stream().filter(v -> v != null && Objects.equals(v, "null") == false).map(transform).collect(Collectors.toSet())
+        );
     }
 
     private static void descend(String pathFromRoot, Map<String, Object> currentLevel, Map<String, List<Object>> flattened) {

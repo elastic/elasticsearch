@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
@@ -13,18 +14,15 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.hamcrest.Matcher;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.Locale;
 import java.util.function.Function;
 
 import static org.elasticsearch.test.ESTestCase.between;
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLength;
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLengthBetween;
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
-import static org.hamcrest.Matchers.equalTo;
 
 /**
  * Provides functionality needed to test synthetic source support in text and text-like fields (e.g. "text", "annotated_text").
@@ -160,73 +158,7 @@ public final class TextFieldFamilySyntheticSourceTestSetup {
 
         @Override
         public List<MapperTestCase.SyntheticSourceInvalidExample> invalidExample() throws IOException {
-            Matcher<String> err = equalTo(
-                String.format(
-                    Locale.ROOT,
-                    "field [field] of type [%s] doesn't support synthetic source unless it is stored or"
-                        + " has a sub-field of type [keyword] with doc values or stored and without a normalizer",
-                    fieldType
-                )
-            );
-            return List.of(
-                new MapperTestCase.SyntheticSourceInvalidExample(err, b -> b.field("type", fieldType)),
-                new MapperTestCase.SyntheticSourceInvalidExample(err, b -> {
-                    b.field("type", fieldType);
-                    b.startObject("fields");
-                    {
-                        b.startObject("l");
-                        b.field("type", "long");
-                        b.endObject();
-                    }
-                    b.endObject();
-                }),
-                new MapperTestCase.SyntheticSourceInvalidExample(err, b -> {
-                    b.field("type", fieldType);
-                    b.startObject("fields");
-                    {
-                        b.startObject("kwd");
-                        b.field("type", "keyword");
-                        b.field("normalizer", "lowercase");
-                        b.endObject();
-                    }
-                    b.endObject();
-                }),
-                new MapperTestCase.SyntheticSourceInvalidExample(err, b -> {
-                    b.field("type", fieldType);
-                    b.startObject("fields");
-                    {
-                        b.startObject("kwd");
-                        b.field("type", "keyword");
-                        b.field("doc_values", "false");
-                        b.endObject();
-                    }
-                    b.endObject();
-                }),
-                new MapperTestCase.SyntheticSourceInvalidExample(err, b -> {
-                    b.field("type", fieldType);
-                    b.field("store", "false");
-                    b.startObject("fields");
-                    {
-                        b.startObject("kwd");
-                        b.field("type", "keyword");
-                        b.field("doc_values", "false");
-                        b.endObject();
-                    }
-                    b.endObject();
-                }),
-                new MapperTestCase.SyntheticSourceInvalidExample(err, b -> {
-                    b.field("type", fieldType);
-                    b.startObject("fields");
-                    {
-                        b.startObject("kwd");
-                        b.field("type", "keyword");
-                        b.field("doc_values", "false");
-                        b.field("store", "false");
-                        b.endObject();
-                    }
-                    b.endObject();
-                })
-            );
+            return List.of();
         }
     }
 }

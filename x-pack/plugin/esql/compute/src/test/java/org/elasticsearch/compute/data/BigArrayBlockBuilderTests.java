@@ -164,6 +164,12 @@ public class BigArrayBlockBuilderTests extends SerializationTestCase {
                     assertThat(block.getBoolean(i), equalTo(elements[i]));
                 }
                 assertKeepMask(block);
+                try (ToMask mask = block.toMask()) {
+                    assertThat(mask.hadMultivaluedFields(), equalTo(false));
+                    for (int p = 0; p < elements.length; p++) {
+                        assertThat(mask.mask().getBoolean(p), equalTo(elements[p]));
+                    }
+                }
                 try (var copy = serializeDeserializeBlock(block)) {
                     assertThat(copy, instanceOf(BooleanVectorBlock.class));
                     assertThat(block.asVector(), instanceOf(BooleanArrayVector.class));
@@ -224,6 +230,12 @@ public class BigArrayBlockBuilderTests extends SerializationTestCase {
                     assertThat(block.getBoolean(i), equalTo(elements[i]));
                 }
                 assertKeepMask(block);
+                try (ToMask mask = block.toMask()) {
+                    assertThat(mask.hadMultivaluedFields(), equalTo(true));
+                    for (int p = 0; p < elements.length; p++) {
+                        assertThat(mask.mask().getBoolean(p), equalTo(false));
+                    }
+                }
                 try (var copy = serializeDeserializeBlock(block)) {
                     assertThat(copy, instanceOf(BooleanArrayBlock.class));
                     assertNull(copy.asVector());
@@ -253,6 +265,12 @@ public class BigArrayBlockBuilderTests extends SerializationTestCase {
                     assertThat(block.getBoolean(i), equalTo(elements[i]));
                 }
                 assertKeepMask(block);
+                try (ToMask mask = block.toMask()) {
+                    assertThat(mask.hadMultivaluedFields(), equalTo(true));
+                    for (int p = 0; p < elements.length; p++) {
+                        assertThat(mask.mask().getBoolean(p), equalTo(false));
+                    }
+                }
                 try (var copy = serializeDeserializeBlock(block)) {
                     assertThat(copy, instanceOf(BooleanBigArrayBlock.class));
                     assertNull(block.asVector());
@@ -260,6 +278,54 @@ public class BigArrayBlockBuilderTests extends SerializationTestCase {
                     assertThat(copy.getTotalValueCount(), equalTo(numElements));
                     for (int i = 0; i < numElements; i++) {
                         assertThat(copy.getBoolean(i), equalTo(elements[i]));
+                    }
+                }
+            }
+        }
+        assertThat(blockFactory.breaker().getUsed(), equalTo(0L));
+    }
+
+    /**
+     * Tests a block with one value being multivalued and the rest are single valued.
+     */
+    public void testBooleanBlockOneMv() {
+        int mvCount = between(2, 10);
+        int positionCount = randomIntBetween(1000, 5000);
+        blockFactory = new BlockFactory(blockFactory.breaker(), blockFactory.bigArrays(), ByteSizeValue.ofBytes(1));
+        try (var builder = blockFactory.newBooleanBlockBuilder(between(1, mvCount + positionCount))) {
+            boolean[] elements = new boolean[positionCount + mvCount];
+            builder.beginPositionEntry();
+            for (int i = 0; i < mvCount; i++) {
+                elements[i] = randomBoolean();
+                builder.appendBoolean(elements[i]);
+            }
+            builder.endPositionEntry();
+            for (int p = 1; p < positionCount; p++) {
+                elements[mvCount + p] = randomBoolean();
+                builder.appendBoolean(elements[mvCount + p]);
+            }
+            try (var block = builder.build()) {
+                assertThat(block, instanceOf(BooleanBigArrayBlock.class));
+                assertNull(block.asVector());
+                assertThat(block.getPositionCount(), equalTo(positionCount));
+                assertThat(block.getValueCount(0), equalTo(mvCount));
+                for (int i = 0; i < mvCount; i++) {
+                    assertThat(block.getBoolean(block.getFirstValueIndex(0) + i), equalTo(elements[i]));
+                }
+                for (int p = 1; p < positionCount; p++) {
+                    assertThat(block.getValueCount(p), equalTo(1));
+                    assertThat(block.getBoolean(block.getFirstValueIndex(p)), equalTo(elements[mvCount + p]));
+                }
+                assertKeepMask(block);
+                try (ToMask mask = block.toMask()) {
+                    /*
+                     * NOTE: this test is customized to the layout above where we don't make
+                     * any fields with 0 values.
+                     */
+                    assertThat(mask.hadMultivaluedFields(), equalTo(true));
+                    assertThat(mask.mask().getBoolean(0), equalTo(false));
+                    for (int p = 1; p < positionCount; p++) {
+                        assertThat(mask.mask().getBoolean(p), equalTo(elements[mvCount + p]));
                     }
                 }
             }

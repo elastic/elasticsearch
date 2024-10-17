@@ -1,18 +1,21 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.collect;
 
 import org.elasticsearch.core.Nullable;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Iterator;
+import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.function.BiFunction;
@@ -231,6 +234,57 @@ public class Iterators {
             next = null;
             return value;
         }
+    }
+
+    /**
+     * Returns an iterator that yields at most the first {@code n} elements of the provided {@code input} iterator.
+     */
+    public static <T> Iterator<T> limit(Iterator<? extends T> input, int n) {
+        assert n >= 0 : "negative limit";
+        if (n > 0 && input.hasNext()) {
+            return new LimitIterator<>(input, n);
+        } else {
+            return Collections.emptyIterator();
+        }
+    }
+
+    private static final class LimitIterator<T> implements Iterator<T> {
+        private final Iterator<? extends T> input;
+        private final int limit;
+        private int current;
+
+        LimitIterator(Iterator<? extends T> input, int limit) {
+            this.input = input;
+            this.limit = limit;
+        }
+
+        @Override
+        public boolean hasNext() {
+            return current < limit && input.hasNext();
+        }
+
+        @Override
+        public T next() {
+            if (current >= limit) {
+                throw new NoSuchElementException();
+            }
+            ++current;
+            return input.next();
+        }
+    }
+
+    /**
+     * Returns a list containing the elements of the provided {@code iterator}.
+     */
+    public static <T> List<T> toList(Iterator<T> iterator) {
+        if (iterator.hasNext()) {
+            var list = new ArrayList<T>();
+            while (iterator.hasNext()) {
+                list.add(iterator.next());
+            }
+            return Collections.unmodifiableList(list);
+        }
+        return Collections.emptyList();
     }
 
     public static <T, U> Iterator<U> flatMap(Iterator<? extends T> input, Function<T, Iterator<? extends U>> fn) {

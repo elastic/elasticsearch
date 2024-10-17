@@ -1,7 +1,19 @@
+---
 setup:
   - requires:
-      cluster_features: ["geoip.downloader.database.configuration"]
-      reason: "geoip downloader database configuration APIs added in 8.15"
+      cluster_features: ["geoip.downloader.database.configuration", "get_database_configuration_action.multi_node"]
+      reason: "geoip downloader database configuration APIs added in 8.15, and updated in 8.16 to return more results"
+
+---
+teardown:
+  - do:
+      ingest.delete_ip_location_database:
+        id: "my_database_1"
+        ignore: 404
+  - do:
+      ingest.delete_ip_location_database:
+        id: "my_database_2"
+        ignore: 404
 
 ---
 "Test adding, getting, and removing geoip databases":
@@ -42,6 +54,17 @@ setup:
   - match: { acknowledged: true }
 
   - do:
+      catch: /illegal_argument_exception/
+      ingest.put_geoip_database:
+        id: "_web_TXlDdXN0b21HZW9MaXRlMi1DaXR5Lm1tZGI="
+        body:  >
+          {
+            "name": "GeoIP2-City",
+            "web": {
+            }
+          }
+
+  - do:
       ingest.get_geoip_database:
         id: "my_database_1"
   - length: { databases: 1 }
@@ -52,7 +75,7 @@ setup:
 
   - do:
       ingest.get_geoip_database: {}
-  - length: { databases: 2 }
+  - length: { databases: 6 }
 
   - do:
       ingest.get_geoip_database:
@@ -60,11 +83,29 @@ setup:
   - length: { databases: 2 }
 
   - do:
+      ingest.get_geoip_database:
+        id: "_web_TXlDdXN0b21HZW9MaXRlMi1DaXR5Lm1tZGI="
+  - length: { databases: 1 }
+  - match: { databases.0.id: "_web_TXlDdXN0b21HZW9MaXRlMi1DaXR5Lm1tZGI=" }
+  - gte: { databases.0.modified_date_millis: -1 }
+  - match: { databases.0.database.name: "MyCustomGeoLite2-City" }
+
+  - do:
       ingest.delete_geoip_database:
         id: "my_database_1"
 
   - do:
+      catch: /resource_not_found_exception/
+      ingest.delete_geoip_database:
+        id: "_web_TXlDdXN0b21HZW9MaXRlMi1DaXR5Lm1tZGI="
+
+  - do:
       ingest.get_geoip_database: {}
+  - length: { databases: 5 }
+
+  - do:
+      ingest.get_geoip_database:
+        id: "my_database_2"
   - length: { databases: 1 }
   - match: { databases.0.id: "my_database_2" }
   - gte: { databases.0.modified_date_millis: 0 }

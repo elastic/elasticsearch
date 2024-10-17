@@ -1,24 +1,22 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.datastreams.logsdb.qa.matchers.source;
 
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.time.DateFormatter;
-import org.elasticsearch.common.time.FormatNames;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.datastreams.logsdb.qa.matchers.GenericEqualsMatcher;
 import org.elasticsearch.datastreams.logsdb.qa.matchers.ListEqualMatcher;
 import org.elasticsearch.datastreams.logsdb.qa.matchers.MatchResult;
 import org.elasticsearch.xcontent.XContentBuilder;
 
-import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -28,10 +26,11 @@ import static org.elasticsearch.datastreams.logsdb.qa.matchers.Messages.formatEr
 import static org.elasticsearch.datastreams.logsdb.qa.matchers.Messages.prettyPrintCollections;
 
 public class SourceMatcher extends GenericEqualsMatcher<List<Map<String, Object>>> {
-    private final Map<String, Map<String, Object>> actualNormalizedMapping;
-    private final Map<String, Map<String, Object>> expectedNormalizedMapping;
+    private final Map<String, MappingTransforms.FieldMapping> actualNormalizedMapping;
+    private final Map<String, MappingTransforms.FieldMapping> expectedNormalizedMapping;
 
     private final Map<String, FieldSpecificMatcher> fieldSpecificMatchers;
+    private final DynamicFieldMatcher dynamicFieldMatcher;
 
     public SourceMatcher(
         final XContentBuilder actualMappings,
@@ -60,6 +59,7 @@ public class SourceMatcher extends GenericEqualsMatcher<List<Map<String, Object>
             "unsigned_long",
             new FieldSpecificMatcher.UnsignedLongMatcher(actualMappings, actualSettings, expectedMappings, expectedSettings)
         );
+        this.dynamicFieldMatcher = new DynamicFieldMatcher(actualMappings, actualSettings, expectedMappings, expectedSettings);
     }
 
     @Override
@@ -76,14 +76,8 @@ public class SourceMatcher extends GenericEqualsMatcher<List<Map<String, Object>
             );
         }
 
-        var sortedAndFlattenedActual = actual.stream()
-            .sorted(Comparator.comparing((Map<String, Object> m) -> parseTimestampToEpochMillis(m.get("@timestamp"))))
-            .map(SourceTransforms::normalize)
-            .toList();
-        var sortedAndFlattenedExpected = expected.stream()
-            .sorted(Comparator.comparing((Map<String, Object> m) -> parseTimestampToEpochMillis(m.get("@timestamp"))))
-            .map(SourceTransforms::normalize)
-            .toList();
+        var sortedAndFlattenedActual = actual.stream().map(SourceTransforms::normalize).toList();
+        var sortedAndFlattenedExpected = expected.stream().map(SourceTransforms::normalize).toList();
 
         for (int i = 0; i < sortedAndFlattenedActual.size(); i++) {
             var actual = sortedAndFlattenedActual.get(i);
@@ -91,7 +85,8 @@ public class SourceMatcher extends GenericEqualsMatcher<List<Map<String, Object>
 
             var result = compareSource(actual, expected);
             if (result.isMatch() == false) {
-                return result;
+                var message = "Source matching failed at document id [" + i + "]. " + result.getMessage();
+                return MatchResult.noMatch(message);
             }
         }
 
@@ -105,12 +100,20 @@ public class SourceMatcher extends GenericEqualsMatcher<List<Map<String, Object>
             var actualValues = actual.get(name);
             var expectedValues = expectedFieldEntry.getValue();
 
-            MatchResult fieldMatch = matchWithFieldSpecificMatcher(name, actualValues, expectedValues).orElseGet(
-                () -> matchWithGenericMatcher(actualValues, expectedValues)
-            );
+            // There are cases when field values are stored in ignored source
+            // so we try to match them as is first and then apply field specific matcher.
+            // This is temporary, we should be able to tell when source is exact using mappings.
+            // See #111916.
+            var genericMatchResult = matchWithGenericMatcher(actualValues, expectedValues);
+            if (genericMatchResult.isMatch()) {
+                return genericMatchResult;
+            }
 
-            if (fieldMatch.isMatch() == false) {
-                var message = "Source documents don't match for field [" + name + "]: " + fieldMatch.getMessage();
+            var matchIncludingFieldSpecificMatchers = matchWithFieldSpecificMatcher(name, actualValues, expectedValues).orElse(
+                genericMatchResult
+            );
+            if (matchIncludingFieldSpecificMatchers.isMatch() == false) {
+                var message = "Source documents don't match for field [" + name + "]: " + matchIncludingFieldSpecificMatchers.getMessage();
                 return MatchResult.noMatch(message);
             }
         }
@@ -130,11 +133,11 @@ public class SourceMatcher extends GenericEqualsMatcher<List<Map<String, Object>
                 );
             }
 
-            // Dynamic mapping, nothing to do
-            return Optional.empty();
+            // Field is dynamically mapped
+            return dynamicFieldMatcher.match(actualValues, expectedValues);
         }
 
-        var actualFieldType = (String) actualFieldMapping.get("type");
+        var actualFieldType = (String) actualFieldMapping.mappingParameters().get("type");
         if (actualFieldType == null) {
             throw new IllegalStateException("Field type is missing from leaf field Leaf field [" + fieldName + "] mapping parameters");
         }
@@ -143,7 +146,7 @@ public class SourceMatcher extends GenericEqualsMatcher<List<Map<String, Object>
         if (expectedFieldMapping == null) {
             throw new IllegalStateException("Leaf field [" + fieldName + "] is present in actual mapping but absent in expected mapping");
         } else {
-            var expectedFieldType = expectedFieldMapping.get("type");
+            var expectedFieldType = expectedFieldMapping.mappingParameters().get("type");
             if (Objects.equals(actualFieldType, expectedFieldType) == false) {
                 throw new IllegalStateException(
                     "Leaf field ["
@@ -157,13 +160,29 @@ public class SourceMatcher extends GenericEqualsMatcher<List<Map<String, Object>
             }
         }
 
+        if (sourceMatchesExactly(expectedFieldMapping, expectedValues)) {
+            return Optional.empty();
+        }
+
         var fieldSpecificMatcher = fieldSpecificMatchers.get(actualFieldType);
         if (fieldSpecificMatcher == null) {
             return Optional.empty();
         }
 
-        MatchResult matched = fieldSpecificMatcher.match(actualValues, expectedValues, expectedFieldMapping, actualFieldMapping);
+        MatchResult matched = fieldSpecificMatcher.match(
+            actualValues,
+            expectedValues,
+            actualFieldMapping.mappingParameters(),
+            expectedFieldMapping.mappingParameters()
+        );
         return Optional.of(matched);
+    }
+
+    // Checks for scenarios when source is stored exactly and therefore can be compared without special logic.
+    private boolean sourceMatchesExactly(MappingTransforms.FieldMapping mapping, List<Object> expectedValues) {
+        return mapping.parentMappingParameters().stream().anyMatch(m -> m.getOrDefault("enabled", "true").equals("false"))
+            || mapping.mappingParameters().getOrDefault("synthetic_source_keep", "none").equals("all")
+            || expectedValues.size() > 1 && mapping.mappingParameters().getOrDefault("synthetic_source_keep", "none").equals("arrays");
     }
 
     private MatchResult matchWithGenericMatcher(List<Object> actualValues, List<Object> expectedValues) {
@@ -178,10 +197,5 @@ public class SourceMatcher extends GenericEqualsMatcher<List<Map<String, Object>
         );
 
         return genericListMatcher.match();
-    }
-
-    // We could look up the format from mapping eventually.
-    private static long parseTimestampToEpochMillis(Object timestamp) {
-        return DateFormatter.forPattern(FormatNames.STRICT_DATE_OPTIONAL_TIME.getName()).parseMillis((String) timestamp);
     }
 }

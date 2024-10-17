@@ -87,7 +87,7 @@ public class EsRelation extends LeafPlan {
     }
 
     private static boolean supportingEsSourceOptions(TransportVersion version) {
-        return version.onOrAfter(TransportVersions.V_8_14_0) && version.before(TransportVersions.ESQL_REMOVE_ES_SOURCE_OPTIONS);
+        return version.between(TransportVersions.V_8_14_0, TransportVersions.V_8_15_0);
     }
 
     @Override
@@ -141,6 +141,11 @@ public class EsRelation extends LeafPlan {
     }
 
     @Override
+    public String commandName() {
+        return "FROM";
+    }
+
+    @Override
     public boolean expressionsResolved() {
         // For unresolved expressions to exist in EsRelation is fine, as long as they are not used in later operations
         // This allows for them to be converted to null@unsupported fields in final output, an important feature of ES|QL
@@ -175,7 +180,7 @@ public class EsRelation extends LeafPlan {
     }
 
     public static IndexMode readIndexMode(StreamInput in) throws IOException {
-        if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_ADD_INDEX_MODE_TO_SOURCE)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
             return IndexMode.fromString(in.readString());
         } else {
             return IndexMode.STANDARD;
@@ -183,7 +188,7 @@ public class EsRelation extends LeafPlan {
     }
 
     public static void writeIndexMode(StreamOutput out, IndexMode indexMode) throws IOException {
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_ADD_INDEX_MODE_TO_SOURCE)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
             out.writeString(indexMode.getName());
         } else if (indexMode != IndexMode.STANDARD) {
             throw new IllegalStateException("not ready to support index mode [" + indexMode + "]");

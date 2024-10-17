@@ -116,7 +116,7 @@ public class FrozenExistenceDeciderIT extends AbstractFrozenAutoscalingIntegTest
         assertMinimumCapacity(capacity().results().get("frozen").requiredCapacity().node());
 
         assertThat(
-            clusterAdmin().prepareHealth().get().getStatus(),
+            clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT).get().getStatus(),
             anyOf(equalTo(ClusterHealthStatus.YELLOW), equalTo(ClusterHealthStatus.GREEN))
         );
 

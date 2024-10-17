@@ -1298,10 +1298,11 @@ tag::wait_for_active_shards[]
 `wait_for_active_shards`::
 +
 --
-(Optional, string) The number of shard copies that must be active before
-proceeding with the operation. Set to `all` or any positive integer up
-to the total number of shards in the index (`number_of_replicas+1`).
-Default: 1, the primary shard.
+(Optional, string) The number of copies of each shard that must be active
+before proceeding with the operation. Set to `all` or any non-negative integer
+up to the total number of copies of each shard in the index
+(`number_of_replicas+1`). Defaults to `1`, meaning to wait just for each
+primary shard to be active.
 
 See <<index-wait-for-active-shards>>.
 --

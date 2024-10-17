@@ -11,6 +11,7 @@ import org.elasticsearch.inference.InputType;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
+import org.elasticsearch.xpack.inference.services.alibabacloudsearch.completion.AlibabaCloudSearchCompletionModel;
 import org.elasticsearch.xpack.inference.services.alibabacloudsearch.embeddings.AlibabaCloudSearchEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.alibabacloudsearch.rerank.AlibabaCloudSearchRerankModel;
 import org.elasticsearch.xpack.inference.services.alibabacloudsearch.sparse.AlibabaCloudSearchSparseModel;
@@ -49,5 +50,12 @@ public class AlibabaCloudSearchActionCreator implements AlibabaCloudSearchAction
         var overriddenModel = AlibabaCloudSearchRerankModel.of(model, taskSettings);
 
         return new AlibabaCloudSearchRerankAction(sender, overriddenModel, serviceComponents);
+    }
+
+    @Override
+    public ExecutableAction create(AlibabaCloudSearchCompletionModel model, Map<String, Object> taskSettings) {
+        var overriddenModel = AlibabaCloudSearchCompletionModel.of(model, taskSettings);
+
+        return new AlibabaCloudSearchCompletionAction(sender, overriddenModel, serviceComponents);
     }
 }

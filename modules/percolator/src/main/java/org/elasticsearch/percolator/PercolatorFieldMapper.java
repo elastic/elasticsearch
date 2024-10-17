@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.percolator;
 
@@ -137,8 +138,6 @@ public class PercolatorFieldMapper extends FieldMapper {
         @Override
         public PercolatorFieldMapper build(MapperBuilderContext context) {
             PercolatorFieldType fieldType = new PercolatorFieldType(context.buildFullName(leafName()), meta.getValue());
-            // TODO should percolator even allow multifields?
-            MultiFields multiFields = multiFieldsBuilder.build(this, context);
             context = context.createChildContext(leafName(), null);
             KeywordFieldMapper extractedTermsField = createExtractQueryFieldBuilder(
                 EXTRACTED_TERMS_FIELD_NAME,
@@ -165,8 +164,7 @@ public class PercolatorFieldMapper extends FieldMapper {
             return new PercolatorFieldMapper(
                 leafName(),
                 fieldType,
-                multiFields,
-                copyTo,
+                builderParams(this, context),
                 searchExecutionContext,
                 extractedTermsField,
                 extractionResultField,
@@ -375,8 +373,7 @@ public class PercolatorFieldMapper extends FieldMapper {
     PercolatorFieldMapper(
         String simpleName,
         MappedFieldType mappedFieldType,
-        MultiFields multiFields,
-        CopyTo copyTo,
+        BuilderParams builderParams,
         Supplier<SearchExecutionContext> searchExecutionContext,
         KeywordFieldMapper queryTermsField,
         KeywordFieldMapper extractionResultField,
@@ -387,7 +384,7 @@ public class PercolatorFieldMapper extends FieldMapper {
         IndexVersion indexCreatedVersion,
         Supplier<TransportVersion> clusterTransportVersion
     ) {
-        super(simpleName, mappedFieldType, multiFields, copyTo);
+        super(simpleName, mappedFieldType, builderParams);
         this.searchExecutionContext = searchExecutionContext;
         this.queryTermsField = queryTermsField;
         this.extractionResultField = extractionResultField;

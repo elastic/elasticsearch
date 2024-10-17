@@ -124,7 +124,6 @@ public final class MappingParser {
         Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper> metadataMappers = metadataMappersSupplier.get();
         Map<String, Object> meta = null;
 
-        // TODO is this correct ??????
         boolean isSourceSynthetic = SourceFieldMapper.isSynthetic(mappingParserContext.getIndexSettings());
         boolean isDataStream = false;
 

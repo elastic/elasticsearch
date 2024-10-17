@@ -90,7 +90,7 @@ include::_connectors-list-local-content-extraction.asciidoc[]
 Self-hosted content extraction is handled by a *separate* extraction service.
 
 The versions for the extraction service do not align with the Elastic stack.
-For version `8.11.x`, you should use extraction service version `0.3.x`.
+For versions after `8.11.x` (including {version}), you should use extraction service version `0.3.x`.
 
 You can run the service with the following command:
 

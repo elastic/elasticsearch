@@ -1,0 +1,5 @@
+pr: 114856
+summary: "OTel mappings: avoid metrics to be rejected when attributes are malformed"
+area: Data streams
+type: bug
+issues: []

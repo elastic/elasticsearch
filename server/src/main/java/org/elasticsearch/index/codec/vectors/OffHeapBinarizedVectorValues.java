@@ -34,6 +34,7 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 
 import static org.apache.lucene.index.VectorSimilarityFunction.EUCLIDEAN;
+import static org.elasticsearch.index.codec.vectors.BQVectorUtils.constSqrt;
 
 /** Binarized vector values loaded from off-heap */
 public abstract class OffHeapBinarizedVectorValues extends BinarizedByteVectorValues implements RandomAccessBinarizedByteVectorValues {
@@ -53,6 +54,9 @@ public abstract class OffHeapBinarizedVectorValues extends BinarizedByteVectorVa
     protected final BinaryQuantizer binaryQuantizer;
     protected final float[] centroid;
     protected final float centroidDp;
+    private final int discretizedDimensions;
+    private final float maxX1;
+    private final float sqrtDimensions;
     private final int correctionsCount;
 
     OffHeapBinarizedVectorValues(
@@ -79,6 +83,9 @@ public abstract class OffHeapBinarizedVectorValues extends BinarizedByteVectorVa
         this.byteBuffer = ByteBuffer.allocate(numBytes);
         this.binaryValue = byteBuffer.array();
         this.binaryQuantizer = quantizer;
+        this.discretizedDimensions = BQVectorUtils.discretize(dimension, 64);
+        this.sqrtDimensions = (float) constSqrt(dimension);
+        this.maxX1 = (float) (1.9 / constSqrt(discretizedDimensions - 1.0));
     }
 
     @Override
@@ -101,6 +108,21 @@ public abstract class OffHeapBinarizedVectorValues extends BinarizedByteVectorVa
         slice.readFloats(correctiveValues, 0, correctionsCount);
         lastOrd = targetOrd;
         return binaryValue;
+    }
+
+    @Override
+    public int discretizedDimensions() {
+        return discretizedDimensions;
+    }
+
+    @Override
+    public float sqrtDimensions() {
+        return sqrtDimensions;
+    }
+
+    @Override
+    public float maxX1() {
+        return maxX1;
     }
 
     @Override

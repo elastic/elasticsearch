@@ -71,7 +71,7 @@ public class KqlParser {
             String message,
             RecognitionException e
         ) {
-            throw new ParsingException(message, line, charPositionInLine, e);
+            throw new KqlParsingException(message, line, charPositionInLine, e);
         }
     };
 }

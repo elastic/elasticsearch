@@ -12,24 +12,24 @@ import org.elasticsearch.rest.RestStatus;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 
-public class ParsingException extends ElasticsearchException {
+public class KqlParsingException extends ElasticsearchException {
 
     private final int line;
     private final int charPositionInLine;
 
-    public ParsingException(String message, Exception cause, int line, int charPositionInLine) {
+    public KqlParsingException(String message, Exception cause, int line, int charPositionInLine) {
         super(message, cause);
         this.line = line;
         this.charPositionInLine = charPositionInLine;
     }
 
-    public ParsingException(String message, int line, int charPositionInLine, Object... args) {
+    public KqlParsingException(String message, int line, int charPositionInLine, Object... args) {
         super(message, args);
         this.line = line;
         this.charPositionInLine = charPositionInLine;
     }
 
-    public ParsingException(String message, Throwable cause, int line, int charPositionInLine, Object... args) {
+    public KqlParsingException(String message, Throwable cause, int line, int charPositionInLine, Object... args) {
         super(message, cause, args);
         this.line = line;
         this.charPositionInLine = charPositionInLine;

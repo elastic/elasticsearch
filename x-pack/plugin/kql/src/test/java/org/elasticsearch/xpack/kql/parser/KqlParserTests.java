@@ -30,15 +30,18 @@ public class KqlParserTests extends AbstractBuilderTestCase {
         SearchExecutionContext searchExecutionContext = createSearchExecutionContext();
 
         {
-            ParsingException e = assertThrows(ParsingException.class, () -> parser.parseKqlQuery("foo: \"bar", searchExecutionContext));
+            KqlParsingException e = assertThrows(
+                KqlParsingException.class,
+                () -> parser.parseKqlQuery("foo: \"bar", searchExecutionContext)
+            );
             assertThat(e.getLineNumber(), equalTo(1));
             assertThat(e.getColumnNumber(), equalTo(6));
             assertThat(e.getMessage(), equalTo("line 1:6: token recognition error at: '\"bar'"));
         }
 
         {
-            ParsingException e = assertThrows(
-                ParsingException.class,
+            KqlParsingException e = assertThrows(
+                KqlParsingException.class,
                 () -> parser.parseKqlQuery("foo: (bar baz AND qux", searchExecutionContext)
             );
             assertThat(e.getLineNumber(), equalTo(1));

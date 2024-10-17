@@ -23,12 +23,13 @@ import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.InternalOrder;
 import org.elasticsearch.search.aggregations.KeyComparable;
 import org.elasticsearch.search.aggregations.bucket.BucketReducer;
-import org.elasticsearch.search.aggregations.bucket.IteratorAndCurrent;
+import org.elasticsearch.search.aggregations.bucket.DequeAndCurrent;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
 import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -268,7 +269,7 @@ public class InternalHistogram extends InternalMultiBucketAggregation<InternalHi
         return new Bucket(prototype.key, prototype.docCount, prototype.keyed, prototype.format, aggregations);
     }
 
-    private List<Bucket> reduceBuckets(PriorityQueue<IteratorAndCurrent<Bucket>> pq, AggregationReduceContext reduceContext) {
+    private List<Bucket> reduceBuckets(PriorityQueue<DequeAndCurrent<Bucket>> pq, AggregationReduceContext reduceContext) {
         List<Bucket> reducedBuckets = new ArrayList<>();
         if (pq.size() > 0) {
             // list of buckets coming from different shards that have the same key
@@ -276,7 +277,7 @@ public class InternalHistogram extends InternalMultiBucketAggregation<InternalHi
             double key = pq.top().current().key;
 
             do {
-                final IteratorAndCurrent<Bucket> top = pq.top();
+                final DequeAndCurrent<Bucket> top = pq.top();
 
                 if (Double.compare(top.current().key, key) != 0) {
                     // The key changes, reduce what we already buffered and reset the buffer for current buckets.
@@ -419,9 +420,9 @@ public class InternalHistogram extends InternalMultiBucketAggregation<InternalHi
     @Override
     protected AggregatorReducer getLeaderReducer(AggregationReduceContext reduceContext, int size) {
         return new AggregatorReducer() {
-            final PriorityQueue<IteratorAndCurrent<Bucket>> pq = new PriorityQueue<>(size) {
+            final PriorityQueue<DequeAndCurrent<Bucket>> pq = new PriorityQueue<>(size) {
                 @Override
-                protected boolean lessThan(IteratorAndCurrent<Bucket> a, IteratorAndCurrent<Bucket> b) {
+                protected boolean lessThan(DequeAndCurrent<Bucket> a, DequeAndCurrent<Bucket> b) {
                     return Double.compare(a.current().key, b.current().key) < 0;
                 }
             };
@@ -430,7 +431,7 @@ public class InternalHistogram extends InternalMultiBucketAggregation<InternalHi
             public void accept(InternalAggregation aggregation) {
                 final InternalHistogram histogram = (InternalHistogram) aggregation;
                 if (histogram.buckets.isEmpty() == false) {
-                    pq.add(new IteratorAndCurrent<>(histogram.buckets.iterator()));
+                    pq.add(new DequeAndCurrent<>(new ArrayDeque<>(histogram.buckets)));
                 }
             }
 

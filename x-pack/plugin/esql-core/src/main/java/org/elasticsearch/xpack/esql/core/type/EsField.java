@@ -19,6 +19,7 @@ import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.xpack.esql.core.util.PlanStreamInput.readCachedStringWithVersionCheck;
+import static org.elasticsearch.xpack.esql.core.util.PlanStreamOutput.writeCachedStringWithVersionCheck;
 
 /**
  * Information about a field in an ES index.
@@ -100,7 +101,7 @@ public class EsField implements Writeable {
      * This needs to be overridden by subclasses for specific serialization
      */
     public void writeContent(StreamOutput out) throws IOException {
-        ((PlanStreamOutput) out).writeCachedString(name);
+        writeCachedStringWithVersionCheck(out, name);
         esDataType.writeTo(out);
         out.writeMap(properties, (o, x) -> x.writeTo(out));
         out.writeBoolean(aggregatable);

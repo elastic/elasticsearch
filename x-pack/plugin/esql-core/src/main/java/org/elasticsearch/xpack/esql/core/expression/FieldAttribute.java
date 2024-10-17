@@ -23,6 +23,7 @@ import java.io.IOException;
 import java.util.Objects;
 
 import static org.elasticsearch.xpack.esql.core.util.PlanStreamInput.readCachedStringWithVersionCheck;
+import static org.elasticsearch.xpack.esql.core.util.PlanStreamOutput.writeCachedStringWithVersionCheck;
 
 /**
  * Attribute for an ES field.
@@ -131,7 +132,7 @@ public class FieldAttribute extends TypedAttribute {
         if (((PlanStreamOutput) out).writeAttributeCacheHeader(this)) {
             Source.EMPTY.writeTo(out);
             writeParentName(out);
-            ((PlanStreamOutput) out).writeCachedString(name());
+            writeCachedStringWithVersionCheck(out, name());
             dataType().writeTo(out);
             field.writeTo(out);
             // We used to write the qualifier here. We can still do if needed in the future.

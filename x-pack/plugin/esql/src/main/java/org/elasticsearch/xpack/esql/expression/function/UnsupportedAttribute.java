@@ -31,6 +31,7 @@ import java.io.IOException;
 import java.util.Objects;
 
 import static org.elasticsearch.xpack.esql.core.util.PlanStreamInput.readCachedStringWithVersionCheck;
+import static org.elasticsearch.xpack.esql.core.util.PlanStreamOutput.writeCachedStringWithVersionCheck;
 
 /**
  * Unsupported attribute meaning an attribute that has been found yet cannot be used (hence why UnresolvedAttribute
@@ -93,7 +94,7 @@ public final class UnsupportedAttribute extends FieldAttribute implements Unreso
     public void writeTo(StreamOutput out) throws IOException {
         if (((PlanStreamOutput) out).writeAttributeCacheHeader(this)) {
             Source.EMPTY.writeTo(out);
-            ((PlanStreamOutput) out).writeCachedString(name());
+            writeCachedStringWithVersionCheck(out, name());
             if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_ES_FIELD_CACHED_SERIALIZATION)
                 || out.getTransportVersion().isPatchFrom(TransportVersions.ESQL_ATTRIBUTE_CACHED_SERIALIZATION_8_15)) {
                 field().writeTo(out);

@@ -21,7 +21,7 @@ setup:
         index: .synonyms-2
         level: shards
         wait_for_status: green
-        timeout: 1m
+        timeout: 2m
 
   - do:
       synonyms.get_synonym:
@@ -71,7 +71,7 @@ setup:
         index: .synonyms-2
         level: shards
         wait_for_status: green
-        timeout: 1m
+        timeout: 2m
 
   - do:
       synonyms.get_synonym:

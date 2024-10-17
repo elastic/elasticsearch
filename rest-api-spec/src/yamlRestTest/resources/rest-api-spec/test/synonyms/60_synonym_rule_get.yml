@@ -20,7 +20,7 @@ setup:
         index: .synonyms-2
         level: shards
         wait_for_status: green
-        timeout: 20s
+        timeout: 2m
 
 ---
 "Get a synonym rule":

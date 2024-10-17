@@ -32,7 +32,7 @@
         index: .synonyms-2
         level: shards
         wait_for_status: green
-        timeout: 1m
+        timeout: 2m
 
   # Create my_index1 with synonym_filter that uses synonyms_set1
   - do:

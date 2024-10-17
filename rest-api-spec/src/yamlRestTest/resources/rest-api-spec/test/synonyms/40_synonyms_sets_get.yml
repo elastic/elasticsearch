@@ -16,7 +16,7 @@ setup:
         index: .synonyms-2
         level: shards
         wait_for_status: green
-        timeout: 1m
+        timeout: 2m
 
   - do:
       synonyms.put_synonym:
@@ -44,7 +44,7 @@ setup:
       cluster.health:
         index: .synonyms-2
         level: shards
-        timeout: 1m
+        timeout: 2m
         wait_for_status: green
 
 

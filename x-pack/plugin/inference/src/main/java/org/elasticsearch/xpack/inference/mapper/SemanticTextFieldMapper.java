@@ -18,6 +18,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.fielddata.FieldDataContext;
@@ -341,7 +342,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                 throw new IllegalStateException(CONTENT_TYPE + " field [" + fullPath() + "] does not have a parent object mapper");
             }
 
-            if (parentMapper.subobjects() == ObjectMapper.Subobjects.DISABLED) {
+            if (parentMapper.subobjects() == false) {
                 throw new IllegalArgumentException(
                     CONTENT_TYPE + " field [" + fullPath() + "] cannot be in an object field with subobjects disabled"
                 );
@@ -555,7 +556,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
             // This should never happen. Throw in case it does for some reason.
             throw new IllegalStateException("extractSuffixMaps returned an empty suffix map list");
         } else if (suffixMaps.size() == 1) {
-            SuffixMap suffixMap = suffixMaps.getFirst();
+            SuffixMap suffixMap = suffixMaps.get(0);
             suffixMap.map().put(suffixMap.suffix(), newValue);
         } else {
             throw new IllegalArgumentException(

@@ -952,7 +952,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
                 } else if (values.size() > 1) {
                     throw new AssertionError("List " + nextList + " contains multiple values for [" + pathElement + "]");
                 } else {
-                    value = values.getFirst();
+                    value = values.get(0);
                 }
             } else if (nextLayer == null) {
                 break;

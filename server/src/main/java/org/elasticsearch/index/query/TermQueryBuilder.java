@@ -27,8 +27,6 @@ import org.elasticsearch.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.Objects;
 
-import static org.elasticsearch.index.mapper.DataTierFieldMapper.CONTENT_TYPE;
-
 /**
  * A Query that matches documents containing a term.
  */

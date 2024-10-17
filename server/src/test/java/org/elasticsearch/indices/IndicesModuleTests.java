@@ -82,7 +82,7 @@ public class IndicesModuleTests extends ESTestCase {
         }
     });
 
-    private static final String[] EXPECTED_METADATA_FIELDS = new String[]{
+    private static final String[] EXPECTED_METADATA_FIELDS = new String[] {
         IgnoredFieldMapper.NAME,
         IdFieldMapper.NAME,
         RoutingFieldMapper.NAME,
@@ -98,7 +98,7 @@ public class IndicesModuleTests extends ESTestCase {
         DocCountFieldMapper.NAME,
         DataStreamTimestampFieldMapper.NAME,
         DataTierFieldMapper.NAME,
-        FieldNamesFieldMapper.NAME};
+        FieldNamesFieldMapper.NAME };
 
     @UpdateForV9(owner = UpdateForV9.Owner.SEARCH_FOUNDATIONS)
     @AwaitsFix(bugUrl = "test is referencing 7.x index versions so needs to be updated for 9.0 bump")

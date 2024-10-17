@@ -26,7 +26,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.GeometryCollection;
 import org.elasticsearch.geometry.ShapeType;
@@ -429,9 +428,6 @@ public abstract class AbstractGeometryQueryBuilder<QB extends AbstractGeometryQu
             GeoJson.toXContent(shape, builder, params);
         } else {
             builder.startObject(INDEXED_SHAPE_FIELD.getPreferredName()).field(SHAPE_ID_FIELD.getPreferredName(), indexedShapeId);
-            if (builder.getRestApiVersion() == RestApiVersion.V_7) {
-                builder.field(SHAPE_TYPE_FIELD.getPreferredName(), MapperService.SINGLE_MAPPING_NAME);
-            }
             if (indexedShapeIndex != null) {
                 builder.field(SHAPE_INDEX_FIELD.getPreferredName(), indexedShapeIndex);
             }
@@ -555,16 +551,13 @@ public abstract class AbstractGeometryQueryBuilder<QB extends AbstractGeometryQu
                                 } else if (token.isValue()) {
                                     if (SHAPE_ID_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                                         params.id = parser.text();
-                                    } else if (parser.getRestApiVersion() == RestApiVersion.V_7
-                                        && SHAPE_TYPE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                                            deprecationLogger.compatibleCritical("geo_share_query_with_types", TYPES_DEPRECATION_MESSAGE);
-                                        } else if (SHAPE_INDEX_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                                            params.index = parser.text();
-                                        } else if (SHAPE_PATH_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                                            params.shapePath = parser.text();
-                                        } else if (SHAPE_ROUTING_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                                            params.shapeRouting = parser.text();
-                                        }
+                                    } else if (SHAPE_INDEX_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
+                                        params.index = parser.text();
+                                    } else if (SHAPE_PATH_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
+                                        params.shapePath = parser.text();
+                                    } else if (SHAPE_ROUTING_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
+                                        params.shapeRouting = parser.text();
+                                    }
                                 } else {
                                     throw new ParsingException(
                                         parser.getTokenLocation(),

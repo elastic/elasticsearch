@@ -54,7 +54,6 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.NestedLookup;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
@@ -311,9 +310,6 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
         if (indexedDocumentIndex != null || indexedDocumentId != null) {
             if (indexedDocumentIndex != null) {
                 builder.field(INDEXED_DOCUMENT_FIELD_INDEX.getPreferredName(), indexedDocumentIndex);
-            }
-            if (builder.getRestApiVersion() == RestApiVersion.V_7) {
-                builder.field(INDEXED_DOCUMENT_FIELD_TYPE.getPreferredName(), MapperService.SINGLE_MAPPING_NAME);
             }
             if (indexedDocumentId != null) {
                 builder.field(INDEXED_DOCUMENT_FIELD_ID.getPreferredName(), indexedDocumentId);

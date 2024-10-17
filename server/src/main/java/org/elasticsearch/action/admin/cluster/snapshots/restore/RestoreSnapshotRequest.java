@@ -44,9 +44,26 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
     private String snapshot;
     private String repository;
     private String[] indices = Strings.EMPTY_ARRAY;
-    private IndicesOptions indicesOptions = DataStream.isFailureStoreFeatureFlagEnabled()
-        ? IndicesOptions.strictExpandOpenIncludeFailureStore()
-        : IndicesOptions.strictExpandOpen();
+    private IndicesOptions indicesOptions = IndicesOptions.builder()
+        .concreteTargetOptions(IndicesOptions.ConcreteTargetOptions.ERROR_WHEN_UNAVAILABLE_TARGETS)
+        .wildcardOptions(
+            IndicesOptions.WildcardOptions.builder()
+                .matchOpen(true)
+                .matchClosed(true)
+                .includeHidden(false)
+                .allowEmptyExpressions(true)
+                .resolveAliases(true)
+        )
+        .gatekeeperOptions(
+            IndicesOptions.GatekeeperOptions.builder()
+                .allowAliasToMultipleIndices(true)
+                .allowClosedIndices(true)
+                .allowFailureIndices(true)
+                .allowSelectors(true)
+                .ignoreThrottled(false)
+        )
+        .selectorOptions(IndicesOptions.SelectorOptions.ALL_SUPPORTED)
+        .build();
     private String[] featureStates = Strings.EMPTY_ARRAY;
     private String renamePattern;
     private String renameReplacement;

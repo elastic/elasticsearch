@@ -946,7 +946,7 @@ public record IndicesOptions(
      * @return Whether execution on failure indices is allowed.
      */
     public boolean allowSelectors() {
-        return gatekeeperOptions.allowSelectors();
+        return DataStream.isFailureStoreFeatureFlagEnabled() && gatekeeperOptions.allowSelectors();
     }
 
     /**

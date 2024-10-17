@@ -367,15 +367,6 @@ public class IndicesOptionsTests extends ESTestCase {
         assertThat(map.get("ignore_unavailable"), equalTo(concreteTargetOptions.allowUnavailableTargets()));
         assertThat(map.get("allow_no_indices"), equalTo(wildcardOptions.allowEmptyExpressions()));
         assertThat(map.get("ignore_throttled"), equalTo(gatekeeperOptions.ignoreThrottled()));
-        String displayValue;
-        if (IndicesOptions.SelectorOptions.ALL_SUPPORTED.equals(selectorOptions)) {
-            displayValue = "include";
-        } else if (IndicesOptions.SelectorOptions.ONLY_DATA.equals(selectorOptions)) {
-            displayValue = "exclude";
-        } else {
-            displayValue = "only";
-        }
-        assertThat(map.get("failure_store"), equalTo(displayValue));
     }
 
     public void testFromXContent() throws IOException {

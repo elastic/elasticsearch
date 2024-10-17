@@ -102,7 +102,7 @@ public class TransportGetInferenceModelAction extends HandledTransportAction<
 
     private void getAllModels(boolean doNotPersistEndpoints, ActionListener<GetInferenceModelAction.Response> listener) {
         modelRegistry.getAllModels(
-            doNotPersistEndpoints == false,
+            doNotPersistEndpoints,
             listener.delegateFailureAndWrap((l, models) -> executor.execute(ActionRunnable.supply(l, () -> parseModels(models))))
         );
     }

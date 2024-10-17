@@ -608,6 +608,27 @@ tasks.named('stringTemplates').configure {
     it.outputFile = "org/elasticsearch/compute/aggregation/RateDoubleAggregator.java"
   }
 
+  File stdDeviationAggregatorInputFile = file("src/main/java/org/elasticsearch/compute/aggregation/X-StdDeviationAggregator.java.st")
+  template {
+    it.properties = intProperties
+    it.inputFile = stdDeviationAggregatorInputFile
+    it.outputFile = "org/elasticsearch/compute/aggregation/StdDeviationIntAggregator.java"
+  }
+  template {
+    it.properties = longProperties
+    it.inputFile = stdDeviationAggregatorInputFile
+    it.outputFile = "org/elasticsearch/compute/aggregation/StdDeviationLongAggregator.java"
+  }
+  template {
+    it.properties = floatProperties
+    it.inputFile = stdDeviationAggregatorInputFile
+    it.outputFile = "org/elasticsearch/compute/aggregation/StdDeviationFloatAggregator.java"
+  }
+  template {
+    it.properties = doubleProperties
+    it.inputFile = stdDeviationAggregatorInputFile
+    it.outputFile = "org/elasticsearch/compute/aggregation/StdDeviationDoubleAggregator.java"
+  }
 
   File topAggregatorInputFile = new File("${projectDir}/src/main/java/org/elasticsearch/compute/aggregation/X-TopAggregator.java.st")
   template {

@@ -932,7 +932,6 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
             SemanticTextFieldMapper.insertValue("path1.path2.path3.path4.test", map, "value2");
             assertThat(getMapValue(map, "path1\\.path2.path3\\.path4.test"), equalTo("value2"));
 
-
             SemanticTextFieldMapper.insertValue("path1.path2.path3.path4.test2", map, "value3");
             assertThat(getMapValue(map, "path1\\.path2.path3\\.path4.test2"), equalTo("value3"));
             assertThat(getMapValue(map, "path1\\.path2.path3\\.path4"), equalTo(Map.of("test", "value2", "test2", "value3")));

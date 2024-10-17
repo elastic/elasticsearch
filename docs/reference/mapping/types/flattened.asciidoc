@@ -325,8 +325,7 @@ any issues, but features in technical preview are not subject to the support SLA
 of official GA features.
 
 Flattened fields support <<synthetic-source,synthetic`_source`>> in their default
-configuration. Synthetic `_source` cannot be used with <<doc-values,`doc_values`>>
-disabled.
+configuration.
 
 Synthetic source always sorts alphabetically and de-duplicates flattened fields.
 For example:

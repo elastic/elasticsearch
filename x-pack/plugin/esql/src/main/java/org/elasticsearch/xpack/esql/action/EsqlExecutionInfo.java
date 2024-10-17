@@ -7,12 +7,12 @@
 
 package org.elasticsearch.xpack.esql.action;
 
-import org.elasticsearch.common.collect.Iterators;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
-import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
+import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
 import org.elasticsearch.core.Predicates;
 import org.elasticsearch.core.TimeValue;
@@ -64,24 +64,29 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
     private final transient Predicate<String> skipUnavailablePredicate;
     private TimeValue overallTook;
 
-    public EsqlExecutionInfo() {
-        this(Predicates.always());  // default all clusters to skip_unavailable=true
+    // whether the user has asked for CCS metadata to be in the JSON response (the overall took will always be present)
+    private final boolean includeCCSMetadata;
+
+    public EsqlExecutionInfo(boolean includeCCSMetadata) {
+        this(Predicates.always(), includeCCSMetadata);  // default all clusters to skip_unavailable=true
     }
 
     /**
      * @param skipUnavailablePredicate provide lookup for whether a given cluster has skip_unavailable set to true or false
      */
-    public EsqlExecutionInfo(Predicate<String> skipUnavailablePredicate) {
+    public EsqlExecutionInfo(Predicate<String> skipUnavailablePredicate, boolean includeCCSMetadata) {
         this.clusterInfo = ConcurrentCollections.newConcurrentMap();
         this.skipUnavailablePredicate = skipUnavailablePredicate;
+        this.includeCCSMetadata = includeCCSMetadata;
     }
 
     /**
      * For testing use with fromXContent parsing only
      * @param clusterInfo
      */
-    EsqlExecutionInfo(ConcurrentMap<String, Cluster> clusterInfo) {
+    EsqlExecutionInfo(ConcurrentMap<String, Cluster> clusterInfo, boolean includeCCSMetadata) {
         this.clusterInfo = clusterInfo;
+        this.includeCCSMetadata = includeCCSMetadata;
         this.skipUnavailablePredicate = Predicates.always();
     }
 
@@ -95,6 +100,11 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
             clusterList.forEach(c -> m.put(c.getClusterAlias(), c));
             this.clusterInfo = m;
         }
+        if (in.getTransportVersion().onOrAfter(TransportVersions.OPT_IN_ESQL_CCS_EXECUTION_INFO)) {
+            this.includeCCSMetadata = in.readBoolean();
+        } else {
+            this.includeCCSMetadata = false;
+        }
         this.skipUnavailablePredicate = Predicates.always();
     }
 
@@ -106,6 +116,13 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
         } else {
             out.writeCollection(Collections.emptyList());
         }
+        if (out.getTransportVersion().onOrAfter(TransportVersions.OPT_IN_ESQL_CCS_EXECUTION_INFO)) {
+            out.writeBoolean(includeCCSMetadata);
+        }
+    }
+
+    public boolean includeCCSMetadata() {
+        return includeCCSMetadata;
     }
 
     public void overallTook(TimeValue took) {
@@ -167,19 +184,18 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
         if (isCrossClusterSearch() == false || clusterInfo.isEmpty()) {
-            return Iterators.concat();
+            return Collections.emptyIterator();
         }
-        return Iterators.concat(
-            ChunkedToXContentHelper.startObject(),
-            ChunkedToXContentHelper.field(TOTAL_FIELD.getPreferredName(), clusterInfo.size()),
-            ChunkedToXContentHelper.field(SUCCESSFUL_FIELD.getPreferredName(), getClusterStateCount(Cluster.Status.SUCCESSFUL)),
-            ChunkedToXContentHelper.field(RUNNING_FIELD.getPreferredName(), getClusterStateCount(Cluster.Status.RUNNING)),
-            ChunkedToXContentHelper.field(SKIPPED_FIELD.getPreferredName(), getClusterStateCount(Cluster.Status.SKIPPED)),
-            ChunkedToXContentHelper.field(PARTIAL_FIELD.getPreferredName(), getClusterStateCount(Cluster.Status.PARTIAL)),
-            ChunkedToXContentHelper.field(FAILED_FIELD.getPreferredName(), getClusterStateCount(Cluster.Status.FAILED)),
-            ChunkedToXContentHelper.xContentFragmentValuesMapCreateOwnName("details", clusterInfo),
-            ChunkedToXContentHelper.endObject()
-        );
+        return ChunkedToXContent.builder(params).object(b -> {
+            b.field(TOTAL_FIELD.getPreferredName(), clusterInfo.size());
+            b.field(SUCCESSFUL_FIELD.getPreferredName(), getClusterStateCount(Cluster.Status.SUCCESSFUL));
+            b.field(RUNNING_FIELD.getPreferredName(), getClusterStateCount(Cluster.Status.RUNNING));
+            b.field(SKIPPED_FIELD.getPreferredName(), getClusterStateCount(Cluster.Status.SKIPPED));
+            b.field(PARTIAL_FIELD.getPreferredName(), getClusterStateCount(Cluster.Status.PARTIAL));
+            b.field(FAILED_FIELD.getPreferredName(), getClusterStateCount(Cluster.Status.FAILED));
+            // each clusterinfo defines its own field object name
+            b.xContentObject("details", clusterInfo.values().iterator());
+        });
     }
 
     /**

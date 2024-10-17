@@ -7,34 +7,6 @@ setup:
 
   - do:
       indices.create:
-        index: index1
-        body:
-          settings:
-            index.number_of_shards: 2
-          mappings:
-            properties:
-              vector1:
-                type: dense_vector
-                dims: 768
-                index: true
-                similarity: l2_norm
-                element_type: byte
-                index_options:
-                  type: hnsw
-              vector2:
-                type: dense_vector
-                dims: 1024
-                index: true
-                similarity: dot_product
-                index_options:
-                  type: int8_hnsw
-              vector3:
-                type: dense_vector
-                dims: 100
-                index: false
-
-  - do:
-      indices.create:
         index: index2
         body:
           settings:
@@ -49,6 +21,32 @@ setup:
 
 ---
 "Field mapping stats":
+  - do:
+      indices.create:
+        index: index1
+        body:
+          settings:
+            index.number_of_shards: 2
+          mappings:
+            properties:
+              vector1:
+                type: dense_vector
+                dims: 768
+                index: true
+                similarity: l2_norm
+                index_options:
+                  type: hnsw
+                  m: 16
+                  ef_construction: 100
+              vector2:
+                type: dense_vector
+                dims: 1024
+                index: true
+                similarity: dot_product
+              vector3:
+                type: dense_vector
+                dims: 100
+                index: false
   - do: { cluster.stats: { } }
   - length: { indices.mappings.field_types: 1 }
   - match: { indices.mappings.field_types.0.name: dense_vector }
@@ -67,6 +65,35 @@ setup:
           capabilities:
             - "verbose-dense-vector-mapping-stats"
       reason: "Capability required to run test"
+
+  - do:
+      indices.create:
+        index: index1
+        body:
+          settings:
+            index.number_of_shards: 2
+          mappings:
+            properties:
+              vector1:
+                type: dense_vector
+                dims: 768
+                index: true
+                similarity: l2_norm
+                element_type: byte
+                index_options:
+                  type: hnsw
+                  m: 16
+                  ef_construction: 100
+              vector2:
+                type: dense_vector
+                dims: 1024
+                index: true
+                similarity: dot_product
+              vector3:
+                type: dense_vector
+                dims: 100
+                index: false
+
   - do: { cluster.stats: { } }
   - length: { indices.mappings.field_types: 1 }
   - match: { indices.mappings.field_types.0.name: dense_vector }

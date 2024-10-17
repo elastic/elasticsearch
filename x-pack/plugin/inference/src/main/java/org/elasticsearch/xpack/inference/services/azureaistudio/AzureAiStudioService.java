@@ -16,6 +16,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkedInferenceServiceResults;
 import org.elasticsearch.inference.ChunkingOptions;
+import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
@@ -24,6 +25,7 @@ import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xpack.inference.chunking.ChunkingSettingsBuilder;
 import org.elasticsearch.xpack.inference.chunking.EmbeddingRequestChunker;
 import org.elasticsearch.xpack.inference.external.action.azureaistudio.AzureAiStudioActionCreator;
 import org.elasticsearch.xpack.inference.external.http.sender.DocumentsOnlyInput;
@@ -40,6 +42,7 @@ import org.elasticsearch.xpack.inference.services.azureaistudio.embeddings.Azure
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInvalidModelException;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.parsePersistedConfigErrorMsg;
@@ -90,11 +93,14 @@ public class AzureAiStudioService extends SenderService {
     ) {
         if (model instanceof AzureAiStudioModel baseAzureAiStudioModel) {
             var actionCreator = new AzureAiStudioActionCreator(getSender(), getServiceComponents());
-            var batchedRequests = new EmbeddingRequestChunker(
+
+            List<EmbeddingRequestChunker.BatchRequestAndListener> batchedRequests = new EmbeddingRequestChunker(
                 inputs.getInputs(),
                 EMBEDDING_MAX_BATCH_SIZE,
-                EmbeddingRequestChunker.EmbeddingType.FLOAT
+                EmbeddingRequestChunker.EmbeddingType.FLOAT,
+                baseAzureAiStudioModel.getConfigurations().getChunkingSettings()
             ).batchRequestsWithListeners(listener);
+
             for (var request : batchedRequests) {
                 var action = baseAzureAiStudioModel.accept(actionCreator, taskSettings);
                 action.execute(new DocumentsOnlyInput(request.batch().inputs()), timeout, request.listener());
@@ -115,11 +121,19 @@ public class AzureAiStudioService extends SenderService {
             Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
             Map<String, Object> taskSettingsMap = removeFromMapOrDefaultEmpty(config, ModelConfigurations.TASK_SETTINGS);
 
+            ChunkingSettings chunkingSettings = null;
+            if (TaskType.TEXT_EMBEDDING.equals(taskType)) {
+                chunkingSettings = ChunkingSettingsBuilder.fromMap(
+                    removeFromMapOrDefaultEmpty(config, ModelConfigurations.CHUNKING_SETTINGS)
+                );
+            }
+
             AzureAiStudioModel model = createModel(
                 inferenceEntityId,
                 taskType,
                 serviceSettingsMap,
                 taskSettingsMap,
+                chunkingSettings,
                 serviceSettingsMap,
                 TaskType.unsupportedTaskTypeErrorMsg(taskType, NAME),
                 ConfigurationParseContext.REQUEST
@@ -146,11 +160,17 @@ public class AzureAiStudioService extends SenderService {
         Map<String, Object> taskSettingsMap = removeFromMapOrDefaultEmpty(config, ModelConfigurations.TASK_SETTINGS);
         Map<String, Object> secretSettingsMap = removeFromMapOrDefaultEmpty(secrets, ModelSecrets.SECRET_SETTINGS);
 
+        ChunkingSettings chunkingSettings = null;
+        if (TaskType.TEXT_EMBEDDING.equals(taskType)) {
+            chunkingSettings = ChunkingSettingsBuilder.fromMap(removeFromMapOrDefaultEmpty(config, ModelConfigurations.CHUNKING_SETTINGS));
+        }
+
         return createModelFromPersistent(
             inferenceEntityId,
             taskType,
             serviceSettingsMap,
             taskSettingsMap,
+            chunkingSettings,
             secretSettingsMap,
             parsePersistedConfigErrorMsg(inferenceEntityId, NAME)
         );
@@ -161,11 +181,17 @@ public class AzureAiStudioService extends SenderService {
         Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
         Map<String, Object> taskSettingsMap = removeFromMapOrDefaultEmpty(config, ModelConfigurations.TASK_SETTINGS);
 
+        ChunkingSettings chunkingSettings = null;
+        if (TaskType.TEXT_EMBEDDING.equals(taskType)) {
+            chunkingSettings = ChunkingSettingsBuilder.fromMap(removeFromMapOrDefaultEmpty(config, ModelConfigurations.CHUNKING_SETTINGS));
+        }
+
         return createModelFromPersistent(
             inferenceEntityId,
             taskType,
             serviceSettingsMap,
             taskSettingsMap,
+            chunkingSettings,
             null,
             parsePersistedConfigErrorMsg(inferenceEntityId, NAME)
         );
@@ -181,11 +207,17 @@ public class AzureAiStudioService extends SenderService {
         return TransportVersions.ML_INFERENCE_AZURE_AI_STUDIO;
     }
 
+    @Override
+    public Set<TaskType> supportedStreamingTasks() {
+        return COMPLETION_ONLY;
+    }
+
     private static AzureAiStudioModel createModel(
         String inferenceEntityId,
         TaskType taskType,
         Map<String, Object> serviceSettings,
         Map<String, Object> taskSettings,
+        ChunkingSettings chunkingSettings,
         @Nullable Map<String, Object> secretSettings,
         String failureMessage,
         ConfigurationParseContext context
@@ -198,6 +230,7 @@ public class AzureAiStudioService extends SenderService {
                 NAME,
                 serviceSettings,
                 taskSettings,
+                chunkingSettings,
                 secretSettings,
                 context
             );
@@ -235,6 +268,7 @@ public class AzureAiStudioService extends SenderService {
         TaskType taskType,
         Map<String, Object> serviceSettings,
         Map<String, Object> taskSettings,
+        ChunkingSettings chunkingSettings,
         Map<String, Object> secretSettings,
         String failureMessage
     ) {
@@ -243,6 +277,7 @@ public class AzureAiStudioService extends SenderService {
             taskType,
             serviceSettings,
             taskSettings,
+            chunkingSettings,
             secretSettings,
             failureMessage,
             ConfigurationParseContext.PERSISTENT

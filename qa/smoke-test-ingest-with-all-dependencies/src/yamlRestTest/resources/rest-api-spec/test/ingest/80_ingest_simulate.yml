@@ -371,7 +371,7 @@ setup:
           template:
             settings:
               index:
-                default_pipeline: "foo_pipeline"
+                default_pipeline: "foo-pipeline"
 
   - do:
       allowed_warnings:
@@ -523,7 +523,7 @@ setup:
           template:
             settings:
               index:
-                default_pipeline: "foo_pipeline"
+                default_pipeline: "foo-pipeline"
 
   - do:
       allowed_warnings:
@@ -799,6 +799,415 @@ setup:
                     }
                   }
                 }
+              }
+            }
+          }
+  - length: { docs: 1 }
+  - match: { docs.0.doc._index: "simple-data-stream1" }
+  - match: { docs.0.doc._source.foo: "FOO" }
+  - match: { docs.0.doc.executed_pipelines: ["foo-pipeline-2"] }
+  - not_exists: docs.0.doc.error
+
+---
+"Test ingest simulate with index template substitutions":
+
+  - skip:
+      features:
+        - headers
+        - allowed_warnings
+
+  - requires:
+      cluster_features: ["simulate.index.template.substitutions"]
+      reason: "ingest simulate index template substitutions added in 8.16"
+
+  - do:
+      headers:
+        Content-Type: application/json
+      ingest.put_pipeline:
+        id: "foo-pipeline"
+        body:  >
+          {
+            "processors": [
+              {
+                "set": {
+                  "field": "foo",
+                  "value": true
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      cluster.put_component_template:
+        name: settings_template
+        body:
+          template:
+            settings:
+              index:
+                default_pipeline: "foo-pipeline"
+
+  - do:
+      cluster.put_component_template:
+        name: mappings_template
+        body:
+          template:
+            mappings:
+              dynamic: strict
+              properties:
+                foo:
+                  type: keyword
+
+  - do:
+      allowed_warnings:
+        - "index template [test-composable-1] has index patterns [foo*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [test-composable-1] will take precedence during new index creation"
+      indices.put_index_template:
+        name: test-composable-1
+        body:
+          index_patterns:
+            - foo*
+          composed_of:
+            - mappings_template
+
+  - do:
+      headers:
+        Content-Type: application/json
+      simulate.ingest:
+        index: foo-1
+        body: >
+          {
+            "docs": [
+              {
+                "_id": "asdf",
+                "_source": {
+                  "foo": "FOO"
+                }
+              }
+            ],
+            "component_template_substitutions": {
+              "settings_template": {
+                "template": {
+                  "settings": {
+                    "index": {
+                      "default_pipeline": null
+                    }
+                  }
+                }
+              }
+            },
+            "index_template_substitutions": {
+              "foo_index_template": {
+                "index_patterns":[
+                  "foo*"
+                ],
+                "composed_of": ["settings_template"]
+              }
+            }
+          }
+  - length: { docs: 1 }
+  - match: { docs.0.doc._index: "foo-1" }
+  - match: { docs.0.doc._source.foo: "FOO" }
+  - match: { docs.0.doc.executed_pipelines: [] }
+  - not_exists: docs.0.doc.error
+
+  - do:
+      indices.create:
+        index: foo-1
+  - match: { acknowledged: true }
+
+  - do:
+      headers:
+        Content-Type: application/json
+      simulate.ingest:
+        index: foo-1
+        body: >
+          {
+            "docs": [
+              {
+                "_id": "asdf",
+                "_source": {
+                  "foo": "FOO"
+                }
+              }
+            ],
+            "component_template_substitutions": {
+              "settings_template": {
+                "template": {
+                  "settings": {
+                    "index": {
+                      "default_pipeline": null
+                    }
+                  }
+                }
+              }
+            },
+            "index_template_substitutions": {
+              "foo_index_template": {
+                "index_patterns":[
+                  "foo*"
+                ],
+                "composed_of": ["settings_template", "mappings_template"]
+              }
+            }
+          }
+  - length: { docs: 1 }
+  - match: { docs.0.doc._index: "foo-1" }
+  - match: { docs.0.doc._source.foo: "FOO" }
+  - match: { docs.0.doc.executed_pipelines: [] }
+  - not_exists: docs.0.doc.error
+
+  - do:
+      headers:
+        Content-Type: application/json
+      simulate.ingest:
+        index: foo-1
+        body: >
+          {
+            "docs": [
+              {
+                "_id": "asdf",
+                "_source": {
+                  "foo": "FOO"
+                }
+              }
+            ],
+            "component_template_substitutions": {
+              "mappings_template": {
+                "template": {
+                  "mappings": {
+                    "dynamic": "strict",
+                    "properties": {
+                      "foo": {
+                        "type": "boolean"
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "index_template_substitutions": {
+              "foo_index_template": {
+                "index_patterns":[
+                  "foo*"
+                ],
+                "composed_of": ["settings_template", "mappings_template"]
+              }
+            }
+          }
+  - length: { docs: 1 }
+  - match: { docs.0.doc._index: "foo-1" }
+  - match: { docs.0.doc._source.foo: true }
+  - match: { docs.0.doc.executed_pipelines: ["foo-pipeline"] }
+  - not_exists: docs.0.doc.error
+
+---
+"Test ingest simulate with index template substitutions for data streams":
+  # In this test, we make sure that when the index template is a data stream template, simulate ingest works the same whether the data
+  # stream has been created or not -- either way, we expect it to use the template rather than the data stream / index mappings and settings.
+
+  - skip:
+      features:
+        - headers
+        - allowed_warnings
+
+  - requires:
+      cluster_features: ["simulate.index.template.substitutions"]
+      reason: "ingest simulate component template substitutions added in 8.16"
+
+  - do:
+      headers:
+        Content-Type: application/json
+      ingest.put_pipeline:
+        id: "foo-pipeline"
+        body:  >
+          {
+            "processors": [
+              {
+                "set": {
+                  "field": "foo",
+                  "value": true
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      cluster.put_component_template:
+        name: mappings_template
+        body:
+          template:
+            mappings:
+              dynamic: strict
+              properties:
+                foo:
+                  type: boolean
+
+  - do:
+      cluster.put_component_template:
+        name: settings_template
+        body:
+          template:
+            settings:
+              index:
+                default_pipeline: "foo-pipeline"
+
+  - do:
+      allowed_warnings:
+        - "index template [test-composable-1] has index patterns [foo*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [test-composable-1] will take precedence during new index creation"
+      indices.put_index_template:
+        name: test-composable-1
+        body:
+          index_patterns:
+            - foo*
+          composed_of:
+            - mappings_template
+            - settings_template
+
+  - do:
+      allowed_warnings:
+        - "index template [my-template-1] has index patterns [simple-data-stream1] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-template-1] will take precedence during new index creation"
+      indices.put_index_template:
+        name: my-template-1
+        body:
+          index_patterns: [simple-data-stream1]
+          composed_of:
+            - mappings_template
+            - settings_template
+          data_stream: {}
+
+  # Here we replace my-template-1 with a substitute version that uses the settings_template_2 and mappings_template_2 templates defined in
+  # this request, and foo-pipeline-2 defined in this request.
+  - do:
+      headers:
+        Content-Type: application/json
+      simulate.ingest:
+        index: simple-data-stream1
+        body: >
+          {
+            "docs": [
+              {
+                "_id": "asdf",
+                "_source": {
+                  "@timestamp": 1234,
+                  "foo": false
+                }
+              }
+            ],
+            "pipeline_substitutions": {
+              "foo-pipeline-2": {
+                "processors": [
+                  {
+                    "set": {
+                      "field": "foo",
+                      "value": "FOO"
+                    }
+                  }
+                ]
+              }
+            },
+            "component_template_substitutions": {
+              "settings_template_2": {
+                "template": {
+                  "settings": {
+                    "index": {
+                      "default_pipeline": "foo-pipeline-2"
+                    }
+                  }
+                }
+              },
+              "mappings_template_2": {
+                "template": {
+                  "mappings": {
+                    "dynamic": "strict",
+                    "properties": {
+                      "foo": {
+                        "type": "keyword"
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "index_template_substitutions": {
+              "my-template-1": {
+                "index_patterns": ["simple-data-stream1"],
+                "composed_of": ["settings_template_2", "mappings_template_2"],
+                "data_stream": {}
+              }
+            }
+          }
+  - length: { docs: 1 }
+  - match: { docs.0.doc._index: "simple-data-stream1" }
+  - match: { docs.0.doc._source.foo: "FOO" }
+  - match: { docs.0.doc.executed_pipelines: ["foo-pipeline-2"] }
+  - not_exists: docs.0.doc.error
+
+  - do:
+      indices.create_data_stream:
+        name: simple-data-stream1
+  - is_true: acknowledged
+
+  - do:
+      cluster.health:
+        wait_for_status: yellow
+
+  - do:
+      headers:
+        Content-Type: application/json
+      simulate.ingest:
+        index: simple-data-stream1
+        body: >
+          {
+            "docs": [
+              {
+                "_id": "asdf",
+                "_source": {
+                  "@timestamp": 1234,
+                  "foo": false
+                }
+              }
+            ],
+            "pipeline_substitutions": {
+              "foo-pipeline-2": {
+                "processors": [
+                  {
+                    "set": {
+                      "field": "foo",
+                      "value": "FOO"
+                    }
+                  }
+                ]
+              }
+            },
+            "component_template_substitutions": {
+              "settings_template_2": {
+                "template": {
+                  "settings": {
+                    "index": {
+                      "default_pipeline": "foo-pipeline-2"
+                    }
+                  }
+                }
+              },
+              "mappings_template_2": {
+                "template": {
+                  "mappings": {
+                    "dynamic": "strict",
+                    "properties": {
+                      "foo": {
+                        "type": "keyword"
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "index_template_substitutions": {
+              "my-template-1": {
+                "index_patterns": ["simple-data-stream1"],
+                "composed_of": ["settings_template_2", "mappings_template_2"],
+                "data_stream": {}
               }
             }
           }

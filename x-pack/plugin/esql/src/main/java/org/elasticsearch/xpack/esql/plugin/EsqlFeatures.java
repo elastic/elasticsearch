@@ -134,7 +134,6 @@ public class EsqlFeatures implements FeatureSpecification {
 
     /**
      * Blocks can be labelled with {@link org.elasticsearch.compute.data.Block.MvOrdering#SORTED_ASCENDING} for optimizations.
-     * C.f. {@link org.elasticsearch.TransportVersions#ESQL_MV_ORDERING_SORTED_ASCENDING}.
      */
     public static final NodeFeature MV_ORDERING_SORTED_ASCENDING = new NodeFeature("esql.mv_ordering_sorted_ascending");
 

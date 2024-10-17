@@ -26,7 +26,7 @@ topLevelQuery
     ;
 
 query
-    : query (AND | OR) query #booleanQuery
+    : query (AND | OR) query          #booleanQuery
     | NOT subQuery=simpleQuery        #notQuery
     | simpleQuery                     #defaultQuery
     ;

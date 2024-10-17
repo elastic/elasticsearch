@@ -30,6 +30,7 @@ import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.ConstantFieldType;
+import org.elasticsearch.index.mapper.DataTierFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.indices.TermsLookup;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -345,6 +346,23 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
             throw new IllegalStateException("Rewrite first");
         }
         return fieldType.termsQuery(values, context);
+    }
+
+    @Override
+    protected QueryBuilder doCoordinatorRewrite(CoordinatorRewriteContext coordinatorRewriteContext) {
+        if (fieldName.equals(DataTierFieldMapper.NAME) == false) {
+            return this;
+        }
+        final MappedFieldType fieldType = coordinatorRewriteContext.getFieldType(DataTierFieldMapper.NAME);
+        if (fieldType instanceof final DataTierFieldMapper.DataTierFieldType tierFieldType) {
+            for (Object value : values) {
+                Query tierFieldQuery = tierFieldType.innerTermsQuery(value, coordinatorRewriteContext);
+                if (tierFieldQuery instanceof MatchNoDocsQuery) {
+                    return new MatchNoneQueryBuilder("The \"" + getName() + "\" query was rewritten to a \"match_none\" query.");
+                }
+            }
+        }
+        return this;
     }
 
     private static void fetch(TermsLookup termsLookup, Client client, ActionListener<List<Object>> actionListener) {

@@ -30,6 +30,7 @@ import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
+import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.index.shard.IndexLongFieldRange;
 import org.elasticsearch.indices.DateFieldRangeInfo;
 import org.elasticsearch.indices.IndicesService;
@@ -1052,17 +1053,35 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseFroz
         final IndexMetadata partiallyMountedIndexMetadata = getIndexMetadata(partiallyMountedIndex);
         waitUntilAllShardsAreUnassigned(partiallyMountedIndexMetadata.getIndex());
 
-        TermQueryBuilder termQueryBuilder = QueryBuilders.termQuery("_tier", "data_content");
-        List<String> indicesToSearch = List.of(regularIndex, partiallyMountedIndex);
-        SearchRequest request = new SearchRequest().indices(indicesToSearch.toArray(new String[0]))
-            .source(new SearchSourceBuilder().query(termQueryBuilder));
+        {
+            // term query
+            TermQueryBuilder termQueryBuilder = QueryBuilders.termQuery("_tier", "data_content");
+            List<String> indicesToSearch = List.of(regularIndex, partiallyMountedIndex);
+            SearchRequest request = new SearchRequest().indices(indicesToSearch.toArray(new String[0]))
+                .source(new SearchSourceBuilder().query(termQueryBuilder));
 
-        assertResponse(client().search(request), searchResponse -> {
-            // as we excluded the frozen tier we shouldn't get any failures
-            assertThat(searchResponse.getFailedShards(), equalTo(0));
-            // we should be receiving all the hits from the index that's in the data_content tier
-            assertThat(searchResponse.getHits().getTotalHits().value, equalTo((long) numDocsRegularIndex));
-        });
+            assertResponse(client().search(request), searchResponse -> {
+                // as we excluded the frozen tier we shouldn't get any failures
+                assertThat(searchResponse.getFailedShards(), equalTo(0));
+                // we should be receiving all the hits from the index that's in the data_content tier
+                assertThat(searchResponse.getHits().getTotalHits().value, equalTo((long) numDocsRegularIndex));
+            });
+        }
+
+        {
+            // termS query
+            TermsQueryBuilder termsQueryBuilder = QueryBuilders.termsQuery("_tier", "data_hot", "data_content");
+            List<String> indicesToSearch = List.of(regularIndex, partiallyMountedIndex);
+            SearchRequest request = new SearchRequest().indices(indicesToSearch.toArray(new String[0]))
+                .source(new SearchSourceBuilder().query(termsQueryBuilder));
+
+            assertResponse(client().search(request), searchResponse -> {
+                // as we excluded the frozen tier we shouldn't get any failures
+                assertThat(searchResponse.getFailedShards(), equalTo(0));
+                // we should be receiving all the hits from the index that's in the data_content tier
+                assertThat(searchResponse.getHits().getTotalHits().value, equalTo((long) numDocsRegularIndex));
+            });
+        }
     }
 
     private void createIndexWithOnlyOneTimestampField(String timestampField, String index, int numShards, Settings extraSettings)

@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.query.CoordinatorRewriteContext;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -54,10 +55,8 @@ public class DataTierFieldMapper extends MetadataFieldMapper {
                 pattern = Strings.toLowercaseAscii(pattern);
             }
 
-            String tierPreference = context instanceof CoordinatorRewriteContext
-                ? ((CoordinatorRewriteContext) context).tier()
-                : getTierPreference(context);
-            if (tierPreference == null || tierPreference.isEmpty()) {
+            String tierPreference = getTierPreference(context);
+            if (tierPreference == null) {
                 return false;
             }
             return Regex.simpleMatch(pattern, tierPreference);
@@ -86,7 +85,13 @@ public class DataTierFieldMapper extends MetadataFieldMapper {
          * Retrieve the first tier preference from the index setting. If the setting is not
          * present, then return null.
          */
+        @Nullable
         static String getTierPreference(QueryRewriteContext context) {
+            if (context instanceof CoordinatorRewriteContext) {
+                String tier = ((CoordinatorRewriteContext) context).tier();
+                // dominant branch first (tier preference is configured) first
+                return tier.isEmpty() == false ? tier : null;
+            }
             Settings settings = context.getIndexSettings().getSettings();
             String value = DataTier.TIER_PREFERENCE_SETTING.get(settings);
 

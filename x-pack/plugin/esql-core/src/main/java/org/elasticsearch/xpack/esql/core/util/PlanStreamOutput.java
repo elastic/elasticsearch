@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.esql.core.util;
 
-import org.elasticsearch.TransportVersions;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 
@@ -35,14 +33,4 @@ public interface PlanStreamOutput {
     boolean writeEsFieldCacheHeader(EsField field) throws IOException;
 
     void writeCachedString(String field) throws IOException;
-
-    static void writeCachedStringWithVersionCheck(StreamOutput planStreamOutput, String string) throws IOException {
-        if (planStreamOutput.getTransportVersion().before(TransportVersions.ESQL_CACHED_STRING_SERIALIZATION)) {
-            planStreamOutput.writeString(string);
-        } else {
-            ((PlanStreamOutput) planStreamOutput).writeCachedString(string);
-        }
-    }
-
-    void writeOptionalCachedString(String str) throws IOException;
 }

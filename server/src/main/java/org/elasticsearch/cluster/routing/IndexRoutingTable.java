@@ -241,7 +241,7 @@ public class IndexRoutingTable implements SimpleDiffable<IndexRoutingTable> {
             boolean found = false;
             for (int idx = 0; idx < shardRoutingTable.size(); idx++) {
                 ShardRouting shardRouting = shardRoutingTable.shard(idx);
-                if (shardRouting.active() && OperationRouting.canSearchShard(shardRouting, clusterState)) {
+                if (shardRouting.active() && shardRouting.isSearchable()) {
                     found = true;
                     break;
                 }

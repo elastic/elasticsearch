@@ -58,7 +58,7 @@ public class SecurityIndexRolesMetadataMigrationIT extends AbstractUpgradeTestCa
         } else if (CLUSTER_TYPE == ClusterType.UPGRADED) {
             createRoleWithMetadata(upgradedTestRole, Map.of("meta", "test"));
             assertTrue(canRolesBeMigrated());
-            waitForMigrationCompletion(adminClient());
+            waitForSecurityMigrationCompletion(adminClient(), 1);
             assertMigratedDocInSecurityIndex(oldTestRole, "meta", "test");
             assertMigratedDocInSecurityIndex(mixed1TestRole, "meta", "test");
             assertMigratedDocInSecurityIndex(mixed2TestRole, "meta", "test");
@@ -134,23 +134,6 @@ public class SecurityIndexRolesMetadataMigrationIT extends AbstractUpgradeTestCa
         assertFalse(
             ((Map<String, Object>) indicesMetadataMap.get(INTERNAL_SECURITY_MAIN_INDEX_7)).containsKey(MIGRATION_VERSION_CUSTOM_KEY)
         );
-    }
-
-    @SuppressWarnings("unchecked")
-    private static void waitForMigrationCompletion(RestClient adminClient) throws Exception {
-        final Request request = new Request("GET", "_cluster/state/metadata/" + INTERNAL_SECURITY_MAIN_INDEX_7);
-        assertBusy(() -> {
-            Response response = adminClient.performRequest(request);
-            assertOK(response);
-            Map<String, Object> responseMap = responseAsMap(response);
-            Map<String, Object> indicesMetadataMap = (Map<String, Object>) ((Map<String, Object>) responseMap.get("metadata")).get(
-                "indices"
-            );
-            assertTrue(indicesMetadataMap.containsKey(INTERNAL_SECURITY_MAIN_INDEX_7));
-            assertTrue(
-                ((Map<String, Object>) indicesMetadataMap.get(INTERNAL_SECURITY_MAIN_INDEX_7)).containsKey(MIGRATION_VERSION_CUSTOM_KEY)
-            );
-        });
     }
 
     private void createRoleWithMetadata(String roleName, Map<String, Object> metadata) throws IOException {

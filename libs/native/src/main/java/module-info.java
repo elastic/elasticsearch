@@ -7,8 +7,6 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-import org.elasticsearch.jdk.ModuleQualifiedExportsService;
-import org.elasticsearch.nativeaccess.exports.NativeAccessModuleExportsService;
 import org.elasticsearch.nativeaccess.lib.NativeLibraryProvider;
 
 module org.elasticsearch.nativeaccess {
@@ -24,7 +22,4 @@ module org.elasticsearch.nativeaccess {
             org.elasticsearch.systemd;
 
     uses NativeLibraryProvider;
-
-    provides ModuleQualifiedExportsService with NativeAccessModuleExportsService;
-
 }

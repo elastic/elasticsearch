@@ -9,6 +9,7 @@
 
 package org.elasticsearch.datastreams;
 
+import org.apache.lucene.tests.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
@@ -22,7 +23,6 @@ import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.disruption.IntermittentLongGCDisruption;
 import org.elasticsearch.test.disruption.SingleNodeDisruption;
 import org.elasticsearch.xcontent.XContentType;
 
@@ -34,6 +34,7 @@ import java.util.concurrent.ExecutionException;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
+@AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/115045")
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, numClientNodes = 0)
 public class LazyRolloverDuringDisruptionIT extends ESIntegTestCase {
 
@@ -59,7 +60,8 @@ public class LazyRolloverDuringDisruptionIT extends ESIntegTestCase {
         assertThat(dataStream.getBackingIndices().getIndices().size(), equalTo(1));
 
         // Introduce a disruption to the master node that should delay the rollover execution
-        SingleNodeDisruption masterNodeDisruption = new IntermittentLongGCDisruption(random(), masterNode, 100, 200, 30000, 60000);
+        SingleNodeDisruption masterNodeDisruption = null;
+        // TODO: find alternative to disrupt master operations, see https://github.com/elastic/elasticsearch/issues/115045
         internalCluster().setDisruptionScheme(masterNodeDisruption);
         masterNodeDisruption.startDisrupting();
 

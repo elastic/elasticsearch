@@ -378,12 +378,9 @@ public class RestController implements HttpServerTransport.Dispatcher {
         final SortedMap<String, HttpRouteStats> allStats = new TreeMap<>();
         while (methodHandlersIterator.hasNext()) {
             final MethodHandlers mh = methodHandlersIterator.next();
-            final HttpRouteStatsTracker statsTracker = mh.getStats();
-            if (statsTracker != null) {
-                final HttpRouteStats stats = statsTracker.getStats();
-                if (stats.requestCount() > 0 || stats.responseCount() > 0) {
-                    allStats.put(mh.getPath(), stats);
-                }
+            final HttpRouteStats stats = mh.getStats();
+            if (stats.requestCount() > 0 || stats.responseCount() > 0) {
+                allStats.put(mh.getPath(), stats);
             }
         }
         return Collections.unmodifiableSortedMap(allStats);
@@ -896,7 +893,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
             super(delegate);
             this.circuitBreakerService = circuitBreakerService;
             this.contentLength = contentLength;
-            this.stats = methodHandlers.getOrInitStats();
+            this.stats = methodHandlers.statsTracker();
             this.startTime = rawRelativeTimeInMillis();
         }
 

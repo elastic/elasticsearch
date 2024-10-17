@@ -9,8 +9,8 @@
 
 package org.elasticsearch.rest;
 
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RestApiVersion;
+import org.elasticsearch.http.HttpRouteStats;
 import org.elasticsearch.http.HttpRouteStatsTracker;
 
 import java.lang.invoke.MethodHandles;
@@ -86,19 +86,26 @@ final class MethodHandlers {
         return methodHandlers.keySet();
     }
 
-    @Nullable
-    public HttpRouteStatsTracker getStats() {
-        return (HttpRouteStatsTracker) STATS_TRACKER_HANDLE.getAcquire(this);
+    public HttpRouteStats getStats() {
+        var tracker = existingStatsTracker();
+        if (tracker == null) {
+            return HttpRouteStats.EMPTY;
+        }
+        return tracker.getStats();
     }
 
-    public HttpRouteStatsTracker getOrInitStats() {
-        var tracker = (HttpRouteStatsTracker) STATS_TRACKER_HANDLE.getAcquire(this);
+    public HttpRouteStatsTracker statsTracker() {
+        var tracker = existingStatsTracker();
         if (tracker == null) {
             var newTracker = new HttpRouteStatsTracker();
-            if ((tracker = (HttpRouteStatsTracker) STATS_TRACKER_HANDLE.compareAndExchangeRelease(this, null, newTracker)) == null) {
+            if ((tracker = (HttpRouteStatsTracker) STATS_TRACKER_HANDLE.compareAndExchange(this, null, newTracker)) == null) {
                 tracker = newTracker;
             }
         }
         return tracker;
+    }
+
+    private HttpRouteStatsTracker existingStatsTracker() {
+        return (HttpRouteStatsTracker) STATS_TRACKER_HANDLE.getAcquire(this);
     }
 }

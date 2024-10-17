@@ -44,11 +44,11 @@ import java.util.Map;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
-public class ES87TSDBDocValuesFormatTests extends BaseDocValuesFormatTestCase {
+public class ES817TSDBDocValuesFormatTests extends BaseDocValuesFormatTestCase {
 
     private static final int NUM_DOCS = 10;
 
-    private final Codec codec = TestUtil.alwaysDocValuesFormat(new ES87TSDBDocValuesFormat());
+    private final Codec codec = TestUtil.alwaysDocValuesFormat(new ES817TSDBDocValuesFormat());
 
     @Override
     protected Codec getCodec() {

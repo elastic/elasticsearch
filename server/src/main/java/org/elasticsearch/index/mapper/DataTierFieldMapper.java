@@ -89,7 +89,7 @@ public class DataTierFieldMapper extends MetadataFieldMapper {
         static String getTierPreference(QueryRewriteContext context) {
             if (context instanceof CoordinatorRewriteContext) {
                 String tier = ((CoordinatorRewriteContext) context).tier();
-                // dominant branch first (tier preference is configured) first
+                // dominant branch first (tier preference is configured)
                 return tier.isEmpty() == false ? tier : null;
             }
             Settings settings = context.getIndexSettings().getSettings();

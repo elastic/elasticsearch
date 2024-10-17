@@ -356,9 +356,11 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
         final MappedFieldType fieldType = coordinatorRewriteContext.getFieldType(DataTierFieldMapper.NAME);
         if (fieldType instanceof final DataTierFieldMapper.DataTierFieldType tierFieldType) {
             for (Object value : values) {
-                Query tierFieldQuery = tierFieldType.innerTermsQuery(value, coordinatorRewriteContext);
+                Query tierFieldQuery = tierFieldType.internalTermQueryCaseInsensitive(value, coordinatorRewriteContext);
                 if (tierFieldQuery instanceof MatchNoDocsQuery) {
                     return new MatchNoneQueryBuilder("The \"" + getName() + "\" query was rewritten to a \"match_none\" query.");
+                } else if (tierFieldQuery instanceof MatchAllDocsQuery) {
+                    return new MatchAllQueryBuilder();
                 }
             }
         }

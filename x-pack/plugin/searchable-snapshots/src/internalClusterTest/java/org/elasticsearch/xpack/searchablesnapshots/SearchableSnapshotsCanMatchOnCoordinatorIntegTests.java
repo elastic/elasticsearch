@@ -971,32 +971,6 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseFroz
         }
     }
 
-    private void createIndexWithTimestampAndEventIngested(String indexName, int numShards, Settings extraSettings) throws IOException {
-        assertAcked(
-            indicesAdmin().prepareCreate(indexName)
-                .setMapping(
-                    XContentFactory.jsonBuilder()
-                        .startObject()
-                        .startObject("properties")
-
-                        .startObject(DataStream.TIMESTAMP_FIELD_NAME)
-                        .field("type", randomFrom("date", "date_nanos"))
-                        .field("format", "strict_date_optional_time_nanos")
-                        .endObject()
-
-                        .startObject(IndexMetadata.EVENT_INGESTED_FIELD_NAME)
-                        .field("type", randomFrom("date", "date_nanos"))
-                        .field("format", "strict_date_optional_time_nanos")
-                        .endObject()
-
-                        .endObject()
-                        .endObject()
-                )
-                .setSettings(indexSettingsNoReplicas(numShards).put(INDEX_SOFT_DELETES_SETTING.getKey(), true).put(extraSettings))
-        );
-        ensureGreen(indexName);
-    }
-
     public void testCanMatchSkipsPartiallyMountedIndicesWhenFrozenNodesUnavailable() throws Exception {
         internalCluster().startMasterOnlyNode();
         internalCluster().startCoordinatingOnlyNode(Settings.EMPTY);
@@ -1098,6 +1072,32 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseFroz
                 assertThat(searchResponse.getHits().getTotalHits().value, equalTo((long) numDocsRegularIndex));
             });
         }
+    }
+
+    private void createIndexWithTimestampAndEventIngested(String indexName, int numShards, Settings extraSettings) throws IOException {
+        assertAcked(
+            indicesAdmin().prepareCreate(indexName)
+                .setMapping(
+                    XContentFactory.jsonBuilder()
+                        .startObject()
+                        .startObject("properties")
+
+                        .startObject(DataStream.TIMESTAMP_FIELD_NAME)
+                        .field("type", randomFrom("date", "date_nanos"))
+                        .field("format", "strict_date_optional_time_nanos")
+                        .endObject()
+
+                        .startObject(IndexMetadata.EVENT_INGESTED_FIELD_NAME)
+                        .field("type", randomFrom("date", "date_nanos"))
+                        .field("format", "strict_date_optional_time_nanos")
+                        .endObject()
+
+                        .endObject()
+                        .endObject()
+                )
+                .setSettings(indexSettingsNoReplicas(numShards).put(INDEX_SOFT_DELETES_SETTING.getKey(), true).put(extraSettings))
+        );
+        ensureGreen(indexName);
     }
 
     private void createIndexWithOnlyOneTimestampField(String timestampField, String index, int numShards, Settings extraSettings)

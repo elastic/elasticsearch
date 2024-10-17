@@ -740,7 +740,7 @@ public abstract class CcrIntegTestCase extends ESTestCase {
             for (int i = 0; i < msuOnLeader.length; i++) {
                 msuOnLeader[i] = SequenceNumbers.UNASSIGNED_SEQ_NO;
             }
-            Set<String> leaderNodes = getLeaderCluster().nodesInclude(leaderIndex.getName());
+            Set<String> leaderNodes = getLeaderCluster().nodesByNameThatIncludeIndex(leaderIndex.getName());
             for (String leaderNode : leaderNodes) {
                 IndicesService indicesService = getLeaderCluster().getInstance(IndicesService.class, leaderNode);
                 for (int i = 0; i < numberOfShards; i++) {
@@ -755,7 +755,7 @@ public abstract class CcrIntegTestCase extends ESTestCase {
                 }
             }
 
-            Set<String> followerNodes = getFollowerCluster().nodesInclude(followerIndex.getName());
+            Set<String> followerNodes = getFollowerCluster().nodesByNameThatIncludeIndex(followerIndex.getName());
             for (String followerNode : followerNodes) {
                 IndicesService indicesService = getFollowerCluster().getInstance(IndicesService.class, followerNode);
                 for (int i = 0; i < numberOfShards; i++) {

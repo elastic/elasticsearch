@@ -47,13 +47,6 @@ import java.util.stream.Collectors;
  */
 public abstract class BaseRestHandler implements RestHandler {
 
-    /**
-     * Parameter that controls whether certain REST apis should include type names in their requests or responses.
-     * Note: This parameter is only available through compatible rest api for {@link RestApiVersion#V_7}.
-     */
-    public static final String INCLUDE_TYPE_NAME_PARAMETER = "include_type_name";
-    public static final boolean DEFAULT_INCLUDE_TYPE_NAME_POLICY = false;
-
     public static final Setting<Boolean> MULTI_ALLOW_EXPLICIT_INDEX = Setting.boolSetting(
         "rest.action.multi.allow_explicit_index",
         true,

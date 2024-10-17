@@ -59,7 +59,6 @@ import java.util.StringJoiner;
 import static org.elasticsearch.action.ActionListener.wrap;
 import static org.elasticsearch.transport.RemoteClusterAware.buildRemoteIndexName;
 import static org.elasticsearch.xpack.core.ClientHelper.ASYNC_SEARCH_ORIGIN;
-import static org.elasticsearch.xpack.ql.plugin.TransportActionUtils.executeRequestWithRetryAttempt;
 
 public final class TransportEqlSearchAction extends HandledTransportAction<EqlSearchRequest, EqlSearchResponse>
     implements
@@ -236,22 +235,11 @@ public final class TransportEqlSearchAction extends HandledTransportAction<EqlSe
                 new TaskId(nodeId, task.getId()),
                 task
             );
-            executeRequestWithRetryAttempt(
-                clusterService,
-                listener::onFailure,
-                onFailure -> planExecutor.eql(
-                    cfg,
-                    request.query(),
-                    params,
-                    wrap(r -> listener.onResponse(createResponse(r, task.getExecutionId())), onFailure)
-                ),
-                node -> transportService.sendRequest(
-                    node,
-                    EqlSearchAction.NAME,
-                    request,
-                    new ActionListenerResponseHandler<>(listener, EqlSearchResponse::new, EsExecutors.DIRECT_EXECUTOR_SERVICE)
-                ),
-                log
+            planExecutor.eql(
+                cfg,
+                request.query(),
+                params,
+                wrap(r -> listener.onResponse(createResponse(r, task.getExecutionId())), listener::onFailure)
             );
         }
     }

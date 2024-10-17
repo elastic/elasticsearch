@@ -151,10 +151,7 @@ public class ClusterStateCreationUtils {
             .settings(indexSettings(IndexVersion.current(), 1, numberOfReplicas).put(SETTING_CREATION_DATE, System.currentTimeMillis()))
             .primaryTerm(0, primaryTerm)
             .timestampRange(timeFieldRange)
-            .eventIngestedRange(
-                timeFieldRange,
-                timeFieldRange == IndexLongFieldRange.UNKNOWN ? null : TransportVersions.EVENT_INGESTED_RANGE_IN_CLUSTER_STATE
-            )
+            .eventIngestedRange(timeFieldRange, timeFieldRange == IndexLongFieldRange.UNKNOWN ? null : TransportVersions.V_8_15_0)
             .build();
 
         IndexShardRoutingTable.Builder indexShardRoutingBuilder = new IndexShardRoutingTable.Builder(shardId);
@@ -287,10 +284,7 @@ public class ClusterStateCreationUtils {
                 .settings(
                     indexSettings(IndexVersion.current(), numberOfPrimaries, 0).put(SETTING_CREATION_DATE, System.currentTimeMillis())
                 )
-                .eventIngestedRange(
-                    IndexLongFieldRange.UNKNOWN,
-                    randomFrom(TransportVersions.V_8_0_0, TransportVersions.EVENT_INGESTED_RANGE_IN_CLUSTER_STATE)
-                )
+                .eventIngestedRange(IndexLongFieldRange.UNKNOWN, randomFrom(TransportVersions.V_8_0_0, TransportVersions.V_8_15_0))
                 .build();
 
             IndexRoutingTable.Builder indexRoutingTable = IndexRoutingTable.builder(indexMetadata.getIndex());

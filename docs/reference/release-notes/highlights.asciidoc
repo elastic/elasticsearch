@@ -11,7 +11,8 @@ For detailed information about this release, see the <<es-release-notes>> and
 // Add previous release to the list
 Other versions:
 
-{ref-bare}/8.15/release-highlights.html[8.15]
+{ref-bare}/8.16/release-highlights.html[8.16]
+| {ref-bare}/8.15/release-highlights.html[8.15]
 | {ref-bare}/8.14/release-highlights.html[8.14]
 | {ref-bare}/8.13/release-highlights.html[8.13]
 | {ref-bare}/8.12/release-highlights.html[8.12]
@@ -30,6 +31,8 @@ Other versions:
 
 endif::[]
 
+// The notable-highlights tag marks entries that
+// should be featured in the Stack Installation and Upgrade Guide:
 // tag::notable-highlights[]
 
 [discrete]
@@ -96,30 +99,4 @@ ZStandard offers ~12% lower storage usage and a ~14% higher indexing throughput 
 
 // end::notable-highlights[]
 
-
-[discrete]
-[[esql_multi_value_fields_supported_in_geospatial_predicates]]
-=== ESQL: Multi-value fields supported in Geospatial predicates
-Supporting multi-value fields in `WHERE` predicates is a challenge due to not knowing whether `ALL` or `ANY`
-of the values in the field should pass the predicate.
-For example, should the field `age:[10,30]` pass the predicate `WHERE age>20` or not?
-This ambiguity does not exist with the spatial predicates
-`ST_INTERSECTS` and `ST_DISJOINT`, because the choice between `ANY` or `ALL`
-is implied by the predicate itself.
-Consider a predicate checking a field named `location` against a test geometry named `shape`:
-
-* `ST_INTERSECTS(field, shape)` - true if `ANY` value can intersect the shape
-* `ST_DISJOINT(field, shape)` - true only if `ALL` values are disjoint from the shape
-
-This works even if the shape argument is itself a complex or compound geometry.
-
-Similar logic exists for `ST_CONTAINS` and `ST_WITHIN` predicates, but these are not as easily solved
-with `ANY` or `ALL`, because a collection of geometries contains another collection if each of the contained
-geometries is within at least one of the containing geometries. Evaluating this requires that the multi-value
-field is first combined into a single geometry before performing the predicate check.
-
-* `ST_CONTAINS(field, shape)` - true if the combined geometry contains the shape
-* `ST_WITHIN(field, shape)` - true if the combined geometry is within the shape
-
-{es-pull}112063[#112063]
 

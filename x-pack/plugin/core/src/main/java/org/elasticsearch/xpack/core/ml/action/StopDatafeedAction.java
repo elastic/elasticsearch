@@ -169,11 +169,7 @@ public class StopDatafeedAction extends ActionType<StopDatafeedAction.Response> 
             builder.field(DatafeedConfig.ID.getPreferredName(), datafeedId);
             builder.field(TIMEOUT.getPreferredName(), stopTimeout.getStringRep());
             builder.field(FORCE.getPreferredName(), force);
-            if (builder.getRestApiVersion() == RestApiVersion.V_7) {
-                builder.field(DEPRECATED_ALLOW_NO_DATAFEEDS_PARAM, allowNoMatch);
-            } else {
-                builder.field(ALLOW_NO_MATCH.getPreferredName(), allowNoMatch);
-            }
+            builder.field(ALLOW_NO_MATCH.getPreferredName(), allowNoMatch);
             builder.endObject();
             return builder;
         }

@@ -103,7 +103,7 @@ public class SimpleNetty4TransportTests extends AbstractSimpleTransportTestCase 
             MockTransportService serviceD = buildService("TS_D", VersionInformation.CURRENT, TransportVersion.current(), Settings.EMPTY)
         ) {
 
-            try (Transport.Connection connection = openConnection(serviceC, serviceD.getLocalDiscoNode(), TestProfiles.LIGHT_PROFILE)) {
+            try (Transport.Connection connection = openConnection(serviceC, serviceD.getLocalNode(), TestProfiles.LIGHT_PROFILE)) {
                 assertThat(connection, instanceOf(StubbableTransport.WrappedConnection.class));
                 Transport.Connection conn = ((StubbableTransport.WrappedConnection) connection).getConnection();
                 assertThat(conn, instanceOf(TcpTransport.NodeChannels.class));
@@ -147,7 +147,7 @@ public class SimpleNetty4TransportTests extends AbstractSimpleTransportTestCase 
             MockTransportService serviceD = buildService("TS_D", VersionInformation.CURRENT, TransportVersion.current(), Settings.EMPTY)
         ) {
 
-            try (Transport.Connection connection = openConnection(serviceC, serviceD.getLocalDiscoNode(), connectionProfile)) {
+            try (Transport.Connection connection = openConnection(serviceC, serviceD.getLocalNode(), connectionProfile)) {
                 assertThat(connection, instanceOf(StubbableTransport.WrappedConnection.class));
                 Transport.Connection conn = ((StubbableTransport.WrappedConnection) connection).getConnection();
                 assertThat(conn, instanceOf(TcpTransport.NodeChannels.class));

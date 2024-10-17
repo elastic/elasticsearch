@@ -12,7 +12,6 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -22,7 +21,6 @@ import java.util.List;
 import java.util.Objects;
 
 import static java.util.Collections.singletonMap;
-import static org.elasticsearch.rest.BaseRestHandler.INCLUDE_TYPE_NAME_PARAMETER;
 
 public class GetIndexTemplatesResponse extends ActionResponse implements ToXContentObject {
 
@@ -65,11 +63,7 @@ public class GetIndexTemplatesResponse extends ActionResponse implements ToXCont
 
         builder.startObject();
         for (IndexTemplateMetadata indexTemplateMetadata : getIndexTemplates()) {
-            if (builder.getRestApiVersion() == RestApiVersion.V_7 && params.paramAsBoolean(INCLUDE_TYPE_NAME_PARAMETER, false)) {
-                IndexTemplateMetadata.Builder.toXContentWithTypes(indexTemplateMetadata, builder, params);
-            } else {
-                IndexTemplateMetadata.Builder.toXContent(indexTemplateMetadata, builder, params);
-            }
+            IndexTemplateMetadata.Builder.toXContent(indexTemplateMetadata, builder, params);
         }
         builder.endObject();
         return builder;

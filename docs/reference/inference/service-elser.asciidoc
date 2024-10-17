@@ -80,12 +80,13 @@ Must be a power of 2. Max allowed value is 32.
 [[inference-example-elser]]
 ==== ELSER service example
 
-The following example shows how to create an {infer} endpoint called
-`my-elser-model` to perform a `sparse_embedding` task type.
+The following example shows how to create an {infer} endpoint called `my-elser-model` to perform a `sparse_embedding` task type.
 Refer to the {ml-docs}/ml-nlp-elser.html[ELSER model documentation] for more info.
 
-The request below will automatically download the ELSER model if it isn't
-already downloaded and then deploy the model.
+NOTE: If you want to optimize your ELSER endpoint for ingest, set the number of threads to `1` (`"num_threads": 1`).
+If you want to optimize your ELSER endpoint for search, set the number of threads to greater than `1`.
+
+The request below will automatically download the ELSER model if it isn't already downloaded and then deploy the model.
 
 [source,console]
 ------------------------------------------------------------
@@ -99,7 +100,6 @@ PUT _inference/sparse_embedding/my-elser-model
 }
 ------------------------------------------------------------
 // TEST[skip:TBD]
-
 
 Example response:
 
@@ -130,12 +130,12 @@ If using the Python client, you can set the `timeout` parameter to a higher valu
 [[inference-example-elser-adaptive-allocation]]
 ==== Setting adaptive allocation for the ELSER service
 
-The following example shows how to create an {infer} endpoint called
-`my-elser-model` to perform a `sparse_embedding` task type and configure
-adaptive allocations.
+NOTE: For more information on how to optimize your ELSER endpoints, refer to {ml-docs}/ml-nlp-elser.html#elser-recommendations[the ELSER recommendations] section in the model documentation.
+To learn more about model autoscaling, refer to the {ml-docs}/ml-nlp-auto-scale.html[trained model autoscaling] page.
 
-The request below will automatically download the ELSER model if it isn't
-already downloaded and then deploy the model.
+The following example shows how to create an {infer} endpoint called `my-elser-model` to perform a `sparse_embedding` task type and configure adaptive allocations.
+
+The request below will automatically download the ELSER model if it isn't already downloaded and then deploy the model.
 
 [source,console]
 ------------------------------------------------------------

@@ -13,7 +13,6 @@ import org.elasticsearch.action.explain.ExplainRequest;
 import org.elasticsearch.action.explain.ExplainResponse;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
@@ -47,11 +46,7 @@ public class RestExplainAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        if (request.getRestApiVersion() == RestApiVersion.V_7 && request.hasParam("type")) {
-            request.param("type");
-        }
         ExplainRequest explainRequest = new ExplainRequest(request.param("index"), request.param("id"));
-
         explainRequest.parent(request.param("parent"));
         explainRequest.routing(request.param("routing"));
         explainRequest.preference(request.param("preference"));

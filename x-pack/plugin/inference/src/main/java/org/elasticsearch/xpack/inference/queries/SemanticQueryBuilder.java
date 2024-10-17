@@ -132,7 +132,7 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.SEMANTIC_QUERY;
+        return TransportVersions.V_8_15_0;
     }
 
     public static SemanticQueryBuilder fromXContent(XContentParser parser) throws IOException {

@@ -248,7 +248,7 @@ public class WaitForRolloverReadyStep extends AsyncWaitStep {
         if (targetFailureStore) {
             rolloverRequest.setIndicesOptions(
                 IndicesOptions.builder(rolloverRequest.indicesOptions())
-                    .failureStoreOptions(opts -> opts.includeFailureIndices(true).includeRegularIndices(false))
+                    .selectorOptions(IndicesOptions.SelectorOptions.ONLY_FAILURES)
                     .build()
             );
         }

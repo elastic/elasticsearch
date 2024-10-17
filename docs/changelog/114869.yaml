@@ -1,0 +1,5 @@
+pr: 114869
+summary: Standardize error code when bulk body is invalid
+area: CRUD
+type: bug
+issues: []

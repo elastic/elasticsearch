@@ -36,16 +36,17 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
 
 /**
  * The builder to support RRF. Adds user-defined parameters for window size and rank constant.
+ *
+ * @deprecated RRF support is provided through the retriever framework. Please use {@link RRFRetrieverBuilder instead}
  */
+@Deprecated
 public class RRFRankBuilder extends RankBuilder {
-
-    public static final int DEFAULT_RANK_CONSTANT = 60;
 
     public static final ParseField RANK_CONSTANT_FIELD = new ParseField("rank_constant");
 
     static final ConstructingObjectParser<RRFRankBuilder, Void> PARSER = new ConstructingObjectParser<>(RRFRankPlugin.NAME, args -> {
         int windowSize = args[0] == null ? DEFAULT_RANK_WINDOW_SIZE : (int) args[0];
-        int rankConstant = args[1] == null ? DEFAULT_RANK_CONSTANT : (int) args[1];
+        int rankConstant = args[1] == null ? RRFRetrieverBuilder.DEFAULT_RANK_CONSTANT : (int) args[1];
         return new RRFRankBuilder(windowSize, rankConstant);
     });
 

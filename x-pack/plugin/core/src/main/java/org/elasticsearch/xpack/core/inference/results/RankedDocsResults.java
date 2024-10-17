@@ -31,8 +31,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.TransportVersions.ML_RERANK_DOC_OPTIONAL;
-
 public class RankedDocsResults implements InferenceServiceResults {
     public static final String NAME = "rerank_service_results";
     public static final String RERANK = TaskType.RERANK.toString();
@@ -114,7 +112,7 @@ public class RankedDocsResults implements InferenceServiceResults {
         }
 
         public static RankedDoc of(StreamInput in) throws IOException {
-            if (in.getTransportVersion().onOrAfter(ML_RERANK_DOC_OPTIONAL)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
                 return new RankedDoc(in.readInt(), in.readFloat(), in.readOptionalString());
             } else if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
                 return new RankedDoc(in.readInt(), in.readFloat(), in.readString());
@@ -125,7 +123,7 @@ public class RankedDocsResults implements InferenceServiceResults {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            if (out.getTransportVersion().onOrAfter(ML_RERANK_DOC_OPTIONAL)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
                 out.writeInt(index);
                 out.writeFloat(relevanceScore);
                 out.writeOptionalString(text);

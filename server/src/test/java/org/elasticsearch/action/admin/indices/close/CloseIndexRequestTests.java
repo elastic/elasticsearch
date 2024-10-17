@@ -50,7 +50,7 @@ public class CloseIndexRequestTests extends ESTestCase {
                     in.setTransportVersion(out.getTransportVersion());
                     assertEquals(request.getParentTask(), TaskId.readFromStream(in));
                     assertEquals(request.masterNodeTimeout(), in.readTimeValue());
-                    if (in.getTransportVersion().onOrAfter(TransportVersions.VERSIONED_MASTER_NODE_REQUESTS)) {
+                    if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
                         assertEquals(request.masterTerm(), in.readVLong());
                     }
                     assertEquals(request.ackTimeout(), in.readTimeValue());
@@ -79,7 +79,7 @@ public class CloseIndexRequestTests extends ESTestCase {
                 out.setTransportVersion(version);
                 sample.getParentTask().writeTo(out);
                 out.writeTimeValue(sample.masterNodeTimeout());
-                if (out.getTransportVersion().onOrAfter(TransportVersions.VERSIONED_MASTER_NODE_REQUESTS)) {
+                if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
                     out.writeVLong(sample.masterTerm());
                 }
                 out.writeTimeValue(sample.ackTimeout());

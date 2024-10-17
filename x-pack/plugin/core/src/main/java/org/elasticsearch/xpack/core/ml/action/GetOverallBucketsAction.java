@@ -243,11 +243,7 @@ public class GetOverallBucketsAction extends ActionType<GetOverallBucketsAction.
             if (end != null) {
                 builder.field(END.getPreferredName(), String.valueOf(end));
             }
-            if (builder.getRestApiVersion() == RestApiVersion.V_7) {
-                builder.field(DEPRECATED_ALLOW_NO_JOBS_PARAM, allowNoMatch);
-            } else {
-                builder.field(ALLOW_NO_MATCH.getPreferredName(), allowNoMatch);
-            }
+            builder.field(ALLOW_NO_MATCH.getPreferredName(), allowNoMatch);
             builder.endObject();
             return builder;
         }

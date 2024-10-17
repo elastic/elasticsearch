@@ -194,6 +194,9 @@ public abstract class CompoundRetrieverBuilder<T extends CompoundRetrieverBuilde
                 validationException
             );
         }
+        for (RetrieverSource innerRetriever : innerRetrievers) {
+            validationException = innerRetriever.retriever().validate(source, validationException, allowPartialSearchResults);
+        }
         return validationException;
     }
 

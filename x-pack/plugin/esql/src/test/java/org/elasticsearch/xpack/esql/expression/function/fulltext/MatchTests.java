@@ -20,7 +20,6 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionName;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.hamcrest.Matcher;
 
-import java.util.Arrays;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Set;
@@ -40,8 +39,8 @@ public class MatchTests extends AbstractFunctionTestCase {
         Set<DataType> supported = Set.of(DataType.KEYWORD, DataType.TEXT);
         List<Set<DataType>> supportedPerPosition = List.of(supported, supported);
         List<TestCaseSupplier> suppliers = new LinkedList<>();
-        for (DataType fieldType : validStringDataTypes()) {
-            for (DataType queryType : validStringDataTypes()) {
+        for (DataType fieldType : DataType.stringTypes()) {
+            for (DataType queryType : DataType.stringTypes()) {
                 suppliers.add(
                     new TestCaseSupplier(
                         "<" + fieldType + "-ES field, " + queryType + ">",
@@ -65,10 +64,6 @@ public class MatchTests extends AbstractFunctionTestCase {
 
     private static String matchTypeErrorSupplier(boolean includeOrdinal, List<Set<DataType>> validPerPosition, List<DataType> types) {
         return "[] cannot operate on [" + types.getFirst().typeName() + "], which is not a field from an index mapping";
-    }
-
-    private static List<DataType> validStringDataTypes() {
-        return Arrays.stream(DataType.values()).filter(DataType::isString).toList();
     }
 
     private static TestCaseSupplier.TestCase testCase(

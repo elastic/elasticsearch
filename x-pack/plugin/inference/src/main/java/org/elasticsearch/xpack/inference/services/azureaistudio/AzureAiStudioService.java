@@ -214,7 +214,7 @@ public class AzureAiStudioService extends SenderService {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ML_INFERENCE_AZURE_AI_STUDIO;
+        return TransportVersions.V_8_15_0;
     }
 
     @Override

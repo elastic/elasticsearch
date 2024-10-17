@@ -27,6 +27,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static org.elasticsearch.xpack.core.security.authz.RoleDescriptor.SECURITY_ROLE_DESCRIPTION;
 import static org.elasticsearch.xpack.core.security.authz.RoleDescriptorTestHelper.randomApplicationPrivileges;
 import static org.elasticsearch.xpack.core.security.authz.RoleDescriptorTestHelper.randomIndicesPrivileges;
 import static org.elasticsearch.xpack.core.security.authz.RoleDescriptorTestHelper.randomManageRolesPrivileges;
@@ -43,8 +44,8 @@ public class RolesBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
 
     public void testRolesWithDescription() throws Exception {
         assumeTrue(
-            "The role description is supported after transport version: " + TransportVersions.SECURITY_ROLE_DESCRIPTION,
-            minimumTransportVersion().before(TransportVersions.SECURITY_ROLE_DESCRIPTION)
+            "The role description is supported after transport version: " + SECURITY_ROLE_DESCRIPTION,
+            minimumTransportVersion().before(SECURITY_ROLE_DESCRIPTION)
         );
         switch (CLUSTER_TYPE) {
             case OLD -> {
@@ -75,7 +76,7 @@ public class RolesBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
             }
             case MIXED -> {
                 try {
-                    this.createClientsByVersion(TransportVersions.SECURITY_ROLE_DESCRIPTION);
+                    this.createClientsByVersion(SECURITY_ROLE_DESCRIPTION);
                     // succeed when role description is not provided
                     final String initialRole = randomRoleDescriptorSerialized();
                     createRole(client(), "my-valid-mixed-role", initialRole);
@@ -116,7 +117,7 @@ public class RolesBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
                             e.getMessage(),
                             containsString(
                                 "all nodes must have version ["
-                                    + TransportVersions.SECURITY_ROLE_DESCRIPTION.toReleaseVersion()
+                                    + SECURITY_ROLE_DESCRIPTION.toReleaseVersion()
                                     + "] or higher to support specifying role description"
                             )
                         );
@@ -130,7 +131,7 @@ public class RolesBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
                             e.getMessage(),
                             containsString(
                                 "all nodes must have version ["
-                                    + TransportVersions.SECURITY_ROLE_DESCRIPTION.toReleaseVersion()
+                                    + SECURITY_ROLE_DESCRIPTION.toReleaseVersion()
                                     + "] or higher to support specifying role description"
                             )
                         );

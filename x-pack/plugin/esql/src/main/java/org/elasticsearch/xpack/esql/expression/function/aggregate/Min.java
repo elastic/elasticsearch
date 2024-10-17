@@ -128,7 +128,7 @@ public class Min extends AggregateFunction implements ToAggregator, SurrogateExp
         if (type == DataType.IP) {
             return new MinIpAggregatorFunctionSupplier(inputChannels);
         }
-        if (type == DataType.VERSION || type == DataType.KEYWORD || type == DataType.TEXT) {
+        if (type == DataType.VERSION || DataType.isString(type)) {
             return new MinBytesRefAggregatorFunctionSupplier(inputChannels);
         }
         throw EsqlIllegalArgumentException.illegalDataType(type);

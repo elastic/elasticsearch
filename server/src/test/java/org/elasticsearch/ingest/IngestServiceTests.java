@@ -24,6 +24,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.ingest.DeletePipelineRequest;
 import org.elasticsearch.action.ingest.PutPipelineRequest;
 import org.elasticsearch.action.support.ActionTestUtils;
+import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.client.internal.Client;
@@ -48,6 +49,7 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
@@ -424,7 +426,7 @@ public class IngestServiceTests extends ESTestCase {
 
     public void testValidateNoIngestInfo() throws Exception {
         IngestService ingestService = createWithProcessors();
-        PutPipelineRequest putRequest = putJsonPipelineRequest("_id", """
+        PutPipelineRequest putRequest = putJsonPipelineRequest("pipeline-id", """
             {"processors": [{"set" : {"field": "_field", "value": "_value"}}]}""");
 
         var pipelineConfig = XContentHelper.convertToMap(putRequest.getSource(), false, putRequest.getXContentType()).v2();
@@ -965,7 +967,7 @@ public class IngestServiceTests extends ESTestCase {
 
     public void testValidateProcessorTypeOnAllNodes() throws Exception {
         IngestService ingestService = createWithProcessors();
-        PutPipelineRequest putRequest = putJsonPipelineRequest("_id", """
+        PutPipelineRequest putRequest = putJsonPipelineRequest("pipeline-id", """
             {
               "processors": [
                 {
@@ -1009,7 +1011,7 @@ public class IngestServiceTests extends ESTestCase {
             // ordinary validation issues happen at processor construction time
             throw newConfigurationException("fail_validation", tag, "no_property_name", "validation failure reason");
         }));
-        PutPipelineRequest putRequest = putJsonPipelineRequest("_id", """
+        PutPipelineRequest putRequest = putJsonPipelineRequest("pipeline-id", """
             {
               "processors": [
                 {
@@ -1043,7 +1045,7 @@ public class IngestServiceTests extends ESTestCase {
                 }
             };
         }));
-        PutPipelineRequest putRequest = putJsonPipelineRequest("_id", """
+        PutPipelineRequest putRequest = putJsonPipelineRequest("pipeline-id", """
             {
               "processors": [
                 {
@@ -1065,6 +1067,32 @@ public class IngestServiceTests extends ESTestCase {
         );
         assertEquals("[no_property_name] extra validation failure reason", e.getMessage());
         assertEquals("fail_extra_validation", e.getMetadata("es.processor_type").get(0));
+    }
+
+    public void testValidatePipelineName() throws Exception {
+        IngestService ingestService = createWithProcessors();
+        for (Character badChar : List.of('\\', '/', '*', '?', '"', '<', '>', '|', ' ', ',')) {
+            PutPipelineRequest putRequest = new PutPipelineRequest(
+                TimeValue.timeValueSeconds(10),
+                AcknowledgedRequest.DEFAULT_ACK_TIMEOUT,
+                "_id",
+                new BytesArray("""
+                    {"description":"test processor","processors":[{"set":{"field":"_field","value":"_value"}}]}"""),
+                XContentType.JSON
+            );
+            var pipelineConfig = XContentHelper.convertToMap(putRequest.getSource(), false, putRequest.getXContentType()).v2();
+            DiscoveryNode node1 = DiscoveryNodeUtils.create("_node_id1", buildNewFakeTransportAddress(), Map.of(), Set.of());
+            Map<DiscoveryNode, IngestInfo> ingestInfos = new HashMap<>();
+            ingestInfos.put(node1, new IngestInfo(List.of(new ProcessorInfo("set"))));
+            final String name = randomAlphaOfLength(5) + badChar + randomAlphaOfLength(5);
+            ingestService.validatePipeline(ingestInfos, name, pipelineConfig);
+            assertCriticalWarnings(
+                "Pipeline name ["
+                    + name
+                    + "] will be disallowed in a future version for the following reason: must not contain the following characters"
+                    + " [' ','\"','*',',','/','<','>','?','\\','|']"
+            );
+        }
     }
 
     public void testExecuteIndexPipelineExistsButFailedParsing() {

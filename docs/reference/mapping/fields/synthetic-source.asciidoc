@@ -2,7 +2,7 @@
 ==== Synthetic `_source`
 
 IMPORTANT: Synthetic `_source` is Generally Available only for TSDB indices
-(indices that have `index.mode` set to `time_series`). For other indices
+(indices that have `index.mode` set to `time_series`). For other indices,
 synthetic `_source` is in technical preview. Features in technical preview may
 be changed or removed in a future release. Elastic will work to fix
 any issues, but features in technical preview are not subject to the support SLA
@@ -11,15 +11,19 @@ of official GA features.
 Though very handy to have around, the source field takes up a significant amount
 of space on disk. Instead of storing source documents on disk exactly as you
 send them, Elasticsearch can reconstruct source content on the fly upon retrieval.
-Enable this by setting `mode: synthetic` in `_source`:
+Enable this by using the value `synthetic` for the index setting `index.mapping.source.mode`:
 
 [source,console,id=enable-synthetic-source-example]
 ----
 PUT idx
 {
-  "mappings": {
-    "_source": {
-      "mode": "synthetic"
+  "settings": {
+    "index": {
+      "mapping": {
+        "source": {
+          "mode": "synthetic"
+        }
+      }
     }
   }
 }
@@ -38,7 +42,7 @@ properties when used with synthetic `_source`.
 <<synthetic-source-fields-native-list, Most field types>> construct synthetic `_source` using existing data, most
 commonly <<doc-values,`doc_values`>> and <<stored-fields, stored fields>>. For these field types, no additional space
 is needed to store the contents of `_source` field. Due to the storage layout of <<doc-values,`doc_values`>>, the
-generated `_source` field undergoes <<synthetic-source-modifications, modifications>> compared to original document.
+generated `_source` field undergoes <<synthetic-source-modifications, modifications>> compared to the original document.
 
 For all other field types, the original value of the field is stored as is, in the same way as the `_source` field in
 non-synthetic mode. In this case there are no modifications and field data in `_source` is the same as in the original
@@ -227,10 +231,16 @@ For instance:
 ----
 PUT idx_keep
 {
+  "settings": {
+    "index": {
+      "mapping": {
+        "source": {
+          "mode": "synthetic"
+        }
+      }
+    }
+  },
   "mappings": {
-    "_source": {
-      "mode": "synthetic"
-    },
     "properties": {
       "path": {
         "type": "object",

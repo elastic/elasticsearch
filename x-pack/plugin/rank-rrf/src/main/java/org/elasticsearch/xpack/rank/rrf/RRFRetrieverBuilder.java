@@ -12,6 +12,7 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.license.LicenseUtils;
+import org.elasticsearch.search.rank.RankBuilder;
 import org.elasticsearch.search.rank.RankDoc;
 import org.elasticsearch.search.retriever.CompoundRetrieverBuilder;
 import org.elasticsearch.search.retriever.RetrieverBuilder;
@@ -31,7 +32,6 @@ import java.util.Objects;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
-import static org.elasticsearch.xpack.rank.rrf.RRFRankPlugin.NAME;
 
 /**
  * An rrf retriever is used to represent an rrf rank element, but
@@ -50,6 +50,7 @@ public final class RRFRetrieverBuilder extends CompoundRetrieverBuilder<RRFRetri
     public static final ParseField RANK_WINDOW_SIZE_FIELD = new ParseField("rank_window_size");
     public static final ParseField RANK_CONSTANT_FIELD = new ParseField("rank_constant");
 
+    public static final int DEFAULT_RANK_CONSTANT = 60;
     @SuppressWarnings("unchecked")
     static final ConstructingObjectParser<RRFRetrieverBuilder, RetrieverParserContext> PARSER = new ConstructingObjectParser<>(
         NAME,
@@ -57,8 +58,8 @@ public final class RRFRetrieverBuilder extends CompoundRetrieverBuilder<RRFRetri
         args -> {
             List<RetrieverBuilder> childRetrievers = (List<RetrieverBuilder>) args[0];
             List<RetrieverSource> innerRetrievers = childRetrievers.stream().map(r -> new RetrieverSource(r, null)).toList();
-            int rankWindowSize = args[1] == null ? RRFRankBuilder.DEFAULT_RANK_WINDOW_SIZE : (int) args[1];
-            int rankConstant = args[2] == null ? RRFRankBuilder.DEFAULT_RANK_CONSTANT : (int) args[2];
+            int rankWindowSize = args[1] == null ? RankBuilder.DEFAULT_RANK_WINDOW_SIZE : (int) args[1];
+            int rankConstant = args[2] == null ? DEFAULT_RANK_CONSTANT : (int) args[2];
             return new RRFRetrieverBuilder(innerRetrievers, rankWindowSize, rankConstant);
         }
     );

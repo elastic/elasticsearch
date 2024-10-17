@@ -266,6 +266,8 @@ public enum DataType {
         .sorted(Comparator.comparing(DataType::typeName))
         .toList();
 
+    private static final Collection<DataType> STRING_TYPES = DataType.types().stream().filter(DataType::isString).toList();
+
     private static final Map<String, DataType> NAME_TO_TYPE = TYPES.stream().collect(toUnmodifiableMap(DataType::typeName, t -> t));
 
     private static final Map<String, DataType> ES_TO_TYPE;
@@ -290,6 +292,10 @@ public enum DataType {
 
     public static Collection<DataType> types() {
         return TYPES;
+    }
+
+    public static Collection<DataType> stringTypes() {
+        return STRING_TYPES;
     }
 
     /**

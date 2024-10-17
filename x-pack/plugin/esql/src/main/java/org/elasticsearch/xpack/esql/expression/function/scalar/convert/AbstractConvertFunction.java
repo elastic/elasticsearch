@@ -48,7 +48,6 @@ public abstract class AbstractConvertFunction extends UnaryScalarFunction {
 
     // the numeric types convert functions need to handle; the other numeric types are converted upstream to one of these
     private static final List<DataType> NUMERIC_TYPES = List.of(DataType.INTEGER, DataType.LONG, DataType.UNSIGNED_LONG, DataType.DOUBLE);
-    public static final List<DataType> STRING_TYPES = DataType.types().stream().filter(DataType::isString).toList();
 
     protected AbstractConvertFunction(Source source, Expression field) {
         super(source, field);
@@ -90,9 +89,9 @@ public abstract class AbstractConvertFunction extends UnaryScalarFunction {
             NUMERIC_TYPES.forEach(supportTypes::remove);
         }
 
-        if (types.containsAll(STRING_TYPES)) {
+        if (types.containsAll(DataType.stringTypes())) {
             supportedTypesNames.add("string");
-            STRING_TYPES.forEach(supportTypes::remove);
+            DataType.stringTypes().forEach(supportTypes::remove);
         }
 
         supportTypes.forEach(t -> supportedTypesNames.add(t.nameUpper().toLowerCase(Locale.ROOT)));

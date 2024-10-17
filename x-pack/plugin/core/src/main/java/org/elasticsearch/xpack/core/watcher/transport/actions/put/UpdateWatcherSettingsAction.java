@@ -47,7 +47,7 @@ public class UpdateWatcherSettingsAction extends ActionType<AcknowledgedResponse
         }
 
         public static Request readFrom(StreamInput in) throws IOException {
-            if (in.getTransportVersion().onOrAfter(TransportVersions.WATCHER_REQUEST_TIMEOUTS)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
                 return new Request(in);
             } else {
                 return new Request(TimeValue.THIRTY_SECONDS, TimeValue.THIRTY_SECONDS, in);
@@ -67,7 +67,7 @@ public class UpdateWatcherSettingsAction extends ActionType<AcknowledgedResponse
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            if (out.getTransportVersion().onOrAfter(TransportVersions.WATCHER_REQUEST_TIMEOUTS)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
                 super.writeTo(out);
             }
             out.writeGenericMap(this.settings);

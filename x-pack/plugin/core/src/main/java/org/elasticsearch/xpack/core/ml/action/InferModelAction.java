@@ -198,7 +198,7 @@ public class InferModelAction extends ActionType<InferModelAction.Response> {
             } else {
                 prefixType = TrainedModelPrefixStrings.PrefixType.NONE;
             }
-            if (in.getTransportVersion().onOrAfter(TransportVersions.ML_CHUNK_INFERENCE_OPTION)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
                 chunked = in.readBoolean();
             } else {
                 chunked = false;
@@ -285,7 +285,7 @@ public class InferModelAction extends ActionType<InferModelAction.Response> {
             if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
                 out.writeEnum(prefixType);
             }
-            if (out.getTransportVersion().onOrAfter(TransportVersions.ML_CHUNK_INFERENCE_OPTION)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
                 out.writeBoolean(chunked);
             }
         }

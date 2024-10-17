@@ -82,7 +82,7 @@ public class GoogleVertexAiSecretSettings implements SecretSettings {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ML_INFERENCE_GOOGLE_VERTEX_AI_EMBEDDINGS_ADDED;
+        return TransportVersions.V_8_15_0;
     }
 
     @Override

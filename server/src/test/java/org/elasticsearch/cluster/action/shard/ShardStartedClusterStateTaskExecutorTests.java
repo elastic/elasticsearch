@@ -424,7 +424,7 @@ public class ShardStartedClusterStateTaskExecutorTests extends ESAllocationTestC
         }
 
         final var eventIngestedRange = resultingState.metadata().index(indexName).getEventIngestedRange();
-        if (clusterState.getMinTransportVersion().before(TransportVersions.EVENT_INGESTED_RANGE_IN_CLUSTER_STATE)) {
+        if (clusterState.getMinTransportVersion().before(TransportVersions.V_8_15_0)) {
             assertThat(eventIngestedRange, sameInstance(IndexLongFieldRange.UNKNOWN));
         } else {
             if (shardEventIngestedRange == ShardLongFieldRange.UNKNOWN) {

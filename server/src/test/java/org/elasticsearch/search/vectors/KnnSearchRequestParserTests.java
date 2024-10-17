@@ -74,7 +74,6 @@ public class KnnSearchRequestParserTests extends ESTestCase {
             () -> null,
             () -> null,
             () -> null,
-            () -> null,
             Collections::emptyList,
             () -> null,
             () -> null

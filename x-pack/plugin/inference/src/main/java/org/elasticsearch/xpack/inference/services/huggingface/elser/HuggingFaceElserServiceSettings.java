@@ -76,7 +76,7 @@ public class HuggingFaceElserServiceSettings extends FilteredXContentObject
     public HuggingFaceElserServiceSettings(StreamInput in) throws IOException {
         uri = createUri(in.readString());
 
-        if (in.getTransportVersion().onOrAfter(TransportVersions.ML_INFERENCE_RATE_LIMIT_SETTINGS_ADDED)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
             rateLimitSettings = new RateLimitSettings(in);
         } else {
             rateLimitSettings = DEFAULT_RATE_LIMIT_SETTINGS;
@@ -134,7 +134,7 @@ public class HuggingFaceElserServiceSettings extends FilteredXContentObject
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(uri.toString());
 
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ML_INFERENCE_RATE_LIMIT_SETTINGS_ADDED)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
             rateLimitSettings.writeTo(out);
         }
     }

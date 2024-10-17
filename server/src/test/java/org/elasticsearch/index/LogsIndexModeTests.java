@@ -13,14 +13,24 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.not;
 
 public class LogsIndexModeTests extends ESTestCase {
     public void testLogsIndexModeSetting() {
         assertThat(IndexSettings.MODE.get(buildSettings()), equalTo(IndexMode.LOGSDB));
     }
 
-    public void testSortField() {
+    public void testDefaultHostNameSortField() {
+        final IndexMetadata metadata = IndexSettingsTests.newIndexMeta("test", buildSettings());
+        assertThat(metadata.getIndexMode(), equalTo(IndexMode.LOGSDB));
+        final IndexSettings settings = new IndexSettings(metadata, Settings.EMPTY);
+        assertThat(settings.getIndexSortConfig().hasPrimarySortOnField("host.name"), equalTo(true));
+        assertThat(IndexMode.LOGSDB.getDefaultMapping(settings).string(), containsString("host.name"));
+    }
+
+    public void testCustomSortField() {
         final Settings sortSettings = Settings.builder()
             .put(buildSettings())
             .put(IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey(), "agent_id")
@@ -29,7 +39,9 @@ public class LogsIndexModeTests extends ESTestCase {
         assertThat(metadata.getIndexMode(), equalTo(IndexMode.LOGSDB));
         final IndexSettings settings = new IndexSettings(metadata, Settings.EMPTY);
         assertThat(settings.getMode(), equalTo(IndexMode.LOGSDB));
-        assertThat("agent_id", equalTo(getIndexSetting(settings, IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey())));
+        assertThat(getIndexSetting(settings, IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey()), equalTo("agent_id"));
+        assertThat(settings.getIndexSortConfig().hasPrimarySortOnField("host.name"), equalTo(false));
+        assertThat(IndexMode.LOGSDB.getDefaultMapping(settings).string(), not(containsString("host")));
     }
 
     public void testSortMode() {

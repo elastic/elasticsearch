@@ -310,7 +310,7 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.SPARSE_VECTOR_QUERY_ADDED;
+        return TransportVersions.V_8_15_0;
     }
 
     private static final ConstructingObjectParser<SparseVectorQueryBuilder, Void> PARSER = new ConstructingObjectParser<>(NAME, a -> {

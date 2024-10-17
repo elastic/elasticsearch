@@ -358,18 +358,14 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
                     validationMethod = GeoValidationMethod.fromString(parser.text());
                 } else if (IGNORE_UNMAPPED_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     ignoreUnmapped = parser.booleanValue();
-                } else if (parser.getRestApiVersion() == RestApiVersion.V_7
-                    && TYPE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                        deprecationLogger.compatibleCritical("geo_bounding_box_type", TYPE_PARAMETER_DEPRECATION_MESSAGE);
-                        parser.text(); // ignore value
-                    } else {
-                        throw new ParsingException(
-                            parser.getTokenLocation(),
-                            "failed to parse [{}] query. unexpected field [{}]",
-                            NAME,
-                            currentFieldName
-                        );
-                    }
+                } else {
+                    throw new ParsingException(
+                        parser.getTokenLocation(),
+                        "failed to parse [{}] query. unexpected field [{}]",
+                        NAME,
+                        currentFieldName
+                    );
+                }
             }
         }
 

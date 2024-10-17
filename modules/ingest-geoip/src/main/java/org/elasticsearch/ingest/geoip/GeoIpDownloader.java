@@ -11,7 +11,6 @@ package org.elasticsearch.ingest.geoip;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
@@ -139,11 +138,18 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
         if (geoipIndex != null) {
             logger.trace("The {} index is not null", GeoIpDownloader.DATABASES_INDEX);
             if (clusterState.getRoutingTable().index(geoipIndex.getWriteIndex()).allPrimaryShardsActive() == false) {
-                throw new ElasticsearchException("not all primary shards of [" + DATABASES_INDEX + "] index are active");
+                logger.debug(
+                    "Not updating geoip database because not all primary shards of the [" + DATABASES_INDEX + "] index are active."
+                );
+                return;
             }
             var blockException = clusterState.blocks().indexBlockedException(ClusterBlockLevel.WRITE, geoipIndex.getWriteIndex().getName());
             if (blockException != null) {
-                throw blockException;
+                logger.debug(
+                    "Not updating geoip database because there is a write block on the " + geoipIndex.getWriteIndex().getName() + " index",
+                    blockException
+                );
+                return;
             }
         }
         if (eagerDownloadSupplier.get() || atLeastOneGeoipProcessorSupplier.get()) {

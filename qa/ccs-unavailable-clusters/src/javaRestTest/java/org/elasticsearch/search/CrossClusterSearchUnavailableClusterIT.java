@@ -154,7 +154,7 @@ public class CrossClusterSearchUnavailableClusterIT extends ESRestTestCase {
                 threadPool
             )
         ) {
-            DiscoveryNode remoteNode = remoteTransport.getLocalDiscoNode();
+            DiscoveryNode remoteNode = remoteTransport.getLocalNode();
 
             updateRemoteClusterSettings(Collections.singletonMap("seeds", remoteNode.getAddress().toString()));
 
@@ -307,7 +307,7 @@ public class CrossClusterSearchUnavailableClusterIT extends ESRestTestCase {
                 threadPool
             )
         ) {
-            DiscoveryNode remoteNode = remoteTransport.getLocalDiscoNode();
+            DiscoveryNode remoteNode = remoteTransport.getLocalNode();
 
             {
                 // check that skip_unavailable alone cannot be set

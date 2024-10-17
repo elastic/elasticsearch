@@ -67,7 +67,14 @@ setup:
 ---
 "RRF using single knn and single BM25 with a scripted metric aggregation":
 
+  - requires:
+      cluster_features: ["gte_v8.16.0"]
+      reason: "deprecation added in 8.16"
+      test_runner_features: warnings
+
   - do:
+      warnings:
+        - "Deprecated field [rank] used, replaced by [retriever]"
       search:
         index: test
         body:
@@ -140,7 +147,14 @@ setup:
 ---
 "RRF using multi-knn only with a scripted metric aggregation":
 
+  - requires:
+      cluster_features: ["gte_v8.16.0"]
+      reason: "deprecation added in 8.16"
+      test_runner_features: warnings
+
   - do:
+      warnings:
+        - "Deprecated field [rank] used, replaced by [retriever]"
       search:
         index: test
         body:
@@ -195,7 +209,14 @@ setup:
 ---
 "RRF using multi-knn and single BM25 with a scripted metric aggregation":
 
+  - requires:
+      cluster_features: ["gte_v8.16.0"]
+      reason: "deprecation added in 8.16"
+      test_runner_features: warnings
+
   - do:
+      warnings:
+        - "Deprecated field [rank] used, replaced by [retriever]"
       search:
         index: test
         body:

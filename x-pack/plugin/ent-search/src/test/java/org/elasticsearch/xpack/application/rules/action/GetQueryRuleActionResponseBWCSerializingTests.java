@@ -52,8 +52,6 @@ public class GetQueryRuleActionResponseBWCSerializingTests extends AbstractBWCSe
 
     @Override
     protected List<TransportVersion> bwcVersions() {
-        return getAllBWCVersions().stream()
-            .filter(v -> v.onOrAfter(TransportVersions.QUERY_RULE_CRUD_API_GET_DELETE))
-            .collect(Collectors.toList());
+        return getAllBWCVersions().stream().filter(v -> v.onOrAfter(TransportVersions.V_8_15_0)).collect(Collectors.toList());
     }
 }

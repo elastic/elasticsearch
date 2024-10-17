@@ -186,8 +186,7 @@ public class TransportNodesStatsAction extends TransportNodesAction<
         public NodeStatsRequest(StreamInput in) throws IOException {
             super(in);
             this.nodesStatsRequestParameters = new NodesStatsRequestParameters(in);
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)
-                && in.getTransportVersion().before(TransportVersions.DROP_UNUSED_NODES_IDS)) {
+            if (in.getTransportVersion().between(TransportVersions.V_8_13_0, TransportVersions.V_8_15_0)) {
                 in.readStringArray(); // formerly nodeIds, now unused
             }
         }
@@ -214,8 +213,7 @@ public class TransportNodesStatsAction extends TransportNodesAction<
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             nodesStatsRequestParameters.writeTo(out);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)
-                && out.getTransportVersion().before(TransportVersions.DROP_UNUSED_NODES_IDS)) {
+            if (out.getTransportVersion().between(TransportVersions.V_8_13_0, TransportVersions.V_8_15_0)) {
                 out.writeStringArray(Strings.EMPTY_ARRAY); // formerly nodeIds, now unused
             }
         }

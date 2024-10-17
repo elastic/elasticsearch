@@ -1,0 +1,5 @@
+pr: 114271
+summary: "[ES|QL] Skip validating remote cluster index names in parser"
+area: ES|QL
+type: bug
+issues: []

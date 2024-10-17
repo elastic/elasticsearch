@@ -184,7 +184,8 @@ final class RequestXContent {
                         String paramName = entry.getKey();
                         checkParamNameValidity(paramName, errors, loc);
 
-                        if (entry.getValue() instanceof Map<?, ?> values) {// parameter specified as key:value pairs
+                        if (EsqlCapabilities.Cap.NAMED_PARAMETER_FOR_FIELD_AND_FUNCTION_NAMES.isEnabled()
+                            && entry.getValue() instanceof Map<?, ?> values) {// parameter specified as key:value pairs
                             Map<ParamParsingKey, Object> paramElements = Maps.newMapWithExpectedSize(2);
                             for (Object keyName : values.keySet()) {
                                 ParamParsingKey paramType = checkParamValueKeysValidity(keyName.toString(), errors, loc);

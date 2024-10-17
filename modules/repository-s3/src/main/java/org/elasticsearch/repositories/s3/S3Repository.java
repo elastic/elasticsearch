@@ -223,6 +223,16 @@ class S3Repository extends MeteredBlobStoreRepository {
         0
     );
 
+    /**
+     * Time to wait before trying again if getRegister fails.
+     */
+    static final Setting<TimeValue> GET_REGISTER_RETRY_DELAY = Setting.timeSetting(
+        "get_register_retry_delay",
+        new TimeValue(5, TimeUnit.SECONDS),
+        new TimeValue(0, TimeUnit.MILLISECONDS),
+        Setting.Property.Dynamic
+    );
+
     private final S3Service service;
 
     private final String bucket;

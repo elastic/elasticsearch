@@ -96,7 +96,7 @@ public class Configuration implements Writeable {
         } else {
             this.profile = false;
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_REQUEST_TABLES)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
             this.tables = in.readImmutableMap(i1 -> i1.readImmutableMap(i2 -> new Column((BlockStreamInput) i2)));
         } else {
             this.tables = Map.of();
@@ -124,7 +124,7 @@ public class Configuration implements Writeable {
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
             out.writeBoolean(profile);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_REQUEST_TABLES)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
             out.writeMap(tables, (o1, columns) -> o1.writeMap(columns, StreamOutput::writeWriteable));
         }
         if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_CCS_EXECUTION_INFO)) {

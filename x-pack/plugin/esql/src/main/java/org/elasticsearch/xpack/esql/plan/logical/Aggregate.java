@@ -40,7 +40,7 @@ public class Aggregate extends UnaryPlan implements Stats {
         METRICS;
 
         static void writeType(StreamOutput out, AggregateType type) throws IOException {
-            if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_ADD_AGGREGATE_TYPE)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
                 out.writeString(type.name());
             } else if (type != STANDARD) {
                 throw new IllegalStateException("cluster is not ready to support aggregate type [" + type + "]");
@@ -48,7 +48,7 @@ public class Aggregate extends UnaryPlan implements Stats {
         }
 
         static AggregateType readType(StreamInput in) throws IOException {
-            if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_ADD_AGGREGATE_TYPE)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
                 return AggregateType.valueOf(in.readString());
             } else {
                 return STANDARD;

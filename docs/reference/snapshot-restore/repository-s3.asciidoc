@@ -343,6 +343,11 @@ include::repository-shared-settings.asciidoc[]
     will disable retries altogether. Note that if retries are enabled in the Azure client, each of these retries
     comprises that many client-level retries.
 
+`get_register_retry_delay`
+
+    (<<time-units,time value>>) Sets the time to wait before trying again if an attempt to read a
+    <<repository-s3-linearizable-registers,linearizable register>> fails. Defaults to `5s`.
+
 NOTE: The option of defining client settings in the repository settings as
 documented below is considered deprecated, and will be removed in a future
 version.

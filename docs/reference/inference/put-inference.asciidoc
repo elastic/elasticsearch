@@ -2,8 +2,6 @@
 [[put-inference-api]]
 === Create {infer} API
 
-experimental[]
-
 Creates an {infer} endpoint to perform an {infer} task.
 
 [IMPORTANT]

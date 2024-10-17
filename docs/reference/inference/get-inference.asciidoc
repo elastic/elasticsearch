@@ -2,8 +2,6 @@
 [[get-inference-api]]
 === Get {infer} API
 
-experimental[]
-
 Retrieves {infer} endpoint information.
 
 IMPORTANT: The {infer} APIs enable you to use certain services, such as built-in

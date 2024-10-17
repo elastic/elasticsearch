@@ -140,7 +140,6 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
     public void markEndPlanning() {
         assert planningTookTime == null : "markEndPlanning should only be called once";
         planningTookTime = new TimeValue(System.nanoTime() - relativeStartNanos, TimeUnit.NANOSECONDS);
-        System.err.println(">>> >>> EEE ExecInfo: markEndPlanning: " + planningTookTime);
     }
 
     public TimeValue planningTookTime() {

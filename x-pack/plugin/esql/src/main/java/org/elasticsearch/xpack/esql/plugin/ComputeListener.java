@@ -113,7 +113,6 @@ final class ComputeListener implements Releasable {
                 // for remote executions - this ComputeResponse is created on the remote cluster/node and will be serialized and
                 // received by the acquireCompute method callback on the coordinating cluster
                 EsqlExecutionInfo.Cluster cluster = esqlExecutionInfo.getCluster(clusterAlias);
-                System.err.println(">> >> >> RRR setting took in ComputeResponse to " + cluster.getTook());
                 result = new ComputeResponse(
                     collectedProfiles.isEmpty() ? List.of() : collectedProfiles.stream().toList(),
                     cluster.getTook(),

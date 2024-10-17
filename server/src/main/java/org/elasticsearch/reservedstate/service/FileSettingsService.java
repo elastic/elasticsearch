@@ -15,6 +15,7 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.coordination.FailedToCommitClusterStateException;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ReservedStateMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -125,6 +126,15 @@ public class FileSettingsService extends MasterNodeFileWatchingService implement
             stateService.process(NAMESPACE, parser, (e) -> completeProcessing(e, completion));
         }
         completion.get();
+    }
+
+    @Override
+    protected void onProcessFileChangesException(Exception e) {
+        if (e instanceof ExecutionException && e.getCause() instanceof FailedToCommitClusterStateException f) {
+            logger.error("Unable to commit cluster state", e);
+        } else {
+            super.onProcessFileChangesException(e);
+        }
     }
 
     @Override

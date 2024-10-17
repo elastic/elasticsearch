@@ -41,12 +41,12 @@ import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SecurityMainIndexMappingVersion.ADD_REMOTE_CLUSTER_AND_DESCRIPTION_FIELDS;
 
-/**
- * Interface for creating SecurityMigrations that will be automatically applied once to existing .security indices
- * IMPORTANT: A new index version needs to be added to {@link org.elasticsearch.index.IndexVersions} for the migration to be triggered
- */
 public class SecurityMigrations {
 
+    /**
+     * Interface for creating SecurityMigrations that will be automatically applied once to existing .security indices
+     * IMPORTANT: A new index version needs to be added to {@link org.elasticsearch.index.IndexVersions} for the migration to be triggered
+     */
     public interface SecurityMigration {
         /**
          * Method that will execute the actual migration - needs to be idempotent and non-blocking
@@ -85,151 +85,159 @@ public class SecurityMigrations {
     }
 
     public static final Integer ROLE_METADATA_FLATTENED_MIGRATION_VERSION = 1;
-    public static final Integer ROLE_MAPPING_CLEANUP_DUPLICATES = 2;
+    public static final Integer CLEANUP_ROLE_MAPPING_DUPLICATES_MIGRATION_VERSION = 2;
     private static final Logger logger = LogManager.getLogger(SecurityMigration.class);
 
     public static final TreeMap<Integer, SecurityMigration> MIGRATIONS_BY_VERSION = new TreeMap<>(
-        Map.of(ROLE_METADATA_FLATTENED_MIGRATION_VERSION, new SecurityMigration() {
-            @Override
-            public void migrate(SecurityIndexManager indexManager, Client client, ActionListener<Void> listener) {
-                BoolQueryBuilder filterQuery = new BoolQueryBuilder().filter(QueryBuilders.termQuery("type", "role"))
-                    .mustNot(QueryBuilders.existsQuery("metadata_flattened"));
-                SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().query(filterQuery).size(0).trackTotalHits(true);
-                SearchRequest countRequest = new SearchRequest(indexManager.getConcreteIndexName());
-                countRequest.source(searchSourceBuilder);
-
-                client.search(countRequest, ActionListener.wrap(response -> {
-                    // If there are no roles, skip migration
-                    if (response.getHits().getTotalHits().value() > 0) {
-                        logger.info("Preparing to migrate [" + response.getHits().getTotalHits().value() + "] roles");
-                        updateRolesByQuery(indexManager, client, filterQuery, listener);
-                    } else {
-                        listener.onResponse(null);
-                    }
-                }, listener::onFailure));
-            }
-
-            private void updateRolesByQuery(
-                SecurityIndexManager indexManager,
-                Client client,
-                BoolQueryBuilder filterQuery,
-                ActionListener<Void> listener
-            ) {
-                UpdateByQueryRequest updateByQueryRequest = new UpdateByQueryRequest(indexManager.getConcreteIndexName());
-                updateByQueryRequest.setQuery(filterQuery);
-                updateByQueryRequest.setScript(
-                    new Script(
-                        ScriptType.INLINE,
-                        "painless",
-                        "ctx._source.metadata_flattened = ctx._source.metadata",
-                        Collections.emptyMap()
-                    )
-                );
-                client.admin()
-                    .cluster()
-                    .execute(UpdateByQueryAction.INSTANCE, updateByQueryRequest, ActionListener.wrap(bulkByScrollResponse -> {
-                        logger.info("Migrated [" + bulkByScrollResponse.getTotal() + "] roles");
-                        listener.onResponse(null);
-                    }, listener::onFailure));
-            }
-
-            @Override
-            public Set<NodeFeature> nodeFeaturesRequired() {
-                return Set.of(SecuritySystemIndices.SECURITY_ROLES_METADATA_FLATTENED);
-            }
-
-            @Override
-            public int minMappingVersion() {
-                return ADD_REMOTE_CLUSTER_AND_DESCRIPTION_FIELDS.id();
-            }
-        }, ROLE_MAPPING_CLEANUP_DUPLICATES, new SecurityMigration() {
-            @Override
-            public void migrate(SecurityIndexManager indexManager, Client client, ActionListener<Void> listener) {
-                getRoleMappings(client, ActionListener.wrap(roleMappings -> {
-                    List<String> roleMappingsToDelete = getDuplicateRoleMappingNames(roleMappings);
-                    if (roleMappingsToDelete.isEmpty() == false) {
-                        logger.info("Found [" + roleMappingsToDelete.size() + "] role mappings to cleanup in .security index.");
-                        deleteNativeRoleMappings(client, roleMappingsToDelete.iterator(), listener);
-                    } else {
-                        listener.onResponse(null);
-                    }
-                }, listener::onFailure));
-            }
-
-            private void getRoleMappings(Client client, ActionListener<ExpressionRoleMapping[]> listener) {
-                executeAsyncWithOrigin(
-                    client,
-                    SECURITY_ORIGIN,
-                    GetRoleMappingsAction.INSTANCE,
-                    new GetRoleMappingsRequestBuilder(client).request(),
-                    ActionListener.wrap(response -> listener.onResponse(response.mappings()), listener::onFailure)
-                );
-            }
-
-            private void deleteNativeRoleMappings(Client client, Iterator<String> namesIterator, ActionListener<Void> listener) {
-                String name = namesIterator.next();
-                executeAsyncWithOrigin(
-                    client,
-                    SECURITY_ORIGIN,
-                    DeleteRoleMappingAction.INSTANCE,
-                    new DeleteRoleMappingRequestBuilder(client).name(name).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).request(),
-                    ActionListener.wrap(response -> {
-                        if (response.isFound() == false) {
-                            logger.warn("Expected role mapping [" + name + "] not found during role mapping clean up.");
-                        } else {
-                            logger.info("Deleted duplicated role mapping [" + name + "] from .security index");
-                        }
-                        if (namesIterator.hasNext()) {
-                            deleteNativeRoleMappings(client, namesIterator, listener);
-                        } else {
-                            listener.onResponse(null);
-                        }
-                    }, listener::onFailure)
-                );
-            }
-
-            @Override
-            public boolean checkPreConditions(SecurityIndexManager.State securityIndexManagerState) {
-                // If there are operator defined role mappings, make sure they've been loaded in to cluster state before launching migration
-                return securityIndexManagerState.reservedRoleMappingsSynced;
-            }
-
-            @Override
-            public Set<NodeFeature> nodeFeaturesRequired() {
-                return Set.of(SecuritySystemIndices.SECURITY_ROLE_MAPPING_CLEANUP);
-            }
-
-            @Override
-            public int minMappingVersion() {
-                return ADD_MANAGE_ROLES_PRIVILEGE.id();
-            }
-        })
+        Map.of(
+            ROLE_METADATA_FLATTENED_MIGRATION_VERSION,
+            new RoleMetadataFlattenedMigration(),
+            CLEANUP_ROLE_MAPPING_DUPLICATES_MIGRATION_VERSION,
+            new CleanupRoleMappingDuplicatesMigration()
+        )
     );
 
-    // Visible for testing
-    protected static List<String> getDuplicateRoleMappingNames(ExpressionRoleMapping... roleMappings) {
-        // TODO REMOVE AND USE CONSTANT WHEN AVAILABLE!
-        final String METADATA_READ_ONLY_FLAG_KEY = "_read_only";
-        final String RESERVED_ROLE_MAPPING_SUFFIX = "(read only)";
+    public static class RoleMetadataFlattenedMigration implements SecurityMigration {
+        @Override
+        public void migrate(SecurityIndexManager indexManager, Client client, ActionListener<Void> listener) {
+            BoolQueryBuilder filterQuery = new BoolQueryBuilder().filter(QueryBuilders.termQuery("type", "role"))
+                .mustNot(QueryBuilders.existsQuery("metadata_flattened"));
+            SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().query(filterQuery).size(0).trackTotalHits(true);
+            SearchRequest countRequest = new SearchRequest(indexManager.getConcreteIndexName());
+            countRequest.source(searchSourceBuilder);
 
-        Map<Boolean, List<ExpressionRoleMapping>> partitionedRoleMappings = Arrays.stream(roleMappings)
-            .collect(
-                Collectors.partitioningBy(
-                    roleMapping -> roleMapping.getMetadata() != null
-                        && roleMapping.getMetadata().get(METADATA_READ_ONLY_FLAG_KEY) != null
-                        && (boolean) roleMapping.getMetadata().get(METADATA_READ_ONLY_FLAG_KEY)
-                )
+            client.search(countRequest, ActionListener.wrap(response -> {
+                // If there are no roles, skip migration
+                if (response.getHits().getTotalHits().value() > 0) {
+                    logger.info("Preparing to migrate [" + response.getHits().getTotalHits().value() + "] roles");
+                    updateRolesByQuery(indexManager, client, filterQuery, listener);
+                } else {
+                    listener.onResponse(null);
+                }
+            }, listener::onFailure));
+        }
+
+        private void updateRolesByQuery(
+            SecurityIndexManager indexManager,
+            Client client,
+            BoolQueryBuilder filterQuery,
+            ActionListener<Void> listener
+        ) {
+            UpdateByQueryRequest updateByQueryRequest = new UpdateByQueryRequest(indexManager.getConcreteIndexName());
+            updateByQueryRequest.setQuery(filterQuery);
+            updateByQueryRequest.setScript(
+                new Script(ScriptType.INLINE, "painless", "ctx._source.metadata_flattened = ctx._source.metadata", Collections.emptyMap())
             );
+            client.admin()
+                .cluster()
+                .execute(UpdateByQueryAction.INSTANCE, updateByQueryRequest, ActionListener.wrap(bulkByScrollResponse -> {
+                    logger.info("Migrated [" + bulkByScrollResponse.getTotal() + "] roles");
+                    listener.onResponse(null);
+                }, listener::onFailure));
+        }
 
-        Set<String> clusterStateRoleMappings = partitionedRoleMappings.get(true).stream().map(ExpressionRoleMapping::getName).map(name -> {
-            int lastIndex = name.lastIndexOf(RESERVED_ROLE_MAPPING_SUFFIX);
-            return lastIndex > 0 ? name.substring(0, lastIndex) : name;
-        }).collect(Collectors.toSet());
+        @Override
+        public Set<NodeFeature> nodeFeaturesRequired() {
+            return Set.of(SecuritySystemIndices.SECURITY_ROLES_METADATA_FLATTENED);
+        }
 
-        return partitionedRoleMappings.get(false)
-            .stream()
-            .map(ExpressionRoleMapping::getName)
-            .filter(clusterStateRoleMappings::contains)
-            .toList();
+        @Override
+        public int minMappingVersion() {
+            return ADD_REMOTE_CLUSTER_AND_DESCRIPTION_FIELDS.id();
+        }
+    }
+
+    public static class CleanupRoleMappingDuplicatesMigration implements SecurityMigration {
+        @Override
+        public void migrate(SecurityIndexManager indexManager, Client client, ActionListener<Void> listener) {
+            getRoleMappings(client, ActionListener.wrap(roleMappings -> {
+                List<String> roleMappingsToDelete = getDuplicateRoleMappingNames(roleMappings);
+                if (roleMappingsToDelete.isEmpty() == false) {
+                    logger.info("Found [" + roleMappingsToDelete.size() + "] role mappings to cleanup in .security index.");
+                    deleteNativeRoleMappings(client, roleMappingsToDelete.iterator(), listener);
+                } else {
+                    listener.onResponse(null);
+                }
+            }, listener::onFailure));
+        }
+
+        private void getRoleMappings(Client client, ActionListener<ExpressionRoleMapping[]> listener) {
+            executeAsyncWithOrigin(
+                client,
+                SECURITY_ORIGIN,
+                GetRoleMappingsAction.INSTANCE,
+                new GetRoleMappingsRequestBuilder(client).request(),
+                ActionListener.wrap(response -> listener.onResponse(response.mappings()), listener::onFailure)
+            );
+        }
+
+        private void deleteNativeRoleMappings(Client client, Iterator<String> namesIterator, ActionListener<Void> listener) {
+            String name = namesIterator.next();
+            executeAsyncWithOrigin(
+                client,
+                SECURITY_ORIGIN,
+                DeleteRoleMappingAction.INSTANCE,
+                new DeleteRoleMappingRequestBuilder(client).name(name).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).request(),
+                ActionListener.wrap(response -> {
+                    if (response.isFound() == false) {
+                        logger.warn("Expected role mapping [" + name + "] not found during role mapping clean up.");
+                    } else {
+                        logger.info("Deleted duplicated role mapping [" + name + "] from .security index");
+                    }
+                    if (namesIterator.hasNext()) {
+                        deleteNativeRoleMappings(client, namesIterator, listener);
+                    } else {
+                        listener.onResponse(null);
+                    }
+                }, listener::onFailure)
+            );
+        }
+
+        @Override
+        public boolean checkPreConditions(SecurityIndexManager.State securityIndexManagerState) {
+            // If there are operator defined role mappings, make sure they've been loaded in to cluster state before launching migration
+            return securityIndexManagerState.reservedRoleMappingsSynced;
+        }
+
+        @Override
+        public Set<NodeFeature> nodeFeaturesRequired() {
+            return Set.of(SecuritySystemIndices.SECURITY_ROLE_MAPPING_CLEANUP);
+        }
+
+        @Override
+        public int minMappingVersion() {
+            return ADD_MANAGE_ROLES_PRIVILEGE.id();
+        }
+
+        // TODO REMOVE AND USE CONSTANT WHEN AVAILABLE!
+        public static final String METADATA_READ_ONLY_FLAG_KEY = "_read_only";
+        public static final String RESERVED_ROLE_MAPPING_SUFFIX = "(read only)";
+
+        // Visible for testing
+        protected static List<String> getDuplicateRoleMappingNames(ExpressionRoleMapping... roleMappings) {
+
+            Map<Boolean, List<ExpressionRoleMapping>> partitionedRoleMappings = Arrays.stream(roleMappings)
+                .collect(
+                    Collectors.partitioningBy(
+                        roleMapping -> roleMapping.getMetadata().get(METADATA_READ_ONLY_FLAG_KEY) != null
+                            && (boolean) roleMapping.getMetadata().get(METADATA_READ_ONLY_FLAG_KEY)
+                    )
+                );
+
+            Set<String> clusterStateRoleMappings = partitionedRoleMappings.get(true)
+                .stream()
+                .map(ExpressionRoleMapping::getName)
+                .map(name -> {
+                    int lastIndex = name.lastIndexOf(RESERVED_ROLE_MAPPING_SUFFIX);
+                    return lastIndex > 0 ? name.substring(0, lastIndex) : name;
+                })
+                .collect(Collectors.toSet());
+
+            return partitionedRoleMappings.get(false)
+                .stream()
+                .map(ExpressionRoleMapping::getName)
+                .filter(clusterStateRoleMappings::contains)
+                .toList();
+        }
     }
 }

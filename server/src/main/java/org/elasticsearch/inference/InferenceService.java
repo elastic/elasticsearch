@@ -179,14 +179,6 @@ public interface InferenceService extends Closeable {
     }
 
     /**
-     * Return true if this model is hosted in the local Elasticsearch cluster
-     * @return True if in cluster
-     */
-    default boolean isInClusterService() {
-        return false;
-    }
-
-    /**
      * Defines the version required across all clusters to use this service
      * @return {@link TransportVersion} specifying the version
      */

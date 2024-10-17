@@ -1,0 +1,34 @@
+---
+"Test recovery source setting is set to false by default":
+
+  - do:
+      cluster.get_settings:
+        include_defaults: true
+        flat_settings: true
+
+  - is_false: indices.recovery.recovery_source.enabled
+
+---
+"Test recovery source doesn't get stored to disk":
+
+  - do:
+      indices.create:
+        index: test-index
+        body: { settings: {index.mapping.source.mode: "synthetic"}, mappings: {properties: {ignore_me: {enabled: false, type: object}}}}
+
+  - do:
+      index:
+        index: test-index
+        id: 1
+        refresh: true
+        body:   { foo: bar, ignore_me: {foo: bar} }
+  - match:   { _version: 1}
+
+  - do:
+      indices.disk_usage:
+        index: test-index
+        run_expensive_tasks: true
+        flush: false
+  - gt: { test-index.store_size_in_bytes: 0 }
+  - is_false: test-index.fields._recovery_source
+  - is_true: test-index.fields._ignored_source # just to double check synthetic source is active.

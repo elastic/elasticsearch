@@ -1,9 +1,0 @@
----
-"Test custom settings":
-
-  - do:
-      cluster.get_settings:
-        include_defaults: true
-        flat_settings: true
-
-  - is_false: indices.recovery.recovery_source.enabled

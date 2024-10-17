@@ -108,7 +108,7 @@ public final class RoleMappingMetadata extends AbstractNamedDiffable<Metadata.Cu
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.SECURITY_ROLE_MAPPINGS_IN_CLUSTER_STATE;
+        return TransportVersions.V_8_15_0;
     }
 
     @Override

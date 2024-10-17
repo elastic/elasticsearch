@@ -27,6 +27,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
@@ -1074,6 +1075,21 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseFroz
             List<String> indicesToSearch = List.of(regularIndex, partiallyMountedIndex);
             SearchRequest request = new SearchRequest().indices(indicesToSearch.toArray(new String[0]))
                 .source(new SearchSourceBuilder().query(termsQueryBuilder));
+
+            assertResponse(client().search(request), searchResponse -> {
+                // as we excluded the frozen tier we shouldn't get any failures
+                assertThat(searchResponse.getFailedShards(), equalTo(0));
+                // we should be receiving all the hits from the index that's in the data_content tier
+                assertThat(searchResponse.getHits().getTotalHits().value, equalTo((long) numDocsRegularIndex));
+            });
+        }
+
+        {
+            // bool query
+            BoolQueryBuilder boolQueryBuilder = QueryBuilders.boolQuery().mustNot(QueryBuilders.termQuery("_tier", "data_frozen"));
+            List<String> indicesToSearch = List.of(regularIndex, partiallyMountedIndex);
+            SearchRequest request = new SearchRequest().indices(indicesToSearch.toArray(new String[0]))
+                .source(new SearchSourceBuilder().query(boolQueryBuilder));
 
             assertResponse(client().search(request), searchResponse -> {
                 // as we excluded the frozen tier we shouldn't get any failures

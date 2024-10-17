@@ -229,6 +229,8 @@ public class TermQueryBuilder extends BaseTermQueryBuilder<TermQueryBuilder> {
             Query tierFieldQuery = tierFieldType.innerTermsQuery(value, coordinatorRewriteContext);
             if (tierFieldQuery instanceof MatchNoDocsQuery) {
                 return new MatchNoneQueryBuilder("The \"" + getName() + "\" query was rewritten to a \"match_none\" query.");
+            } else if (tierFieldQuery instanceof MatchAllDocsQuery) {
+                return new MatchAllQueryBuilder();
             }
         }
         return this;

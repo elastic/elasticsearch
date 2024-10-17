@@ -412,6 +412,9 @@ tests:
 - class: org.elasticsearch.xpack.enrich.EnrichRestIT
   method: test {p0=enrich/30_tsdb_index/enrich documents over _bulk}
   issue: https://github.com/elastic/elasticsearch/issues/114761
+- class: org.elasticsearch.xpack.enrich.EnrichIT
+  method: testDeleteExistingPipeline
+  issue: https://github.com/elastic/elasticsearch/issues/114775
 
 # Examples:
 #

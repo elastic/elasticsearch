@@ -179,11 +179,7 @@ public class CloseJobAction extends ActionType<CloseJobAction.Response> {
             builder.field(Job.ID.getPreferredName(), jobId);
             builder.field(TIMEOUT.getPreferredName(), timeout.getStringRep());
             builder.field(FORCE.getPreferredName(), force);
-            if (builder.getRestApiVersion() == RestApiVersion.V_7) {
-                builder.field(DEPRECATED_ALLOW_NO_JOBS_PARAM, allowNoMatch);
-            } else {
-                builder.field(ALLOW_NO_MATCH.getPreferredName(), allowNoMatch);
-            }
+            builder.field(ALLOW_NO_MATCH.getPreferredName(), allowNoMatch);
             builder.endObject();
             return builder;
         }

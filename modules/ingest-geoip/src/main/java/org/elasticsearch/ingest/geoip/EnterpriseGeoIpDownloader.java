@@ -617,7 +617,7 @@ public class EnterpriseGeoIpDownloader extends AllocatedPersistentTask {
             }
             @SuppressWarnings("unchecked")
             String md5 = ((Map<String, String>) checksums.get("checksums")).get("md5");
-            logger.info("checksum was [{}]", md5);
+            logger.trace("checksum was [{}]", md5);
 
             var matcher = MD5_CHECKSUM_PATTERN.matcher(md5);
             boolean match = matcher.matches();

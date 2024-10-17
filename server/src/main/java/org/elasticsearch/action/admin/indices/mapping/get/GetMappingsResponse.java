@@ -17,7 +17,6 @@ import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
@@ -25,9 +24,6 @@ import org.elasticsearch.xcontent.ToXContent;
 import java.io.IOException;
 import java.util.Iterator;
 import java.util.Map;
-
-import static org.elasticsearch.rest.BaseRestHandler.DEFAULT_INCLUDE_TYPE_NAME_POLICY;
-import static org.elasticsearch.rest.BaseRestHandler.INCLUDE_TYPE_NAME_PARAMETER;
 
 public class GetMappingsResponse extends ActionResponse implements ChunkedToXContentObject {
 
@@ -73,16 +69,7 @@ public class GetMappingsResponse extends ActionResponse implements ChunkedToXCon
             Iterators.single((b, p) -> b.startObject()),
             Iterators.map(getMappings().entrySet().iterator(), indexEntry -> (builder, params) -> {
                 builder.startObject(indexEntry.getKey());
-                boolean includeTypeName = params.paramAsBoolean(INCLUDE_TYPE_NAME_PARAMETER, DEFAULT_INCLUDE_TYPE_NAME_POLICY);
-                if (builder.getRestApiVersion() == RestApiVersion.V_7 && includeTypeName && indexEntry.getValue() != null) {
-                    builder.startObject(MAPPINGS.getPreferredName());
-
-                    if (indexEntry.getValue() != MappingMetadata.EMPTY_MAPPINGS) {
-                        builder.field(MapperService.SINGLE_MAPPING_NAME, indexEntry.getValue().sourceAsMap());
-                    }
-                    builder.endObject();
-
-                } else if (indexEntry.getValue() != null) {
+                if (indexEntry.getValue() != null) {
                     builder.field(MAPPINGS.getPreferredName(), indexEntry.getValue().sourceAsMap());
                 } else {
                     builder.startObject(MAPPINGS.getPreferredName()).endObject();

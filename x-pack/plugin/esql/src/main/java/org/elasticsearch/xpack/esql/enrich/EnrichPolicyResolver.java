@@ -25,6 +25,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterAware;
+import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportRequest;
@@ -72,12 +73,14 @@ public class EnrichPolicyResolver {
     private final IndexResolver indexResolver;
     private final TransportService transportService;
     private final ThreadPool threadPool;
+    private final RemoteClusterService remoteClusterService;
 
     public EnrichPolicyResolver(ClusterService clusterService, TransportService transportService, IndexResolver indexResolver) {
         this.clusterService = clusterService;
         this.transportService = transportService;
         this.indexResolver = indexResolver;
         this.threadPool = transportService.getThreadPool();
+        this.remoteClusterService = transportService.getRemoteClusterService();
         transportService.registerRequestHandler(
             RESOLVE_ACTION_NAME,
             threadPool.executor(ThreadPool.Names.SEARCH),
@@ -257,22 +260,21 @@ public class EnrichPolicyResolver {
             // remote clusters
             if (remotePolicies.isEmpty() == false) {
                 for (String cluster : remoteClusters) {
-                    final Transport.Connection connection;
-                    try {
-                        connection = getRemoteConnection(cluster);
-                    } catch (Exception e) {
-                        refs.acquire().onFailure(e);
-                        return;
-                    }
-                    transportService.sendRequest(
-                        connection,
-                        RESOLVE_ACTION_NAME,
-                        new LookupRequest(cluster, remotePolicies),
-                        TransportRequestOptions.EMPTY,
-                        new ActionListenerResponseHandler<>(
-                            refs.acquire(resp -> lookupResponses.put(cluster, resp)),
-                            LookupResponse::new,
-                            threadPool.executor(ThreadPool.Names.SEARCH)
+                    ActionListener<LookupResponse> lookupListener = refs.acquire(resp -> lookupResponses.put(cluster, resp));
+                    getRemoteConnection(
+                        cluster,
+                        lookupListener.delegateFailureAndWrap(
+                            (delegate, connection) -> transportService.sendRequest(
+                                connection,
+                                RESOLVE_ACTION_NAME,
+                                new LookupRequest(cluster, remotePolicies),
+                                TransportRequestOptions.EMPTY,
+                                new ActionListenerResponseHandler<>(
+                                    delegate,
+                                    LookupResponse::new,
+                                    threadPool.executor(ThreadPool.Names.SEARCH)
+                                )
+                            )
                         )
                     );
                 }
@@ -389,13 +391,16 @@ public class EnrichPolicyResolver {
         return metadata == null ? Map.of() : metadata.getPolicies();
     }
 
-    protected Transport.Connection getRemoteConnection(String cluster) {
-        return transportService.getRemoteClusterService().getConnection(cluster);
+    protected void getRemoteConnection(String cluster, ActionListener<Transport.Connection> listener) {
+        remoteClusterService.maybeEnsureConnectedAndGetConnection(
+            cluster,
+            remoteClusterService.isSkipUnavailable(cluster) == false,
+            listener
+        );
     }
 
     public Map<String, List<String>> groupIndicesPerCluster(String[] indices) {
-        return transportService.getRemoteClusterService()
-            .groupIndices(SearchRequest.DEFAULT_INDICES_OPTIONS, indices)
+        return remoteClusterService.groupIndices(SearchRequest.DEFAULT_INDICES_OPTIONS, indices)
             .entrySet()
             .stream()
             .collect(Collectors.toMap(Map.Entry::getKey, e -> Arrays.asList(e.getValue().indices())));

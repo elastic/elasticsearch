@@ -1,12 +1,16 @@
 pr: 114283
 summary: Remove lenient parsing of bulk actions
-area: CRUD
+area: Distributed
 type: breaking
 issues: []
 breaking:
   title: Remove lenient parsing of bulk actions
-  area: CRUD
-  details: Please describe the details of this change for the release notes. You can
-    use asciidoc.
-  impact: Please describe the impact of this change to users
+  area: 'REST API'
+  details: |-
+    If a user sends a bulk request with an operation than includes extra fields, the user may assume that 
+    the extra fields perform some action, however, in reality they are discarded with a deprecation warning. 
+    We remove this leniency and alert the user to their malformed bulk operation.
+  impact: |-
+    Users that send malformed bulk requests will have those operations rejected with a client error. 
+    The user will need to update their client to send the correct bulk operations in order to index documents.
   notable: false

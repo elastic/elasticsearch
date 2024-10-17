@@ -15,10 +15,12 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.coordination.FailedToCommitClusterStateException;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ReservedStateMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.file.MasterNodeFileWatchingService;
+import org.elasticsearch.common.file.NoChangeOccurredException;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 
@@ -124,7 +126,18 @@ public class FileSettingsService extends MasterNodeFileWatchingService implement
         ) {
             stateService.process(NAMESPACE, parser, (e) -> completeProcessing(e, completion));
         }
-        completion.get();
+        try {
+            completion.get();
+        } catch (ExecutionException e) {
+            if (e.getCause() instanceof FailedToCommitClusterStateException x) {
+                logger.error("Failed to commit cluster state", x);
+                // This failure is not the fault of FileSettingsService itself.
+                // Throw NoChangeOccurredException to indicate we've already accused the guilty party.
+                throw new NoChangeOccurredException(x);
+            } else {
+                throw e;
+            }
+        }
     }
 
     @Override

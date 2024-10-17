@@ -18,14 +18,26 @@ setup:
       cluster.put_settings:
         body:
           persistent:
-            logger.org.elasticsearch.cluster: TRACE
+            logger.org.elasticsearch: DEBUG
 
   # This is to ensure that all index shards (write and read) are available. In serverless this can take some time.
   - do:
       cluster.health:
         index: .synonyms-2
         level: shards
-        timeout: 2m
+        timeout: 60s
+        wait_for_status: green
+        ignore: 408
+
+  - do:
+      cluster.allocation_explain:
+        body: { "index": ".synonyms-2", "shard": 0, "primary": false }
+
+  - do:
+      cluster.health:
+        index: .synonyms-2
+        level: shards
+        timeout: 20s
         wait_for_status: green
 
 ---
@@ -34,7 +46,7 @@ teardown:
       cluster.put_settings:
         body:
           persistent:
-            logger.org.elasticsearch.cluster: INFO
+            logger.org.elasticsearch: INFO
 
 ---
 "Get a synonym rule":

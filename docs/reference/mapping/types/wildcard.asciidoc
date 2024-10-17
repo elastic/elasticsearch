@@ -133,8 +133,6 @@ The following parameters are accepted by `wildcard` fields:
 
 [[wildcard-synthetic-source]]
 ==== Synthetic `_source`
-`wildcard` fields support <<synthetic-source,synthetic `_source`>> in their
-default configuration..
 
 Synthetic source always sorts `wildcard` fields. For example:
 [source,console,id=synthetic-source-wildcard-example]

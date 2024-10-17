@@ -343,6 +343,9 @@ tests:
 - class: org.elasticsearch.xpack.inference.DefaultEndPointsIT
   method: testInferDeploysDefaultElser
   issue: https://github.com/elastic/elasticsearch/issues/114913
+- class: org.elasticsearch.upgrades.MultiVersionRepositoryAccessIT
+  method: testUpgradeMovesRepoToNewMetaVersion
+  issue: https://github.com/elastic/elasticsearch/issues/114994
 
 # Examples:
 #

@@ -401,8 +401,6 @@ tests:
 - class: org.elasticsearch.xpack.remotecluster.RemoteClusterSecurityWithApmTracingRestIT
   method: testTracingCrossCluster
   issue: https://github.com/elastic/elasticsearch/issues/112731
-- class: org.elasticsearch.xpack.logsdb.LogsdbTestSuiteIT
-  issue: https://github.com/elastic/elasticsearch/issues/114961
 - class: org.elasticsearch.license.LicensingTests
   issue: https://github.com/elastic/elasticsearch/issues/114865
 - class: org.elasticsearch.xpack.enrich.EnrichIT

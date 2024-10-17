@@ -1,7 +1,7 @@
 setup:
   - requires:
-      cluster_features: "gte_v8.8.0"
-      reason: 'rank added in 8.8'
+      cluster_features: 'rrf_retriever_composition_supported'
+      reason: 'test requires rrf retriever composition support'
 
   - do:
       indices.create:

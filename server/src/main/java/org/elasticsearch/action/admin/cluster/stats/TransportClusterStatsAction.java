@@ -315,7 +315,7 @@ public class TransportClusterStatsAction extends TransportNodesAction<
 
         public ClusterStatsNodeRequest(StreamInput in) throws IOException {
             super(in);
-            skipLegacyNodesRequestHeader(TransportVersions.DROP_UNUSED_NODES_REQUESTS, in);
+            skipLegacyNodesRequestHeader(TransportVersions.V_8_15_0, in);
         }
 
         @Override
@@ -326,7 +326,7 @@ public class TransportClusterStatsAction extends TransportNodesAction<
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            sendLegacyNodesRequestHeader(TransportVersions.DROP_UNUSED_NODES_REQUESTS, out);
+            sendLegacyNodesRequestHeader(TransportVersions.V_8_15_0, out);
         }
     }
 

@@ -12,15 +12,20 @@ package org.elasticsearch.server.cli;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Stream;
 
 final class SystemJvmOptions {
 
-    static List<String> systemJvmOptions(Settings nodeSettings, final Map<String, String> sysprops) {
+    static List<String> systemJvmOptions(Settings nodeSettings, final Map<String, String> sysprops, Path workingDir) throws IOException {
         String distroType = sysprops.get("es.distribution.type");
         boolean isHotspot = sysprops.getOrDefault("sun.management.compiler", "").contains("HotSpot");
+        boolean useEntitlementAgent = sysprops.getOrDefault("es.use.entitlement.agent", "true").equalsIgnoreCase("true");
 
         return Stream.of(
             Stream.of(
@@ -67,7 +72,8 @@ final class SystemJvmOptions {
             maybeOverrideDockerCgroup(distroType),
             maybeSetActiveProcessorCount(nodeSettings),
             maybeSetReplayFile(distroType, isHotspot),
-            maybeWorkaroundG1Bug()
+            maybeWorkaroundG1Bug(),
+            maybeEntitlementAgent(useEntitlementAgent, workingDir)
         ).flatMap(s -> s).toList();
     }
 
@@ -133,4 +139,22 @@ final class SystemJvmOptions {
         }
         return Stream.of();
     }
+
+    private static Stream<String> maybeEntitlementAgent(boolean useEntitlementAgent, Path workingDir) throws IOException {
+        if (useEntitlementAgent) {
+            Path relativeLocation = Path.of("lib", "tools", "entitlement-agent");
+            List<Path> candidates = new ArrayList<>();
+            try (var stream = Files.newDirectoryStream(workingDir.resolve(relativeLocation), "*.jar")) {
+                stream.forEach(candidates::add);
+            }
+            if (candidates.isEmpty()) {
+                throw new IllegalStateException("Could not find entitlement agent jar");
+            } else if (candidates.size() > 2) {
+                throw new IllegalStateException("More than one entitlement agent jar found: " + candidates);
+            }
+            return Stream.of("-javaagent:" + candidates.get(0).toString()); // TODO: Pass bridge library
+        }
+        return Stream.of();
+    }
+
 }

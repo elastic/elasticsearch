@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -59,7 +60,8 @@ public class TransportExplainLifecycleAction extends TransportClusterInfoAction<
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
         NamedXContentRegistry xContentRegistry,
-        IndexLifecycleService indexLifecycleService
+        IndexLifecycleService indexLifecycleService,
+        ProjectResolver projectResolver
     ) {
         super(
             ExplainLifecycleAction.NAME,
@@ -69,7 +71,8 @@ public class TransportExplainLifecycleAction extends TransportClusterInfoAction<
             actionFilters,
             ExplainLifecycleRequest::new,
             indexNameExpressionResolver,
-            ExplainLifecycleResponse::new
+            ExplainLifecycleResponse::new,
+            projectResolver
         );
         this.xContentRegistry = xContentRegistry;
         this.indexLifecycleService = indexLifecycleService;

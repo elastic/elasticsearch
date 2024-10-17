@@ -27,6 +27,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestHeaderDefinition;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Collection;
@@ -36,8 +37,6 @@ import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 public class MultiProjectPlugin extends Plugin implements ActionPlugin {
-
-    public static final String PROJECT_ID_REST_HEADER = "X-Elastic-Project-Id";
 
     public final SetOnce<ThreadPool> threadPool = new SetOnce<>();
 
@@ -63,7 +62,7 @@ public class MultiProjectPlugin extends Plugin implements ActionPlugin {
 
     @Override
     public Collection<RestHeaderDefinition> getRestHeaders() {
-        return Set.of(new RestHeaderDefinition(PROJECT_ID_REST_HEADER, false));
+        return Set.of(new RestHeaderDefinition(Task.X_ELASTIC_PROJECT_ID_HTTP_HEADER, false));
     }
 
     @Override

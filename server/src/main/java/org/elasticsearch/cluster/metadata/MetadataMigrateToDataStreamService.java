@@ -93,6 +93,7 @@ public class MetadataMigrateToDataStreamService {
                 assert writeIndexName != null;
                 ActiveShardsObserver.waitForActiveShards(
                     clusterService,
+                    Metadata.DEFAULT_PROJECT_ID,
                     new String[] { writeIndexName },
                     ActiveShardCount.DEFAULT,
                     request.masterNodeTimeout(),

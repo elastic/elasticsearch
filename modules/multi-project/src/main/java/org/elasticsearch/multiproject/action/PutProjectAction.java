@@ -29,6 +29,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.injection.guice.Inject;
@@ -135,6 +136,12 @@ public class PutProjectAction extends ActionType<AcknowledgedResponse> {
         public Request(StreamInput in) throws IOException {
             super(in);
             this.projectId = new ProjectId(in);
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
+            projectId.writeTo(out);
         }
 
         @Override

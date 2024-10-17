@@ -44,7 +44,7 @@ public final class DataTierAllocationDecider extends AllocationDecider {
 
     @Override
     public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
-        return shouldFilter(allocation.metadata().getProject().getIndexSafe(shardRouting.index()), node.node(), allocation);
+        return shouldFilter(allocation.getProject(shardRouting.index()).getIndexSafe(shardRouting.index()), node.node(), allocation);
     }
 
     @Override

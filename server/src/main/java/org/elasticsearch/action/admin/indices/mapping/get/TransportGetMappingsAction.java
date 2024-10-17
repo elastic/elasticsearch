@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.injection.guice.Inject;
@@ -41,7 +42,8 @@ public class TransportGetMappingsAction extends TransportClusterInfoAction<GetMa
         ThreadPool threadPool,
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
-        IndicesService indicesService
+        IndicesService indicesService,
+        ProjectResolver projectResolver
     ) {
         super(
             GetMappingsAction.NAME,
@@ -51,7 +53,8 @@ public class TransportGetMappingsAction extends TransportClusterInfoAction<GetMa
             actionFilters,
             GetMappingsRequest::new,
             indexNameExpressionResolver,
-            GetMappingsResponse::new
+            GetMappingsResponse::new,
+            projectResolver
         );
         this.indicesService = indicesService;
     }

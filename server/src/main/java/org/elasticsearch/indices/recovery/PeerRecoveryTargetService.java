@@ -25,6 +25,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.Lifecycle;
@@ -66,6 +67,7 @@ import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.Optional;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
@@ -623,7 +625,9 @@ public class PeerRecoveryTargetService implements IndexEventListener {
                     }
                 });
             };
-            final IndexMetadata indexMetadata = clusterService.state().metadata().getProject().index(request.shardId().getIndex());
+            ClusterState state = clusterService.state();
+            final Optional<ProjectId> projectId = state.globalRoutingTable().getProjectLookup().project(request.shardId().getIndex());
+            final IndexMetadata indexMetadata = state.metadata().getProject(projectId.get()).index(request.shardId().getIndex());
             final long mappingVersionOnTarget = indexMetadata != null ? indexMetadata.getMappingVersion() : 0L;
             recoveryTarget.indexTranslogOperations(
                 request.operations(),

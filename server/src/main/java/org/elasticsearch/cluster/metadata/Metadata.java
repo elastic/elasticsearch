@@ -80,6 +80,8 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
     public static final Runnable ON_NEXT_INDEX_FIND_MAPPINGS_NOOP = () -> {};
     public static final String ALL = "_all";
     public static final String UNKNOWN_CLUSTER_UUID = "_na_";
+    // TODO multi-project: verify that usages are really expected to work on the default project only,
+    // and that they are not a stop-gap solution to make the tests pass
     public static final ProjectId DEFAULT_PROJECT_ID = new ProjectId("default");
 
     public enum XContentContext {

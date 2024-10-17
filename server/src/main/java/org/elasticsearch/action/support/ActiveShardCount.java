@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.Nullable;
 
 import java.io.IOException;
 
@@ -124,12 +125,20 @@ public record ActiveShardCount(int value) implements Writeable {
      * Returns true iff the given cluster state's routing table contains enough active
      * shards for the given indices to meet the required shard count represented by this instance.
      */
-    public boolean enoughShardsActive(final ProjectMetadata projectMetadata, final RoutingTable routingTable, final String... indices) {
+    public boolean enoughShardsActive(
+        @Nullable final ProjectMetadata projectMetadata,
+        @Nullable final RoutingTable routingTable,
+        final String... indices
+    ) {
         if (this == ActiveShardCount.NONE) {
             // not waiting for any active shards
             return true;
         }
-
+        if (projectMetadata == null || routingTable == null) {
+            // while waiting, the project might have been deleted
+            // in this case consider the wait for active shards over
+            return true;
+        }
         for (final String indexName : indices) {
             final IndexMetadata indexMetadata = projectMetadata.index(indexName);
             if (indexMetadata == null) {

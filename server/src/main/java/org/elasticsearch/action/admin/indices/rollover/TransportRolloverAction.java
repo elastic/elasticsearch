@@ -36,6 +36,7 @@ import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadataStats;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.metadata.MetadataDataStreamsService;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
@@ -570,6 +571,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                     // active shards, as well as return the names of the indices that were rolled/created
                     ActiveShardsObserver.waitForActiveShards(
                         clusterService,
+                        Metadata.DEFAULT_PROJECT_ID,
                         new String[] { rolloverIndexName },
                         rolloverRequest.getCreateIndexRequest().waitForActiveShards(),
                         waitForActiveShardsTimeout,

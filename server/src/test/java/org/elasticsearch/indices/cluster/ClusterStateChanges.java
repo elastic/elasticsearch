@@ -62,6 +62,7 @@ import org.elasticsearch.cluster.metadata.MetadataIndexStateServiceUtils;
 import org.elasticsearch.cluster.metadata.MetadataUpdateSettingsService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
+import org.elasticsearch.cluster.project.DefaultProjectResolver;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.FailedShard;
@@ -349,7 +350,8 @@ public class ClusterStateChanges {
             createIndexService,
             actionFilters,
             indexNameExpressionResolver,
-            EmptySystemIndices.INSTANCE
+            EmptySystemIndices.INSTANCE,
+            DefaultProjectResolver.INSTANCE
         );
 
         nodeLeftExecutor = new NodeLeftExecutor(allocationService);

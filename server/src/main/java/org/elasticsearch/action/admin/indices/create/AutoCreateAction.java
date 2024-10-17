@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataCreateDataStreamService;
 import org.elasticsearch.cluster.metadata.MetadataCreateDataStreamService.CreateDataStreamClusterStateUpdateRequest;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
@@ -189,6 +190,7 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
                     public void onAllNodesAcked() {
                         ActiveShardsObserver.waitForActiveShards(
                             clusterService,
+                            Metadata.DEFAULT_PROJECT_ID,
                             indexNames.toArray(String[]::new),
                             ActiveShardCount.DEFAULT,
                             request.ackTimeout(),

@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.project.ProjectResolver;
+import org.elasticsearch.tasks.Task;
 
 /**
  * A {@link ProjectResolver} that resolves a project by looking at the project id in the thread context.
@@ -33,7 +34,7 @@ public class MultiProjectResolver implements ProjectResolver {
     public ProjectMetadata getProjectMetadata(Metadata metadata) {
         var threadPool = plugin.getThreadPool();
         assert threadPool != null : "Thread pool has not yet been set on MultiProjectPlugin";
-        String headerValue = threadPool.getThreadContext().getHeader(MultiProjectPlugin.PROJECT_ID_REST_HEADER);
+        String headerValue = threadPool.getThreadContext().getHeader(Task.X_ELASTIC_PROJECT_ID_HTTP_HEADER);
         // TODO: we temporarily fall back to the default project id when there is no project id present in the thread context.
         // This fallback should be converted into an exception once we merge to public/serverless.
         if (headerValue == null) {

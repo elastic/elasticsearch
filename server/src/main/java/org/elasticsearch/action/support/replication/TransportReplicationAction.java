@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.AllocationId;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -72,6 +73,7 @@ import org.elasticsearch.transport.TransportService;
 import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -453,8 +455,11 @@ public abstract class TransportReplicationAction<
         void runWithPrimaryShardReference(final PrimaryShardReference primaryShardReference) {
             try {
                 final ClusterState clusterState = clusterService.state();
+                final Optional<ProjectId> projectId = clusterState.globalRoutingTable()
+                    .getProjectLookup()
+                    .project(primaryShardReference.routingEntry().index());
                 final IndexMetadata indexMetadata = clusterState.metadata()
-                    .getProject()
+                    .getProject(projectId.get())
                     .getIndexSafe(primaryShardReference.routingEntry().index());
 
                 final ClusterBlockException blockException = blockExceptions(clusterState, indexMetadata.getIndex().getName());
@@ -834,7 +839,9 @@ public abstract class TransportReplicationAction<
                     finishAsFailed(blockException);
                 }
             } else {
-                final IndexMetadata indexMetadata = state.metadata().getProject().index(request.shardId().getIndex());
+                final Optional<ProjectId> projectId = state.globalRoutingTable().getProjectLookup().project(request.shardId().getIndex());
+                final IndexMetadata indexMetadata = projectId.map(id -> state.metadata().getProject(id).index(request.shardId().getIndex()))
+                    .orElse(null);
                 if (indexMetadata == null) {
                     // ensure that the cluster state on the node is at least as high as the node that decided that the index was there
                     if (state.version() < request.routedBasedOnClusterVersion()) {
@@ -876,7 +883,7 @@ public abstract class TransportReplicationAction<
                 assert request.waitForActiveShards() != ActiveShardCount.DEFAULT
                     : "request waitForActiveShards must be set in resolveRequest";
 
-                final ShardRouting primary = state.getRoutingTable().shardRoutingTable(request.shardId()).primaryShard();
+                final ShardRouting primary = state.routingTable(projectId.get()).shardRoutingTable(request.shardId()).primaryShard();
                 if (primary.active() == false) {
                     logger.trace(
                         "primary shard [{}] is not yet active, scheduling a retry: action [{}], request [{}], "

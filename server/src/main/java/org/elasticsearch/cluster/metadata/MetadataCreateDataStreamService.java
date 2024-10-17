@@ -86,6 +86,7 @@ public class MetadataCreateDataStreamService {
                     : new String[] { firstBackingIndexName, firstFailureStoreName };
                 ActiveShardsObserver.waitForActiveShards(
                     clusterService,
+                    Metadata.DEFAULT_PROJECT_ID,
                     waitForIndices,
                     ActiveShardCount.DEFAULT,
                     request.masterNodeTimeout(),

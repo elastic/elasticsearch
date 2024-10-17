@@ -11,7 +11,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.ExpressionRoleMapping;
 
 import java.io.IOException;
-import java.util.Collection;
 
 /**
  * Response to {@link GetRoleMappingsAction get role-mappings API}.
@@ -21,10 +20,6 @@ import java.util.Collection;
 public class GetRoleMappingsResponse extends ActionResponse {
 
     private final ExpressionRoleMapping[] mappings;
-
-    public GetRoleMappingsResponse(Collection<ExpressionRoleMapping> mappings) {
-        this(mappings.toArray(new ExpressionRoleMapping[0]));
-    }
 
     public GetRoleMappingsResponse(ExpressionRoleMapping... mappings) {
         this.mappings = mappings;

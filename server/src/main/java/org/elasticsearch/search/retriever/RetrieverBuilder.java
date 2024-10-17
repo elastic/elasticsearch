@@ -62,11 +62,11 @@ public abstract class RetrieverBuilder implements Rewriteable<RetrieverBuilder>,
         String name,
         AbstractObjectParser<? extends RetrieverBuilder, RetrieverParserContext> parser
     ) {
-        parser.declareObjectArray((r, v) -> r.preFilterQueryBuilders = v, (p, c) -> {
-            QueryBuilder preFilterQueryBuilder = AbstractQueryBuilder.parseTopLevelQuery(p, c::trackQueryUsage);
-            c.trackSectionUsage(name + ":" + PRE_FILTER_FIELD.getPreferredName());
-            return preFilterQueryBuilder;
-        }, PRE_FILTER_FIELD);
+        parser.declareObjectArray(
+            (r, v) -> r.preFilterQueryBuilders = v,
+            (p, c) -> AbstractQueryBuilder.parseTopLevelQuery(p, c::trackQueryUsage),
+            PRE_FILTER_FIELD
+        );
         parser.declareString(RetrieverBuilder::retrieverName, NAME_FIELD);
         parser.declareFloat(RetrieverBuilder::minScore, MIN_SCORE_FIELD);
     }
@@ -138,7 +138,7 @@ public abstract class RetrieverBuilder implements Rewriteable<RetrieverBuilder>,
             throw new ParsingException(new XContentLocation(nonfe.getLineNumber(), nonfe.getColumnNumber()), message, nonfe);
         }
 
-        context.trackSectionUsage(retrieverName);
+        context.trackRetrieverUsage(retrieverName);
 
         if (parser.currentToken() != XContentParser.Token.END_OBJECT) {
             throw new ParsingException(

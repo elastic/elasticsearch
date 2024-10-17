@@ -7,121 +7,157 @@
 
 package org.elasticsearch.xpack.inference.external.amazonbedrock;
 
-import com.amazonaws.ClientConfiguration;
-import com.amazonaws.auth.AWSStaticCredentialsProvider;
-import com.amazonaws.auth.BasicAWSCredentials;
-import com.amazonaws.services.bedrockruntime.AmazonBedrockRuntimeAsync;
-import com.amazonaws.services.bedrockruntime.AmazonBedrockRuntimeAsyncClientBuilder;
-import com.amazonaws.services.bedrockruntime.model.AmazonBedrockRuntimeException;
-import com.amazonaws.services.bedrockruntime.model.ConverseRequest;
-import com.amazonaws.services.bedrockruntime.model.ConverseResult;
-import com.amazonaws.services.bedrockruntime.model.InvokeModelRequest;
-import com.amazonaws.services.bedrockruntime.model.InvokeModelResult;
+import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
+import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
+import software.amazon.awssdk.core.client.config.ClientOverrideConfiguration;
+import software.amazon.awssdk.http.nio.netty.NettyNioAsyncHttpClient;
+import software.amazon.awssdk.profiles.ProfileFile;
+import software.amazon.awssdk.regions.Region;
+import software.amazon.awssdk.services.bedrockruntime.BedrockRuntimeAsyncClient;
+import software.amazon.awssdk.services.bedrockruntime.model.BedrockRuntimeException;
+import software.amazon.awssdk.services.bedrockruntime.model.ConverseRequest;
+import software.amazon.awssdk.services.bedrockruntime.model.ConverseResponse;
+import software.amazon.awssdk.services.bedrockruntime.model.ConverseStreamRequest;
+import software.amazon.awssdk.services.bedrockruntime.model.ConverseStreamResponseHandler;
+import software.amazon.awssdk.services.bedrockruntime.model.InvokeModelRequest;
+import software.amazon.awssdk.services.bedrockruntime.model.InvokeModelResponse;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.xpack.core.common.socket.SocketAccess;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockModel;
+import org.reactivestreams.FlowAdapters;
+import org.slf4j.LoggerFactory;
 
 import java.security.AccessController;
 import java.security.PrivilegedExceptionAction;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Objects;
+import java.util.concurrent.CompletionException;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Flow;
 
 /**
  * Not marking this as "final" so we can subclass it for mocking
  */
 public class AmazonBedrockInferenceClient extends AmazonBedrockBaseClient {
 
+    static {
+        // we need to load SLF4j on this classloader to pick up the imported SLF4j-2.x
+        // otherwise, software.amazon.awssdk:netty-nio-client loads on ExtendedPluginsClassLoader and fails to find the classes
+        LoggerFactory.getLogger(AmazonBedrockInferenceClient.class);
+    }
+
     // package-private for testing
     static final int CLIENT_CACHE_EXPIRY_MINUTES = 5;
-    private static final int DEFAULT_CLIENT_TIMEOUT_MS = 10000;
+    private static final Duration DEFAULT_CLIENT_TIMEOUT_MS = Duration.ofMillis(10000);
 
-    private final AmazonBedrockRuntimeAsync internalClient;
+    private final BedrockRuntimeAsyncClient internalClient;
+    private final ThreadPool threadPool;
     private volatile Instant expiryTimestamp;
 
-    public static AmazonBedrockBaseClient create(AmazonBedrockModel model, @Nullable TimeValue timeout) {
+    public static AmazonBedrockBaseClient create(AmazonBedrockModel model, @Nullable TimeValue timeout, ThreadPool threadPool) {
         try {
-            return new AmazonBedrockInferenceClient(model, timeout);
+            return new AmazonBedrockInferenceClient(model, timeout, threadPool);
         } catch (Exception e) {
             throw new ElasticsearchException("Failed to create Amazon Bedrock Client", e);
         }
     }
 
-    protected AmazonBedrockInferenceClient(AmazonBedrockModel model, @Nullable TimeValue timeout) {
+    protected AmazonBedrockInferenceClient(AmazonBedrockModel model, @Nullable TimeValue timeout, ThreadPool threadPool) {
         super(model, timeout);
         this.internalClient = createAmazonBedrockClient(model, timeout);
+        this.threadPool = Objects.requireNonNull(threadPool);
         setExpiryTimestamp();
     }
 
     @Override
-    public void converse(ConverseRequest converseRequest, ActionListener<ConverseResult> responseListener) throws ElasticsearchException {
+    public void converse(ConverseRequest converseRequest, ActionListener<ConverseResponse> responseListener) throws ElasticsearchException {
         try {
-            var responseFuture = internalClient.converseAsync(converseRequest);
+            var responseFuture = internalClient.converse(converseRequest);
             responseListener.onResponse(responseFuture.get());
-        } catch (AmazonBedrockRuntimeException amazonBedrockRuntimeException) {
-            responseListener.onFailure(
-                new ElasticsearchException(
-                    Strings.format("AmazonBedrock converse failure: [%s]", amazonBedrockRuntimeException.getMessage()),
-                    amazonBedrockRuntimeException
-                )
-            );
-        } catch (ElasticsearchException elasticsearchException) {
-            // just throw the exception if we have one
-            responseListener.onFailure(elasticsearchException);
         } catch (Exception e) {
-            responseListener.onFailure(new ElasticsearchException("Amazon Bedrock client converse call failed", e));
+            onFailure(responseListener, e, "converse");
         }
     }
 
     @Override
-    public void invokeModel(InvokeModelRequest invokeModelRequest, ActionListener<InvokeModelResult> responseListener)
-        throws ElasticsearchException {
-        try {
-            var responseFuture = internalClient.invokeModelAsync(invokeModelRequest);
-            responseListener.onResponse(responseFuture.get());
-        } catch (AmazonBedrockRuntimeException amazonBedrockRuntimeException) {
-            responseListener.onFailure(
+    public Flow.Publisher<? extends ChunkedToXContent> converseStream(ConverseStreamRequest request) throws ElasticsearchException {
+        var awsResponseProcessor = new AmazonBedrockStreamingChatProcessor(threadPool);
+        internalClient.converseStream(
+            request,
+            ConverseStreamResponseHandler.builder().subscriber(() -> FlowAdapters.toSubscriber(awsResponseProcessor)).build()
+        );
+        return awsResponseProcessor;
+    }
+
+    private void onFailure(ActionListener<?> listener, Throwable t, String method) {
+        var unwrappedException = t;
+        if (t instanceof CompletionException || t instanceof ExecutionException) {
+            unwrappedException = t.getCause() != null ? t.getCause() : t;
+        }
+
+        if (unwrappedException instanceof BedrockRuntimeException amazonBedrockRuntimeException) {
+            listener.onFailure(
                 new ElasticsearchException(
-                    Strings.format("AmazonBedrock invoke model failure: [%s]", amazonBedrockRuntimeException.getMessage()),
+                    Strings.format("AmazonBedrock %s failure: [%s]", method, amazonBedrockRuntimeException.getMessage()),
                     amazonBedrockRuntimeException
                 )
             );
-        } catch (ElasticsearchException elasticsearchException) {
-            // just throw the exception if we have one
-            responseListener.onFailure(elasticsearchException);
+        } else if (unwrappedException instanceof ElasticsearchException elasticsearchException) {
+            listener.onFailure(elasticsearchException);
+        } else {
+            listener.onFailure(new ElasticsearchException(Strings.format("Amazon Bedrock %s call failed", method), unwrappedException));
+        }
+    }
+
+    @Override
+    public void invokeModel(InvokeModelRequest invokeModelRequest, ActionListener<InvokeModelResponse> responseListener)
+        throws ElasticsearchException {
+        try {
+            var responseFuture = internalClient.invokeModel(invokeModelRequest);
+            responseListener.onResponse(responseFuture.get());
         } catch (Exception e) {
-            responseListener.onFailure(new ElasticsearchException(e));
+            onFailure(responseListener, e, "invoke model");
         }
     }
 
     // allow this to be overridden for test mocks
-    protected AmazonBedrockRuntimeAsync createAmazonBedrockClient(AmazonBedrockModel model, @Nullable TimeValue timeout) {
+    protected BedrockRuntimeAsyncClient createAmazonBedrockClient(AmazonBedrockModel model, @Nullable TimeValue timeout) {
         var secretSettings = model.getSecretSettings();
-        var credentials = new BasicAWSCredentials(secretSettings.accessKey.toString(), secretSettings.secretKey.toString());
-        var credentialsProvider = new AWSStaticCredentialsProvider(credentials);
-        var clientConfig = timeout == null
-            ? new ClientConfiguration().withConnectionTimeout(DEFAULT_CLIENT_TIMEOUT_MS)
-            : new ClientConfiguration().withConnectionTimeout((int) timeout.millis());
 
         var serviceSettings = model.getServiceSettings();
 
         try {
             SpecialPermission.check();
-            AmazonBedrockRuntimeAsyncClientBuilder builder = AccessController.doPrivileged(
-                (PrivilegedExceptionAction<AmazonBedrockRuntimeAsyncClientBuilder>) () -> AmazonBedrockRuntimeAsyncClientBuilder.standard()
-                    .withCredentials(credentialsProvider)
-                    .withRegion(serviceSettings.region())
-                    .withClientConfiguration(clientConfig)
-            );
-
-            return SocketAccess.doPrivileged(builder::build);
-        } catch (AmazonBedrockRuntimeException amazonBedrockRuntimeException) {
+            return AccessController.doPrivileged((PrivilegedExceptionAction<BedrockRuntimeAsyncClient>) () -> {
+                var credentials = AwsBasicCredentials.create(secretSettings.accessKey.toString(), secretSettings.secretKey.toString());
+                var credentialsProvider = StaticCredentialsProvider.create(credentials);
+                var clientConfig = timeout == null
+                    ? NettyNioAsyncHttpClient.builder().connectionTimeout(DEFAULT_CLIENT_TIMEOUT_MS)
+                    : NettyNioAsyncHttpClient.builder().connectionTimeout(Duration.ofMillis(timeout.millis()));
+                var override = ClientOverrideConfiguration.builder()
+                    // disable profileFile, user credentials will always come from the configured Model Secrets
+                    .defaultProfileFileSupplier(ProfileFile.aggregator()::build)
+                    .defaultProfileFile(ProfileFile.aggregator().build())
+                    // each model request retries at most once, limit the impact a request can have on other request's availability
+                    .retryPolicy(retryPolicy -> retryPolicy.numRetries(1))
+                    .retryStrategy(retryStrategy -> retryStrategy.maxAttempts(1))
+                    .build();
+                return BedrockRuntimeAsyncClient.builder()
+                    .credentialsProvider(credentialsProvider)
+                    .region(Region.of(serviceSettings.region()))
+                    .httpClientBuilder(clientConfig)
+                    .overrideConfiguration(override)
+                    .build();
+            });
+        } catch (BedrockRuntimeException amazonBedrockRuntimeException) {
             throw new ElasticsearchException(
                 Strings.format("failed to create AmazonBedrockRuntime client: [%s]", amazonBedrockRuntimeException.getMessage()),
                 amazonBedrockRuntimeException
@@ -161,6 +197,6 @@ public class AmazonBedrockInferenceClient extends AmazonBedrockBaseClient {
     // make this package-private so only the cache can close it
     @Override
     void close() {
-        internalClient.shutdown();
+        internalClient.close();
     }
 }

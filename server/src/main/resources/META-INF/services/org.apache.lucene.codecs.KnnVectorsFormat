@@ -3,3 +3,5 @@ org.elasticsearch.index.codec.vectors.ES813Int8FlatVectorFormat
 org.elasticsearch.index.codec.vectors.ES814HnswScalarQuantizedVectorsFormat
 org.elasticsearch.index.codec.vectors.ES815HnswBitVectorsFormat
 org.elasticsearch.index.codec.vectors.ES815BitFlatVectorFormat
+org.elasticsearch.index.codec.vectors.ES816BinaryQuantizedVectorsFormat
+org.elasticsearch.index.codec.vectors.ES816HnswBinaryQuantizedVectorsFormat

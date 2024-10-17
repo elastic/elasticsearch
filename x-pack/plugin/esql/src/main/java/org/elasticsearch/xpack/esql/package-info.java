@@ -38,7 +38,7 @@
  * <h3>Don't waste people's time</h3>
  * <ul>
  *     <li>Queries should not fail at runtime. Instead we should return a
- *         {@link org.elasticsearch.xpack.esql.expression.function.Warnings warning} and {@code null}.</li>
+ *         {@link org.elasticsearch.compute.operator.Warnings warning} and {@code null}.</li>
  *     <li>It <strong>is</strong> ok to fail a query up front at analysis time. Just not after it's
  *         started.</li>
  *     <li>It <strong>is better</strong> if things can be made to work.</li>

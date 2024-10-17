@@ -84,7 +84,7 @@ public class TDigestState implements Releasable, Accountable {
         }
     }
 
-    static TDigestState create(CircuitBreaker breaker, Type type, double compression) {
+    static TDigestState createOfType(CircuitBreaker breaker, Type type, double compression) {
         breaker.addEstimateBytesAndMaybeBreak(SHALLOW_SIZE, "tdigest-state-create-with-type");
         try {
             return new TDigestState(breaker, type, compression);
@@ -196,28 +196,38 @@ public class TDigestState implements Releasable, Accountable {
 
     public static TDigestState read(CircuitBreaker breaker, StreamInput in) throws IOException {
         double compression = in.readDouble();
-        TDigestState state;
+        TDigestState state = null;
         long size = 0;
-        breaker.addEstimateBytesAndMaybeBreak(SHALLOW_SIZE, "tdigest-state-read");
+        boolean success = false;
         try {
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
-                state = new TDigestState(breaker, Type.valueOf(in.readString()), compression);
-                size = in.readVLong();
-            } else {
-                state = new TDigestState(breaker, Type.valueForHighAccuracy(), compression);
+            breaker.addEstimateBytesAndMaybeBreak(SHALLOW_SIZE, "tdigest-state-read");
+            try {
+                if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
+                    state = new TDigestState(breaker, Type.valueOf(in.readString()), compression);
+                    size = in.readVLong();
+                } else {
+                    state = new TDigestState(breaker, Type.valueForHighAccuracy(), compression);
+                }
+            } finally {
+                if (state == null) {
+                    breaker.addWithoutBreaking(-SHALLOW_SIZE);
+                }
             }
-        } catch (Exception e) {
-            breaker.addWithoutBreaking(-SHALLOW_SIZE);
-            throw e;
+
+            int n = in.readVInt();
+            if (size > 0) {
+                state.tdigest.reserve(size);
+            }
+            for (int i = 0; i < n; i++) {
+                state.add(in.readDouble(), in.readVLong());
+            }
+            success = true;
+            return state;
+        } finally {
+            if (success == false) {
+                Releasables.close(state);
+            }
         }
-        int n = in.readVInt();
-        if (size > 0) {
-            state.tdigest.reserve(size);
-        }
-        for (int i = 0; i < n; i++) {
-            state.add(in.readDouble(), in.readVLong());
-        }
-        return state;
     }
 
     @Override

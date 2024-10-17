@@ -8,8 +8,13 @@
  */
 package org.elasticsearch.script.mustache;
 
+import com.github.mustachejava.MustacheException;
 import com.github.mustachejava.MustacheFactory;
 
+import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.text.SizeLimitingStringWriter;
 import org.elasticsearch.script.GeneralScriptException;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.TemplateScript;
@@ -24,6 +29,9 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.test.LambdaMatchers.transformedMatch;
+import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.startsWith;
@@ -37,7 +45,7 @@ public class MustacheScriptEngineTests extends ESTestCase {
 
     @Before
     public void setup() {
-        qe = new MustacheScriptEngine();
+        qe = new MustacheScriptEngine(Settings.builder().put(MustacheScriptEngine.MUSTACHE_RESULT_SIZE_LIMIT.getKey(), "1kb").build());
         factory = CustomMustacheFactory.builder().build();
     }
 
@@ -400,6 +408,24 @@ public class MustacheScriptEngineTests extends ESTestCase {
             factory.encode(writer.toString(), target);
             assertThat(expect.toString(), equalTo(target.toString()));
         }
+    }
+
+    public void testResultSizeLimit() throws IOException {
+        String vals = "\"" + "{{val}}".repeat(200) + "\"";
+        String params = "\"val\":\"aaaaaaaaaa\"";
+        XContentParser parser = createParser(JsonXContent.jsonXContent, Strings.format("{\"source\":%s,\"params\":{%s}}", vals, params));
+        Script script = Script.parse(parser);
+        var compiled = qe.compile(null, script.getIdOrCode(), TemplateScript.CONTEXT, Map.of());
+        TemplateScript templateScript = compiled.newInstance(script.getParams());
+        var ex = expectThrows(ElasticsearchParseException.class, templateScript::execute);
+        assertThat(ex.getCause(), instanceOf(MustacheException.class));
+        assertThat(
+            ex.getCause().getCause(),
+            allOf(
+                instanceOf(SizeLimitingStringWriter.SizeLimitExceededException.class),
+                transformedMatch(Throwable::getMessage, endsWith("has exceeded the size limit [1024]"))
+            )
+        );
     }
 
     private String getChars() {

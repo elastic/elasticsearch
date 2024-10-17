@@ -49,6 +49,7 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.node.NodeService;
 import org.elasticsearch.repositories.RepositoriesService;
+import org.elasticsearch.search.SearchService;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -431,8 +432,8 @@ public class TransportClusterStatsAction extends TransportNodesAction<
         }
     }
 
-    private static boolean doRemotes(ClusterStatsRequest request) {
-        return request.doRemotes();
+    private boolean doRemotes(ClusterStatsRequest request) {
+        return SearchService.CCS_COLLECT_TELEMETRY.get(settings) && request.doRemotes();
     }
 
     private class RemoteStatsFanout extends CancellableFanOut<String, RemoteClusterStatsResponse, Map<String, RemoteClusterStats>> {

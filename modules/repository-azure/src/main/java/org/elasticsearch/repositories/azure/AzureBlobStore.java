@@ -278,6 +278,19 @@ public class AzureBlobStore implements BlobStore {
         throw exception;
     }
 
+    /**
+     * {@inheritDoc}
+     * <p>
+     * Note that in this Azure implementation we issue a series of individual
+     * <a href="https://learn.microsoft.com/en-us/rest/api/storageservices/delete-blob">delete blob</a> calls rather than aggregating
+     * deletions into <a href="https://learn.microsoft.com/en-us/rest/api/storageservices/blob-batch">blob batch</a> calls.
+     * The reason for this is that the blob batch endpoint has limited support for SAS token authentication.
+     *
+     * @see <a href="https://learn.microsoft.com/en-us/rest/api/storageservices/blob-batch?tabs=shared-access-signatures#authorization">
+     *     API docs around SAS auth limitations</a>
+     * @see <a href="https://github.com/Azure/azure-storage-java/issues/538">Java SDK issue</a>
+     * @see <a href="https://github.com/elastic/elasticsearch/pull/65140#discussion_r528752070">Discussion on implementing PR</a>
+     */
     @Override
     public void deleteBlobsIgnoringIfNotExists(OperationPurpose purpose, Iterator<String> blobs) {
         if (blobs.hasNext() == false) {

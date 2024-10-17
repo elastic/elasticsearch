@@ -65,8 +65,8 @@ public class RestNodesCapabilitiesAction extends BaseRestHandler {
         // Handle the 'path' parameter, use "/" as default if not provided
         String path = URLDecoder.decode(request.param("path", "/"), StandardCharsets.UTF_8);
 
-        NodesCapabilitiesRequest r = requestNodes.timeout(getTimeout(request))
-            .method(RestRequest.Method.valueOf(request.param("method", "GET")))
+        requestNodes.setTimeout(getTimeout(request));
+        NodesCapabilitiesRequest r = requestNodes.method(RestRequest.Method.valueOf(request.param("method", "GET")))
             .path(path)
             .parameters(request.paramAsStringArray("parameters", Strings.EMPTY_ARRAY))
             .capabilities(request.paramAsStringArray("capabilities", Strings.EMPTY_ARRAY))

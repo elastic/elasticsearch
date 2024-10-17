@@ -38,6 +38,10 @@ public class ChunkedToXContentBuilder implements Iterator<ToXContent> {
         builder.add(Objects.requireNonNull(content));
     }
 
+    public ToXContent.Params params() {
+        return params;
+    }
+
     private void startObject() {
         addChunk((b, p) -> b.startObject());
     }
@@ -260,6 +264,16 @@ public class ChunkedToXContentBuilder implements Iterator<ToXContent> {
     }
 
     /**
+     * Creates an array with the contents set by appending together the contents of {@code items}
+     */
+    public ChunkedToXContentBuilder array(Iterator<? extends ToXContent> items) {
+        startArray();
+        items.forEachRemaining(this::append);
+        endArray();
+        return this;
+    }
+
+    /**
      * Creates an array, with the contents set by appending together
      * the return values of {@code create} called on each item returned by {@code items}
      */
@@ -348,6 +362,12 @@ public class ChunkedToXContentBuilder implements Iterator<ToXContent> {
 
     public ChunkedToXContentBuilder field(String name, ToXContent value) {
         addChunk((b, p) -> b.field(name, value, p));
+        return this;
+    }
+
+    public ChunkedToXContentBuilder field(String name, ChunkedToXContent value) {
+        addChunk((b, p) -> b.field(name));
+        append(value);
         return this;
     }
 

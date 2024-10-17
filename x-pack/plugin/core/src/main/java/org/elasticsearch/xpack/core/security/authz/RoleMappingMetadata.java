@@ -12,7 +12,6 @@ import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.AbstractNamedDiffable;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.NamedDiff;
-import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -58,7 +57,6 @@ public final class RoleMappingMetadata extends AbstractNamedDiffable<Metadata.Cu
     private static final RoleMappingMetadata EMPTY = new RoleMappingMetadata(Set.of());
 
     public static RoleMappingMetadata getFromClusterState(ClusterState clusterState) {
-        clusterState.blocks().globalBlockedRaiseException(ClusterBlockLevel.READ);
         return clusterState.metadata().custom(RoleMappingMetadata.TYPE, RoleMappingMetadata.EMPTY);
     }
 
@@ -110,7 +108,7 @@ public final class RoleMappingMetadata extends AbstractNamedDiffable<Metadata.Cu
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.SECURITY_ROLE_MAPPINGS_IN_CLUSTER_STATE;
+        return TransportVersions.V_8_15_0;
     }
 
     @Override

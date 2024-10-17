@@ -19,7 +19,7 @@ import java.util.Map;
 /**
  * A request to get cluster level stats.
  */
-public class ClusterStatsRequest extends BaseNodesRequest<ClusterStatsRequest> {
+public class ClusterStatsRequest extends BaseNodesRequest {
     /**
      * Should the remote cluster stats be included in the response.
      */

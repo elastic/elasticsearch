@@ -69,7 +69,7 @@ public class TransportGetInferenceModelAction extends HandledTransportAction<
         boolean inferenceEntityIdIsWildCard = Strings.isAllOrWildcard(request.getInferenceEntityId());
 
         if (request.getTaskType() == TaskType.ANY && inferenceEntityIdIsWildCard) {
-            getAllModels(listener);
+            getAllModels(request.isDoNotPersistDefaultConfigs(), listener);
         } else if (inferenceEntityIdIsWildCard) {
             getModelsByTaskType(request.getTaskType(), listener);
         } else {
@@ -100,8 +100,9 @@ public class TransportGetInferenceModelAction extends HandledTransportAction<
         }));
     }
 
-    private void getAllModels(ActionListener<GetInferenceModelAction.Response> listener) {
+    private void getAllModels(boolean doNotPersistEndpoints, ActionListener<GetInferenceModelAction.Response> listener) {
         modelRegistry.getAllModels(
+            doNotPersistEndpoints == false,
             listener.delegateFailureAndWrap((l, models) -> executor.execute(ActionRunnable.supply(l, () -> parseModels(models))))
         );
     }

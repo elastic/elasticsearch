@@ -16,6 +16,7 @@ import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.LoadMapping;
 import org.elasticsearch.xpack.esql.VerificationException;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
@@ -2084,6 +2085,10 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testNamedParamsForIdentifiers() {
+        assumeTrue(
+            "named parameters for identifiers and patterns require snapshot build",
+            EsqlCapabilities.Cap.NAMED_PARAMETER_FOR_FIELD_AND_FUNCTION_NAMES.isEnabled()
+        );
         assertProjectionWithMapping(
             """
                 from test
@@ -2174,6 +2179,10 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testInvalidNamedParamsForIdentifiers() {
+        assumeTrue(
+            "named parameters for identifiers and patterns require snapshot build",
+            EsqlCapabilities.Cap.NAMED_PARAMETER_FOR_FIELD_AND_FUNCTION_NAMES.isEnabled()
+        );
         // missing field
         assertError(
             """
@@ -2243,6 +2252,10 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testNamedParamsForIdentifierPatterns() {
+        assumeTrue(
+            "named parameters for identifiers and patterns require snapshot build",
+            EsqlCapabilities.Cap.NAMED_PARAMETER_FOR_FIELD_AND_FUNCTION_NAMES.isEnabled()
+        );
         assertProjectionWithMapping(
             """
                 from test
@@ -2273,6 +2286,10 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testInvalidNamedParamsForIdentifierPatterns() {
+        assumeTrue(
+            "named parameters for identifiers and patterns require snapshot build",
+            EsqlCapabilities.Cap.NAMED_PARAMETER_FOR_FIELD_AND_FUNCTION_NAMES.isEnabled()
+        );
         // missing pattern
         assertError(
             """

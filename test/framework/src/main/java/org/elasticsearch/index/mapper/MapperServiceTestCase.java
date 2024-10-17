@@ -302,8 +302,12 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
                 mapperMetrics
             );
 
-            if (applyDefaultMapping && indexSettings.getMode().getDefaultMapping() != null) {
-                mapperService.merge(null, indexSettings.getMode().getDefaultMapping(), MapperService.MergeReason.MAPPING_UPDATE);
+            if (applyDefaultMapping && indexSettings.getMode().getDefaultMapping(indexSettings) != null) {
+                mapperService.merge(
+                    null,
+                    indexSettings.getMode().getDefaultMapping(indexSettings),
+                    MapperService.MergeReason.MAPPING_UPDATE
+                );
             }
 
             return mapperService;

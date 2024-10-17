@@ -271,6 +271,12 @@ public class SecurityIndexManager implements ClusterStateListener {
         return indexVersionCreated != null && indexVersionCreated.onOrAfter(IndexVersion.current());
     }
 
+    /**
+     * Check to see if there are any file based role mappings and if they have been loaded into cluster state. If the
+     * {@link ReservedStateMetadata} file_settings namespace contains role mapping names, it means that there should be the same number of
+     * cluster state role mappings available. If they're not available yet using {@code RoleMappingMetadata.getFromClusterState()}, they
+     * have not yet been synchronized.
+     */
     private static boolean isReservedRoleMappingsSynced(ClusterState clusterState) {
         ReservedStateMetadata fileSettingsMetadata = clusterState.metadata().reservedStateMetadata().get(FILE_SETTINGS_METADATA_NAMESPACE);
         if (fileSettingsMetadata != null && fileSettingsMetadata.handlers().containsKey(HANDLER_ROLE_MAPPINGS_NAME)) {

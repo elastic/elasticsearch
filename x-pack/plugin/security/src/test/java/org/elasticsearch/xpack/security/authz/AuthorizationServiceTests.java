@@ -318,9 +318,9 @@ public class AuthorizationServiceTests extends ESTestCase {
         roleMap.put(ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR.getName(), ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR);
         operatorPrivilegesService = mock(OperatorPrivileges.OperatorPrivilegesService.class);
         projectResolver = mock(ProjectResolver.class);
-        when(projectResolver.getProjectMetadata(any(Metadata.class))).thenAnswer(inv -> {
-            Metadata metadata = inv.getArgument(0);
-            return metadata.getProject(projectId);
+        when(projectResolver.getProjectMetadata(any(ClusterState.class))).thenAnswer(inv -> {
+            ClusterState clusterState = inv.getArgument(0);
+            return clusterState.metadata().getProject(projectId);
         });
         authorizationService = new AuthorizationService(
             settings,

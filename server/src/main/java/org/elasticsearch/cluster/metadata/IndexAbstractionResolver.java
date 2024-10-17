@@ -32,7 +32,7 @@ public class IndexAbstractionResolver {
     public List<String> resolveIndexAbstractions(
         Iterable<String> indices,
         IndicesOptions indicesOptions,
-        Metadata metadata,
+        ProjectMetadata projectMetadata,
         Supplier<Set<String>> allAuthorizedAndAvailable,
         Predicate<String> isAuthorized,
         boolean includeDataStreams
@@ -61,7 +61,7 @@ public class IndexAbstractionResolver {
                             indexAbstraction,
                             authorizedIndex,
                             indicesOptions,
-                            metadata,
+                            projectMetadata,
                             indexNameExpressionResolver,
                             includeDataStreams
                         )) {
@@ -98,11 +98,11 @@ public class IndexAbstractionResolver {
         String expression,
         String index,
         IndicesOptions indicesOptions,
-        Metadata metadata,
+        ProjectMetadata projectMetadata,
         IndexNameExpressionResolver resolver,
         boolean includeDataStreams
     ) {
-        IndexAbstraction indexAbstraction = metadata.getProject().getIndicesLookup().get(index);
+        IndexAbstraction indexAbstraction = projectMetadata.getIndicesLookup().get(index);
         if (indexAbstraction == null) {
             throw new IllegalStateException("could not resolve index abstraction [" + index + "]");
         }
@@ -143,7 +143,7 @@ public class IndexAbstractionResolver {
             }
         }
 
-        IndexMetadata indexMetadata = metadata.getProject().index(indexAbstraction.getIndices().get(0));
+        IndexMetadata indexMetadata = projectMetadata.index(indexAbstraction.getIndices().get(0));
         if (indexMetadata.getState() == IndexMetadata.State.CLOSE && indicesOptions.expandWildcardsClosed()) {
             return true;
         }

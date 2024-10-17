@@ -31,7 +31,7 @@ import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.replication.TransportReplicationAction.ConcreteShardRequest;
 import org.elasticsearch.action.update.TransportUpdateAction;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
@@ -480,7 +480,8 @@ public class AuthorizationService {
                 l.onResponse(result);
             }));
         } else if (isIndexAction(action)) {
-            final Metadata metadata = clusterService.state().metadata();
+            final ProjectMetadata projectMetadata = projectResolver.getProjectMetadata(clusterService.state());
+            assert projectMetadata != null;
             final AsyncSupplier<ResolvedIndices> resolvedIndicesAsyncSupplier = new CachingAsyncSupplier<>(resolvedIndicesListener -> {
                 if (request instanceof SearchRequest searchRequest && searchRequest.pointInTimeBuilder() != null) {
                     var resolvedIndices = indicesAndAliasesResolver.resolvePITIndices(searchRequest);
@@ -494,10 +495,10 @@ public class AuthorizationService {
                     authzEngine.loadAuthorizedIndices(
                         requestInfo,
                         authzInfo,
-                        projectResolver.getProjectMetadata(metadata).getIndicesLookup(),
+                        projectMetadata.getIndicesLookup(),
                         ActionListener.wrap(
                             authorizedIndices -> resolvedIndicesListener.onResponse(
-                                indicesAndAliasesResolver.resolve(action, request, metadata, authorizedIndices)
+                                indicesAndAliasesResolver.resolve(action, request, projectMetadata, authorizedIndices)
                             ),
                             e -> {
                                 auditTrail.accessDenied(requestId, authentication, action, request, authzInfo);
@@ -515,7 +516,7 @@ public class AuthorizationService {
                 requestInfo,
                 authzInfo,
                 resolvedIndicesAsyncSupplier,
-                projectResolver.getProjectMetadata(metadata).getIndicesLookup(),
+                projectMetadata.getIndicesLookup(),
                 wrapPreservingContext(
                     new AuthorizationResultListener<>(
                         result -> handleIndexActionAuthorizationResult(
@@ -525,7 +526,7 @@ public class AuthorizationService {
                             authzInfo,
                             authzEngine,
                             resolvedIndicesAsyncSupplier,
-                            metadata,
+                            projectMetadata,
                             listener
                         ),
                         listener::onFailure,
@@ -550,7 +551,7 @@ public class AuthorizationService {
         final AuthorizationInfo authzInfo,
         final AuthorizationEngine authzEngine,
         final AsyncSupplier<ResolvedIndices> resolvedIndicesAsyncSupplier,
-        final Metadata metadata,
+        final ProjectMetadata projectMetadata,
         final ActionListener<Void> listener
     ) {
         final IndicesAccessControl indicesAccessControl = indicesAccessControlWrapper.wrap(result.getIndicesAccessControl());
@@ -590,7 +591,7 @@ public class AuthorizationService {
                         ResolvedIndices withAliases = new ResolvedIndices(aliasesAndIndices, Collections.emptyList());
                         l.onResponse(withAliases);
                     })),
-                    projectResolver.getProjectMetadata(metadata).getIndicesLookup(),
+                    projectMetadata.getIndicesLookup(),
                     wrapPreservingContext(
                         new AuthorizationResultListener<>(
                             authorizationResult -> runRequestInterceptors(requestInfo, authzInfo, authorizationEngine, listener),
@@ -612,7 +613,7 @@ public class AuthorizationService {
                 authzContext,
                 authzEngine,
                 resolvedIndicesAsyncSupplier,
-                metadata,
+                projectMetadata,
                 requestId,
                 wrapPreservingContext(
                     listener.delegateFailureAndWrap((l, ignore) -> runRequestInterceptors(requestInfo, authzInfo, authorizationEngine, l)),
@@ -762,7 +763,7 @@ public class AuthorizationService {
         AuthorizationContext bulkAuthzContext,
         AuthorizationEngine authzEngine,
         AsyncSupplier<ResolvedIndices> resolvedIndicesAsyncSupplier,
-        Metadata metadata,
+        ProjectMetadata projectMetadata,
         String requestId,
         ActionListener<Void> listener
     ) {
@@ -871,7 +872,7 @@ public class AuthorizationService {
                     bulkItemInfo,
                     authzInfo,
                     ril -> ril.onResponse(new ResolvedIndices(new ArrayList<>(indices), Collections.emptyList())),
-                    projectResolver.getProjectMetadata(metadata).getIndicesLookup(),
+                    projectMetadata.getIndicesLookup(),
                     groupedActionListener.delegateFailureAndWrap(
                         (l, indexAuthorizationResult) -> l.onResponse(new Tuple<>(bulkItemAction, indexAuthorizationResult))
                     )

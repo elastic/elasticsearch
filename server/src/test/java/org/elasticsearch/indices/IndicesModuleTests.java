@@ -13,6 +13,7 @@ import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
+import org.elasticsearch.index.mapper.DataTierFieldMapper;
 import org.elasticsearch.index.mapper.DocCountFieldMapper;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.IdFieldMapper;
@@ -96,6 +97,7 @@ public class IndicesModuleTests extends ESTestCase {
         SeqNoFieldMapper.NAME,
         DocCountFieldMapper.NAME,
         DataStreamTimestampFieldMapper.NAME,
+        DataTierFieldMapper.NAME,
         FieldNamesFieldMapper.NAME };
 
     @UpdateForV9(owner = UpdateForV9.Owner.SEARCH_FOUNDATIONS)

@@ -11,6 +11,8 @@ setup:
         body:
           mappings:
             properties:
+              id:
+                type: integer
               text:
                 type: text
               text_to_highlight:
@@ -39,6 +41,7 @@ setup:
         index: test
         id: "1"
         body:
+          id: 1
           text: "term1"
           vector: [1.0]
 
@@ -47,6 +50,7 @@ setup:
         index: test
         id: "2"
         body:
+          id: 2
           text: "term2"
           text_to_highlight: "search for the truth"
           keyword: "biology"
@@ -57,6 +61,7 @@ setup:
         index: test
         id: "3"
         body:
+          id: 3
           text: "term3"
           text_to_highlight: "nothing related"
           keyword: "technology"
@@ -67,6 +72,7 @@ setup:
         index: test
         id: "4"
         body:
+          id: 4
           text: "term4"
           vector: [4.0]
   - do:
@@ -74,6 +80,7 @@ setup:
         index: test
         id: "5"
         body:
+          id: 5
           text: "term5"
           text_to_highlight: "You know, for Search!"
           keyword: "technology"
@@ -81,9 +88,10 @@ setup:
           vector: [5.0]
   - do:
       index:
+        id: 6
         index: test
-        id: "6"
         body:
+          id: 6
           text: "term6"
           keyword: "biology"
           integer: 6
@@ -93,6 +101,7 @@ setup:
         index: test
         id: "7"
         body:
+          id: 7
           text: "term7"
           keyword: "astronomy"
           vector: [77.0]
@@ -102,6 +111,7 @@ setup:
         index: test
         id: "8"
         body:
+          id: 8
           text: "term8"
           keyword: "technology"
           nested: { views: 100}
@@ -110,6 +120,7 @@ setup:
         index: test
         id: "9"
         body:
+          id: 9
           text: "term9"
           integer: 2
           keyword: "technology"
@@ -439,7 +450,19 @@ setup:
               rank_window_size: 5
               rank_constant: 10
           size: 3
-          collapse: { field: keyword, inner_hits: { name: sub_hits, size: 2 } }
+          collapse: {
+            field: keyword,
+            inner_hits: {
+              name: sub_hits,
+              size: 2,
+              sort:
+                {
+                  id: {
+                    order: desc
+                  }
+                }
+            }
+          }
 
   - match: { hits.total : 9 }
 
@@ -456,8 +479,8 @@ setup:
 
   - match: { hits.hits.1.inner_hits.sub_hits.hits.total : 4 }
   - length: { hits.hits.1.inner_hits.sub_hits.hits.hits : 2 }
-  - match: { hits.hits.1.inner_hits.sub_hits.hits.hits.0._id: "5" }
-  - match: { hits.hits.1.inner_hits.sub_hits.hits.hits.1._id: "3" }
+  - match: { hits.hits.1.inner_hits.sub_hits.hits.hits.0._id: "9" }
+  - match: { hits.hits.1.inner_hits.sub_hits.hits.hits.1._id: "8" }
 
   - length: { hits.hits.2.inner_hits.sub_hits.hits.hits: 2 }
   - match: { hits.hits.2.inner_hits.sub_hits.hits.hits.0._id: "6" }

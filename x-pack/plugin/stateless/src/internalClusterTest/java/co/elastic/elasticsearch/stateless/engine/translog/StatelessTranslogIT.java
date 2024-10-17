@@ -469,9 +469,12 @@ public class StatelessTranslogIT extends AbstractStatelessIntegTestCase {
     }
 
     @TestLogging(
-        value = "co.elastic.elasticsearch.stateless.engine.translog.TranslogReplicator:debug,"
-            + "co.elastic.elasticsearch.stateless.engine.translog.TranslogReplicatorReader:debug",
-        reason = "to ensure we translog events on DEBUG level"
+        value = "co.elastic.elasticsearch.stateless.engine:debug,"
+            + "co.elastic.elasticsearch.stateless.recovery:trace,"
+            + "co.elastic.elasticsearch.stateless.commits:debug,"
+            + "co.elastic.elasticsearch.stateless.objectstore:trace,"
+            + "co.elastic.elasticsearch.stateless.StatelessIndexEventListener:trace",
+        reason = "to debug elasticsearch-serverless issue 2908"
     )
     public void testTranslogStressRecoveryTest() throws Exception {
         Settings isolatedNodeSettings = addIsolatedNodeSettings(Settings.builder()).build();

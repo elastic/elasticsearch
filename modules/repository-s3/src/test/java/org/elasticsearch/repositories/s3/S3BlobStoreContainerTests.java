@@ -114,9 +114,7 @@ public class S3BlobStoreContainerTests extends ESTestCase {
             when(blobStore.getCannedACL()).thenReturn(cannedAccessControlList);
         }
 
-        final AmazonS3 client = mock(AmazonS3.class);
-        final AmazonS3Reference clientReference = new AmazonS3Reference(client);
-        when(blobStore.clientReference()).thenReturn(clientReference);
+        final AmazonS3 client = configureMockClient(blobStore);
 
         final ArgumentCaptor<PutObjectRequest> argumentCaptor = ArgumentCaptor.forClass(PutObjectRequest.class);
         when(client.putObject(argumentCaptor.capture())).thenReturn(new PutObjectResult());
@@ -187,9 +185,7 @@ public class S3BlobStoreContainerTests extends ESTestCase {
             when(blobStore.getCannedACL()).thenReturn(cannedAccessControlList);
         }
 
-        final AmazonS3 client = mock(AmazonS3.class);
-        final AmazonS3Reference clientReference = new AmazonS3Reference(client);
-        when(blobStore.clientReference()).thenReturn(clientReference);
+        final AmazonS3 client = configureMockClient(blobStore);
 
         final ArgumentCaptor<InitiateMultipartUploadRequest> initArgCaptor = ArgumentCaptor.forClass(InitiateMultipartUploadRequest.class);
         final InitiateMultipartUploadResult initResult = new InitiateMultipartUploadResult();
@@ -260,6 +256,8 @@ public class S3BlobStoreContainerTests extends ESTestCase {
 
         final List<String> actualETags = compRequest.getPartETags().stream().map(PartETag::getETag).collect(Collectors.toList());
         assertEquals(expectedEtags, actualETags);
+
+        closeMockClient(blobStore);
     }
 
     public void testExecuteMultipartUploadAborted() {
@@ -356,6 +354,27 @@ public class S3BlobStoreContainerTests extends ESTestCase {
             assertEquals(blobName, abortRequest.getKey());
             assertEquals(uploadId, abortRequest.getUploadId());
         }
+
+        closeMockClient(blobStore);
+    }
+
+    private static AmazonS3 configureMockClient(S3BlobStore blobStore) {
+        final AmazonS3 client = mock(AmazonS3.class);
+        try (AmazonS3Reference clientReference = new AmazonS3Reference(client)) {
+            clientReference.mustIncRef(); // held by the mock, ultimately released in closeMockClient
+            when(blobStore.clientReference()).then(invocation -> {
+                clientReference.mustIncRef();
+                return clientReference;
+            });
+        }
+        return client;
+    }
+
+    private static void closeMockClient(S3BlobStore blobStore) {
+        final var finalClientReference = blobStore.clientReference();
+        assertFalse(finalClientReference.decRef());
+        assertTrue(finalClientReference.decRef());
+        assertFalse(finalClientReference.hasReferences());
     }
 
     public void testNumberOfMultipartsWithZeroPartSize() {

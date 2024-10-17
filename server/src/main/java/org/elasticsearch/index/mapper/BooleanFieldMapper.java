@@ -314,7 +314,7 @@ public class BooleanFieldMapper extends FieldMapper {
             BlockSourceReader.LeafIteratorLookup lookup = isIndexed() || isStored()
                 ? BlockSourceReader.lookupFromFieldNames(blContext.fieldNames(), name())
                 : BlockSourceReader.lookupMatchingAll();
-            return new BlockSourceReader.BooleansBlockLoader(fetcher, lookup);
+            return new BlockSourceReader.BooleansBlockLoader(fetcher, lookup, blContext.indexSettings().getIndexMappingSourceMode());
         }
 
         @Override

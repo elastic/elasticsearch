@@ -18,6 +18,8 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.elasticsearch.xpack.esql.core.util.PlanStreamInput.readCachedStringWithVersionCheck;
+
 /**
  * Information about a field in an ES index.
  */
@@ -60,7 +62,7 @@ public class EsField implements Writeable {
     }
 
     public EsField(StreamInput in) throws IOException {
-        this.name = ((PlanStreamInput) in).readCachedString();
+        this.name = readCachedStringWithVersionCheck(in);
         this.esDataType = readDataType(in);
         this.properties = in.readImmutableMap(EsField::readFrom);
         this.aggregatable = in.readBoolean();
@@ -68,7 +70,7 @@ public class EsField implements Writeable {
     }
 
     private DataType readDataType(StreamInput in) throws IOException {
-        String name = ((PlanStreamInput) in).readCachedString();
+        String name = readCachedStringWithVersionCheck(in);
         if (in.getTransportVersion().before(TransportVersions.ESQL_NESTED_UNSUPPORTED) && name.equalsIgnoreCase("NESTED")) {
             /*
              * The "nested" data type existed in older versions of ESQL but was

@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.esql.core.type;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.xpack.esql.core.util.PlanStreamInput;
 import org.elasticsearch.xpack.esql.core.util.PlanStreamOutput;
 
 import java.io.IOException;
@@ -17,6 +16,7 @@ import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
+import static org.elasticsearch.xpack.esql.core.util.PlanStreamInput.readCachedStringWithVersionCheck;
 
 /**
  * Information about a field in an ES index with the {@code keyword} type.
@@ -61,7 +61,7 @@ public class KeywordEsField extends EsField {
 
     public KeywordEsField(StreamInput in) throws IOException {
         this(
-            ((PlanStreamInput) in).readCachedString(),
+            readCachedStringWithVersionCheck(in),
             KEYWORD,
             in.readImmutableMap(EsField::readFrom),
             in.readBoolean(),

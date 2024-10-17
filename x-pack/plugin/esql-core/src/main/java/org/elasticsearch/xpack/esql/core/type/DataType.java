@@ -14,7 +14,6 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.xpack.esql.core.plugin.EsqlCorePlugin;
-import org.elasticsearch.xpack.esql.core.util.PlanStreamInput;
 import org.elasticsearch.xpack.esql.core.util.PlanStreamOutput;
 
 import java.io.IOException;
@@ -32,6 +31,7 @@ import java.util.function.Function;
 
 import static java.util.stream.Collectors.toMap;
 import static java.util.stream.Collectors.toUnmodifiableMap;
+import static org.elasticsearch.xpack.esql.core.util.PlanStreamInput.readCachedStringWithVersionCheck;
 
 public enum DataType {
     /**
@@ -540,7 +540,7 @@ public enum DataType {
 
     public static DataType readFrom(StreamInput in) throws IOException {
         // TODO: Use our normal enum serialization pattern
-        return readFrom(((PlanStreamInput) in).readCachedString());
+        return readFrom(readCachedStringWithVersionCheck(in));
     }
 
     /**

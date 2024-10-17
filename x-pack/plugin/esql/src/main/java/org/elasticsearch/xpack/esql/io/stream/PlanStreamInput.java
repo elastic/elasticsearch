@@ -37,6 +37,8 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.function.LongFunction;
 
+import static org.elasticsearch.xpack.esql.core.util.PlanStreamInput.readCachedStringWithVersionCheck;
+
 /**
  * A customized stream input used to deserialize ESQL physical plan fragments. Complements stream
  * input with methods that read plan nodes, Attributes, Expressions, etc.
@@ -224,7 +226,7 @@ public final class PlanStreamInput extends NamedWriteableAwareStreamInput
             // it's safe to cast to int, since the max value for this is {@link PlanStreamOutput#MAX_SERIALIZED_ATTRIBUTES}
             int cacheId = Math.toIntExact(readZLong());
             if (cacheId < 0) {
-                String className = readCachedString();
+                String className = readCachedStringWithVersionCheck(this);
                 Writeable.Reader<? extends EsField> reader = EsField.getReader(className);
                 cacheId = -1 - cacheId;
                 EsField result = reader.read(this);
@@ -234,7 +236,7 @@ public final class PlanStreamInput extends NamedWriteableAwareStreamInput
                 return (A) esFieldFromCache(cacheId);
             }
         } else {
-            String className = readCachedString();
+            String className = readCachedStringWithVersionCheck(this);
             Writeable.Reader<? extends EsField> reader = EsField.getReader(className);
             return (A) reader.read(this);
         }
@@ -245,9 +247,6 @@ public final class PlanStreamInput extends NamedWriteableAwareStreamInput
      */
     @Override
     public String readCachedString() throws IOException {
-        if (getTransportVersion().before(TransportVersions.ESQL_CACHED_STRING_SERIALIZATION)) {
-            return readString();
-        }
         int cacheId = Math.toIntExact(readZLong());
         if (cacheId < 0) {
             String string = readString();

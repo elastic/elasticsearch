@@ -30,6 +30,8 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import java.io.IOException;
 import java.util.Objects;
 
+import static org.elasticsearch.xpack.esql.core.util.PlanStreamInput.readCachedStringWithVersionCheck;
+
 /**
  * Unsupported attribute meaning an attribute that has been found yet cannot be used (hence why UnresolvedAttribute
  * cannot be used) expect in special conditions (currently only in projections to allow it to flow through
@@ -77,7 +79,7 @@ public final class UnsupportedAttribute extends FieldAttribute implements Unreso
     private UnsupportedAttribute(StreamInput in) throws IOException {
         this(
             Source.readFrom((PlanStreamInput) in),
-            ((PlanStreamInput) in).readCachedString(),
+            readCachedStringWithVersionCheck(in),
             in.getTransportVersion().onOrAfter(TransportVersions.ESQL_ES_FIELD_CACHED_SERIALIZATION)
                 || in.getTransportVersion().isPatchFrom(TransportVersions.ESQL_ATTRIBUTE_CACHED_SERIALIZATION_8_15)
                     ? EsField.readFrom(in)

@@ -22,6 +22,8 @@ import org.elasticsearch.xpack.esql.core.util.PlanStreamOutput;
 import java.io.IOException;
 import java.util.Objects;
 
+import static org.elasticsearch.xpack.esql.core.util.PlanStreamInput.readCachedStringWithVersionCheck;
+
 /**
  * Attribute for an ES field.
  * To differentiate between the different type of fields this class offers:
@@ -114,7 +116,7 @@ public class FieldAttribute extends TypedAttribute {
         this(
             Source.readFrom((StreamInput & PlanStreamInput) in),
             readParentName(in),
-            ((PlanStreamInput) in).readCachedString(),
+            readCachedStringWithVersionCheck(in),
             DataType.readFrom(in),
             EsField.readFrom(in),
             in.readOptionalString(),

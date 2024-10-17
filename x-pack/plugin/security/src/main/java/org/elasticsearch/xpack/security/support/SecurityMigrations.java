@@ -215,7 +215,7 @@ public class SecurityMigrations {
 
         // Visible for testing
         protected static List<String> getDuplicateRoleMappingNames(ExpressionRoleMapping... roleMappings) {
-
+            // Partition role mappings on if they're cluster state role mappings (true) or native role mappings (false)
             Map<Boolean, List<ExpressionRoleMapping>> partitionedRoleMappings = Arrays.stream(roleMappings)
                 .collect(
                     Collectors.partitioningBy(

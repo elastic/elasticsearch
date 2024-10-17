@@ -4769,6 +4769,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var exchange = asRemoteExchange(topN.child());
 
         project = as(exchange.child(), ProjectExec.class);
+        // Depending on what is run before this test, the synthetic name could have variable suffixes, so we must only assert on the prefix
         assertThat(
             names(project.projections()),
             contains(
@@ -4785,7 +4786,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var evalExec = as(extract.child(), EvalExec.class);
         var alias = as(evalExec.fields().get(0), Alias.class);
         assertThat(alias.name(), startsWith("$$order_by$0$"));
-        var aliasName = alias.name();
+        var aliasName = alias.name();  // We need this name to know what to assert on later when comparing the Order to the Sort
         var stDistance = as(alias.child(), StDistance.class);
         assertThat(stDistance.left().toString(), startsWith("location"));
         extract = as(evalExec.child(), FieldExtractExec.class);

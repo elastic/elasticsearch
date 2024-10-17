@@ -87,8 +87,7 @@ public class ReservedRoleMappingAction implements ReservedClusterStateHandler<Li
             throw illegalArgumentException;
         }
         return roleMappings.stream()
-            // user-defined values for the metadata name field must get stripped out
-            .map(r -> ReservedRoleMappingXContentNameFieldHelper.removeNameFromMetadata(r.getMapping(), true))
+            .map(r -> ReservedRoleMappingXContentNameFieldHelper.copyWithNameInMetadata(r.getMapping()))
             .collect(Collectors.toUnmodifiableSet());
     }
 }

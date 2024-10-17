@@ -24,33 +24,10 @@ public final class ReservedRoleMappingXContentNameFieldHelper {
     private ReservedRoleMappingXContentNameFieldHelper() {}
 
     public static ExpressionRoleMapping copyWithNameInMetadata(ExpressionRoleMapping roleMapping) {
-        // metadata name field already present, nothing to do
-        if (roleMapping.getMetadata().containsKey(METADATA_NAME_FIELD)) {
-            return roleMapping;
-        }
         // xcontent should already give us back a hashmap but make sure we have one, so we can modify it
-        // can't use Maps.copyWith... since these create maps that don't support `null` values in map entries
         Map<String, Object> metadata = toHashMap(roleMapping.getMetadata());
-        metadata.put(METADATA_NAME_FIELD, roleMapping.getName());
-        return new ExpressionRoleMapping(
-            roleMapping.getName(),
-            roleMapping.getExpression(),
-            roleMapping.getRoles(),
-            roleMapping.getRoleTemplates(),
-            metadata,
-            roleMapping.isEnabled()
-        );
-    }
-
-    public static ExpressionRoleMapping removeNameFromMetadata(ExpressionRoleMapping roleMapping, boolean logError) {
-        if (roleMapping.getMetadata().containsKey(METADATA_NAME_FIELD) == false) {
-            return roleMapping;
-        }
-        // xcontent should already give us back a hashmap but make sure we have one, so we can modify it
-        // can't use Maps.copyWith... since these create maps that don't support `null` values in map entries
-        Map<String, Object> metadata = toHashMap(roleMapping.getMetadata());
-        metadata.remove(METADATA_NAME_FIELD);
-        if (logError) {
+        // note: can't use Maps.copyWith... since these create maps that don't support `null` values in map entries
+        if (metadata.put(METADATA_NAME_FIELD, roleMapping.getName()) != null) {
             logger.error(
                 "Metadata field [{}] is reserved and will be overwritten with an internal system value. "
                     + "Please rename this field in your role mapping configuration.",

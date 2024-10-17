@@ -31,8 +31,7 @@ import java.util.Set;
  */
 public abstract class BlockSourceReader implements BlockLoader.RowStrideReader {
 
-    // _ignored_source is needed ofr synthetic source is needed for, in case stored source (default) is used,
-    // then it just doesn't get loaded.
+    // _ignored_source is needed when source mode is synthetic.
     static final StoredFieldsSpec NEEDS_SOURCE_AND_IGNORED_SOURCE = new StoredFieldsSpec(
         true,
         false,

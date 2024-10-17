@@ -799,6 +799,9 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
         long perAllocationMemoryBytes,
         int numberOfAllocations
     ) {
+        if (numberOfAllocations == 0) {
+            return 0;
+        }
         // While loading the model in the process we need twice the model size.
 
         // 1. If ELSER v1 or v2 then 2004MB

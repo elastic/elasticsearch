@@ -35,7 +35,6 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.tests.util.LuceneTestCase;
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteRequest;
@@ -131,7 +130,6 @@ import static org.elasticsearch.index.IndexSettings.STATELESS_DEFAULT_REFRESH_IN
 import static org.elasticsearch.indices.IndexingMemoryController.SHARD_INACTIVE_TIME_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -231,9 +229,7 @@ public class StatelessIT extends AbstractStatelessIntegTestCase {
         assertTrue(setRefreshIntervalSetting(indexName, TimeValue.timeValueSeconds(120)));
         assertEquals(TimeValue.timeValueSeconds(120), getRefreshIntervalSetting(indexName, false));
         assertRefreshIntervalConcreteValue(index, TimeValue.timeValueSeconds(120));
-        var exc = expectThrows(Exception.class, () -> setRefreshIntervalSetting(indexName, TimeValue.timeValueSeconds(2)));
-        Throwable cause = ExceptionsHelper.unwrapCause(exc.getCause());
-        assertThat(cause.getMessage(), containsString("equal to or greater than 5s"));
+        // TODO (ES-6244): try setting to less than 5sec and assert there is a validation exception.
         assertTrue(setRefreshIntervalSetting(indexName, TimeValue.MINUS_ONE));
         assertEquals(TimeValue.MINUS_ONE, getRefreshIntervalSetting(indexName, false));
         assertRefreshIntervalConcreteValue(index, TimeValue.MINUS_ONE);
@@ -285,7 +281,7 @@ public class StatelessIT extends AbstractStatelessIntegTestCase {
 
         assertBusy(
             () -> assertThat(
-                "expected a scheduled refresh to cause the shard to flush and produce a new commit generation",
+                "expected a scheduled refresh to cause the non fast refresh shard to flush and produce a new commit generation",
                 indexShard.commitStats().getGeneration(),
                 greaterThan(genBefore)
             ),

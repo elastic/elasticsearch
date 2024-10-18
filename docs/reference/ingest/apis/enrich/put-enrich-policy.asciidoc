@@ -55,7 +55,7 @@ DELETE /_enrich/policy/my-policy
 // tag::enrich-policy-api-prereqs[]
 To use enrich policies, you must have:
 
-* `read` index privileges for any indices used
+* `read` and `view_index_metadata` index privileges for any indices used
 * The `enrich_user` <<built-in-roles,built-in role>>
 // end::enrich-policy-api-prereqs[]
 

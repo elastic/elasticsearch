@@ -7,7 +7,7 @@
  */
 
 plugins {
-  id "com.gradle.enterprise" version "3.16.1"
+  id "com.gradle.develocity" version "3.18.1"
 }
 
 // Include all subdirectories as example projects

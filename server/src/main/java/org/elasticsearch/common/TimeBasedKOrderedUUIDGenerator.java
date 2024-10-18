@@ -11,12 +11,21 @@ package org.elasticsearch.common;
 import java.util.Base64;
 
 /**
- * A class that extends {@link TimeBasedUUIDGenerator} re-arranging document _id bytes in such
- * a way to take advantage of shared prefixes and favor compression of the term dictionary.
- * The idea is to generate the id such that never-changing or slowly changing parts of the id
- * come first so that large sequences of document ids share the same prefix. This should result
- * in a more compact term dictionary.
+ * Generates a base64-encoded, k-ordered UUID string optimized for compression and efficient indexing.
+ * <p>
+ * This method produces a time-based UUID where slowly changing components like the timestamp appear first,
+ * improving prefix-sharing and compression during indexing. It ensures uniqueness across nodes by incorporating
+ * a timestamp, a MAC address, and a sequence ID.
+ * <p>
+ * <b>Timestamp:</b> Represents the current time in milliseconds, ensuring ordering and uniqueness.
+ * <br>
+ * <b>MAC Address:</b> Ensures uniqueness across different coordinators.
+ * <br>
+ * <b>Sequence ID:</b> Differentiates UUIDs generated within the same millisecond, ensuring uniqueness even at high throughput.
+ * <p>
+ * The result is a compact base64-encoded string, optimized for efficient sorting and compression in distributed systems.
  */
+
 public class TimeBasedKOrderedUUIDGenerator extends TimeBasedUUIDGenerator {
     private static final Base64.Encoder BASE_64_ENCODER = Base64.getEncoder().withoutPadding();
 

@@ -57,6 +57,19 @@ public class KqlParserTests extends AbstractBuilderTestCase {
         }
     }
 
+    public void testMatchAllQuery() {
+        KqlParser parser = new KqlParser();
+        SearchExecutionContext searchExecutionContext = createSearchExecutionContext();
+
+        assertThat(parser.parseKqlQuery("*", searchExecutionContext), isA(MatchAllQueryBuilder.class));
+        assertThat(parser.parseKqlQuery(wrapWithRandomWhitespaces("*"), searchExecutionContext), isA(MatchAllQueryBuilder.class));
+        assertThat(parser.parseKqlQuery("*:*", searchExecutionContext), isA(MatchAllQueryBuilder.class));
+        assertThat(
+            parser.parseKqlQuery(String.join(wrapWithRandomWhitespaces(":"), "*", "*"), searchExecutionContext),
+            isA(MatchAllQueryBuilder.class)
+        );
+    }
+
     public void testParenthesizedQuery() throws IOException {
         KqlParser parser = new KqlParser();
         SearchExecutionContext searchExecutionContext = createSearchExecutionContext();
@@ -270,7 +283,7 @@ public class KqlParserTests extends AbstractBuilderTestCase {
             );
             assertThat(e.getLineNumber(), equalTo(1));
             assertThat(e.getColumnNumber(), equalTo(15));
-            assertThat(e.getMessage(), equalTo("line 1:15: missing ')' at 'AND'"));
+            assertThat(e.getMessage(), equalTo("line 1:15: extraneous input 'AND' expecting {')', UNQUOTED_LITERAL, WILDCARD}"));
         }
     }
 

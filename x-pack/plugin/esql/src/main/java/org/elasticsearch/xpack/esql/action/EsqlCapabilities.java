@@ -385,7 +385,12 @@ public class EsqlCapabilities {
         /**
          * Allow filter per individual aggregation.
          */
-        PER_AGG_FILTERING;
+        PER_AGG_FILTERING,
+
+        /**
+         * Support for semantic_text field mapping
+         */
+        SEMANTIC_TEXT_TYPE(EsqlCorePlugin.SEMANTIC_TEXT_FEATURE_FLAG);
 
         private final boolean snapshotOnly;
         private final FeatureFlag featureFlag;

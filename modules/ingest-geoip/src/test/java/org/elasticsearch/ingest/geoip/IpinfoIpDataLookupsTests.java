@@ -102,25 +102,7 @@ public class IpinfoIpDataLookupsTests extends ESTestCase {
     public void testAsnFree() {
         assumeFalse("https://github.com/elastic/elasticsearch/issues/114266", Constants.WINDOWS);
         String databaseName = "ip_asn_sample.mmdb";
-        String ip = "5.182.109.0";
-        assertExpectedLookupResults(
-            databaseName,
-            ip,
-            new IpinfoIpDataLookups.Asn(Database.AsnV2.properties()),
-            Map.ofEntries(
-                entry("ip", ip),
-                entry("organization_name", "M247 Europe SRL"),
-                entry("asn", 9009L),
-                entry("network", "5.182.109.0/24"),
-                entry("domain", "m247.com")
-            )
-        );
-    }
-
-    public void testAsnStandard() {
-        assumeFalse("https://github.com/elastic/elasticsearch/issues/114266", Constants.WINDOWS);
-        String databaseName = "asn_sample.mmdb";
-        String ip = "23.53.116.0";
+        String ip = "23.32.184.0";
         assertExpectedLookupResults(
             databaseName,
             ip,
@@ -128,9 +110,27 @@ public class IpinfoIpDataLookupsTests extends ESTestCase {
             Map.ofEntries(
                 entry("ip", ip),
                 entry("organization_name", "Akamai Technologies, Inc."),
-                entry("asn", 32787L),
-                entry("network", "23.53.116.0/24"),
-                entry("domain", "akamai.com"),
+                entry("asn", 16625L),
+                entry("network", "23.32.184.0/21"),
+                entry("domain", "akamai.com")
+            )
+        );
+    }
+
+    public void testAsnStandard() {
+        assumeFalse("https://github.com/elastic/elasticsearch/issues/114266", Constants.WINDOWS);
+        String databaseName = "asn_sample.mmdb";
+        String ip = "69.19.224.0";
+        assertExpectedLookupResults(
+            databaseName,
+            ip,
+            new IpinfoIpDataLookups.Asn(Database.AsnV2.properties()),
+            Map.ofEntries(
+                entry("ip", ip),
+                entry("organization_name", "TPx Communications"),
+                entry("asn", 14265L),
+                entry("network", "69.19.224.0/22"),
+                entry("domain", "tpx.com"),
                 entry("type", "hosting"),
                 entry("country_iso_code", "US")
             )
@@ -177,17 +177,17 @@ public class IpinfoIpDataLookupsTests extends ESTestCase {
     public void testCountryFree() {
         assumeFalse("https://github.com/elastic/elasticsearch/issues/114266", Constants.WINDOWS);
         String databaseName = "ip_country_sample.mmdb";
-        String ip = "4.221.143.168";
+        String ip = "20.33.76.0";
         assertExpectedLookupResults(
             databaseName,
             ip,
             new IpinfoIpDataLookups.Country(Database.CountryV2.properties()),
             Map.ofEntries(
                 entry("ip", ip),
-                entry("country_name", "South Africa"),
-                entry("country_iso_code", "ZA"),
-                entry("continent_name", "Africa"),
-                entry("continent_code", "AF")
+                entry("country_name", "Ireland"),
+                entry("country_iso_code", "IE"),
+                entry("continent_name", "Europe"),
+                entry("continent_code", "EU")
             )
         );
     }
@@ -195,7 +195,7 @@ public class IpinfoIpDataLookupsTests extends ESTestCase {
     public void testGeolocationStandard() {
         assumeFalse("https://github.com/elastic/elasticsearch/issues/114266", Constants.WINDOWS);
         String databaseName = "ip_geolocation_sample.mmdb";
-        String ip = "2.124.90.182";
+        String ip = "90.203.36.70";
         assertExpectedLookupResults(
             databaseName,
             ip,
@@ -204,10 +204,10 @@ public class IpinfoIpDataLookupsTests extends ESTestCase {
                 entry("ip", ip),
                 entry("country_iso_code", "GB"),
                 entry("region_name", "England"),
-                entry("city_name", "London"),
+                entry("city_name", "Birkenhead"),
                 entry("timezone", "Europe/London"),
-                entry("postal_code", "E1W"),
-                entry("location", Map.of("lat", 51.50853, "lon", -0.12574))
+                entry("postal_code", "CH41"),
+                entry("location", Map.of("lat", 53.39337, "lon", -3.01479))
             )
         );
     }
@@ -253,7 +253,7 @@ public class IpinfoIpDataLookupsTests extends ESTestCase {
     public void testPrivacyDetectionStandard() {
         assumeFalse("https://github.com/elastic/elasticsearch/issues/114266", Constants.WINDOWS);
         String databaseName = "privacy_detection_sample.mmdb";
-        String ip = "1.53.59.33";
+        String ip = "2.57.109.154";
         assertExpectedLookupResults(
             databaseName,
             ip,
@@ -272,16 +272,16 @@ public class IpinfoIpDataLookupsTests extends ESTestCase {
     public void testPrivacyDetectionStandardNonEmptyService() {
         assumeFalse("https://github.com/elastic/elasticsearch/issues/114266", Constants.WINDOWS);
         String databaseName = "privacy_detection_sample.mmdb";
-        String ip = "216.131.74.65";
+        String ip = "59.29.201.246";
         assertExpectedLookupResults(
             databaseName,
             ip,
             new IpinfoIpDataLookups.PrivacyDetection(Database.PrivacyDetection.properties()),
             Map.ofEntries(
                 entry("ip", ip),
-                entry("hosting", true),
+                entry("hosting", false),
                 entry("proxy", false),
-                entry("service", "FastVPN"),
+                entry("service", "VPNGate"),
                 entry("relay", false),
                 entry("tor", false),
                 entry("vpn", true)

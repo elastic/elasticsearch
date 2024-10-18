@@ -397,6 +397,7 @@ public class ModelRegistry {
                 logger.error(
                     format("Failed to update inference endpoint [%s] due to [%s]", inferenceEntityId, configResponse.buildFailureMessage())
                 );
+                preventDeletionLock.remove(inferenceEntityId);
                 // Since none of our updates succeeded at this point, we can simply return.
                 finalListener.onFailure(
                     new ElasticsearchStatusException(

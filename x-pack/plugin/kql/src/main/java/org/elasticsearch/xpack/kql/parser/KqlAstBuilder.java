@@ -34,16 +34,30 @@ class KqlAstBuilder extends KqlBaseBaseVisitor<QueryBuilder> {
 
     @Override
     public QueryBuilder visitBooleanQuery(KqlBaseParser.BooleanQueryContext ctx) {
+        // TODO: implementation
         return new MatchNoneQueryBuilder();
     }
 
     @Override
     public QueryBuilder visitNotQuery(KqlBaseParser.NotQueryContext ctx) {
+        // TODO: implementation
         return new MatchNoneQueryBuilder();
     }
 
     @Override
-    public QueryBuilder visitSimpleQuery(KqlBaseParser.SimpleQueryContext ctx) {
+    public QueryBuilder visitExpression(KqlBaseParser.ExpressionContext ctx) {
+        // TODO: implementation
+        return new MatchNoneQueryBuilder();
+    }
+
+    @Override
+    public QueryBuilder visitParenthesizedQuery(KqlBaseParser.ParenthesizedQueryContext ctx) {
+        return ParserUtils.typedParsing(this, ctx.query(), QueryBuilder.class);
+    }
+
+    @Override
+    public QueryBuilder visitNestedQuery(KqlBaseParser.NestedQueryContext ctx) {
+        // TODO: implementation
         return new MatchNoneQueryBuilder();
     }
 }

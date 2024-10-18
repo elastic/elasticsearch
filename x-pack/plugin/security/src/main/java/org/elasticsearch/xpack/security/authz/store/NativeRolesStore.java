@@ -31,6 +31,7 @@ import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
@@ -95,6 +96,7 @@ import static org.elasticsearch.xpack.core.security.authz.permission.RemoteClust
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.Availability.PRIMARY_SHARDS;
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.Availability.SEARCH_SHARDS;
 import static org.elasticsearch.xpack.security.support.SecurityMigrations.ROLE_METADATA_FLATTENED_MIGRATION_VERSION;
+import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_FAILURE_STORE_AUTH;
 import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_MAIN_ALIAS;
 import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_ROLES_METADATA_FLATTENED;
 
@@ -452,9 +454,25 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
     private Exception validateRoleDescriptor(RoleDescriptor role) {
         ActionRequestValidationException validationException = null;
         validationException = RoleDescriptorRequestValidator.validate(role, validationException);
+        ClusterState clusterState = clusterService.state();
 
         if (reservedRoleNameChecker.isReserved(role.getName())) {
             throw addValidationError("Role [" + role.getName() + "] is reserved and may not be used.", validationException);
+        }
+
+        if (featureService.clusterHasFeature(clusterState, SECURITY_FAILURE_STORE_AUTH) == false) {
+            for (var indexPriv : role.getIndicesPrivileges()) {
+                if (indexPriv.dataSelector() != IndicesPrivileges.DEFAULT_DATA_SELECTOR
+                    && indexPriv.failureSelector() != IndicesPrivileges.DEFAULT_FAILURE_SELECTOR) {
+                    throw addValidationError(
+                        "Role ["
+                            + role.getName()
+                            + "] cannot use selectors because selectors are not supported by all nodes in this cluster. Please ensure "
+                            + "all nodes are up to date in order to use selectors in role descriptors.",
+                        validationException
+                    );
+                }
+            }
         }
 
         if (role.isUsingDocumentOrFieldLevelSecurity() && DOCUMENT_LEVEL_SECURITY_FEATURE.checkWithoutTracking(licenseState) == false) {

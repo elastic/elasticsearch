@@ -351,34 +351,37 @@ public class JvmOptionsParserTests extends ESTestCase {
         assertThat(seenInvalidLines, equalTo(invalidLines));
     }
 
-    public void testNodeProcessorsActiveCount() {
+    public void testNodeProcessorsActiveCount() throws IOException {
         {
-            final List<String> jvmOptions = SystemJvmOptions.systemJvmOptions(Settings.EMPTY, TEST_SYSPROPS);
+            final List<String> jvmOptions = SystemJvmOptions.systemJvmOptions(Settings.EMPTY, TEST_SYSPROPS, Path.of("."));
             assertThat(jvmOptions, not(hasItem(containsString("-XX:ActiveProcessorCount="))));
         }
         {
             Settings nodeSettings = Settings.builder().put(EsExecutors.NODE_PROCESSORS_SETTING.getKey(), 1).build();
-            final List<String> jvmOptions = SystemJvmOptions.systemJvmOptions(nodeSettings, TEST_SYSPROPS);
+            final List<String> jvmOptions = SystemJvmOptions.systemJvmOptions(nodeSettings, TEST_SYSPROPS, Path.of("."));
             assertThat(jvmOptions, hasItem("-XX:ActiveProcessorCount=1"));
         }
         {
             // check rounding
             Settings nodeSettings = Settings.builder().put(EsExecutors.NODE_PROCESSORS_SETTING.getKey(), 0.2).build();
-            final List<String> jvmOptions = SystemJvmOptions.systemJvmOptions(nodeSettings, TEST_SYSPROPS);
+            final List<String> jvmOptions = SystemJvmOptions.systemJvmOptions(nodeSettings, TEST_SYSPROPS, Path.of("."));
             assertThat(jvmOptions, hasItem("-XX:ActiveProcessorCount=1"));
         }
         {
             // check validation
             Settings nodeSettings = Settings.builder().put(EsExecutors.NODE_PROCESSORS_SETTING.getKey(), 10000).build();
-            var e = expectThrows(IllegalArgumentException.class, () -> SystemJvmOptions.systemJvmOptions(nodeSettings, TEST_SYSPROPS));
+            var e = expectThrows(
+                IllegalArgumentException.class,
+                () -> SystemJvmOptions.systemJvmOptions(nodeSettings, TEST_SYSPROPS, Path.of("."))
+            );
             assertThat(e.getMessage(), containsString("setting [node.processors] must be <="));
         }
     }
 
-    public void testCommandLineDistributionType() {
+    public void testCommandLineDistributionType() throws IOException {
         var sysprops = new HashMap<>(TEST_SYSPROPS);
         sysprops.put("es.distribution.type", "testdistro");
-        final List<String> jvmOptions = SystemJvmOptions.systemJvmOptions(Settings.EMPTY, sysprops);
+        final List<String> jvmOptions = SystemJvmOptions.systemJvmOptions(Settings.EMPTY, sysprops, Path.of("."));
         assertThat(jvmOptions, hasItem("-Des.distribution.type=testdistro"));
     }
 }

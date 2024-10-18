@@ -163,3 +163,27 @@ Structured log body:
           fields: ["event.dataset"]
   - length: { hits.hits: 1 }
   - match: { hits.hits.0.fields.event\.dataset: ["generic.otel"] }
+---
+host.name pass-through:
+  - do:
+      bulk:
+        index: logs-generic.otel-default
+        refresh: true
+        body:
+          - create: {}
+          - "@timestamp": 2024-07-18T14:48:33.467654000Z
+            resource:
+              attributes:
+                host.name: localhost
+  - is_false: errors
+  - do:
+      search:
+        index: logs-generic.otel-default
+        body:
+          query:
+            term:
+              host.name: localhost
+          fields: [ "*" ]
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0.fields.resource\.attributes\.host\.name: [ "localhost" ] }
+  - match: { hits.hits.0.fields.host\.name: [ "localhost" ] }

@@ -117,6 +117,7 @@ public class KqlParserTests extends AbstractBuilderTestCase {
             assertThat(parsedQuery.must(), empty());
             assertThat(parsedQuery.mustNot(), empty());
             assertThat(parsedQuery.should(), hasSize(2));
+            assertThat(parsedQuery.minimumShouldMatch(), equalTo("1"));
             assertThat(
                 parsedQuery.should(),
                 allOf(

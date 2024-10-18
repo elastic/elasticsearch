@@ -65,7 +65,7 @@ public class TransportGetRoleMappingsAction extends HandledTransportAction<GetRo
             final Collection<ExpressionRoleMapping> clusterStateRoleMappings = clusterStateRoleMapper.getMappings(
                 // if the API was queried with a reserved suffix for any of the names, we need to remove it because role mappings are
                 // stored without it in cluster-state
-                TransportClusterStateRoleMappingTranslator.removeReservedReadOnlySuffix(names)
+                TransportClusterStateRoleMappingTranslator.removeReadOnlySuffixIfPresent(names)
             );
             listener.onResponse(buildResponse(clusterStateRoleMappings, nativeRoleMappings));
         }, listener::onFailure));

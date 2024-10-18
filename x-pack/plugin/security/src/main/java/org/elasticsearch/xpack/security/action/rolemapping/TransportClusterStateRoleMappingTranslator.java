@@ -53,7 +53,7 @@ public final class TransportClusterStateRoleMappingTranslator {
         }
         ReservedRoleMappingXContentNameFieldHelper.removeNameFromMetadata(metadata);
         return new ExpressionRoleMapping(
-            withReservedReadOnlySuffix(mapping.getName()),
+            addReadOnlySuffix(mapping.getName()),
             mapping.getExpression(),
             mapping.getRoles(),
             mapping.getRoleTemplates(),
@@ -62,19 +62,27 @@ public final class TransportClusterStateRoleMappingTranslator {
         );
     }
 
-    public static boolean hasReservedReadOnlySuffix(String name) {
+    public static boolean hasReadOnlySuffix(String name) {
         return name.endsWith(READ_ONLY_ROLE_MAPPING_SUFFIX);
     }
 
-    public static String withReservedReadOnlySuffix(String name) {
+    public static void validateNoReadOnlySuffix(String name) {
+        if (hasReadOnlySuffix(name)) {
+            throw new IllegalArgumentException(
+                "Invalid mapping name [" + name + "]. [" + READ_ONLY_ROLE_MAPPING_SUFFIX + "] is not an allowed suffix"
+            );
+        }
+    }
+
+    public static String addReadOnlySuffix(String name) {
         return name + READ_ONLY_ROLE_MAPPING_SUFFIX;
     }
 
-    public static Set<String> removeReservedReadOnlySuffix(Set<String> names) {
-        return names.stream().map(TransportClusterStateRoleMappingTranslator::removeReservedReadOnlySuffix).collect(Collectors.toSet());
+    public static Set<String> removeReadOnlySuffixIfPresent(Set<String> names) {
+        return names.stream().map(TransportClusterStateRoleMappingTranslator::removeReadOnlySuffixIfPresent).collect(Collectors.toSet());
     }
 
-    public static String removeReservedReadOnlySuffix(String name) {
+    public static String removeReadOnlySuffixIfPresent(String name) {
         return name.endsWith(READ_ONLY_ROLE_MAPPING_SUFFIX)
             ? name.substring(0, name.length() - READ_ONLY_ROLE_MAPPING_SUFFIX.length())
             : name;

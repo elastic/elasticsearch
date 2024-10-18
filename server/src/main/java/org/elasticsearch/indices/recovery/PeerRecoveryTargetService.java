@@ -397,6 +397,32 @@ public class PeerRecoveryTargetService implements IndexEventListener {
                     }
                     indexShard.recoverLocallyUpToGlobalCheckpoint(ActionListener.assertOnce(l));
                 })
+                // peer recovery can consume a lot of disk space, so it's worth cleaning up locally ahead of the attempt
+                // operation runs only if the previous operation succeeded, and returns the previous operation's result.
+                // Failures at this stage aren't fatal, we can attempt to recover and then clean up again at the end. #104473
+                .andThenApply(startingSeqNo -> {
+                    Store store = indexShard.store();
+                    store.incRef();
+                    try {
+                        store.cleanupAndVerify("cleanup before peer recovery", indexShard.snapshotStoreMetadata());
+                    } catch (IOException e) {
+                        // if we can't read a snapshot, then we don't have enough intact data locally to create one.
+                        // Make an attempt to clean up temporary files from the previous run. We could also just delete
+                        // everything in the directory but in that case we might want to be a little more thoughtful about
+                        // the exact exception triggered here. Corrupt indices might be recoverable without a full transfer, for
+                        // example.
+                        logger.info("cleanup before peer recovery failed on shard [{}]; exception: [{}]", indexShard.shardId(), e);
+                        try {
+                            recoveryTarget.cleanTempFiles();
+                        } catch (IOException ie) {
+                            // log and ignore. Recovery gets another chance to clean up after file transfer.
+                            logger.warn("temporary file cleanup failed on shard [{}]; exception: [{}]", indexShard.shardId(), ie);
+                        }
+                    } finally {
+                        store.decRef();
+                    }
+                    return startingSeqNo;
+                })
                 // now construct the start-recovery request
                 .andThenApply(startingSeqNo -> {
                     assert startingSeqNo == UNASSIGNED_SEQ_NO || recoveryTarget.state().getStage() == RecoveryState.Stage.TRANSLOG

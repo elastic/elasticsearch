@@ -810,13 +810,11 @@ public class Security extends Plugin
         // We need to construct the checks here while the secure settings are still available.
         // If we wait until #getBoostrapChecks the secure settings will have been cleared/closed.
         final List<BootstrapCheck> checks = new ArrayList<>();
-        checks.addAll(
-            Arrays.asList(
-                new TokenSSLBootstrapCheck(),
-                new PkiRealmBootstrapCheck(getSslService()),
-                new SecurityImplicitBehaviorBootstrapCheck(nodeMetadata, getLicenseService()),
-                new TransportTLSBootstrapCheck()
-            )
+        Collections.addAll(
+            checks,
+            new TokenSSLBootstrapCheck(),
+            new PkiRealmBootstrapCheck(getSslService()),
+            new TransportTLSBootstrapCheck()
         );
         checks.addAll(InternalRealms.getBootstrapChecks(settings, environment));
         this.bootstrapChecks.set(Collections.unmodifiableList(checks));

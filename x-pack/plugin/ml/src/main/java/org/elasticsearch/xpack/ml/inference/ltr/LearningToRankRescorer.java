@@ -79,7 +79,12 @@ public class LearningToRankRescorer implements Rescorer {
         List<FeatureExtractor> featureExtractors = ltrRescoreContext.buildFeatureExtractors(searcher);
         List<Map<String, Object>> docFeatures = new ArrayList<>(topDocIDs.size());
         int featureSize = featureExtractors.stream().mapToInt(fe -> fe.featureNames().size()).sum();
+        int count = 0;
         while (hitUpto < hitsToRescore.length) {
+            if (count % MAX_CALLS_BEFORE_QUERY_TIMEOUT_CHECK == 0) {
+                rescoreContext.checkCancellation();
+            }
+            count++;
             final ScoreDoc hit = hitsToRescore[hitUpto];
             final int docID = hit.doc;
             while (docID >= endDoc) {

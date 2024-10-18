@@ -132,7 +132,12 @@ public class ReservedClusterStateService {
      * @param errorListener a consumer called with {@link IllegalStateException} if the content has errors and the
      *        cluster state cannot be correctly applied, null if successful or state couldn't be applied because of incompatible version.
      */
-    public void process(String namespace, XContentParser parser, ReservedStateVersionCheck versionCheck, Consumer<Exception> errorListener) {
+    public void process(
+        String namespace,
+        XContentParser parser,
+        ReservedStateVersionCheck versionCheck,
+        Consumer<Exception> errorListener
+    ) {
         ReservedStateChunk stateChunk;
 
         try {

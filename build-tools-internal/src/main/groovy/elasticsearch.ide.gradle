@@ -171,7 +171,7 @@ if (providers.systemProperty('idea.active').getOrNull() == 'true') {
   idea {
     project {
       vcs = 'Git'
-      jdkName = BuildParams.minimumCompilerVersion.majorVersion
+      jdkName = buildParams.minimumCompilerVersion.majorVersion
 
       settings {
         delegateActions {

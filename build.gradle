@@ -16,7 +16,6 @@ import com.fasterxml.jackson.databind.ObjectMapper
 import org.elasticsearch.gradle.Version
 import org.elasticsearch.gradle.internal.BaseInternalPluginBuildPlugin
 import org.elasticsearch.gradle.internal.ResolveAllDependencies
-import org.elasticsearch.gradle.internal.info.BuildParams
 import org.elasticsearch.gradle.util.GradleUtils
 import org.gradle.plugins.ide.eclipse.model.AccessRule
 import org.gradle.plugins.ide.eclipse.model.ProjectDependency
@@ -136,21 +135,21 @@ tasks.register("updateCIBwcVersions") {
   }
 
   doLast {
-    writeVersions(file(".ci/bwcVersions"), filterIntermediatePatches(BuildParams.bwcVersions.indexCompatible))
-    writeVersions(file(".ci/snapshotBwcVersions"), filterIntermediatePatches(BuildParams.bwcVersions.unreleasedIndexCompatible))
+    writeVersions(file(".ci/bwcVersions"), filterIntermediatePatches(buildParams.bwcVersions.indexCompatible))
+    writeVersions(file(".ci/snapshotBwcVersions"), filterIntermediatePatches(buildParams.bwcVersions.unreleasedIndexCompatible))
     expandBwcList(
       ".buildkite/pipelines/intake.yml",
       ".buildkite/pipelines/intake.template.yml",
-      filterIntermediatePatches(BuildParams.bwcVersions.unreleasedIndexCompatible)
+      filterIntermediatePatches(buildParams.bwcVersions.unreleasedIndexCompatible)
     )
     writeBuildkitePipeline(
       ".buildkite/pipelines/periodic.yml",
       ".buildkite/pipelines/periodic.template.yml",
       [
-        new ListExpansion(versions: filterIntermediatePatches(BuildParams.bwcVersions.unreleasedIndexCompatible), variable: "BWC_LIST"),
+        new ListExpansion(versions: filterIntermediatePatches(buildParams.bwcVersions.unreleasedIndexCompatible), variable: "BWC_LIST"),
       ],
       [
-        new StepExpansion(templatePath: ".buildkite/pipelines/periodic.bwc.template.yml", versions: filterIntermediatePatches(BuildParams.bwcVersions.indexCompatible), variable: "BWC_STEPS"),
+        new StepExpansion(templatePath: ".buildkite/pipelines/periodic.bwc.template.yml", versions: filterIntermediatePatches(buildParams.bwcVersions.indexCompatible), variable: "BWC_STEPS"),
       ]
     )
 
@@ -158,7 +157,7 @@ tasks.register("updateCIBwcVersions") {
       ".buildkite/pipelines/periodic-packaging.yml",
       ".buildkite/pipelines/periodic-packaging.template.yml",
       ".buildkite/pipelines/periodic-packaging.bwc.template.yml",
-      filterIntermediatePatches(BuildParams.bwcVersions.indexCompatible)
+      filterIntermediatePatches(buildParams.bwcVersions.indexCompatible)
     )
   }
 }
@@ -180,19 +179,19 @@ tasks.register("verifyVersions") {
     // Fetch the metadata and parse the xml into Version instances because it's more straight forward here
     // rather than bwcVersion ( VersionCollection ).
     new URL('https://repo1.maven.org/maven2/org/elasticsearch/elasticsearch/maven-metadata.xml').openStream().withStream { s ->
-      BuildParams.bwcVersions.compareToAuthoritative(
+      buildParams.bwcVersions.compareToAuthoritative(
         new XmlParser().parse(s)
           .versioning.versions.version
           .collect { it.text() }.findAll { it ==~ /\d+\.\d+\.\d+/ }
           .collect { Version.fromString(it) }
       )
     }
-    verifyCiYaml(file(".ci/bwcVersions"), filterIntermediatePatches(BuildParams.bwcVersions.indexCompatible))
-    verifyCiYaml(file(".ci/snapshotBwcVersions"), BuildParams.bwcVersions.unreleasedIndexCompatible)
+    verifyCiYaml(file(".ci/bwcVersions"), filterIntermediatePatches(buildParams.bwcVersions.indexCompatible))
+    verifyCiYaml(file(".ci/snapshotBwcVersions"), buildParams.bwcVersions.unreleasedIndexCompatible)
 
     // Make sure backport bot config file is up to date
     JsonNode backportConfig = new ObjectMapper().readTree(file(".backportrc.json"))
-    BuildParams.bwcVersions.forPreviousUnreleased { unreleasedVersion ->
+    buildParams.bwcVersions.forPreviousUnreleased { unreleasedVersion ->
       boolean valid = backportConfig.get("targetBranchChoices").elements().any { branchChoice ->
         if (branchChoice.isObject()) {
           return branchChoice.get("name").textValue() == unreleasedVersion.branch

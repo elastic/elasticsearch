@@ -56,7 +56,7 @@ tasks.named("yamlRestTest").configure { enabled = false }
   TaskProvider<AntFixture> fixture = tasks.register("ec2Fixture${action}", AntFixture) {
     dependsOn project.sourceSets.yamlRestTest.runtimeClasspath
     env 'CLASSPATH', "${-> project.sourceSets.yamlRestTest.runtimeClasspath.asPath}"
-    executable = "${BuildParams.runtimeJavaHome}/bin/java"
+    executable = "${buildParams.runtimeJavaHome}/bin/java"
     args 'org.elasticsearch.discovery.ec2.AmazonEC2Fixture', baseDir, "${buildDir}/testclusters/yamlRestTest${action}-1/config/unicast_hosts.txt"
   }
 

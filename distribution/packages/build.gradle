@@ -301,7 +301,7 @@ ospackage {
   url 'https://www.elastic.co/'
 
   // signing setup
-  if (project.hasProperty('signing.password') && BuildParams.isSnapshotBuild() == false) {
+  if (project.hasProperty('signing.password') && buildParams.isSnapshotBuild() == false) {
     signingKeyId = project.hasProperty('signing.keyId') ? project.property('signing.keyId') : 'D88E42B4'
     signingKeyPassphrase = project.property('signing.password')
     signingKeyRingFile = project.hasProperty('signing.secretKeyRingFile') ?

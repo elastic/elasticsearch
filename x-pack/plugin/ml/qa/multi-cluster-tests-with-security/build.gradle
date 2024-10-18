@@ -12,7 +12,7 @@ dependencies {
   testImplementation project(':x-pack:qa')
 }
 
-Version ccsCompatVersion = BuildParams.bwcVersions.minimumWireCompatibleVersion
+Version ccsCompatVersion = buildParams.bwcVersions.minimumWireCompatibleVersion
 
 restResources {
   restApi {

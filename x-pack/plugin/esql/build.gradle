@@ -65,7 +65,7 @@ interface Injected {
 }
 
 tasks.named("test").configure {
-  if (BuildParams.isCi() == false) {
+  if (buildParams.isCi() == false) {
     systemProperty 'generateDocs', true
     def injected = project.objects.newInstance(Injected)
     doFirst {
@@ -136,7 +136,7 @@ tasks.named("test").configure {
  *  Enable QA/rest integration tests for snapshot builds only   *
  *  TODO: Enable for all builds upon this feature release       *
  ****************************************************************/
-if (BuildParams.isSnapshotBuild()) {
+if (buildParams.isSnapshotBuild()) {
   addQaCheckDependencies(project)
 }
 

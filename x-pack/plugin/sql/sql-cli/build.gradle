@@ -55,7 +55,7 @@ tasks.register("runcli") {
   description = 'Run the CLI and connect to elasticsearch running on 9200'
   dependsOn "shadowJar"
   doLast {
-    List command = ["${BuildParams.runtimeJavaHome}/bin/java"]
+    List command = ["${buildParams.runtimeJavaHome}/bin/java"]
     if ('true'.equals(providers.systemProperty('debug').orElse('false').get())) {
       command += '-agentlib:jdwp=transport=dt_socket,server=y,suspend=y,address=8000'
     }

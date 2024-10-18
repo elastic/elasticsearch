@@ -18,6 +18,8 @@ import org.elasticsearch.compute.data.BlockStreamInput;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.lookup.QueryList;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.RangeFieldMapper;
+import org.elasticsearch.index.mapper.RangeType;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchService;
@@ -82,6 +84,30 @@ public class EnrichLookupService extends AbstractLookupService<EnrichLookupServi
             case "match", "range" -> termQueryList(fieldType, context, inputBlock, inputDataType);
             case "geo_match" -> QueryList.geoShapeQueryList(fieldType, context, inputBlock);
             default -> throw new EsqlIllegalArgumentException("illegal match type " + request.matchType);
+        };
+    }
+
+    private static void validateTypes(DataType inputDataType, MappedFieldType fieldType) {
+        if (inputDataType == DataType.UNSUPPORTED) {
+            throw new EsqlIllegalArgumentException("ENRICH cannot match on unsupported input data type");
+        }
+        if (fieldType == null) {
+            throw new EsqlIllegalArgumentException("ENRICH cannot match on non-existent field");
+        }
+        if (fieldType instanceof RangeFieldMapper.RangeFieldType rangeType) {
+            if (rangeTypesCompatible(rangeType.rangeType(), inputDataType) == false) {
+                throw new EsqlIllegalArgumentException(
+                    "ENRICH range and input types are incompatible: range[" + rangeType.rangeType() + "], input[" + inputDataType + "]"
+                );
+            }
+        }
+    }
+
+    private static boolean rangeTypesCompatible(RangeType rangeType, DataType inputDataType) {
+        return switch (rangeType) {
+            case INTEGER, LONG -> inputDataType.isWholeNumber();
+            case IP -> inputDataType == DataType.IP;
+            default -> rangeType.isNumeric() == inputDataType.isNumeric();
         };
     }
 

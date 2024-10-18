@@ -274,6 +274,11 @@ public class EsqlCapabilities {
         RANGEQUERY_FOR_DATETIME,
 
         /**
+         * Enforce strict type checking on ENRICH range types.
+         */
+        ENRICH_STRICT_RANGE_TYPES,
+
+        /**
          * Fix for non-unique attribute names in ROW and logical plans.
          * https://github.com/elastic/elasticsearch/issues/110541
          */

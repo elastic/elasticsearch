@@ -20,6 +20,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.Rewriteable;
@@ -254,8 +255,10 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
             finalReduce = true;
         }
         ccsMinimizeRoundtrips = in.readBoolean();
-        if (in.getTransportVersion().before(TransportVersions.REMOVE_MIN_COMPATIBLE_SHARD_NODE) && in.readBoolean()) {
-            Version.readVersion(in); // and drop on the floor
+        if ((in.getTransportVersion().before(TransportVersions.REMOVE_MIN_COMPATIBLE_SHARD_NODE)
+            || in.getTransportVersion().onOrAfter(TransportVersions.REVERT_REMOVE_MIN_COMPATIBLE_SHARD_NODE)) && in.readBoolean()) {
+            @UpdateForV9(owner = UpdateForV9.Owner.CORE_INFRA)  // this can be removed (again) when the v9 transport version can diverge
+            Version v = Version.readVersion(in); // and drop on the floor
         }
         waitForCheckpoints = in.readMap(StreamInput::readLongArray);
         waitForCheckpointsTimeout = in.readTimeValue();
@@ -291,7 +294,8 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
             out.writeBoolean(finalReduce);
         }
         out.writeBoolean(ccsMinimizeRoundtrips);
-        if (out.getTransportVersion().before(TransportVersions.REMOVE_MIN_COMPATIBLE_SHARD_NODE)) {
+        if (out.getTransportVersion().before(TransportVersions.REMOVE_MIN_COMPATIBLE_SHARD_NODE)
+            || out.getTransportVersion().onOrAfter(TransportVersions.REVERT_REMOVE_MIN_COMPATIBLE_SHARD_NODE)) {
             out.writeBoolean(false);
         }
         out.writeMap(waitForCheckpoints, StreamOutput::writeLongArray);

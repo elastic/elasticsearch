@@ -388,6 +388,11 @@ public class EsqlCapabilities {
         PER_AGG_FILTERING,
 
         /**
+         * Fix for https://github.com/elastic/elasticsearch/issues/114714
+         */
+        FIX_STATS_BY_FOLDABLE_EXPRESSION;
+
+        /**
          * Support for semantic_text field mapping
          */
         SEMANTIC_TEXT_TYPE(EsqlCorePlugin.SEMANTIC_TEXT_FEATURE_FLAG);

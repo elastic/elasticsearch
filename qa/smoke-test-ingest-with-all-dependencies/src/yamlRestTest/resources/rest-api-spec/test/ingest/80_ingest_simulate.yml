@@ -1216,3 +1216,358 @@ setup:
   - match: { docs.0.doc._source.foo: "FOO" }
   - match: { docs.0.doc.executed_pipelines: ["foo-pipeline-2"] }
   - not_exists: docs.0.doc.error
+
+---
+"Test ingest simulate with mapping addition for data streams":
+  # In this test, we make sure that when the index template is a data stream template, simulate ingest works the same whether the data
+  # stream has been created or not -- either way, we expect it to use the template rather than the data stream / index mappings and settings.
+
+  - skip:
+      features:
+        - headers
+        - allowed_warnings
+
+  - requires:
+      cluster_features: ["simulate.mapping.addition"]
+      reason: "ingest simulate mapping addition added in 8.16"
+
+  - do:
+      headers:
+        Content-Type: application/json
+      ingest.put_pipeline:
+        id: "foo-pipeline"
+        body:  >
+          {
+            "processors": [
+              {
+                "set": {
+                  "field": "foo",
+                  "value": true
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      cluster.put_component_template:
+        name: mappings_template
+        body:
+          template:
+            mappings:
+              dynamic: strict
+              properties:
+                foo:
+                  type: boolean
+
+  - do:
+      cluster.put_component_template:
+        name: settings_template
+        body:
+          template:
+            settings:
+              index:
+                default_pipeline: "foo-pipeline"
+
+  - do:
+      allowed_warnings:
+        - "index template [test-composable-1] has index patterns [foo*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [test-composable-1] will take precedence during new index creation"
+      indices.put_index_template:
+        name: test-composable-1
+        body:
+          index_patterns:
+            - foo*
+          composed_of:
+            - mappings_template
+            - settings_template
+
+  - do:
+      allowed_warnings:
+        - "index template [my-template-1] has index patterns [simple-data-stream1] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-template-1] will take precedence during new index creation"
+      indices.put_index_template:
+        name: my-template-1
+        body:
+          index_patterns: [simple-data-stream1]
+          composed_of:
+            - mappings_template
+            - settings_template
+          data_stream: {}
+
+  # Here we replace my-template-1 with a substitute version that uses the settings_template_2 and mappings_template_2 templates defined in
+  # this request, and foo-pipeline-2 defined in this request.
+  - do:
+      headers:
+        Content-Type: application/json
+      simulate.ingest:
+        index: simple-data-stream1
+        body: >
+          {
+            "docs": [
+              {
+                "_id": "asdf",
+                "_source": {
+                  "@timestamp": 1234,
+                  "foo": false
+                }
+              }
+            ],
+            "pipeline_substitutions": {
+              "foo-pipeline-2": {
+                "processors": [
+                  {
+                    "set": {
+                      "field": "foo",
+                      "value": "FOO"
+                    }
+                  }
+                ]
+              }
+            },
+            "component_template_substitutions": {
+              "settings_template_2": {
+                "template": {
+                  "settings": {
+                    "index": {
+                      "default_pipeline": "foo-pipeline-2"
+                    }
+                  }
+                }
+              },
+              "mappings_template_2": {
+                "template": {
+                  "mappings": {
+                    "dynamic": "strict",
+                    "properties": {
+                      "foo": {
+                        "type": "integer"
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "index_template_substitutions": {
+              "my-template-1": {
+                "index_patterns": ["simple-data-stream1"],
+                "composed_of": ["settings_template_2", "mappings_template_2"],
+                "data_stream": {}
+              }
+            },
+            "mapping_addition": {
+              "dynamic": "strict",
+              "properties": {
+                "foo": {
+                  "type": "keyword"
+                }
+              }
+            }
+          }
+  - length: { docs: 1 }
+  - match: { docs.0.doc._index: "simple-data-stream1" }
+  - match: { docs.0.doc._source.foo: "FOO" }
+  - match: { docs.0.doc.executed_pipelines: ["foo-pipeline-2"] }
+  - not_exists: docs.0.doc.error
+
+  - do:
+      indices.create_data_stream:
+        name: simple-data-stream1
+  - is_true: acknowledged
+
+  - do:
+      cluster.health:
+        wait_for_status: yellow
+
+  # Now that we have created a data stream, run the exact same simulate ingeset request to make sure we still get the same result, and that
+  # the substitutions and additions from the simulate ingest request are used instead of information from the data stream or its backing
+  # index.
+  - do:
+      headers:
+        Content-Type: application/json
+      simulate.ingest:
+        index: simple-data-stream1
+        body: >
+          {
+            "docs": [
+              {
+                "_id": "asdf",
+                "_source": {
+                  "@timestamp": 1234,
+                  "foo": false
+                }
+              }
+            ],
+            "pipeline_substitutions": {
+              "foo-pipeline-2": {
+                "processors": [
+                  {
+                    "set": {
+                      "field": "foo",
+                      "value": "FOO"
+                    }
+                  }
+                ]
+              }
+            },
+            "component_template_substitutions": {
+              "settings_template_2": {
+                "template": {
+                  "settings": {
+                    "index": {
+                      "default_pipeline": "foo-pipeline-2"
+                    }
+                  }
+                }
+              },
+              "mappings_template_2": {
+                "template": {
+                  "mappings": {
+                    "dynamic": "strict",
+                    "properties": {
+                      "foo": {
+                        "type": "integer"
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "index_template_substitutions": {
+              "my-template-1": {
+                "index_patterns": ["simple-data-stream1"],
+                "composed_of": ["settings_template_2", "mappings_template_2"],
+                "data_stream": {}
+              }
+            },
+            "mapping_addition": {
+              "dynamic": "strict",
+              "properties": {
+                "foo": {
+                  "type": "keyword"
+                }
+              }
+            }
+          }
+  - length: { docs: 1 }
+  - match: { docs.0.doc._index: "simple-data-stream1" }
+  - match: { docs.0.doc._source.foo: "FOO" }
+  - match: { docs.0.doc.executed_pipelines: ["foo-pipeline-2"] }
+  - not_exists: docs.0.doc.error
+
+---
+"Test mapping addition works with legacy templates":
+  # In this test, we make sure that when the index template is a data stream template, simulate ingest works the same whether the data
+  # stream has been created or not -- either way, we expect it to use the template rather than the data stream / index mappings and settings.
+
+  - skip:
+      features:
+        - headers
+        - allowed_warnings
+
+  - requires:
+      cluster_features: ["simulate.mapping.addition"]
+      reason: "ingest simulate mapping addition added in 8.16"
+
+  - do:
+      indices.put_template:
+        name: my-legacy-template
+        body:
+          index_patterns: foo-*
+          settings:
+            number_of_replicas: 0
+          mappings:
+            dynamic: strict
+            properties:
+              foo:
+                type: integer
+              bar:
+                type: boolean
+
+  - do:
+      headers:
+        Content-Type: application/json
+      simulate.ingest:
+        index: foo-1
+        body: >
+          {
+            "docs": [
+              {
+                "_id": "asdf",
+                "_source": {
+                  "foo": 3,
+                  "bar": "not a boolean"
+                }
+              }
+            ]
+          }
+  - length: { docs: 1 }
+  - match: { docs.0.doc._index: "foo-1" }
+  - match: { docs.0.doc._source.foo: 3 }
+  - match: { docs.0.doc._source.bar: "not a boolean" }
+  - match: { docs.0.doc.error.type: "document_parsing_exception" }
+
+  - do:
+      headers:
+        Content-Type: application/json
+      simulate.ingest:
+        index: foo-1
+        body: >
+          {
+            "docs": [
+              {
+                "_id": "asdf",
+                "_source": {
+                  "foo": 3,
+                  "bar": "not a boolean"
+                }
+              }
+            ],
+            "mapping_addition": {
+              "dynamic": "strict",
+              "properties": {
+                "bar": {
+                  "type": "keyword"
+                }
+              }
+            }
+          }
+  - length: { docs: 1 }
+  - match: { docs.0.doc._index: "foo-1" }
+  - match: { docs.0.doc._source.foo: 3 }
+  - match: { docs.0.doc._source.bar: "not a boolean" }
+  - not_exists: docs.0.doc.error
+
+  - do:
+      indices.create:
+        index: foo-1
+  - match: { acknowledged: true }
+
+  - do:
+      headers:
+        Content-Type: application/json
+      simulate.ingest:
+        index: foo-1
+        body: >
+          {
+            "docs": [
+              {
+                "_id": "asdf",
+                "_source": {
+                  "foo": 3,
+                  "bar": "not a boolean"
+                }
+              }
+            ],
+            "mapping_addition": {
+              "dynamic": "strict",
+              "properties": {
+                "bar": {
+                  "type": "keyword"
+                }
+              }
+            }
+          }
+  - length: { docs: 1 }
+  - match: { docs.0.doc._index: "foo-1" }
+  - match: { docs.0.doc._source.foo: 3 }
+  - match: { docs.0.doc._source.bar: "not a boolean" }
+  - not_exists: docs.0.doc.error

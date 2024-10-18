@@ -17,25 +17,27 @@ import static org.elasticsearch.ExceptionsHelper.stackTrace;
 
 record ErrorState(
     String namespace,
-    ReservedStateVersionParameters versionParameters,
+    Long version,
+    ReservedVersionCheck versionCheck,
     List<String> errors,
     ReservedStateErrorMetadata.ErrorKind errorKind
 ) {
 
     ErrorState(
         String namespace,
-        ReservedStateVersionParameters versionParameters,
+        Long version,
+        ReservedVersionCheck versionCheck,
         Exception e,
         ReservedStateErrorMetadata.ErrorKind errorKind
     ) {
-        this(namespace, versionParameters, List.of(stackTrace(e)), errorKind);
+        this(namespace, version, versionCheck, List.of(stackTrace(e)), errorKind);
+    }
+
+    ErrorState(String namespace, Long version, List<String> errors, ReservedStateErrorMetadata.ErrorKind errorKind) {
+        this(namespace, version, ReservedVersionCheck.ONLY_NEW_VERSION, errors, errorKind);
     }
 
     public String toString() {
         return String.join(", ", errors());
-    }
-
-    public Long version() {
-        return versionParameters.version().version();
     }
 }

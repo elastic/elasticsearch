@@ -9,13 +9,19 @@
 
 package org.elasticsearch.reservedstate.service;
 
-import java.util.Map;
+import java.util.function.BiPredicate;
 
-/**
- * A holder for the cluster state to be saved and reserved and the version info
- * <p>
- * Apart from the cluster state we want to store and reserve, the chunk requires that
- * you supply the version metadata. This version metadata (see {@link ReservedStateVersion}) is checked to ensure
- * that the update is safe, and it's not unnecessarily repeated.
- */
-public record ReservedStateChunk(Map<String, Object> state, ReservedStateVersion metadata) {}
+enum ReservedVersionCheck implements BiPredicate<Long, Long> {
+    SAME_OR_NEW_VERSION {
+        @Override
+        public boolean test(Long currentVersion, Long nextVersion) {
+            return currentVersion <= nextVersion;
+        }
+    },
+    ONLY_NEW_VERSION {
+        @Override
+        public boolean test(Long currentVersion, Long nextVersion) {
+            return currentVersion < nextVersion;
+        }
+    };
+}

@@ -47,6 +47,7 @@ public class ReservedStateUpdateTask implements ClusterStateTaskListener {
 
     private final String namespace;
     private final ReservedStateChunk stateChunk;
+    private final ReservedVersionCheck versionCheck;
     private final Map<String, ReservedClusterStateHandler<?>> handlers;
     private final Collection<String> orderedHandlers;
     private final Consumer<ErrorState> errorReporter;
@@ -55,6 +56,7 @@ public class ReservedStateUpdateTask implements ClusterStateTaskListener {
     public ReservedStateUpdateTask(
         String namespace,
         ReservedStateChunk stateChunk,
+        ReservedVersionCheck versionCheck,
         Map<String, ReservedClusterStateHandler<?>> handlers,
         Collection<String> orderedHandlers,
         Consumer<ErrorState> errorReporter,
@@ -62,6 +64,7 @@ public class ReservedStateUpdateTask implements ClusterStateTaskListener {
     ) {
         this.namespace = namespace;
         this.stateChunk = stateChunk;
+        this.versionCheck = versionCheck;
         this.handlers = handlers;
         this.orderedHandlers = orderedHandlers;
         this.errorReporter = errorReporter;
@@ -87,10 +90,9 @@ public class ReservedStateUpdateTask implements ClusterStateTaskListener {
 
         ReservedStateMetadata existingMetadata = currentState.metadata().reservedStateMetadata().get(namespace);
         Map<String, Object> reservedState = stateChunk.state();
-        ReservedStateVersionParameters reservedStateVersionParameters = stateChunk.versionParameters();
-        ReservedStateVersion reservedStateVersion = reservedStateVersionParameters.version();
+        ReservedStateVersion reservedStateVersion = stateChunk.metadata();
 
-        if (checkMetadataVersion(namespace, existingMetadata, reservedStateVersionParameters) == false) {
+        if (checkMetadataVersion(namespace, existingMetadata, reservedStateVersion, versionCheck) == false) {
             return currentState;
         }
 
@@ -111,7 +113,7 @@ public class ReservedStateUpdateTask implements ClusterStateTaskListener {
             }
         }
 
-        checkAndThrowOnError(errors, reservedStateVersionParameters);
+        checkAndThrowOnError(errors, reservedStateVersion, versionCheck);
 
         // Remove the last error if we had previously encountered any in prior processing of reserved state
         reservedMetadataBuilder.errorMetadata(null);
@@ -122,12 +124,18 @@ public class ReservedStateUpdateTask implements ClusterStateTaskListener {
         return stateBuilder.metadata(metadataBuilder).build();
     }
 
-    private void checkAndThrowOnError(List<String> errors, ReservedStateVersionParameters versionParameters) {
+    private void checkAndThrowOnError(List<String> errors, ReservedStateVersion version, ReservedVersionCheck versionCheck) {
         // Any errors should be discovered through validation performed in the transform calls
         if (errors.isEmpty() == false) {
             logger.debug("Error processing state change request for [{}] with the following errors [{}]", namespace, errors);
 
-            var errorState = new ErrorState(namespace, versionParameters, errors, ReservedStateErrorMetadata.ErrorKind.VALIDATION);
+            var errorState = new ErrorState(
+                namespace,
+                version.version(),
+                versionCheck,
+                errors,
+                ReservedStateErrorMetadata.ErrorKind.VALIDATION
+            );
 
             /*
              * It doesn't matter this reporter needs to re-access the base state,
@@ -151,9 +159,9 @@ public class ReservedStateUpdateTask implements ClusterStateTaskListener {
     static boolean checkMetadataVersion(
         String namespace,
         ReservedStateMetadata existingMetadata,
-        ReservedStateVersionParameters reservedStateVersionParameters
+        ReservedStateVersion reservedStateVersion,
+        ReservedVersionCheck versionCheck
     ) {
-        ReservedStateVersion reservedStateVersion = reservedStateVersionParameters.version();
         if (Version.CURRENT.before(reservedStateVersion.minCompatibleVersion())) {
             logger.warn(
                 () -> format(
@@ -165,17 +173,18 @@ public class ReservedStateUpdateTask implements ClusterStateTaskListener {
             return false;
         }
 
-        if (reservedStateVersion.version().equals(ReservedStateMetadata.EMPTY_VERSION)) {
+        Long newVersion = reservedStateVersion.version();
+        if (newVersion.equals(ReservedStateMetadata.EMPTY_VERSION)) {
             return true;
         }
 
         // require a regular positive version, reject any special version
-        if (reservedStateVersion.version() <= 0L) {
+        if (newVersion <= 0L) {
             logger.warn(
                 () -> format(
                     "Not updating reserved cluster state for namespace [%s], because version [%s] is less or equal to 0",
                     namespace,
-                    reservedStateVersion.version()
+                    newVersion
                 )
             );
             return false;
@@ -185,19 +194,19 @@ public class ReservedStateUpdateTask implements ClusterStateTaskListener {
             return true;
         }
 
-        Long alreadyProcessedVersion = existingMetadata.version();
-        if (alreadyProcessedVersion < reservedStateVersion.version()
-            || (reservedStateVersionParameters.reprocessSameVersion() && alreadyProcessedVersion.equals(reservedStateVersion.version()))) {
+        Long currentVersion = existingMetadata.version();
+        if (versionCheck.test(currentVersion, newVersion)) {
             return true;
         }
 
+        // TODO update
         logger.warn(
             () -> format(
                 "Not updating reserved cluster state for namespace [%s], because version [%s] is less or equal"
                     + " to the current metadata version [%s]",
                 namespace,
-                reservedStateVersion.version(),
-                alreadyProcessedVersion
+                newVersion,
+                currentVersion
             )
         );
         return false;

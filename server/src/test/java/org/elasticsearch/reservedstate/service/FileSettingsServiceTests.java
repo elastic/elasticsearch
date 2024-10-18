@@ -54,7 +54,6 @@ import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
@@ -152,7 +151,7 @@ public class FileSettingsServiceTests extends ESTestCase {
         doAnswer((Answer<Void>) invocation -> {
             ((Consumer<Exception>) invocation.getArgument(3)).accept(new IllegalStateException("Some exception"));
             return null;
-        }).when(controller).process(any(), any(XContentParser.class), anyBoolean(), any());
+        }).when(controller).process(any(), any(XContentParser.class), randomFrom(ReservedVersionCheck.values()), any());
 
         AtomicBoolean settingsChanged = new AtomicBoolean(false);
         CountDownLatch latch = new CountDownLatch(1);
@@ -178,7 +177,7 @@ public class FileSettingsServiceTests extends ESTestCase {
         assertTrue(latch.await(20, TimeUnit.SECONDS));
 
         verify(fileSettingsService, times(1)).processFileOnServiceStart();
-        verify(controller, times(1)).process(any(), any(XContentParser.class), eq(true), any());
+        verify(controller, times(1)).process(any(), any(XContentParser.class), eq(ReservedVersionCheck.SAME_OR_NEW_VERSION), any());
         // assert we never notified any listeners of successful application of file based settings
         assertFalse(settingsChanged.get());
     }
@@ -189,7 +188,7 @@ public class FileSettingsServiceTests extends ESTestCase {
         doAnswer((Answer<Void>) invocation -> {
             ((Consumer<Exception>) invocation.getArgument(3)).accept(null);
             return null;
-        }).when(controller).process(any(), any(XContentParser.class), anyBoolean(), any());
+        }).when(controller).process(any(), any(XContentParser.class), any(), any());
 
         CountDownLatch latch = new CountDownLatch(1);
 
@@ -214,7 +213,7 @@ public class FileSettingsServiceTests extends ESTestCase {
         assertTrue(latch.await(20, TimeUnit.SECONDS));
 
         verify(fileSettingsService, times(1)).processFileOnServiceStart();
-        verify(controller, times(1)).process(any(), any(XContentParser.class), eq(true), any());
+        verify(controller, times(1)).process(any(), any(XContentParser.class), eq(ReservedVersionCheck.SAME_OR_NEW_VERSION), any());
     }
 
     @SuppressWarnings("unchecked")
@@ -222,7 +221,7 @@ public class FileSettingsServiceTests extends ESTestCase {
         doAnswer((Answer<Void>) invocation -> {
             ((Consumer<Exception>) invocation.getArgument(3)).accept(null);
             return null;
-        }).when(controller).process(any(), any(XContentParser.class), anyBoolean(), any());
+        }).when(controller).process(any(), any(XContentParser.class), any(), any());
 
         // we get three events: initial clusterChanged event, first write, second write
         CountDownLatch latch = new CountDownLatch(3);
@@ -257,9 +256,9 @@ public class FileSettingsServiceTests extends ESTestCase {
         assertTrue(latch.await(20, TimeUnit.SECONDS));
 
         verify(fileSettingsService, times(1)).processFileOnServiceStart();
-        verify(controller, times(1)).process(any(), any(XContentParser.class), eq(true), any());
+        verify(controller, times(1)).process(any(), any(XContentParser.class), eq(ReservedVersionCheck.SAME_OR_NEW_VERSION), any());
         verify(fileSettingsService, times(1)).processFileChanges();
-        verify(controller, times(1)).process(any(), any(XContentParser.class), eq(false), any());
+        verify(controller, times(1)).process(any(), any(XContentParser.class), eq(ReservedVersionCheck.ONLY_NEW_VERSION), any());
     }
 
     @SuppressWarnings("unchecked")

@@ -112,7 +112,8 @@ public class ReservedClusterStateService {
         } catch (Exception e) {
             ErrorState errorState = new ErrorState(
                 namespace,
-                ReservedStateVersionParameters.EMPTY_VERSION,
+                EMPTY_VERSION,
+                ReservedVersionCheck.ONLY_NEW_VERSION,
                 e,
                 ReservedStateErrorMetadata.ErrorKind.PARSING
             );
@@ -128,22 +129,16 @@ public class ReservedClusterStateService {
      *
      * @param namespace the namespace under which we'll store the reserved keys in the cluster state metadata
      * @param parser the XContentParser to process
-     * @param reprocessSameVersion whether processing should also run if the metadata version matches the file version
      * @param errorListener a consumer called with {@link IllegalStateException} if the content has errors and the
      *        cluster state cannot be correctly applied, null if successful or state couldn't be applied because of incompatible version.
      */
-    public void process(String namespace, XContentParser parser, boolean reprocessSameVersion, Consumer<Exception> errorListener) {
+    public void process(String namespace, XContentParser parser, ReservedVersionCheck versionCheck, Consumer<Exception> errorListener) {
         ReservedStateChunk stateChunk;
 
         try {
             stateChunk = parse(namespace, parser);
         } catch (Exception e) {
-            ErrorState errorState = new ErrorState(
-                namespace,
-                ReservedStateVersionParameters.EMPTY_VERSION,
-                e,
-                ReservedStateErrorMetadata.ErrorKind.PARSING
-            );
+            ErrorState errorState = new ErrorState(namespace, EMPTY_VERSION, versionCheck, e, ReservedStateErrorMetadata.ErrorKind.PARSING);
             updateErrorState(errorState);
             logger.debug("error processing state change request for [{}] with the following errors [{}]", namespace, errorState);
 
@@ -153,14 +148,7 @@ public class ReservedClusterStateService {
             return;
         }
 
-        if (reprocessSameVersion) {
-            stateChunk = new ReservedStateChunk(
-                stateChunk.state(),
-                new ReservedStateVersionParameters(stateChunk.versionParameters().version(), true)
-            );
-        }
-
-        process(namespace, stateChunk, errorListener);
+        process(namespace, stateChunk, versionCheck, errorListener);
     }
 
     public void initEmpty(String namespace, ActionListener<ActionResponse.Empty> listener) {
@@ -171,6 +159,7 @@ public class ReservedClusterStateService {
             new ReservedStateUpdateTask(
                 namespace,
                 emptyState,
+                ReservedVersionCheck.ONLY_NEW_VERSION,
                 Map.of(),
                 List.of(),
                 // error state should not be possible since there is no metadata being parsed or processed
@@ -190,9 +179,14 @@ public class ReservedClusterStateService {
      * @param errorListener a consumer called with {@link IllegalStateException} if the content has errors and the
      *        cluster state cannot be correctly applied, null if successful or the state failed to apply because of incompatible version.
      */
-    public void process(String namespace, ReservedStateChunk reservedStateChunk, Consumer<Exception> errorListener) {
+    public void process(
+        String namespace,
+        ReservedStateChunk reservedStateChunk,
+        ReservedVersionCheck versionCheck,
+        Consumer<Exception> errorListener
+    ) {
         Map<String, Object> reservedState = reservedStateChunk.state();
-        ReservedStateVersionParameters reservedStateVersionParameters = reservedStateChunk.versionParameters();
+        ReservedStateVersion reservedStateVersion = reservedStateChunk.metadata();
 
         LinkedHashSet<String> orderedHandlers;
         try {
@@ -200,7 +194,8 @@ public class ReservedClusterStateService {
         } catch (Exception e) {
             ErrorState errorState = new ErrorState(
                 namespace,
-                reservedStateVersionParameters,
+                reservedStateVersion.version(),
+                versionCheck,
                 e,
                 ReservedStateErrorMetadata.ErrorKind.PARSING
             );
@@ -219,7 +214,7 @@ public class ReservedClusterStateService {
 
         // We check if we should exit early on the state version from clusterService. The ReservedStateUpdateTask
         // will check again with the most current state version if this continues.
-        if (checkMetadataVersion(namespace, existingMetadata, reservedStateVersionParameters) == false) {
+        if (checkMetadataVersion(namespace, existingMetadata, reservedStateVersion, versionCheck) == false) {
             errorListener.accept(null);
             return;
         }
@@ -227,7 +222,7 @@ public class ReservedClusterStateService {
         // We trial run all handler validations to ensure that we can process all of the cluster state error free.
         var trialRunErrors = trialRun(namespace, state, reservedStateChunk, orderedHandlers);
         // this is not using the modified trial state above, but that doesn't matter, we're just setting errors here
-        var error = checkAndReportError(namespace, trialRunErrors, reservedStateVersionParameters);
+        var error = checkAndReportError(namespace, trialRunErrors, reservedStateVersion, versionCheck);
 
         if (error != null) {
             errorListener.accept(error);
@@ -238,6 +233,7 @@ public class ReservedClusterStateService {
             new ReservedStateUpdateTask(
                 namespace,
                 reservedStateChunk,
+                versionCheck,
                 handlers,
                 orderedHandlers,
                 ReservedClusterStateService.this::updateErrorState,
@@ -251,7 +247,7 @@ public class ReservedClusterStateService {
                     @Override
                     public void onFailure(Exception e) {
                         // Don't spam the logs on repeated errors
-                        if (isNewError(existingMetadata, reservedStateVersionParameters)) {
+                        if (isNewError(existingMetadata, reservedStateVersion.version(), versionCheck)) {
                             logger.debug("Failed to apply reserved cluster state", e);
                             errorListener.accept(e);
                         } else {
@@ -265,14 +261,20 @@ public class ReservedClusterStateService {
     }
 
     // package private for testing
-    Exception checkAndReportError(String namespace, List<String> errors, ReservedStateVersionParameters reservedStateVersionParameters) {
+    Exception checkAndReportError(
+        String namespace,
+        List<String> errors,
+        ReservedStateVersion reservedStateVersion,
+        ReservedVersionCheck versionCheck
+    ) {
         // Any errors should be discovered through validation performed in the transform calls
         if (errors.isEmpty() == false) {
             logger.debug("Error processing state change request for [{}] with the following errors [{}]", namespace, errors);
 
             var errorState = new ErrorState(
                 namespace,
-                reservedStateVersionParameters,
+                reservedStateVersion.version(),
+                versionCheck,
                 errors,
                 ReservedStateErrorMetadata.ErrorKind.VALIDATION
             );

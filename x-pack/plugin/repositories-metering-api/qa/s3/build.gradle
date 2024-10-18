@@ -38,7 +38,7 @@ tasks.named("javaRestTest").configure {
   systemProperty 'test.s3.bucket', s3Bucket
   systemProperty("s3AccessKey", s3AccessKey)
   systemProperty("s3SecretKey", s3SecretKey)
-  nonInputProperties.systemProperty 'test.s3.base_path', s3BasePath ? s3BasePath + "_repositories_metering" + BuildParams.testSeed : 'base_path_integration_tests'
+  nonInputProperties.systemProperty 'test.s3.base_path', s3BasePath ? s3BasePath + "_repositories_metering" + buildParams.testSeed : 'base_path_integration_tests'
 }
 tasks.register("s3ThirdPartyTest").configure {
   dependsOn "javaRestTest"

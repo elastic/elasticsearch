@@ -9,7 +9,7 @@ dependencies {
   testImplementation project(':x-pack:qa')
 }
 
-BuildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
+buildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
 
   def baseLeaderCluster = testClusters.register("${baseName}-leader") {
       numberOfNodes = 3

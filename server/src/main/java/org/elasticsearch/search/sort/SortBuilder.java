@@ -158,37 +158,24 @@ public abstract class SortBuilder<T extends SortBuilder<T>>
     }
 
     public static Optional<SortAndFormats> buildSort(List<SortBuilder<?>> sortBuilders, SearchExecutionContext context) throws IOException {
-        List<SortField> sortFields = new ArrayList<>(sortBuilders.size());
-        List<DocValueFormat> sortFormats = new ArrayList<>(sortBuilders.size());
-        for (SortBuilder<?> builder : sortBuilders) {
-            SortFieldAndFormat sf = builder.build(context);
-            sortFields.add(sf.field());
-            sortFormats.add(sf.format());
+        final int size = sortBuilders.size();
+        if (size == 0) {
+            return Optional.empty();
         }
-        if (sortFields.isEmpty() == false) {
-            // optimize if we just sort on score non reversed, we don't really
-            // need sorting
-            boolean sort;
-            if (sortFields.size() > 1) {
-                sort = true;
-            } else {
-                SortField sortField = sortFields.get(0);
-                if (sortField.getType() == SortField.Type.SCORE && sortField.getReverse() == false) {
-                    sort = false;
-                } else {
-                    sort = true;
-                }
-            }
-            if (sort) {
-                return Optional.of(
-                    new SortAndFormats(
-                        new Sort(sortFields.toArray(new SortField[sortFields.size()])),
-                        sortFormats.toArray(new DocValueFormat[sortFormats.size()])
-                    )
-                );
-            }
+        final SortFieldAndFormat sortField = sortBuilders.getFirst().build(context);
+        if (size == 1 && sortField.field().getType() == SortField.Type.SCORE && sortField.field().getReverse() == false) {
+            return Optional.empty();
         }
-        return Optional.empty();
+        final SortField[] sortFields = new SortField[size];
+        final DocValueFormat[] sortFormats = new DocValueFormat[size];
+        sortFields[0] = sortField.field();
+        sortFormats[0] = sortField.format();
+        for (int i = 1; i < size; i++) {
+            SortFieldAndFormat sf = sortBuilders.get(i).build(context);
+            sortFields[i] = sf.field();
+            sortFormats[i] = sf.format();
+        }
+        return Optional.of(new SortAndFormats(new Sort(sortFields), sortFormats));
     }
 
     protected static Nested resolveNested(SearchExecutionContext context, NestedSortBuilder nestedSort) throws IOException {

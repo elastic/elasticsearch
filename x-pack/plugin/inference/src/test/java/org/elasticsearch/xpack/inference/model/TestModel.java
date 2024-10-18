@@ -25,6 +25,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.Map;
 
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLength;
@@ -217,6 +218,11 @@ public class TestModel extends Model {
         public TransportVersion getMinimalSupportedVersion() {
             return TransportVersion.current(); // fine for these tests but will not work for cluster upgrade tests
         }
+
+        @Override
+        public TaskSettings updatedTaskSettings(Map<String, Object> newSettings) {
+            return TestTaskSettings.fromMap(new HashMap<>(newSettings));
+        }
     }
 
     public record TestSecretSettings(String apiKey) implements SecretSettings {
@@ -264,6 +270,11 @@ public class TestModel extends Model {
         @Override
         public TransportVersion getMinimalSupportedVersion() {
             return TransportVersion.current(); // fine for these tests but will not work for cluster upgrade tests
+        }
+
+        @Override
+        public SecretSettings newSecretSettings(Map<String, Object> newSecrets) {
+            return new TestSecretSettings(newSecrets.get("api_key").toString());
         }
     }
 }

@@ -16,15 +16,13 @@ import org.elasticsearch.xpack.core.XPackField;
 
 import java.io.IOException;
 
-import static org.elasticsearch.TransportVersions.ROLLUP_USAGE;
-
 public class RollupFeatureSetUsage extends XPackFeatureSet.Usage {
 
     private final int numberOfRollupJobs;
 
     public RollupFeatureSetUsage(StreamInput input) throws IOException {
         super(input);
-        this.numberOfRollupJobs = input.getTransportVersion().onOrAfter(ROLLUP_USAGE) ? input.readVInt() : 0;
+        this.numberOfRollupJobs = input.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0) ? input.readVInt() : 0;
     }
 
     public RollupFeatureSetUsage(int numberOfRollupJobs) {
@@ -39,7 +37,7 @@ public class RollupFeatureSetUsage extends XPackFeatureSet.Usage {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        if (out.getTransportVersion().onOrAfter(ROLLUP_USAGE)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
             out.writeVInt(numberOfRollupJobs);
         }
     }

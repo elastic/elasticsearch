@@ -41,14 +41,27 @@ public class KqlParserTests extends AbstractBuilderTestCase {
 
         for (int runs = 0; runs < 100; runs++) {
             // Also testing that a query that is composed only of whitespace chars returns a match_all query.
-            String kqlQuery = Stream.generate(() -> randomFrom(" ", "\t", "\n", "\r", "\u3000"))
-                .limit(randomInt(20))
-                .collect(Collectors.joining());
-            assertThat(parser.parseKqlQuery("", searchExecutionContext), isA(MatchAllQueryBuilder.class));
+            String kqlQuery = randomWhitespaces();
+            assertThat(parser.parseKqlQuery(kqlQuery, searchExecutionContext), isA(MatchAllQueryBuilder.class));
         }
     }
 
-    public void testSupportedQueries() throws Exception {
+    public void testParenthesizedQuery() throws IOException {
+        KqlParser parser = new KqlParser();
+        SearchExecutionContext searchExecutionContext = createSearchExecutionContext();
+
+        for (String baseQuuery : readQueries("/supported-queries")) {
+            // For each supported query, wrap it into parentheses and check query remains the same.
+            // Adding random whitespaces as well and test they are ignored.
+            String parenthesizedQuery = wrapWithRandomWhitespaces("(") + baseQuuery + wrapWithRandomWhitespaces(")");
+            assertThat(
+                parser.parseKqlQuery(parenthesizedQuery, searchExecutionContext),
+                equalTo(parser.parseKqlQuery(baseQuuery, searchExecutionContext))
+            );
+        }
+    }
+
+    public void testSupportedQueries() throws IOException {
         KqlParser parser = new KqlParser();
         SearchExecutionContext searchExecutionContext = createSearchExecutionContext();
 
@@ -61,7 +74,7 @@ public class KqlParserTests extends AbstractBuilderTestCase {
         }
     }
 
-    public void testUnsupportedQueries() throws Exception {
+    public void testUnsupportedQueries() throws IOException {
         KqlParser parser = new KqlParser();
         SearchExecutionContext searchExecutionContext = createSearchExecutionContext();
 
@@ -99,7 +112,7 @@ public class KqlParserTests extends AbstractBuilderTestCase {
         }
     }
 
-    private static List<String> readQueries(String source) throws Exception {
+    private static List<String> readQueries(String source) throws IOException {
         URL url = KqlParserTests.class.getResource(source);
         Objects.requireNonNull(source, "Cannot find resource " + url);
 
@@ -112,7 +125,7 @@ public class KqlParserTests extends AbstractBuilderTestCase {
                 String query = line.trim();
                 // ignore comments
                 if (query.isEmpty() == false && query.startsWith("//") == false) {
-                    queries.add(line.trim());
+                    queries.add(query);
                 }
             }
         }
@@ -125,5 +138,17 @@ public class KqlParserTests extends AbstractBuilderTestCase {
         // do not to cache files (to avoid keeping file handles around)
         con.setUseCaches(false);
         return con.getInputStream();
+    }
+
+    private static String wrapWithRandomWhitespaces(String input) {
+        return String.join("", randomWhitespaces(), input, randomWhitespaces());
+    }
+
+    private static String randomWhitespaces() {
+        return randomWhitespaces(randomInt(20));
+    }
+
+    private static String randomWhitespaces(int length) {
+        return Stream.generate(() -> randomFrom(" ", "\t", "\n", "\r", "\u3000")).limit(length).collect(Collectors.joining());
     }
 }

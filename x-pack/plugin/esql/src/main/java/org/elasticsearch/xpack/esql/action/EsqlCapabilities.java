@@ -390,7 +390,12 @@ public class EsqlCapabilities {
         /**
          * Fix for https://github.com/elastic/elasticsearch/issues/114714
          */
-        FIX_STATS_BY_FOLDABLE_EXPRESSION;
+        FIX_STATS_BY_FOLDABLE_EXPRESSION,
+
+        /**
+         * Adding stats for functions (stack telemetry)
+         */
+        FUNCTION_STATS;
 
         private final boolean snapshotOnly;
         private final FeatureFlag featureFlag;

@@ -61,7 +61,7 @@ excludeList.add('cluster.desired_nodes/20_dry_run/Test validation works for dry 
 // Excluded because they create dot-prefixed indices on older versions
 excludeList.add('indices.resolve_index/20_resolve_system_index/*')
 
-BuildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
+buildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
 
   if (bwcVersion != VersionProperties.getElasticsearchVersion()) {
     /* This project runs the core REST tests against a 4 node cluster where two of

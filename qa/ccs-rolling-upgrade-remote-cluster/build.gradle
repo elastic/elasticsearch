@@ -16,7 +16,7 @@ apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.bwc-test'
 apply plugin: 'elasticsearch.rest-resources'
 
-BuildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
+buildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
 
   /**
    * We execute tests 3 times.
@@ -52,7 +52,7 @@ BuildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
       nonInputProperties.systemProperty('tests.rest.remote_cluster', remoteCluster.map(c -> c.allHttpSocketURI.join(",")))
     }
 
-    onlyIf("FIPS mode disabled") { BuildParams.inFipsJvm == false }
+    onlyIf("FIPS mode disabled") { buildParams.inFipsJvm == false }
   }
 
   tasks.register("${baseName}#oldClusterTest", StandaloneRestIntegTestTask) {

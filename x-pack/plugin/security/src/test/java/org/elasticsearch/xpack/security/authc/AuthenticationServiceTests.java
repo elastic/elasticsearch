@@ -2041,8 +2041,14 @@ public class AuthenticationServiceTests extends ESTestCase {
                 .user(new User("creator"))
                 .realmRef(new RealmRef("test", "test", "test"))
                 .build(false);
-            tokenService.createOAuth2Tokens(newTokenBytes.v1(), newTokenBytes.v2(), expected, originatingAuth, Collections.emptyMap(),
-                    tokenFuture);
+            tokenService.createOAuth2Tokens(
+                newTokenBytes.v1(),
+                newTokenBytes.v2(),
+                expected,
+                originatingAuth,
+                Collections.emptyMap(),
+                tokenFuture
+            );
         }
         String token = tokenFuture.get().getAccessToken();
         mockGetTokenFromAccessTokenBytes(tokenService, newTokenBytes.v1(), expected, Map.of(), true, null, client);

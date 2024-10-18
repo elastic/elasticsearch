@@ -172,13 +172,13 @@ final class RequestXContent {
                         checkParamNameValidity(paramName, errors, loc);
 
                         if (EsqlCapabilities.Cap.NAMED_PARAMETER_FOR_FIELD_AND_FUNCTION_NAMES.isEnabled()
-                            && entry.getValue() instanceof Map<?, ?> values) {// parameter specified as a key:value pair
-                            checkParamValueKeysSize(paramName, values, loc, errors);
-                            for (Object keyName : values.keySet()) {
-                                classification = checkParamValueKeysValidity(keyName.toString(), errors, loc);
+                            && entry.getValue() instanceof Map<?, ?> value) {// parameter specified as a key:value pair
+                            checkParamValueSize(paramName, value, loc, errors);
+                            for (Object keyName : value.keySet()) {
+                                classification = getParamClassification(keyName.toString(), errors, loc);
                                 if (classification != null) {
-                                    paramValue = values.get(keyName);
-                                    checkParamValueClassificationValidity(classification, paramValue, loc, errors);
+                                    paramValue = value.get(keyName);
+                                    checkParamValueValidity(classification, paramValue, loc, errors);
                                 }
                             }
                         } else {// parameter specifies as a value only
@@ -262,21 +262,21 @@ final class RequestXContent {
         }
     }
 
-    private static void checkParamValueKeysSize(
+    private static void checkParamValueSize(
         String paramName,
-        Map<?, ?> paramElements,
+        Map<?, ?> paramValue,
         XContentLocation loc,
         List<XContentParseException> errors
     ) {
-        if (paramElements.size() == 1) {
+        if (paramValue.size() == 1) {
             return;
         }
         String errorMessage;
-        if (paramElements.isEmpty()) {
+        if (paramValue.isEmpty()) {
             errorMessage = " has no valid param attribute";
         } else {
             errorMessage = " has multiple param attributes ["
-                + paramElements.keySet().stream().map(Object::toString).collect(Collectors.joining(", "))
+                + paramValue.keySet().stream().map(Object::toString).collect(Collectors.joining(", "))
                 + "]";
         }
         errors.add(
@@ -295,7 +295,7 @@ final class RequestXContent {
         );
     }
 
-    private static ParserUtils.ParamClassification checkParamValueKeysValidity(
+    private static ParserUtils.ParamClassification getParamClassification(
         String paramKeyName,
         List<XContentParseException> errors,
         XContentLocation loc
@@ -317,7 +317,7 @@ final class RequestXContent {
         return paramType;
     }
 
-    private static void checkParamValueClassificationValidity(
+    private static void checkParamValueValidity(
         ParserUtils.ParamClassification classification,
         Object value,
         XContentLocation loc,

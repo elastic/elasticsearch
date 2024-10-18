@@ -118,6 +118,11 @@ public enum IndexMode {
 
         @Override
         public void validateSourceFieldMapper(SourceFieldMapper sourceFieldMapper) {}
+
+        @Override
+        public SourceFieldMapper.Mode defaultSourceMode() {
+            return SourceFieldMapper.Mode.STORED;
+        }
     },
     TIME_SERIES("time_series") {
         @Override
@@ -216,6 +221,11 @@ public enum IndexMode {
                 throw new IllegalArgumentException("_source can not be disabled in index using [" + IndexMode.TIME_SERIES + "] index mode");
             }
         }
+
+        @Override
+        public SourceFieldMapper.Mode defaultSourceMode() {
+            return SourceFieldMapper.Mode.SYNTHETIC;
+        }
     },
     LOGSDB("logsdb") {
         @Override
@@ -287,6 +297,11 @@ public enum IndexMode {
             if (sourceFieldMapper.enabled() == false) {
                 throw new IllegalArgumentException("_source can not be disabled in index using [" + IndexMode.LOGSDB + "] index mode");
             }
+        }
+
+        @Override
+        public SourceFieldMapper.Mode defaultSourceMode() {
+            return SourceFieldMapper.Mode.SYNTHETIC;
         }
 
         @Override
@@ -443,6 +458,11 @@ public enum IndexMode {
      * Validates the source field mapper
      */
     public abstract void validateSourceFieldMapper(SourceFieldMapper sourceFieldMapper);
+
+    /**
+     * @return default source mode for this mode
+     */
+    public abstract SourceFieldMapper.Mode defaultSourceMode();
 
     public String getDefaultCodec() {
         return CodecService.DEFAULT_CODEC;

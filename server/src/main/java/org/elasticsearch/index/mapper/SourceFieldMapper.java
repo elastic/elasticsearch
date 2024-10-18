@@ -64,10 +64,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
 
     public static final Setting<Mode> INDEX_MAPPER_SOURCE_MODE_SETTING = Setting.enumSetting(SourceFieldMapper.Mode.class, settings -> {
         final IndexMode indexMode = IndexSettings.MODE.get(settings);
-        return switch (indexMode) {
-            case IndexMode.LOGSDB, IndexMode.TIME_SERIES -> Mode.SYNTHETIC.name();
-            default -> Mode.STORED.name();
-        };
+        return indexMode.defaultSourceMode().name();
     }, "index.mapping.source.mode", value -> {}, Setting.Property.Final, Setting.Property.IndexScope);
 
     /** The source mode */
@@ -193,11 +190,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
                 }
             }
 
-            // NOTE: if the `index.mapper.source.mode` exists it takes precedence to determine the source mode for `_source`
-            // otherwise the mode is determined according to `index.mode` and `_source.mode`.
-            final Mode sourceMode = INDEX_MAPPER_SOURCE_MODE_SETTING.exists(settings)
-                ? INDEX_MAPPER_SOURCE_MODE_SETTING.get(settings)
-                : mode.get();
+            final Mode sourceMode = resolveSourceMode();
 
             if (supportsNonDefaultParameterValues == false) {
                 List<String> disallowed = new ArrayList<>();
@@ -222,8 +215,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
                 }
             }
 
-            if ((mode.get() == Mode.SYNTHETIC || indexMode == IndexMode.TIME_SERIES)
-                && (includes.getValue().isEmpty() == false || excludes.getValue().isEmpty() == false)) {
+            if (sourceMode == Mode.SYNTHETIC && (includes.getValue().isEmpty() == false || excludes.getValue().isEmpty() == false)) {
                 throw new IllegalArgumentException("filtering the stored _source is incompatible with synthetic source");
             }
 
@@ -249,6 +241,25 @@ public class SourceFieldMapper extends MetadataFieldMapper {
             return sourceFieldMapper;
         }
 
+        private Mode resolveSourceMode() {
+            // If the `index.mapper.source.mode` exists it takes precedence to determine the source mode for `_source`
+            // otherwise the mode is determined according to `_source.mode`.
+            if(INDEX_MAPPER_SOURCE_MODE_SETTING.exists(settings)) {
+                return INDEX_MAPPER_SOURCE_MODE_SETTING.get(settings);
+            }
+
+            // If `_source.mode` is not set we need to apply a default according to index mode.
+            if (mode.get() == null) {
+                if (indexMode == IndexMode.STANDARD) {
+                    // Special case to avoid serializing mode.
+                    return null;
+                }
+
+                return indexMode.defaultSourceMode();
+            }
+
+            return mode.get();
+        }
     }
 
     private static SourceFieldMapper resolveStaticInstance(final Mode sourceMode) {
@@ -332,7 +343,6 @@ public class SourceFieldMapper extends MetadataFieldMapper {
 
     private SourceFieldMapper(Mode mode, Explicit<Boolean> enabled, String[] includes, String[] excludes) {
         super(new SourceFieldType((enabled.explicit() && enabled.value()) || (enabled.explicit() == false && mode != Mode.DISABLED)));
-        assert enabled.explicit() == false || mode == null;
         this.mode = mode;
         this.enabled = enabled;
         this.sourceFilter = buildSourceFilter(includes, excludes);
@@ -409,7 +419,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(null, Settings.EMPTY, false).init(this);
+         return new Builder(null, Settings.EMPTY, false).init(this);
     }
 
     /**

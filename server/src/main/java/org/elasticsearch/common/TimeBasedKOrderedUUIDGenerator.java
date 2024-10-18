@@ -18,7 +18,7 @@ import java.util.Base64;
  * in a more compact term dictionary.
  */
 public class TimeBasedKOrderedUUIDGenerator extends TimeBasedUUIDGenerator {
-    private static final Base64.Encoder BASE_64_NO_PADDING = Base64.getEncoder().withoutPadding();
+    private static final Base64.Encoder BASE_64_ENCODER = Base64.getEncoder().withoutPadding();
 
     @Override
     public String getBase64UUID() {
@@ -50,7 +50,7 @@ public class TimeBasedKOrderedUUIDGenerator extends TimeBasedUUIDGenerator {
         uuidBytes[12] = (byte) timestamp;
         uuidBytes[13] = (byte) sequenceId;
 
-        return BASE_64_NO_PADDING.encodeToString(uuidBytes);
+        return BASE_64_ENCODER.encodeToString(uuidBytes);
     }
 
 }

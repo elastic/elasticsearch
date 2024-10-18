@@ -24,7 +24,7 @@ import org.elasticsearch.cluster.coordination.stateless.HeartbeatStore;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
-import org.elasticsearch.common.io.stream.PositionTrackingOutputStreamStreamOutput;
+import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
 import org.elasticsearch.index.translog.BufferedChecksumStreamInput;
 import org.elasticsearch.index.translog.BufferedChecksumStreamOutput;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -81,14 +81,11 @@ public class StatelessHeartbeatStore implements HeartbeatStore {
         return ThreadPool.Names.SNAPSHOT_META;
     }
 
-    private long serialize(Heartbeat heartbeat, OutputStream output) throws IOException {
-        var positionTrackingOutput = new PositionTrackingOutputStreamStreamOutput(output);
-        BufferedChecksumStreamOutput out = new BufferedChecksumStreamOutput(positionTrackingOutput);
-        heartbeat.writeTo(out);
-        out.writeInt((int) out.getChecksum());
-        out.flush();
-
-        return positionTrackingOutput.position();
+    private void serialize(Heartbeat heartbeat, OutputStream output) throws IOException {
+        BufferedChecksumStreamOutput checksumStreamOutput = new BufferedChecksumStreamOutput(new OutputStreamStreamOutput(output));
+        heartbeat.writeTo(checksumStreamOutput);
+        checksumStreamOutput.writeInt((int) checksumStreamOutput.getChecksum());
+        checksumStreamOutput.flush();
     }
 
     private Heartbeat deserialize(InputStream inputStream) throws IOException {

@@ -151,7 +151,7 @@ public class FileSettingsServiceTests extends ESTestCase {
         doAnswer((Answer<Void>) invocation -> {
             ((Consumer<Exception>) invocation.getArgument(3)).accept(new IllegalStateException("Some exception"));
             return null;
-        }).when(controller).process(any(), any(XContentParser.class), randomFrom(ReservedStateVersionCheck.values()), any());
+        }).when(controller).process(any(), any(XContentParser.class), eq(randomFrom(ReservedStateVersionCheck.values())), any());
 
         AtomicBoolean settingsChanged = new AtomicBoolean(false);
         CountDownLatch latch = new CountDownLatch(1);

@@ -184,6 +184,7 @@ public class Netty4IncrementalRequestHandlingIT extends ESNetty4IntegTestCase {
             // attempt to read more data and it should notice channel being closed eventually
             handler.stream.next();
 
+            // wait for resources to be released
             assertBusy(() -> {
                 assertNull(handler.stream.buf());
                 assertTrue(handler.streamClosed);

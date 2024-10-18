@@ -616,6 +616,42 @@ location:geo_point  | city_location:geo_point  |  count:long
 POINT (0 0)         | POINT (0 0)              |  1
 ;
 
+airportCityLocationPointIntersectionCentroidGroups
+required_capability: st_intersects
+
+FROM airports_mp
+| WHERE ST_INTERSECTS(location, city_location)
+| STATS location=ST_CENTROID_AGG(location), city_location=ST_CENTROID_AGG(city_location), count=COUNT() BY country
+;
+
+location:geo_point  | city_location:geo_point  |  count:long | country:k
+POINT (0 0)         | POINT (0 0)              |  1          | Atlantis
+;
+
+airportCityLocationPointIntersectionNullCentroid
+required_capability: st_intersects
+required_capability: spatial_centroid_no_records
+
+FROM airports
+| WHERE ST_INTERSECTS(location, city_location)
+| STATS location=ST_CENTROID_AGG(location), city_location=ST_CENTROID_AGG(city_location), count=COUNT()
+;
+
+location:geo_point  | city_location:geo_point  |  count:long
+null                | null                     |  0
+;
+
+airportCityLocationPointIntersectionNullCentroidGroups
+required_capability: st_intersects
+
+FROM airports
+| WHERE ST_INTERSECTS(location, city_location)
+| STATS location=ST_CENTROID_AGG(location), city_location=ST_CENTROID_AGG(city_location), count=COUNT() BY country
+;
+
+location:geo_point  | city_location:geo_point  |  count:long | country:k
+;
+
 ###############################################
 # Tests for ST_DISJOINT on GEO_POINT type
 
@@ -1948,14 +1984,15 @@ wkt:keyword   | pt:cartesian_point
 
 cartesianCentroidFromAirportsAfterPointContainsPolygonPredicate
 required_capability: st_contains_within
+required_capability: spatial_centroid_no_records
 
 FROM airports_web
 | WHERE ST_CONTAINS(location, TO_CARTESIANSHAPE("POLYGON((4700000 1600000, 4800000 1600000, 4800000 1700000, 4700000 1700000, 4700000 1600000))"))
 | STATS centroid=ST_CENTROID_AGG(location), count=COUNT()
 ;
 
-centroid:cartesian_point     | count:long
-POINT (NaN NaN)              | 0
+centroid:cartesian_point | count:long
+null                     | 0
 ;
 
 cartesianPointContainsPolygonPredicate
@@ -2222,17 +2259,19 @@ wkt:keyword    | pt:cartesian_point  | distance:double
 
 twoCitiesPointDistanceCartesian
 required_capability: st_distance
+required_capability: spatial_distance_supports_multivalues
 
 ROW p1 = TO_CARTESIANPOINT("POINT(-90.82814 29.79511)"), p2 = TO_CARTESIANPOINT("POINT(-90.79731509999999 29.8835389)")
 | EVAL d = ST_DISTANCE(p1, p2)
 ;
 
 p1:cartesian_point          | p2:cartesian_point                     | d:double
-POINT (-90.82814 29.79511)  | POINT (-90.79731509999999 29.8835389)  | 0.09364744959271905
+POINT (-90.82814 29.79511)  | POINT (-90.79731509999999 29.8835389)  | 0.09364636296011444
 ;
 
 airportCartesianCityLocationPointDistance
 required_capability: st_distance
+required_capability: spatial_distance_supports_multivalues
 
 FROM airports_web
 | EVAL distance = ST_DISTANCE(location, TO_CARTESIANPOINT("POINT(1402900 7490000)"))
@@ -2240,12 +2279,13 @@ FROM airports_web
 | STATS distance=AVG(distance), min=min(distance), max=max(distance), count=COUNT()
 ;
 
-distance:double    | min:double       | max:double        | count:long
-676858.3463435044  | 7358.02077507206 | 971112.9731194031 | 12
+distance:double    | min:double        | max:double        | count:long
+676858.3629952326  | 7358.012830411482 | 971113.1663946278 | 12
 ;
 
 airportCartesianDistanceToCityCopenhagen
 required_capability: st_distance
+required_capability: spatial_distance_supports_multivalues
 
 // tag::st_distance-airports_web[]
 FROM airports_web
@@ -2257,7 +2297,7 @@ FROM airports_web
 
 // tag::st_distance-airports_web-result[]
 abbrev:k | name:text   | location:cartesian_point                   | distance:d
-CPH      | Copenhagen  | POINT(1408119.2975413958 7484813.53657096) | 7358.02077507206
+CPH      | Copenhagen  | POINT(1408119.2975413958 7484813.53657096) | 7358.012830411482
 // end::st_distance-airports_web-result[]
 ;
 

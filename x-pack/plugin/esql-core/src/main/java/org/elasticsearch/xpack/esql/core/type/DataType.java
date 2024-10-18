@@ -14,8 +14,6 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.xpack.esql.core.plugin.EsqlCorePlugin;
-import org.elasticsearch.xpack.esql.core.util.PlanStreamInput;
-import org.elasticsearch.xpack.esql.core.util.PlanStreamOutput;
 
 import java.io.IOException;
 import java.math.BigInteger;
@@ -32,6 +30,8 @@ import java.util.function.Function;
 
 import static java.util.stream.Collectors.toMap;
 import static java.util.stream.Collectors.toUnmodifiableMap;
+import static org.elasticsearch.xpack.esql.core.util.PlanStreamInput.readCachedStringWithVersionCheck;
+import static org.elasticsearch.xpack.esql.core.util.PlanStreamOutput.writeCachedStringWithVersionCheck;
 
 public enum DataType {
     /**
@@ -266,6 +266,8 @@ public enum DataType {
         .sorted(Comparator.comparing(DataType::typeName))
         .toList();
 
+    private static final Collection<DataType> STRING_TYPES = DataType.types().stream().filter(DataType::isString).toList();
+
     private static final Map<String, DataType> NAME_TO_TYPE = TYPES.stream().collect(toUnmodifiableMap(DataType::typeName, t -> t));
 
     private static final Map<String, DataType> ES_TO_TYPE;
@@ -290,6 +292,10 @@ public enum DataType {
 
     public static Collection<DataType> types() {
         return TYPES;
+    }
+
+    public static Collection<DataType> stringTypes() {
+        return STRING_TYPES;
     }
 
     /**
@@ -529,12 +535,12 @@ public enum DataType {
     }
 
     public void writeTo(StreamOutput out) throws IOException {
-        ((PlanStreamOutput) out).writeCachedString(typeName);
+        writeCachedStringWithVersionCheck(out, typeName);
     }
 
     public static DataType readFrom(StreamInput in) throws IOException {
         // TODO: Use our normal enum serialization pattern
-        return readFrom(((PlanStreamInput) in).readCachedString());
+        return readFrom(readCachedStringWithVersionCheck(in));
     }
 
     /**

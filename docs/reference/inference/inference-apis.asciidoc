@@ -21,10 +21,11 @@ the following APIs to manage {infer} models and perform {infer}:
 * <<get-inference-api>>
 * <<post-inference-api>>
 * <<put-inference-api>>
+* <<update-inference-api>>
 
 [[inference-landscape]]
 .A representation of the Elastic inference landscape
-image::images/inference-landscape.png[A representation of the Elastic inference landscape,align="center"]
+image::images/inference-landscape.jpg[A representation of the Elastic inference landscape,align="center"]
 
 An {infer} endpoint enables you to use the corresponding {ml} model without
 manual deployment and apply it to your data at ingestion time through
@@ -39,6 +40,7 @@ include::delete-inference.asciidoc[]
 include::get-inference.asciidoc[]
 include::post-inference.asciidoc[]
 include::put-inference.asciidoc[]
+include::update-inference.asciidoc[]
 include::service-alibabacloud-ai-search.asciidoc[]
 include::service-amazon-bedrock.asciidoc[]
 include::service-anthropic.asciidoc[]

@@ -38,8 +38,8 @@ import org.elasticsearch.xpack.core.security.action.rolemapping.PutRoleMappingRe
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.support.UserRoleMapper;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.ExpressionRoleMapping;
-import org.elasticsearch.xpack.security.action.rolemapping.ClusterStateRoleMappingTranslator;
 import org.elasticsearch.xpack.security.action.rolemapping.ReservedRoleMappingAction;
+import org.elasticsearch.xpack.security.action.rolemapping.TransportClusterStateRoleMappingTranslator;
 import org.junit.After;
 
 import java.io.ByteArrayInputStream;
@@ -359,9 +359,9 @@ public class RoleMappingFileSettingsIT extends NativeRealmIntegTestCase {
             Arrays.stream(response.mappings()).map(ExpressionRoleMapping::getName).toList(),
             containsInAnyOrder(
                 "everyone_kibana",
-                ClusterStateRoleMappingTranslator.withReservedReadOnlySuffix("everyone_kibana"),
+                TransportClusterStateRoleMappingTranslator.withReservedReadOnlySuffix("everyone_kibana"),
                 "_everyone_kibana",
-                ClusterStateRoleMappingTranslator.withReservedReadOnlySuffix("everyone_fleet"),
+                TransportClusterStateRoleMappingTranslator.withReservedReadOnlySuffix("everyone_fleet"),
                 "zzz_mapping",
                 "123_mapping"
             )
@@ -370,7 +370,7 @@ public class RoleMappingFileSettingsIT extends NativeRealmIntegTestCase {
         int readOnlyCount = 0;
         // assert that cluster-state role mappings come last
         for (ExpressionRoleMapping mapping : response.mappings()) {
-            readOnlyCount = ClusterStateRoleMappingTranslator.hasReservedReadOnlySuffix(mapping.getName())
+            readOnlyCount = TransportClusterStateRoleMappingTranslator.hasReservedReadOnlySuffix(mapping.getName())
                 ? readOnlyCount + 1
                 : readOnlyCount;
         }
@@ -382,12 +382,12 @@ public class RoleMappingFileSettingsIT extends NativeRealmIntegTestCase {
 
         // Fetch a specific file based role
         request = new GetRoleMappingsRequest();
-        request.setNames(ClusterStateRoleMappingTranslator.withReservedReadOnlySuffix("everyone_kibana"));
+        request.setNames(TransportClusterStateRoleMappingTranslator.withReservedReadOnlySuffix("everyone_kibana"));
         response = client().execute(GetRoleMappingsAction.INSTANCE, request).get();
         assertTrue(response.hasMappings());
         assertThat(
             Arrays.stream(response.mappings()).map(ExpressionRoleMapping::getName).toList(),
-            containsInAnyOrder(ClusterStateRoleMappingTranslator.withReservedReadOnlySuffix("everyone_kibana"))
+            containsInAnyOrder(TransportClusterStateRoleMappingTranslator.withReservedReadOnlySuffix("everyone_kibana"))
         );
 
         savedClusterState = setupClusterStateListenerForCleanup(internalCluster().getMasterName());
@@ -569,7 +569,7 @@ public class RoleMappingFileSettingsIT extends NativeRealmIntegTestCase {
             Arrays.stream(response.mappings()).map(ExpressionRoleMapping::getName).toList(),
             containsInAnyOrder(
                 Arrays.stream(mappings)
-                    .map(mapping -> readOnly ? ClusterStateRoleMappingTranslator.withReservedReadOnlySuffix(mapping) : mapping)
+                    .map(mapping -> readOnly ? TransportClusterStateRoleMappingTranslator.withReservedReadOnlySuffix(mapping) : mapping)
                     .toArray(String[]::new)
             )
         );

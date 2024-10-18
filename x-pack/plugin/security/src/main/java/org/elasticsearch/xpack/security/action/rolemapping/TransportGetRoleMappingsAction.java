@@ -65,7 +65,7 @@ public class TransportGetRoleMappingsAction extends HandledTransportAction<GetRo
             final Collection<ExpressionRoleMapping> clusterStateRoleMappings = clusterStateRoleMapper.getMappings(
                 // if the API was queried with a reserved suffix for any of the names, we need to remove it because role mappings are
                 // stored without it in cluster-state
-                ClusterStateRoleMappingTranslator.removeReservedReadOnlySuffix(names)
+                TransportClusterStateRoleMappingTranslator.removeReservedReadOnlySuffix(names)
             );
             listener.onResponse(buildResponse(clusterStateRoleMappings, nativeRoleMappings));
         }, listener::onFailure));
@@ -84,7 +84,7 @@ public class TransportGetRoleMappingsAction extends HandledTransportAction<GetRo
                 return false;
             }
             return true;
-        }).map(ClusterStateRoleMappingTranslator::translate);
+        }).map(TransportClusterStateRoleMappingTranslator::translate);
         return new GetRoleMappingsResponse(
             Stream.concat(nativeMappings.stream(), translatedClusterStateMappings).toArray(ExpressionRoleMapping[]::new)
         );

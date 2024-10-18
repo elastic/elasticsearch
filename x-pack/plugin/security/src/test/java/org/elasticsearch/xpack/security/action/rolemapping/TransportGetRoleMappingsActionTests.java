@@ -31,8 +31,8 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.xpack.security.action.rolemapping.ClusterStateRoleMappingTranslator.READ_ONLY_METADATA_FLAG;
-import static org.elasticsearch.xpack.security.action.rolemapping.ClusterStateRoleMappingTranslator.READ_ONLY_ROLE_MAPPING_SUFFIX;
+import static org.elasticsearch.xpack.security.action.rolemapping.TransportClusterStateRoleMappingTranslator.READ_ONLY_ROLE_MAPPING_METADATA_FLAG;
+import static org.elasticsearch.xpack.security.action.rolemapping.TransportClusterStateRoleMappingTranslator.READ_ONLY_ROLE_MAPPING_SUFFIX;
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.notNullValue;
@@ -230,7 +230,7 @@ public class TransportGetRoleMappingsActionTests extends ESTestCase {
             null,
             null,
             null,
-            Map.of(READ_ONLY_METADATA_FLAG, true),
+            Map.of(READ_ONLY_ROLE_MAPPING_METADATA_FLAG, true),
             true
         );
     }

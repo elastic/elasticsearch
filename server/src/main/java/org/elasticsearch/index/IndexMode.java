@@ -9,6 +9,7 @@
 
 package org.elasticsearch.index;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MetadataCreateDataStreamService;
 import org.elasticsearch.cluster.routing.IndexRouting;
@@ -308,6 +309,87 @@ public enum IndexMode {
         public String getDefaultCodec() {
             return CodecService.BEST_COMPRESSION_CODEC;
         }
+    },
+    LOOKUP("lookup") {
+        @Override
+        void validateWithOtherSettings(Map<Setting<?>, Object> settings) {
+            Integer defaultNumberOfShards = IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.get(Settings.EMPTY);
+            Object providedNumberOfShards = settings.getOrDefault(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING, defaultNumberOfShards);
+            if (Objects.equals(providedNumberOfShards, defaultNumberOfShards) == false) {
+                throw new IllegalArgumentException(
+                    "index with [lookup] mode must have [index.number_of_shards] set to 1 or unset; provided " + providedNumberOfShards
+                );
+            }
+        }
+
+        @Override
+        public Settings defaultIndexSettings() {
+            return Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-all")
+                .build();
+        }
+
+        @Override
+        public void validateMapping(MappingLookup lookup) {};
+
+        @Override
+        public void validateAlias(@Nullable String indexRouting, @Nullable String searchRouting) {}
+
+        @Override
+        public void validateTimestampFieldMapping(boolean isDataStream, MappingLookup mappingLookup) {
+
+        }
+
+        @Override
+        public CompressedXContent getDefaultMapping(final IndexSettings indexSettings) {
+            return null;
+        }
+
+        @Override
+        public TimestampBounds getTimestampBound(IndexMetadata indexMetadata) {
+            return null;
+        }
+
+        @Override
+        public MetadataFieldMapper timeSeriesIdFieldMapper() {
+            // non time-series indices must not have a TimeSeriesIdFieldMapper
+            return null;
+        }
+
+        @Override
+        public MetadataFieldMapper timeSeriesRoutingHashFieldMapper() {
+            // non time-series indices must not have a TimeSeriesRoutingIdFieldMapper
+            return null;
+        }
+
+        @Override
+        public IdFieldMapper idFieldMapperWithoutFieldData() {
+            return ProvidedIdFieldMapper.NO_FIELD_DATA;
+        }
+
+        @Override
+        public IdFieldMapper buildIdFieldMapper(BooleanSupplier fieldDataEnabled) {
+            return new ProvidedIdFieldMapper(fieldDataEnabled);
+        }
+
+        @Override
+        public DocumentDimensions buildDocumentDimensions(IndexSettings settings) {
+            return DocumentDimensions.Noop.INSTANCE;
+        }
+
+        @Override
+        public boolean shouldValidateTimestamp() {
+            return false;
+        }
+
+        @Override
+        public void validateSourceFieldMapper(SourceFieldMapper sourceFieldMapper) {}
+
+        @Override
+        public SourceFieldMapper.Mode defaultSourceMode() {
+            return SourceFieldMapper.Mode.STORED;
+        }
     };
 
     private static final String HOST_NAME = "host.name";
@@ -370,6 +452,7 @@ public enum IndexMode {
     static final List<Setting<?>> VALIDATE_WITH_SETTINGS = List.copyOf(
         Stream.concat(
             Stream.of(
+                IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING,
                 IndexMetadata.INDEX_ROUTING_PARTITION_SIZE_SETTING,
                 IndexMetadata.INDEX_ROUTING_PATH,
                 IndexSettings.TIME_SERIES_START_TIME,
@@ -469,6 +552,13 @@ public enum IndexMode {
     }
 
     /**
+     * The default index settings provided by this index mode.
+     */
+    public Settings defaultIndexSettings() {
+        return Settings.EMPTY;
+    }
+
+    /**
      * Parse a string into an {@link IndexMode}.
      */
     public static IndexMode fromString(String value) {
@@ -476,11 +566,12 @@ public enum IndexMode {
             case "standard" -> IndexMode.STANDARD;
             case "time_series" -> IndexMode.TIME_SERIES;
             case "logsdb" -> IndexMode.LOGSDB;
+            case "lookup" -> IndexMode.LOOKUP;
             default -> throw new IllegalArgumentException(
                 "["
                     + value
                     + "] is an invalid index mode, valid modes are: ["
-                    + Arrays.stream(IndexMode.values()).map(IndexMode::toString).collect(Collectors.joining())
+                    + Arrays.stream(IndexMode.values()).map(IndexMode::toString).collect(Collectors.joining(","))
                     + "]"
             );
         };
@@ -492,6 +583,7 @@ public enum IndexMode {
             case 0 -> STANDARD;
             case 1 -> TIME_SERIES;
             case 2 -> LOGSDB;
+            case 3 -> LOOKUP;
             default -> throw new IllegalStateException("unexpected index mode [" + mode + "]");
         };
     }
@@ -501,6 +593,7 @@ public enum IndexMode {
             case STANDARD -> 0;
             case TIME_SERIES -> 1;
             case LOGSDB -> 2;
+            case LOOKUP -> out.getTransportVersion().onOrAfter(TransportVersions.INDEX_MODE_LOOKUP) ? 3 : 0;
         };
         out.writeByte((byte) code);
     }

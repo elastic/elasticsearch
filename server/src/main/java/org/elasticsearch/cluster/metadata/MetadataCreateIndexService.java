@@ -308,7 +308,12 @@ public class MetadataCreateIndexService {
         final CreateIndexClusterStateUpdateRequest request,
         final ActionListener<AcknowledgedResponse> listener
     ) {
-        normalizeRequestSetting(request);
+        try {
+            normalizeRequestSetting(request);
+        } catch (Exception e) {
+            listener.onFailure(e);
+            return;
+        }
 
         var delegate = new AllocationActionListener<>(listener, threadPool.getThreadContext());
         submitUnbatchedTask(
@@ -1098,7 +1103,16 @@ public class MetadataCreateIndexService {
                 indexScopedSettings
             );
         }
-
+        // add default settings provided by the index mode
+        final String indexMode = indexSettingsBuilder.get(IndexSettings.MODE.getKey());
+        if (indexMode != null) {
+            final Settings indexModeSettings = IndexMode.valueOf(indexMode.toUpperCase(Locale.ROOT)).defaultIndexSettings();
+            for (String k : indexModeSettings.keySet()) {
+                if (indexSettingsBuilder.get(k) == null) {
+                    indexSettingsBuilder.put(k, indexModeSettings.get(k));
+                }
+            }
+        }
         Settings indexSettings = indexSettingsBuilder.build();
         /*
          * We can not validate settings until we have applied templates, otherwise we do not know the actual settings

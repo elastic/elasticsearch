@@ -98,25 +98,27 @@ public class RescorePhaseTests extends IndexShardTestCase {
                             return context.fetchFieldsContext(fetchFieldsContext);
                         }
                     };
-                    Runnable cancellationChecks = RescorePhase.getCancellationChecks(wrapped);
-                    assertNotNull(cancellationChecks);
-                    TaskCancelHelper.cancel(task, "test cancellation");
-                    assertTrue(wrapped.isCancelled());
-                    expectThrows(TaskCancelledException.class, cancellationChecks::run);
-                    QueryRescorer.QueryRescoreContext rescoreContext = new QueryRescorer.QueryRescoreContext(10);
-                    rescoreContext.setQuery(new ParsedQuery(new MatchAllDocsQuery()));
-                    rescoreContext.setCancellationChecker(cancellationChecks);
-                    expectThrows(
-                        TaskCancelledException.class,
-                        () -> new QueryRescorer().rescore(
-                            new TopDocs(
-                                new TotalHits(10, TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO),
-                                new ScoreDoc[] { new ScoreDoc(0, 1.0f) }
-                            ),
-                            context.searcher(),
-                            rescoreContext
-                        )
-                    );
+                    try (wrapped) {
+                        Runnable cancellationChecks = RescorePhase.getCancellationChecks(wrapped);
+                        assertNotNull(cancellationChecks);
+                        TaskCancelHelper.cancel(task, "test cancellation");
+                        assertTrue(wrapped.isCancelled());
+                        expectThrows(TaskCancelledException.class, cancellationChecks::run);
+                        QueryRescorer.QueryRescoreContext rescoreContext = new QueryRescorer.QueryRescoreContext(10);
+                        rescoreContext.setQuery(new ParsedQuery(new MatchAllDocsQuery()));
+                        rescoreContext.setCancellationChecker(cancellationChecks);
+                        expectThrows(
+                            TaskCancelledException.class,
+                            () -> new QueryRescorer().rescore(
+                                new TopDocs(
+                                    new TotalHits(10, TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO),
+                                    new ScoreDoc[] { new ScoreDoc(0, 1.0f) }
+                                ),
+                                context.searcher(),
+                                rescoreContext
+                            )
+                        );
+                    }
                 }
                 closeShards(shard);
             }

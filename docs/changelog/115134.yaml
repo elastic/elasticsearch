@@ -1,0 +1,5 @@
+pr: 115134
+summary: "Apm-data: ignore malformed enabled for metrics-app data stream"
+area: Data streams
+type: enhancement
+issues: []

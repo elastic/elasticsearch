@@ -28,8 +28,10 @@ import org.apache.lucene.search.SynonymQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.tests.analysis.MockSynonymAnalyzer;
 import org.apache.lucene.tests.util.TestUtil;
+import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.search.SimpleQueryStringQueryParser;
 import org.elasticsearch.test.AbstractQueryTestCase;
+import org.hamcrest.CoreMatchers;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -763,5 +765,37 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
         assertEquals("Field [mapped_binary] of type [binary] does not support match queries", e.getMessage());
         query.lenient(true);
         assertThat(query.toQuery(context), instanceOf(MatchNoDocsQuery.class));
+    }
+
+    public void testCoordinatorTierRewriteToMatchAll() throws IOException {
+        QueryBuilder query = new SimpleQueryStringBuilder("data_frozen").field("_tier");
+        final String timestampFieldName = "@timestamp";
+        long minTimestamp = 1685714000000L;
+        long maxTimestamp = 1685715000000L;
+        final CoordinatorRewriteContext coordinatorRewriteContext = createCoordinatorRewriteContext(
+            new DateFieldMapper.DateFieldType(timestampFieldName),
+            minTimestamp,
+            maxTimestamp,
+            "data_frozen"
+        );
+
+        QueryBuilder rewritten = query.rewrite(coordinatorRewriteContext);
+        assertThat(rewritten, CoreMatchers.instanceOf(MatchAllQueryBuilder.class));
+    }
+
+    public void testCoordinatorTierRewriteToMatchNone() throws IOException {
+        QueryBuilder query = QueryBuilders.boolQuery().mustNot(new SimpleQueryStringBuilder("data_frozen").field("_tier"));
+        final String timestampFieldName = "@timestamp";
+        long minTimestamp = 1685714000000L;
+        long maxTimestamp = 1685715000000L;
+        final CoordinatorRewriteContext coordinatorRewriteContext = createCoordinatorRewriteContext(
+            new DateFieldMapper.DateFieldType(timestampFieldName),
+            minTimestamp,
+            maxTimestamp,
+            "data_frozen"
+        );
+
+        QueryBuilder rewritten = query.rewrite(coordinatorRewriteContext);
+        assertThat(rewritten, CoreMatchers.instanceOf(MatchNoneQueryBuilder.class));
     }
 }

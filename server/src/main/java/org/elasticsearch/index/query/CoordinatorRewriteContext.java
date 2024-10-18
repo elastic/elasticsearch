@@ -41,6 +41,7 @@ public class CoordinatorRewriteContext extends QueryRewriteContext {
      * @param client
      * @param nowInMillis
      * @param dateFieldRangeInfo range and field type info for @timestamp and 'event.ingested'
+     * @param tier the configured data tier (via the _tier_preference setting) for the index
      */
     public CoordinatorRewriteContext(
         XContentParserConfiguration parserConfig,

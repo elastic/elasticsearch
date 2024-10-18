@@ -35,6 +35,7 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.unit.Fuzziness;
+import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.search.MatchQueryParser;
@@ -667,5 +668,37 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
             QueryBuilder rewritten = query.rewrite(context);
             assertThat(rewritten, instanceOf(MatchAllQueryBuilder.class));
         }
+    }
+
+    public void testCoordinatorTierRewriteToMatchAll() throws IOException {
+        QueryBuilder query = new MatchQueryBuilder("_tier", "data_frozen");
+        final String timestampFieldName = "@timestamp";
+        long minTimestamp = 1685714000000L;
+        long maxTimestamp = 1685715000000L;
+        final CoordinatorRewriteContext coordinatorRewriteContext = createCoordinatorRewriteContext(
+            new DateFieldMapper.DateFieldType(timestampFieldName),
+            minTimestamp,
+            maxTimestamp,
+            "data_frozen"
+        );
+
+        QueryBuilder rewritten = query.rewrite(coordinatorRewriteContext);
+        assertThat(rewritten, instanceOf(MatchAllQueryBuilder.class));
+    }
+
+    public void testCoordinatorTierRewriteToMatchNone() throws IOException {
+        QueryBuilder query = QueryBuilders.boolQuery().mustNot(new MatchQueryBuilder("_tier", "data_frozen"));
+        final String timestampFieldName = "@timestamp";
+        long minTimestamp = 1685714000000L;
+        long maxTimestamp = 1685715000000L;
+        final CoordinatorRewriteContext coordinatorRewriteContext = createCoordinatorRewriteContext(
+            new DateFieldMapper.DateFieldType(timestampFieldName),
+            minTimestamp,
+            maxTimestamp,
+            "data_frozen"
+        );
+
+        QueryBuilder rewritten = query.rewrite(coordinatorRewriteContext);
+        assertThat(rewritten, instanceOf(MatchNoneQueryBuilder.class));
     }
 }

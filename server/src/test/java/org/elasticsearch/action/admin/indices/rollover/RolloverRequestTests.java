@@ -262,7 +262,7 @@ public class RolloverRequestTests extends ESTestCase {
             RolloverRequest rolloverRequest = new RolloverRequest("alias-index", "new-index-name");
             rolloverRequest.setIndicesOptions(
                 IndicesOptions.builder(rolloverRequest.indicesOptions())
-                    .selectorOptions(IndicesOptions.SelectorOptions.ALL_SUPPORTED)
+                    .selectorOptions(IndicesOptions.SelectorOptions.ALL_APPLICABLE)
                     .build()
             );
             ActionRequestValidationException validationException = rolloverRequest.validate();

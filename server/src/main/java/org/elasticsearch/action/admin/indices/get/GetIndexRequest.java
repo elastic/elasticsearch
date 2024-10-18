@@ -12,7 +12,6 @@ package org.elasticsearch.action.admin.indices.get;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.info.ClusterInfoRequest;
-import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.ArrayUtils;
@@ -96,11 +95,7 @@ public class GetIndexRequest extends ClusterInfoRequest<GetIndexRequest> {
 
     public GetIndexRequest() {
         super(
-            DataStream.isFailureStoreFeatureFlagEnabled()
-                ? IndicesOptions.builder(IndicesOptions.strictExpandOpen())
-                    .selectorOptions(IndicesOptions.SelectorOptions.ALL_SUPPORTED)
-                    .build()
-                : IndicesOptions.strictExpandOpen()
+            IndicesOptions.builder(IndicesOptions.strictExpandOpen()).selectorOptions(IndicesOptions.SelectorOptions.ALL_APPLICABLE).build()
         );
     }
 

@@ -68,25 +68,8 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
 
     private String[] indices = EMPTY_ARRAY;
 
-    private IndicesOptions indicesOptions = IndicesOptions.builder()
-        .concreteTargetOptions(IndicesOptions.ConcreteTargetOptions.ERROR_WHEN_UNAVAILABLE_TARGETS)
-        .wildcardOptions(
-            IndicesOptions.WildcardOptions.builder()
-                .matchOpen(true)
-                .matchClosed(true)
-                .includeHidden(true)
-                .allowEmptyExpressions(true)
-                .resolveAliases(true)
-        )
-        .gatekeeperOptions(
-            IndicesOptions.GatekeeperOptions.builder()
-                .allowAliasToMultipleIndices(true)
-                .allowClosedIndices(true)
-                .allowFailureIndices(true)
-                .allowSelectors(true)
-                .ignoreThrottled(false)
-        )
-        .selectorOptions(IndicesOptions.SelectorOptions.ALL_SUPPORTED)
+    private IndicesOptions indicesOptions = IndicesOptions.builder(IndicesOptions.strictExpandHidden())
+        .selectorOptions(IndicesOptions.SelectorOptions.ALL_APPLICABLE)
         .build();
 
     private String[] featureStates = EMPTY_ARRAY;

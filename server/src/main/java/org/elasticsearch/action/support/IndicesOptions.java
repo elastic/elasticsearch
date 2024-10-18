@@ -317,7 +317,6 @@ public record IndicesOptions(
     ) implements ToXContentFragment {
 
         public static final String IGNORE_THROTTLED = "ignore_throttled";
-        // TODO-PR Should default be true?
         public static final GatekeeperOptions DEFAULT = new GatekeeperOptions(true, true, true, true, false);
 
         public static GatekeeperOptions parseParameter(Object ignoreThrottled, GatekeeperOptions defaultOptions) {
@@ -425,7 +424,7 @@ public record IndicesOptions(
      */
     public record SelectorOptions(IndexComponentSelector defaultSelector) implements Writeable {
 
-        public static final SelectorOptions ALL_SUPPORTED = new SelectorOptions(IndexComponentSelector.ALL_APPLICABLE);
+        public static final SelectorOptions ALL_APPLICABLE = new SelectorOptions(IndexComponentSelector.ALL_APPLICABLE);
         public static final SelectorOptions ONLY_DATA = new SelectorOptions(IndexComponentSelector.DATA);
         public static final SelectorOptions ONLY_FAILURES = new SelectorOptions(IndexComponentSelector.FAILURES);
         /**
@@ -438,7 +437,7 @@ public record IndicesOptions(
                 .between(TransportVersions.CONVERT_FAILURE_STORE_OPTIONS_TO_SELECTOR_OPTIONS_INTERNALLY, TransportVersions.USE_SELECTORS)) {
                 EnumSet<IndexComponentSelector> set = in.readEnumSet(IndexComponentSelector.class);
                 if (set.isEmpty() || set.size() == 2) {
-                    return SelectorOptions.ALL_SUPPORTED;
+                    return SelectorOptions.ALL_APPLICABLE;
                 } else if (set.contains(IndexComponentSelector.DATA)) {
                     return SelectorOptions.ONLY_DATA;
                 } else {
@@ -583,7 +582,7 @@ public record IndicesOptions(
                 .allowFailureIndices(true)
                 .ignoreThrottled(false)
         )
-        .selectorOptions(SelectorOptions.ALL_SUPPORTED)
+        .selectorOptions(SelectorOptions.ALL_APPLICABLE)
         .build();
     public static final IndicesOptions LENIENT_EXPAND_OPEN = IndicesOptions.builder()
         .concreteTargetOptions(ConcreteTargetOptions.ALLOW_UNAVAILABLE_TARGETS)
@@ -750,7 +749,7 @@ public record IndicesOptions(
                 .allowFailureIndices(true)
                 .ignoreThrottled(false)
         )
-        .selectorOptions(SelectorOptions.ALL_SUPPORTED)
+        .selectorOptions(SelectorOptions.ALL_APPLICABLE)
         .build();
     public static final IndicesOptions STRICT_EXPAND_OPEN_CLOSED_HIDDEN_FAILURE_STORE = IndicesOptions.builder()
         .concreteTargetOptions(ConcreteTargetOptions.ERROR_WHEN_UNAVAILABLE_TARGETS)
@@ -764,7 +763,7 @@ public record IndicesOptions(
                 .allowFailureIndices(true)
                 .ignoreThrottled(false)
         )
-        .selectorOptions(SelectorOptions.ALL_SUPPORTED)
+        .selectorOptions(SelectorOptions.ALL_APPLICABLE)
         .build();
     public static final IndicesOptions STRICT_EXPAND_OPEN_CLOSED_FAILURE_STORE = IndicesOptions.builder()
         .concreteTargetOptions(ConcreteTargetOptions.ERROR_WHEN_UNAVAILABLE_TARGETS)
@@ -783,7 +782,7 @@ public record IndicesOptions(
                 .allowFailureIndices(true)
                 .ignoreThrottled(false)
         )
-        .selectorOptions(SelectorOptions.ALL_SUPPORTED)
+        .selectorOptions(SelectorOptions.ALL_APPLICABLE)
         .build();
     public static final IndicesOptions STRICT_EXPAND_OPEN_FORBID_CLOSED = IndicesOptions.builder()
         .concreteTargetOptions(ConcreteTargetOptions.ERROR_WHEN_UNAVAILABLE_TARGETS)
@@ -1068,7 +1067,7 @@ public record IndicesOptions(
             var includeData = in.readBoolean();
             var includeFailures = in.readBoolean();
             if (includeData && includeFailures) {
-                selectorOptions = SelectorOptions.ALL_SUPPORTED;
+                selectorOptions = SelectorOptions.ALL_APPLICABLE;
             } else if (includeData) {
                 selectorOptions = SelectorOptions.ONLY_DATA;
             } else {

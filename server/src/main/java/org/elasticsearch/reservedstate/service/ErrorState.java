@@ -18,7 +18,7 @@ import static org.elasticsearch.ExceptionsHelper.stackTrace;
 record ErrorState(
     String namespace,
     Long version,
-    ReservedVersionCheck versionCheck,
+    ReservedStateVersionCheck versionCheck,
     List<String> errors,
     ReservedStateErrorMetadata.ErrorKind errorKind
 ) {
@@ -26,7 +26,7 @@ record ErrorState(
     ErrorState(
         String namespace,
         Long version,
-        ReservedVersionCheck versionCheck,
+        ReservedStateVersionCheck versionCheck,
         Exception e,
         ReservedStateErrorMetadata.ErrorKind errorKind
     ) {

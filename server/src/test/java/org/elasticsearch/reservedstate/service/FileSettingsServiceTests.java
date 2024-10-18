@@ -151,7 +151,7 @@ public class FileSettingsServiceTests extends ESTestCase {
         doAnswer((Answer<Void>) invocation -> {
             ((Consumer<Exception>) invocation.getArgument(3)).accept(new IllegalStateException("Some exception"));
             return null;
-        }).when(controller).process(any(), any(XContentParser.class), randomFrom(ReservedVersionCheck.values()), any());
+        }).when(controller).process(any(), any(XContentParser.class), randomFrom(ReservedStateVersionCheck.values()), any());
 
         AtomicBoolean settingsChanged = new AtomicBoolean(false);
         CountDownLatch latch = new CountDownLatch(1);
@@ -177,7 +177,7 @@ public class FileSettingsServiceTests extends ESTestCase {
         assertTrue(latch.await(20, TimeUnit.SECONDS));
 
         verify(fileSettingsService, times(1)).processFileOnServiceStart();
-        verify(controller, times(1)).process(any(), any(XContentParser.class), eq(ReservedVersionCheck.SAME_OR_NEW_VERSION), any());
+        verify(controller, times(1)).process(any(), any(XContentParser.class), eq(ReservedStateVersionCheck.SAME_OR_NEW_VERSION), any());
         // assert we never notified any listeners of successful application of file based settings
         assertFalse(settingsChanged.get());
     }
@@ -213,7 +213,7 @@ public class FileSettingsServiceTests extends ESTestCase {
         assertTrue(latch.await(20, TimeUnit.SECONDS));
 
         verify(fileSettingsService, times(1)).processFileOnServiceStart();
-        verify(controller, times(1)).process(any(), any(XContentParser.class), eq(ReservedVersionCheck.SAME_OR_NEW_VERSION), any());
+        verify(controller, times(1)).process(any(), any(XContentParser.class), eq(ReservedStateVersionCheck.SAME_OR_NEW_VERSION), any());
     }
 
     @SuppressWarnings("unchecked")
@@ -256,9 +256,9 @@ public class FileSettingsServiceTests extends ESTestCase {
         assertTrue(latch.await(20, TimeUnit.SECONDS));
 
         verify(fileSettingsService, times(1)).processFileOnServiceStart();
-        verify(controller, times(1)).process(any(), any(XContentParser.class), eq(ReservedVersionCheck.SAME_OR_NEW_VERSION), any());
+        verify(controller, times(1)).process(any(), any(XContentParser.class), eq(ReservedStateVersionCheck.SAME_OR_NEW_VERSION), any());
         verify(fileSettingsService, times(1)).processFileChanges();
-        verify(controller, times(1)).process(any(), any(XContentParser.class), eq(ReservedVersionCheck.ONLY_NEW_VERSION), any());
+        verify(controller, times(1)).process(any(), any(XContentParser.class), eq(ReservedStateVersionCheck.ONLY_NEW_VERSION), any());
     }
 
     @SuppressWarnings("unchecked")

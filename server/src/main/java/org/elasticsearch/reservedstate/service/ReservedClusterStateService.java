@@ -113,7 +113,7 @@ public class ReservedClusterStateService {
             ErrorState errorState = new ErrorState(
                 namespace,
                 EMPTY_VERSION,
-                ReservedVersionCheck.ONLY_NEW_VERSION,
+                ReservedStateVersionCheck.ONLY_NEW_VERSION,
                 e,
                 ReservedStateErrorMetadata.ErrorKind.PARSING
             );
@@ -132,7 +132,7 @@ public class ReservedClusterStateService {
      * @param errorListener a consumer called with {@link IllegalStateException} if the content has errors and the
      *        cluster state cannot be correctly applied, null if successful or state couldn't be applied because of incompatible version.
      */
-    public void process(String namespace, XContentParser parser, ReservedVersionCheck versionCheck, Consumer<Exception> errorListener) {
+    public void process(String namespace, XContentParser parser, ReservedStateVersionCheck versionCheck, Consumer<Exception> errorListener) {
         ReservedStateChunk stateChunk;
 
         try {
@@ -159,7 +159,7 @@ public class ReservedClusterStateService {
             new ReservedStateUpdateTask(
                 namespace,
                 emptyState,
-                ReservedVersionCheck.ONLY_NEW_VERSION,
+                ReservedStateVersionCheck.ONLY_NEW_VERSION,
                 Map.of(),
                 List.of(),
                 // error state should not be possible since there is no metadata being parsed or processed
@@ -182,7 +182,7 @@ public class ReservedClusterStateService {
     public void process(
         String namespace,
         ReservedStateChunk reservedStateChunk,
-        ReservedVersionCheck versionCheck,
+        ReservedStateVersionCheck versionCheck,
         Consumer<Exception> errorListener
     ) {
         Map<String, Object> reservedState = reservedStateChunk.state();
@@ -265,7 +265,7 @@ public class ReservedClusterStateService {
         String namespace,
         List<String> errors,
         ReservedStateVersion reservedStateVersion,
-        ReservedVersionCheck versionCheck
+        ReservedStateVersionCheck versionCheck
     ) {
         // Any errors should be discovered through validation performed in the transform calls
         if (errors.isEmpty() == false) {

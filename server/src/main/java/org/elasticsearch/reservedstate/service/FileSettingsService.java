@@ -116,7 +116,7 @@ public class FileSettingsService extends MasterNodeFileWatchingService implement
     @Override
     protected void processFileChanges() throws ExecutionException, InterruptedException, IOException {
         logger.info("processing path [{}] for [{}]", watchedFile(), NAMESPACE);
-        processFileChanges(ReservedVersionCheck.ONLY_NEW_VERSION);
+        processFileChanges(ReservedStateVersionCheck.ONLY_NEW_VERSION);
     }
 
     /**
@@ -126,10 +126,10 @@ public class FileSettingsService extends MasterNodeFileWatchingService implement
     @Override
     protected void processFileOnServiceStart() throws IOException, ExecutionException, InterruptedException {
         logger.info("processing path [{}] for [{}] on service start", watchedFile(), NAMESPACE);
-        processFileChanges(ReservedVersionCheck.SAME_OR_NEW_VERSION);
+        processFileChanges(ReservedStateVersionCheck.SAME_OR_NEW_VERSION);
     }
 
-    private void processFileChanges(ReservedVersionCheck versionCheck) throws IOException, InterruptedException, ExecutionException {
+    private void processFileChanges(ReservedStateVersionCheck versionCheck) throws IOException, InterruptedException, ExecutionException {
         PlainActionFuture<Void> completion = new PlainActionFuture<>();
         try (
             var fis = Files.newInputStream(watchedFile());

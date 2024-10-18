@@ -51,7 +51,7 @@ public class ReservedStateErrorTask implements ClusterStateTaskListener {
     }
 
     // package private for testing
-    static boolean isNewError(ReservedStateMetadata existingMetadata, Long newStateVersion, ReservedVersionCheck versionCheck) {
+    static boolean isNewError(ReservedStateMetadata existingMetadata, Long newStateVersion, ReservedStateVersionCheck versionCheck) {
         return (existingMetadata == null
             || existingMetadata.errorMetadata() == null
             || versionCheck.test(existingMetadata.errorMetadata().version(), newStateVersion)

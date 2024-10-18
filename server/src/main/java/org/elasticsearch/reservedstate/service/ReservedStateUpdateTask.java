@@ -47,7 +47,7 @@ public class ReservedStateUpdateTask implements ClusterStateTaskListener {
 
     private final String namespace;
     private final ReservedStateChunk stateChunk;
-    private final ReservedVersionCheck versionCheck;
+    private final ReservedStateVersionCheck versionCheck;
     private final Map<String, ReservedClusterStateHandler<?>> handlers;
     private final Collection<String> orderedHandlers;
     private final Consumer<ErrorState> errorReporter;
@@ -56,7 +56,7 @@ public class ReservedStateUpdateTask implements ClusterStateTaskListener {
     public ReservedStateUpdateTask(
         String namespace,
         ReservedStateChunk stateChunk,
-        ReservedVersionCheck versionCheck,
+        ReservedStateVersionCheck versionCheck,
         Map<String, ReservedClusterStateHandler<?>> handlers,
         Collection<String> orderedHandlers,
         Consumer<ErrorState> errorReporter,
@@ -124,7 +124,7 @@ public class ReservedStateUpdateTask implements ClusterStateTaskListener {
         return stateBuilder.metadata(metadataBuilder).build();
     }
 
-    private void checkAndThrowOnError(List<String> errors, ReservedStateVersion version, ReservedVersionCheck versionCheck) {
+    private void checkAndThrowOnError(List<String> errors, ReservedStateVersion version, ReservedStateVersionCheck versionCheck) {
         // Any errors should be discovered through validation performed in the transform calls
         if (errors.isEmpty() == false) {
             logger.debug("Error processing state change request for [{}] with the following errors [{}]", namespace, errors);
@@ -160,7 +160,7 @@ public class ReservedStateUpdateTask implements ClusterStateTaskListener {
         String namespace,
         ReservedStateMetadata existingMetadata,
         ReservedStateVersion reservedStateVersion,
-        ReservedVersionCheck versionCheck
+        ReservedStateVersionCheck versionCheck
     ) {
         if (Version.CURRENT.before(reservedStateVersion.minCompatibleVersion())) {
             logger.warn(

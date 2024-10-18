@@ -26,7 +26,7 @@ public class ReservedStateUpdateTaskTests extends ESTestCase {
         var task = new ReservedStateUpdateTask(
             "dummy",
             null,
-            ReservedVersionCheck.ONLY_NEW_VERSION,
+            ReservedStateVersionCheck.ONLY_NEW_VERSION,
             Map.of(),
             List.of(),
             e -> {},

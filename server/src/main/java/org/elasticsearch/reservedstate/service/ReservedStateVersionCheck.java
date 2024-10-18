@@ -12,29 +12,29 @@ package org.elasticsearch.reservedstate.service;
 import java.util.function.BiPredicate;
 
 /**
- * Determines if reserved state should be processed, given the current, already processed version and the candidate
- * new version.
+ * Enum representing the logic for determining whether a reserved state should be processed
+ * based on the current and next versions.
  */
 public enum ReservedStateVersionCheck implements BiPredicate<Long, Long> {
     /**
-     * `true` iff the current version is less than or equal to the next version.
-     * This means re-processing the same version.
-     * This is the behavior for processing file settings of service start.
-     */
-    SAME_OR_NEW_VERSION {
-        @Override
-        public boolean test(Long currentVersion, Long nextVersion) {
-            return currentVersion <= nextVersion;
-        }
-    },
-    /**
-     * `true` iff the current version is less than the next version.
-     * This is the default behavior for processing on file settings changes.
+     * Returns {@code true} if the current version is less than the next version.
+     * This is the default behavior when processing changes to file settings.
      */
     ONLY_NEW_VERSION {
         @Override
         public boolean test(Long currentVersion, Long nextVersion) {
             return currentVersion < nextVersion;
         }
-    };
+    },
+    /**
+     * Returns {@code true} if the current version is less than or equal to the next version.
+     * This allows re-processing of the same version.
+     * Used when processing file settings during service startup.
+     */
+    SAME_OR_NEW_VERSION {
+        @Override
+        public boolean test(Long currentVersion, Long nextVersion) {
+            return currentVersion <= nextVersion;
+        }
+    }
 }

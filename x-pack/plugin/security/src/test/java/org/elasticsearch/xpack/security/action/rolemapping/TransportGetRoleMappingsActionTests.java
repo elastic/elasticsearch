@@ -31,8 +31,8 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.xpack.security.action.rolemapping.TransportGetRoleMappingsAction.READ_ONLY_METADATA_FLAG;
-import static org.elasticsearch.xpack.security.action.rolemapping.TransportGetRoleMappingsAction.READ_ONLY_ROLE_MAPPING_SUFFIX;
+import static org.elasticsearch.xpack.security.action.rolemapping.ClusterStateRoleMappingTranslator.READ_ONLY_METADATA_FLAG;
+import static org.elasticsearch.xpack.security.action.rolemapping.ClusterStateRoleMappingTranslator.READ_ONLY_ROLE_MAPPING_SUFFIX;
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.notNullValue;
@@ -171,6 +171,18 @@ public class TransportGetRoleMappingsActionTests extends ESTestCase {
             // suffix is stripped for cluster state store
             Set.of("everyone"),
             "everyone" + READ_ONLY_ROLE_MAPPING_SUFFIX
+        );
+
+        testGetMappings(
+            List.of(),
+            Set.of(mapping("everyone(read only)")),
+            // suffix not stripped for native store query
+            Set.of("everyone(read only)", "everyone(read only)more", "everyone(read only) "),
+            // suffix that is similar but not the same is not stripped
+            Set.of("everyone(read only)", "everyone(read only)more", "everyone(read only) "),
+            "everyone(read only)",
+            "everyone(read only)more",
+            "everyone(read only) "
         );
 
         testGetMappings(

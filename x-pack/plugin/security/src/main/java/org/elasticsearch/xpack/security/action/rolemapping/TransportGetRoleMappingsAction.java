@@ -25,18 +25,12 @@ import org.elasticsearch.xpack.security.authc.support.mapper.NativeRoleMappingSt
 
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Map;
 import java.util.Set;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 public class TransportGetRoleMappingsAction extends HandledTransportAction<GetRoleMappingsRequest, GetRoleMappingsResponse> {
     private static final Logger logger = LogManager.getLogger(TransportGetRoleMappingsAction.class);
-
-    static final String READ_ONLY_ROLE_MAPPING_SUFFIX = " (read only)";
-    static final String READ_ONLY_METADATA_FLAG = "_read_only";
 
     private final NativeRoleMappingStore roleMappingStore;
     private final ClusterStateRoleMapper clusterStateRoleMapper;
@@ -71,54 +65,28 @@ public class TransportGetRoleMappingsAction extends HandledTransportAction<GetRo
             final Collection<ExpressionRoleMapping> clusterStateRoleMappings = clusterStateRoleMapper.getMappings(
                 // if the API was queried with a reserved suffix for any of the names, we need to remove it because role mappings are
                 // stored without it in cluster-state
-                removeReservedSuffix(names)
+                ClusterStateRoleMappingTranslator.removeReservedReadOnlySuffix(names)
             );
             listener.onResponse(buildResponse(clusterStateRoleMappings, nativeRoleMappings));
         }, listener::onFailure));
     }
 
     private GetRoleMappingsResponse buildResponse(
-        Collection<ExpressionRoleMapping> clusterStateRoleMappings,
-        Collection<ExpressionRoleMapping> nativeRoleMappings
+        Collection<ExpressionRoleMapping> clusterStateMappings,
+        Collection<ExpressionRoleMapping> nativeMappings
     ) {
+        Stream<ExpressionRoleMapping> translatedClusterStateMappings = clusterStateMappings.stream().filter(roleMapping -> {
+            if (ReservedRoleMappingXContentNameFieldHelper.hasFallbackName(roleMapping)) {
+                logger.warn(
+                    "Role mapping retrieved from cluster-state with an ambiguous name. It will be omitted from the API response."
+                        + "This is likely a transient issue during node start-up."
+                );
+                return false;
+            }
+            return true;
+        }).map(ClusterStateRoleMappingTranslator::translate);
         return new GetRoleMappingsResponse(
-            Stream.concat(nativeRoleMappings.stream(), clusterStateRoleMappings.stream().map(this::toResponseModel))
-                .toArray(ExpressionRoleMapping[]::new)
+            Stream.concat(nativeMappings.stream(), translatedClusterStateMappings).toArray(ExpressionRoleMapping[]::new)
         );
-    }
-
-    private ExpressionRoleMapping toResponseModel(ExpressionRoleMapping mapping) {
-        Map<String, Object> metadata = new HashMap<>(mapping.getMetadata());
-        metadata.remove(ReservedRoleMappingXContentNameFieldHelper.METADATA_NAME_FIELD);
-        if (metadata.put(READ_ONLY_METADATA_FLAG, true) != null) {
-            logger.error(
-                "Metadata field [{}] is reserved and will be overwritten with an internal system value. "
-                    + "Please rename this field in your role mapping configuration.",
-                READ_ONLY_METADATA_FLAG
-            );
-        }
-        return new ExpressionRoleMapping(
-            addReservedSuffix(mapping),
-            mapping.getExpression(),
-            mapping.getRoles(),
-            mapping.getRoleTemplates(),
-            metadata,
-            mapping.isEnabled()
-        );
-    }
-
-    private String addReservedSuffix(ExpressionRoleMapping mapping) {
-        return mapping.getName() + READ_ONLY_ROLE_MAPPING_SUFFIX;
-    }
-
-    private Set<String> removeReservedSuffix(Set<String> names) {
-        return names.stream().map(this::removeReservedSuffix).collect(Collectors.toSet());
-    }
-
-    private String removeReservedSuffix(String name) {
-        if (name.endsWith(READ_ONLY_ROLE_MAPPING_SUFFIX)) {
-            return name.substring(0, name.length() - READ_ONLY_ROLE_MAPPING_SUFFIX.length());
-        }
-        return name;
     }
 }

@@ -43,6 +43,15 @@ public final class ReservedRoleMappingXContentNameFieldHelper {
         );
     }
 
+    public static boolean hasFallbackName(ExpressionRoleMapping expressionRoleMapping) {
+        return expressionRoleMapping.getName().equals(FALLBACK_NAME);
+    }
+
+    public static boolean removeNameFromMetadata(Map<String, Object> metadata) {
+        assert metadata instanceof HashMap<String, Object>;
+        return metadata.remove(METADATA_NAME_FIELD) != null;
+    }
+
     public static ExpressionRoleMapping parseWithNameFromMetadata(XContentParser parser) throws IOException {
         ExpressionRoleMapping roleMapping = ExpressionRoleMapping.parse(FALLBACK_NAME, parser);
         return new ExpressionRoleMapping(

@@ -199,13 +199,12 @@ public class ReservedStateUpdateTask implements ClusterStateTaskListener {
             return true;
         }
 
-        // TODO update
         logger.warn(
             () -> format(
-                "Not updating reserved cluster state for namespace [%s], because version [%s] is less or equal"
-                    + " to the current metadata version [%s]",
+                "Not updating reserved cluster state for namespace [%s], because version [%s] is [%s] the current metadata version [%s]",
                 namespace,
                 newVersion,
+                versionCheck.description(),
                 currentVersion
             )
         );

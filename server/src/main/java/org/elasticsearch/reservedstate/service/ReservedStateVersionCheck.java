@@ -25,6 +25,11 @@ public enum ReservedStateVersionCheck implements BiPredicate<Long, Long> {
         public boolean test(Long currentVersion, Long newVersion) {
             return currentVersion < newVersion;
         }
+
+        @Override
+        public String description() {
+            return "less than";
+        }
     },
     /**
      * Returns {@code true} if the current version is less than or equal to the new version.
@@ -36,5 +41,12 @@ public enum ReservedStateVersionCheck implements BiPredicate<Long, Long> {
         public boolean test(Long currentVersion, Long newVersion) {
             return currentVersion <= newVersion;
         }
-    }
+
+        @Override
+        public String description() {
+            return "less than or equal";
+        }
+    };
+
+    public abstract String description();
 }

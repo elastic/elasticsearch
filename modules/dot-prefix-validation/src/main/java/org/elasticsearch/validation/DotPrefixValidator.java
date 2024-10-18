@@ -56,6 +56,7 @@ public abstract class DotPrefixValidator<RequestType> implements MappedActionFil
      *
      * .elastic-connectors-* is used by enterprise search
      * .ml-* is used by ML
+     * .slo-observability-* is used by Observability
      */
     private static Set<String> IGNORED_INDEX_NAMES = Set.of(
         ".elastic-connectors-v1",
@@ -63,7 +64,11 @@ public abstract class DotPrefixValidator<RequestType> implements MappedActionFil
         ".ml-state",
         ".ml-anomalies-unrelated"
     );
-    private static Set<Pattern> IGNORED_INDEX_PATTERNS = Set.of(Pattern.compile("\\.ml-state-\\d+"));
+    private static Set<Pattern> IGNORED_INDEX_PATTERNS = Set.of(
+        Pattern.compile("\\.ml-state-\\d+"),
+        Pattern.compile("\\.slo-observability\\.sli-v\\d+.*"),
+        Pattern.compile("\\.slo-observability\\.summary-v\\d+.*")
+    );
 
     DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(DotPrefixValidator.class);
 
@@ -99,10 +104,11 @@ public abstract class DotPrefixValidator<RequestType> implements MappedActionFil
                 if (Strings.hasLength(index)) {
                     char c = getFirstChar(index);
                     if (c == '.') {
-                        if (IGNORED_INDEX_NAMES.contains(index)) {
+                        final String strippedName = stripDateMath(index);
+                        if (IGNORED_INDEX_NAMES.contains(strippedName)) {
                             return;
                         }
-                        if (IGNORED_INDEX_PATTERNS.stream().anyMatch(p -> p.matcher(index).matches())) {
+                        if (IGNORED_INDEX_PATTERNS.stream().anyMatch(p -> p.matcher(strippedName).matches())) {
                             return;
                         }
                         deprecationLogger.warn(
@@ -132,7 +138,18 @@ public abstract class DotPrefixValidator<RequestType> implements MappedActionFil
         return c;
     }
 
-    private boolean isInternalRequest() {
+    private static String stripDateMath(String index) {
+        char c = index.charAt(0);
+        if (c == '<') {
+            assert index.charAt(index.length() - 1) == '>'
+                : "expected index name with date math to start with < and end with >, how did this pass request validation? " + index;
+            return index.substring(1, index.length() - 1);
+        } else {
+            return index;
+        }
+    }
+
+    boolean isInternalRequest() {
         final String actionOrigin = threadContext.getTransient(ThreadContext.ACTION_ORIGIN_TRANSIENT_NAME);
         final boolean isSystemContext = threadContext.isSystemContext();
         final boolean isInternalOrigin = Optional.ofNullable(actionOrigin).map(Strings::hasText).orElse(false);

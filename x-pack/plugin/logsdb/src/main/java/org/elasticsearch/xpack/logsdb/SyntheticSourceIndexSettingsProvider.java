@@ -21,6 +21,7 @@ import org.elasticsearch.index.IndexSettingProvider;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.SourceFieldMapper;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -62,7 +63,9 @@ final class SyntheticSourceIndexSettingsProvider implements IndexSettingProvider
         if (newIndexHasSyntheticSourceUsage(indexName, templateIndexMode, indexTemplateAndCreateRequestSettings, combinedTemplateMappings)
             && syntheticSourceLicenseService.fallbackToStoredSource(isTemplateValidation)) {
             LOGGER.debug("creation of index [{}] with synthetic source without it being allowed", indexName);
-            // TODO: handle falling back to stored source
+            return Settings.builder()
+                .put(SourceFieldMapper.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.STORED.toString())
+                .build();
         }
         return Settings.EMPTY;
     }

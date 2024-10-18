@@ -8,22 +8,42 @@
 package org.elasticsearch.xpack.logsdb;
 
 import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.MapperTestUtils;
+import org.elasticsearch.index.mapper.SourceFieldMapper;
+import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.time.Instant;
 import java.util.List;
+
+import static org.elasticsearch.common.settings.Settings.builder;
+import static org.hamcrest.Matchers.equalTo;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class SyntheticSourceIndexSettingsProviderTests extends ESTestCase {
 
+    private SyntheticSourceLicenseService syntheticSourceLicenseService;
     private SyntheticSourceIndexSettingsProvider provider;
 
     @Before
     public void setup() {
-        SyntheticSourceLicenseService syntheticSourceLicenseService = new SyntheticSourceLicenseService(Settings.EMPTY);
+        MockLicenseState licenseState = mock(MockLicenseState.class);
+        when(licenseState.isAllowed(any())).thenReturn(true);
+        var licenseService = new SyntheticSourceLicenseService(Settings.EMPTY);
+        licenseService.setLicenseState(licenseState);
+        syntheticSourceLicenseService = new SyntheticSourceLicenseService(Settings.EMPTY);
+        syntheticSourceLicenseService.setLicenseState(licenseState);
+
         provider = new SyntheticSourceIndexSettingsProvider(
             syntheticSourceLicenseService,
             im -> MapperTestUtils.newMapperService(xContentRegistry(), createTempDir(), im.getSettings(), im.getIndex().getName())
@@ -226,4 +246,68 @@ public class SyntheticSourceIndexSettingsProviderTests extends ESTestCase {
         }
     }
 
+    public void testGetAdditionalIndexSettingsDowngradeFromSyntheticSource() throws IOException {
+        String dataStreamName = "logs-app1";
+        Metadata.Builder mb = Metadata.builder(
+            DataStreamTestHelper.getClusterStateWithDataStreams(
+                List.of(Tuple.tuple(dataStreamName, 1)),
+                List.of(),
+                Instant.now().toEpochMilli(),
+                builder().build(),
+                1
+            ).getMetadata()
+        );
+        Metadata metadata = mb.build();
+
+        Settings settings = builder().put(SourceFieldMapper.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.SYNTHETIC)
+            .build();
+
+        Settings result = provider.getAdditionalIndexSettings(
+            DataStream.getDefaultBackingIndexName(dataStreamName, 2),
+            dataStreamName,
+            null,
+            metadata,
+            Instant.ofEpochMilli(1L),
+            settings,
+            List.of()
+        );
+        assertThat(result.size(), equalTo(0));
+
+        syntheticSourceLicenseService.setSyntheticSourceFallback(true);
+        result = provider.getAdditionalIndexSettings(
+            DataStream.getDefaultBackingIndexName(dataStreamName, 2),
+            dataStreamName,
+            null,
+            metadata,
+            Instant.ofEpochMilli(1L),
+            settings,
+            List.of()
+        );
+        assertThat(result.size(), equalTo(1));
+        assertEquals(SourceFieldMapper.Mode.STORED, SourceFieldMapper.INDEX_MAPPER_SOURCE_MODE_SETTING.get(result));
+
+        result = provider.getAdditionalIndexSettings(
+            DataStream.getDefaultBackingIndexName(dataStreamName, 2),
+            dataStreamName,
+            IndexMode.TIME_SERIES,
+            metadata,
+            Instant.ofEpochMilli(1L),
+            settings,
+            List.of()
+        );
+        assertThat(result.size(), equalTo(1));
+        assertEquals(SourceFieldMapper.Mode.STORED, SourceFieldMapper.INDEX_MAPPER_SOURCE_MODE_SETTING.get(result));
+
+        result = provider.getAdditionalIndexSettings(
+            DataStream.getDefaultBackingIndexName(dataStreamName, 2),
+            dataStreamName,
+            IndexMode.LOGSDB,
+            metadata,
+            Instant.ofEpochMilli(1L),
+            settings,
+            List.of()
+        );
+        assertThat(result.size(), equalTo(1));
+        assertEquals(SourceFieldMapper.Mode.STORED, SourceFieldMapper.INDEX_MAPPER_SOURCE_MODE_SETTING.get(result));
+    }
 }

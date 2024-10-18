@@ -75,6 +75,9 @@ public class LogsdbRestIT extends ESRestTestCase {
             Map<?, ?> feature = features.stream().filter(map -> "mappings".equals(map.get("family"))).findFirst().get();
             assertThat(feature.get("name"), equalTo("synthetic-source"));
             assertThat(feature.get("license_level"), equalTo("enterprise"));
+
+            var settings = (Map<?, ?>) ((Map<?, ?>) getIndexSettings("test-index").get("test-index")).get("settings");
+            assertNull(settings.get("index.mapping.source.mode"));  // Default, no downgrading.
         }
     }
 

@@ -175,9 +175,10 @@ public class Netty4IncrementalRequestHandlingIT extends ESNetty4IntegTestCase {
             var handler = ctx.awaitRestChannelAccepted(opaqueId);
             assertBusy(() -> assertNotNull(handler.stream.buf()));
 
-            // enable auto-read to receive channel close event
-            handler.stream.channel().config().setAutoRead(true);
             assertFalse(handler.streamClosed);
+
+            handler.stream.next(); // read the first half of the request
+            handler.stream.next(); // attempt to read more data and it should notice channel being closed eventually
 
             // terminate connection and wait resources are released
             ctx.clientChannel.close();

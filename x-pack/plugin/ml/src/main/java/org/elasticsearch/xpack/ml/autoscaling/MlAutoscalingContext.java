@@ -177,13 +177,6 @@ class MlAutoscalingContext {
         return anomalyDetectionTasks.isEmpty()
             && snapshotUpgradeTasks.isEmpty()
             && dataframeAnalyticsTasks.isEmpty()
-            && modelAssignments.isEmpty();
-    }
-
-    public boolean hasOnlyZeroAllocationModels() {
-        return anomalyDetectionTasks.isEmpty()
-            && snapshotUpgradeTasks.isEmpty()
-            && dataframeAnalyticsTasks.isEmpty()
             && modelAssignments.values().stream().allMatch(assignment -> assignment.totalTargetAllocations() == 0);
     }
 

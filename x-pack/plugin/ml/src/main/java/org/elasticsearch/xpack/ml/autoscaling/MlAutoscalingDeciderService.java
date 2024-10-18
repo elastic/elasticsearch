@@ -131,7 +131,7 @@ public final class MlAutoscalingDeciderService implements AutoscalingDeciderServ
             .setPassedConfiguration(configuration);
 
         // We don't need to check anything as there are no tasks
-        if (mlContext.isEmpty() || mlContext.hasOnlyZeroAllocationModels()) {
+        if (mlContext.isEmpty()) {
             // This is a quick path to downscale.
             // simply return `0` for scale down if delay is satisfied
             return downscaleToZero(configuration, context, currentNativeMemoryCapacity, reasonBuilder);

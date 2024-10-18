@@ -327,7 +327,7 @@ of official GA features.
 Flattened fields support <<synthetic-source,synthetic`_source`>> in their default
 configuration.
 
-Synthetic source always sorts alphabetically and de-duplicates flattened fields.
+Synthetic source may sort `flattened` field values and remove duplicates.
 For example:
 [source,console,id=synthetic-source-flattened-sorting-example]
 ----

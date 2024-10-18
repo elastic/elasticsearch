@@ -161,7 +161,7 @@ be changed or removed in a future release. Elastic will work to fix
 any issues, but features in technical preview are not subject to the support SLA
 of official GA features.
 
-Synthetic source always sorts `ip` fields and removes duplicates. For example:
+Synthetic source may sort `ip` field values and remove duplicates. For example:
 [source,console,id=synthetic-source-ip-example]
 ----
 PUT idx

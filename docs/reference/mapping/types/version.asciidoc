@@ -80,7 +80,7 @@ of official GA features.
 `version` fields support <<synthetic-source,synthetic `_source`>> in their
 default configuration..
 
-Synthetic source always sorts `version` fields and removes duplicates. For example:
+Synthetic source may sort `version` field values and remove duplicates. For example:
 [source,console,id=synthetic-source-version-example]
 ----
 PUT idx

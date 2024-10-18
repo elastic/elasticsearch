@@ -134,7 +134,7 @@ The following parameters are accepted by `wildcard` fields:
 [[wildcard-synthetic-source]]
 ==== Synthetic `_source`
 
-Synthetic source always sorts `wildcard` fields. For example:
+Synthetic source may sort `wildcard` field values. For example:
 [source,console,id=synthetic-source-wildcard-example]
 ----
 PUT idx

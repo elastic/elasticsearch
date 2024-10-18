@@ -219,7 +219,7 @@ be changed or removed in a future release. Elastic will work to fix
 any issues, but features in technical preview are not subject to the support SLA
 of official GA features.
 
-Synthetic source always sorts `geo_point` fields (first by latitude and then
+Synthetic source may sort `geo_point` fields (first by latitude and then
 longitude) and reduces them to their stored precision. For example:
 [source,console,id=synthetic-source-geo-point-example]
 ----

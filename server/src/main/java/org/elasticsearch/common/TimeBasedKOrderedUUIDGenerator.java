@@ -41,7 +41,7 @@ public class TimeBasedKOrderedUUIDGenerator extends TimeBasedUUIDGenerator {
         // and the indexing api does not necessarily target the same coordinator.
         byte[] macAddress = macAddress();
         assert macAddress.length == 6;
-        System.arraycopy(macAddress, 0, uuidBytes, 4, macAddress.length); // Copy MAC address
+        System.arraycopy(macAddress, 0, uuidBytes, 4, macAddress.length);
 
         // From hereinafter everything is almost like random and does not compress well
         // due to unlikely prefix-sharing

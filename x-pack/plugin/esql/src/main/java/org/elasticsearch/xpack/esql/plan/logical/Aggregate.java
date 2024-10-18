@@ -11,6 +11,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.core.capabilities.Resolvables;
+import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -157,7 +158,13 @@ public class Aggregate extends UnaryPlan implements Stats {
     }
 
     public static AttributeSet computeReferences(List<? extends NamedExpression> aggregates, List<? extends Expression> groupings) {
-        return Expressions.references(groupings).combine(Expressions.references(aggregates));
+        AttributeSet result = Expressions.references(groupings).combine(Expressions.references(aggregates));
+        for (Expression grouping : groupings) {
+            if (grouping instanceof Alias) {
+                result.remove(((Alias) grouping).toAttribute());
+            }
+        }
+        return result;
     }
 
     @Override

@@ -201,11 +201,12 @@ public class ReservedStateUpdateTask implements ClusterStateTaskListener {
 
         logger.warn(
             () -> format(
-                "Not updating reserved cluster state for namespace [%s], because version [%s] is [%s] the current metadata version [%s]",
+                "Not updating reserved cluster state for namespace [%s]. "
+                    + "Current version [%s] must be [%s] the current metadata version [%s]",
                 namespace,
-                newVersion,
+                currentVersion,
                 versionCheck.description(),
-                currentVersion
+                newVersion
             )
         );
         return false;

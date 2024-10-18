@@ -28,7 +28,7 @@ public enum ReservedStateVersionCheck implements BiPredicate<Long, Long> {
 
         @Override
         public String description() {
-            return "less than";
+            return "higher than";
         }
     },
     /**
@@ -44,7 +44,7 @@ public enum ReservedStateVersionCheck implements BiPredicate<Long, Long> {
 
         @Override
         public String description() {
-            return "less than or equal";
+            return "higher than or equal to";
         }
     };
 

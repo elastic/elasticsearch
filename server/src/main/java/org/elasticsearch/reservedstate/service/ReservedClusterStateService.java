@@ -113,7 +113,7 @@ public class ReservedClusterStateService {
             ErrorState errorState = new ErrorState(
                 namespace,
                 EMPTY_VERSION,
-                ReservedStateVersionCheck.ONLY_NEW_VERSION,
+                ReservedStateVersionCheck.HIGHER_VERSION_ONLY,
                 e,
                 ReservedStateErrorMetadata.ErrorKind.PARSING
             );
@@ -129,6 +129,7 @@ public class ReservedClusterStateService {
      *
      * @param namespace the namespace under which we'll store the reserved keys in the cluster state metadata
      * @param parser the XContentParser to process
+     * @param versionCheck determines if current and new versions of reserved state require processing or should be skipped
      * @param errorListener a consumer called with {@link IllegalStateException} if the content has errors and the
      *        cluster state cannot be correctly applied, null if successful or state couldn't be applied because of incompatible version.
      */
@@ -164,7 +165,7 @@ public class ReservedClusterStateService {
             new ReservedStateUpdateTask(
                 namespace,
                 emptyState,
-                ReservedStateVersionCheck.ONLY_NEW_VERSION,
+                ReservedStateVersionCheck.HIGHER_VERSION_ONLY,
                 Map.of(),
                 List.of(),
                 // error state should not be possible since there is no metadata being parsed or processed

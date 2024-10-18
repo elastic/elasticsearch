@@ -27,6 +27,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.util.concurrent.ExecutionException;
 
+import static org.elasticsearch.reservedstate.service.ReservedStateVersionCheck.*;
 import static org.elasticsearch.xcontent.XContentType.JSON;
 
 /**
@@ -116,7 +117,7 @@ public class FileSettingsService extends MasterNodeFileWatchingService implement
     @Override
     protected void processFileChanges() throws ExecutionException, InterruptedException, IOException {
         logger.info("processing path [{}] for [{}]", watchedFile(), NAMESPACE);
-        processFileChanges(ReservedStateVersionCheck.ONLY_NEW_VERSION);
+        processFileChanges(HIGHER_VERSION_ONLY);
     }
 
     /**
@@ -126,7 +127,7 @@ public class FileSettingsService extends MasterNodeFileWatchingService implement
     @Override
     protected void processFileOnServiceStart() throws IOException, ExecutionException, InterruptedException {
         logger.info("processing path [{}] for [{}] on service start", watchedFile(), NAMESPACE);
-        processFileChanges(ReservedStateVersionCheck.SAME_OR_NEW_VERSION);
+        processFileChanges(HIGHER_OR_SAME_VERSION);
     }
 
     private void processFileChanges(ReservedStateVersionCheck versionCheck) throws IOException, InterruptedException, ExecutionException {

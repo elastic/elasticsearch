@@ -182,7 +182,6 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         if (testCase.requiredCapabilities.isEmpty()) {
             return;
         }
-
         try {
             if (clusterHasCapability(client, "POST", "/_query", List.of(), testCase.requiredCapabilities).orElse(false)) {
                 return;

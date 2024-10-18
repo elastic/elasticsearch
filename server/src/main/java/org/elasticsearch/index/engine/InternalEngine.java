@@ -2711,7 +2711,7 @@ public class InternalEngine extends Engine {
         mergePolicy = new RecoverySourcePruneMergePolicy(
             SourceFieldMapper.RECOVERY_SOURCE_NAME,
             engineConfig.getIndexSettings().getMode() == IndexMode.TIME_SERIES,
-            softDeletesPolicy::getRetentionQuery,
+            softDeletesPolicy::getMinRetainedSeqNo,
             new SoftDeletesRetentionMergePolicy(
                 Lucene.SOFT_DELETES_FIELD,
                 softDeletesPolicy::getRetentionQuery,

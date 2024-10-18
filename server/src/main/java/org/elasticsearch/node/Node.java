@@ -158,7 +158,7 @@ public class Node implements Closeable {
 
     public static final Setting<TimeValue> MAXIMUM_REINDEXING_TIMEOUT_SETTING = Setting.positiveTimeSetting(
         "node.maximum_reindexing_grace_period",
-        TimeValue.timeValueMillis(10),
+        TimeValue.timeValueSeconds(10),
         Setting.Property.NodeScope
     );
 

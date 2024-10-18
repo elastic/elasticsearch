@@ -37,9 +37,9 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitC
  * The test works as follows:
  * 1. Start a large reindexing request on the coordinator-only node.
  * 2. Check that the reindexing task appears on the coordinating node
- * 3. Using a 5s timeout value for MAXIMUM_REINDEXING_TIMEOUT_SETTING,
+ * 3. With a 5s timeout value for MAXIMUM_REINDEXING_TIMEOUT_SETTING,
  *    wait for the reindexing task to complete before closing the node
- * 4. Confirm that the reindexing task succeeds with the wait but fails without it
+ * 4. Confirm that the reindexing task succeeds with the wait (it will fail without it)
  */
 @ESIntegTestCase.ClusterScope(numDataNodes = 0, numClientNodes = 0, scope = ESIntegTestCase.Scope.TEST)
 public class ReindexNodeShutdownIT extends ESIntegTestCase {
@@ -59,10 +59,9 @@ public class ReindexNodeShutdownIT extends ESIntegTestCase {
         final String masterNodeName = internalCluster().startMasterOnlyNode();
         final String dataNodeName = internalCluster().startDataOnlyNode();
 
-        final Settings COORD_SETTINGS = Settings.builder()
-            .put(MAXIMUM_REINDEXING_TIMEOUT_SETTING.getKey(), TimeValue.timeValueSeconds(5))
-            .build();
-        final String coordNodeName = internalCluster().startCoordinatingOnlyNode(COORD_SETTINGS);
+        final Settings COORD_SETTINGS =
+            Settings.builder().put(MAXIMUM_REINDEXING_TIMEOUT_SETTING.getKey(), TimeValue.timeValueSeconds(10)).build();
+        final String coordNodeName = internalCluster().startCoordinatingOnlyNode(Settings.EMPTY);
 
         ensureStableCluster(3);
 

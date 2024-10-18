@@ -27,7 +27,6 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.bulk.stats.BulkStats;
 import org.elasticsearch.index.cache.query.QueryCacheStats;
 import org.elasticsearch.index.engine.CommitStats;
-import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.SegmentsStats;
 import org.elasticsearch.index.fielddata.FieldDataStats;
 import org.elasticsearch.index.flush.FlushStats;
@@ -320,7 +319,8 @@ public class RestShardsAction extends AbstractCatAction {
                 table.addCell(null);
             }
 
-            table.addCell(commitStats == null ? null : commitStats.getUserData().get(Engine.SYNC_COMMIT_ID));
+            // Remove sync_id from the API?
+            table.addCell(null);
 
             if (shard.unassignedInfo() != null) {
                 table.addCell(shard.unassignedInfo().reason());

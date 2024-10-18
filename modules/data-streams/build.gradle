@@ -28,7 +28,7 @@ tasks.withType(StandaloneRestIntegTestTask).configureEach {
   usesDefaultDistribution()
 }
 
-if (BuildParams.inFipsJvm){
+if (buildParams.inFipsJvm){
   // These fail in CI but only when run as part of checkPart2 and not individually.
   // Tracked in :
   tasks.named("javaRestTest").configure{enabled = false }

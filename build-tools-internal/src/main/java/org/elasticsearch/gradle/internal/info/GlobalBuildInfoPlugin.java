@@ -87,6 +87,7 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
         if (project != project.getRootProject()) {
             throw new IllegalStateException(this.getClass().getName() + " can only be applied to the root project.");
         }
+        BuildParameterExtension buildParams = project.getExtensions().create("buildParams", BuildParameterExtension.class);
         project.getPlugins().apply(JvmToolchainsPlugin.class);
         toolChainService = project.getExtensions().getByType(JavaToolchainService.class);
         GradleVersion minimumGradleVersion = GradleVersion.version(getResourceContents("/minimumGradleVersion"));
@@ -137,7 +138,6 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
                 System.getenv("JENKINS_URL") != null || System.getenv("BUILDKITE_BUILD_URL") != null || System.getProperty("isCI") != null
             );
             params.setDefaultParallel(ParallelDetector.findDefaultParallel(project));
-            params.setInFipsJvm(Util.getBooleanProperty("tests.fips.enabled", false));
             params.setIsSnapshotBuild(Util.getBooleanProperty("build.snapshot", true));
             AtomicReference<BwcVersions> cache = new AtomicReference<>();
             params.setBwcVersions(
@@ -155,7 +155,7 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
         // Print global build info header just before task execution
         // Only do this if we are the root build of a composite
         if (GradleUtils.isIncludedBuild(project) == false) {
-            project.getGradle().getTaskGraph().whenReady(graph -> logGlobalBuildInfo());
+            project.getGradle().getTaskGraph().whenReady(graph -> logGlobalBuildInfo(buildParams));
         }
     }
 
@@ -190,7 +190,7 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
         }
     }
 
-    private void logGlobalBuildInfo() {
+    private void logGlobalBuildInfo(BuildParameterExtension buildParams) {
         final String osName = System.getProperty("os.name");
         final String osVersion = System.getProperty("os.version");
         final String osArch = System.getProperty("os.arch");
@@ -221,7 +221,7 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
             LOGGER.quiet("  JAVA_TOOLCHAIN_HOME   : " + javaToolchainHome);
         }
         LOGGER.quiet("  Random Testing Seed   : " + BuildParams.getTestSeed());
-        LOGGER.quiet("  In FIPS 140 mode      : " + BuildParams.isInFipsJvm());
+        LOGGER.quiet("  In FIPS 140 mode      : " + buildParams.getInFipsJvm());
         LOGGER.quiet("=======================================");
     }
 

@@ -1,5 +1,0 @@
-pr: 114116
-summary: "ES|QL: Ensure minimum capacity for `PlanStreamInput` caches"
-area: ES|QL
-type: bug
-issues: []

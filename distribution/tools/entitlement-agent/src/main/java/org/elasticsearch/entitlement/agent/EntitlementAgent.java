@@ -54,7 +54,7 @@ public class EntitlementAgent {
         "entitlement-agent",
         InstrumentationService.class,
         "org.elasticsearch.entitlement.agent.impl",
-        Set.of("org.objectweb.nonexistent.asm")
+        Set.<String>of("org.objectweb.nonexistent.asm", "org.elasticsearch.entitlement.agent")
     )).get();
 
     // private static final Logger LOGGER = LogManager.getLogger(EntitlementAgent.class);

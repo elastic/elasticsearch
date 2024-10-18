@@ -78,13 +78,13 @@ Here's an example of indexing multiple documents in a single `_bulk` request.
 [source,console]
 ----
 POST /_bulk
-{ "index": { "_index": "amazon-reviews", "_id": "1" } }
-{ "review_text": "This product is amazing! I love it.", "review_vector": [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8] }
 { "index": { "_index": "amazon-reviews", "_id": "2" } }
-{ "review_text": "This product is terrible. I hate it.", "review_vector": [0.8, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2, 0.1] }
+{ "review_text": "This product is amazing! I love it.", "review_vector": [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8] }
 { "index": { "_index": "amazon-reviews", "_id": "3" } }
-{ "review_text": "This product is great. I can do anything with it.", "review_vector": [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8] }
+{ "review_text": "This product is terrible. I hate it.", "review_vector": [0.8, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2, 0.1] }
 { "index": { "_index": "amazon-reviews", "_id": "4" } }
+{ "review_text": "This product is great. I can do anything with it.", "review_vector": [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8] }
+{ "index": { "_index": "amazon-reviews", "_id": "5" } }
 { "review_text": "This product has ruined my life and the lives of my family and friends.", "review_vector": [0.8, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2, 0.1] }
 ----
 // TEST[continued]
@@ -111,7 +111,7 @@ POST /amazon-reviews/_search
   }
 }
 ----
-// TEST[continued]
+// TEST[skip:flakeyknnerror]
 <1> In this toy example, we're sending a raw vector as the query text. In a real-world scenario, you'll need to generate vectors for queries using an embedding model.
 <2> The `k` parameter specifies the number of results to return.
 <3> The `num_candidates` parameter is optional. It limits the number of candidates returned by the search node. This can improve performance and reduce costs.

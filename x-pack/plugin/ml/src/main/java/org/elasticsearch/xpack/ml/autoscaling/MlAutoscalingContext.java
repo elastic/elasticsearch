@@ -180,6 +180,13 @@ class MlAutoscalingContext {
             && modelAssignments.isEmpty();
     }
 
+    public boolean hasOnlyZeroAllocationModels() {
+        return anomalyDetectionTasks.isEmpty()
+            && snapshotUpgradeTasks.isEmpty()
+            && dataframeAnalyticsTasks.isEmpty()
+            && modelAssignments.values().stream().allMatch(assignment -> assignment.totalTargetAllocations() == 0);
+    }
+
     public List<String> findPartiallyAllocatedModels() {
         return modelAssignments.entrySet()
             .stream()

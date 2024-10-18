@@ -43,6 +43,7 @@ import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -72,6 +73,7 @@ import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.transport.netty4.Netty4Utils;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.BlockingDeque;
@@ -177,11 +179,19 @@ public class Netty4IncrementalRequestHandlingIT extends ESNetty4IntegTestCase {
 
             assertFalse(handler.streamClosed);
 
-            handler.stream.next(); // read the first half of the request
-            handler.stream.next(); // attempt to read more data and it should notice channel being closed eventually
+            final List<Runnable> runnables = new ArrayList<>(
+                List.of(
+                    // terminate client connection
+                    ctx.clientChannel::close,
+                    // read the first half of the request
+                    handler.stream::next,
+                    // attempt to read more data and it should notice channel being closed eventually
+                    handler.stream::next
+                )
+            );
+            Randomness.shuffle(runnables);
+            runnables.forEach(Runnable::run);
 
-            // terminate connection and wait resources are released
-            ctx.clientChannel.close();
             assertBusy(() -> {
                 assertNull(handler.stream.buf());
                 assertTrue(handler.streamClosed);

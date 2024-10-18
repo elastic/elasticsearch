@@ -194,8 +194,8 @@ public class IpinfoIpDataLookupsTests extends ESTestCase {
 
     public void testGeolocationStandard() {
         assumeFalse("https://github.com/elastic/elasticsearch/issues/114266", Constants.WINDOWS);
-        String databaseName = "ip_geolocation_sample.mmdb";
-        String ip = "90.203.36.70";
+        String databaseName = "ip_geolocation_standard_sample.mmdb";
+        String ip = "62.69.48.19";
         assertExpectedLookupResults(
             databaseName,
             ip,
@@ -204,10 +204,10 @@ public class IpinfoIpDataLookupsTests extends ESTestCase {
                 entry("ip", ip),
                 entry("country_iso_code", "GB"),
                 entry("region_name", "England"),
-                entry("city_name", "Birkenhead"),
+                entry("city_name", "London"),
                 entry("timezone", "Europe/London"),
-                entry("postal_code", "CH41"),
-                entry("location", Map.of("lat", 53.39337, "lon", -3.01479))
+                entry("postal_code", "E1W"),
+                entry("location", Map.of("lat", 51.50853, "lon", -0.12574))
             )
         );
     }
@@ -215,36 +215,37 @@ public class IpinfoIpDataLookupsTests extends ESTestCase {
     public void testGeolocationInvariants() {
         assumeFalse("https://github.com/elastic/elasticsearch/issues/114266", Constants.WINDOWS);
         Path configDir = tmpDir;
-        copyDatabase("ipinfo/ip_geolocation_sample.mmdb", configDir.resolve("ip_geolocation_sample.mmdb"));
+        copyDatabase("ipinfo/ip_geolocation_standard_sample.mmdb", configDir.resolve("ip_geolocation_standard_sample.mmdb"));
 
         {
             final Set<String> expectedColumns = Set.of(
-                "network",
                 "city",
+                "geoname_id",
                 "region",
+                "region_code",
                 "country",
                 "postal_code",
                 "timezone",
-                "latitude",
-                "longitude"
+                "lat",
+                "lng"
             );
 
-            Path databasePath = configDir.resolve("ip_geolocation_sample.mmdb");
+            Path databasePath = configDir.resolve("ip_geolocation_standard_sample.mmdb");
             assertDatabaseInvariants(databasePath, (ip, row) -> {
                 assertThat(row.keySet(), equalTo(expectedColumns));
                 {
-                    String latitude = (String) row.get("latitude");
+                    String latitude = (String) row.get("lat");
                     assertThat(latitude, equalTo(latitude.trim()));
                     Double parsed = parseLocationDouble(latitude);
                     assertThat(parsed, notNullValue());
-                    assertThat(latitude, equalTo(Double.toString(parsed))); // reverse it
+                    assertThat(Double.parseDouble(latitude), equalTo(Double.parseDouble(Double.toString(parsed)))); // reverse it
                 }
                 {
-                    String longitude = (String) row.get("longitude");
+                    String longitude = (String) row.get("lng");
                     assertThat(longitude, equalTo(longitude.trim()));
                     Double parsed = parseLocationDouble(longitude);
                     assertThat(parsed, notNullValue());
-                    assertThat(longitude, equalTo(Double.toString(parsed))); // reverse it
+                    assertThat(Double.parseDouble(longitude), equalTo(Double.parseDouble(Double.toString(parsed)))); // reverse it
                 }
             });
         }
@@ -391,13 +392,13 @@ public class IpinfoIpDataLookupsTests extends ESTestCase {
         // pedantic about where precisely it should be.
 
         copyDatabase("ipinfo/ip_asn_sample.mmdb", tmpDir.resolve("ip_asn_sample.mmdb"));
-        copyDatabase("ipinfo/ip_geolocation_sample.mmdb", tmpDir.resolve("ip_geolocation_sample.mmdb"));
+        copyDatabase("ipinfo/ip_geolocation_standard_sample.mmdb", tmpDir.resolve("ip_geolocation_standard_sample.mmdb"));
         copyDatabase("ipinfo/asn_sample.mmdb", tmpDir.resolve("asn_sample.mmdb"));
         copyDatabase("ipinfo/ip_country_sample.mmdb", tmpDir.resolve("ip_country_sample.mmdb"));
         copyDatabase("ipinfo/privacy_detection_sample.mmdb", tmpDir.resolve("privacy_detection_sample.mmdb"));
 
         assertThat(parseDatabaseFromType("ip_asn_sample.mmdb"), is(Database.AsnV2));
-        assertThat(parseDatabaseFromType("ip_geolocation_sample.mmdb"), is(Database.CityV2));
+        assertThat(parseDatabaseFromType("ip_geolocation_standard_sample.mmdb"), is(Database.CityV2));
         assertThat(parseDatabaseFromType("asn_sample.mmdb"), is(Database.AsnV2));
         assertThat(parseDatabaseFromType("ip_country_sample.mmdb"), is(Database.CountryV2));
         assertThat(parseDatabaseFromType("privacy_detection_sample.mmdb"), is(Database.PrivacyDetection));

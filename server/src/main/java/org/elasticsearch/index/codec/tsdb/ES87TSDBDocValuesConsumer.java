@@ -144,7 +144,7 @@ final class ES87TSDBDocValuesConsumer extends DocValuesConsumer {
             if (maxOrd != 1) {
                 final long[] buffer = new long[ES87TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE];
                 int bufferSize = 0;
-                final ES87TSDBDocValuesEncoder encoder = new ES87TSDBDocValuesEncoder();
+                final TSDBDocValuesEncoder encoder = new TSDBDocValuesEncoder(ES87TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE);
                 values = valuesProducer.getSortedNumeric(field);
                 final int bitsPerOrd = maxOrd >= 0 ? PackedInts.bitsRequired(maxOrd - 1) : -1;
                 for (int doc = values.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = values.nextDoc()) {

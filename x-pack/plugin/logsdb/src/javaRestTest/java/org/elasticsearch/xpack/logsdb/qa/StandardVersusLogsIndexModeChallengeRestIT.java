@@ -301,6 +301,21 @@ public class StandardVersusLogsIndexModeChallengeRestIT extends AbstractChalleng
         assertTrue(matchResult.getMessage(), matchResult.isMatch());
     }
 
+    public void testEsqlTermsAggregationByMethod() throws IOException {
+        int numberOfDocuments = ESTestCase.randomIntBetween(100, 200);
+        final List<XContentBuilder> documents = generateDocuments(numberOfDocuments);
+
+        indexDocuments(documents);
+
+        final String query = "FROM $index | STATS count(*) BY method | SORT method | LIMIT " + numberOfDocuments;
+        final MatchResult matchResult = Matcher.mappings(getContenderMappings(), getBaselineMappings())
+            .settings(getContenderSettings(), getBaselineSettings())
+            .expected(getEsqlStatsResults(esqlBaseline(query)))
+            .ignoringSort(true)
+            .isEqualTo(getEsqlStatsResults(esqlContender(query)));
+        assertTrue(matchResult.getMessage(), matchResult.isMatch());
+    }
+
     public void testFieldCaps() throws IOException {
         int numberOfDocuments = ESTestCase.randomIntBetween(20, 50);
         final List<XContentBuilder> documents = generateDocuments(numberOfDocuments);

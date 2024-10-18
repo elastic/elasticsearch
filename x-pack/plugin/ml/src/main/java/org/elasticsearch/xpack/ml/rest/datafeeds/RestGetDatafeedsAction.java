@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.ml.rest.datafeeds;
 
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.core.RestApiVersion;
+import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
@@ -50,6 +51,7 @@ public class RestGetDatafeedsAction extends BaseRestHandler {
         if (datafeedId == null) {
             datafeedId = GetDatafeedsAction.ALL;
         }
+        @UpdateForV9(owner = UpdateForV9.Owner.MACHINE_LEARNING) // v7 REST API no longer exists: eliminate ref to RestApiVersion.V_7
         Request request = new Request(datafeedId);
         checkAndSetDeprecatedParam(
             DEPRECATED_ALLOW_NO_DATAFEEDS_PARAM,

@@ -198,7 +198,7 @@ public class AnthropicService extends SenderService {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ML_ANTHROPIC_INTEGRATION_ADDED;
+        return TransportVersions.V_8_15_0;
     }
 
     @Override

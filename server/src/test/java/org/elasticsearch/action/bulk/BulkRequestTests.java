@@ -430,7 +430,7 @@ public class BulkRequestTests extends ESTestCase {
             BulkRequest bulkRequest = new BulkRequest();
             bulkRequest.add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, XContentType.JSON);
         });
-        assertEquals("[1:39] A bulk action wasn't closed properly with the closing brace", e.getMessage());
+        assertEquals("A bulk action wasn't closed properly with the closing brace", e.getMessage());
     }
 
     public void testBulkActionWithAdditionalKeys() throws Exception {

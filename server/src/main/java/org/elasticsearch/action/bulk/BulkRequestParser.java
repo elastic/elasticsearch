@@ -454,18 +454,27 @@ public final class BulkRequestParser {
         return isIncremental ? consumed : from;
     }
 
+    private static void bulkActionNotProperlyClosed(String message, RestApiVersion restApiVersion) {
+        switch (restApiVersion) {
+            case V_8 -> deprecationLogger.compatibleCritical(STRICT_ACTION_PARSING_WARNING_KEY, message);
+            case V_9 -> throw new XContentParseException(message);
+        }
+    }
+
     private static void checkBulkActionIsProperlyClosed(XContentParser parser) throws IOException {
         XContentParser.Token token;
         try {
             token = parser.nextToken();
-        } catch (XContentEOFException e) {
-            throw new XContentParseException(e.getLocation(), "A bulk action wasn't closed properly with the closing brace", e);
+        } catch (XContentEOFException ignore) {
+            bulkActionNotProperlyClosed("A bulk action wasn't closed properly with the closing brace", parser.getRestApiVersion());
+            return;
         }
         if (token != XContentParser.Token.END_OBJECT) {
-            throw new XContentParseException("A bulk action object contained multiple keys");
+            bulkActionNotProperlyClosed("A bulk action object contained multiple keys", parser.getRestApiVersion());
+            return;
         }
         if (parser.nextToken() != null) {
-            throw new XContentParseException("A bulk action contained trailing data after the closing brace");
+            bulkActionNotProperlyClosed("A bulk action contained trailing data after the closing brace", parser.getRestApiVersion());
         }
     }
 

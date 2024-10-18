@@ -33,12 +33,15 @@ develocity {
       publishing.onlyIf { false }
     }
 
+    def fips = buildParams.inFipsJvm
+    def gitRevision = buildParams.gitRevision
+
     background {
       tag OS.current().name()
       tag Architecture.current().name()
 
       // Tag if this build is run in FIPS mode
-      if (buildParams.inFipsJvm) {
+      if (fips) {
         tag 'FIPS'
       }
 
@@ -91,8 +94,8 @@ develocity {
           link 'Source', "${prBaseUrl}/tree/${System.getenv('BUILDKITE_COMMIT')}"
           link 'Pull Request', "https://github.com/${repository}/pull/${prId}"
         } else {
-          value 'Git Commit ID', buildParams.gitRevision
-          link 'Source', "https://github.com/${repository}/tree/${buildParams.gitRevision}"
+          value 'Git Commit ID', gitRevision
+          link 'Source', "https://github.com/${repository}/tree/${gitRevision}"
         }
 
         buildFinished { result ->

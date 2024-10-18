@@ -17,7 +17,7 @@ import java.util.function.BiPredicate;
  */
 public enum ReservedStateVersionCheck implements BiPredicate<Long, Long> {
     /**
-     * Returns {@code true} if the current version is less than the new version.
+     * Returns {@code true} if the new version is higher than the current version.
      * This is the default behavior when processing changes to file settings.
      */
     HIGHER_VERSION_ONLY {
@@ -25,14 +25,9 @@ public enum ReservedStateVersionCheck implements BiPredicate<Long, Long> {
         public boolean test(Long currentVersion, Long newVersion) {
             return currentVersion < newVersion;
         }
-
-        @Override
-        public String description() {
-            return "higher than";
-        }
     },
     /**
-     * Returns {@code true} if the current version is less than or equal to the new version.
+     * Returns {@code true} if the new version is higher or equal to the current version.
      * This allows re-processing of the same version.
      * Used when processing file settings during service startup.
      */
@@ -41,12 +36,5 @@ public enum ReservedStateVersionCheck implements BiPredicate<Long, Long> {
         public boolean test(Long currentVersion, Long newVersion) {
             return currentVersion <= newVersion;
         }
-
-        @Override
-        public String description() {
-            return "higher than or equal to";
-        }
     };
-
-    public abstract String description();
 }

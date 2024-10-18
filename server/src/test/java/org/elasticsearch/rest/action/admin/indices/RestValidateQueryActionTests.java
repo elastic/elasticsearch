@@ -188,7 +188,7 @@ public class RestValidateQueryActionTests extends AbstractSearchTestCase {
     }
 
     private void performRequest(RestRequest request) {
-        RestChannel channel = new FakeRestChannel(request, false, 1);
+        RestChannel channel = new FakeRestChannel(request, true, 1);
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         controller.dispatchRequest(request, channel, threadContext);
     }

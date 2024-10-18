@@ -12,18 +12,22 @@ package org.elasticsearch.server.cli;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 final class SystemJvmOptions {
 
-    static List<String> systemJvmOptions(Settings nodeSettings, final Map<String, String> sysprops) {
+    static List<String> systemJvmOptions(Settings nodeSettings, final Map<String, String> sysprops, Path workingDir) throws IOException {
         String distroType = sysprops.get("es.distribution.type");
         boolean isHotspot = sysprops.getOrDefault("sun.management.compiler", "").contains("HotSpot");
+        boolean useEntitlementAgent = sysprops.getOrDefault("es.use.entitlement.agent", "true").equalsIgnoreCase("true");
 
-        return Stream.concat(
+        return Stream.of(
             Stream.of(
                 /*
                  * Cache ttl in seconds for positive DNS lookups noting that this overrides the JDK security property
@@ -61,15 +65,16 @@ final class SystemJvmOptions {
                 "-Dlog4j2.disable.jmx=true",
                 "-Dlog4j2.formatMsgNoLookups=true",
                 "-Djava.locale.providers=CLDR",
-                maybeEnableNativeAccess(),
-                maybeOverrideDockerCgroup(distroType),
-                maybeSetActiveProcessorCount(nodeSettings),
-                setReplayFile(distroType, isHotspot),
                 // Pass through distribution type
                 "-Des.distribution.type=" + distroType
             ),
-            maybeWorkaroundG1Bug()
-        ).filter(e -> e.isEmpty() == false).collect(Collectors.toList());
+            maybeEnableNativeAccess(),
+            maybeOverrideDockerCgroup(distroType),
+            maybeSetActiveProcessorCount(nodeSettings),
+            maybeSetReplayFile(distroType, isHotspot),
+            maybeWorkaroundG1Bug(),
+            maybeEntitlementAgent(useEntitlementAgent, workingDir)
+        ).flatMap(s -> s).toList();
     }
 
     /*
@@ -86,42 +91,42 @@ final class SystemJvmOptions {
      * that cgroup statistics are available for the container this process
      * will run in.
      */
-    private static String maybeOverrideDockerCgroup(String distroType) {
+    private static Stream<String> maybeOverrideDockerCgroup(String distroType) {
         if ("docker".equals(distroType)) {
-            return "-Des.cgroups.hierarchy.override=/";
+            return Stream.of("-Des.cgroups.hierarchy.override=/");
         }
-        return "";
+        return Stream.empty();
     }
 
-    private static String setReplayFile(String distroType, boolean isHotspot) {
+    private static Stream<String> maybeSetReplayFile(String distroType, boolean isHotspot) {
         if (isHotspot == false) {
             // the replay file option is only guaranteed for hotspot vms
-            return "";
+            return Stream.empty();
         }
         String replayDir = "logs";
         if ("rpm".equals(distroType) || "deb".equals(distroType)) {
             replayDir = "/var/log/elasticsearch";
         }
-        return "-XX:ReplayDataFile=" + replayDir + "/replay_pid%p.log";
+        return Stream.of("-XX:ReplayDataFile=" + replayDir + "/replay_pid%p.log");
     }
 
     /*
      * node.processors determines thread pool sizes for Elasticsearch. When it
      * is set, we need to also tell the JVM to respect a different value
      */
-    private static String maybeSetActiveProcessorCount(Settings nodeSettings) {
+    private static Stream<String> maybeSetActiveProcessorCount(Settings nodeSettings) {
         if (EsExecutors.NODE_PROCESSORS_SETTING.exists(nodeSettings)) {
             int allocated = EsExecutors.allocatedProcessors(nodeSettings);
-            return "-XX:ActiveProcessorCount=" + allocated;
+            return Stream.of("-XX:ActiveProcessorCount=" + allocated);
         }
-        return "";
+        return Stream.empty();
     }
 
-    private static String maybeEnableNativeAccess() {
+    private static Stream<String> maybeEnableNativeAccess() {
         if (Runtime.version().feature() >= 21) {
-            return "--enable-native-access=org.elasticsearch.nativeaccess,org.apache.lucene.core";
+            return Stream.of("--enable-native-access=org.elasticsearch.nativeaccess,org.apache.lucene.core");
         }
-        return "";
+        return Stream.empty();
     }
 
     /*
@@ -134,4 +139,29 @@ final class SystemJvmOptions {
         }
         return Stream.of();
     }
+
+    private static Stream<String> maybeEntitlementAgent(boolean useEntitlementAgent, Path workingDir) throws IOException {
+        if (useEntitlementAgent) {
+            return Stream.of(
+                "-javaagent:" + findEntitlementComponent(workingDir, "entitlement-agent"),
+                "-Des.entitlements.bridgeJar=" + findEntitlementComponent(workingDir, "entitlement-bridge")
+            );
+        }
+        return Stream.of();
+    }
+
+    private static Path findEntitlementComponent(Path workingDir, String componentName) throws IOException {
+        Path relativeLocation = Path.of("lib", "tools", componentName);
+        List<Path> candidates = new ArrayList<>();
+        try (var stream = Files.newDirectoryStream(workingDir.resolve(relativeLocation), "*.jar")) {
+            stream.forEach(candidates::add);
+        }
+        if (candidates.isEmpty()) {
+            throw new IllegalStateException("Could not find entitlement agent jar");
+        } else if (candidates.size() > 2) {
+            throw new IllegalStateException("More than one entitlement agent jar found: " + candidates);
+        }
+        return candidates.get(0);
+    }
+
 }

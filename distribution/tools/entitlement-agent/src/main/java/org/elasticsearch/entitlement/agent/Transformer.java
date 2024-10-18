@@ -9,7 +9,7 @@
 
 package org.elasticsearch.entitlement.agent;
 
-import org.elasticsearch.entitlement.instrumentation.Instrumenter;
+import org.elasticsearch.entitlement.spi.Instrumenter;
 
 import java.lang.instrument.ClassFileTransformer;
 import java.security.ProtectionDomain;

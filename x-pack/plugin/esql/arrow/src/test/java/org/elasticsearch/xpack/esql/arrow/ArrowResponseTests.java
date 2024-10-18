@@ -337,7 +337,7 @@ public class ArrowResponseTests extends ESTestCase {
         // End of block
         assertEquals(6, block.getFirstValueIndex(4));
 
-        var column = TestColumn.create("vector", "integer");
+        var column = TestColumn.create("some-field", "integer");
         TestCase testCase = new TestCase(List.of(column), List.of(new TestPage(List.of(TestBlock.create(column, block)))));
 
         compareEsqlAndArrow(testCase);
@@ -362,7 +362,7 @@ public class ArrowResponseTests extends ESTestCase {
         BytesRefBlock block = builder.build();
         builder.close();
 
-        var column = TestColumn.create("vector", "text");
+        var column = TestColumn.create("some-field", "text");
         TestCase testCase = new TestCase(List.of(column), List.of(new TestPage(List.of(TestBlock.create(column, block)))));
 
         compareEsqlAndArrow(testCase);
@@ -373,7 +373,7 @@ public class ArrowResponseTests extends ESTestCase {
 
         byte[] bytes;
 
-        try (ListVector listVector = ListVector.empty("vector", ALLOCATOR)) {
+        try (ListVector listVector = ListVector.empty("some-field", ALLOCATOR)) {
             UnionListWriter writer = listVector.getWriter();
 
             writer.startList();
@@ -403,7 +403,7 @@ public class ArrowResponseTests extends ESTestCase {
             var root = reader.getVectorSchemaRoot();
             reader.loadNextBatch();
 
-            ListVector listVector = (ListVector) root.getVector("vector");
+            ListVector listVector = (ListVector) root.getVector("some-field");
 
             assertEquals(4, listVector.getValueCount());
             assertEquals(List.of(42, 43), listVector.getObject(0));

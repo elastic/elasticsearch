@@ -19,6 +19,7 @@ import org.elasticsearch.inference.SecretSettings;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
@@ -30,7 +31,7 @@ public class GoogleVertexAiSecretSettings implements SecretSettings {
 
     public static final String SERVICE_ACCOUNT_JSON = "service_account_json";
 
-    private final SecureString serviceAccountJson;
+    final SecureString serviceAccountJson;
 
     public static GoogleVertexAiSecretSettings fromMap(@Nullable Map<String, Object> map) {
         if (map == null) {
@@ -81,7 +82,7 @@ public class GoogleVertexAiSecretSettings implements SecretSettings {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ML_INFERENCE_GOOGLE_VERTEX_AI_EMBEDDINGS_ADDED;
+        return TransportVersions.V_8_15_0;
     }
 
     @Override
@@ -100,5 +101,10 @@ public class GoogleVertexAiSecretSettings implements SecretSettings {
     @Override
     public int hashCode() {
         return Objects.hash(serviceAccountJson);
+    }
+
+    @Override
+    public SecretSettings newSecretSettings(Map<String, Object> newSecrets) {
+        return GoogleVertexAiSecretSettings.fromMap(new HashMap<>(newSecrets));
     }
 }

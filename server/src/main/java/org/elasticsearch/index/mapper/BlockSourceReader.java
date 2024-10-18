@@ -100,12 +100,25 @@ public abstract class BlockSourceReader implements BlockLoader.RowStrideReader {
     private abstract static class SourceBlockLoader implements BlockLoader {
         protected final ValueFetcher fetcher;
         private final LeafIteratorLookup lookup;
-        private final SourceFieldMapper.Mode sourceMode;
+        private final StoredFieldsSpec storedFieldsSpec;
 
-        private SourceBlockLoader(ValueFetcher fetcher, LeafIteratorLookup lookup, SourceFieldMapper.Mode sourceMode) {
+        private SourceBlockLoader(ValueFetcher fetcher, LeafIteratorLookup lookup, StoredFieldsSpec storedFieldsSpec) {
             this.fetcher = fetcher;
             this.lookup = lookup;
-            this.sourceMode = sourceMode;
+            this.storedFieldsSpec = storedFieldsSpec;
+        }
+
+        private SourceBlockLoader(ValueFetcher fetcher, LeafIteratorLookup lookup, SourceFieldMapper.Mode sourceMode) {
+            this(
+                fetcher,
+                lookup,
+                sourceMode == SourceFieldMapper.Mode.SYNTHETIC ? NEEDS_SOURCE_AND_IGNORED_SOURCE : StoredFieldsSpec.NEEDS_SOURCE
+            );
+        }
+
+        // Assumes synthetic source only
+        private SourceBlockLoader(ValueFetcher fetcher, LeafIteratorLookup lookup, String additionalField) {
+            this(fetcher, lookup, NEEDS_SOURCE_AND_IGNORED_SOURCE.merge(new StoredFieldsSpec(true, false, Set.of(additionalField))));
         }
 
         @Override
@@ -115,7 +128,7 @@ public abstract class BlockSourceReader implements BlockLoader.RowStrideReader {
 
         @Override
         public final StoredFieldsSpec rowStrideStoredFieldSpec() {
-            return sourceMode == SourceFieldMapper.Mode.SYNTHETIC ? NEEDS_SOURCE_AND_IGNORED_SOURCE : StoredFieldsSpec.NEEDS_SOURCE;
+            return storedFieldsSpec;
         }
 
         @Override
@@ -193,6 +206,10 @@ public abstract class BlockSourceReader implements BlockLoader.RowStrideReader {
     public static class BytesRefsBlockLoader extends SourceBlockLoader {
         public BytesRefsBlockLoader(ValueFetcher fetcher, LeafIteratorLookup lookup, SourceFieldMapper.Mode sourceMode) {
             super(fetcher, lookup, sourceMode);
+        }
+
+        public BytesRefsBlockLoader(SourceValueFetcher fetcher, LeafIteratorLookup lookup, String originalFieldName) {
+            super(fetcher, lookup, originalFieldName);
         }
 
         @Override

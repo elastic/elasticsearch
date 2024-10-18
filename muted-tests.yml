@@ -375,9 +375,6 @@ tests:
 - class: org.elasticsearch.xpack.enrich.EnrichRestIT
   method: test {p0=enrich/20_standard_index/enrich documents over _bulk}
   issue: https://github.com/elastic/elasticsearch/issues/114768
-- class: org.elasticsearch.datastreams.LazyRolloverDuringDisruptionIT
-  method: testRolloverIsExecutedOnce
-  issue: https://github.com/elastic/elasticsearch/issues/112634
 - class: org.elasticsearch.xpack.eql.EqlStatsIT
   method: testEqlRestUsage
   issue: https://github.com/elastic/elasticsearch/issues/114790

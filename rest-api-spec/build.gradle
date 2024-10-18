@@ -57,8 +57,4 @@ tasks.named("precommit").configure {
 tasks.named("yamlRestCompatTestTransform").configure({task ->
     task.skipTest("indices.sort/10_basic/Index Sort", "warning does not exist for compatibility")
     task.skipTest("search/330_fetch_fields/Test search rewrite", "warning does not exist for compatibility")
-    task.skipTest("tsdb/20_mapping/disabled source", "temporary until backported")
-    task.skipTest("logsdb/20_source_mapping/disabled _source is not supported", "temporary until backported")
-    task.skipTest("tsdb/20_mapping/regular source", "temporary until backported")
-    task.skipTest("logsdb/20_source_mapping/stored _source mode is not supported", "temporary until backported")
 })

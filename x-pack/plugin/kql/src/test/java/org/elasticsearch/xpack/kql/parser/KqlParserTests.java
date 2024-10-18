@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.kql.parser;
 
+import org.elasticsearch.core.Predicates;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
@@ -27,6 +29,7 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
@@ -34,7 +37,8 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.isA;
 
 public class KqlParserTests extends AbstractBuilderTestCase {
-
+    private static final String SUPPORTED_QUERY_FILE_PATH = "/supported-queries";
+    private static final String UNSUPPORTED_QUERY_FILE_PATH = "/unsupported-queries";
     private static final Predicate<String> BOOLEAN_QUERY_FILTER = (q) -> q.matches("(?i)[^{]*[^\\\\](AND|OR)[^}]*");
 
     public void testEmptyQueryParsing() {
@@ -57,7 +61,7 @@ public class KqlParserTests extends AbstractBuilderTestCase {
         KqlParser parser = new KqlParser();
         SearchExecutionContext searchExecutionContext = createSearchExecutionContext();
 
-        for (String baseQuuery : readQueries("/supported-queries")) {
+        for (String baseQuuery : readQueries(SUPPORTED_QUERY_FILE_PATH)) {
             // For each supported query, wrap it into parentheses and check query remains the same.
             // Adding random whitespaces as well and test they are ignored.
             String parenthesizedQuery = wrapWithRandomWhitespaces("(") + baseQuuery + wrapWithRandomWhitespaces(")");
@@ -72,7 +76,7 @@ public class KqlParserTests extends AbstractBuilderTestCase {
         KqlParser parser = new KqlParser();
         SearchExecutionContext searchExecutionContext = createSearchExecutionContext();
 
-        for (String baseQuery : readQueries("/supported-queries")) {
+        for (String baseQuery : readQueries(SUPPORTED_QUERY_FILE_PATH)) {
             if (baseQuery.startsWith("NOT") || BOOLEAN_QUERY_FILTER.test(baseQuery)) {
                 baseQuery = wrapWithRandomWhitespaces("(") + baseQuery + wrapWithRandomWhitespaces(")");
             }
@@ -95,15 +99,134 @@ public class KqlParserTests extends AbstractBuilderTestCase {
                 equalTo(parsedQuery)
             );
         }
+    }
 
-        // TODO: when booleanQuery is implemented, add some precedence tests.
+    public void testOrQuery() throws IOException {
+        KqlParser parser = new KqlParser();
+        SearchExecutionContext searchExecutionContext = createSearchExecutionContext();
+        List<String> supportedQueries = readQueries(SUPPORTED_QUERY_FILE_PATH, Predicate.not(BOOLEAN_QUERY_FILTER));
+
+        for (int runs = 0; runs < 100; runs++) {
+            String queryA = randomFrom(supportedQueries);
+            String queryB = randomFrom(supportedQueries);
+            String orQuery = queryA + wrapWithRandomWhitespaces(randomFrom(" or ", " OR ", " Or ", " oR ")) + queryB;
+
+            BoolQueryBuilder parsedQuery = asInstanceOf(BoolQueryBuilder.class, parser.parseKqlQuery(orQuery, searchExecutionContext));
+
+            assertThat(parsedQuery.filter(), empty());
+            assertThat(parsedQuery.must(), empty());
+            assertThat(parsedQuery.mustNot(), empty());
+            assertThat(parsedQuery.should(), hasSize(2));
+            assertThat(
+                parsedQuery.should(),
+                allOf(
+                    hasItem(equalTo((parser.parseKqlQuery(queryA, searchExecutionContext)))),
+                    hasItem(equalTo((parser.parseKqlQuery(queryB, searchExecutionContext))))
+                )
+            );
+        }
+
+        for (int runs = 0; runs < 100; runs++) {
+            String queryA = randomFrom(supportedQueries);
+            String queryB = randomFrom(supportedQueries);
+            String queryC = randomFrom(supportedQueries);
+            String orQuery = Strings.format("%s OR %s OR %s", queryA, queryB, queryC);
+
+            BoolQueryBuilder parsedQuery = asInstanceOf(BoolQueryBuilder.class, parser.parseKqlQuery(orQuery, searchExecutionContext));
+            assertThat(parsedQuery.should(), hasSize(3));
+            assertThat(
+                parsedQuery.should(),
+                allOf(
+                    hasItem(equalTo((parser.parseKqlQuery(queryA, searchExecutionContext)))),
+                    hasItem(equalTo((parser.parseKqlQuery(queryB, searchExecutionContext)))),
+                    hasItem(equalTo((parser.parseKqlQuery(queryC, searchExecutionContext))))
+                )
+            );
+        }
+    }
+
+    public void testAndQuery() throws IOException {
+        KqlParser parser = new KqlParser();
+        SearchExecutionContext searchExecutionContext = createSearchExecutionContext();
+        List<String> supportedQueries = readQueries(SUPPORTED_QUERY_FILE_PATH, Predicate.not(BOOLEAN_QUERY_FILTER));
+
+        for (int runs = 0; runs < 100; runs++) {
+            String queryA = randomFrom(supportedQueries);
+            String queryB = randomFrom(supportedQueries);
+            String andQuery = queryA + wrapWithRandomWhitespaces(randomFrom(" and ", " AND ", " And ", " anD ")) + queryB;
+
+            BoolQueryBuilder parsedQuery = asInstanceOf(BoolQueryBuilder.class, parser.parseKqlQuery(andQuery, searchExecutionContext));
+
+            assertThat(parsedQuery.filter(), empty());
+            assertThat(parsedQuery.should(), empty());
+            assertThat(parsedQuery.mustNot(), empty());
+            assertThat(parsedQuery.must(), hasSize(2));
+            assertThat(
+                parsedQuery.must(),
+                allOf(
+                    hasItem(equalTo((parser.parseKqlQuery(queryA, searchExecutionContext)))),
+                    hasItem(equalTo((parser.parseKqlQuery(queryB, searchExecutionContext))))
+                )
+            );
+        }
+
+        for (int runs = 0; runs < 100; runs++) {
+            String queryA = randomFrom(supportedQueries);
+            String queryB = randomFrom(supportedQueries);
+            String queryC = randomFrom(supportedQueries);
+            String andQuery = Strings.format("%s AND %s AND %s", queryA, queryB, queryC);
+
+            BoolQueryBuilder parsedQuery = asInstanceOf(BoolQueryBuilder.class, parser.parseKqlQuery(andQuery, searchExecutionContext));
+            assertThat(parsedQuery.must(), hasSize(3));
+            assertThat(
+                parsedQuery.must(),
+                allOf(
+                    hasItem(equalTo((parser.parseKqlQuery(queryA, searchExecutionContext)))),
+                    hasItem(equalTo((parser.parseKqlQuery(queryB, searchExecutionContext)))),
+                    hasItem(equalTo((parser.parseKqlQuery(queryC, searchExecutionContext))))
+                )
+            );
+        }
+    }
+
+    public void testOperatorPrecedence() throws IOException {
+        KqlParser parser = new KqlParser();
+        SearchExecutionContext searchExecutionContext = createSearchExecutionContext();
+        List<String> supportedQueries = readQueries(
+            SUPPORTED_QUERY_FILE_PATH,
+            Predicate.not(BOOLEAN_QUERY_FILTER).and((q -> q.startsWith("NOT") == false))
+        );
+
+        for (int runs = 0; runs < 100; runs++) {
+            String queryA = randomFrom(supportedQueries);
+            String queryB = randomFrom(supportedQueries);
+            String queryC = randomFrom(supportedQueries);
+
+            // <QueryA> AND <QueryB> OR <QueryC> is equivalent to <QueryA> AND (<QueryB> OR <QueryC>)
+            assertThat(
+                parser.parseKqlQuery(Strings.format("%s AND %s OR %s", queryA, queryB, queryC), searchExecutionContext),
+                equalTo(parser.parseKqlQuery(Strings.format("%s AND (%s OR %s)", queryA, queryB, queryC), searchExecutionContext))
+            );
+
+            // <QueryA> OR <QueryB> AND <QueryC> is equivalent to <QueryA> OR (<QueryB> AND <QueryC>)
+            assertThat(
+                parser.parseKqlQuery(Strings.format("%s OR %s AND %s", queryA, queryB, queryC), searchExecutionContext),
+                equalTo(parser.parseKqlQuery(Strings.format("%s OR (%s AND %s)", queryA, queryB, queryC), searchExecutionContext))
+            );
+
+            // <QueryA> AND <QueryB> is equivalent to (NOT <QueryA>) AND <QueryB>
+            assertThat(
+                parser.parseKqlQuery(Strings.format("NOT %s AND %s", queryA, queryB), searchExecutionContext),
+                equalTo(parser.parseKqlQuery(Strings.format("(NOT %s) AND %s", queryA, queryB), searchExecutionContext))
+            );
+        }
     }
 
     public void testSupportedQueries() throws IOException {
         KqlParser parser = new KqlParser();
         SearchExecutionContext searchExecutionContext = createSearchExecutionContext();
 
-        for (String query : readQueries("/supported-queries")) {
+        for (String query : readQueries(SUPPORTED_QUERY_FILE_PATH)) {
             try {
                 parser.parseKqlQuery(query, searchExecutionContext);
             } catch (Throwable e) {
@@ -116,7 +239,7 @@ public class KqlParserTests extends AbstractBuilderTestCase {
         KqlParser parser = new KqlParser();
         SearchExecutionContext searchExecutionContext = createSearchExecutionContext();
 
-        for (String query : readQueries("/unsupported-queries")) {
+        for (String query : readQueries(UNSUPPORTED_QUERY_FILE_PATH)) {
             assertThrows(
                 "Was expecting a KqlParsingException exception to be thrown while parsing query [" + query + "]",
                 KqlParsingException.class,
@@ -151,6 +274,10 @@ public class KqlParserTests extends AbstractBuilderTestCase {
     }
 
     private static List<String> readQueries(String source) throws IOException {
+        return readQueries(source, Predicates.always());
+    }
+
+    private static List<String> readQueries(String source, Predicate<String> filter) throws IOException {
         URL url = KqlParserTests.class.getResource(source);
         Objects.requireNonNull(source, "Cannot find resource " + url);
 
@@ -162,7 +289,7 @@ public class KqlParserTests extends AbstractBuilderTestCase {
             while ((line = reader.readLine()) != null) {
                 String query = line.trim();
                 // ignore comments
-                if (query.isEmpty() == false && query.startsWith("//") == false) {
+                if (query.isEmpty() == false && query.startsWith("//") == false && filter.test(query)) {
                     queries.add(query);
                 }
             }

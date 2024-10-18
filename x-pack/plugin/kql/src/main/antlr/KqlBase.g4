@@ -26,9 +26,9 @@ topLevelQuery
     ;
 
 query
-    : query (AND | OR) query          #booleanQuery
-    | NOT subQuery=simpleQuery        #notQuery
-    | simpleQuery                     #defaultQuery
+    : <assoc=right> query (AND | OR) query     #booleanQuery
+    | NOT subQuery=simpleQuery                 #notQuery
+    | simpleQuery                              #defaultQuery
     ;
 
 simpleQuery
@@ -89,7 +89,6 @@ quotedStringExpression
 wildcardExpression
     : WILDCARD
 ;
-
 
 DEFAULT_SKIP: WHITESPACE -> skip;
 

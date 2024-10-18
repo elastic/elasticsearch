@@ -37,6 +37,8 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.function.LongFunction;
 
+import static org.elasticsearch.xpack.esql.core.util.PlanStreamInput.readCachedStringWithVersionCheck;
+
 /**
  * A customized stream input used to deserialize ESQL physical plan fragments. Complements stream
  * input with methods that read plan nodes, Attributes, Expressions, etc.
@@ -180,7 +182,7 @@ public final class PlanStreamInput extends NamedWriteableAwareStreamInput
     @SuppressWarnings("unchecked")
     public <A extends Attribute> A readAttributeWithCache(CheckedFunction<StreamInput, A, IOException> constructor) throws IOException {
         if (getTransportVersion().onOrAfter(TransportVersions.ESQL_ATTRIBUTE_CACHED_SERIALIZATION)
-            || getTransportVersion().isPatchFrom(TransportVersions.ESQL_ATTRIBUTE_CACHED_SERIALIZATION_8_15)) {
+            || getTransportVersion().isPatchFrom(TransportVersions.V_8_15_2)) {
             // it's safe to cast to int, since the max value for this is {@link PlanStreamOutput#MAX_SERIALIZED_ATTRIBUTES}
             int cacheId = Math.toIntExact(readZLong());
             if (cacheId < 0) {
@@ -220,11 +222,11 @@ public final class PlanStreamInput extends NamedWriteableAwareStreamInput
     @SuppressWarnings("unchecked")
     public <A extends EsField> A readEsFieldWithCache() throws IOException {
         if (getTransportVersion().onOrAfter(TransportVersions.ESQL_ES_FIELD_CACHED_SERIALIZATION)
-            || getTransportVersion().isPatchFrom(TransportVersions.ESQL_ATTRIBUTE_CACHED_SERIALIZATION_8_15)) {
+            || getTransportVersion().isPatchFrom(TransportVersions.V_8_15_2)) {
             // it's safe to cast to int, since the max value for this is {@link PlanStreamOutput#MAX_SERIALIZED_ATTRIBUTES}
             int cacheId = Math.toIntExact(readZLong());
             if (cacheId < 0) {
-                String className = readCachedString();
+                String className = readCachedStringWithVersionCheck(this);
                 Writeable.Reader<? extends EsField> reader = EsField.getReader(className);
                 cacheId = -1 - cacheId;
                 EsField result = reader.read(this);
@@ -234,7 +236,7 @@ public final class PlanStreamInput extends NamedWriteableAwareStreamInput
                 return (A) esFieldFromCache(cacheId);
             }
         } else {
-            String className = readCachedString();
+            String className = readCachedStringWithVersionCheck(this);
             Writeable.Reader<? extends EsField> reader = EsField.getReader(className);
             return (A) reader.read(this);
         }
@@ -245,9 +247,6 @@ public final class PlanStreamInput extends NamedWriteableAwareStreamInput
      */
     @Override
     public String readCachedString() throws IOException {
-        if (getTransportVersion().before(TransportVersions.ESQL_CACHED_STRING_SERIALIZATION)) {
-            return readString();
-        }
         int cacheId = Math.toIntExact(readZLong());
         if (cacheId < 0) {
             String string = readString();
@@ -257,6 +256,11 @@ public final class PlanStreamInput extends NamedWriteableAwareStreamInput
         } else {
             return stringFromCache(cacheId);
         }
+    }
+
+    @Override
+    public String readOptionalCachedString() throws IOException {
+        return readBoolean() ? readCachedString() : null;
     }
 
     private EsField esFieldFromCache(int id) throws IOException {

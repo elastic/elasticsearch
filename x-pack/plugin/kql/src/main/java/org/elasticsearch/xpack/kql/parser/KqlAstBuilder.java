@@ -8,11 +8,14 @@
 package org.elasticsearch.xpack.kql.parser;
 
 import org.antlr.v4.runtime.ParserRuleContext;
+import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.SearchExecutionContext;
+
+import java.util.function.Consumer;
 
 class KqlAstBuilder extends KqlBaseBaseVisitor<QueryBuilder> {
     private final SearchExecutionContext searchExecutionContext;
@@ -35,8 +38,22 @@ class KqlAstBuilder extends KqlBaseBaseVisitor<QueryBuilder> {
 
     @Override
     public QueryBuilder visitBooleanQuery(KqlBaseParser.BooleanQueryContext ctx) {
-        // TODO: implementation
-        return new MatchNoneQueryBuilder();
+        BoolQueryBuilder builder = QueryBuilders.boolQuery();
+        Consumer<QueryBuilder> clauseAdder = ctx.AND() != null ? builder::must : builder::should;
+
+        // TODO: KQLContext has an option to wrap the clauses into a filter instead of a must clause. Do we need it?
+
+        for (ParserRuleContext subQueryCtx : ctx.query()) {
+            if (subQueryCtx instanceof KqlBaseParser.BooleanQueryContext booleanSubQueryCtx
+                && (booleanSubQueryCtx.AND() == null) == (ctx.AND() == null)) {
+                BoolQueryBuilder parsedSubQuery = ParserUtils.typedParsing(this, subQueryCtx, BoolQueryBuilder.class);
+                (ctx.AND() != null ? parsedSubQuery.must() : parsedSubQuery.should()).forEach(clauseAdder);
+            } else {
+                clauseAdder.accept(ParserUtils.typedParsing(this, subQueryCtx, QueryBuilder.class));
+            }
+        }
+
+        return builder;
     }
 
     @Override

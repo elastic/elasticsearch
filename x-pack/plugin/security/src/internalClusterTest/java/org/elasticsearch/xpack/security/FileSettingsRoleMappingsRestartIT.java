@@ -26,6 +26,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import static org.elasticsearch.integration.RoleMappingFileSettingsIT.setupClusterStateListener;
 import static org.elasticsearch.integration.RoleMappingFileSettingsIT.setupClusterStateListenerForCleanup;
 import static org.elasticsearch.integration.RoleMappingFileSettingsIT.writeJSONFile;
+import static org.elasticsearch.xpack.core.security.authc.support.mapper.ReservedRoleMappingXContentNameFieldHelper.METADATA_NAME_FIELD;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.emptyIterable;
 
@@ -99,7 +100,14 @@ public class FileSettingsRoleMappingsRestartIT extends SecurityIntegTestCase {
                     new FieldExpression("username", List.of(new FieldExpression.FieldValue("*"))),
                     List.of("kibana_user"),
                     List.of(),
-                    Map.of("uuid", "b9a59ba9-6b92-4be2-bb8d-02bb270cb3a7", "_foo", "something"),
+                    Map.of(
+                        "uuid",
+                        "b9a59ba9-6b92-4be2-bb8d-02bb270cb3a7",
+                        "_foo",
+                        "something",
+                        METADATA_NAME_FIELD,
+                        "everyone_kibana_alone"
+                    ),
                     true
                 ),
                 new ExpressionRoleMapping(
@@ -107,7 +115,14 @@ public class FileSettingsRoleMappingsRestartIT extends SecurityIntegTestCase {
                     new FieldExpression("username", List.of(new FieldExpression.FieldValue("*"))),
                     List.of("fleet_user"),
                     List.of(),
-                    Map.of("uuid", "b9a59ba9-6b92-4be3-bb8d-02bb270cb3a7", "_foo", "something_else"),
+                    Map.of(
+                        "uuid",
+                        "b9a59ba9-6b92-4be3-bb8d-02bb270cb3a7",
+                        "_foo",
+                        "something_else",
+                        METADATA_NAME_FIELD,
+                        "everyone_fleet_alone"
+                    ),
                     false
                 )
             )
@@ -125,19 +140,33 @@ public class FileSettingsRoleMappingsRestartIT extends SecurityIntegTestCase {
             roleMappings,
             containsInAnyOrder(
                 new ExpressionRoleMapping(
-                    "name_not_available_after_deserialization",
+                    "everyone_kibana_alone",
                     new FieldExpression("username", List.of(new FieldExpression.FieldValue("*"))),
                     List.of("kibana_user"),
                     List.of(),
-                    Map.of("uuid", "b9a59ba9-6b92-4be2-bb8d-02bb270cb3a7", "_foo", "something"),
+                    Map.of(
+                        "uuid",
+                        "b9a59ba9-6b92-4be2-bb8d-02bb270cb3a7",
+                        "_foo",
+                        "something",
+                        METADATA_NAME_FIELD,
+                        "everyone_kibana_alone"
+                    ),
                     true
                 ),
                 new ExpressionRoleMapping(
-                    "name_not_available_after_deserialization",
+                    "everyone_fleet_alone",
                     new FieldExpression("username", List.of(new FieldExpression.FieldValue("*"))),
                     List.of("fleet_user"),
                     List.of(),
-                    Map.of("uuid", "b9a59ba9-6b92-4be3-bb8d-02bb270cb3a7", "_foo", "something_else"),
+                    Map.of(
+                        "uuid",
+                        "b9a59ba9-6b92-4be3-bb8d-02bb270cb3a7",
+                        "_foo",
+                        "something_else",
+                        METADATA_NAME_FIELD,
+                        "everyone_fleet_alone"
+                    ),
                     false
                 )
             )

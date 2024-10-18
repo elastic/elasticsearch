@@ -22,6 +22,7 @@ import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.ExpressionRoleMapping;
+import org.elasticsearch.xpack.core.security.authc.support.mapper.ReservedRoleMappingXContentNameFieldHelper;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -48,8 +49,7 @@ public final class RoleMappingMetadata extends AbstractNamedDiffable<Metadata.Cu
     static {
         PARSER.declareObjectArray(
             constructorArg(),
-            // role mapping names are lost when the role mapping metadata is serialized
-            (p, c) -> ExpressionRoleMapping.parse("name_not_available_after_deserialization", p),
+            (p, c) -> ReservedRoleMappingXContentNameFieldHelper.parseWithNameFromMetadata(p),
             new ParseField(TYPE)
         );
     }

@@ -278,7 +278,7 @@ public class HighlighterWithAnalyzersTests extends ESIntegTestCase {
                 boolQuery().should(matchPhrasePrefixQuery("field1", "test")).should(matchPhrasePrefixQuery("field1", "bro"))
             ).highlighter(highlight().field("field1").order("score").preTags("<x>").postTags("</x>")),
             resp -> {
-                assertThat(resp.getHits().getTotalHits().value, equalTo(2L));
+                assertThat(resp.getHits().getTotalHits().value(), equalTo(2L));
                 for (int i = 0; i < 2; i++) {
                     assertHighlight(
                         resp,

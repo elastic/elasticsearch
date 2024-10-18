@@ -139,13 +139,13 @@ public class TransformIntegrationTests extends AbstractWatcherIntegrationTestCas
         refresh();
 
         assertNoFailuresAndResponse(prepareSearch("output1"), response -> {
-            assertThat(response.getHits().getTotalHits().value, greaterThanOrEqualTo(1L));
+            assertThat(response.getHits().getTotalHits().value(), greaterThanOrEqualTo(1L));
             assertThat(response.getHits().getAt(0).getSourceAsMap().size(), equalTo(1));
             assertThat(response.getHits().getAt(0).getSourceAsMap().get("key3").toString(), equalTo("20"));
         });
 
         assertNoFailuresAndResponse(prepareSearch("output2"), response -> {
-            assertThat(response.getHits().getTotalHits().value, greaterThanOrEqualTo(1L));
+            assertThat(response.getHits().getTotalHits().value(), greaterThanOrEqualTo(1L));
             assertThat(response.getHits().getAt(0).getSourceAsMap().size(), equalTo(1));
             assertThat(response.getHits().getAt(0).getSourceAsMap().get("key3").toString(), equalTo("20"));
         });
@@ -184,12 +184,12 @@ public class TransformIntegrationTests extends AbstractWatcherIntegrationTestCas
         refresh();
 
         assertNoFailuresAndResponse(prepareSearch("output1"), response -> {
-            assertThat(response.getHits().getTotalHits().value, greaterThanOrEqualTo(1L));
+            assertThat(response.getHits().getTotalHits().value(), greaterThanOrEqualTo(1L));
             assertThat(response.getHits().getAt(0).getSourceAsString(), containsString("mytestresult"));
         });
 
         assertNoFailuresAndResponse(prepareSearch("output2"), response -> {
-            assertThat(response.getHits().getTotalHits().value, greaterThanOrEqualTo(1L));
+            assertThat(response.getHits().getTotalHits().value(), greaterThanOrEqualTo(1L));
             assertThat(response.getHits().getAt(0).getSourceAsString(), containsString("mytestresult"));
         });
     }
@@ -223,13 +223,13 @@ public class TransformIntegrationTests extends AbstractWatcherIntegrationTestCas
         refresh();
 
         assertNoFailuresAndResponse(prepareSearch("output1"), response -> {
-            assertThat(response.getHits().getTotalHits().value, greaterThanOrEqualTo(1L));
+            assertThat(response.getHits().getTotalHits().value(), greaterThanOrEqualTo(1L));
             assertThat(response.getHits().getAt(0).getSourceAsMap().size(), equalTo(1));
             assertThat(response.getHits().getAt(0).getSourceAsMap().get("key4").toString(), equalTo("30"));
         });
 
         assertNoFailuresAndResponse(prepareSearch("output2"), response -> {
-            assertThat(response.getHits().getTotalHits().value, greaterThanOrEqualTo(1L));
+            assertThat(response.getHits().getTotalHits().value(), greaterThanOrEqualTo(1L));
             assertThat(response.getHits().getAt(0).getSourceAsMap().size(), equalTo(1));
             assertThat(response.getHits().getAt(0).getSourceAsMap().get("key4").toString(), equalTo("30"));
         });

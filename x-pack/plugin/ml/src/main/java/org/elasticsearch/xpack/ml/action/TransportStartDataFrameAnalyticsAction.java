@@ -433,7 +433,7 @@ public class TransportStartDataFrameAnalyticsAction extends TransportMasterNodeA
             TransportSearchAction.TYPE,
             destEmptySearch,
             ActionListener.wrap(searchResponse -> {
-                if (searchResponse.getHits().getTotalHits().value > 0) {
+                if (searchResponse.getHits().getTotalHits().value() > 0) {
                     listener.onFailure(ExceptionsHelper.badRequestException("dest index [{}] must be empty", destIndex));
                 } else {
                     listener.onResponse(startContext);

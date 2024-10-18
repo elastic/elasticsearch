@@ -156,17 +156,6 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
     }
 
     @Override
-    public Fields getTermVectors(int docID) throws IOException {
-        Fields f = super.getTermVectors(docID);
-        if (f == null) {
-            return null;
-        }
-        f = new FieldFilterFields(f);
-        // we need to check for emptyness, so we can return null:
-        return f.iterator().hasNext() ? f : null;
-    }
-
-    @Override
     public TermVectors termVectors() throws IOException {
         TermVectors termVectors = super.termVectors();
         return new TermVectors() {
@@ -262,11 +251,6 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
             state = automaton.step(state, key.charAt(i));
         }
         return state;
-    }
-
-    @Override
-    public void document(final int docID, final StoredFieldVisitor visitor) throws IOException {
-        super.document(docID, new FieldSubsetStoredFieldVisitor(visitor));
     }
 
     @Override

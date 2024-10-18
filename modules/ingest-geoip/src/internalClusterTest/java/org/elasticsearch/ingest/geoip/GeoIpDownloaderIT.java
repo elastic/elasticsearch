@@ -256,8 +256,8 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
                         res -> {
                             try {
                                 TotalHits totalHits = res.getHits().getTotalHits();
-                                assertEquals(TotalHits.Relation.EQUAL_TO, totalHits.relation);
-                                assertEquals(size, totalHits.value);
+                                assertEquals(TotalHits.Relation.EQUAL_TO, totalHits.relation());
+                                assertEquals(size, totalHits.value());
                                 assertEquals(size, res.getHits().getHits().length);
 
                                 List<byte[]> data = new ArrayList<>();

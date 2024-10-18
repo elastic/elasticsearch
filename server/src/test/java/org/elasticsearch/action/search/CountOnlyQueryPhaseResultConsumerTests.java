@@ -79,8 +79,8 @@ public class CountOnlyQueryPhaseResultConsumerTests extends ESTestCase {
                 queryPhaseResultConsumer.consumeResult(querySearchResult, nextCounter::incrementAndGet);
             }
             var reducePhase = queryPhaseResultConsumer.reduce();
-            assertEquals(0, reducePhase.totalHits().value);
-            assertEquals(TotalHits.Relation.EQUAL_TO, reducePhase.totalHits().relation);
+            assertEquals(0, reducePhase.totalHits().value());
+            assertEquals(TotalHits.Relation.EQUAL_TO, reducePhase.totalHits().relation());
             assertFalse(reducePhase.isEmptyResult());
             assertEquals(10, nextCounter.get());
         }
@@ -94,8 +94,8 @@ public class CountOnlyQueryPhaseResultConsumerTests extends ESTestCase {
             )
         ) {
             var reducePhase = queryPhaseResultConsumer.reduce();
-            assertEquals(0, reducePhase.totalHits().value);
-            assertEquals(TotalHits.Relation.EQUAL_TO, reducePhase.totalHits().relation);
+            assertEquals(0, reducePhase.totalHits().value());
+            assertEquals(TotalHits.Relation.EQUAL_TO, reducePhase.totalHits().relation());
             assertTrue(reducePhase.isEmptyResult());
         }
     }

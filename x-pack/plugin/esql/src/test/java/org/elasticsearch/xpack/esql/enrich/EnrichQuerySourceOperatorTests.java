@@ -108,7 +108,7 @@ public class EnrichQuerySourceOperatorTests extends ESTestCase {
         QueryList queryList = QueryList.termQueryList(uidField, mock(SearchExecutionContext.class), inputTerms, KEYWORD);
         assertThat(queryList.getPositionCount(), equalTo(6));
         assertThat(queryList.getQuery(0), equalTo(new TermQuery(new Term("uid", new BytesRef("b2")))));
-        assertThat(queryList.getQuery(1), equalTo(new TermInSetQuery("uid", new BytesRef("c1"), new BytesRef("a2"))));
+        assertThat(queryList.getQuery(1), equalTo(new TermInSetQuery("uid", List.of(new BytesRef("c1"), new BytesRef("a2")))));
         assertThat(queryList.getQuery(2), equalTo(new TermQuery(new Term("uid", new BytesRef("z2")))));
         assertNull(queryList.getQuery(3));
         assertThat(queryList.getQuery(4), equalTo(new TermQuery(new Term("uid", new BytesRef("a3")))));

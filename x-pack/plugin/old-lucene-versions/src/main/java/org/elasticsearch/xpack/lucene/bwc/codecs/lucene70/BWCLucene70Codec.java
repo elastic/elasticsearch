@@ -32,7 +32,7 @@ public class BWCLucene70Codec extends BWCCodec {
     private final LiveDocsFormat liveDocsFormat = new Lucene50LiveDocsFormat();
     private final CompoundFormat compoundFormat = new Lucene50CompoundFormat();
     private final StoredFieldsFormat storedFieldsFormat;
-    private final DocValuesFormat defaultDVFormat = DocValuesFormat.forName("Lucene70");
+    private final DocValuesFormat defaultDVFormat = new Lucene70DocValuesFormat();
     private final DocValuesFormat docValuesFormat = new PerFieldDocValuesFormat() {
         @Override
         public DocValuesFormat getDocValuesFormatForField(String field) {
@@ -47,7 +47,11 @@ public class BWCLucene70Codec extends BWCCodec {
     };
 
     public BWCLucene70Codec() {
-        super("BWCLucene70Codec");
+        this("BWCLucene70Codec");
+    }
+
+    protected BWCLucene70Codec(String name) {
+        super(name);
         storedFieldsFormat = new Lucene50StoredFieldsFormat(Lucene50StoredFieldsFormat.Mode.BEST_SPEED);
     }
 

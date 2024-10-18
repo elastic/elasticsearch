@@ -436,7 +436,7 @@ public class QueryRulesIndexService {
         final List<QueryRulesetListItem> rulesetResults = Arrays.stream(response.getHits().getHits())
             .map(QueryRulesIndexService::hitToQueryRulesetListItem)
             .toList();
-        return new QueryRulesetResult(rulesetResults, (int) response.getHits().getTotalHits().value);
+        return new QueryRulesetResult(rulesetResults, (int) response.getHits().getTotalHits().value());
     }
 
     private static QueryRulesetListItem hitToQueryRulesetListItem(SearchHit searchHit) {

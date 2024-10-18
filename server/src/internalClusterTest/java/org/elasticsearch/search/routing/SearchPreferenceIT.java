@@ -123,17 +123,17 @@ public class SearchPreferenceIT extends ESIntegTestCase {
 
         assertResponse(
             prepareSearch().setQuery(matchAllQuery()),
-            response -> assertThat(response.getHits().getTotalHits().value, equalTo(1L))
+            response -> assertThat(response.getHits().getTotalHits().value(), equalTo(1L))
         );
 
         assertResponse(
             prepareSearch().setQuery(matchAllQuery()).setPreference("_local"),
-            response -> assertThat(response.getHits().getTotalHits().value, equalTo(1L))
+            response -> assertThat(response.getHits().getTotalHits().value(), equalTo(1L))
         );
 
         assertResponse(
             prepareSearch().setQuery(matchAllQuery()).setPreference("1234"),
-            response -> assertThat(response.getHits().getTotalHits().value, equalTo(1L))
+            response -> assertThat(response.getHits().getTotalHits().value(), equalTo(1L))
         );
     }
 

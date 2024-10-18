@@ -32,6 +32,7 @@ import org.apache.lucene.index.Fields;
 import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexOptions;
+import org.apache.lucene.index.KnnVectorValues;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.PointValues;
@@ -273,7 +274,7 @@ final class IndexDiskUsageAnalyzer {
                 }
                 case SORTED_SET -> {
                     SortedSetDocValues sortedSet = iterateDocValues(maxDocs, () -> docValuesReader.getSortedSet(field), dv -> {
-                        while (dv.nextOrd() != SortedSetDocValues.NO_MORE_ORDS) {
+                        for (int i = 0; i < dv.docValueCount(); i++) {
                             cancellationChecker.logEvent();
                         }
                     });
@@ -544,13 +545,14 @@ final class IndexDiskUsageAnalyzer {
             if (field.getVectorDimension() > 0) {
                 switch (field.getVectorEncoding()) {
                     case BYTE -> {
-                        iterateDocValues(reader.maxDoc(), () -> vectorReader.getByteVectorValues(field.name), vectors -> {
+                        iterateDocValues(reader.maxDoc(), () -> vectorReader.getByteVectorValues(field.name).iterator(), vectors -> {
                             cancellationChecker.logEvent();
-                            vectors.vectorValue();
+                            vectors.index();
                         });
 
                         // do a couple of randomized searches to figure out min and max offsets of index file
                         ByteVectorValues vectorValues = vectorReader.getByteVectorValues(field.name);
+                        KnnVectorValues.DocIndexIterator iterator = vectorValues.iterator();
                         final KnnCollector collector = new TopKnnCollector(
                             Math.max(1, Math.min(100, vectorValues.size() - 1)),
                             Integer.MAX_VALUE
@@ -558,22 +560,23 @@ final class IndexDiskUsageAnalyzer {
                         int numDocsToVisit = reader.maxDoc() < 10 ? reader.maxDoc() : 10 * (int) Math.log10(reader.maxDoc());
                         int skipFactor = Math.max(reader.maxDoc() / numDocsToVisit, 1);
                         for (int i = 0; i < reader.maxDoc(); i += skipFactor) {
-                            if ((i = vectorValues.advance(i)) == DocIdSetIterator.NO_MORE_DOCS) {
+                            if ((i = iterator.advance(i)) == DocIdSetIterator.NO_MORE_DOCS) {
                                 break;
                             }
                             cancellationChecker.checkForCancellation();
-                            vectorReader.search(field.name, vectorValues.vectorValue(), collector, null);
+                            vectorReader.search(field.name, vectorValues.vectorValue(iterator.index()), collector, null);
                         }
                         stats.addKnnVectors(field.name, directory.getBytesRead());
                     }
                     case FLOAT32 -> {
-                        iterateDocValues(reader.maxDoc(), () -> vectorReader.getFloatVectorValues(field.name), vectors -> {
+                        iterateDocValues(reader.maxDoc(), () -> vectorReader.getFloatVectorValues(field.name).iterator(), vectors -> {
                             cancellationChecker.logEvent();
-                            vectors.vectorValue();
+                            vectors.index();
                         });
 
                         // do a couple of randomized searches to figure out min and max offsets of index file
                         FloatVectorValues vectorValues = vectorReader.getFloatVectorValues(field.name);
+                        KnnVectorValues.DocIndexIterator iterator = vectorValues.iterator();
                         final KnnCollector collector = new TopKnnCollector(
                             Math.max(1, Math.min(100, vectorValues.size() - 1)),
                             Integer.MAX_VALUE
@@ -581,11 +584,11 @@ final class IndexDiskUsageAnalyzer {
                         int numDocsToVisit = reader.maxDoc() < 10 ? reader.maxDoc() : 10 * (int) Math.log10(reader.maxDoc());
                         int skipFactor = Math.max(reader.maxDoc() / numDocsToVisit, 1);
                         for (int i = 0; i < reader.maxDoc(); i += skipFactor) {
-                            if ((i = vectorValues.advance(i)) == DocIdSetIterator.NO_MORE_DOCS) {
+                            if ((i = iterator.advance(i)) == DocIdSetIterator.NO_MORE_DOCS) {
                                 break;
                             }
                             cancellationChecker.checkForCancellation();
-                            vectorReader.search(field.name, vectorValues.vectorValue(), collector, null);
+                            vectorReader.search(field.name, vectorValues.vectorValue(iterator.index()), collector, null);
                         }
                         stats.addKnnVectors(field.name, directory.getBytesRead());
                     }

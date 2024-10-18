@@ -458,7 +458,8 @@ module org.elasticsearch.server {
     provides org.apache.lucene.codecs.Codec
         with
             org.elasticsearch.index.codec.Elasticsearch814Codec,
-            org.elasticsearch.index.codec.Elasticsearch816Codec;
+            org.elasticsearch.index.codec.Elasticsearch816Codec,
+            org.elasticsearch.index.codec.Elasticsearch900Codec;
 
     provides org.apache.logging.log4j.core.util.ContextDataProvider with org.elasticsearch.common.logging.DynamicContextDataProvider;
 

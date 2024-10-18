@@ -155,7 +155,7 @@ public abstract class SpatialBoundsAggregationTestBase<T extends SpatialPoint> e
         assertNoFailuresAndResponse(
             client().prepareSearch(EMPTY_IDX_NAME).setQuery(matchAllQuery()).addAggregation(boundsAgg(aggName(), SINGLE_VALUED_FIELD_NAME)),
             response -> {
-                assertThat(response.getHits().getTotalHits().value, equalTo(0L));
+                assertThat(response.getHits().getTotalHits().value(), equalTo(0L));
                 SpatialBounds<T> geoBounds = response.getAggregations().get(aggName());
                 assertThat(geoBounds, notNullValue());
                 assertThat(geoBounds.getName(), equalTo(aggName()));

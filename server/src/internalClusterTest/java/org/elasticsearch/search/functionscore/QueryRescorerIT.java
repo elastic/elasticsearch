@@ -149,7 +149,7 @@ public class QueryRescorerIT extends ESIntegTestCase {
                     5
                 ),
             response -> {
-                assertThat(response.getHits().getTotalHits().value, equalTo(3L));
+                assertThat(response.getHits().getTotalHits().value(), equalTo(3L));
                 assertThat(response.getHits().getMaxScore(), equalTo(response.getHits().getHits()[0].getScore()));
                 assertThat(response.getHits().getHits()[0].getId(), equalTo("1"));
                 assertThat(response.getHits().getHits()[1].getId(), equalTo("3"));
@@ -429,7 +429,7 @@ public class QueryRescorerIT extends ESIntegTestCase {
         assertNoFailures(rescored);
         SearchHits leftHits = plain.getHits();
         SearchHits rightHits = rescored.getHits();
-        assertThat(leftHits.getTotalHits().value, equalTo(rightHits.getTotalHits().value));
+        assertThat(leftHits.getTotalHits().value(), equalTo(rightHits.getTotalHits().value()));
         assertThat(leftHits.getHits().length, equalTo(rightHits.getHits().length));
         SearchHit[] hits = leftHits.getHits();
         SearchHit[] rHits = rightHits.getHits();
@@ -855,7 +855,7 @@ public class QueryRescorerIT extends ESIntegTestCase {
                 .setTrackScores(true)
                 .addRescorer(new QueryRescorerBuilder(matchAllQuery()).setRescoreQueryWeight(100.0f), 50),
             response -> {
-                assertThat(response.getHits().getTotalHits().value, equalTo(5L));
+                assertThat(response.getHits().getTotalHits().value(), equalTo(5L));
                 assertThat(response.getHits().getHits().length, equalTo(5));
                 for (SearchHit hit : response.getHits().getHits()) {
                     assertThat(hit.getScore(), equalTo(101f));
@@ -902,7 +902,7 @@ public class QueryRescorerIT extends ESIntegTestCase {
             .addRescorer(new QueryRescorerBuilder(fieldValueScoreQuery("secondPassScore")))
             .setCollapse(new CollapseBuilder("group"));
         assertResponse(request, resp -> {
-            assertThat(resp.getHits().getTotalHits().value, equalTo(5L));
+            assertThat(resp.getHits().getTotalHits().value(), equalTo(5L));
             assertThat(resp.getHits().getHits().length, equalTo(3));
 
             SearchHit hit1 = resp.getHits().getAt(0);
@@ -982,7 +982,7 @@ public class QueryRescorerIT extends ESIntegTestCase {
             .setSize(Math.min(numGroups, 10));
         long expectedNumHits = numHits;
         assertResponse(request, resp -> {
-            assertThat(resp.getHits().getTotalHits().value, equalTo(expectedNumHits));
+            assertThat(resp.getHits().getTotalHits().value(), equalTo(expectedNumHits));
             for (int pos = 0; pos < resp.getHits().getHits().length; pos++) {
                 SearchHit hit = resp.getHits().getAt(pos);
                 assertThat(hit.getId(), equalTo(sortedGroups[pos].id()));

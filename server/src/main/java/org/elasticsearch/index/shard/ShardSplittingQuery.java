@@ -24,6 +24,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.search.join.BitSetProducer;
@@ -73,7 +74,7 @@ final class ShardSplittingQuery extends Query {
             }
 
             @Override
-            public Scorer scorer(LeafReaderContext context) throws IOException {
+            public ScorerSupplier scorerSupplier(LeafReaderContext context) throws IOException {
                 LeafReader leafReader = context.reader();
                 FixedBitSet bitSet = new FixedBitSet(leafReader.maxDoc());
                 Terms terms = leafReader.terms(RoutingFieldMapper.NAME);
@@ -82,87 +83,102 @@ final class ShardSplittingQuery extends Query {
                     int targetShardId = indexRouting.getShard(Uid.decodeId(ref.bytes, ref.offset, ref.length), null);
                     return shardId == targetShardId;
                 };
-                if (terms == null) {
-                    // this is the common case - no partitioning and no _routing values
-                    // in this case we also don't do anything special with regards to nested docs since we basically delete
-                    // by ID and parent and nested all have the same id.
-                    assert indexMetadata.isRoutingPartitionedIndex() == false;
-                    findSplitDocs(IdFieldMapper.NAME, includeInShard, leafReader, bitSet::set);
-                } else {
-                    final BitSet parentBitSet;
-                    if (nestedParentBitSetProducer == null) {
-                        parentBitSet = null;
-                    } else {
-                        parentBitSet = nestedParentBitSetProducer.getBitSet(context);
-                        if (parentBitSet == null) {
-                            return null; // no matches
-                        }
-                    }
-                    if (indexMetadata.isRoutingPartitionedIndex()) {
-                        // this is the heaviest invariant. Here we have to visit all docs stored fields do extract _id and _routing
-                        // this index is routing partitioned.
-                        Visitor visitor = new Visitor(leafReader);
-                        TwoPhaseIterator twoPhaseIterator = parentBitSet == null
-                            ? new RoutingPartitionedDocIdSetIterator(visitor)
-                            : new NestedRoutingPartitionedDocIdSetIterator(visitor, parentBitSet);
-                        return new ConstantScoreScorer(this, score(), scoreMode, twoPhaseIterator);
-                    } else {
-                        // here we potentially guard the docID consumers with our parent bitset if we have one.
-                        // this ensures that we are only marking root documents in the nested case and if necessary
-                        // we do a second pass to mark the corresponding children in markChildDocs
-                        Function<IntConsumer, IntConsumer> maybeWrapConsumer = consumer -> {
-                            if (parentBitSet != null) {
-                                return docId -> {
-                                    if (parentBitSet.get(docId)) {
-                                        consumer.accept(docId);
-                                    }
-                                };
-                            }
-                            return consumer;
-                        };
-                        // in the _routing case we first go and find all docs that have a routing value and mark the ones we have to delete
-                        findSplitDocs(RoutingFieldMapper.NAME, ref -> {
-                            int targetShardId = indexRouting.getShard(null, ref.utf8ToString());
-                            return shardId == targetShardId;
-                        }, leafReader, maybeWrapConsumer.apply(bitSet::set));
 
-                        // TODO have the IndexRouting build the query and pass routingRequired in
-                        boolean routingRequired = indexMetadata.mapping() == null ? false : indexMetadata.mapping().routingRequired();
-                        // now if we have a mixed index where some docs have a _routing value and some don't we have to exclude the ones
-                        // with a routing value from the next iteration and delete / select based on the ID.
-                        if (routingRequired == false && terms.getDocCount() != leafReader.maxDoc()) {
-                            /*
-                             * This is a special case where some docs don't have routing values.
-                             * It's annoying, but it's allowed to build an index where some documents
-                             * hve routing and others don't.
-                             *
-                             * Luckily, if the routing field is required in the mapping then we can
-                             * safely assume that all documents which are don't have a routing are
-                             * nested documents. And we pick those up later based on the assignment
-                             * of the document that contains them.
-                             */
-                            FixedBitSet hasRoutingValue = new FixedBitSet(leafReader.maxDoc());
-                            findSplitDocs(
-                                RoutingFieldMapper.NAME,
-                                Predicates.never(),
-                                leafReader,
-                                maybeWrapConsumer.apply(hasRoutingValue::set)
-                            );
-                            IntConsumer bitSetConsumer = maybeWrapConsumer.apply(bitSet::set);
-                            findSplitDocs(IdFieldMapper.NAME, includeInShard, leafReader, docId -> {
-                                if (hasRoutingValue.get(docId) == false) {
-                                    bitSetConsumer.accept(docId);
+                return new ScorerSupplier() {
+                    @Override
+                    public Scorer get(long leadCost) throws IOException {
+                        if (terms == null) {
+                            // this is the common case - no partitioning and no _routing values
+                            // in this case we also don't do anything special with regards to nested docs since we basically delete
+                            // by ID and parent and nested all have the same id.
+                            assert indexMetadata.isRoutingPartitionedIndex() == false;
+                            findSplitDocs(IdFieldMapper.NAME, includeInShard, leafReader, bitSet::set);
+                        } else {
+                            final BitSet parentBitSet;
+                            if (nestedParentBitSetProducer == null) {
+                                parentBitSet = null;
+                            } else {
+                                parentBitSet = nestedParentBitSetProducer.getBitSet(context);
+                                if (parentBitSet == null) {
+                                    return null; // no matches
                                 }
-                            });
-                        }
-                    }
-                    if (parentBitSet != null) {
-                        // if nested docs are involved we also need to mark all child docs that belong to a matching parent doc.
-                        markChildDocs(parentBitSet, bitSet);
-                    }
-                }
+                            }
+                            if (indexMetadata.isRoutingPartitionedIndex()) {
+                                // this is the heaviest invariant. Here we have to visit all docs stored fields do extract _id and _routing
+                                // this index is routing partitioned.
+                                Visitor visitor = new Visitor(leafReader);
+                                TwoPhaseIterator twoPhaseIterator = parentBitSet == null
+                                    ? new RoutingPartitionedDocIdSetIterator(visitor)
+                                    : new NestedRoutingPartitionedDocIdSetIterator(visitor, parentBitSet);
+                                return new ConstantScoreScorer(score(), scoreMode, twoPhaseIterator);
+                            } else {
+                                // here we potentially guard the docID consumers with our parent bitset if we have one.
+                                // this ensures that we are only marking root documents in the nested case and if necessary
+                                // we do a second pass to mark the corresponding children in markChildDocs
+                                Function<IntConsumer, IntConsumer> maybeWrapConsumer = consumer -> {
+                                    if (parentBitSet != null) {
+                                        return docId -> {
+                                            if (parentBitSet.get(docId)) {
+                                                consumer.accept(docId);
+                                            }
+                                        };
+                                    }
+                                    return consumer;
+                                };
+                                // in the _routing case we first go and find all docs that have a routing value and mark the ones we have to
+                                // delete
+                                findSplitDocs(RoutingFieldMapper.NAME, ref -> {
+                                    int targetShardId = indexRouting.getShard(null, ref.utf8ToString());
+                                    return shardId == targetShardId;
+                                }, leafReader, maybeWrapConsumer.apply(bitSet::set));
 
-                return new ConstantScoreScorer(this, score(), scoreMode, new BitSetIterator(bitSet, bitSet.length()));
+                                // TODO have the IndexRouting build the query and pass routingRequired in
+                                boolean routingRequired = indexMetadata.mapping() == null
+                                    ? false
+                                    : indexMetadata.mapping().routingRequired();
+                                // now if we have a mixed index where some docs have a _routing value and some don't we have to exclude the
+                                // ones
+                                // with a routing value from the next iteration and delete / select based on the ID.
+                                if (routingRequired == false && terms.getDocCount() != leafReader.maxDoc()) {
+                                    /*
+                                     * This is a special case where some docs don't have routing values.
+                                     * It's annoying, but it's allowed to build an index where some documents
+                                     * hve routing and others don't.
+                                     *
+                                     * Luckily, if the routing field is required in the mapping then we can
+                                     * safely assume that all documents which are don't have a routing are
+                                     * nested documents. And we pick those up later based on the assignment
+                                     * of the document that contains them.
+                                     */
+                                    FixedBitSet hasRoutingValue = new FixedBitSet(leafReader.maxDoc());
+                                    findSplitDocs(
+                                        RoutingFieldMapper.NAME,
+                                        Predicates.never(),
+                                        leafReader,
+                                        maybeWrapConsumer.apply(hasRoutingValue::set)
+                                    );
+                                    IntConsumer bitSetConsumer = maybeWrapConsumer.apply(bitSet::set);
+                                    findSplitDocs(IdFieldMapper.NAME, includeInShard, leafReader, docId -> {
+                                        if (hasRoutingValue.get(docId) == false) {
+                                            bitSetConsumer.accept(docId);
+                                        }
+                                    });
+                                }
+                            }
+                            if (parentBitSet != null) {
+                                // if nested docs are involved we also need to mark all child docs that belong to a matching parent doc.
+                                markChildDocs(parentBitSet, bitSet);
+                            }
+                        }
+
+                        return new ConstantScoreScorer(score(), scoreMode, new BitSetIterator(bitSet, bitSet.length()));
+                    }
+
+                    @Override
+                    public long cost() {
+                        return leafReader.maxDoc();
+                    }
+                };
             }
 
             @Override

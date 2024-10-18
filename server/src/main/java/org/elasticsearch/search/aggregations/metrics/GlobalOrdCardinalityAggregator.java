@@ -259,8 +259,8 @@ public class GlobalOrdCardinalityAggregator extends NumericMetricsAggregator.Sin
                             @Override
                             public void collect(int doc, long bucketOrd) throws IOException {
                                 if (docValues.advanceExact(doc)) {
-                                    for (long ord = docValues.nextOrd(); ord != SortedSetDocValues.NO_MORE_ORDS; ord = docValues
-                                        .nextOrd()) {
+                                    for (int i = 0; i < docValues.docValueCount(); i++) {
+                                        long ord = docValues.nextOrd();
                                         if (bits.getAndSet(ord) == false) {
                                             competitiveIterator.onVisitedOrdinal(ord);
                                         }
@@ -309,7 +309,8 @@ public class GlobalOrdCardinalityAggregator extends NumericMetricsAggregator.Sin
                 public void collect(int doc, long bucketOrd) throws IOException {
                     if (docValues.advanceExact(doc)) {
                         final BitArray bits = getNewOrExistingBitArray(bucketOrd);
-                        for (long ord = docValues.nextOrd(); ord != SortedSetDocValues.NO_MORE_ORDS; ord = docValues.nextOrd()) {
+                        for (int i = 0; i < docValues.docValueCount(); i++) {
+                            long ord = docValues.nextOrd();
                             bits.set((int) ord);
                         }
                     }

@@ -549,7 +549,7 @@ public class BlobStoreCacheMaintenanceService implements ClusterStateListener {
                 try (listeners) {
                     executeSearch(new SearchRequest().source(getSearchSourceBuilder().trackTotalHits(true)), (searchResponse, refs) -> {
                         assert total.get() == 0L;
-                        total.set(searchResponse.getHits().getTotalHits().value);
+                        total.set(searchResponse.getHits().getTotalHits().value());
                         handleSearchResponse(searchResponse, refs);
                     });
                 }

@@ -293,7 +293,13 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
 
         ReservedClusterStateService service = new ReservedClusterStateService(clusterService, mock(RerouteService.class), List.of());
 
-        ErrorState error = new ErrorState("namespace", 2L, List.of("error"), ReservedStateErrorMetadata.ErrorKind.TRANSIENT);
+        ErrorState error = new ErrorState(
+            "namespace",
+            2L,
+            ReservedVersionCheck.ONLY_NEW_VERSION,
+            List.of("error"),
+            ReservedStateErrorMetadata.ErrorKind.TRANSIENT
+        );
         service.updateErrorState(error);
 
         assertThat(updateTask.getValue(), notNullValue());
@@ -314,7 +320,13 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
 
         // it should not update if the error version is less than the current version
         when(clusterService.state()).thenReturn(updatedState);
-        ErrorState oldError = new ErrorState("namespace", 1L, List.of("old error"), ReservedStateErrorMetadata.ErrorKind.TRANSIENT);
+        ErrorState oldError = new ErrorState(
+            "namespace",
+            1L,
+            ReservedVersionCheck.ONLY_NEW_VERSION,
+            List.of("old error"),
+            ReservedStateErrorMetadata.ErrorKind.TRANSIENT
+        );
         service.updateErrorState(oldError);
         verifyNoMoreInteractions(errorQueue);
     }
@@ -326,7 +338,13 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
 
         ReservedStateErrorTask task = spy(
             new ReservedStateErrorTask(
-                new ErrorState("test", 1L, List.of("some parse error", "some io error"), ReservedStateErrorMetadata.ErrorKind.PARSING),
+                new ErrorState(
+                    "test",
+                    1L,
+                    ReservedVersionCheck.ONLY_NEW_VERSION,
+                    List.of("some parse error", "some io error"),
+                    ReservedStateErrorMetadata.ErrorKind.PARSING
+                ),
                 ActionListener.running(() -> listenerCompleted.set(true))
             )
         );

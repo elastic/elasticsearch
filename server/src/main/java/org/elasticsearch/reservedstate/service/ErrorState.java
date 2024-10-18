@@ -33,10 +33,6 @@ record ErrorState(
         this(namespace, version, versionCheck, List.of(stackTrace(e)), errorKind);
     }
 
-    ErrorState(String namespace, Long version, List<String> errors, ReservedStateErrorMetadata.ErrorKind errorKind) {
-        this(namespace, version, ReservedVersionCheck.ONLY_NEW_VERSION, errors, errorKind);
-    }
-
     public String toString() {
         return String.join(", ", errors());
     }

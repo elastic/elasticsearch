@@ -20,6 +20,7 @@ import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.math.BigInteger;
 import java.util.Arrays;
 import java.util.Objects;
 
@@ -362,7 +363,7 @@ public class OsStats implements Writeable, ToXContentFragment {
     public static class Cgroup implements Writeable, ToXContentFragment {
 
         private final String cpuAcctControlGroup;
-        private final String cpuAcctUsageNanos;
+        private final BigInteger cpuAcctUsageNanos;
         private final String cpuControlGroup;
         private final long cpuCfsPeriodMicros;
         private final long cpuCfsQuotaMicros;
@@ -387,7 +388,7 @@ public class OsStats implements Writeable, ToXContentFragment {
          *
          * @return the total CPU time in nanoseconds
          */
-        public String getCpuAcctUsageNanos() {
+        public BigInteger getCpuAcctUsageNanos() {
             return cpuAcctUsageNanos;
         }
 
@@ -465,7 +466,7 @@ public class OsStats implements Writeable, ToXContentFragment {
 
         public Cgroup(
             final String cpuAcctControlGroup,
-            final String cpuAcctUsageNanos,
+            final BigInteger cpuAcctUsageNanos,
             final String cpuControlGroup,
             final long cpuCfsPeriodMicros,
             final long cpuCfsQuotaMicros,
@@ -488,9 +489,9 @@ public class OsStats implements Writeable, ToXContentFragment {
         Cgroup(final StreamInput in) throws IOException {
             cpuAcctControlGroup = in.readString();
             if (in.getTransportVersion().onOrAfter(TransportVersions.CPU_STAT_STRING_PARSING)) {
-                cpuAcctUsageNanos = in.readString();
+                cpuAcctUsageNanos = in.readBigInteger();
             } else {
-                cpuAcctUsageNanos = Long.toString(in.readLong());
+                cpuAcctUsageNanos = BigInteger.valueOf(in.readLong());
             }
             cpuControlGroup = in.readString();
             cpuCfsPeriodMicros = in.readLong();
@@ -505,9 +506,9 @@ public class OsStats implements Writeable, ToXContentFragment {
         public void writeTo(final StreamOutput out) throws IOException {
             out.writeString(cpuAcctControlGroup);
             if (out.getTransportVersion().onOrAfter(TransportVersions.CPU_STAT_STRING_PARSING)) {
-                out.writeString(cpuAcctUsageNanos);
+                out.writeBigInteger(cpuAcctUsageNanos);
             } else {
-                out.writeLong(Long.parseLong(cpuAcctUsageNanos));
+                out.writeLong(cpuAcctUsageNanos.longValue());
             }
             out.writeString(cpuControlGroup);
             out.writeLong(cpuCfsPeriodMicros);

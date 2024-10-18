@@ -85,6 +85,7 @@ import org.elasticsearch.transport.TransportStats;
 import org.elasticsearch.xcontent.ToXContent;
 
 import java.io.IOException;
+import java.math.BigInteger;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -709,7 +710,7 @@ public class NodeStatsTests extends ESTestCase {
                 new OsStats.Swap(swapTotal, randomLongBetween(0, swapTotal)),
                 new OsStats.Cgroup(
                     randomAlphaOfLength(8),
-                    Long.toString(randomNonNegativeLong()),
+                    BigInteger.valueOf(randomNonNegativeLong()),
                     randomAlphaOfLength(8),
                     randomNonNegativeLong(),
                     randomNonNegativeLong(),

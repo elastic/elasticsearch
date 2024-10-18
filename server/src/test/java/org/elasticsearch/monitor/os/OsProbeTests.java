@@ -136,7 +136,7 @@ public class OsProbeTests extends ESTestCase {
         if (Constants.LINUX) {
             if (stats.getCgroup() != null) {
                 assertThat(stats.getCgroup().getCpuAcctControlGroup(), notNullValue());
-                assertThat(new BigInteger(stats.getCgroup().getCpuAcctUsageNanos()), greaterThan(BigInteger.ZERO));
+                assertThat(stats.getCgroup().getCpuAcctUsageNanos(), greaterThan(BigInteger.ZERO));
                 assertThat(stats.getCgroup().getCpuCfsQuotaMicros(), anyOf(equalTo(-1L), greaterThanOrEqualTo(0L)));
                 assertThat(stats.getCgroup().getCpuCfsPeriodMicros(), greaterThanOrEqualTo(0L));
                 assertThat(
@@ -197,7 +197,7 @@ public class OsProbeTests extends ESTestCase {
             case 1 -> {
                 assertNotNull(cgroup);
                 assertThat(cgroup.getCpuAcctControlGroup(), equalTo("/" + hierarchy));
-                assertThat(cgroup.getCpuAcctUsageNanos(), equalTo("364869866063112"));
+                assertThat(cgroup.getCpuAcctUsageNanos(), equalTo(new BigInteger("364869866063112")));
                 assertThat(cgroup.getCpuControlGroup(), equalTo("/" + hierarchy));
                 assertThat(cgroup.getCpuCfsPeriodMicros(), equalTo(100000L));
                 assertThat(cgroup.getCpuCfsQuotaMicros(), equalTo(50000L));

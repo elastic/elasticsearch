@@ -686,7 +686,7 @@ public class OsProbe {
             assert controllerMap.isEmpty() == false;
 
             final String cpuAcctControlGroup;
-            final String cgroupCpuAcctUsageNanos;
+            final BigInteger cgroupCpuAcctUsageNanos;
             final long cgroupCpuAcctCpuCfsPeriodMicros;
             final long cgroupCpuAcctCpuCfsQuotaMicros;
             final String cpuControlGroup;
@@ -704,7 +704,7 @@ public class OsProbe {
 
                 final BigInteger THOUSAND = BigInteger.valueOf(1000);
 
-                cgroupCpuAcctUsageNanos = cpuStatsMap.get("usage_usec").multiply(THOUSAND).toString(); // convert from micros to nanos
+                cgroupCpuAcctUsageNanos = cpuStatsMap.get("usage_usec").multiply(THOUSAND); // convert from micros to nanos
 
                 long[] cpuLimits = getCgroupV2CpuLimit(cpuControlGroup);
                 cgroupCpuAcctCpuCfsQuotaMicros = cpuLimits[0];
@@ -724,7 +724,7 @@ public class OsProbe {
                     logger.debug("no [cpuacct] data found in cgroup stats");
                     return null;
                 }
-                cgroupCpuAcctUsageNanos = getCgroupCpuAcctUsageNanos(cpuAcctControlGroup).toString();
+                cgroupCpuAcctUsageNanos = getCgroupCpuAcctUsageNanos(cpuAcctControlGroup);
 
                 cpuControlGroup = controllerMap.get("cpu");
                 if (cpuControlGroup == null) {

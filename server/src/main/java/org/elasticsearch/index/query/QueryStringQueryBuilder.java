@@ -23,6 +23,7 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
+import org.elasticsearch.index.mapper.DataTierFieldMapper;
 import org.elasticsearch.index.query.support.QueryParsers;
 import org.elasticsearch.index.search.QueryParserHelper;
 import org.elasticsearch.index.search.QueryStringQueryParser;
@@ -966,6 +967,22 @@ public final class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStr
         }
 
         return query;
+    }
+
+    @Override
+    protected QueryBuilder doCoordinatorRewrite(CoordinatorRewriteContext coordinatorRewriteContext) {
+        if ((fieldsAndWeights.isEmpty() == false && fieldsAndWeights.containsKey(DataTierFieldMapper.NAME))
+            || (defaultField != null && (defaultField.equals(DataTierFieldMapper.NAME) || Regex.isMatchAllPattern(defaultField)))) {
+            return tierFieldTermQueryCoordinatorRewriteIfPresent(
+                this,
+                true,
+                DataTierFieldMapper.NAME,
+                queryString,
+                coordinatorRewriteContext
+            );
+        } else {
+            return this;
+        }
     }
 
     @Override

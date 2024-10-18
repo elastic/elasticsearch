@@ -219,6 +219,11 @@ public class TermQueryBuilder extends BaseTermQueryBuilder<TermQueryBuilder> {
     }
 
     @Override
+    protected QueryBuilder doCoordinatorRewrite(CoordinatorRewriteContext coordinatorRewriteContext) {
+        return tierFieldTermQueryCoordinatorRewriteIfPresent(this, caseInsensitive, fieldName, value, coordinatorRewriteContext);
+    }
+
+    @Override
     protected final boolean doEquals(TermQueryBuilder other) {
         return super.doEquals(other) && Objects.equals(caseInsensitive, other.caseInsensitive);
     }

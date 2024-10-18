@@ -12,7 +12,6 @@ import java.time.LocalDateTime;
 
 import org.elasticsearch.gradle.Architecture
 import org.elasticsearch.gradle.OS
-import org.elasticsearch.gradle.internal.info.BuildParams
 
 import java.lang.management.ManagementFactory
 import java.time.LocalDateTime
@@ -92,8 +91,8 @@ develocity {
           link 'Source', "${prBaseUrl}/tree/${System.getenv('BUILDKITE_COMMIT')}"
           link 'Pull Request', "https://github.com/${repository}/pull/${prId}"
         } else {
-          value 'Git Commit ID', BuildParams.gitRevision
-          link 'Source', "https://github.com/${repository}/tree/${BuildParams.gitRevision}"
+          value 'Git Commit ID', buildParams.gitRevision
+          link 'Source', "https://github.com/${repository}/tree/${buildParams.gitRevision}"
         }
 
         buildFinished { result ->

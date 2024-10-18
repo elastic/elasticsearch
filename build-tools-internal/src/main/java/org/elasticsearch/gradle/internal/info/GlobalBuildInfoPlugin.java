@@ -87,7 +87,6 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
         if (project != project.getRootProject()) {
             throw new IllegalStateException(this.getClass().getName() + " can only be applied to the root project.");
         }
-        BuildParameterExtension buildParams = project.getExtensions().create("buildParams", BuildParameterExtension.class);
         project.getPlugins().apply(JvmToolchainsPlugin.class);
         toolChainService = project.getExtensions().getByType(JavaToolchainService.class);
         GradleVersion minimumGradleVersion = GradleVersion.version(getResourceContents("/minimumGradleVersion"));
@@ -99,32 +98,69 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
         JavaVersion minimumRuntimeVersion = JavaVersion.toVersion(getResourceContents("/minimumRuntimeVersion"));
 
         Provider<File> explicitRuntimeJavaHome = findRuntimeJavaHome();
-        boolean isExplicitRuntimeJavaHomeSet = explicitRuntimeJavaHome.isPresent();
-        Provider<File> actualRuntimeJavaHome = isExplicitRuntimeJavaHomeSet
+        boolean isRuntimeJavaHomeExplicitlySet = explicitRuntimeJavaHome.isPresent();
+        Provider<File> actualRuntimeJavaHome = isRuntimeJavaHomeExplicitlySet
             ? explicitRuntimeJavaHome
             : resolveJavaHomeFromToolChainService(VersionProperties.getBundledJdkMajorVersion());
 
         GitInfo gitInfo = GitInfo.gitInfo(project.getRootDir());
 
+        Provider<JvmInstallationMetadata> runtimeJdkMetaData = actualRuntimeJavaHome.map(
+            runtimeJavaHome -> metadataDetector.getMetadata(getJavaInstallation(runtimeJavaHome))
+        );
+        AtomicReference<BwcVersions> cache = new AtomicReference<>();
+
+        Provider<BwcVersions> bwcVersionsProvider = providers.provider(
+            () -> cache.updateAndGet(val -> val == null ? resolveBwcVersions(Util.locateElasticsearchWorkspace(project.getGradle())) : val)
+        );
+        BuildParameterExtension buildParams = project.getExtensions()
+            .create(
+                "buildParams",
+                BuildParameterExtension.class,
+                actualRuntimeJavaHome,
+                resolveToolchainSpecFromEnv(),
+                actualRuntimeJavaHome.map(
+                    javaHome -> determineJavaVersion(
+                        "runtime java.home",
+                        javaHome,
+                        isRuntimeJavaHomeExplicitlySet
+                            ? minimumRuntimeVersion
+                            : JavaVersion.toVersion(VersionProperties.getBundledJdkMajorVersion())
+                    )
+                ),
+                isRuntimeJavaHomeExplicitlySet,
+                runtimeJdkMetaData.map(m -> formatJavaVendorDetails(m)),
+
+                getAvailableJavaVersions(),
+                minimumCompilerVersion,
+                minimumRuntimeVersion,
+                Jvm.current().getJavaVersion(),
+                gitInfo.getRevision(),
+                gitInfo.getOrigin(),
+                ZonedDateTime.now(ZoneOffset.UTC),
+                getTestSeed(),
+                System.getenv("JENKINS_URL") != null || System.getenv("BUILDKITE_BUILD_URL") != null || System.getProperty("isCI") != null,
+                ParallelDetector.findDefaultParallel(project),
+                Util.getBooleanProperty("build.snapshot", true),
+                bwcVersionsProvider
+            );
+
         BuildParams.init(params -> {
             params.reset();
             params.setRuntimeJavaHome(actualRuntimeJavaHome);
             params.setJavaToolChainSpec(resolveToolchainSpecFromEnv());
-            Provider<JvmInstallationMetadata> runtimeJdkMetaData = actualRuntimeJavaHome.map(
-                runtimeJavaHome -> metadataDetector.getMetadata(getJavaInstallation(runtimeJavaHome))
-            );
             params.setRuntimeJavaVersion(
                 actualRuntimeJavaHome.map(
                     javaHome -> determineJavaVersion(
                         "runtime java.home",
                         javaHome,
-                        isExplicitRuntimeJavaHomeSet
+                        isRuntimeJavaHomeExplicitlySet
                             ? minimumRuntimeVersion
                             : JavaVersion.toVersion(VersionProperties.getBundledJdkMajorVersion())
                     )
                 )
             );
-            params.setIsRuntimeJavaHomeSet(isExplicitRuntimeJavaHomeSet);
+            params.setIsRuntimeJavaHomeSet(isRuntimeJavaHomeExplicitlySet);
             params.setRuntimeJavaDetails(runtimeJdkMetaData.map(m -> formatJavaVendorDetails(m)));
             params.setJavaVersions(getAvailableJavaVersions());
             params.setMinimumCompilerVersion(minimumCompilerVersion);
@@ -139,14 +175,7 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
             );
             params.setDefaultParallel(ParallelDetector.findDefaultParallel(project));
             params.setIsSnapshotBuild(Util.getBooleanProperty("build.snapshot", true));
-            AtomicReference<BwcVersions> cache = new AtomicReference<>();
-            params.setBwcVersions(
-                providers.provider(
-                    () -> cache.updateAndGet(
-                        val -> val == null ? resolveBwcVersions(Util.locateElasticsearchWorkspace(project.getGradle())) : val
-                    )
-                )
-            );
+            params.setBwcVersions(bwcVersionsProvider);
         });
 
         // Enforce the minimum compiler version

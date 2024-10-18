@@ -10,6 +10,7 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.BoostQuery;
+import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.NamedMatches;
 import org.apache.lucene.search.Query;
@@ -21,6 +22,8 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.SuggestingErrorOnUnknown;
+import org.elasticsearch.index.mapper.DataTierFieldMapper;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.xcontent.AbstractObjectParser;
 import org.elasticsearch.xcontent.FilterXContentParser;
 import org.elasticsearch.xcontent.FilterXContentParserWrapper;
@@ -311,6 +314,9 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
         }
         final QueryRewriteContext context = queryRewriteContext.convertToIndexMetadataContext();
         if (context != null) {
+            // Even though we're still on the coordinator, this executes at the shard level.
+            // Any optimisations around skipping unavailable shards should be performed in {@link AbstractQueryBuilder#doCoordinatorRewrite}
+            // as that will execute for unavailable shards as well (which can be skipped if needed)
             return doIndexMetadataRewrite(context);
         }
         return this;
@@ -324,6 +330,47 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
      */
     protected QueryBuilder doCoordinatorRewrite(final CoordinatorRewriteContext coordinatorRewriteContext) {
         return this;
+    }
+
+    /**
+     * Enables a coordinator rewrite based on the _tier field for queries that can be expressed
+     * as a term query (i.e. match, term, simple query etc).
+     * @param query the source query to rewrite
+     * @param caseInsensitive some queries are optionally case sensitive, this controls if the underlying
+     *                        term query we execute on _tier will be case sensitive or insensitive
+     * @param queryFieldName the name of the field the source query is meant to execute against
+     * @param queryFieldValue the value of the source query field
+     * @param coordinatorRewriteContext the coordinator rewrite context
+     * @return the rewritten query if applicable
+     */
+    protected static QueryBuilder tierFieldTermQueryCoordinatorRewriteIfPresent(
+        QueryBuilder query,
+        boolean caseInsensitive,
+        String queryFieldName,
+        Object queryFieldValue,
+        CoordinatorRewriteContext coordinatorRewriteContext
+    ) {
+        if (queryFieldName.equals(DataTierFieldMapper.NAME) == false) {
+            return query;
+        }
+        final MappedFieldType fieldType = coordinatorRewriteContext.getFieldType(DataTierFieldMapper.NAME);
+        if (fieldType instanceof final DataTierFieldMapper.DataTierFieldType tierFieldType) {
+            Query tierFieldQuery;
+            if (caseInsensitive) {
+                tierFieldQuery = tierFieldType.internalTermQueryCaseInsensitive(queryFieldValue, coordinatorRewriteContext);
+            } else {
+                tierFieldQuery = tierFieldType.internalTermQuery(queryFieldValue, coordinatorRewriteContext);
+            }
+
+            if (tierFieldQuery instanceof MatchNoDocsQuery) {
+                return new MatchNoneQueryBuilder("The \"" + query.getName() + "\" query was rewritten to a \"match_none\" query.");
+            } else if (tierFieldQuery instanceof MatchAllDocsQuery) {
+                return new MatchAllQueryBuilder();
+            } else {
+                assert false : "Constant fields must produce match-all or match-none queries, got " + query;
+            }
+        }
+        return query;
     }
 
     /**

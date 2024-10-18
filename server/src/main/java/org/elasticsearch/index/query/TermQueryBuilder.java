@@ -18,7 +18,6 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.mapper.ConstantFieldType;
-import org.elasticsearch.index.mapper.DataTierFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -221,19 +220,7 @@ public class TermQueryBuilder extends BaseTermQueryBuilder<TermQueryBuilder> {
 
     @Override
     protected QueryBuilder doCoordinatorRewrite(CoordinatorRewriteContext coordinatorRewriteContext) {
-        if (fieldName.equals(DataTierFieldMapper.NAME) == false) {
-            return this;
-        }
-        final MappedFieldType fieldType = coordinatorRewriteContext.getFieldType(DataTierFieldMapper.NAME);
-        if (fieldType instanceof final DataTierFieldMapper.DataTierFieldType tierFieldType) {
-            Query tierFieldQuery = tierFieldType.internalTermQueryCaseInsensitive(value, coordinatorRewriteContext);
-            if (tierFieldQuery instanceof MatchNoDocsQuery) {
-                return new MatchNoneQueryBuilder("The \"" + getName() + "\" query was rewritten to a \"match_none\" query.");
-            } else if (tierFieldQuery instanceof MatchAllDocsQuery) {
-                return new MatchAllQueryBuilder();
-            }
-        }
-        return this;
+        return tierFieldTermQueryCoordinatorRewriteIfPresent(this, caseInsensitive, fieldName, value, coordinatorRewriteContext);
     }
 
     @Override

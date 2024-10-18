@@ -361,6 +361,8 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
                     return new MatchNoneQueryBuilder("The \"" + getName() + "\" query was rewritten to a \"match_none\" query.");
                 } else if (tierFieldQuery instanceof MatchAllDocsQuery) {
                     return new MatchAllQueryBuilder();
+                } else {
+                    assert false : "Constant fields must produce match-all or match-none queries, got " + tierFieldQuery;
                 }
             }
         }

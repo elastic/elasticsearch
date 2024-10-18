@@ -1059,8 +1059,43 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseFroz
         }
 
         {
-            // bool query
+            // bool term query
             BoolQueryBuilder boolQueryBuilder = QueryBuilders.boolQuery().mustNot(QueryBuilders.termQuery("_tier", "data_frozen"));
+            List<String> indicesToSearch = List.of(regularIndex, partiallyMountedIndex);
+            SearchRequest request = new SearchRequest().indices(indicesToSearch.toArray(new String[0]))
+                .source(new SearchSourceBuilder().query(boolQueryBuilder));
+
+            assertResponse(client().search(request), searchResponse -> {
+                // as we excluded the frozen tier we shouldn't get any failures
+                assertThat(searchResponse.getFailedShards(), equalTo(0));
+                // we should be receiving all the hits from the index that's in the data_content tier
+                assertThat(searchResponse.getHits().getTotalHits().value, equalTo((long) numDocsRegularIndex));
+            });
+        }
+
+        {
+            // bool match query
+            BoolQueryBuilder boolQueryBuilder = QueryBuilders.boolQuery().mustNot(QueryBuilders.matchQuery("_tier", "data_frozen"));
+            List<String> indicesToSearch = List.of(regularIndex, partiallyMountedIndex);
+            SearchRequest request = new SearchRequest().indices(indicesToSearch.toArray(new String[0]))
+                .source(new SearchSourceBuilder().query(boolQueryBuilder));
+
+            assertResponse(client().search(request), searchResponse -> {
+                // as we excluded the frozen tier we shouldn't get any failures
+                assertThat(searchResponse.getFailedShards(), equalTo(0));
+                // we should be receiving all the hits from the index that's in the data_content tier
+                assertThat(searchResponse.getHits().getTotalHits().value, equalTo((long) numDocsRegularIndex));
+            });
+        }
+
+        {
+            // bool query string, prefix, wildcard, or simple query string
+            BoolQueryBuilder boolQueryBuilder = QueryBuilders.boolQuery().mustNot(randomFrom(
+                QueryBuilders.queryStringQuery("data_frozen").field("_tier"),
+                QueryBuilders.simpleQueryStringQuery("data_frozen").field("_tier"),
+                QueryBuilders.wildcardQuery("_tier", "dat*ozen"),
+                QueryBuilders.prefixQuery("_tier", "data_fro")
+            ));
             List<String> indicesToSearch = List.of(regularIndex, partiallyMountedIndex);
             SearchRequest request = new SearchRequest().indices(indicesToSearch.toArray(new String[0]))
                 .source(new SearchSourceBuilder().query(boolQueryBuilder));

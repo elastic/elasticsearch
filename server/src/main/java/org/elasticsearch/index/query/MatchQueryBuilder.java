@@ -385,6 +385,11 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
         return this;
     }
 
+    @Override
+    protected QueryBuilder doCoordinatorRewrite(CoordinatorRewriteContext coordinatorRewriteContext) {
+        return tierFieldTermQueryCoordinatorRewriteIfPresent(this, true, fieldName, value, coordinatorRewriteContext);
+    }
+
     private NamedAnalyzer configuredAnalyzer(QueryRewriteContext context) {
         if (analyzer != null) {
             return context.getIndexAnalyzers().get(analyzer);

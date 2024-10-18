@@ -25,11 +25,34 @@ public class PutConnectorSecretActionTests extends ESTestCase {
     }
 
     public void testValidate_WhenConnectorSecretIdIsEmpty_ExpectValidationError() {
-        PutConnectorSecretRequest requestWithMissingValue = new PutConnectorSecretRequest("", "");
-        ActionRequestValidationException exception = requestWithMissingValue.validate();
+        PutConnectorSecretRequest requestWithEmptyId = new PutConnectorSecretRequest("", randomAlphaOfLength(10));
+        ActionRequestValidationException exception = requestWithEmptyId.validate();
 
         assertThat(exception, notNullValue());
         assertThat(exception.getMessage(), containsString("[id] cannot be [null] or [\"\"]"));
+    }
+
+    public void testValidate_WhenConnectorSecretIdIsNull_ExpectValidationError() {
+        PutConnectorSecretRequest requestWithNullId = new PutConnectorSecretRequest(null, randomAlphaOfLength(10));
+        ActionRequestValidationException exception = requestWithNullId.validate();
+
+        assertThat(exception, notNullValue());
+        assertThat(exception.getMessage(), containsString("[id] cannot be [null] or [\"\"]"));
+    }
+
+    public void testValidate_WhenConnectorSecretValueIsEmpty_ExpectValidationError() {
+        PutConnectorSecretRequest requestWithEmptyValue = new PutConnectorSecretRequest(randomAlphaOfLength(10), "");
+        ActionRequestValidationException exception = requestWithEmptyValue.validate();
+
+        assertThat(exception, notNullValue());
+        assertThat(exception.getMessage(), containsString("[value] cannot be [null] or [\"\"]"));
+    }
+
+    public void testValidate_WhenConnectorSecretValueIsNull_ExpectValidationError() {
+        PutConnectorSecretRequest requestWithEmptyValue = new PutConnectorSecretRequest(randomAlphaOfLength(10), null);
+        ActionRequestValidationException exception = requestWithEmptyValue.validate();
+
+        assertThat(exception, notNullValue());
         assertThat(exception.getMessage(), containsString("[value] cannot be [null] or [\"\"]"));
     }
 }

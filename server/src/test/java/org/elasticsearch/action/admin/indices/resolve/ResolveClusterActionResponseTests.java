@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.indices.resolve;
@@ -20,22 +21,39 @@ public class ResolveClusterActionResponseTests extends AbstractWireSerializingTe
 
     @Override
     protected ResolveClusterActionResponse createTestInstance() {
-        return new ResolveClusterActionResponse(randomResolveClusterInfoMap());
+        return new ResolveClusterActionResponse(randomResolveClusterInfoMap(null));
     }
 
-    private Map<String, ResolveClusterInfo> randomResolveClusterInfoMap() {
+    private ResolveClusterInfo randomResolveClusterInfo(ResolveClusterInfo existing) {
+        if (existing == null) {
+            return randomResolveClusterInfo();
+        } else {
+            return randomValueOtherThan(existing, () -> randomResolveClusterInfo());
+        }
+    }
+
+    private ResolveClusterInfo getResolveClusterInfoFromResponse(String key, ResolveClusterActionResponse response) {
+        if (response == null || response.getResolveClusterInfo() == null) {
+            return null;
+        }
+        return response.getResolveClusterInfo().get(key);
+    }
+
+    private Map<String, ResolveClusterInfo> randomResolveClusterInfoMap(ResolveClusterActionResponse existingResponse) {
         Map<String, ResolveClusterInfo> infoMap = new HashMap<>();
         int numClusters = randomIntBetween(0, 50);
         if (randomBoolean() || numClusters == 0) {
-            infoMap.put(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY, randomResolveClusterInfo());
+            String key = RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
+            infoMap.put(key, randomResolveClusterInfo(getResolveClusterInfoFromResponse(key, existingResponse)));
         }
         for (int i = 0; i < numClusters; i++) {
-            infoMap.put("remote_" + i, randomResolveClusterInfo());
+            String key = "remote_" + i;
+            infoMap.put(key, randomResolveClusterInfo(getResolveClusterInfoFromResponse(key, existingResponse)));
         }
         return infoMap;
     }
 
-    private ResolveClusterInfo randomResolveClusterInfo() {
+    static ResolveClusterInfo randomResolveClusterInfo() {
         int val = randomIntBetween(1, 3);
         return switch (val) {
             case 1 -> new ResolveClusterInfo(false, randomBoolean());
@@ -52,6 +70,6 @@ public class ResolveClusterActionResponseTests extends AbstractWireSerializingTe
 
     @Override
     protected ResolveClusterActionResponse mutateInstance(ResolveClusterActionResponse response) {
-        return new ResolveClusterActionResponse(randomResolveClusterInfoMap());
+        return new ResolveClusterActionResponse(randomResolveClusterInfoMap(response));
     }
 }

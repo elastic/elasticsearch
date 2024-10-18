@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.cluster.allocation;
@@ -16,6 +17,8 @@ import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.AllocationDecision;
 import org.elasticsearch.cluster.routing.allocation.ShardAllocationDecision;
+import org.elasticsearch.common.ReferenceDocs;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -43,10 +46,14 @@ import static org.elasticsearch.common.xcontent.ChunkedToXContentHelper.singleCh
  */
 public final class ClusterAllocationExplanation implements ChunkedToXContentObject, Writeable {
 
-    static final String NO_SHARD_SPECIFIED_MESSAGE = "No shard was specified in the explain API request, so this response "
-        + "explains a randomly chosen unassigned shard. There may be other unassigned shards in this cluster which cannot be assigned for "
-        + "different reasons. It may not be possible to assign this shard until one of the other shards is assigned correctly. To explain "
-        + "the allocation of other shards (whether assigned or unassigned) you must specify the target shard in the request to this API.";
+    static final String NO_SHARD_SPECIFIED_MESSAGE = Strings.format(
+        """
+            No shard was specified in the explain API request, so this response explains a randomly chosen unassigned shard. There may be \
+            other unassigned shards in this cluster which cannot be assigned for different reasons. It may not be possible to assign this \
+            shard until one of the other shards is assigned correctly. To explain the allocation of other shards (whether assigned or \
+            unassigned) you must specify the target shard in the request to this API. See %s for more information.""",
+        ReferenceDocs.ALLOCATION_EXPLAIN_API
+    );
 
     private final boolean specificShard;
     private final ShardRouting shardRouting;
@@ -206,37 +213,34 @@ public final class ClusterAllocationExplanation implements ChunkedToXContentObje
         } else {
             String explanation;
             if (shardRouting.state() == ShardRoutingState.RELOCATING) {
-                explanation = "the shard is in the process of relocating from node ["
-                    + currentNode.getName()
-                    + "] "
-                    + "to node ["
-                    + relocationTargetNode.getName()
-                    + "], wait until relocation has completed";
+                explanation = Strings.format(
+                    "the shard is in the process of relocating from node [%s] to node [%s], wait until relocation has completed",
+                    currentNode.getName(),
+                    relocationTargetNode.getName()
+                );
             } else {
                 assert shardRouting.state() == ShardRoutingState.INITIALIZING;
-                explanation = "the shard is in the process of initializing on node ["
-                    + currentNode.getName()
-                    + "], "
-                    + "wait until initialization has completed";
+                explanation = Strings.format(
+                    "the shard is in the process of initializing on node [%s], wait until initialization has completed",
+                    currentNode.getName()
+                );
             }
             return Iterators.single((builder, p) -> builder.field("explanation", explanation));
         }
     }
 
-    private static XContentBuilder unassignedInfoToXContent(UnassignedInfo unassignedInfo, XContentBuilder builder) throws IOException {
-
+    private static void unassignedInfoToXContent(UnassignedInfo unassignedInfo, XContentBuilder builder) throws IOException {
         builder.startObject("unassigned_info");
-        builder.field("reason", unassignedInfo.getReason());
-        builder.field("at", UnassignedInfo.DATE_TIME_FORMATTER.format(Instant.ofEpochMilli(unassignedInfo.getUnassignedTimeInMillis())));
-        if (unassignedInfo.getNumFailedAllocations() > 0) {
-            builder.field("failed_allocation_attempts", unassignedInfo.getNumFailedAllocations());
+        builder.field("reason", unassignedInfo.reason());
+        builder.field("at", UnassignedInfo.DATE_TIME_FORMATTER.format(Instant.ofEpochMilli(unassignedInfo.unassignedTimeMillis())));
+        if (unassignedInfo.failedAllocations() > 0) {
+            builder.field("failed_allocation_attempts", unassignedInfo.failedAllocations());
         }
-        String details = unassignedInfo.getDetails();
+        String details = unassignedInfo.details();
         if (details != null) {
             builder.field("details", details);
         }
-        builder.field("last_allocation_status", AllocationDecision.fromAllocationStatus(unassignedInfo.getLastAllocationStatus()));
+        builder.field("last_allocation_status", AllocationDecision.fromAllocationStatus(unassignedInfo.lastAllocationStatus()));
         builder.endObject();
-        return builder;
     }
 }

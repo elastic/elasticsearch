@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.util.concurrent;
@@ -13,6 +14,7 @@ import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Processors;
+import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.hamcrest.Matcher;
@@ -22,6 +24,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -33,8 +36,10 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasToString;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.nullValue;
 
 /**
  * Tests for EsExecutors and its components like EsAbortPolicy.
@@ -624,6 +629,81 @@ public class EsExecutorsTests extends ESTestCase {
                 randomFrom(DEFAULT, DO_NOT_TRACK)
             )
         );
+    }
+
+    public void testParseExecutorName() throws InterruptedException {
+        final var executorName = randomAlphaOfLength(10);
+        final String nodeName = rarely() ? null : randomIdentifier();
+        final ThreadFactory threadFactory;
+        if (nodeName == null) {
+            threadFactory = EsExecutors.daemonThreadFactory(Settings.EMPTY, executorName);
+        } else if (randomBoolean()) {
+            threadFactory = EsExecutors.daemonThreadFactory(
+                Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), nodeName).build(),
+                executorName
+            );
+        } else {
+            threadFactory = EsExecutors.daemonThreadFactory(nodeName, executorName);
+        }
+
+        final var thread = threadFactory.newThread(() -> {});
+        try {
+            assertThat(EsExecutors.executorName(thread.getName()), equalTo(executorName));
+            assertThat(EsExecutors.executorName(thread), equalTo(executorName));
+            assertThat(EsExecutors.executorName("TEST-" + thread.getName()), is(nullValue()));
+            assertThat(EsExecutors.executorName("LuceneTestCase" + thread.getName()), is(nullValue()));
+        } finally {
+            thread.join();
+        }
+    }
+
+    public void testScalingWithTaskTimeTracking() {
+        final int min = between(1, 3);
+        final int max = between(min + 1, 6);
+
+        {
+            ThreadPoolExecutor pool = EsExecutors.newScaling(
+                getClass().getName() + "/" + getTestName(),
+                min,
+                max,
+                between(1, 100),
+                randomTimeUnit(),
+                randomBoolean(),
+                EsExecutors.daemonThreadFactory("test"),
+                threadContext,
+                new EsExecutors.TaskTrackingConfig(randomBoolean(), randomDoubleBetween(0.01, 0.1, true))
+            );
+            assertThat(pool, instanceOf(TaskExecutionTimeTrackingEsThreadPoolExecutor.class));
+        }
+
+        {
+            ThreadPoolExecutor pool = EsExecutors.newScaling(
+                getClass().getName() + "/" + getTestName(),
+                min,
+                max,
+                between(1, 100),
+                randomTimeUnit(),
+                randomBoolean(),
+                EsExecutors.daemonThreadFactory("test"),
+                threadContext
+            );
+            assertThat(pool, instanceOf(EsThreadPoolExecutor.class));
+        }
+
+        {
+            ThreadPoolExecutor pool = EsExecutors.newScaling(
+                getClass().getName() + "/" + getTestName(),
+                min,
+                max,
+                between(1, 100),
+                randomTimeUnit(),
+                randomBoolean(),
+                EsExecutors.daemonThreadFactory("test"),
+                threadContext,
+                DO_NOT_TRACK
+            );
+            assertThat(pool, instanceOf(EsThreadPoolExecutor.class));
+        }
     }
 
     private static void runRejectOnShutdownTest(ExecutorService executor) {

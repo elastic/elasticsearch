@@ -1,11 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.gradle.internal.docker;
+
+import com.avast.gradle.dockercompose.ServiceInfo;
 
 import org.elasticsearch.gradle.Architecture;
 import org.elasticsearch.gradle.OS;
@@ -56,6 +59,9 @@ public abstract class DockerSupportService implements BuildService<DockerSupport
 
     private final ProviderFactory providerFactory;
     private DockerAvailability dockerAvailability;
+    private Map<String, ServiceInfo> serviceInfos;
+    private Map<String, Map<Integer, Integer>> tcpPorts;
+    private Map<String, Map<Integer, Integer>> udpPorts;
 
     @Inject
     public DockerSupportService(ProviderFactory providerFactory) {
@@ -143,6 +149,10 @@ public abstract class DockerSupportService implements BuildService<DockerSupport
         }
 
         return this.dockerAvailability;
+    }
+
+    public boolean isArchitectureSupported(Architecture architecture) {
+        return getDockerAvailability().supportedArchitectures().contains(architecture);
     }
 
     private DockerResult runCommand(List args, DockerValueSource.OutputFilter outputFilter) {
@@ -327,6 +337,27 @@ public abstract class DockerSupportService implements BuildService<DockerSupport
             message + "\nyou can address this by attending to the reported issue, or removing the offending tasks from being executed.",
             e
         );
+    }
+
+    public void storeInfo(Map<String, ServiceInfo> servicesInfos) {
+        tcpPorts = servicesInfos.entrySet()
+            .stream()
+            .collect(Collectors.toMap(entry -> entry.getKey(), entry -> entry.getValue().getTcpPorts()));
+        udpPorts = servicesInfos.entrySet()
+            .stream()
+            .collect(Collectors.toMap(entry -> entry.getKey(), entry -> entry.getValue().getUdpPorts()));
+    }
+
+    public Map<String, Map<Integer, Integer>> getTcpPorts() {
+        return tcpPorts;
+    }
+
+    public Map<String, Map<Integer, Integer>> getUdpPorts() {
+        return udpPorts;
+    }
+
+    public void setServiceInfos(Map<String, ServiceInfo> serviceInfos) {
+        this.serviceInfos = serviceInfos;
     }
 
     /**

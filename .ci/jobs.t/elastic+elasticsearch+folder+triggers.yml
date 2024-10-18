@@ -1,4 +1,0 @@
-- job:
-    name: elastic+elasticsearch+%BRANCH%+triggers
-    display-name: Periodic Triggers
-    project-type: folder

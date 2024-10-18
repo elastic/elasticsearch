@@ -8,10 +8,16 @@
 package org.elasticsearch.xpack.esql.qa.mixed;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.rest.TestFeatureService;
+import org.elasticsearch.xpack.esql.CsvSpecReader.CsvTestCase;
 import org.elasticsearch.xpack.esql.qa.rest.EsqlSpecTestCase;
-import org.elasticsearch.xpack.ql.CsvSpecReader.CsvTestCase;
+import org.junit.AfterClass;
+import org.junit.Before;
 import org.junit.ClassRule;
+
+import java.io.IOException;
 
 import static org.elasticsearch.xpack.esql.CsvTestUtils.isEnabled;
 import static org.elasticsearch.xpack.esql.qa.rest.EsqlSpecTestCase.Mode.ASYNC;
@@ -27,14 +33,45 @@ public class MixedClusterEsqlSpecIT extends EsqlSpecTestCase {
 
     static final Version bwcVersion = Version.fromString(System.getProperty("tests.old_cluster_version"));
 
-    public MixedClusterEsqlSpecIT(String fileName, String groupName, String testName, Integer lineNumber, CsvTestCase testCase, Mode mode) {
-        super(fileName, groupName, testName, lineNumber, testCase, mode);
+    private static TestFeatureService oldClusterTestFeatureService = null;
+
+    @Before
+    public void extractOldClusterFeatures() {
+        if (oldClusterTestFeatureService == null) {
+            oldClusterTestFeatureService = testFeatureService;
+        }
+    }
+
+    protected static boolean oldClusterHasFeature(String featureId) {
+        assert oldClusterTestFeatureService != null;
+        return oldClusterTestFeatureService.clusterHasFeature(featureId);
+    }
+
+    protected static boolean oldClusterHasFeature(NodeFeature feature) {
+        return oldClusterHasFeature(feature.id());
+    }
+
+    @AfterClass
+    public static void cleanUp() {
+        oldClusterTestFeatureService = null;
+    }
+
+    public MixedClusterEsqlSpecIT(
+        String fileName,
+        String groupName,
+        String testName,
+        Integer lineNumber,
+        CsvTestCase testCase,
+        String instructions,
+        Mode mode
+    ) {
+        super(fileName, groupName, testName, lineNumber, testCase, instructions, mode);
     }
 
     @Override
-    protected void shouldSkipTest(String testName) {
+    protected void shouldSkipTest(String testName) throws IOException {
         super.shouldSkipTest(testName);
-        assumeTrue("Test " + testName + " is skipped on " + bwcVersion, isEnabled(testName, bwcVersion));
+        assumeTrue("Test " + testName + " is skipped on " + bwcVersion, isEnabled(testName, instructions, bwcVersion));
         if (mode == ASYNC) {
             assumeTrue("Async is not supported on " + bwcVersion, supportsAsync());
         }
@@ -42,6 +79,11 @@ public class MixedClusterEsqlSpecIT extends EsqlSpecTestCase {
 
     @Override
     protected boolean supportsAsync() {
-        return bwcVersion.onOrAfter(Version.V_8_13_0);
+        return oldClusterHasFeature(ASYNC_QUERY_FEATURE_ID);
+    }
+
+    @Override
+    protected boolean enableRoundingDoubleValuesOnAsserting() {
+        return true;
     }
 }

@@ -44,6 +44,7 @@ import java.util.stream.Collectors;
 import static java.util.Map.entry;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper.randomCrossClusterAccessSubjectInfo;
 import static org.elasticsearch.xpack.core.security.authc.CrossClusterAccessSubjectInfoTests.randomRoleDescriptorsIntersection;
+import static org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissions.ROLE_REMOTE_CLUSTER_PRIVS;
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -858,9 +859,9 @@ public class AuthenticationTests extends ESTestCase {
                 ex.getMessage(),
                 containsString(
                     "versions of Elasticsearch before ["
-                        + RemoteClusterPortSettings.TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY
+                        + RemoteClusterPortSettings.TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY.toReleaseVersion()
                         + "] can't handle cross cluster access authentication and attempted to rewrite for ["
-                        + version
+                        + version.toReleaseVersion()
                         + "]"
                 )
             );
@@ -1064,6 +1065,51 @@ public class AuthenticationTests extends ESTestCase {
             .apiKey()
             .metadata(metadata)
             .transportVersion(RemoteClusterPortSettings.TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY)
+            .build();
+
+        // pick a version before that of the authentication instance to force a rewrite
+        final TransportVersion olderVersion = TransportVersionUtils.randomVersionBetween(
+            random(),
+            Authentication.VERSION_API_KEY_ROLES_AS_BYTES,
+            TransportVersionUtils.getPreviousVersion(original.getEffectiveSubject().getTransportVersion())
+        );
+
+        final Map<String, Object> rewrittenMetadata = original.maybeRewriteForOlderVersion(olderVersion)
+            .getEffectiveSubject()
+            .getMetadata();
+        assertThat(rewrittenMetadata.keySet(), equalTo(original.getAuthenticatingSubject().getMetadata().keySet()));
+        assertThat(
+            ((BytesReference) rewrittenMetadata.get(AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY)).toBytesRef(),
+            equalTo(new BytesArray("""
+                {"base_role":{"cluster":["all"]}}""").toBytesRef())
+        );
+        assertThat(
+            ((BytesReference) rewrittenMetadata.get(AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY)).toBytesRef(),
+            equalTo(new BytesArray("""
+                {"limited_by_role":{"cluster":["*"]}}""").toBytesRef())
+        );
+    }
+
+    public void testMaybeRewriteMetadataForApiKeyRoleDescriptorsWithRemoteCluster() {
+        final String apiKeyId = randomAlphaOfLengthBetween(1, 10);
+        final String apiKeyName = randomAlphaOfLengthBetween(1, 10);
+        final Map<String, Object> metadata = Map.ofEntries(
+            entry(AuthenticationField.API_KEY_ID_KEY, apiKeyId),
+            entry(AuthenticationField.API_KEY_NAME_KEY, apiKeyName),
+            entry(AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY, new BytesArray("""
+                {"base_role":{"cluster":["all"],
+                 "remote_cluster":[{"privileges":["monitor_enrich"],"clusters":["*"]}]
+                }}""")),
+            entry(AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY, new BytesArray("""
+                {"limited_by_role":{"cluster":["*"],
+                 "remote_cluster":[{"privileges":["monitor_enrich"],"clusters":["*"]}]
+                }}"""))
+        );
+
+        final Authentication original = AuthenticationTestHelper.builder()
+            .apiKey()
+            .metadata(metadata)
+            .transportVersion(ROLE_REMOTE_CLUSTER_PRIVS)
             .build();
 
         // pick a version before that of the authentication instance to force a rewrite

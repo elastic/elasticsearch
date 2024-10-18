@@ -17,13 +17,16 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 public class UnsignedLongIndexFieldData extends IndexNumericFieldData {
     private final IndexNumericFieldData signedLongIFD;
     protected final ToScriptFieldFactory<SortedNumericDocValues> toScriptFieldFactory;
+    protected final boolean indexed;
 
     UnsignedLongIndexFieldData(
         IndexNumericFieldData signedLongFieldData,
-        ToScriptFieldFactory<SortedNumericDocValues> toScriptFieldFactory
+        ToScriptFieldFactory<SortedNumericDocValues> toScriptFieldFactory,
+        boolean indexed
     ) {
         this.signedLongIFD = signedLongFieldData;
         this.toScriptFieldFactory = toScriptFieldFactory;
+        this.indexed = indexed;
     }
 
     @Override
@@ -49,6 +52,11 @@ public class UnsignedLongIndexFieldData extends IndexNumericFieldData {
     @Override
     protected boolean sortRequiresCustomComparator() {
         return false;
+    }
+
+    @Override
+    protected boolean isIndexed() {
+        return indexed;
     }
 
     @Override

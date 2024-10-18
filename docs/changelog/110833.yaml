@@ -1,0 +1,5 @@
+pr: 110833
+summary: Make empty string searches be consistent with case (in)sensitivity
+area: Search
+type: bug
+issues: []

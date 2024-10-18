@@ -2,7 +2,6 @@
   "template": {
     "settings": {
       "index": {
-        "number_of_replicas": 0,
         "auto_expand_replicas": "0-1",
         "refresh_interval": "10s",
         "sort": {
@@ -29,12 +28,32 @@
         "ecs.version": {
           "type": "keyword"
         },
-        "host.id": {
-          "type": "keyword"
-        },
         "@timestamp": {
           "type": "date",
           "format": "epoch_second"
+        },
+        "host": {
+          "properties": {
+            "arch": {
+              "type": "keyword"
+            },
+            "id": {
+              "type": "keyword"
+            },
+            "type": {
+              "type": "keyword"
+            }
+          }
+        },
+        "cloud": {
+          "properties": {
+            "provider": {
+              "type": "keyword"
+            },
+            "region": {
+              "type": "keyword"
+            }
+          }
         },
         "profiling": {
           "properties": {
@@ -56,6 +75,12 @@
                 "start_time": {
                   "type": "date",
                   "format": "epoch_millis"
+                },
+                "protocol": {
+                  "type": "keyword"
+                },
+                "env_https_proxy": {
+                  "type": "keyword"
                 },
                 "config.bpf_log_level": {
                   "type": "long"

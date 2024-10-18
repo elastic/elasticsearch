@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.gradle.internal.precommit;
@@ -15,10 +16,13 @@ import org.elasticsearch.gradle.internal.info.BuildParams;
 import org.gradle.api.Project;
 import org.gradle.api.Task;
 import org.gradle.api.artifacts.Configuration;
+import org.gradle.api.artifacts.component.ModuleComponentIdentifier;
 import org.gradle.api.tasks.TaskProvider;
 
 import java.io.File;
 import java.nio.file.Path;
+
+import static org.elasticsearch.gradle.internal.util.DependenciesUtils.createFileCollectionFromNonTransitiveArtifactsView;
 
 public class ThirdPartyAuditPrecommitPlugin extends PrecommitPlugin {
 
@@ -54,17 +58,17 @@ public class ThirdPartyAuditPrecommitPlugin extends PrecommitPlugin {
             Configuration compileOnly = project.getConfigurations()
                 .getByName(CompileOnlyResolvePlugin.RESOLVEABLE_COMPILE_ONLY_CONFIGURATION_NAME);
             t.setClasspath(runtimeConfiguration.plus(compileOnly));
-            t.getJarsToScan().from(runtimeConfiguration.fileCollection(dep -> {
-                // These are SelfResolvingDependency, and some of them backed by file collections, like the Gradle API files,
-                // or dependencies added as `files(...)`, we can't be sure if those are third party or not.
-                // err on the side of scanning these to make sure we don't miss anything
-                return dep.getGroup() != null && dep.getGroup().startsWith("org.elasticsearch") == false;
-            }));
+            t.getJarsToScan()
+                .from(
+                    createFileCollectionFromNonTransitiveArtifactsView(
+                        runtimeConfiguration,
+                        identifier -> identifier instanceof ModuleComponentIdentifier
+                            && ((ModuleComponentIdentifier) identifier).getGroup().startsWith("org.elasticsearch") == false
+                    )
+                );
             t.dependsOn(resourcesTask);
-            if (BuildParams.getIsRuntimeJavaHomeSet()) {
-                t.getJavaHome().set(project.provider(BuildParams::getRuntimeJavaHome).map(File::getPath));
-            }
             t.getTargetCompatibility().set(project.provider(BuildParams::getRuntimeJavaVersion));
+            t.getJavaHome().set(project.provider(BuildParams::getRuntimeJavaHome).map(File::getPath));
             t.setSignatureFile(resourcesDir.resolve("forbidden/third-party-audit.txt").toFile());
             t.getJdkJarHellClasspath().from(jdkJarHellConfig);
             t.getForbiddenAPIsClasspath().from(project.getConfigurations().getByName("forbiddenApisCliJar").plus(compileOnly));

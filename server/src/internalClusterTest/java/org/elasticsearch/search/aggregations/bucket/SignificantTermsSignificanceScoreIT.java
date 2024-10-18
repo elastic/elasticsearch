@@ -1,16 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.search.aggregations.bucket;
 
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -20,7 +20,6 @@ import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
-import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.bucket.filter.InternalFilter;
 import org.elasticsearch.search.aggregations.bucket.terms.SignificantTerms;
@@ -136,8 +135,8 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
             StringTerms classes = response.getAggregations().get("class");
             assertThat(classes.getBuckets().size(), equalTo(2));
             for (Terms.Bucket classBucket : classes.getBuckets()) {
-                Map<String, InternalAggregation> aggs = classBucket.getAggregations().asMap();
-                assertTrue(aggs.containsKey("sig_terms"));
+                InternalAggregations aggs = classBucket.getAggregations();
+                assertNotNull(aggs.get("sig_terms"));
                 SignificantTerms agg = (SignificantTerms) aggs.get("sig_terms");
                 assertThat(agg.getBuckets().size(), equalTo(1));
                 String term = agg.iterator().next().getKeyAsString();
@@ -323,21 +322,21 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
         assertNoFailuresAndResponse(request1, response1 -> assertNoFailuresAndResponse(request2, response2 -> {
             StringTerms classes = response1.getAggregations().get("class");
 
-            SignificantTerms sigTerms0 = ((SignificantTerms) (classes.getBucketByKey("0").getAggregations().asMap().get("sig_terms")));
+            SignificantTerms sigTerms0 = classes.getBucketByKey("0").getAggregations().get("sig_terms");
             assertThat(sigTerms0.getBuckets().size(), equalTo(2));
             double score00Background = sigTerms0.getBucketByKey("0").getSignificanceScore();
             double score01Background = sigTerms0.getBucketByKey("1").getSignificanceScore();
-            SignificantTerms sigTerms1 = ((SignificantTerms) (classes.getBucketByKey("1").getAggregations().asMap().get("sig_terms")));
+            SignificantTerms sigTerms1 = classes.getBucketByKey("1").getAggregations().get("sig_terms");
             double score10Background = sigTerms1.getBucketByKey("0").getSignificanceScore();
             double score11Background = sigTerms1.getBucketByKey("1").getSignificanceScore();
 
             InternalAggregations aggs = response2.getAggregations();
 
-            sigTerms0 = (SignificantTerms) ((InternalFilter) aggs.get("0")).getAggregations().getAsMap().get("sig_terms");
+            sigTerms0 = ((InternalFilter) aggs.get("0")).getAggregations().get("sig_terms");
             double score00SeparateSets = sigTerms0.getBucketByKey("0").getSignificanceScore();
             double score01SeparateSets = sigTerms0.getBucketByKey("1").getSignificanceScore();
 
-            sigTerms1 = (SignificantTerms) ((InternalFilter) aggs.get("1")).getAggregations().getAsMap().get("sig_terms");
+            sigTerms1 = ((InternalFilter) aggs.get("1")).getAggregations().get("sig_terms");
             double score10SeparateSets = sigTerms1.getBucketByKey("0").getSignificanceScore();
             double score11SeparateSets = sigTerms1.getBucketByKey("1").getSignificanceScore();
 
@@ -549,7 +548,7 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
     public void testScriptCaching() throws Exception {
         assertAcked(
             prepareCreate("cache_test_idx").setMapping("s", "type=long", "t", "type=text")
-                .setSettings(Settings.builder().put("requests.cache.enable", true).put("number_of_shards", 1).put("number_of_replicas", 1))
+                .setSettings(indexSettings(1, 1).put("requests.cache.enable", true))
         );
         indexRandom(
             true,

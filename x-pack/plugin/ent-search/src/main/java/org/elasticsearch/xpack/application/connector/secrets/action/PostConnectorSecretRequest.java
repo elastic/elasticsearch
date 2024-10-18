@@ -21,15 +21,15 @@ import org.elasticsearch.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.Objects;
 
+import static org.elasticsearch.action.ValidateActions.addValidationError;
+
 public class PostConnectorSecretRequest extends ActionRequest {
 
-    public static final ParseField VALUE_FIELD = new ParseField("value");
+    private static final ParseField VALUE_FIELD = new ParseField("value");
 
     public static final ConstructingObjectParser<PostConnectorSecretRequest, Void> PARSER = new ConstructingObjectParser<>(
         "post_secret_request",
-        args -> {
-            return new PostConnectorSecretRequest((String) args[0]);
-        }
+        args -> new PostConnectorSecretRequest((String) args[0])
     );
 
     static {
@@ -75,13 +75,13 @@ public class PostConnectorSecretRequest extends ActionRequest {
 
     @Override
     public ActionRequestValidationException validate() {
+        ActionRequestValidationException validationException = null;
+
         if (Strings.isNullOrEmpty(this.value)) {
-            ActionRequestValidationException exception = new ActionRequestValidationException();
-            exception.addValidationError("value is missing");
-            return exception;
+            validationException = addValidationError("[value] of the connector secret cannot be [null] or [\"\"]", validationException);
         }
 
-        return null;
+        return validationException;
     }
 
     @Override

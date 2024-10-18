@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.transport.netty4;
 
@@ -30,11 +31,9 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkService;
+import org.elasticsearch.common.network.ThreadWatchdog;
 import org.elasticsearch.common.recycler.Recycler;
-import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -54,8 +53,6 @@ import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.util.Map;
 
-import static org.elasticsearch.common.settings.Setting.byteSizeSetting;
-import static org.elasticsearch.common.settings.Setting.intSetting;
 import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.newConcurrentMap;
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.transport.RemoteClusterPortSettings.REMOTE_CLUSTER_PROFILE;
@@ -70,30 +67,6 @@ import static org.elasticsearch.transport.RemoteClusterPortSettings.REMOTE_CLUST
 public class Netty4Transport extends TcpTransport {
     private static final Logger logger = LogManager.getLogger(Netty4Transport.class);
 
-    public static final Setting<Integer> WORKER_COUNT = new Setting<>(
-        "transport.netty.worker_count",
-        (s) -> Integer.toString(EsExecutors.allocatedProcessors(s)),
-        (s) -> Setting.parseInt(s, 1, "transport.netty.worker_count"),
-        Property.NodeScope
-    );
-
-    public static final Setting<ByteSizeValue> NETTY_RECEIVE_PREDICTOR_SIZE = Setting.byteSizeSetting(
-        "transport.netty.receive_predictor_size",
-        new ByteSizeValue(64, ByteSizeUnit.KB),
-        Property.NodeScope
-    );
-    public static final Setting<ByteSizeValue> NETTY_RECEIVE_PREDICTOR_MIN = byteSizeSetting(
-        "transport.netty.receive_predictor_min",
-        NETTY_RECEIVE_PREDICTOR_SIZE,
-        Property.NodeScope
-    );
-    public static final Setting<ByteSizeValue> NETTY_RECEIVE_PREDICTOR_MAX = byteSizeSetting(
-        "transport.netty.receive_predictor_max",
-        NETTY_RECEIVE_PREDICTOR_SIZE,
-        Property.NodeScope
-    );
-
-    public static final Setting<Integer> NETTY_BOSS_COUNT = intSetting("transport.netty.boss_count", 1, 1, Property.NodeScope);
     public static final ChannelOption<Integer> OPTION_TCP_KEEP_IDLE = NioChannelOption.of(NetUtils.getTcpKeepIdleSocketOption());
     public static final ChannelOption<Integer> OPTION_TCP_KEEP_INTERVAL = NioChannelOption.of(NetUtils.getTcpKeepIntervalSocketOption());
     public static final ChannelOption<Integer> OPTION_TCP_KEEP_COUNT = NioChannelOption.of(NetUtils.getTcpKeepCountSocketOption());
@@ -106,6 +79,8 @@ public class Netty4Transport extends TcpTransport {
     private volatile Bootstrap clientBootstrap;
     private volatile SharedGroupFactory.SharedGroup sharedGroup;
     protected final boolean remoteClusterPortEnabled;
+
+    private final ThreadWatchdog threadWatchdog;
 
     public Netty4Transport(
         Settings settings,
@@ -121,10 +96,11 @@ public class Netty4Transport extends TcpTransport {
         Netty4Utils.setAvailableProcessors(EsExecutors.allocatedProcessors(settings));
         NettyAllocator.logAllocatorDescriptionIfNeeded();
         this.sharedGroupFactory = sharedGroupFactory;
+        this.threadWatchdog = networkService.getThreadWatchdog();
 
         // See AdaptiveReceiveBufferSizePredictor#DEFAULT_XXX for default values in netty..., we can use higher ones for us, even fixed one
-        this.receivePredictorMin = NETTY_RECEIVE_PREDICTOR_MIN.get(settings);
-        this.receivePredictorMax = NETTY_RECEIVE_PREDICTOR_MAX.get(settings);
+        this.receivePredictorMin = Netty4Plugin.NETTY_RECEIVE_PREDICTOR_MIN.get(settings);
+        this.receivePredictorMax = Netty4Plugin.NETTY_RECEIVE_PREDICTOR_MAX.get(settings);
         if (receivePredictorMax.getBytes() == receivePredictorMin.getBytes()) {
             recvByteBufAllocator = new FixedRecvByteBufAllocator((int) receivePredictorMax.getBytes());
         } else {
@@ -154,6 +130,7 @@ public class Netty4Transport extends TcpTransport {
                     bindServer(profileSettings);
                 }
             }
+            threadWatchdog.run(settings, threadPool, lifecycle);
             success = true;
         } finally {
             if (success == false) {
@@ -382,14 +359,24 @@ public class Netty4Transport extends TcpTransport {
         if (NetworkTraceFlag.TRACE_ENABLED) {
             pipeline.addLast("logging", ESLoggingHandler.INSTANCE);
         }
-        pipeline.addLast("chunked_writer", new Netty4WriteThrottlingHandler(getThreadPool().getThreadContext()));
-        pipeline.addLast("dispatcher", new Netty4MessageInboundHandler(this, getInboundPipeline(ch, isRemoteClusterServerChannel)));
+        pipeline.addLast(
+            "chunked_writer",
+            new Netty4WriteThrottlingHandler(getThreadPool().getThreadContext(), threadWatchdog.getActivityTrackerForCurrentThread())
+        );
+        pipeline.addLast(
+            "dispatcher",
+            new Netty4MessageInboundHandler(
+                this,
+                getInboundPipeline(ch, isRemoteClusterServerChannel),
+                threadWatchdog.getActivityTrackerForCurrentThread()
+            )
+        );
     }
 
     protected InboundPipeline getInboundPipeline(Channel ch, boolean isRemoteClusterServerChannel) {
         return new InboundPipeline(
             getStatsTracker(),
-            threadPool::relativeTimeInMillis,
+            threadPool.relativeTimeInMillisSupplier(),
             new InboundDecoder(recycler),
             new InboundAggregator(getInflightBreaker(), getRequestHandlers()::getHandler, ignoreDeserializationErrors()),
             this::inboundMessage
@@ -397,9 +384,9 @@ public class Netty4Transport extends TcpTransport {
     }
 
     private static void addClosedExceptionLogger(Channel channel) {
-        channel.closeFuture().addListener(f -> {
-            if (f.isSuccess() == false) {
-                logger.debug(() -> format("exception while closing channel: %s", channel), f.cause());
+        Netty4Utils.addListener(channel.closeFuture(), channelFuture -> {
+            if (channelFuture.isSuccess() == false && logger.isDebugEnabled()) {
+                logger.debug(format("exception while closing channel: %s", channelFuture.channel()), channelFuture.cause());
             }
         });
     }

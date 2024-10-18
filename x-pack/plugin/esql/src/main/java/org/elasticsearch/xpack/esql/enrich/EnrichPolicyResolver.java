@@ -25,6 +25,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterAware;
+import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportRequest;
@@ -36,14 +37,14 @@ import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.enrich.EnrichMetadata;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.core.util.StringUtils;
+import org.elasticsearch.xpack.esql.index.EsIndex;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
-import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
-import org.elasticsearch.xpack.esql.session.EsqlSession;
-import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
-import org.elasticsearch.xpack.ql.index.EsIndex;
-import org.elasticsearch.xpack.ql.index.IndexResolver;
-import org.elasticsearch.xpack.ql.type.EsField;
-import org.elasticsearch.xpack.ql.util.StringUtils;
+import org.elasticsearch.xpack.esql.session.IndexResolver;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -72,15 +73,17 @@ public class EnrichPolicyResolver {
     private final IndexResolver indexResolver;
     private final TransportService transportService;
     private final ThreadPool threadPool;
+    private final RemoteClusterService remoteClusterService;
 
     public EnrichPolicyResolver(ClusterService clusterService, TransportService transportService, IndexResolver indexResolver) {
         this.clusterService = clusterService;
         this.transportService = transportService;
         this.indexResolver = indexResolver;
         this.threadPool = transportService.getThreadPool();
+        this.remoteClusterService = transportService.getRemoteClusterService();
         transportService.registerRequestHandler(
             RESOLVE_ACTION_NAME,
-            threadPool.executor(EsqlPlugin.ESQL_THREAD_POOL_NAME),
+            threadPool.executor(ThreadPool.Names.SEARCH),
             LookupRequest::new,
             new RequestHandler()
         );
@@ -194,7 +197,7 @@ public class EnrichPolicyResolver {
                 EsField field = m.getValue();
                 field = new EsField(
                     field.getName(),
-                    EsqlDataTypes.fromTypeName(field.getDataType().typeName()),
+                    DataType.fromTypeName(field.getDataType().typeName()),
                     field.getProperties(),
                     field.isAggregatable(),
                     field.isAlias()
@@ -257,22 +260,21 @@ public class EnrichPolicyResolver {
             // remote clusters
             if (remotePolicies.isEmpty() == false) {
                 for (String cluster : remoteClusters) {
-                    final Transport.Connection connection;
-                    try {
-                        connection = getRemoteConnection(cluster);
-                    } catch (Exception e) {
-                        refs.acquire().onFailure(e);
-                        return;
-                    }
-                    transportService.sendRequest(
-                        connection,
-                        RESOLVE_ACTION_NAME,
-                        new LookupRequest(cluster, remotePolicies),
-                        TransportRequestOptions.EMPTY,
-                        new ActionListenerResponseHandler<>(
-                            refs.acquire(resp -> lookupResponses.put(cluster, resp)),
-                            LookupResponse::new,
-                            threadPool.executor(EsqlPlugin.ESQL_THREAD_POOL_NAME)
+                    ActionListener<LookupResponse> lookupListener = refs.acquire(resp -> lookupResponses.put(cluster, resp));
+                    getRemoteConnection(
+                        cluster,
+                        lookupListener.delegateFailureAndWrap(
+                            (delegate, connection) -> transportService.sendRequest(
+                                connection,
+                                RESOLVE_ACTION_NAME,
+                                new LookupRequest(cluster, remotePolicies),
+                                TransportRequestOptions.EMPTY,
+                                new ActionListenerResponseHandler<>(
+                                    delegate,
+                                    LookupResponse::new,
+                                    threadPool.executor(ThreadPool.Names.SEARCH)
+                                )
+                            )
                         )
                     );
                 }
@@ -290,7 +292,7 @@ public class EnrichPolicyResolver {
                     new ActionListenerResponseHandler<>(
                         refs.acquire(resp -> lookupResponses.put(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY, resp)),
                         LookupResponse::new,
-                        threadPool.executor(EsqlPlugin.ESQL_THREAD_POOL_NAME)
+                        threadPool.executor(ThreadPool.Names.SEARCH)
                     )
                 );
             }
@@ -328,14 +330,16 @@ public class EnrichPolicyResolver {
         }
 
         LookupResponse(StreamInput in) throws IOException {
-            this.policies = in.readMap(StreamInput::readString, ResolvedEnrichPolicy::new);
-            this.failures = in.readMap(StreamInput::readString, StreamInput::readString);
+            PlanStreamInput planIn = new PlanStreamInput(in, in.namedWriteableRegistry(), null);
+            this.policies = planIn.readMap(StreamInput::readString, ResolvedEnrichPolicy::new);
+            this.failures = planIn.readMap(StreamInput::readString, StreamInput::readString);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeMap(policies, (o, v) -> v.writeTo(o));
-            out.writeMap(failures, StreamOutput::writeString);
+            PlanStreamOutput pso = new PlanStreamOutput(out, null);
+            pso.writeMap(policies, StreamOutput::writeWriteable);
+            pso.writeMap(failures, StreamOutput::writeString);
         }
     }
 
@@ -360,29 +364,22 @@ public class EnrichPolicyResolver {
                     }
                     try (ThreadContext.StoredContext ignored = threadContext.stashWithOrigin(ClientHelper.ENRICH_ORIGIN)) {
                         String indexName = EnrichPolicy.getBaseName(policyName);
-                        indexResolver.resolveAsMergedMapping(
-                            indexName,
-                            IndexResolver.ALL_FIELDS,
-                            false,
-                            Map.of(),
-                            refs.acquire(indexResult -> {
-                                if (indexResult.isValid() && indexResult.get().concreteIndices().size() == 1) {
-                                    EsIndex esIndex = indexResult.get();
-                                    var concreteIndices = Map.of(request.clusterAlias, Iterables.get(esIndex.concreteIndices(), 0));
-                                    var resolved = new ResolvedEnrichPolicy(
-                                        p.getMatchField(),
-                                        p.getType(),
-                                        p.getEnrichFields(),
-                                        concreteIndices,
-                                        esIndex.mapping()
-                                    );
-                                    resolvedPolices.put(policyName, resolved);
-                                } else {
-                                    failures.put(policyName, indexResult.toString());
-                                }
-                            }),
-                            EsqlSession::specificValidity
-                        );
+                        indexResolver.resolveAsMergedMapping(indexName, IndexResolver.ALL_FIELDS, refs.acquire(indexResult -> {
+                            if (indexResult.isValid() && indexResult.get().concreteIndices().size() == 1) {
+                                EsIndex esIndex = indexResult.get();
+                                var concreteIndices = Map.of(request.clusterAlias, Iterables.get(esIndex.concreteIndices(), 0));
+                                var resolved = new ResolvedEnrichPolicy(
+                                    p.getMatchField(),
+                                    p.getType(),
+                                    p.getEnrichFields(),
+                                    concreteIndices,
+                                    esIndex.mapping()
+                                );
+                                resolvedPolices.put(policyName, resolved);
+                            } else {
+                                failures.put(policyName, indexResult.toString());
+                            }
+                        }));
                     }
                 }
             }
@@ -394,13 +391,16 @@ public class EnrichPolicyResolver {
         return metadata == null ? Map.of() : metadata.getPolicies();
     }
 
-    protected Transport.Connection getRemoteConnection(String cluster) {
-        return transportService.getRemoteClusterService().getConnection(cluster);
+    protected void getRemoteConnection(String cluster, ActionListener<Transport.Connection> listener) {
+        remoteClusterService.maybeEnsureConnectedAndGetConnection(
+            cluster,
+            remoteClusterService.isSkipUnavailable(cluster) == false,
+            listener
+        );
     }
 
     public Map<String, List<String>> groupIndicesPerCluster(String[] indices) {
-        return transportService.getRemoteClusterService()
-            .groupIndices(SearchRequest.DEFAULT_INDICES_OPTIONS, indices)
+        return remoteClusterService.groupIndices(SearchRequest.DEFAULT_INDICES_OPTIONS, indices)
             .entrySet()
             .stream()
             .collect(Collectors.toMap(Map.Entry::getKey, e -> Arrays.asList(e.getValue().indices())));

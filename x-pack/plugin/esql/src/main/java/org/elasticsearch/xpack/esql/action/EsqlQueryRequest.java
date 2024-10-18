@@ -8,85 +8,55 @@
 package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.Build;
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
-import org.elasticsearch.xcontent.ConstructingObjectParser;
-import org.elasticsearch.xcontent.ObjectParser;
-import org.elasticsearch.xcontent.ParseField;
-import org.elasticsearch.xcontent.XContentLocation;
-import org.elasticsearch.xcontent.XContentParseException;
-import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xpack.esql.parser.ContentLocation;
-import org.elasticsearch.xpack.esql.parser.TypedParamValue;
+import org.elasticsearch.xpack.esql.Column;
+import org.elasticsearch.xpack.esql.parser.QueryParams;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.Iterator;
 import java.util.Locale;
 import java.util.Map;
-import java.util.function.Supplier;
+import java.util.TreeMap;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
-import static org.elasticsearch.common.xcontent.XContentParserUtils.parseFieldsValue;
-import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
-import static org.elasticsearch.xcontent.ObjectParser.ValueType.VALUE_ARRAY;
 
-public class EsqlQueryRequest extends ActionRequest implements CompositeIndicesRequest {
+public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.EsqlQueryRequest implements CompositeIndicesRequest {
 
     public static TimeValue DEFAULT_KEEP_ALIVE = TimeValue.timeValueDays(5);
     public static TimeValue DEFAULT_WAIT_FOR_COMPLETION = TimeValue.timeValueSeconds(1);
-
-    private static final ConstructingObjectParser<TypedParamValue, Void> PARAM_PARSER = new ConstructingObjectParser<>(
-        "params",
-        true,
-        objects -> new TypedParamValue((String) objects[1], objects[0])
-    );
-    private static final ParseField VALUE = new ParseField("value");
-    private static final ParseField TYPE = new ParseField("type");
-
-    static {
-        PARAM_PARSER.declareField(constructorArg(), (p, c) -> parseFieldsValue(p), VALUE, ObjectParser.ValueType.VALUE);
-        PARAM_PARSER.declareString(constructorArg(), TYPE);
-    }
-
-    private static final ParseField QUERY_FIELD = new ParseField("query");
-    private static final ParseField COLUMNAR_FIELD = new ParseField("columnar");
-    private static final ParseField FILTER_FIELD = new ParseField("filter");
-    private static final ParseField PRAGMA_FIELD = new ParseField("pragma");
-    private static final ParseField PARAMS_FIELD = new ParseField("params");
-    private static final ParseField LOCALE_FIELD = new ParseField("locale");
-    private static final ParseField PROFILE_FIELD = new ParseField("profile");
-
-    static final ParseField WAIT_FOR_COMPLETION_TIMEOUT = new ParseField("wait_for_completion_timeout");
-    static final ParseField KEEP_ALIVE = new ParseField("keep_alive");
-    static final ParseField KEEP_ON_COMPLETION = new ParseField("keep_on_completion");
-
-    private static final ObjectParser<EsqlQueryRequest, Void> SYNC_PARSER = objectParserSync(EsqlQueryRequest::syncEsqlQueryRequest);
-    private static final ObjectParser<EsqlQueryRequest, Void> ASYNC_PARSER = objectParserAsync(EsqlQueryRequest::asyncEsqlQueryRequest);
 
     private boolean async;
 
     private String query;
     private boolean columnar;
     private boolean profile;
+    private boolean includeCCSMetadata;
     private Locale locale;
     private QueryBuilder filter;
     private QueryPragmas pragmas = new QueryPragmas(Settings.EMPTY);
-    private List<TypedParamValue> params = List.of();
+    private QueryParams params = new QueryParams();
     private TimeValue waitForCompletionTimeout = DEFAULT_WAIT_FOR_COMPLETION;
     private TimeValue keepAlive = DEFAULT_KEEP_ALIVE;
     private boolean keepOnCompletion;
+    private boolean onSnapshotBuild = Build.current().isSnapshot();
+    private boolean acceptedPragmaRisks = false;
+
+    /**
+     * "Tables" provided in the request for use with things like {@code LOOKUP}.
+     */
+    private final Map<String, Map<String, Column>> tables = new TreeMap<>();
 
     static EsqlQueryRequest syncEsqlQueryRequest() {
         return new EsqlQueryRequest(false);
@@ -108,10 +78,22 @@ public class EsqlQueryRequest extends ActionRequest implements CompositeIndicesR
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
         if (Strings.hasText(query) == false) {
-            validationException = addValidationError("[query] is required", validationException);
+            validationException = addValidationError("[" + RequestXContent.QUERY_FIELD + "] is required", validationException);
         }
-        if (Build.current().isSnapshot() == false && pragmas.isEmpty() == false) {
-            validationException = addValidationError("[pragma] only allowed in snapshot builds", validationException);
+
+        if (onSnapshotBuild == false) {
+            if (pragmas.isEmpty() == false && acceptedPragmaRisks == false) {
+                validationException = addValidationError(
+                    "[" + RequestXContent.PRAGMA_FIELD + "] only allowed in snapshot builds",
+                    validationException
+                );
+            }
+            if (tables.isEmpty() == false) {
+                validationException = addValidationError(
+                    "[" + RequestXContent.TABLES_FIELD + "] only allowed in snapshot builds",
+                    validationException
+                );
+            }
         }
         return validationException;
     }
@@ -122,6 +104,7 @@ public class EsqlQueryRequest extends ActionRequest implements CompositeIndicesR
         this.query = query;
     }
 
+    @Override
     public String query() {
         return query;
     }
@@ -146,6 +129,14 @@ public class EsqlQueryRequest extends ActionRequest implements CompositeIndicesR
         this.profile = profile;
     }
 
+    public void includeCCSMetadata(boolean include) {
+        this.includeCCSMetadata = include;
+    }
+
+    public boolean includeCCSMetadata() {
+        return includeCCSMetadata;
+    }
+
     /**
      * Is profiling enabled?
      */
@@ -165,6 +156,7 @@ public class EsqlQueryRequest extends ActionRequest implements CompositeIndicesR
         this.filter = filter;
     }
 
+    @Override
     public QueryBuilder filter() {
         return filter;
     }
@@ -177,11 +169,11 @@ public class EsqlQueryRequest extends ActionRequest implements CompositeIndicesR
         return pragmas;
     }
 
-    public List<TypedParamValue> params() {
+    public QueryParams params() {
         return params;
     }
 
-    public void params(List<TypedParamValue> params) {
+    public void params(QueryParams params) {
         this.params = params;
     }
 
@@ -209,123 +201,34 @@ public class EsqlQueryRequest extends ActionRequest implements CompositeIndicesR
         this.keepOnCompletion = keepOnCompletion;
     }
 
-    public static EsqlQueryRequest fromXContentSync(XContentParser parser) {
-        return SYNC_PARSER.apply(parser, null);
-    }
-
-    public static EsqlQueryRequest fromXContentAsync(XContentParser parser) {
-        return ASYNC_PARSER.apply(parser, null);
-    }
-
-    private static void objectParserCommon(ObjectParser<EsqlQueryRequest, ?> parser) {
-        parser.declareString(EsqlQueryRequest::query, QUERY_FIELD);
-        parser.declareBoolean(EsqlQueryRequest::columnar, COLUMNAR_FIELD);
-        parser.declareObject(EsqlQueryRequest::filter, (p, c) -> AbstractQueryBuilder.parseTopLevelQuery(p), FILTER_FIELD);
-        parser.declareObject(
-            EsqlQueryRequest::pragmas,
-            (p, c) -> new QueryPragmas(Settings.builder().loadFromMap(p.map()).build()),
-            PRAGMA_FIELD
-        );
-        parser.declareField(EsqlQueryRequest::params, EsqlQueryRequest::parseParams, PARAMS_FIELD, VALUE_ARRAY);
-        parser.declareString((request, localeTag) -> request.locale(Locale.forLanguageTag(localeTag)), LOCALE_FIELD);
-        parser.declareBoolean(EsqlQueryRequest::profile, PROFILE_FIELD);
-    }
-
-    private static ObjectParser<EsqlQueryRequest, Void> objectParserSync(Supplier<EsqlQueryRequest> supplier) {
-        ObjectParser<EsqlQueryRequest, Void> parser = new ObjectParser<>("esql/query", false, supplier);
-        objectParserCommon(parser);
-        return parser;
-    }
-
-    private static ObjectParser<EsqlQueryRequest, Void> objectParserAsync(Supplier<EsqlQueryRequest> supplier) {
-        ObjectParser<EsqlQueryRequest, Void> parser = new ObjectParser<>("esql/async_query", false, supplier);
-        objectParserCommon(parser);
-        parser.declareBoolean(EsqlQueryRequest::keepOnCompletion, KEEP_ON_COMPLETION);
-        parser.declareField(
-            EsqlQueryRequest::waitForCompletionTimeout,
-            (p, c) -> TimeValue.parseTimeValue(p.text(), WAIT_FOR_COMPLETION_TIMEOUT.getPreferredName()),
-            WAIT_FOR_COMPLETION_TIMEOUT,
-            ObjectParser.ValueType.VALUE
-        );
-        parser.declareField(
-            EsqlQueryRequest::keepAlive,
-            (p, c) -> TimeValue.parseTimeValue(p.text(), KEEP_ALIVE.getPreferredName()),
-            KEEP_ALIVE,
-            ObjectParser.ValueType.VALUE
-        );
-        return parser;
-    }
-
-    private static List<TypedParamValue> parseParams(XContentParser p) throws IOException {
-        List<TypedParamValue> result = new ArrayList<>();
-        XContentParser.Token token = p.currentToken();
-
-        if (token == XContentParser.Token.START_ARRAY) {
-            Object value = null;
-            String type = null;
-            TypedParamValue previousParam = null;
-            TypedParamValue currentParam;
-
-            while ((token = p.nextToken()) != XContentParser.Token.END_ARRAY) {
-                XContentLocation loc = p.getTokenLocation();
-
-                if (token == XContentParser.Token.START_OBJECT) {
-                    // we are at the start of a value/type pair... hopefully
-                    currentParam = PARAM_PARSER.apply(p, null);
-                    /*
-                     * Always set the xcontentlocation for the first param just in case the first one happens to not meet the parsing rules
-                     * that are checked later in validateParams method.
-                     * Also, set the xcontentlocation of the param that is different from the previous param in list when it comes to
-                     * its type being explicitly set or inferred.
-                     */
-                    if ((previousParam != null && previousParam.hasExplicitType() == false) || result.isEmpty()) {
-                        currentParam.tokenLocation(toProto(loc));
-                    }
-                } else {
-                    if (token == XContentParser.Token.VALUE_STRING) {
-                        value = p.text();
-                        type = "keyword";
-                    } else if (token == XContentParser.Token.VALUE_NUMBER) {
-                        XContentParser.NumberType numberType = p.numberType();
-                        if (numberType == XContentParser.NumberType.INT) {
-                            value = p.intValue();
-                            type = "integer";
-                        } else if (numberType == XContentParser.NumberType.LONG) {
-                            value = p.longValue();
-                            type = "long";
-                        } else if (numberType == XContentParser.NumberType.DOUBLE) {
-                            value = p.doubleValue();
-                            type = "double";
-                        }
-                    } else if (token == XContentParser.Token.VALUE_BOOLEAN) {
-                        value = p.booleanValue();
-                        type = "boolean";
-                    } else if (token == XContentParser.Token.VALUE_NULL) {
-                        value = null;
-                        type = "null";
-                    } else {
-                        throw new XContentParseException(loc, "Failed to parse object: unexpected token [" + token + "] found");
-                    }
-
-                    currentParam = new TypedParamValue(type, value, false);
-                    if ((previousParam != null && previousParam.hasExplicitType()) || result.isEmpty()) {
-                        currentParam.tokenLocation(toProto(loc));
-                    }
-                }
-
-                result.add(currentParam);
-                previousParam = currentParam;
+    /**
+     * Add a "table" to the request for use with things like {@code LOOKUP}.
+     */
+    public void addTable(String name, Map<String, Column> columns) {
+        for (Column c : columns.values()) {
+            if (false == c.values().blockFactory().breaker() instanceof NoopCircuitBreaker) {
+                throw new AssertionError("block tracking not supported on tables parameter");
             }
         }
-
-        return result;
+        Iterator<Column> itr = columns.values().iterator();
+        if (itr.hasNext()) {
+            int firstSize = itr.next().values().getPositionCount();
+            while (itr.hasNext()) {
+                int size = itr.next().values().getPositionCount();
+                if (size != firstSize) {
+                    throw new IllegalArgumentException("mismatched column lengths: was [" + size + "] but expected [" + firstSize + "]");
+                }
+            }
+        }
+        var prev = tables.put(name, columns);
+        if (prev != null) {
+            Releasables.close(prev.values());
+            throw new IllegalArgumentException("duplicate table for [" + name + "]");
+        }
     }
 
-    static ContentLocation toProto(org.elasticsearch.xcontent.XContentLocation toProto) {
-        if (toProto == null) {
-            return null;
-        }
-        return new ContentLocation(toProto.lineNumber(), toProto.columnNumber());
+    public Map<String, Map<String, Column>> tables() {
+        return tables;
     }
 
     @Override
@@ -334,11 +237,12 @@ public class EsqlQueryRequest extends ActionRequest implements CompositeIndicesR
         return new CancellableTask(id, type, action, query, parentTaskId, headers);
     }
 
-    static org.elasticsearch.xcontent.XContentLocation fromProto(ContentLocation fromProto) {
-        if (fromProto == null) {
-            return null;
-        }
-        return new org.elasticsearch.xcontent.XContentLocation(fromProto.lineNumber, fromProto.columnNumber);
+    // Setter for tests
+    void onSnapshotBuild(boolean onSnapshotBuild) {
+        this.onSnapshotBuild = onSnapshotBuild;
     }
 
+    void acceptedPragmaRisks(boolean accepted) {
+        this.acceptedPragmaRisks = accepted;
+    }
 }

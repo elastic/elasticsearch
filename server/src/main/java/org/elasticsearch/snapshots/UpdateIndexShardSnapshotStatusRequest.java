@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.snapshots;
 
@@ -34,11 +35,10 @@ public class UpdateIndexShardSnapshotStatusRequest extends MasterNodeRequest<Upd
     }
 
     public UpdateIndexShardSnapshotStatusRequest(Snapshot snapshot, ShardId shardId, SnapshotsInProgress.ShardSnapshotStatus status) {
+        super(TimeValue.MAX_VALUE); // By default, keep trying to post snapshot status messages to avoid snapshot processes getting stuck.
         this.snapshot = snapshot;
         this.shardId = shardId;
         this.status = status;
-        // By default, we keep trying to post snapshot status messages to avoid snapshot processes getting stuck.
-        this.masterNodeTimeout = TimeValue.timeValueNanos(Long.MAX_VALUE);
     }
 
     @Override

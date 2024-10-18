@@ -38,6 +38,7 @@ public class DeleteFilterAction extends ActionType<AcknowledgedResponse> {
         }
 
         public Request(String filterId) {
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, DEFAULT_ACK_TIMEOUT);
             this.filterId = ExceptionsHelper.requireNonNull(filterId, FILTER_ID.getPreferredName());
         }
 

@@ -29,6 +29,8 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.breaker.TestCircuitBreaker;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -243,7 +245,9 @@ public class CircuitBreakerTests extends ESTestCase {
         final int searchRequestsExpectedCount = 2;
 
         // let the parent circuit breaker fail, setting its limit to zero
-        Settings settings = Settings.builder().put(HierarchyCircuitBreakerService.TOTAL_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), 0).build();
+        Settings settings = Settings.builder()
+            .put(HierarchyCircuitBreakerService.TOTAL_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), "0%")
+            .build();
 
         try (
             CircuitBreakerService service = new HierarchyCircuitBreakerService(
@@ -275,6 +279,7 @@ public class CircuitBreakerTests extends ESTestCase {
             TumblingWindow window = new TumblingWindow(eqlClient, criteria, null, matcher, Collections.emptyList());
             window.execute(wrap(p -> fail(), ex -> assertTrue(ex instanceof CircuitBreakingException)));
         }
+        assertCriticalWarnings("[indices.breaker.total.limit] setting of [0%] is below the recommended minimum of 50.0% of the heap");
     }
 
     private List<BreakerSettings> breakerSettings() {
@@ -370,7 +375,7 @@ public class CircuitBreakerTests extends ESTestCase {
         protected final CircuitBreaker circuitBreaker;
         // private final String pitId;
         private int searchRequestsRemainingCount;
-        private final String pitId = "test_pit_id";
+        private final BytesReference pitId = new BytesArray("test_pit_id");
 
         ESMockClient(ThreadPool threadPool, CircuitBreaker circuitBreaker, int searchRequestsRemainingCount) {
             super(threadPool);
@@ -389,7 +394,7 @@ public class CircuitBreakerTests extends ESTestCase {
         ) {
             if (request instanceof OpenPointInTimeRequest) {
                 pitContextCounter.incrementAndGet();
-                OpenPointInTimeResponse response = new OpenPointInTimeResponse(pitId);
+                OpenPointInTimeResponse response = new OpenPointInTimeResponse(pitId, 1, 1, 0, 0);
                 listener.onResponse((Response) response);
             } else if (request instanceof ClosePointInTimeRequest) {
                 ClosePointInTimeResponse response = new ClosePointInTimeResponse(true, 1);

@@ -16,10 +16,10 @@ import org.elasticsearch.action.support.tasks.TransportTasksAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
@@ -60,7 +60,6 @@ public class TransportGetJobsStatsAction extends TransportTasksAction<
 
     private static final Logger logger = LogManager.getLogger(TransportGetJobsStatsAction.class);
 
-    private final ClusterService clusterService;
     private final AutodetectProcessManager processManager;
     private final JobResultsProvider jobResultsProvider;
     private final JobConfigProvider jobConfigProvider;
@@ -82,11 +81,9 @@ public class TransportGetJobsStatsAction extends TransportTasksAction<
             transportService,
             actionFilters,
             GetJobsStatsAction.Request::new,
-            GetJobsStatsAction.Response::new,
             in -> new QueryPage<>(in, JobStats::new),
             threadPool.executor(ThreadPool.Names.MANAGEMENT)
         );
-        this.clusterService = clusterService;
         this.processManager = processManager;
         this.jobResultsProvider = jobResultsProvider;
         this.jobConfigProvider = jobConfigProvider;

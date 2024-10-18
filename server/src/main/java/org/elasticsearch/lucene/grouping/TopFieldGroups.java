@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.lucene.grouping;
 
@@ -16,6 +17,7 @@ import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TopFieldDocs;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.util.PriorityQueue;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.util.CollectionUtils;
 
 import java.util.ArrayList;
@@ -225,7 +227,7 @@ public final class TopFieldGroups extends TopFieldDocs {
                     queue.pop();
                 }
             }
-            hits = hitList.toArray(new ScoreDoc[0]);
+            hits = hitList.toArray(Lucene.EMPTY_SCORE_DOCS);
             values = groupList.toArray(new Object[0]);
         }
         TotalHits totalHits = new TotalHits(totalHitCount, totalHitsRelation);

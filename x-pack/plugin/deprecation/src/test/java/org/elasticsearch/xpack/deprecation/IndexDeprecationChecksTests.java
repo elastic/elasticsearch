@@ -38,7 +38,7 @@ public class IndexDeprecationChecksTests extends ESTestCase {
             DeprecationIssue.Level.CRITICAL,
             "Old index with a compatibility version < 7.0",
             "https://www.elastic.co/guide/en/elasticsearch/reference/master/" + "breaking-changes-8.0.html",
-            "This index has version: " + createdWith,
+            "This index has version: " + createdWith.toReleaseVersion(),
             false,
             null
         );
@@ -160,7 +160,7 @@ public class IndexDeprecationChecksTests extends ESTestCase {
             + "} }";
 
         IndexMetadata simpleIndex = IndexMetadata.builder(randomAlphaOfLengthBetween(5, 10))
-            .settings(settings(IndexVersions.V_7_0_0))
+            .settings(settings(IndexVersions.MINIMUM_COMPATIBLE))
             .numberOfShards(1)
             .numberOfReplicas(1)
             .putMapping(simpleMapping)

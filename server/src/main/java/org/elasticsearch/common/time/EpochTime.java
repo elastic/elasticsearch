@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.time;
@@ -251,18 +252,18 @@ class EpochTime {
 
     static final DateFormatter SECONDS_FORMATTER = new JavaDateFormatter(
         "epoch_second",
-        SECONDS_FORMATTER1,
-        (builder, parser) -> builder.parseDefaulting(ChronoField.NANO_OF_SECOND, 999_999_999L),
-        SECONDS_FORMATTER1,
-        SECONDS_FORMATTER2
+        new JavaTimeDateTimePrinter(SECONDS_FORMATTER1),
+        JavaTimeDateTimeParser.createRoundUpParserGenerator(builder -> builder.parseDefaulting(ChronoField.NANO_OF_SECOND, 999_999_999L)),
+        new JavaTimeDateTimeParser(SECONDS_FORMATTER1),
+        new JavaTimeDateTimeParser(SECONDS_FORMATTER2)
     );
 
     static final DateFormatter MILLIS_FORMATTER = new JavaDateFormatter(
         "epoch_millis",
-        MILLISECONDS_FORMATTER1,
-        (builder, parser) -> builder.parseDefaulting(EpochTime.NANOS_OF_MILLI, 999_999L),
-        MILLISECONDS_FORMATTER1,
-        MILLISECONDS_FORMATTER2
+        new JavaTimeDateTimePrinter(MILLISECONDS_FORMATTER1),
+        JavaTimeDateTimeParser.createRoundUpParserGenerator(builder -> builder.parseDefaulting(EpochTime.NANOS_OF_MILLI, 999_999L)),
+        new JavaTimeDateTimeParser(MILLISECONDS_FORMATTER1),
+        new JavaTimeDateTimeParser(MILLISECONDS_FORMATTER2)
     );
 
     private abstract static class EpochField implements TemporalField {

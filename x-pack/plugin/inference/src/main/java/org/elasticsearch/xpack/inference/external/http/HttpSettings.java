@@ -14,14 +14,15 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 
 import java.util.List;
+import java.util.Objects;
 
 public class HttpSettings {
     // These settings are default scope for testing
     static final Setting<ByteSizeValue> MAX_HTTP_RESPONSE_SIZE = Setting.byteSizeSetting(
         "xpack.inference.http.max_response_size",
-        new ByteSizeValue(10, ByteSizeUnit.MB),   // default
+        new ByteSizeValue(50, ByteSizeUnit.MB),   // default
         ByteSizeValue.ONE, // min
-        new ByteSizeValue(50, ByteSizeUnit.MB),   // max
+        new ByteSizeValue(100, ByteSizeUnit.MB),   // max
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
@@ -29,7 +30,9 @@ public class HttpSettings {
     private volatile ByteSizeValue maxResponseSize;
 
     public HttpSettings(Settings settings, ClusterService clusterService) {
-        this.maxResponseSize = MAX_HTTP_RESPONSE_SIZE.get(settings);
+        Objects.requireNonNull(clusterService);
+        Objects.requireNonNull(settings);
+        maxResponseSize = MAX_HTTP_RESPONSE_SIZE.get(settings);
 
         clusterService.getClusterSettings().addSettingsUpdateConsumer(MAX_HTTP_RESPONSE_SIZE, this::setMaxResponseSize);
     }
@@ -42,7 +45,7 @@ public class HttpSettings {
         this.maxResponseSize = maxResponseSize;
     }
 
-    public static List<Setting<?>> getSettings() {
+    public static List<Setting<?>> getSettingsDefinitions() {
         return List.of(MAX_HTTP_RESPONSE_SIZE);
     }
 }

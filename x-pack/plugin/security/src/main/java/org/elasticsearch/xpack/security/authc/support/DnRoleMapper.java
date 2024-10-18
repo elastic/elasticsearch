@@ -19,26 +19,26 @@ import org.elasticsearch.core.Strings;
 import org.elasticsearch.watcher.FileChangesListener;
 import org.elasticsearch.watcher.FileWatcher;
 import org.elasticsearch.watcher.ResourceWatcherService;
-import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
-import org.elasticsearch.xpack.core.security.authc.support.CachingRealm;
 import org.elasticsearch.xpack.core.security.authc.support.DnRoleMapperSettings;
-import org.elasticsearch.xpack.core.security.authc.support.UserRoleMapper;
+import org.elasticsearch.xpack.security.PrivilegedFileWatcher;
+import org.elasticsearch.xpack.security.Security;
+import org.elasticsearch.xpack.security.authc.support.mapper.AbstractRoleMapperClearRealmCache;
 
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.PrivilegedAction;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
-import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.stream.Collectors;
 
+import static java.security.AccessController.doPrivileged;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.core.Strings.format;
@@ -48,23 +48,23 @@ import static org.elasticsearch.xpack.security.authc.ldap.support.LdapUtils.rela
 /**
  * This class loads and monitors the file defining the mappings of DNs to internal ES Roles.
  */
-public class DnRoleMapper implements UserRoleMapper {
+public class DnRoleMapper extends AbstractRoleMapperClearRealmCache {
     private static final Logger logger = LogManager.getLogger(DnRoleMapper.class);
 
     protected final RealmConfig config;
 
     private final Path file;
     private final boolean useUnmappedGroupsAsRoles;
-    private final CopyOnWriteArrayList<Runnable> listeners = new CopyOnWriteArrayList<>();
     private volatile Map<String, List<String>> dnRoles;
 
     public DnRoleMapper(RealmConfig config, ResourceWatcherService watcherService) {
         this.config = config;
-
         useUnmappedGroupsAsRoles = config.getSetting(DnRoleMapperSettings.USE_UNMAPPED_GROUPS_AS_ROLES_SETTING);
         file = resolveFile(config);
-        dnRoles = parseFileLenient(file, logger, config.type(), config.name());
-        FileWatcher watcher = new FileWatcher(file.getParent());
+        dnRoles = doPrivileged(
+            (PrivilegedAction<Map<String, List<String>>>) () -> parseFileLenient(file, logger, config.type(), config.name())
+        );
+        FileWatcher watcher = new PrivilegedFileWatcher(file.getParent());
         watcher.addListener(new FileListener());
         try {
             watcherService.add(watcher, ResourceWatcherService.Frequency.HIGH);
@@ -73,18 +73,9 @@ public class DnRoleMapper implements UserRoleMapper {
         }
     }
 
-    @Override
-    public void refreshRealmOnChange(CachingRealm realm) {
-        addListener(realm::expireAll);
-    }
-
-    synchronized void addListener(Runnable listener) {
-        listeners.add(Objects.requireNonNull(listener, "listener cannot be null"));
-    }
-
     public static Path resolveFile(RealmConfig realmConfig) {
         String location = realmConfig.getSetting(DnRoleMapperSettings.ROLE_MAPPING_FILE_SETTING);
-        return XPackPlugin.resolveConfigFile(realmConfig.env(), location);
+        return Security.resolveSecuredConfigFile(realmConfig.env(), location);
     }
 
     /**
@@ -123,7 +114,9 @@ public class DnRoleMapper implements UserRoleMapper {
         }
 
         try {
-            Settings settings = Settings.builder().loadFromPath(path).build();
+            // create this here so it's in an allowed stack frame
+            var file = Files.newInputStream(path);
+            Settings settings = Settings.builder().loadFromStream(path.getFileName().toString(), file, false).build();
 
             Map<DN, Set<String>> dnToRoles = new HashMap<>();
             Set<String> roles = settings.names();
@@ -232,10 +225,6 @@ public class DnRoleMapper implements UserRoleMapper {
         return roles;
     }
 
-    public void notifyRefresh() {
-        listeners.forEach(Runnable::run);
-    }
-
     private class FileListener implements FileChangesListener {
         @Override
         public void onFileCreated(Path file) {
@@ -251,7 +240,9 @@ public class DnRoleMapper implements UserRoleMapper {
         public void onFileChanged(Path file) {
             if (file.equals(DnRoleMapper.this.file)) {
                 final Map<String, List<String>> previousDnRoles = dnRoles;
-                dnRoles = parseFileLenient(file, logger, config.type(), config.name());
+                dnRoles = doPrivileged(
+                    (PrivilegedAction<Map<String, List<String>>>) () -> parseFileLenient(file, logger, config.type(), config.name())
+                );
 
                 if (previousDnRoles.equals(dnRoles) == false) {
                     logger.info(
@@ -260,10 +251,9 @@ public class DnRoleMapper implements UserRoleMapper {
                         config.type(),
                         config.name()
                     );
-                    notifyRefresh();
+                    clearRealmCachesOnLocalNode();
                 }
             }
         }
     }
-
 }

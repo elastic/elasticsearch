@@ -1,35 +1,29 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.indices.analyze;
 
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
-import org.elasticsearch.action.support.broadcast.BaseBroadcastResponse;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.util.Arrays;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Set;
-
-import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
 /**
  * The response object that will be returned when reloading analyzers
@@ -38,10 +32,10 @@ public class ReloadAnalyzersResponse extends BroadcastResponse {
 
     private final Map<String, ReloadDetails> reloadDetails;
 
-    private static final ParseField RELOAD_DETAILS_FIELD = new ParseField("reload_details");
-    private static final ParseField INDEX_FIELD = new ParseField("index");
-    private static final ParseField RELOADED_ANALYZERS_FIELD = new ParseField("reloaded_analyzers");
-    private static final ParseField RELOADED_NODE_IDS_FIELD = new ParseField("reloaded_node_ids");
+    static final ParseField RELOAD_DETAILS_FIELD = new ParseField("reload_details");
+    static final ParseField INDEX_FIELD = new ParseField("index");
+    static final ParseField RELOADED_ANALYZERS_FIELD = new ParseField("reloaded_analyzers");
+    static final ParseField RELOADED_NODE_IDS_FIELD = new ParseField("reloaded_node_ids");
 
     public ReloadAnalyzersResponse(StreamInput in) throws IOException {
         super(in);
@@ -78,48 +72,6 @@ public class ReloadAnalyzersResponse extends BroadcastResponse {
             builder.endObject();
         }
         builder.endArray();
-    }
-
-    @SuppressWarnings({ "unchecked" })
-    private static final ConstructingObjectParser<ReloadAnalyzersResponse, Void> PARSER = new ConstructingObjectParser<>(
-        "reload_analyzer",
-        true,
-        arg -> {
-            BaseBroadcastResponse response = (BaseBroadcastResponse) arg[0];
-            List<ReloadDetails> results = (List<ReloadDetails>) arg[1];
-            Map<String, ReloadDetails> reloadedNodeIds = new HashMap<>();
-            for (ReloadDetails result : results) {
-                reloadedNodeIds.put(result.getIndexName(), result);
-            }
-            return new ReloadAnalyzersResponse(
-                response.getTotalShards(),
-                response.getSuccessfulShards(),
-                response.getFailedShards(),
-                Arrays.asList(response.getShardFailures()),
-                reloadedNodeIds
-            );
-        }
-    );
-
-    @SuppressWarnings({ "unchecked" })
-    private static final ConstructingObjectParser<ReloadDetails, Void> ENTRY_PARSER = new ConstructingObjectParser<>(
-        "reload_analyzer.entry",
-        true,
-        arg -> {
-            return new ReloadDetails((String) arg[0], new HashSet<>((List<String>) arg[1]), new HashSet<>((List<String>) arg[2]));
-        }
-    );
-
-    static {
-        declareBroadcastFields(PARSER);
-        PARSER.declareObjectArray(constructorArg(), ENTRY_PARSER, RELOAD_DETAILS_FIELD);
-        ENTRY_PARSER.declareString(constructorArg(), INDEX_FIELD);
-        ENTRY_PARSER.declareStringArray(constructorArg(), RELOADED_ANALYZERS_FIELD);
-        ENTRY_PARSER.declareStringArray(constructorArg(), RELOADED_NODE_IDS_FIELD);
-    }
-
-    public static ReloadAnalyzersResponse fromXContent(XContentParser parser) {
-        return PARSER.apply(parser, null);
     }
 
     @Override

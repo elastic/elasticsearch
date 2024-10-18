@@ -13,8 +13,10 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.seqno.SeqNoStats;
@@ -24,7 +26,6 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.TaskCancelHelper;
 import org.elasticsearch.tasks.TaskId;
-import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.transform.action.GetCheckpointNodeAction;
 import org.elasticsearch.xpack.transform.transforms.scheduling.FakeClock;
@@ -47,6 +48,8 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.sameInstance;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -65,9 +68,53 @@ public class TransportGetCheckpointNodeActionTests extends ESTestCase {
         ClusterService clusterService = new ClusterService(
             Settings.builder().put("node.name", NODE_NAME).build(),
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-            null,
-            (TaskManager) null
+            new DeterministicTaskQueue().getThreadPool(),
+            null
         );
+
+        indicesService = mock(IndicesService.class);
+        when(indicesService.clusterService()).thenReturn(clusterService);
+
+        task = new CancellableTask(123, "type", "action", "description", new TaskId("dummy-node:456"), Map.of());
+        clock = new FakeClock(Instant.now());
+        shards = Set.of(
+            new ShardId(new Index("my-index-A", "A"), 0),
+            new ShardId(new Index("my-index-A", "A"), 1),
+            new ShardId(new Index("my-index-B", "B"), 0),
+            new ShardId(new Index("my-index-B", "B"), 1)
+        );
+    }
+
+    public void testGetGlobalCheckpointsWithNoTimeout() throws InterruptedException {
+        testGetGlobalCheckpointsSuccess(null);
+    }
+
+    public void testGetGlobalCheckpointsWithHighTimeout() throws InterruptedException {
+        testGetGlobalCheckpointsSuccess(TimeValue.timeValueMinutes(1));
+    }
+
+    private void testGetGlobalCheckpointsSuccess(TimeValue timeout) throws InterruptedException {
+        mockIndexServiceResponse();
+        CountDownLatch latch = new CountDownLatch(1);
+        SetOnce<GetCheckpointNodeAction.Response> responseHolder = new SetOnce<>();
+        SetOnce<Exception> exceptionHolder = new SetOnce<>();
+        TransportGetCheckpointNodeAction.getGlobalCheckpoints(indicesService, task, shards, timeout, clock, ActionListener.wrap(r -> {
+            responseHolder.set(r);
+            latch.countDown();
+        }, e -> {
+            exceptionHolder.set(e);
+            latch.countDown();
+        }));
+        latch.await(10, TimeUnit.SECONDS);
+
+        Map<String, long[]> checkpoints = responseHolder.get().getCheckpoints();
+        assertThat(checkpoints.keySet(), containsInAnyOrder("my-index-A", "my-index-B"));
+        assertThat(LongStream.of(checkpoints.get("my-index-A")).boxed().collect(Collectors.toList()), contains(3000L, 3001L));
+        assertThat(LongStream.of(checkpoints.get("my-index-B")).boxed().collect(Collectors.toList()), contains(4000L, 4001L));
+        assertThat(exceptionHolder.get(), is(nullValue()));
+    }
+
+    private void mockIndexServiceResponse() {
         IndexShard indexShardA0 = mock(IndexShard.class);
         when(indexShardA0.seqNoStats()).thenReturn(new SeqNoStats(3_000, 2_000, 3_000));
         IndexShard indexShardA1 = mock(IndexShard.class);
@@ -93,50 +140,12 @@ public class TransportGetCheckpointNodeActionTests extends ESTestCase {
         );
         when(indexServiceB.getShard(0)).thenReturn(indexShardB0);
         when(indexServiceB.getShard(1)).thenReturn(indexShardB1);
-        indicesService = mock(IndicesService.class);
-        when(indicesService.clusterService()).thenReturn(clusterService);
         when(indicesService.indexServiceSafe(new Index("my-index-A", "A"))).thenReturn(indexServiceA);
         when(indicesService.indexServiceSafe(new Index("my-index-B", "B"))).thenReturn(indexServiceB);
-
-        task = new CancellableTask(123, "type", "action", "description", new TaskId("dummy-node:456"), Map.of());
-        clock = new FakeClock(Instant.now());
-        shards = Set.of(
-            new ShardId(new Index("my-index-A", "A"), 0),
-            new ShardId(new Index("my-index-A", "A"), 1),
-            new ShardId(new Index("my-index-B", "B"), 0),
-            new ShardId(new Index("my-index-B", "B"), 1)
-        );
-    }
-
-    public void testGetGlobalCheckpointsWithNoTimeout() throws InterruptedException {
-        testGetGlobalCheckpointsSuccess(null);
-    }
-
-    public void testGetGlobalCheckpointsWithHighTimeout() throws InterruptedException {
-        testGetGlobalCheckpointsSuccess(TimeValue.timeValueMinutes(1));
-    }
-
-    private void testGetGlobalCheckpointsSuccess(TimeValue timeout) throws InterruptedException {
-        CountDownLatch latch = new CountDownLatch(1);
-        SetOnce<GetCheckpointNodeAction.Response> responseHolder = new SetOnce<>();
-        SetOnce<Exception> exceptionHolder = new SetOnce<>();
-        TransportGetCheckpointNodeAction.getGlobalCheckpoints(indicesService, task, shards, timeout, clock, ActionListener.wrap(r -> {
-            responseHolder.set(r);
-            latch.countDown();
-        }, e -> {
-            exceptionHolder.set(e);
-            latch.countDown();
-        }));
-        latch.await(10, TimeUnit.SECONDS);
-
-        Map<String, long[]> checkpoints = responseHolder.get().getCheckpoints();
-        assertThat(checkpoints.keySet(), containsInAnyOrder("my-index-A", "my-index-B"));
-        assertThat(LongStream.of(checkpoints.get("my-index-A")).boxed().collect(Collectors.toList()), contains(3000L, 3001L));
-        assertThat(LongStream.of(checkpoints.get("my-index-B")).boxed().collect(Collectors.toList()), contains(4000L, 4001L));
-        assertThat(exceptionHolder.get(), is(nullValue()));
     }
 
     public void testGetGlobalCheckpointsFailureDueToTaskCancelled() throws InterruptedException {
+        mockIndexServiceResponse();
         TaskCancelHelper.cancel(task, "due to apocalypse");
 
         CountDownLatch latch = new CountDownLatch(1);
@@ -156,6 +165,7 @@ public class TransportGetCheckpointNodeActionTests extends ESTestCase {
     }
 
     public void testGetGlobalCheckpointsFailureDueToTimeout() throws InterruptedException {
+        mockIndexServiceResponse();
         // Move the current time past the timeout.
         clock.advanceTimeBy(Duration.ofSeconds(10));
 
@@ -183,5 +193,25 @@ public class TransportGetCheckpointNodeActionTests extends ESTestCase {
             exceptionHolder.get().getMessage(),
             is(equalTo("Transform checkpointing timed out on node [dummy-node] after [5s] having processed [0] of [4] shards"))
         );
+    }
+
+    public void testIndexNotFoundException() throws InterruptedException {
+        var expectedException = new IndexNotFoundException("some index");
+        when(indicesService.indexServiceSafe(any())).thenThrow(expectedException);
+
+        var exceptionHolder = new SetOnce<Exception>();
+        TransportGetCheckpointNodeAction.getGlobalCheckpoints(
+            indicesService,
+            task,
+            shards,
+            TimeValue.timeValueSeconds(5),
+            clock,
+            ActionListener.wrap(r -> {
+                fail("Test is meant to call the onFailure method.");
+            }, exceptionHolder::set)
+        );
+
+        assertNotNull("Listener's onFailure handler was not called.", exceptionHolder.get());
+        assertThat(exceptionHolder.get(), sameInstance(expectedException));
     }
 }

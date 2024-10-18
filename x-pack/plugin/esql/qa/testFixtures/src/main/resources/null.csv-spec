@@ -142,3 +142,52 @@ emp_no:integer | first_name:keyword | foo:boolean
          10002 | Bezalel            | true
          10003 | Parto              | true
 ;
+
+coalesceMixedNumeric
+required_capability: mixed_numeric_types_in_coalesce
+FROM employees
+| WHERE emp_no <= 10021 and emp_no >= 10018
+| EVAL x = coalesce(languages.long, 0), y = coalesce(height, 0), z = coalesce(languages::double, 0)
+| SORT emp_no ASC
+| KEEP emp_no, languages, x, height, y, z
+;
+
+emp_no:integer | languages:integer | x:long | height:double | y:double | z:double
+         10018 | 2                 | 2      | 1.97          | 1.97     | 2.0
+         10019 | 1                 | 1      | 2.06          | 2.06     | 1.0
+         10020 | null              | 0      | 1.41          | 1.41     | 0.0
+         10021 | null              | 0      | 1.47          | 1.47     | 0.0
+;
+
+coalesceMixedNumericWithNull
+required_capability: mixed_numeric_types_in_coalesce
+FROM employees
+| WHERE emp_no <= 10021 and emp_no >= 10018
+| EVAL x = coalesce(languages.long, null, 0), y = coalesce(null, height, 0),  z = coalesce(languages::double, null, 0)
+| SORT emp_no ASC
+| KEEP emp_no, languages.long, x, height, y, z
+;
+
+emp_no:integer | languages.long:long | x:long | height:double | y:double | z:double
+         10018 | 2                   | 2      | 1.97          | 1.97     | 2.0
+         10019 | 1                   | 1      | 2.06          | 2.06     | 1.0
+         10020 | null                | 0      | 1.41          | 1.41     | 0.0
+         10021 | null                | 0      | 1.47          | 1.47     | 0.0
+;
+
+coalesceMixedNumericFields
+required_capability: mixed_numeric_types_in_coalesce
+FROM employees
+| WHERE emp_no <= 10021 and emp_no >= 10018
+| EVAL x = coalesce(height, languages.long, 0), y = coalesce(height, null, languages, 0),
+z = coalesce(languages::double, null, salary, height, 0)
+| SORT emp_no ASC
+| KEEP emp_no, languages, height, x, y, z, salary
+;
+
+emp_no:integer | languages:integer | height:double | x:double | y:double | z:double | salary:integer
+         10018 | 2                 | 1.97          | 1.97     | 1.97     | 2.0      | 56760
+         10019 | 1                 | 2.06          | 2.06     | 2.06     | 1.0      | 73717
+         10020 | null              | 1.41          | 1.41     | 1.41     | 40031.0  | 40031
+         10021 | null              | 1.47          | 1.47     | 1.47     | 60408.0  | 60408
+;

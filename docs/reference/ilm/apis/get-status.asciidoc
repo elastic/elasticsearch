@@ -7,7 +7,7 @@
 <titleabbrev>Get {ilm} status</titleabbrev>
 ++++
 
-Retrieves the current {ilm} ({ilm-init}) status.
+Retrieves the current <<index-lifecycle-management,{ilm}>> ({ilm-init}) status.
 
 You can start or stop {ilm-init} with the <<ilm-start,start {ilm-init}>> and
 <<ilm-stop,stop {ilm-init}>> APIs.
@@ -27,7 +27,7 @@ You can start or stop {ilm-init} with the <<ilm-start,start {ilm-init}>> and
 [[ilm-get-status-query-params]]
 ==== {api-query-parms-title}
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 
 [role="child_attributes"]
 [[ilm-get-status-response-body]]

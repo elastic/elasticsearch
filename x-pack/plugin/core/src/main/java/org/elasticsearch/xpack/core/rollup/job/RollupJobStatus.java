@@ -74,7 +74,7 @@ public class RollupJobStatus implements Task.Status, PersistentTaskState {
 
     public RollupJobStatus(StreamInput in) throws IOException {
         state = IndexerState.fromStream(in);
-        currentPosition = in.readBoolean() ? new TreeMap<>(in.readGenericMap()) : null;
+        currentPosition = in.readOptional(CURRENT_POSITION_READER);
         if (in.getTransportVersion().before(TransportVersions.V_8_0_0)) {
             // 7.x nodes serialize `upgradedDocumentID` flag. We don't need it anymore, but
             // we need to pull it off the stream
@@ -82,6 +82,8 @@ public class RollupJobStatus implements Task.Status, PersistentTaskState {
             in.readBoolean();
         }
     }
+
+    private static final Reader<TreeMap<String, Object>> CURRENT_POSITION_READER = in -> new TreeMap<>(in.readGenericMap());
 
     public IndexerState getIndexerState() {
         return state;
@@ -118,10 +120,7 @@ public class RollupJobStatus implements Task.Status, PersistentTaskState {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         state.writeTo(out);
-        out.writeBoolean(currentPosition != null);
-        if (currentPosition != null) {
-            out.writeGenericMap(currentPosition);
-        }
+        out.writeOptional(StreamOutput::writeGenericMap, currentPosition);
         if (out.getTransportVersion().before(TransportVersions.V_8_0_0)) {
             // 7.x nodes expect a boolean `upgradedDocumentID` flag. We don't have it anymore,
             // but we need to tell them we are upgraded in case there is a mixed cluster

@@ -51,16 +51,18 @@ public class ShapeQueryOverShapeTests extends ShapeQueryTestCase {
 
     @Override
     protected XContentBuilder createDefaultMapping() throws Exception {
-        XContentBuilder xcb = XContentFactory.jsonBuilder()
+        final boolean isIndexed = randomBoolean();
+        final boolean hasDocValues = isIndexed == false || randomBoolean();
+        return XContentFactory.jsonBuilder()
             .startObject()
             .startObject("properties")
             .startObject(defaultFieldName)
             .field("type", "shape")
+            .field("index", isIndexed)
+            .field("doc_values", hasDocValues)
             .endObject()
             .endObject()
             .endObject();
-
-        return xcb;
     }
 
     @Override

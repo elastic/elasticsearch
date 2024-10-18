@@ -1,19 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.analysis.TokenStream;
-import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.PrefixCodedTerms;
-import org.apache.lucene.index.PrefixCodedTerms.TermIterator;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.queries.intervals.IntervalsSource;
@@ -21,12 +19,10 @@ import org.apache.lucene.queries.spans.SpanMultiTermQueryWrapper;
 import org.apache.lucene.queries.spans.SpanQuery;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
-import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
@@ -36,6 +32,7 @@ import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.query.DistanceFeatureQueryBuilder;
@@ -50,6 +47,7 @@ import java.io.IOException;
 import java.time.ZoneId;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -197,6 +195,13 @@ public abstract class MappedFieldType {
     }
 
     /**
+     * @return true if field has script values.
+     */
+    public boolean hasScriptValues() {
+        return false;
+    }
+
+    /**
      * @return a list of dimension fields. Expected to be used by fields that have
      * nested fields or that, in some way, identify a collection of fields by means
      * of a top level field (like flattened fields).
@@ -235,8 +240,9 @@ public abstract class MappedFieldType {
      * {@link ConstantScoreQuery} around a {@link BooleanQuery} whose {@link Occur#SHOULD} clauses
      * are generated with {@link #termQuery}. */
     public Query termsQuery(Collection<?> values, @Nullable SearchExecutionContext context) {
+        Set<?> dedupe = new HashSet<>(values);
         BooleanQuery.Builder builder = new BooleanQuery.Builder();
-        for (Object value : values) {
+        for (Object value : dedupe) {
             builder.add(termQuery(value, context), Occur.SHOULD);
         }
         return new ConstantScoreQuery(builder.build());
@@ -435,6 +441,30 @@ public abstract class MappedFieldType {
     }
 
     /**
+     * Create a regexp {@link IntervalsSource} for the given pattern.
+     */
+    public IntervalsSource regexpIntervals(BytesRef pattern, SearchExecutionContext context) {
+        throw new IllegalArgumentException(
+            "Can only use interval queries on text fields - not on [" + name + "] which is of type [" + typeName() + "]"
+        );
+    }
+
+    /**
+     * Create a range {@link IntervalsSource} for the given ranges
+     */
+    public IntervalsSource rangeIntervals(
+        BytesRef lowerTerm,
+        BytesRef upperTerm,
+        boolean includeLower,
+        boolean includeUpper,
+        SearchExecutionContext context
+    ) {
+        throw new IllegalArgumentException(
+            "Can only use interval queries on text fields - not on [" + name + "] which is of type [" + typeName() + "]"
+        );
+    }
+
+    /**
      * An enum used to describe the relation between the range of terms in a
      * shard when compared with a query range
      */
@@ -552,29 +582,6 @@ public abstract class MappedFieldType {
     }
 
     /**
-     * Extract a {@link Term} from a query created with {@link #termQuery} by
-     * recursively removing {@link BoostQuery} wrappers.
-     * @throws IllegalArgumentException if the wrapped query is not a {@link TermQuery}
-     */
-    public static Term extractTerm(Query termQuery) {
-        while (termQuery instanceof BoostQuery) {
-            termQuery = ((BoostQuery) termQuery).getQuery();
-        }
-        if (termQuery instanceof TermInSetQuery tisQuery) {
-            PrefixCodedTerms terms = tisQuery.getTermData();
-            if (terms.size() == 1) {
-                TermIterator it = terms.iterator();
-                BytesRef term = it.next();
-                return new Term(it.field(), term);
-            }
-        }
-        if (termQuery instanceof TermQuery == false) {
-            throw new IllegalArgumentException("Cannot extract a term from a query of type " + termQuery.getClass() + ": " + termQuery);
-        }
-        return ((TermQuery) termQuery).getTerm();
-    }
-
-    /**
      * Get the metadata associated with this field.
      */
     public Map<String, String> meta() {
@@ -622,16 +629,26 @@ public abstract class MappedFieldType {
      * Validate that this field can be the target of {@link IndexMetadata#INDEX_ROUTING_PATH}.
      */
     public void validateMatchedRoutingPath(String routingPath) {
-        throw new IllegalArgumentException(
-            "All fields that match routing_path "
-                + "must be keywords with [time_series_dimension: true] "
-                + "or flattened fields with a list of dimensions in [time_series_dimensions] and "
-                + "without the [script] parameter. ["
-                + name()
-                + "] was ["
-                + typeName()
-                + "]."
-        );
+        if (hasScriptValues()) {
+            throw new IllegalArgumentException(
+                "All fields that match routing_path must be configured with [time_series_dimension: true] "
+                    + "or flattened fields with a list of dimensions in [time_series_dimensions] and "
+                    + "without the [script] parameter. ["
+                    + name()
+                    + "] has a [script] parameter."
+            );
+        }
+
+        if (isDimension() == false) {
+            throw new IllegalArgumentException(
+                "All fields that match routing_path "
+                    + "must be configured with [time_series_dimension: true] "
+                    + "or flattened fields with a list of dimensions in [time_series_dimensions] and "
+                    + "without the [script] parameter. ["
+                    + name()
+                    + "] was not a dimension."
+            );
+        }
     }
 
     /**
@@ -644,12 +661,7 @@ public abstract class MappedFieldType {
      * @return {@code true} if field is present in fieldInfos {@code false} otherwise
      */
     public boolean fieldHasValue(FieldInfos fieldInfos) {
-        for (FieldInfo fieldInfo : fieldInfos) {
-            if (fieldInfo.getName().equals(name())) {
-                return true;
-            }
-        }
-        return false;
+        return fieldInfos.fieldInfo(name()) != null;
     }
 
     /**
@@ -679,6 +691,11 @@ public abstract class MappedFieldType {
          * The name of the index.
          */
         String indexName();
+
+        /**
+         * The index settings of the index
+         */
+        IndexSettings indexSettings();
 
         /**
          * How the field should be extracted into the BlockLoader. The default is {@link FieldExtractPreference#NONE}, which means

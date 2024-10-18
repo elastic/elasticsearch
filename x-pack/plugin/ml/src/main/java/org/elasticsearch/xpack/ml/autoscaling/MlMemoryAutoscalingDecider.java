@@ -15,6 +15,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.XContentElasticsearchExtension;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Predicates;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.logging.LogManager;
@@ -913,7 +914,7 @@ class MlMemoryAutoscalingDecider {
             return List.of();
         }
 
-        return tasksCustomMetadata.findTasks(MlTasks.DATAFEED_TASK_NAME, t -> true)
+        return tasksCustomMetadata.findTasks(MlTasks.DATAFEED_TASK_NAME, Predicates.always())
             .stream()
             .map(p -> (PersistentTasksCustomMetadata.PersistentTask<StartDatafeedAction.DatafeedParams>) p)
             .toList();

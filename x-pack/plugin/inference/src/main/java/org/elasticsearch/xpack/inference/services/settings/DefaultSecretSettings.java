@@ -19,6 +19,7 @@ import org.elasticsearch.inference.SecretSettings;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
@@ -28,7 +29,7 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractReq
  * Contains secret settings that are common to all services.
  * @param apiKey the key used to authenticate with the 3rd party service
  */
-public record DefaultSecretSettings(SecureString apiKey) implements SecretSettings {
+public record DefaultSecretSettings(SecureString apiKey) implements SecretSettings, ApiKeySecrets {
     public static final String NAME = "default_secret_settings";
 
     static final String API_KEY = "api_key";
@@ -77,5 +78,10 @@ public record DefaultSecretSettings(SecureString apiKey) implements SecretSettin
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeSecureString(apiKey);
+    }
+
+    @Override
+    public SecretSettings newSecretSettings(Map<String, Object> newSecrets) {
+        return fromMap(new HashMap<>(newSecrets));
     }
 }

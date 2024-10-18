@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.common;
 
@@ -175,5 +176,21 @@ public class UUIDTests extends ESTestCase {
                 + "."
         );
         return bytesPerDoc;
+    }
+
+    public void testStringLength() {
+        assertEquals(UUIDs.RANDOM_BASED_UUID_STRING_LENGTH, getUnpaddedBase64StringLength(RandomBasedUUIDGenerator.SIZE_IN_BYTES));
+        assertEquals(UUIDs.RANDOM_BASED_UUID_STRING_LENGTH, UUIDs.randomBase64UUID().length());
+        assertEquals(UUIDs.RANDOM_BASED_UUID_STRING_LENGTH, UUIDs.randomBase64UUID(random()).length());
+        try (var secureString = UUIDs.randomBase64UUIDSecureString()) {
+            assertEquals(UUIDs.RANDOM_BASED_UUID_STRING_LENGTH, secureString.toString().length());
+        }
+
+        assertEquals(UUIDs.TIME_BASED_UUID_STRING_LENGTH, getUnpaddedBase64StringLength(TimeBasedUUIDGenerator.SIZE_IN_BYTES));
+        assertEquals(UUIDs.TIME_BASED_UUID_STRING_LENGTH, UUIDs.base64UUID().length());
+    }
+
+    private static int getUnpaddedBase64StringLength(int sizeInBytes) {
+        return (int) Math.ceil(sizeInBytes * 4.0 / 3.0);
     }
 }

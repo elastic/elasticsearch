@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.script.field.vectors;
@@ -23,7 +24,11 @@ public class ByteKnnDenseVectorDocValuesField extends DenseVectorDocValuesField 
     protected final int dims;
 
     public ByteKnnDenseVectorDocValuesField(@Nullable ByteVectorValues input, String name, int dims) {
-        super(name, ElementType.BYTE);
+        this(input, name, dims, ElementType.BYTE);
+    }
+
+    protected ByteKnnDenseVectorDocValuesField(@Nullable ByteVectorValues input, String name, int dims, ElementType elementType) {
+        super(name, elementType);
         this.dims = dims;
         this.input = input;
     }
@@ -57,13 +62,17 @@ public class ByteKnnDenseVectorDocValuesField extends DenseVectorDocValuesField 
         return vector == null;
     }
 
+    protected DenseVector getVector() {
+        return new ByteKnnDenseVector(vector);
+    }
+
     @Override
     public DenseVector get() {
         if (isEmpty()) {
             return DenseVector.EMPTY;
         }
 
-        return new ByteKnnDenseVector(vector);
+        return getVector();
     }
 
     @Override
@@ -72,7 +81,7 @@ public class ByteKnnDenseVectorDocValuesField extends DenseVectorDocValuesField 
             return defaultValue;
         }
 
-        return new ByteKnnDenseVector(vector);
+        return getVector();
     }
 
     @Override

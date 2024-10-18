@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.persistent;
@@ -58,6 +59,7 @@ import java.util.stream.Collectors;
 
 import static java.util.Collections.singleton;
 import static java.util.stream.Collectors.toMap;
+import static org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata.Type.SIGTERM;
 import static org.elasticsearch.persistent.PersistentTasksClusterService.needsReassignment;
 import static org.elasticsearch.persistent.PersistentTasksClusterService.persistentTasksChanged;
 import static org.elasticsearch.persistent.PersistentTasksExecutor.NO_NODE_FOUND;
@@ -629,11 +631,7 @@ public class PersistentTasksClusterServiceTests extends ESTestCase {
                             .setReason("shutdown for a unit test")
                             .setType(type)
                             .setStartedAtMillis(randomNonNegativeLong())
-                            .setGracePeriod(
-                                type == SingleNodeShutdownMetadata.Type.SIGTERM
-                                    ? TimeValue.parseTimeValue(randomTimeValue(), this.getTestName())
-                                    : null
-                            )
+                            .setGracePeriod(type == SIGTERM ? randomTimeValue() : null)
                             .build()
                     )
                 );

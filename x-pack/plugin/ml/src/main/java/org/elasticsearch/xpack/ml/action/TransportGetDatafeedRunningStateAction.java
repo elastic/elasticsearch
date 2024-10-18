@@ -15,7 +15,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.tasks.TransportTasksAction;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
@@ -55,7 +55,6 @@ public class TransportGetDatafeedRunningStateAction extends TransportTasksAction
             transportService,
             actionFilters,
             Request::new,
-            Response::new,
             Response::new,
             transportService.getThreadPool().executor(ThreadPool.Names.MANAGEMENT)
         );

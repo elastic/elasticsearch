@@ -7,16 +7,16 @@
 
 package org.elasticsearch.xpack.inference.services.huggingface.elser;
 
-import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.external.action.huggingface.HuggingFaceActionVisitor;
+import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.huggingface.HuggingFaceModel;
+import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 
-import java.net.URI;
 import java.util.Map;
 
 public class HuggingFaceElserModel extends HuggingFaceModel {
@@ -25,14 +25,15 @@ public class HuggingFaceElserModel extends HuggingFaceModel {
         TaskType taskType,
         String service,
         Map<String, Object> serviceSettings,
-        @Nullable Map<String, Object> secrets
+        @Nullable Map<String, Object> secrets,
+        ConfigurationParseContext context
     ) {
         this(
             inferenceEntityId,
             taskType,
             service,
-            HuggingFaceElserServiceSettings.fromMap(serviceSettings),
-            HuggingFaceElserSecretSettings.fromMap(secrets)
+            HuggingFaceElserServiceSettings.fromMap(serviceSettings, context),
+            DefaultSecretSettings.fromMap(secrets)
         );
     }
 
@@ -41,9 +42,14 @@ public class HuggingFaceElserModel extends HuggingFaceModel {
         TaskType taskType,
         String service,
         HuggingFaceElserServiceSettings serviceSettings,
-        @Nullable HuggingFaceElserSecretSettings secretSettings
+        @Nullable DefaultSecretSettings secretSettings
     ) {
-        super(new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings), new ModelSecrets(secretSettings));
+        super(
+            new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings),
+            new ModelSecrets(secretSettings),
+            serviceSettings,
+            secretSettings
+        );
     }
 
     @Override
@@ -52,23 +58,13 @@ public class HuggingFaceElserModel extends HuggingFaceModel {
     }
 
     @Override
-    public HuggingFaceElserSecretSettings getSecretSettings() {
-        return (HuggingFaceElserSecretSettings) super.getSecretSettings();
+    public DefaultSecretSettings getSecretSettings() {
+        return (DefaultSecretSettings) super.getSecretSettings();
     }
 
     @Override
     public ExecutableAction accept(HuggingFaceActionVisitor creator) {
         return creator.create(this);
-    }
-
-    @Override
-    public URI getUri() {
-        return getServiceSettings().uri();
-    }
-
-    @Override
-    public SecureString getApiKey() {
-        return getSecretSettings().apiKey();
     }
 
     @Override

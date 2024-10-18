@@ -4,9 +4,11 @@
 <titleabbrev>Update connector configuration</titleabbrev>
 ++++
 
-preview::[]
+beta::[]
 
-Updates a connector's `configuration`, allowing for complete schema modifications or individual value updates within a registered configuration schema.
+Updates a connector's `configuration`, allowing for config value updates within a registered configuration schema.
+
+To get started with Connector APIs, check out <<es-connectors-tutorial-api, our tutorial>>.
 
 
 [[update-connector-configuration-api-request]]
@@ -17,9 +19,10 @@ Updates a connector's `configuration`, allowing for complete schema modification
 [[update-connector-configuration-api-prereq]]
 ==== {api-prereq-title}
 
-* To sync data using connectors, it's essential to have the Elastic connectors service running.
+* To sync data using self-managed connectors, you need to deploy the <<es-connectors-deploy-connector-service,Elastic connector service>>. on your own infrastructure. This service runs automatically on Elastic Cloud for Elastic managed connectors.
 * The `connector_id` parameter should reference an existing connector.
-* The configuration fields definition must be compatible with the specific connector type being used.
+* To update configuration `values`, the connector `configuration` schema must be first registered by a running instance of Elastic connector service.
+* Make sure configuration fields are compatible with the configuration schema for the third-party data source. Refer to the individual <<es-connectors-refs,connector references>> for details.
 
 [[update-connector-configuration-api-path-params]]
 ==== {api-path-parms-title}
@@ -35,57 +38,7 @@ Updates a connector's `configuration`, allowing for complete schema modification
 (Optional, object) Configuration values for the connector, represented as a mapping of configuration fields to their respective values within a registered schema.
 
 `configuration`::
-(Optional, object) The configuration for the connector. The configuration field is a map where each key represents a specific configuration field name, and the value is a `ConnectorConfiguration` object.
-
-Each `ConnectorConfiguration` object contains the following attributes:
-
-* `category` (Optional, string) The category of the configuration field. This helps in grouping related configurations together in the user interface.
-
-* `default_value` (Required, string | number | bool) The default value for the configuration. This value is used if the value field is empty, applicable only for non-required fields.
-
-* `depends_on` (Required, array of `ConfigurationDependency`) An array of dependencies on other configurations. A field will not be enabled unless these dependencies are met. Each dependency specifies a field key and the required value for the dependency to be considered fulfilled.
-
-* `display` (Required, string) The display type for the UI element that represents this configuration. This defines how the field should be rendered in the user interface. Supported types are: `text`, `textbox`, `textarea`, `numeric`, `toggle` and `dropdown`.
-
-* `label` (Required, string) The display label for the configuration field. This label is shown in the user interface, adjacent to the field.
-
-* `options` (Required, array of `ConfigurationSelectOption`) An array of options for list-type fields. These options are used for inputs in the user interface, each having a label for display and a value.
-
-* `order` (Required, number) The order in which this configuration appears in the user interface. This helps in organizing fields logically.
-
-* `placeholder` (Required, string) Placeholder text for the configuration field. This text is displayed inside the field before a value is entered.
-
-* `required` (Required, boolean) Indicates whether the configuration is mandatory. If true, a value must be provided for the field.
-
-* `sensitive` (Required, boolean) Indicates whether the configuration contains sensitive information. Sensitive fields may be obfuscated in the user interface.
-
-* `tooltip` (Optional, string) Tooltip text providing additional information about the configuration. This text appears when the user hovers over the info icon next to the configuration field.
-
-* `type` (Required, string) The type of the configuration field, such as `str`, `int`, `bool`, `list`. This defines the data type and format of the field's value.
-
-* `ui_restrictions` (Required, array of strings) A list of UI restrictions. These restrictions define where in the user interface this field should be available or restricted.
-
-* `validations` (Required, array of `ConfigurationValidation`) An array of rules for validating the field's value. Each validation specifies a type and a constraint that the field's value must meet.
-
-* `value` (Required, string | number | bool) The current value of the configuration. This is the actual value set for the field and is used by the connector during its operations.
-
-`ConfigurationDependency` represents a dependency that a configuration field has on another field's value. It contains the following attributes:
-
-* `field` (Required, string) The name of the field in the configuration that this dependency relates to.
-
-* `value` (Required, string | number | bool) The required value of the specified field for this dependency to be met.
-
-`ConfigurationSelectOption` defines an option within a selectable configuration field. It contains the following attributes:
-
-* `label` (Required, string) The display label for the option.
-
-* `value` (Required, string) The actual value associated with the option.
-
-`ConfigurationValidation` specifies validation rules for configuration fields. Each ConfigurationValidation instance enforces a specific type of validation based on its type and constraint. It contains the following attributes:
-
-* `constraint` (Required, string | number) The validation constraint. The nature of this constraint depends on the validation type. It could be a numeric value, a list, a regular expression pattern.
-
-* `type` (Required, ConfigurationValidationType) The type of validation to be performed. Possible values include: `less_than`, `greater_than`, `list_type`, `included_in`, `regex` and `unset`.
+(Optional, object) The configuration schema definition for the connector. The configuration field is a map where each key represents a specific configuration field name, and the value is a `ConnectorConfiguration` object. For connector management use `values` to pass config values. The `configuration` object is used by the Elastic connector service to register the connector configuration schema.
 
 
 [[update-connector-configuration-api-response-codes]]
@@ -103,7 +56,7 @@ No connector matching `connector_id` could be found.
 [[update-connector-configuration-api-example]]
 ==== {api-examples-title}
 
-The following example updates the `configuration` for the connector with ID `my-connector`:
+The following example configures a `sharepoint_online` connector. Find the supported configuration options in the <<es-connectors-sharepoint-online,Sharepoint Online connector documentation>>, or by inspecting the schema in the connector's `configuration` field using the <<get-connector-api>>.
 
 ////
 [source, console]
@@ -118,35 +71,227 @@ PUT _connector/my-spo-connector
 PUT _connector/my-spo-connector/_configuration
 {
     "configuration": {
+        "tenant_id": {
+          "default_value": null,
+          "depends_on": [],
+          "display": "textbox",
+          "label": "Tenant ID",
+          "options": [],
+          "order": 1,
+          "required": true,
+          "sensitive": false,
+          "tooltip": "",
+          "type": "str",
+          "ui_restrictions": [],
+          "validations": [],
+          "value": ""
+        },
+        "tenant_name": {
+          "default_value": null,
+          "depends_on": [],
+          "display": "textbox",
+          "label": "Tenant name",
+          "options": [],
+          "order": 2,
+          "required": true,
+          "sensitive": false,
+          "tooltip": "",
+          "type": "str",
+          "ui_restrictions": [],
+          "validations": [],
+          "value": ""
+        },
         "client_id": {
-            "default_value": null,
-            "depends_on": [],
-            "display": "text",
-            "label": "Client ID",
-            "options": [],
-            "order": 3,
-            "required": true,
-            "sensitive": false,
-            "tooltip": null,
-            "type": "str",
-            "ui_restrictions": [],
-            "validations": [],
-            "value": null
+          "default_value": null,
+          "depends_on": [],
+          "display": "textbox",
+          "label": "Client ID",
+          "options": [],
+          "order": 3,
+          "required": true,
+          "sensitive": false,
+          "tooltip": "",
+          "type": "str",
+          "ui_restrictions": [],
+          "validations": [],
+          "value": ""
         },
         "secret_value": {
-            "default_value": null,
-            "depends_on": [],
-            "display": "text",
-            "label": "Secret value",
-            "options": [],
-            "order": 4,
-            "required": true,
-            "sensitive": true,
-            "tooltip": null,
-            "type": "str",
-            "ui_restrictions": [],
-            "validations": [],
-            "value": null
+          "default_value": null,
+          "depends_on": [],
+          "display": "textbox",
+          "label": "Secret value",
+          "options": [],
+          "order": 4,
+          "required": true,
+          "sensitive": true,
+          "tooltip": "",
+          "type": "str",
+          "ui_restrictions": [],
+          "validations": [],
+          "value": ""
+        },
+        "site_collections": {
+          "default_value": null,
+          "depends_on": [],
+          "display": "textarea",
+          "label": "Comma-separated list of sites",
+          "options": [],
+          "order": 5,
+          "required": true,
+          "sensitive": false,
+          "tooltip": "A comma-separated list of sites to ingest data from. Use * to include all available sites.",
+          "type": "list",
+          "ui_restrictions": [],
+          "validations": [],
+          "value": ""
+        },
+        "use_text_extraction_service": {
+          "default_value": false,
+          "depends_on": [],
+          "display": "toggle",
+          "label": "Use text extraction service",
+          "options": [],
+          "order": 6,
+          "required": true,
+          "sensitive": false,
+          "tooltip": "Requires a separate deployment of the Elastic Data Extraction Service. Also requires that pipeline settings disable text extraction.",
+          "type": "bool",
+          "ui_restrictions": [
+            "advanced"
+          ],
+          "validations": [],
+          "value": false
+        },
+        "use_document_level_security": {
+          "default_value": false,
+          "depends_on": [],
+          "display": "toggle",
+          "label": "Enable document level security",
+          "options": [],
+          "order": 7,
+          "required": true,
+          "sensitive": false,
+          "tooltip": "Document level security ensures identities and permissions set in Sharepoint Online are maintained in Elasticsearch. This metadata is added to your Elasticsearch documents, so you can control user and group read-access. Access control syncs ensure this metadata is kept up to date.",
+          "type": "bool",
+          "ui_restrictions": [],
+          "validations": [],
+          "value": false
+        },
+        "fetch_drive_item_permissions": {
+          "default_value": true,
+          "depends_on": [
+            {
+              "field": "use_document_level_security",
+              "value": true
+            }
+          ],
+          "display": "toggle",
+          "label": "Fetch drive item permissions",
+          "options": [],
+          "order": 8,
+          "required": true,
+          "sensitive": false,
+          "tooltip": "Enable this option to fetch drive item specific permissions. This setting can increase sync time.",
+          "type": "bool",
+          "ui_restrictions": [],
+          "validations": [],
+          "value": true
+        },
+        "fetch_unique_page_permissions": {
+          "default_value": true,
+          "depends_on": [
+            {
+              "field": "use_document_level_security",
+              "value": true
+            }
+          ],
+          "display": "toggle",
+          "label": "Fetch unique page permissions",
+          "options": [],
+          "order": 9,
+          "required": true,
+          "sensitive": false,
+          "tooltip": "Enable this option to fetch unique page permissions. This setting can increase sync time. If this setting is disabled a page will inherit permissions from its parent site.",
+          "type": "bool",
+          "ui_restrictions": [],
+          "validations": [],
+          "value": true
+        },
+        "fetch_unique_list_permissions": {
+          "default_value": true,
+          "depends_on": [
+            {
+              "field": "use_document_level_security",
+              "value": true
+            }
+          ],
+          "display": "toggle",
+          "label": "Fetch unique list permissions",
+          "options": [],
+          "order": 10,
+          "required": true,
+          "sensitive": false,
+          "tooltip": "Enable this option to fetch unique list permissions. This setting can increase sync time. If this setting is disabled a list will inherit permissions from its parent site.",
+          "type": "bool",
+          "ui_restrictions": [],
+          "validations": [],
+          "value": true
+        },
+        "fetch_unique_list_item_permissions": {
+          "default_value": true,
+          "depends_on": [
+            {
+              "field": "use_document_level_security",
+              "value": true
+            }
+          ],
+          "display": "toggle",
+          "label": "Fetch unique list item permissions",
+          "options": [],
+          "order": 11,
+          "required": true,
+          "sensitive": false,
+          "tooltip": "Enable this option to fetch unique list item permissions. This setting can increase sync time. If this setting is disabled a list item will inherit permissions from its parent site.",
+          "type": "bool",
+          "ui_restrictions": [],
+          "validations": [],
+          "value": true
+        },
+        "enumerate_all_sites": {
+          "default_value": true,
+          "depends_on": [],
+          "display": "toggle",
+          "label": "Enumerate all sites?",
+          "options": [],
+          "order": 6,
+          "required": false,
+          "sensitive": false,
+          "tooltip": "If enabled, sites will be fetched in bulk, then filtered down to the configured list of sites. This is efficient when syncing many sites. If disabled, each configured site will be fetched with an individual request. This is efficient when syncing fewer sites.",
+          "type": "bool",
+          "ui_restrictions": [],
+          "validations": [],
+          "value": true
+        },
+        "fetch_subsites": {
+          "default_value": false,
+          "depends_on": [
+            {
+              "field": "enumerate_all_sites",
+              "value": false
+            }
+          ],
+          "display": "toggle",
+          "label": "Fetch sub-sites of configured sites?",
+          "options": [],
+          "order": 7,
+          "required": false,
+          "sensitive": false,
+          "tooltip": "Whether subsites of the configured site(s) should be automatically fetched.",
+          "type": "bool",
+          "ui_restrictions": [],
+          "validations": [],
+          "value": true
         }
     }
 }
@@ -160,63 +305,16 @@ DELETE _connector/my-spo-connector
 // TEARDOWN
 ////
 
-This example demonstrates how to register a `sharepoint_online` connector configuration schema. Note: The example does not cover all the necessary configuration fields for operating the Sharepoint Online connector.
-
-[source,console]
-----
-PUT _connector/my-spo-connector/_configuration
-{
-    "configuration": {
-        "client_id": {
-            "default_value": null,
-            "depends_on": [],
-            "display": "text",
-            "label": "Client ID",
-            "options": [],
-            "order": 3,
-            "required": true,
-            "sensitive": false,
-            "tooltip": null,
-            "type": "str",
-            "ui_restrictions": [],
-            "validations": [],
-            "value": null
-        },
-        "secret_value": {
-            "default_value": null,
-            "depends_on": [],
-            "display": "text",
-            "label": "Secret value",
-            "options": [],
-            "order": 4,
-            "required": true,
-            "sensitive": true,
-            "tooltip": null,
-            "type": "str",
-            "ui_restrictions": [],
-            "validations": [],
-            "value": null
-        }
-    }
-}
-----
-
-[source,console-result]
-----
-{
-    "result": "updated"
-}
-----
-
-An example to update configuration values for the `sharepoint_online` connector:
-
 [source,console]
 ----
 PUT _connector/my-spo-connector/_configuration
 {
     "values": {
-        "client_id": "my-client-id",
-        "secret_value": "super-secret-value"
+        "tenant_id": "my-tenant-id",
+        "tenant_name": "my-sharepoint-site",
+        "client_id": "foo",
+        "secret_value": "bar",
+        "site_collections": "*"
     }
 }
 ----
@@ -229,14 +327,17 @@ PUT _connector/my-spo-connector/_configuration
 ----
 
 
-An example to update single configuration field of the `sharepoint_online` connector. In this case other configuration values won't change:
+When you're first setting up your connector you'll need to provide all required configuration details to start running syncs.
+But you can also use this API to only update a subset of fields.
+Here's an example that only updates the `secret_value` field for a `sharepoint_online` connector.
+The other configuration values won't change.
 
 [source,console]
 ----
 PUT _connector/my-spo-connector/_configuration
 {
     "values": {
-        "secret_value": "new-super-secret-value"
+        "secret_value": "foo-bar"
     }
 }
 ----

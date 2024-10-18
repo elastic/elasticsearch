@@ -11,18 +11,17 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.xpack.ql.util.NumericUtils.asLongUnsigned;
+import static org.elasticsearch.xpack.esql.core.util.NumericUtils.asLongUnsigned;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
@@ -41,32 +40,32 @@ public class MvSumTests extends AbstractMultivalueFunctionTestCase {
         // longs(cases, "mv_sum", "MvSum", (size, values) -> equalTo(values.sum()));
         // unsignedLongAsBigInteger(cases, "mv_sum", "MvSum", (size, values) -> equalTo(values.sum()));
 
-        cases.add(arithmeticExceptionCase(DataTypes.INTEGER, () -> {
+        cases.add(arithmeticExceptionCase(DataType.INTEGER, () -> {
             List<Object> data = randomList(1, 10, () -> randomIntBetween(0, Integer.MAX_VALUE));
             data.add(Integer.MAX_VALUE);
             return data;
         }));
-        cases.add(arithmeticExceptionCase(DataTypes.INTEGER, () -> {
+        cases.add(arithmeticExceptionCase(DataType.INTEGER, () -> {
             List<Object> data = randomList(1, 10, () -> randomIntBetween(Integer.MIN_VALUE, 0));
             data.add(Integer.MIN_VALUE);
             return data;
         }));
-        cases.add(arithmeticExceptionCase(DataTypes.LONG, () -> {
+        cases.add(arithmeticExceptionCase(DataType.LONG, () -> {
             List<Object> data = randomList(1, 10, () -> randomLongBetween(0L, Long.MAX_VALUE));
             data.add(Long.MAX_VALUE);
             return data;
         }));
-        cases.add(arithmeticExceptionCase(DataTypes.LONG, () -> {
+        cases.add(arithmeticExceptionCase(DataType.LONG, () -> {
             List<Object> data = randomList(1, 10, () -> randomLongBetween(Long.MIN_VALUE, 0L));
             data.add(Long.MIN_VALUE);
             return data;
         }));
-        cases.add(arithmeticExceptionCase(DataTypes.UNSIGNED_LONG, () -> {
+        cases.add(arithmeticExceptionCase(DataType.UNSIGNED_LONG, () -> {
             List<Object> data = randomList(1, 10, ESTestCase::randomLong);
             data.add(asLongUnsigned(UNSIGNED_LONG_MAX));
             return data;
         }));
-        return parameterSuppliersFromTypedData(cases);
+        return parameterSuppliersFromTypedData(anyNullIsNull(false, cases));
     }
 
     private static TestCaseSupplier arithmeticExceptionCase(DataType dataType, Supplier<Object> dataSupplier) {
@@ -87,10 +86,5 @@ public class MvSumTests extends AbstractMultivalueFunctionTestCase {
     @Override
     protected Expression build(Source source, Expression field) {
         return new MvSum(source, field);
-    }
-
-    @Override
-    protected DataType[] supportedTypes() {
-        return representableNumerics();
     }
 }

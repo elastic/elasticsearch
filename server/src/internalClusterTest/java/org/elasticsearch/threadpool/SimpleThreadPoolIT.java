@@ -1,15 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.threadpool;
 
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.TaskExecutionTimeTrackingEsThreadPoolExecutor;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
@@ -19,6 +21,7 @@ import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
+import org.hamcrest.CoreMatchers;
 
 import java.lang.management.ManagementFactory;
 import java.lang.management.ThreadInfo;
@@ -28,13 +31,23 @@ import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.regex.Pattern;
 
+import static java.util.function.Function.identity;
+import static org.elasticsearch.common.util.Maps.toUnmodifiableSortedMap;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.elasticsearch.threadpool.ThreadPool.DEFAULT_INDEX_AUTOSCALING_EWMA_ALPHA;
+import static org.elasticsearch.threadpool.ThreadPool.WRITE_THREAD_POOLS_EWMA_ALPHA_SETTING;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.in;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.matchesRegex;
 
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0, numClientNodes = 0)
@@ -111,7 +124,6 @@ public class SimpleThreadPoolIT extends ESIntegTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/104652")
     public void testThreadPoolMetrics() throws Exception {
         internalCluster().startNode();
 
@@ -142,36 +154,61 @@ public class SimpleThreadPoolIT extends ESIntegTestCase {
             assertNoFailures(prepareSearch("idx").setQuery(QueryBuilders.termQuery("str_value", "s" + i)));
             assertNoFailures(prepareSearch("idx").setQuery(QueryBuilders.termQuery("l_value", i)));
         }
+
         final var tp = internalCluster().getInstance(ThreadPool.class, dataNodeName);
-        ThreadPoolStats tps = tp.stats();
+        final var tps = new ThreadPoolStats[1];
+        // wait for all threads to complete so that we get deterministic results
+        waitUntil(() -> (tps[0] = tp.stats()).stats().stream().allMatch(s -> s.active() == 0));
+
         plugin.collect();
         ArrayList<String> registeredMetrics = plugin.getRegisteredMetrics(InstrumentType.LONG_GAUGE);
         registeredMetrics.addAll(plugin.getRegisteredMetrics(InstrumentType.LONG_ASYNC_COUNTER));
-        tps.forEach(stats -> {
-            Map<String, Long> threadPoolMetrics = Map.of(
-                ThreadPool.THREAD_POOL_METRIC_NAME_COMPLETED,
-                stats.completed(),
-                ThreadPool.THREAD_POOL_METRIC_NAME_ACTIVE,
-                (long) stats.active(),
-                ThreadPool.THREAD_POOL_METRIC_NAME_CURRENT,
-                (long) stats.threads(),
-                ThreadPool.THREAD_POOL_METRIC_NAME_LARGEST,
-                (long) stats.largest(),
-                ThreadPool.THREAD_POOL_METRIC_NAME_QUEUE,
-                (long) stats.queue()
-            );
-            threadPoolMetrics.forEach((suffix, value) -> {
-                String metricName = ThreadPool.THREAD_POOL_METRIC_PREFIX + stats.name() + suffix;
-                List<Measurement> measurements;
-                if (suffix.equals(ThreadPool.THREAD_POOL_METRIC_NAME_COMPLETED)) {
-                    measurements = plugin.getLongAsyncCounterMeasurement(metricName);
-                } else {
-                    measurements = plugin.getLongGaugeMeasurement(metricName);
-                }
+
+        tps[0].forEach(stats -> {
+            Map<String, Long> threadPoolStats = List.of(
+                Map.entry(ThreadPool.THREAD_POOL_METRIC_NAME_COMPLETED, stats.completed()),
+                Map.entry(ThreadPool.THREAD_POOL_METRIC_NAME_ACTIVE, (long) stats.active()),
+                Map.entry(ThreadPool.THREAD_POOL_METRIC_NAME_CURRENT, (long) stats.threads()),
+                Map.entry(ThreadPool.THREAD_POOL_METRIC_NAME_LARGEST, (long) stats.largest()),
+                Map.entry(ThreadPool.THREAD_POOL_METRIC_NAME_QUEUE, (long) stats.queue())
+            ).stream().collect(toUnmodifiableSortedMap(e -> stats.name() + e.getKey(), Entry::getValue));
+
+            Function<String, List<Long>> measurementExtractor = name -> {
+                String metricName = ThreadPool.THREAD_POOL_METRIC_PREFIX + name;
                 assertThat(metricName, in(registeredMetrics));
-                assertThat(measurements.get(0).getLong(), greaterThanOrEqualTo(value));
-            });
+
+                List<Measurement> measurements = name.endsWith(ThreadPool.THREAD_POOL_METRIC_NAME_COMPLETED)
+                    ? plugin.getLongAsyncCounterMeasurement(metricName)
+                    : plugin.getLongGaugeMeasurement(metricName);
+                return measurements.stream().map(Measurement::getLong).toList();
+            };
+
+            Map<String, List<Long>> measurements = threadPoolStats.keySet()
+                .stream()
+                .collect(toUnmodifiableSortedMap(identity(), measurementExtractor));
+
+            logger.info("Stats of `{}`: {}", stats.name(), threadPoolStats);
+            logger.info("Measurements of `{}`: {}", stats.name(), measurements);
+
+            threadPoolStats.forEach(
+                (metric, value) -> assertThat(measurements, hasEntry(equalTo(metric), contains(greaterThanOrEqualTo(value))))
+            );
         });
     }
 
+    public void testWriteThreadpoolEwmaAlphaSetting() {
+        Settings settings = Settings.EMPTY;
+        var ewmaAlpha = DEFAULT_INDEX_AUTOSCALING_EWMA_ALPHA;
+        if (randomBoolean()) {
+            ewmaAlpha = randomDoubleBetween(0.0, 1.0, true);
+            settings = Settings.builder().put(WRITE_THREAD_POOLS_EWMA_ALPHA_SETTING.getKey(), ewmaAlpha).build();
+        }
+        var nodeName = internalCluster().startNode(settings);
+        var threadPool = internalCluster().getInstance(ThreadPool.class, nodeName);
+        for (var name : List.of(ThreadPool.Names.WRITE, ThreadPool.Names.SYSTEM_WRITE, ThreadPool.Names.SYSTEM_CRITICAL_WRITE)) {
+            assertThat(threadPool.executor(name), instanceOf(TaskExecutionTimeTrackingEsThreadPoolExecutor.class));
+            final var executor = (TaskExecutionTimeTrackingEsThreadPoolExecutor) threadPool.executor(name);
+            assertThat(Double.compare(executor.getEwmaAlpha(), ewmaAlpha), CoreMatchers.equalTo(0));
+        }
+    }
 }

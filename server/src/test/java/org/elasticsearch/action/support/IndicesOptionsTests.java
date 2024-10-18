@@ -1,15 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.support;
 
 import org.elasticsearch.action.support.IndicesOptions.ConcreteTargetOptions;
-import org.elasticsearch.action.support.IndicesOptions.GeneralOptions;
+import org.elasticsearch.action.support.IndicesOptions.GatekeeperOptions;
 import org.elasticsearch.action.support.IndicesOptions.WildcardOptions;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -29,9 +30,11 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 
@@ -40,17 +43,29 @@ public class IndicesOptionsTests extends ESTestCase {
     public void testSerialization() throws Exception {
         int iterations = randomIntBetween(5, 20);
         for (int i = 0; i < iterations; i++) {
-            IndicesOptions indicesOptions = IndicesOptions.fromOptions(
-                randomBoolean(),
-                randomBoolean(),
-                randomBoolean(),
-                randomBoolean(),
-                randomBoolean(),
-                randomBoolean(),
-                randomBoolean(),
-                randomBoolean(),
-                randomBoolean()
-            );
+            IndicesOptions indicesOptions = IndicesOptions.builder()
+                .wildcardOptions(
+                    WildcardOptions.builder()
+                        .matchOpen(randomBoolean())
+                        .matchClosed(randomBoolean())
+                        .includeHidden(randomBoolean())
+                        .allowEmptyExpressions(randomBoolean())
+                        .resolveAliases(randomBoolean())
+                )
+                .gatekeeperOptions(
+                    GatekeeperOptions.builder()
+                        .ignoreThrottled(randomBoolean())
+                        .allowAliasToMultipleIndices(randomBoolean())
+                        .allowClosedIndices(randomBoolean())
+                )
+                .selectorOptions(
+                    IndicesOptions.SelectorOptions.builder()
+                        .setDefaultSelectors(
+                            EnumSet.copyOf(randomNonEmptySubsetOf(Set.of(IndexComponentSelector.DATA, IndexComponentSelector.FAILURES)))
+                        )
+                        .build()
+                )
+                .build();
 
             BytesStreamOutput output = new BytesStreamOutput();
             indicesOptions.writeIndicesOptions(output);
@@ -58,16 +73,7 @@ public class IndicesOptionsTests extends ESTestCase {
             StreamInput streamInput = output.bytes().streamInput();
             IndicesOptions indicesOptions2 = IndicesOptions.readIndicesOptions(streamInput);
 
-            assertThat(indicesOptions2.ignoreUnavailable(), equalTo(indicesOptions.ignoreUnavailable()));
-            assertThat(indicesOptions2.allowNoIndices(), equalTo(indicesOptions.allowNoIndices()));
-            assertThat(indicesOptions2.expandWildcardsOpen(), equalTo(indicesOptions.expandWildcardsOpen()));
-            assertThat(indicesOptions2.expandWildcardsClosed(), equalTo(indicesOptions.expandWildcardsClosed()));
-            assertThat(indicesOptions2.expandWildcardsHidden(), equalTo(indicesOptions.expandWildcardsHidden()));
-
-            assertThat(indicesOptions2.forbidClosedIndices(), equalTo(indicesOptions.forbidClosedIndices()));
-            assertThat(indicesOptions2.allowAliasesToMultipleIndices(), equalTo(indicesOptions.allowAliasesToMultipleIndices()));
-
-            assertEquals(indicesOptions2.ignoreAliases(), indicesOptions.ignoreAliases());
+            assertThat(indicesOptions2, equalTo(indicesOptions));
         }
     }
 
@@ -343,9 +349,12 @@ public class IndicesOptionsTests extends ESTestCase {
             randomBoolean(),
             randomBoolean()
         );
-        GeneralOptions generalOptions = new GeneralOptions(randomBoolean(), randomBoolean(), randomBoolean());
+        GatekeeperOptions gatekeeperOptions = new GatekeeperOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean());
+        IndicesOptions.SelectorOptions selectorOptions = new IndicesOptions.SelectorOptions(
+            EnumSet.copyOf(randomNonEmptySubsetOf(Set.of(IndexComponentSelector.DATA, IndexComponentSelector.FAILURES)))
+        );
 
-        IndicesOptions indicesOptions = new IndicesOptions(concreteTargetOptions, wildcardOptions, generalOptions);
+        IndicesOptions indicesOptions = new IndicesOptions(concreteTargetOptions, wildcardOptions, gatekeeperOptions, selectorOptions);
 
         XContentType type = randomFrom(XContentType.values());
         BytesReference xContentBytes = toXContentBytes(indicesOptions, type);
@@ -359,7 +368,16 @@ public class IndicesOptionsTests extends ESTestCase {
         assertThat(((List<?>) map.get("expand_wildcards")).contains("hidden"), equalTo(wildcardOptions.includeHidden()));
         assertThat(map.get("ignore_unavailable"), equalTo(concreteTargetOptions.allowUnavailableTargets()));
         assertThat(map.get("allow_no_indices"), equalTo(wildcardOptions.allowEmptyExpressions()));
-        assertThat(map.get("ignore_throttled"), equalTo(generalOptions.ignoreThrottled()));
+        assertThat(map.get("ignore_throttled"), equalTo(gatekeeperOptions.ignoreThrottled()));
+        String displayValue;
+        if (IndicesOptions.SelectorOptions.DATA_AND_FAILURE.equals(selectorOptions)) {
+            displayValue = "include";
+        } else if (IndicesOptions.SelectorOptions.ONLY_DATA.equals(selectorOptions)) {
+            displayValue = "exclude";
+        } else {
+            displayValue = "only";
+        }
+        assertThat(map.get("failure_store"), equalTo(displayValue));
     }
 
     public void testFromXContent() throws IOException {

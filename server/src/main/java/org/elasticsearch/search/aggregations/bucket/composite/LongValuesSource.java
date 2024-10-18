@@ -1,17 +1,20 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.bucket.composite;
 
 import org.apache.lucene.document.IntPoint;
 import org.apache.lucene.document.LongPoint;
+import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
@@ -170,6 +173,11 @@ class LongValuesSource extends SingleDimensionValuesSource<Long> {
     @Override
     LeafBucketCollector getLeafCollector(LeafReaderContext context, LeafBucketCollector next) throws IOException {
         final SortedNumericDocValues dvs = docValuesFunc.apply(context);
+        final NumericDocValues singleton = DocValues.unwrapSingleton(dvs);
+        return singleton != null ? getLeafCollector(singleton, next) : getLeafCollector(dvs, next);
+    }
+
+    private LeafBucketCollector getLeafCollector(SortedNumericDocValues dvs, LeafBucketCollector next) {
         return new LeafBucketCollector() {
             @Override
             public void collect(int doc, long bucket) throws IOException {
@@ -184,6 +192,22 @@ class LongValuesSource extends SingleDimensionValuesSource<Long> {
                             previous = currentValue;
                         }
                     }
+                } else if (missingBucket) {
+                    missingCurrentValue = true;
+                    next.collect(doc, bucket);
+                }
+            }
+        };
+    }
+
+    private LeafBucketCollector getLeafCollector(NumericDocValues dvs, LeafBucketCollector next) {
+        return new LeafBucketCollector() {
+            @Override
+            public void collect(int doc, long bucket) throws IOException {
+                if (dvs.advanceExact(doc)) {
+                    currentValue = dvs.longValue();
+                    missingCurrentValue = false;
+                    next.collect(doc, bucket);
                 } else if (missingBucket) {
                     missingCurrentValue = true;
                     next.collect(doc, bucket);

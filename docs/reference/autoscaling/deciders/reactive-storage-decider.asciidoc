@@ -2,7 +2,7 @@
 [[autoscaling-reactive-storage-decider]]
 === Reactive storage decider
 
-The reactive storage decider (`reactive_storage`) calculates the storage required to contain
+The {cloud}/ec-autoscaling.html[autoscaling] reactive storage decider (`reactive_storage`) calculates the storage required to contain
 the current data set. It signals that additional storage capacity is necessary
 when existing capacity has been exceeded (reactively).
 

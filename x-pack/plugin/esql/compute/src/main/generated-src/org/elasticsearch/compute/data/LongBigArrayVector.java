@@ -8,8 +8,14 @@
 package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.ReleasableIterator;
+
+import java.io.IOException;
 
 /**
  * Vector implementation that defers to an enclosed {@link LongArray}.
@@ -25,6 +31,26 @@ public final class LongBigArrayVector extends AbstractVector implements LongVect
     public LongBigArrayVector(LongArray values, int positionCount, BlockFactory blockFactory) {
         super(positionCount, blockFactory);
         this.values = values;
+    }
+
+    static LongBigArrayVector readArrayVector(int positions, StreamInput in, BlockFactory blockFactory) throws IOException {
+        LongArray values = blockFactory.bigArrays().newLongArray(positions, false);
+        boolean success = false;
+        try {
+            values.fillWith(in);
+            LongBigArrayVector vector = new LongBigArrayVector(values, positions, blockFactory);
+            blockFactory.adjustBreaker(vector.ramBytesUsed() - RamUsageEstimator.sizeOf(values));
+            success = true;
+            return vector;
+        } finally {
+            if (success == false) {
+                values.close();
+            }
+        }
+    }
+
+    void writeArrayVector(int positions, StreamOutput out) throws IOException {
+        values.writeTo(out);
     }
 
     @Override
@@ -60,6 +86,37 @@ public final class LongBigArrayVector extends AbstractVector implements LongVect
             filtered.set(i, values.get(positions[i]));
         }
         return new LongBigArrayVector(filtered, positions.length, blockFactory);
+    }
+
+    @Override
+    public LongBlock keepMask(BooleanVector mask) {
+        if (getPositionCount() == 0) {
+            incRef();
+            return new LongVectorBlock(this);
+        }
+        if (mask.isConstant()) {
+            if (mask.getBoolean(0)) {
+                incRef();
+                return new LongVectorBlock(this);
+            }
+            return (LongBlock) blockFactory().newConstantNullBlock(getPositionCount());
+        }
+        try (LongBlock.Builder builder = blockFactory().newLongBlockBuilder(getPositionCount())) {
+            // TODO if X-ArrayBlock used BooleanVector for it's null mask then we could shuffle references here.
+            for (int p = 0; p < getPositionCount(); p++) {
+                if (mask.getBoolean(p)) {
+                    builder.appendLong(getLong(p));
+                } else {
+                    builder.appendNull();
+                }
+            }
+            return builder.build();
+        }
+    }
+
+    @Override
+    public ReleasableIterator<LongBlock> lookup(IntBlock positions, ByteSizeValue targetBlockSize) {
+        return new LongLookup(asBlock(), positions, targetBlockSize);
     }
 
     @Override

@@ -7,24 +7,16 @@
 package org.elasticsearch.xpack.core.ml;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.List;
 
-import static org.elasticsearch.KnownTransportVersions.ALL_VERSIONS;
+import static org.elasticsearch.test.BWCVersions.DEFAULT_BWC_VERSIONS;
 
 public abstract class AbstractBWCWireSerializationTestCase<T extends Writeable> extends AbstractWireSerializingTestCase<T> {
-
-    public static List<TransportVersion> getAllBWCVersions() {
-        int minCompatVersion = Collections.binarySearch(ALL_VERSIONS, TransportVersions.MINIMUM_COMPATIBLE);
-        return ALL_VERSIONS.subList(minCompatVersion, ALL_VERSIONS.size());
-    }
-
-    static final List<TransportVersion> DEFAULT_BWC_VERSIONS = getAllBWCVersions();
 
     /**
      * Returns the expected instance if serialized from the given version.
@@ -66,8 +58,10 @@ public abstract class AbstractBWCWireSerializationTestCase<T extends Writeable> 
      * @param version The version which serialized
      */
     protected void assertOnBWCObject(T bwcSerializedObject, T testInstance, TransportVersion version) {
-        assertNotSame(version.toString(), bwcSerializedObject, testInstance);
-        assertEquals(version.toString(), bwcSerializedObject, testInstance);
-        assertEquals(version.toString(), bwcSerializedObject.hashCode(), testInstance.hashCode());
+        var errorMessage = Strings.format("Failed for TransportVersion [%s]", version.toString());
+
+        assertNotSame(errorMessage, bwcSerializedObject, testInstance);
+        assertEquals(errorMessage, bwcSerializedObject, testInstance);
+        assertEquals(errorMessage, bwcSerializedObject.hashCode(), testInstance.hashCode());
     }
 }

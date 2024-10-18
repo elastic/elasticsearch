@@ -1,16 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.search.aggregations.bucket;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
@@ -58,10 +58,10 @@ public class DateRangeIT extends ESIntegTestCase {
         return prepareIndex("idx").setSource(
             jsonBuilder().startObject()
                 .field("value", value)
-                .timeField("date", date(month, day))
+                .timestampField("date", date(month, day))
                 .startArray("dates")
-                .timeValue(date(month, day))
-                .timeValue(date(month + 1, day + 1))
+                .timestampValue(date(month, day))
+                .timestampValue(date(month + 1, day + 1))
                 .endArray()
                 .endObject()
         );
@@ -616,12 +616,12 @@ public class DateRangeIT extends ESIntegTestCase {
     public void testScriptCaching() throws Exception {
         assertAcked(
             prepareCreate("cache_test_idx").setMapping("date", "type=date")
-                .setSettings(Settings.builder().put("requests.cache.enable", true).put("number_of_shards", 1).put("number_of_replicas", 1))
+                .setSettings(indexSettings(1, 1).put("requests.cache.enable", true))
         );
         indexRandom(
             true,
-            prepareIndex("cache_test_idx").setId("1").setSource(jsonBuilder().startObject().timeField("date", date(1, 1)).endObject()),
-            prepareIndex("cache_test_idx").setId("2").setSource(jsonBuilder().startObject().timeField("date", date(2, 1)).endObject())
+            prepareIndex("cache_test_idx").setId("1").setSource(jsonBuilder().startObject().timestampField("date", date(1, 1)).endObject()),
+            prepareIndex("cache_test_idx").setId("2").setSource(jsonBuilder().startObject().timestampField("date", date(2, 1)).endObject())
         );
 
         // Make sure we are starting with a clear cache

@@ -1,24 +1,25 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.search;
 
-import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.Iterators;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
-import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
+import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RefCounted;
@@ -39,12 +40,14 @@ import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Base64;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
@@ -75,7 +78,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
     private final Boolean terminatedEarly;
     private final int numReducePhases;
     private final String scrollId;
-    private final String pointInTimeId;
+    private final BytesReference pointInTimeId;
     private final int totalShards;
     private final int successfulShards;
     private final int skippedShards;
@@ -109,7 +112,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         scrollId = in.readOptionalString();
         tookInMillis = in.readVLong();
         skippedShards = in.readVInt();
-        pointInTimeId = in.readOptionalString();
+        pointInTimeId = in.readOptionalBytesReference();
     }
 
     public SearchResponse(
@@ -156,7 +159,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         long tookInMillis,
         ShardSearchFailure[] shardFailures,
         Clusters clusters,
-        String pointInTimeId
+        BytesReference pointInTimeId
     ) {
         this(
             searchResponseSections.hits,
@@ -192,7 +195,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         long tookInMillis,
         ShardSearchFailure[] shardFailures,
         Clusters clusters,
-        String pointInTimeId
+        BytesReference pointInTimeId
     ) {
         this.hits = hits;
         hits.incRef();
@@ -349,7 +352,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
     /**
      * Returns the encoded string of the search context that the search request is used to executed
      */
-    public String pointInTimeId() {
+    public BytesReference pointInTimeId() {
         return pointInTimeId;
     }
 
@@ -379,39 +382,17 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
         assert hasReferences();
-        return Iterators.concat(
-            ChunkedToXContentHelper.startObject(),
-            this.innerToXContentChunked(params),
-            ChunkedToXContentHelper.endObject()
-        );
+        return ChunkedToXContent.builder(params).xContentObject(innerToXContentChunked(params));
     }
 
     public Iterator<? extends ToXContent> innerToXContentChunked(ToXContent.Params params) {
-        return Iterators.concat(
-            ChunkedToXContentHelper.singleChunk(SearchResponse.this::headerToXContent),
-            Iterators.single(clusters),
-            Iterators.concat(
-                Iterators.flatMap(Iterators.single(hits), r -> r.toXContentChunked(params)),
-                Iterators.single((ToXContent) (b, p) -> {
-                    if (aggregations != null) {
-                        aggregations.toXContent(b, p);
-                    }
-                    return b;
-                }),
-                Iterators.single((b, p) -> {
-                    if (suggest != null) {
-                        suggest.toXContent(b, p);
-                    }
-                    return b;
-                }),
-                Iterators.single((b, p) -> {
-                    if (profileResults != null) {
-                        profileResults.toXContent(b, p);
-                    }
-                    return b;
-                })
-            )
-        );
+        return ChunkedToXContent.builder(params)
+            .append(SearchResponse.this::headerToXContent)
+            .append(clusters)
+            .append(hits)
+            .appendIfPresent(aggregations)
+            .appendIfPresent(suggest)
+            .appendIfPresent(profileResults);
     }
 
     public XContentBuilder headerToXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
@@ -419,7 +400,10 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             builder.field(SCROLL_ID.getPreferredName(), scrollId);
         }
         if (pointInTimeId != null) {
-            builder.field(POINT_IN_TIME_ID.getPreferredName(), pointInTimeId);
+            builder.field(
+                POINT_IN_TIME_ID.getPreferredName(),
+                Base64.getUrlEncoder().encodeToString(BytesReference.toBytes(pointInTimeId))
+            );
         }
         builder.field(TOOK.getPreferredName(), tookInMillis);
         builder.field(TIMED_OUT.getPreferredName(), isTimedOut());
@@ -462,7 +446,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         out.writeOptionalString(scrollId);
         out.writeVLong(tookInMillis);
         out.writeVInt(skippedShards);
-        out.writeOptionalString(pointInTimeId);
+        out.writeOptionalBytesReference(pointInTimeId);
     }
 
     @Override
@@ -697,6 +681,13 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         }
 
         /**
+         * @return collection of cluster aliases in the search response (including "(local)" if was searched).
+         */
+        public Set<String> getClusterAliases() {
+            return clusterInfo.keySet();
+        }
+
+        /**
          * Utility to swap a Cluster object. Guidelines for the remapping function:
          * <ul>
          * <li> The remapping function should return a new Cluster object to swap it for
@@ -798,6 +789,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         public boolean hasRemoteClusters() {
             return total > 1 || clusterInfo.keySet().stream().anyMatch(alias -> alias != RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
         }
+
     }
 
     /**
@@ -1149,7 +1141,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
     // public for tests
     public static SearchResponse empty(Supplier<Long> tookInMillisSupplier, Clusters clusters) {
         return new SearchResponse(
-            SearchHits.empty(new TotalHits(0L, TotalHits.Relation.EQUAL_TO), Float.NaN),
+            SearchHits.empty(Lucene.TOTAL_HITS_EQUAL_TO_ZERO, Float.NaN),
             InternalAggregations.EMPTY,
             null,
             false,

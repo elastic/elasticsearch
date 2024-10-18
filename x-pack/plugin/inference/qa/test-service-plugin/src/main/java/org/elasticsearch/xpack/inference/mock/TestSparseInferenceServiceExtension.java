@@ -13,6 +13,8 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkedInferenceServiceResults;
 import org.elasticsearch.inference.ChunkingOptions;
 import org.elasticsearch.inference.InferenceServiceExtension;
@@ -20,21 +22,21 @@ import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
+import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.core.inference.results.ChunkedSparseEmbeddingResults;
+import org.elasticsearch.xpack.core.inference.results.InferenceChunkedSparseEmbeddingResults;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
-import org.elasticsearch.xpack.core.ml.inference.results.ChunkedTextExpansionResults;
-import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
+import org.elasticsearch.xpack.core.ml.inference.results.MlChunkedTextExpansionResults;
+import org.elasticsearch.xpack.core.ml.search.WeightedToken;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 public class TestSparseInferenceServiceExtension implements InferenceServiceExtension {
     @Override
@@ -42,8 +44,17 @@ public class TestSparseInferenceServiceExtension implements InferenceServiceExte
         return List.of(TestInferenceService::new);
     }
 
+    public static class TestSparseModel extends Model {
+        public TestSparseModel(String inferenceEntityId, TestServiceSettings serviceSettings) {
+            super(
+                new ModelConfigurations(inferenceEntityId, TaskType.SPARSE_EMBEDDING, TestInferenceService.NAME, serviceSettings),
+                new ModelSecrets(new AbstractTestInferenceService.TestSecretSettings("api_key"))
+            );
+        }
+    }
+
     public static class TestInferenceService extends AbstractTestInferenceService {
-        private static final String NAME = "test_service";
+        public static final String NAME = "test_service";
 
         public TestInferenceService(InferenceServiceExtension.InferenceServiceFactoryContext context) {}
 
@@ -58,7 +69,6 @@ public class TestSparseInferenceServiceExtension implements InferenceServiceExte
             String modelId,
             TaskType taskType,
             Map<String, Object> config,
-            Set<String> platformArchitectures,
             ActionListener<Model> parsedModelListener
         ) {
             var serviceSettingsMap = (Map<String, Object>) config.remove(ModelConfigurations.SERVICE_SETTINGS);
@@ -74,9 +84,12 @@ public class TestSparseInferenceServiceExtension implements InferenceServiceExte
         @Override
         public void infer(
             Model model,
+            @Nullable String query,
             List<String> input,
+            boolean stream,
             Map<String, Object> taskSettings,
             InputType inputType,
+            TimeValue timeout,
             ActionListener<InferenceServiceResults> listener
         ) {
             switch (model.getConfigurations().getTaskType()) {
@@ -93,10 +106,12 @@ public class TestSparseInferenceServiceExtension implements InferenceServiceExte
         @Override
         public void chunkedInfer(
             Model model,
+            @Nullable String query,
             List<String> input,
             Map<String, Object> taskSettings,
             InputType inputType,
             ChunkingOptions chunkingOptions,
+            TimeValue timeout,
             ActionListener<List<ChunkedInferenceServiceResults>> listener
         ) {
             switch (model.getConfigurations().getTaskType()) {
@@ -113,9 +128,9 @@ public class TestSparseInferenceServiceExtension implements InferenceServiceExte
         private SparseEmbeddingResults makeResults(List<String> input) {
             var embeddings = new ArrayList<SparseEmbeddingResults.Embedding>();
             for (int i = 0; i < input.size(); i++) {
-                var tokens = new ArrayList<SparseEmbeddingResults.WeightedToken>();
+                var tokens = new ArrayList<WeightedToken>();
                 for (int j = 0; j < 5; j++) {
-                    tokens.add(new SparseEmbeddingResults.WeightedToken(Integer.toString(j), (float) j));
+                    tokens.add(new WeightedToken("feature_" + j, generateEmbedding(input.get(i), j)));
                 }
                 embeddings.add(new SparseEmbeddingResults.Embedding(tokens, false));
             }
@@ -123,21 +138,29 @@ public class TestSparseInferenceServiceExtension implements InferenceServiceExte
         }
 
         private List<ChunkedInferenceServiceResults> makeChunkedResults(List<String> input) {
-            var chunks = new ArrayList<ChunkedTextExpansionResults.ChunkedResult>();
+            List<ChunkedInferenceServiceResults> results = new ArrayList<>();
             for (int i = 0; i < input.size(); i++) {
-                var tokens = new ArrayList<TextExpansionResults.WeightedToken>();
+                var tokens = new ArrayList<WeightedToken>();
                 for (int j = 0; j < 5; j++) {
-                    tokens.add(new TextExpansionResults.WeightedToken(Integer.toString(j), (float) j));
+                    tokens.add(new WeightedToken("feature_" + j, generateEmbedding(input.get(i), j)));
                 }
-                chunks.add(new ChunkedTextExpansionResults.ChunkedResult(input.get(i), tokens));
+                results.add(
+                    new InferenceChunkedSparseEmbeddingResults(
+                        List.of(new MlChunkedTextExpansionResults.ChunkedResult(input.get(i), tokens))
+                    )
+                );
             }
-            return List.of(new ChunkedSparseEmbeddingResults(chunks));
+            return results;
         }
 
         protected ServiceSettings getServiceSettingsFromMap(Map<String, Object> serviceSettingsMap) {
             return TestServiceSettings.fromMap(serviceSettingsMap);
         }
 
+        private static float generateEmbedding(String input, int position) {
+            // Ensure non-negative and non-zero values for features
+            return Math.abs(input.hashCode()) + 1 + position;
+        }
     }
 
     public record TestServiceSettings(String model, String hiddenField, boolean shouldReturnHiddenField) implements ServiceSettings {
@@ -198,6 +221,11 @@ public class TestSparseInferenceServiceExtension implements InferenceServiceExte
             out.writeString(model);
             out.writeOptionalString(hiddenField);
             out.writeBoolean(shouldReturnHiddenField);
+        }
+
+        @Override
+        public String modelId() {
+            return model;
         }
 
         @Override

@@ -52,7 +52,7 @@ supply the credentials.
 
 `<datafeed_id>`::
 (Optional, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=datafeed-id]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=datafeed-id]
 +
 NOTE: If you provide the `<datafeed_id>` as a path parameter, you cannot
 provide {dfeed} or {anomaly-job} configuration details in the request body.

@@ -22,7 +22,7 @@ DELETE _application/analytics/my_analytics_collection
 // TEARDOWN
 ////
 
-Post an event to an Analytics Collection.
+Post an event to a <<behavioral-analytics-overview,Behavioral Analytics>> Collection.
 
 [[post-analytics-collection-event-request]]
 ==== {api-request-title}

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.search;
@@ -13,11 +14,15 @@ import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.ArrayUtils;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.index.query.MatchAllQueryBuilder;
+import org.elasticsearch.core.UpdateForV9;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.search.AbstractSearchTestCase;
@@ -26,9 +31,10 @@ import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.builder.SubSearchSourceBuilder;
 import org.elasticsearch.search.collapse.CollapseBuilder;
-import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
 import org.elasticsearch.search.rank.TestRankBuilder;
 import org.elasticsearch.search.rescore.QueryRescorerBuilder;
+import org.elasticsearch.search.retriever.RetrieverBuilder;
+import org.elasticsearch.search.retriever.TestCompoundRetrieverBuilder;
 import org.elasticsearch.search.slice.SliceBuilder;
 import org.elasticsearch.search.suggest.SuggestBuilder;
 import org.elasticsearch.search.suggest.term.TermSuggestionBuilder;
@@ -36,10 +42,12 @@ import org.elasticsearch.search.vectors.KnnSearchBuilder;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
-import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.List;
 
 import static java.util.Collections.emptyMap;
@@ -95,6 +103,23 @@ public class SearchRequestTests extends AbstractSearchTestCase {
         assertEquals(deserializedRequest, searchRequest);
         assertEquals(deserializedRequest.hashCode(), searchRequest.hashCode());
         assertNotSame(deserializedRequest, searchRequest);
+    }
+
+    @UpdateForV9(owner = UpdateForV9.Owner.CORE_INFRA)  // this can be removed when the affected transport version constants are collapsed
+    public void testSerializationConstants() throws Exception {
+        SearchRequest searchRequest = createSearchRequest();
+
+        // something serialized with previous version to remove, should read correctly with the reversion
+        try (BytesStreamOutput output = new BytesStreamOutput()) {
+            output.setTransportVersion(TransportVersionUtils.getPreviousVersion(TransportVersions.REMOVE_MIN_COMPATIBLE_SHARD_NODE));
+            searchRequest.writeTo(output);
+            try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), namedWriteableRegistry)) {
+                in.setTransportVersion(TransportVersions.REVERT_REMOVE_MIN_COMPATIBLE_SHARD_NODE);
+                SearchRequest copiedRequest = new SearchRequest(in);
+                assertEquals(copiedRequest, searchRequest);
+                assertEquals(copiedRequest.hashCode(), searchRequest.hashCode());
+            }
+        }
     }
 
     public void testSerializationMultiKNN() throws Exception {
@@ -256,6 +281,97 @@ public class SearchRequestTests extends AbstractSearchTestCase {
             assertEquals("cannot use `collapse` in a scroll context", validationErrors.validationErrors().get(0));
         }
         {
+            // allow_partial_results and compound retriever
+            SearchRequest searchRequest = createSearchRequest().source(
+                new SearchSourceBuilder().retriever(new TestCompoundRetrieverBuilder(randomIntBetween(1, 10)))
+            );
+            searchRequest.allowPartialSearchResults(true);
+            searchRequest.scroll((Scroll) null);
+            ActionRequestValidationException validationErrors = searchRequest.validate();
+            assertNotNull(validationErrors);
+            assertEquals(1, validationErrors.validationErrors().size());
+            assertEquals(
+                "cannot specify a compound retriever and [allow_partial_search_results]",
+                validationErrors.validationErrors().get(0)
+            );
+        }
+        {
+            // allow_partial_results and non-compound retriever
+            SearchRequest searchRequest = createSearchRequest().source(new SearchSourceBuilder().retriever(new RetrieverBuilder() {
+                @Override
+                public QueryBuilder topDocsQuery() {
+                    return null;
+                }
+
+                @Override
+                public void extractToSearchSourceBuilder(SearchSourceBuilder searchSourceBuilder, boolean compoundUsed) {
+                    // no-op
+                }
+
+                @Override
+                public String getName() {
+                    return "not_a_compound_retriever";
+                }
+
+                @Override
+                protected void doToXContent(XContentBuilder builder, Params params) throws IOException {}
+
+                @Override
+                protected boolean doEquals(Object o) {
+                    return false;
+                }
+
+                @Override
+                protected int doHashCode() {
+                    return 0;
+                }
+            }));
+            searchRequest.allowPartialSearchResults(true);
+            searchRequest.scroll((Scroll) null);
+            ActionRequestValidationException validationErrors = searchRequest.validate();
+            assertNull(validationErrors);
+        }
+        {
+            // allow_partial_results not defined and compound retriever
+            SearchRequest searchRequest = new SearchRequest().source(new SearchSourceBuilder().retriever(new RetrieverBuilder() {
+                @Override
+                public void extractToSearchSourceBuilder(SearchSourceBuilder searchSourceBuilder, boolean compoundUsed) {
+                    // no-op
+                }
+
+                @Override
+                public String getName() {
+                    return "compound_retriever";
+                }
+
+                @Override
+                protected void doToXContent(XContentBuilder builder, Params params) throws IOException {}
+
+                @Override
+                protected boolean doEquals(Object o) {
+                    return false;
+                }
+
+                @Override
+                protected int doHashCode() {
+                    return 0;
+                }
+
+                @Override
+                public boolean isCompound() {
+                    return true;
+                }
+
+                @Override
+                public QueryBuilder topDocsQuery() {
+                    return null;
+                }
+            }));
+            searchRequest.scroll((Scroll) null);
+            ActionRequestValidationException validationErrors = searchRequest.validate();
+            assertNull(validationErrors);
+        }
+        {
             // search_after and `from` isn't valid
             SearchRequest searchRequest = createSearchRequest().source(new SearchSourceBuilder());
             searchRequest.scroll((Scroll) null);
@@ -276,17 +392,6 @@ public class SearchRequestTests extends AbstractSearchTestCase {
             assertNotNull(validationErrors);
             assertEquals(1, validationErrors.validationErrors().size());
             assertEquals("[slice] can only be used with [scroll] or [point-in-time] requests", validationErrors.validationErrors().get(0));
-        }
-        {
-            // collapse and rescore
-            SearchRequest searchRequest = createSearchRequest().source(new SearchSourceBuilder());
-            searchRequest.scroll((Scroll) null);
-            searchRequest.source().collapse(new CollapseBuilder("field"));
-            searchRequest.source().addRescorer(new QueryRescorerBuilder(new MatchAllQueryBuilder()));
-            ActionRequestValidationException validationErrors = searchRequest.validate();
-            assertNotNull(validationErrors);
-            assertEquals(1, validationErrors.validationErrors().size());
-            assertEquals("cannot use `collapse` in conjunction with `rescore`", validationErrors.validationErrors().get(0));
         }
         {
             // stored fields disabled with _source requested
@@ -343,39 +448,14 @@ public class SearchRequestTests extends AbstractSearchTestCase {
         {
             // Reader context with scroll
             SearchRequest searchRequest = new SearchRequest().source(
-                new SearchSourceBuilder().pointInTimeBuilder(new PointInTimeBuilder("id"))
+                new SearchSourceBuilder().pointInTimeBuilder(
+                    new PointInTimeBuilder(new BytesArray(Base64.getUrlEncoder().encode("id".getBytes(StandardCharsets.UTF_8))))
+                )
             ).scroll(TimeValue.timeValueMillis(randomIntBetween(1, 100)));
             ActionRequestValidationException validationErrors = searchRequest.validate();
             assertNotNull(validationErrors);
             assertEquals(1, validationErrors.validationErrors().size());
             assertEquals("using [point in time] is not allowed in a scroll context", validationErrors.validationErrors().get(0));
-        }
-        {
-            // Minimum compatible shard node version with ccs_minimize_roundtrips
-            SearchRequest searchRequest;
-            boolean isMinCompatibleShardVersion = randomBoolean();
-            if (isMinCompatibleShardVersion) {
-                searchRequest = new SearchRequest(VersionUtils.randomVersion(random()));
-            } else {
-                searchRequest = new SearchRequest();
-            }
-
-            boolean shouldSetCcsMinimizeRoundtrips = randomBoolean();
-            if (shouldSetCcsMinimizeRoundtrips) {
-                searchRequest.setCcsMinimizeRoundtrips(true);
-            }
-            ActionRequestValidationException validationErrors = searchRequest.validate();
-
-            if (isMinCompatibleShardVersion && shouldSetCcsMinimizeRoundtrips) {
-                assertNotNull(validationErrors);
-                assertEquals(1, validationErrors.validationErrors().size());
-                assertEquals(
-                    "[ccs_minimize_roundtrips] cannot be [true] when setting a minimum compatible shard version",
-                    validationErrors.validationErrors().get(0)
-                );
-            } else {
-                assertNull(validationErrors);
-            }
         }
         {
             SearchRequest searchRequest = new SearchRequest().source(
@@ -400,7 +480,7 @@ public class SearchRequestTests extends AbstractSearchTestCase {
             assertNotNull(validationErrors);
             assertEquals(1, validationErrors.validationErrors().size());
             assertEquals(
-                "[rank] requires [window_size: 1] be greater than or equal to [size: 2]",
+                "[rank] requires [rank_window_size: 1] be greater than or equal to [size: 2]",
                 validationErrors.validationErrors().get(0)
             );
         }
@@ -437,9 +517,20 @@ public class SearchRequestTests extends AbstractSearchTestCase {
             assertNotNull(validationErrors);
             assertEquals(1, validationErrors.validationErrors().size());
             assertEquals(
-                "[rank] requires [window_size: 9] be greater than or equal to [size: 10]",
+                "[rank] requires [rank_window_size: 9] be greater than or equal to [size: 10]",
                 validationErrors.validationErrors().get(0)
             );
+        }
+        {
+            SearchRequest searchRequest = new SearchRequest().source(
+                new SearchSourceBuilder().rankBuilder(new TestRankBuilder(3))
+                    .query(QueryBuilders.termQuery("field", "term"))
+                    .knnSearch(List.of(new KnnSearchBuilder("vector", new float[] { 0f }, 10, 100, null)))
+                    .size(3)
+                    .from(4)
+            );
+            ActionRequestValidationException validationErrors = searchRequest.validate();
+            assertNull(validationErrors);
         }
         {
             SearchRequest searchRequest = new SearchRequest().source(
@@ -458,30 +549,6 @@ public class SearchRequestTests extends AbstractSearchTestCase {
                 new SearchSourceBuilder().rankBuilder(new TestRankBuilder(100))
                     .query(QueryBuilders.termQuery("field", "term"))
                     .knnSearch(List.of(new KnnSearchBuilder("vector", new float[] { 0f }, 10, 100, null)))
-                    .sort("test")
-            );
-            ActionRequestValidationException validationErrors = searchRequest.validate();
-            assertNotNull(validationErrors);
-            assertEquals(1, validationErrors.validationErrors().size());
-            assertEquals("[rank] cannot be used with [sort]", validationErrors.validationErrors().get(0));
-        }
-        {
-            SearchRequest searchRequest = new SearchRequest().source(
-                new SearchSourceBuilder().rankBuilder(new TestRankBuilder(100))
-                    .query(QueryBuilders.termQuery("field", "term"))
-                    .knnSearch(List.of(new KnnSearchBuilder("vector", new float[] { 0f }, 10, 100, null)))
-                    .collapse(new CollapseBuilder("field"))
-            );
-            ActionRequestValidationException validationErrors = searchRequest.validate();
-            assertNotNull(validationErrors);
-            assertEquals(1, validationErrors.validationErrors().size());
-            assertEquals("[rank] cannot be used with [collapse]", validationErrors.validationErrors().get(0));
-        }
-        {
-            SearchRequest searchRequest = new SearchRequest().source(
-                new SearchSourceBuilder().rankBuilder(new TestRankBuilder(100))
-                    .query(QueryBuilders.termQuery("field", "term"))
-                    .knnSearch(List.of(new KnnSearchBuilder("vector", new float[] { 0f }, 10, 100, null)))
                     .suggest(new SuggestBuilder().setGlobalText("test").addSuggestion("suggestion", new TermSuggestionBuilder("term")))
             );
             ActionRequestValidationException validationErrors = searchRequest.validate();
@@ -490,56 +557,8 @@ public class SearchRequestTests extends AbstractSearchTestCase {
             assertEquals("[rank] cannot be used with [suggest]", validationErrors.validationErrors().get(0));
         }
         {
-            SearchRequest searchRequest = new SearchRequest().source(
-                new SearchSourceBuilder().rankBuilder(new TestRankBuilder(100))
-                    .query(QueryBuilders.termQuery("field", "term"))
-                    .knnSearch(List.of(new KnnSearchBuilder("vector", new float[] { 0f }, 10, 100, null)))
-                    .highlighter(new HighlightBuilder().field("field"))
-            );
-            ActionRequestValidationException validationErrors = searchRequest.validate();
-            assertNotNull(validationErrors);
-            assertEquals(1, validationErrors.validationErrors().size());
-            assertEquals("[rank] cannot be used with [highlighter]", validationErrors.validationErrors().get(0));
-        }
-        {
-            SearchRequest searchRequest = new SearchRequest().source(
-                new SearchSourceBuilder().rankBuilder(new TestRankBuilder(100))
-                    .query(QueryBuilders.termQuery("field", "term"))
-                    .knnSearch(List.of(new KnnSearchBuilder("vector", new float[] { 0f }, 10, 100, null)))
-                    .pointInTimeBuilder(new PointInTimeBuilder("test"))
-            );
-            ActionRequestValidationException validationErrors = searchRequest.validate();
-            assertNotNull(validationErrors);
-            assertEquals(1, validationErrors.validationErrors().size());
-            assertEquals("[rank] cannot be used with [point in time]", validationErrors.validationErrors().get(0));
-        }
-        {
-            SearchRequest searchRequest = new SearchRequest().source(
-                new SearchSourceBuilder().rankBuilder(new TestRankBuilder(100))
-                    .query(QueryBuilders.termQuery("field", "term"))
-                    .knnSearch(List.of(new KnnSearchBuilder("vector", new float[] { 0f }, 10, 100, null)))
-                    .profile(true)
-            );
-            ActionRequestValidationException validationErrors = searchRequest.validate();
-            assertNotNull(validationErrors);
-            assertEquals(1, validationErrors.validationErrors().size());
-            assertEquals("[rank] requires [profile] is [false]", validationErrors.validationErrors().get(0));
-        }
-        {
-            SearchRequest searchRequest = new SearchRequest().source(
-                new SearchSourceBuilder().rankBuilder(new TestRankBuilder(100))
-                    .query(QueryBuilders.termQuery("field", "term"))
-                    .knnSearch(List.of(new KnnSearchBuilder("vector", new float[] { 0f }, 10, 100, null)))
-                    .explain(true)
-            );
-            ActionRequestValidationException validationErrors = searchRequest.validate();
-            assertNotNull(validationErrors);
-            assertEquals(1, validationErrors.validationErrors().size());
-            assertEquals("[rank] requires [explain] is [false]", validationErrors.validationErrors().get(0));
-        }
-        {
             SearchRequest searchRequest = new SearchRequest("test").source(
-                new SearchSourceBuilder().pointInTimeBuilder(new PointInTimeBuilder(""))
+                new SearchSourceBuilder().pointInTimeBuilder(new PointInTimeBuilder(BytesArray.EMPTY))
             );
             ActionRequestValidationException validationErrors = searchRequest.validate();
             assertNotNull(validationErrors);
@@ -551,7 +570,7 @@ public class SearchRequestTests extends AbstractSearchTestCase {
         }
         {
             SearchRequest searchRequest = new SearchRequest().indicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED)
-                .source(new SearchSourceBuilder().pointInTimeBuilder(new PointInTimeBuilder("")));
+                .source(new SearchSourceBuilder().pointInTimeBuilder(new PointInTimeBuilder(BytesArray.EMPTY)));
             ActionRequestValidationException validationErrors = searchRequest.validate();
             assertNotNull(validationErrors);
             assertEquals(1, validationErrors.validationErrors().size());
@@ -559,7 +578,7 @@ public class SearchRequestTests extends AbstractSearchTestCase {
         }
         {
             SearchRequest searchRequest = new SearchRequest().routing("route1")
-                .source(new SearchSourceBuilder().pointInTimeBuilder(new PointInTimeBuilder("")));
+                .source(new SearchSourceBuilder().pointInTimeBuilder(new PointInTimeBuilder(BytesArray.EMPTY)));
             ActionRequestValidationException validationErrors = searchRequest.validate();
             assertNotNull(validationErrors);
             assertEquals(1, validationErrors.validationErrors().size());
@@ -567,7 +586,7 @@ public class SearchRequestTests extends AbstractSearchTestCase {
         }
         {
             SearchRequest searchRequest = new SearchRequest().preference("pref1")
-                .source(new SearchSourceBuilder().pointInTimeBuilder(new PointInTimeBuilder("")));
+                .source(new SearchSourceBuilder().pointInTimeBuilder(new PointInTimeBuilder(BytesArray.EMPTY)));
             ActionRequestValidationException validationErrors = searchRequest.validate();
             assertNotNull(validationErrors);
             assertEquals(1, validationErrors.validationErrors().size());

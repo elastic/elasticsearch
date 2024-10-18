@@ -1,26 +1,31 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.builder;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.TransportVersions;
+import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -28,6 +33,7 @@ import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.SearchExtBuilder;
+import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
@@ -39,9 +45,13 @@ import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.rank.RankBuilder;
 import org.elasticsearch.search.rescore.RescorerBuilder;
+import org.elasticsearch.search.retriever.RetrieverBuilder;
+import org.elasticsearch.search.retriever.RetrieverParserContext;
 import org.elasticsearch.search.searchafter.SearchAfterBuilder;
 import org.elasticsearch.search.slice.SliceBuilder;
+import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.ScoreSortBuilder;
+import org.elasticsearch.search.sort.ShardDocSortField;
 import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
@@ -69,16 +79,17 @@ import java.util.function.ToLongFunction;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
+import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.index.query.AbstractQueryBuilder.parseTopLevelQuery;
+import static org.elasticsearch.search.internal.SearchContext.DEFAULT_TERMINATE_AFTER;
 import static org.elasticsearch.search.internal.SearchContext.TRACK_TOTAL_HITS_ACCURATE;
 import static org.elasticsearch.search.internal.SearchContext.TRACK_TOTAL_HITS_DISABLED;
 
 /**
  * A search source builder allowing to easily build search source. Simple
- * construction using
- * {@link org.elasticsearch.search.builder.SearchSourceBuilder#searchSource()}.
+ * construction using {@link SearchSourceBuilder#searchSource()}.
  *
- * @see org.elasticsearch.action.search.SearchRequest#source(SearchSourceBuilder)
+ * @see SearchRequest#source(SearchSourceBuilder)
  */
 public final class SearchSourceBuilder implements Writeable, ToXContentObject, Rewriteable<SearchSourceBuilder> {
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(SearchSourceBuilder.class);
@@ -88,10 +99,11 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
     public static final ParseField TIMEOUT_FIELD = new ParseField("timeout");
     public static final ParseField TERMINATE_AFTER_FIELD = new ParseField("terminate_after");
     public static final ParseField QUERY_FIELD = new ParseField("query");
-    public static final ParseField SUB_SEARCHES_FIELD = new ParseField("sub_searches");
+    @UpdateForV10(owner = UpdateForV10.Owner.SEARCH_RELEVANCE) // remove [sub_searches] and [rank] support in 10.0
+    public static final ParseField SUB_SEARCHES_FIELD = new ParseField("sub_searches").withAllDeprecated("retriever");
+    public static final ParseField RANK_FIELD = new ParseField("rank").withAllDeprecated("retriever");
     public static final ParseField POST_FILTER_FIELD = new ParseField("post_filter");
     public static final ParseField KNN_FIELD = new ParseField("knn");
-    public static final ParseField RANK_FIELD = new ParseField("rank");
     public static final ParseField MIN_SCORE_FIELD = new ParseField("min_score");
     public static final ParseField VERSION_FIELD = new ParseField("version");
     public static final ParseField SEQ_NO_PRIMARY_TERM_FIELD = new ParseField("seq_no_primary_term");
@@ -120,6 +132,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
     public static final ParseField SLICE = new ParseField("slice");
     public static final ParseField POINT_IN_TIME = new ParseField("pit");
     public static final ParseField RUNTIME_MAPPINGS_FIELD = new ParseField("runtime_mappings");
+    public static final ParseField RETRIEVER = new ParseField("retriever");
 
     private static final boolean RANK_SUPPORTED = Booleans.parseBoolean(System.getProperty("es.search.rank_supported"), true);
 
@@ -136,6 +149,8 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
     public static HighlightBuilder highlight() {
         return new HighlightBuilder();
     }
+
+    private transient RetrieverBuilder retrieverBuilder;
 
     private List<SubSearchSourceBuilder> subSearchSourceBuilders = new ArrayList<>();
 
@@ -279,6 +294,9 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        if (retrieverBuilder != null) {
+            throw new IllegalStateException("SearchSourceBuilder should be rewritten first");
+        }
         out.writeOptionalWriteable(aggregations);
         out.writeOptionalBoolean(explain);
         out.writeOptionalWriteable(fetchSourceContext);
@@ -295,7 +313,9 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
             out.writeCollection(subSearchSourceBuilders);
         } else if (out.getTransportVersion().before(TransportVersions.V_8_4_0) && subSearchSourceBuilders.size() >= 2) {
-            throw new IllegalArgumentException("cannot serialize [sub_searches] to version [" + out.getTransportVersion() + "]");
+            throw new IllegalArgumentException(
+                "cannot serialize [sub_searches] to version [" + out.getTransportVersion().toReleaseVersion() + "]"
+            );
         } else {
             out.writeOptionalNamedWriteable(query());
         }
@@ -342,8 +362,10 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
             if (out.getTransportVersion().before(TransportVersions.V_8_7_0)) {
                 if (knnSearch.size() > 1) {
                     throw new IllegalArgumentException(
-                        "Versions before 8070099 don't support multiple [knn] search clauses and search was sent to ["
-                            + out.getTransportVersion()
+                        "Versions before ["
+                            + TransportVersions.V_8_7_0.toReleaseVersion()
+                            + "] don't support multiple [knn] search clauses and search was sent to ["
+                            + out.getTransportVersion().toReleaseVersion()
                             + "]"
                     );
                 }
@@ -355,8 +377,20 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
             out.writeOptionalNamedWriteable(rankBuilder);
         } else if (rankBuilder != null) {
-            throw new IllegalArgumentException("cannot serialize [rank] to version [" + out.getTransportVersion() + "]");
+            throw new IllegalArgumentException("cannot serialize [rank] to version [" + out.getTransportVersion().toReleaseVersion() + "]");
         }
+    }
+
+    /**
+     * Sets the retriever for this request.
+     */
+    public SearchSourceBuilder retriever(RetrieverBuilder retrieverBuilder) {
+        this.retrieverBuilder = retrieverBuilder;
+        return this;
+    }
+
+    public RetrieverBuilder retriever() {
+        return retrieverBuilder;
     }
 
     /**
@@ -1072,7 +1106,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
      * @return true if the source only has suggest
      */
     public boolean isSuggestOnly() {
-        return suggestBuilder != null && query() == null && knnSearch.isEmpty() && aggregations == null;
+        return suggestBuilder != null && knnSearch.isEmpty() && aggregations == null && subSearchSourceBuilders.isEmpty();
     }
 
     /**
@@ -1126,6 +1160,21 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                 highlightBuilder
             )
         ));
+        if (retrieverBuilder != null) {
+            var newRetriever = retrieverBuilder.rewrite(context);
+            if (newRetriever != retrieverBuilder) {
+                var rewritten = shallowCopy();
+                rewritten.retrieverBuilder = newRetriever;
+                return rewritten;
+            } else {
+                // retriever is transient, the rewritten version is extracted in this source.
+                var retriever = retrieverBuilder;
+                retrieverBuilder = null;
+                retriever.extractToSearchSourceBuilder(this, false);
+                validate();
+            }
+        }
+
         List<SubSearchSourceBuilder> subSearchSourceBuilders = Rewriteable.rewrite(this.subSearchSourceBuilders, context);
         QueryBuilder postQueryBuilder = null;
         if (this.postQueryBuilder != null) {
@@ -1293,17 +1342,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                 if (FROM_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     from(parser.intValue());
                 } else if (SIZE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                    int parsedSize = parser.intValue();
-                    if (parser.getRestApiVersion() == RestApiVersion.V_7 && parsedSize == -1) {
-                        // we treat -1 as not-set, but deprecate it to be able to later remove this funny extra treatment
-                        deprecationLogger.compatibleCritical(
-                            "search-api-size-1",
-                            "Using search size of -1 is deprecated and will be removed in future versions. "
-                                + "Instead, don't use the `size` parameter if you don't want to set it explicitly."
-                        );
-                    } else {
-                        size(parsedSize);
-                    }
+                    size(parser.intValue());
                 } else if (TIMEOUT_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     timeout = TimeValue.parseTimeValue(parser.text(), null, TIMEOUT_FIELD.getPreferredName());
                 } else if (TERMINATE_AFTER_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
@@ -1353,7 +1392,16 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                     );
                 }
             } else if (token == XContentParser.Token.START_OBJECT) {
-                if (QUERY_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
+                if (RETRIEVER.match(currentFieldName, parser.getDeprecationHandler())) {
+                    if (clusterSupportsFeature.test(RetrieverBuilder.RETRIEVERS_SUPPORTED) == false) {
+                        throw new ParsingException(parser.getTokenLocation(), "Unknown key for a START_OBJECT in [retriever].");
+                    }
+                    retrieverBuilder = RetrieverBuilder.parseTopLevelRetrieverBuilder(
+                        parser,
+                        new RetrieverParserContext(searchUsage, clusterSupportsFeature)
+                    );
+                    searchUsage.trackSectionUsage(RETRIEVER.getPreferredName());
+                } else if (QUERY_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     if (subSearchSourceBuilders.isEmpty() == false) {
                         throw new IllegalArgumentException(
                             "cannot specify field [" + currentFieldName + "] and field [" + SUB_SEARCHES_FIELD.getPreferredName() + "]"
@@ -1400,99 +1448,79 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                         scriptFields.add(new ScriptField(parser));
                     }
                     searchUsage.trackSectionUsage(SCRIPT_FIELDS_FIELD.getPreferredName());
-                } else if (parser.getRestApiVersion() == RestApiVersion.V_7
-                    && INDICES_BOOST_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                        deprecationLogger.compatibleCritical(
-                            "indices_boost_object_format",
-                            "Object format in indices_boost is deprecated, please use array format instead"
-                        );
+                } else if (AGGREGATIONS_FIELD.match(currentFieldName, parser.getDeprecationHandler())
+                    || AGGS_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
+                        aggregations = AggregatorFactories.parseAggregators(parser);
+                        if (aggregations.count() > 0) {
+                            searchUsage.trackSectionUsage(AGGS_FIELD.getPreferredName());
+                        }
+                    } else if (HIGHLIGHT_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
+                        highlightBuilder = HighlightBuilder.fromXContent(parser);
+                        if (highlightBuilder.fields().size() > 0) {
+                            searchUsage.trackSectionUsage(HIGHLIGHT_FIELD.getPreferredName());
+                        }
+                    } else if (SUGGEST_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
+                        suggestBuilder = SuggestBuilder.fromXContent(parser);
+                        if (suggestBuilder.getSuggestions().size() > 0) {
+                            searchUsage.trackSectionUsage(SUGGEST_FIELD.getPreferredName());
+                        }
+                    } else if (SORT_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
+                        sorts = new ArrayList<>(SortBuilder.fromXContent(parser));
+                    } else if (RESCORE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
+                        rescoreBuilders = new ArrayList<>();
+                        rescoreBuilders.add(RescorerBuilder.parseFromXContent(parser, searchUsage::trackRescorerUsage));
+                        searchUsage.trackSectionUsage(RESCORE_FIELD.getPreferredName());
+                    } else if (EXT_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
+                        extBuilders = new ArrayList<>();
+                        String extSectionName = null;
                         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                             if (token == XContentParser.Token.FIELD_NAME) {
-                                currentFieldName = parser.currentName();
-                            } else if (token.isValue()) {
-                                indexBoosts.add(new IndexBoost(currentFieldName, parser.floatValue()));
+                                extSectionName = parser.currentName();
                             } else {
-                                throw new ParsingException(
-                                    parser.getTokenLocation(),
-                                    "Unknown key for a " + token + " in [" + currentFieldName + "].",
-                                    parser.getTokenLocation()
-                                );
-                            }
-                        }
-                        searchUsage.trackSectionUsage(INDICES_BOOST_FIELD.getPreferredName());
-                    } else if (AGGREGATIONS_FIELD.match(currentFieldName, parser.getDeprecationHandler())
-                        || AGGS_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                            aggregations = AggregatorFactories.parseAggregators(parser);
-                            if (aggregations.count() > 0) {
-                                searchUsage.trackSectionUsage(AGGS_FIELD.getPreferredName());
-                            }
-                        } else if (HIGHLIGHT_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                            highlightBuilder = HighlightBuilder.fromXContent(parser);
-                            if (highlightBuilder.fields().size() > 0) {
-                                searchUsage.trackSectionUsage(HIGHLIGHT_FIELD.getPreferredName());
-                            }
-                        } else if (SUGGEST_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                            suggestBuilder = SuggestBuilder.fromXContent(parser);
-                            if (suggestBuilder.getSuggestions().size() > 0) {
-                                searchUsage.trackSectionUsage(SUGGEST_FIELD.getPreferredName());
-                            }
-                        } else if (SORT_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                            sorts = new ArrayList<>(SortBuilder.fromXContent(parser));
-                        } else if (RESCORE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                            rescoreBuilders = new ArrayList<>();
-                            rescoreBuilders.add(RescorerBuilder.parseFromXContent(parser, searchUsage::trackRescorerUsage));
-                            searchUsage.trackSectionUsage(RESCORE_FIELD.getPreferredName());
-                        } else if (EXT_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                            extBuilders = new ArrayList<>();
-                            String extSectionName = null;
-                            while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                                if (token == XContentParser.Token.FIELD_NAME) {
-                                    extSectionName = parser.currentName();
-                                } else {
-                                    SearchExtBuilder searchExtBuilder = parser.namedObject(SearchExtBuilder.class, extSectionName, null);
-                                    if (searchExtBuilder.getWriteableName().equals(extSectionName) == false) {
-                                        throw new IllegalStateException(
-                                            "The parsed ["
-                                                + searchExtBuilder.getClass().getName()
-                                                + "] object has a different writeable name compared to the name of the section that "
-                                                + " it was parsed from: found ["
-                                                + searchExtBuilder.getWriteableName()
-                                                + "] expected ["
-                                                + extSectionName
-                                                + "]"
-                                        );
-                                    }
-                                    extBuilders.add(searchExtBuilder);
+                                SearchExtBuilder searchExtBuilder = parser.namedObject(SearchExtBuilder.class, extSectionName, null);
+                                if (searchExtBuilder.getWriteableName().equals(extSectionName) == false) {
+                                    throw new IllegalStateException(
+                                        "The parsed ["
+                                            + searchExtBuilder.getClass().getName()
+                                            + "] object has a different writeable name compared to the name of the section that "
+                                            + " it was parsed from: found ["
+                                            + searchExtBuilder.getWriteableName()
+                                            + "] expected ["
+                                            + extSectionName
+                                            + "]"
+                                    );
                                 }
+                                extBuilders.add(searchExtBuilder);
                             }
-                            if (extBuilders.size() > 0) {
-                                searchUsage.trackSectionUsage(EXT_FIELD.getPreferredName());
-                            }
-                        } else if (SLICE.match(currentFieldName, parser.getDeprecationHandler())) {
-                            sliceBuilder = SliceBuilder.fromXContent(parser);
-                            if (sliceBuilder.getField() != null || sliceBuilder.getId() != -1 || sliceBuilder.getMax() != -1) {
-                                searchUsage.trackSectionUsage(SLICE.getPreferredName());
-                            }
-                        } else if (COLLAPSE.match(currentFieldName, parser.getDeprecationHandler())) {
-                            collapse = CollapseBuilder.fromXContent(parser);
-                            if (collapse.getField() != null) {
-                                searchUsage.trackSectionUsage(COLLAPSE.getPreferredName());
-                            }
-                        } else if (POINT_IN_TIME.match(currentFieldName, parser.getDeprecationHandler())) {
-                            pointInTimeBuilder = PointInTimeBuilder.fromXContent(parser);
-                            searchUsage.trackSectionUsage(POINT_IN_TIME.getPreferredName());
-                        } else if (RUNTIME_MAPPINGS_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                            runtimeMappings = parser.map();
-                            if (runtimeMappings.size() > 0) {
-                                searchUsage.trackSectionUsage(RUNTIME_MAPPINGS_FIELD.getPreferredName());
-                            }
-                        } else {
-                            throw new ParsingException(
-                                parser.getTokenLocation(),
-                                "Unknown key for a " + token + " in [" + currentFieldName + "].",
-                                parser.getTokenLocation()
-                            );
                         }
+                        if (extBuilders.size() > 0) {
+                            searchUsage.trackSectionUsage(EXT_FIELD.getPreferredName());
+                        }
+                    } else if (SLICE.match(currentFieldName, parser.getDeprecationHandler())) {
+                        sliceBuilder = SliceBuilder.fromXContent(parser);
+                        if (sliceBuilder.getField() != null || sliceBuilder.getId() != -1 || sliceBuilder.getMax() != -1) {
+                            searchUsage.trackSectionUsage(SLICE.getPreferredName());
+                        }
+                    } else if (COLLAPSE.match(currentFieldName, parser.getDeprecationHandler())) {
+                        collapse = CollapseBuilder.fromXContent(parser);
+                        if (collapse.getField() != null) {
+                            searchUsage.trackSectionUsage(COLLAPSE.getPreferredName());
+                        }
+                    } else if (POINT_IN_TIME.match(currentFieldName, parser.getDeprecationHandler())) {
+                        pointInTimeBuilder = PointInTimeBuilder.fromXContent(parser);
+                        searchUsage.trackSectionUsage(POINT_IN_TIME.getPreferredName());
+                    } else if (RUNTIME_MAPPINGS_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
+                        runtimeMappings = parser.map();
+                        if (runtimeMappings.size() > 0) {
+                            searchUsage.trackSectionUsage(RUNTIME_MAPPINGS_FIELD.getPreferredName());
+                        }
+                    } else {
+                        throw new ParsingException(
+                            parser.getTokenLocation(),
+                            "Unknown key for a " + token + " in [" + currentFieldName + "].",
+                            parser.getTokenLocation()
+                        );
+                    }
             } else if (token == XContentParser.Token.START_ARRAY) {
                 if (STORED_FIELDS_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     storedFieldsContext = StoredFieldsContext.fromXContent(STORED_FIELDS_FIELD.getPreferredName(), parser);
@@ -1610,7 +1638,6 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         }
 
         knnSearch = knnBuilders.stream().map(knnBuilder -> knnBuilder.build(size())).collect(Collectors.toList());
-
         searchUsageConsumer.accept(searchUsage);
         return this;
     }
@@ -1638,6 +1665,10 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
 
         if (terminateAfter != SearchContext.DEFAULT_TERMINATE_AFTER) {
             builder.field(TERMINATE_AFTER_FIELD.getPreferredName(), terminateAfter);
+        }
+
+        if (retrieverBuilder != null) {
+            builder.field(RETRIEVER.getPreferredName(), retrieverBuilder);
         }
 
         if (subSearchSourceBuilders.isEmpty() == false) {
@@ -2133,5 +2164,161 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         }
 
         return collapse == null && (aggregations == null || aggregations.supportsParallelCollection(fieldCardinality));
+    }
+
+    private void validate() throws ValidationException {
+        var exceptions = validate(null, false, false);
+        if (exceptions != null) {
+            throw exceptions;
+        }
+    }
+
+    public ActionRequestValidationException validate(
+        ActionRequestValidationException validationException,
+        boolean isScroll,
+        boolean allowPartialSearchResults
+    ) {
+        if (retriever() != null) {
+            validationException = retriever().validate(this, validationException, allowPartialSearchResults);
+            List<String> specified = new ArrayList<>();
+            if (subSearches().isEmpty() == false) {
+                specified.add(QUERY_FIELD.getPreferredName());
+            }
+            if (knnSearch().isEmpty() == false) {
+                specified.add(KNN_FIELD.getPreferredName());
+            }
+            if (searchAfter() != null) {
+                specified.add(SEARCH_AFTER.getPreferredName());
+            }
+            if (terminateAfter() != DEFAULT_TERMINATE_AFTER) {
+                specified.add(TERMINATE_AFTER_FIELD.getPreferredName());
+            }
+            if (sorts() != null) {
+                specified.add(SORT_FIELD.getPreferredName());
+            }
+            if (rankBuilder() != null) {
+                specified.add(RANK_FIELD.getPreferredName());
+            }
+            if (rescores() != null) {
+                specified.add(RESCORE_FIELD.getPreferredName());
+            }
+            if (specified.isEmpty() == false) {
+                validationException = addValidationError(
+                    "cannot specify [" + RETRIEVER.getPreferredName() + "] and " + specified,
+                    validationException
+                );
+            }
+        }
+        if (isScroll) {
+            if (trackTotalHitsUpTo() != null && trackTotalHitsUpTo() != SearchContext.TRACK_TOTAL_HITS_ACCURATE) {
+                validationException = addValidationError(
+                    "disabling [track_total_hits] is not allowed in a scroll context",
+                    validationException
+                );
+            }
+            if (from() > 0) {
+                validationException = addValidationError("using [from] is not allowed in a scroll context", validationException);
+            }
+            if (size() == 0) {
+                validationException = addValidationError("[size] cannot be [0] in a scroll context", validationException);
+            }
+            if (rescores() != null && rescores().isEmpty() == false) {
+                validationException = addValidationError("using [rescore] is not allowed in a scroll context", validationException);
+            }
+            if (CollectionUtils.isEmpty(searchAfter()) == false) {
+                validationException = addValidationError("[search_after] cannot be used in a scroll context", validationException);
+            }
+            if (collapse() != null) {
+                validationException = addValidationError("cannot use `collapse` in a scroll context", validationException);
+            }
+        }
+        if (slice() != null) {
+            if (pointInTimeBuilder() == null && (isScroll == false)) {
+                validationException = addValidationError(
+                    "[slice] can only be used with [scroll] or [point-in-time] requests",
+                    validationException
+                );
+            }
+        }
+        if (from() > 0 && CollectionUtils.isEmpty(searchAfter()) == false) {
+            validationException = addValidationError("[from] parameter must be set to 0 when [search_after] is used", validationException);
+        }
+        if (storedFields() != null) {
+            if (storedFields().fetchFields() == false) {
+                if (fetchSource() != null && fetchSource().fetchSource()) {
+                    validationException = addValidationError(
+                        "[stored_fields] cannot be disabled if [_source] is requested",
+                        validationException
+                    );
+                }
+                if (fetchFields() != null) {
+                    validationException = addValidationError(
+                        "[stored_fields] cannot be disabled when using the [fields] option",
+                        validationException
+                    );
+                }
+            }
+        }
+        if (subSearches().size() >= 2 && rankBuilder() == null) {
+            validationException = addValidationError("[sub_searches] requires [rank]", validationException);
+        }
+        if (aggregations() != null) {
+            validationException = aggregations().validate(validationException);
+        }
+
+        if (rankBuilder() != null) {
+            int s = size() == -1 ? SearchService.DEFAULT_SIZE : size();
+            if (s == 0) {
+                validationException = addValidationError("[rank] requires [size] greater than [0]", validationException);
+            }
+            if (s > rankBuilder().rankWindowSize()) {
+                validationException = addValidationError(
+                    "[rank] requires [rank_window_size: "
+                        + rankBuilder().rankWindowSize()
+                        + "]"
+                        + " be greater than or equal to [size: "
+                        + s
+                        + "]",
+                    validationException
+                );
+            }
+            int queryCount = subSearches().size() + knnSearch().size();
+            if (rankBuilder().isCompoundBuilder() && queryCount < 2) {
+                validationException = addValidationError(
+                    "[rank] requires a minimum of [2] result sets using a combination of sub searches and/or knn searches",
+                    validationException
+                );
+            }
+            if (isScroll) {
+                validationException = addValidationError("[rank] cannot be used in a scroll context", validationException);
+            }
+            if (rescores() != null && rescores().isEmpty() == false) {
+                validationException = addValidationError("[rank] cannot be used with [rescore]", validationException);
+            }
+
+            if (suggest() != null && suggest().getSuggestions().isEmpty() == false) {
+                validationException = addValidationError("[rank] cannot be used with [suggest]", validationException);
+            }
+        }
+
+        if (rescores() != null) {
+            for (@SuppressWarnings("rawtypes")
+            var rescorer : rescores()) {
+                validationException = rescorer.validate(this, validationException);
+            }
+        }
+
+        if (pointInTimeBuilder() == null && sorts() != null) {
+            for (var sortBuilder : sorts()) {
+                if (sortBuilder instanceof FieldSortBuilder fieldSortBuilder
+                    && ShardDocSortField.NAME.equals(fieldSortBuilder.getFieldName())) {
+                    validationException = addValidationError(
+                        "[" + FieldSortBuilder.SHARD_DOC_FIELD_NAME + "] sort field cannot be used without [point in time]",
+                        validationException
+                    );
+                }
+            }
+        }
+        return validationException;
     }
 }

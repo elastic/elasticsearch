@@ -11,12 +11,11 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.search.aggregations.metrics.CompensatedSum;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.util.NumericUtils;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.DataTypes;
-import org.elasticsearch.xpack.ql.util.NumericUtils;
 import org.hamcrest.Matcher;
 
 import java.util.ArrayList;
@@ -25,6 +24,7 @@ import java.util.function.BiFunction;
 import java.util.function.Supplier;
 import java.util.stream.DoubleStream;
 
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.unsignedLongToDouble;
 import static org.hamcrest.Matchers.equalTo;
 
 public class MvAvgTests extends AbstractMultivalueFunctionTestCase {
@@ -40,22 +40,22 @@ public class MvAvgTests extends AbstractMultivalueFunctionTestCase {
             return equalTo(sum.value() / size);
         };
         List<TestCaseSupplier> cases = new ArrayList<>();
-        doubles(cases, "mv_avg", "MvAvg", DataTypes.DOUBLE, avg);
-        ints(cases, "mv_avg", "MvAvg", DataTypes.DOUBLE, (size, data) -> avg.apply(size, data.mapToDouble(v -> (double) v)));
-        longs(cases, "mv_avg", "MvAvg", DataTypes.DOUBLE, (size, data) -> avg.apply(size, data.mapToDouble(v -> (double) v)));
+        doubles(cases, "mv_avg", "MvAvg", DataType.DOUBLE, avg);
+        ints(cases, "mv_avg", "MvAvg", DataType.DOUBLE, (size, data) -> avg.apply(size, data.mapToDouble(v -> (double) v)));
+        longs(cases, "mv_avg", "MvAvg", DataType.DOUBLE, (size, data) -> avg.apply(size, data.mapToDouble(v -> (double) v)));
         unsignedLongs(
             cases,
             "mv_avg",
             "MvAvg",
-            DataTypes.DOUBLE,
+            DataType.DOUBLE,
             /*
              * Converting strait from BigInteger to double will round differently.
              * So we have to go back to encoded `long` and then convert to double
              * using the production conversion. That'll round in the same way.
              */
-            (size, data) -> avg.apply(size, data.mapToDouble(v -> NumericUtils.unsignedLongToDouble(NumericUtils.asLongUnsigned(v))))
+            (size, data) -> avg.apply(size, data.mapToDouble(v -> unsignedLongToDouble(NumericUtils.asLongUnsigned(v))))
         );
-        return parameterSuppliersFromTypedData(errorsForCasesWithoutExamples(anyNullIsNull(true, cases)));
+        return parameterSuppliersFromTypedDataWithDefaultChecks(true, cases, (v, p) -> "numeric");
     }
 
     @Override
@@ -64,12 +64,7 @@ public class MvAvgTests extends AbstractMultivalueFunctionTestCase {
     }
 
     @Override
-    protected DataType[] supportedTypes() {
-        return representableNumerics();
-    }
-
-    @Override
     protected DataType expectedType(List<DataType> argTypes) {
-        return DataTypes.DOUBLE;  // Averages are always a double
+        return DataType.DOUBLE;  // Averages are always a double
     }
 }

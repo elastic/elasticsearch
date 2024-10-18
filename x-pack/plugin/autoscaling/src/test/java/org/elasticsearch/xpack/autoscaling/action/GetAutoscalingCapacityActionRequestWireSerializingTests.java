@@ -20,7 +20,7 @@ public class GetAutoscalingCapacityActionRequestWireSerializingTests extends Abs
 
     @Override
     protected GetAutoscalingCapacityAction.Request createTestInstance() {
-        return new GetAutoscalingCapacityAction.Request();
+        return new GetAutoscalingCapacityAction.Request(TEST_REQUEST_TIMEOUT);
     }
 
     @Override

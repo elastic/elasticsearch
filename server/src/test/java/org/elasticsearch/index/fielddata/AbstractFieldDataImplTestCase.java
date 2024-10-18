@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.fielddata;
@@ -91,6 +92,7 @@ public abstract class AbstractFieldDataImplTestCase extends AbstractFieldDataTes
             assertThat(fieldData.ramBytesUsed(), greaterThanOrEqualTo(minRamBytesUsed()));
 
             SortedBinaryDocValues bytesValues = fieldData.getBytesValues();
+            assertNotNull(FieldData.unwrapSingleton(bytesValues));
 
             assertTrue(bytesValues.advanceExact(0));
             assertThat(bytesValues.docValueCount(), equalTo(1));
@@ -183,6 +185,7 @@ public abstract class AbstractFieldDataImplTestCase extends AbstractFieldDataTes
             assertThat(fieldData.ramBytesUsed(), greaterThanOrEqualTo(minRamBytesUsed()));
 
             SortedBinaryDocValues bytesValues = fieldData.getBytesValues();
+            assertNull(FieldData.unwrapSingleton(bytesValues));
             assertValues(bytesValues, 0, two(), four());
             assertValues(bytesValues, 1, one());
             assertValues(bytesValues, 2, three());

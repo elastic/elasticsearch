@@ -8,8 +8,11 @@
 package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.ReleasableIterator;
 
 import java.io.IOException;
 
@@ -17,14 +20,27 @@ import java.io.IOException;
  * Vector that stores BytesRef values.
  * This class is generated. Do not edit it.
  */
-public sealed interface BytesRefVector extends Vector permits ConstantBytesRefVector, BytesRefArrayVector, ConstantNullVector {
+public sealed interface BytesRefVector extends Vector permits ConstantBytesRefVector, BytesRefArrayVector, ConstantNullVector,
+    OrdinalBytesRefVector {
     BytesRef getBytesRef(int position, BytesRef dest);
 
     @Override
     BytesRefBlock asBlock();
 
+    /**
+     * Returns an ordinal BytesRef vector if this vector is backed by a dictionary and ordinals; otherwise,
+     * returns null. Callers must not release the returned vector as no extra reference is retained by this method.
+     */
+    OrdinalBytesRefVector asOrdinals();
+
     @Override
     BytesRefVector filter(int... positions);
+
+    @Override
+    BytesRefBlock keepMask(BooleanVector mask);
+
+    @Override
+    ReleasableIterator<? extends BytesRefBlock> lookup(IntBlock positions, ByteSizeValue targetBlockSize);
 
     /**
      * Compares the given object with this vector for equality. Returns {@code true} if and only if the
@@ -74,30 +90,52 @@ public sealed interface BytesRefVector extends Vector permits ConstantBytesRefVe
     /** Deserializes a Vector from the given stream input. */
     static BytesRefVector readFrom(BlockFactory blockFactory, StreamInput in) throws IOException {
         final int positions = in.readVInt();
-        final boolean constant = in.readBoolean();
-        if (constant && positions > 0) {
-            return blockFactory.newConstantBytesRefVector(in.readBytesRef(), positions);
-        } else {
-            try (var builder = blockFactory.newBytesRefVectorBuilder(positions)) {
-                for (int i = 0; i < positions; i++) {
-                    builder.appendBytesRef(in.readBytesRef());
-                }
-                return builder.build();
+        final byte serializationType = in.readByte();
+        return switch (serializationType) {
+            case SERIALIZE_VECTOR_VALUES -> readValues(positions, in, blockFactory);
+            case SERIALIZE_VECTOR_CONSTANT -> blockFactory.newConstantBytesRefVector(in.readBytesRef(), positions);
+            case SERIALIZE_VECTOR_ARRAY -> BytesRefArrayVector.readArrayVector(positions, in, blockFactory);
+            case SERIALIZE_VECTOR_ORDINAL -> OrdinalBytesRefVector.readOrdinalVector(blockFactory, in);
+            default -> {
+                assert false : "invalid vector serialization type [" + serializationType + "]";
+                throw new IllegalStateException("invalid vector serialization type [" + serializationType + "]");
             }
-        }
+        };
     }
 
     /** Serializes this Vector to the given stream output. */
     default void writeTo(StreamOutput out) throws IOException {
         final int positions = getPositionCount();
+        final var version = out.getTransportVersion();
         out.writeVInt(positions);
-        out.writeBoolean(isConstant());
         if (isConstant() && positions > 0) {
+            out.writeByte(SERIALIZE_VECTOR_CONSTANT);
             out.writeBytesRef(getBytesRef(0, new BytesRef()));
+        } else if (version.onOrAfter(TransportVersions.V_8_14_0) && this instanceof BytesRefArrayVector v) {
+            out.writeByte(SERIALIZE_VECTOR_ARRAY);
+            v.writeArrayVector(positions, out);
+        } else if (version.onOrAfter(TransportVersions.V_8_14_0) && this instanceof OrdinalBytesRefVector v && v.isDense()) {
+            out.writeByte(SERIALIZE_VECTOR_ORDINAL);
+            v.writeOrdinalVector(out);
         } else {
+            out.writeByte(SERIALIZE_VECTOR_VALUES);
+            writeValues(this, positions, out);
+        }
+    }
+
+    private static BytesRefVector readValues(int positions, StreamInput in, BlockFactory blockFactory) throws IOException {
+        try (var builder = blockFactory.newBytesRefVectorBuilder(positions)) {
             for (int i = 0; i < positions; i++) {
-                out.writeBytesRef(getBytesRef(i, new BytesRef()));
+                builder.appendBytesRef(in.readBytesRef());
             }
+            return builder.build();
+        }
+    }
+
+    private static void writeValues(BytesRefVector v, int positions, StreamOutput out) throws IOException {
+        var scratch = new BytesRef();
+        for (int i = 0; i < positions; i++) {
+            out.writeBytesRef(v.getBytesRef(i, scratch));
         }
     }
 

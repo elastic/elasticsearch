@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.cluster.coordination;
 
@@ -43,9 +44,16 @@ import java.util.function.Supplier;
 import static org.elasticsearch.cluster.coordination.ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING;
 import static org.elasticsearch.monitor.StatusInfo.Status.UNHEALTHY;
 
+/**
+ * Handles periodic debug logging of information regarding why the cluster has failed to form.
+ * Periodic logging begins once {@link #start()} is called, and ceases on {@link #stop()}.
+ */
 public class ClusterFormationFailureHelper {
     private static final Logger logger = LogManager.getLogger(ClusterFormationFailureHelper.class);
 
+    /**
+     * This time period controls how often warning log messages will be written if this node fails to join or form a cluster.
+     */
     public static final Setting<TimeValue> DISCOVERY_CLUSTER_FORMATION_WARNING_TIMEOUT_SETTING = Setting.timeSetting(
         "discovery.cluster_formation_warning_timeout",
         TimeValue.timeValueMillis(10000),
@@ -61,6 +69,16 @@ public class ClusterFormationFailureHelper {
     @Nullable // if no warning is scheduled
     private volatile WarningScheduler warningScheduler;
 
+    /**
+     * Works with the {@link JoinHelper} to log the latest node-join attempt failure and cluster state debug information. Must call
+     * {@link ClusterFormationState#start()} to begin.
+     *
+     * @param settings provides the period in which to log cluster formation errors.
+     * @param clusterFormationStateSupplier information about the current believed cluster state (See {@link ClusterFormationState})
+     * @param threadPool the thread pool on which to run debug logging
+     * @param logLastFailedJoinAttempt invokes an instance of the JoinHelper to log the last encountered join failure
+     *                                 (See {@link JoinHelper#logLastFailedJoinAttempt()})
+     */
     public ClusterFormationFailureHelper(
         Settings settings,
         Supplier<ClusterFormationState> clusterFormationStateSupplier,
@@ -78,6 +96,10 @@ public class ClusterFormationFailureHelper {
         return warningScheduler != null;
     }
 
+    /**
+     * Schedules a warning debug message to be logged in 'clusterFormationWarningTimeout' time, and periodically thereafter, until
+     * {@link ClusterFormationState#stop()} has been called.
+     */
     public void start() {
         assert warningScheduler == null;
         warningScheduler = new WarningScheduler();
@@ -129,7 +151,7 @@ public class ClusterFormationFailureHelper {
     }
 
     /**
-     * If this node believes that cluster formation has failed, this record provides information that can be used to determine why that is.
+     * This record provides node state information that can be used to determine why cluster formation has failed.
      */
     public record ClusterFormationState(
         List<String> initialMasterNodesSetting,
@@ -220,7 +242,7 @@ public class ClusterFormationFailureHelper {
                 new VotingConfiguration(in),
                 in.readCollectionAsImmutableList(TransportAddress::new),
                 in.readCollectionAsImmutableList(DiscoveryNode::new),
-                in.getTransportVersion().onOrAfter(TransportVersions.PEERFINDER_REPORTS_PEERS_MASTERS)
+                in.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)
                     ? in.readCollectionAsImmutableSet(DiscoveryNode::new)
                     : Set.of(),
                 in.readLong(),
@@ -402,7 +424,7 @@ public class ClusterFormationFailureHelper {
             lastCommittedConfiguration.writeTo(out);
             out.writeCollection(resolvedAddresses);
             out.writeCollection(foundPeers);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.PEERFINDER_REPORTS_PEERS_MASTERS)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
                 out.writeCollection(mastersOfPeers);
             }
             out.writeLong(currentTerm);

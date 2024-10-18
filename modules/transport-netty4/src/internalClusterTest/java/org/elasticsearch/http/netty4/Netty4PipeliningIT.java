@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.http.netty4;
@@ -34,7 +35,7 @@ import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.ChunkedRestResponseBody;
+import org.elasticsearch.rest.ChunkedRestResponseBodyPart;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestRequest;
@@ -42,7 +43,6 @@ import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.ToXContentObject;
 
 import java.io.IOException;
@@ -243,14 +243,23 @@ public class Netty4PipeliningIT extends ESNetty4IntegTestCase {
                     if (failAfterBytes < 0) {
                         throw new IllegalArgumentException("[" + FAIL_AFTER_BYTES_PARAM + "] must be present and non-negative");
                     }
-                    return channel -> client.threadPool()
-                        .executor(randomFrom(ThreadPool.Names.SAME, ThreadPool.Names.GENERIC))
-                        .execute(() -> channel.sendResponse(RestResponse.chunked(RestStatus.OK, new ChunkedRestResponseBody() {
+                    return channel -> randomExecutor(client.threadPool()).execute(
+                        () -> channel.sendResponse(RestResponse.chunked(RestStatus.OK, new ChunkedRestResponseBodyPart() {
                             int bytesRemaining = failAfterBytes;
 
                             @Override
-                            public boolean isDone() {
+                            public boolean isPartComplete() {
                                 return false;
+                            }
+
+                            @Override
+                            public boolean isLastPart() {
+                                return true;
+                            }
+
+                            @Override
+                            public void getNextPart(ActionListener<ChunkedRestResponseBodyPart> listener) {
+                                fail("no continuations here");
                             }
 
                             @Override
@@ -270,7 +279,8 @@ public class Netty4PipeliningIT extends ESNetty4IntegTestCase {
                             public String getResponseContentTypeString() {
                                 return RestResponse.TEXT_CONTENT_TYPE;
                             }
-                        }, null)));
+                        }, null))
+                    );
                 }
             });
         }

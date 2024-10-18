@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.aggregations.bucket.timeseries;
@@ -35,7 +36,7 @@ public class TimeSeriesAggregationBuilder extends AbstractAggregationBuilder<Tim
     public static final ParseField SIZE_FIELD = new ParseField("size");
     public static final InstantiatingObjectParser<TimeSeriesAggregationBuilder, String> PARSER;
 
-    private boolean keyed;
+    private final boolean keyed;
     private int size;
 
     private static final int DEFAULT_SIZE = MultiBucketConsumerService.DEFAULT_MAX_BUCKETS;
@@ -124,14 +125,6 @@ public class TimeSeriesAggregationBuilder extends AbstractAggregationBuilder<Tim
     @Override
     public boolean isInSortOrderExecutionRequired() {
         return true;
-    }
-
-    public boolean isKeyed() {
-        return keyed;
-    }
-
-    public void setKeyed(boolean keyed) {
-        this.keyed = keyed;
     }
 
     public TimeSeriesAggregationBuilder setSize(int size) {

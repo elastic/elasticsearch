@@ -18,10 +18,6 @@ final class IntState implements AggregatorState {
     private int value;
     private boolean seen;
 
-    IntState() {
-        this(0);
-    }
-
     IntState(int init) {
         this.value = init;
     }

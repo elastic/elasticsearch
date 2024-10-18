@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 import org.elasticsearch.gradle.Version
@@ -33,7 +34,8 @@ tasks.register("bwcTest") {
 
 plugins.withType(ElasticsearchTestBasePlugin) {
   tasks.withType(Test).matching { it.name ==~ /v[0-9\.]+#.*/ }.configureEach {
-    onlyIf("BWC tests enabled") { project.bwc_tests_enabled }
+    boolean bwcEnabled = project.bwc_tests_enabled
+    onlyIf("BWC tests enabled") { bwcEnabled }
     nonInputProperties.systemProperty 'tests.bwc', 'true'
   }
 }
@@ -50,5 +52,5 @@ plugins.withType(InternalJavaRestTestPlugin) {
   }
 }
 
-tasks.matching { it.name.equals("check") }.configureEach {dependsOn(bwcTestSnapshots) }
-tasks.matching { it.name.equals("test") }.configureEach {enabled = false}
+tasks.matching { it.name.equals("check") }.configureEach { dependsOn(bwcTestSnapshots) }
+tasks.matching { it.name.equals("test") }.configureEach { enabled = false }

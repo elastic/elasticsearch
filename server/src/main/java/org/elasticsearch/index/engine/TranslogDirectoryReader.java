@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.engine;
@@ -59,11 +60,9 @@ import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.VersionFieldMapper;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
-import org.elasticsearch.plugins.internal.DocumentSizeObserver;
 
 import java.io.IOException;
 import java.util.Collections;
-import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -161,6 +160,7 @@ final class TranslogDirectoryReader extends DirectoryReader {
             0,
             VectorEncoding.FLOAT32,
             VectorSimilarityFunction.EUCLIDEAN,
+            false,
             false
         );
         private static final FieldInfo FAKE_ROUTING_FIELD = new FieldInfo(
@@ -179,6 +179,7 @@ final class TranslogDirectoryReader extends DirectoryReader {
             0,
             VectorEncoding.FLOAT32,
             VectorSimilarityFunction.EUCLIDEAN,
+            false,
             false
         );
         private static final FieldInfo FAKE_ID_FIELD = new FieldInfo(
@@ -197,6 +198,7 @@ final class TranslogDirectoryReader extends DirectoryReader {
             0,
             VectorEncoding.FLOAT32,
             VectorSimilarityFunction.EUCLIDEAN,
+            false,
             false
         );
         private static final Set<String> TRANSLOG_FIELD_NAMES = Set.of(SourceFieldMapper.NAME, RoutingFieldMapper.NAME, IdFieldMapper.NAME);
@@ -251,14 +253,7 @@ final class TranslogDirectoryReader extends DirectoryReader {
         private LeafReader createInMemoryLeafReader() {
             assert Thread.holdsLock(this);
             final ParsedDocument parsedDocs = documentParser.parseDocument(
-                new SourceToParse(
-                    operation.id(),
-                    operation.source(),
-                    XContentHelper.xContentType(operation.source()),
-                    operation.routing(),
-                    Map.of(),
-                    DocumentSizeObserver.EMPTY_INSTANCE
-                ),
+                new SourceToParse(operation.id(), operation.source(), XContentHelper.xContentType(operation.source()), operation.routing()),
                 mappingLookup
             );
 

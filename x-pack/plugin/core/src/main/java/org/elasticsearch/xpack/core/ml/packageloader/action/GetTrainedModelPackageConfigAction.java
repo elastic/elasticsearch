@@ -37,10 +37,12 @@ public class GetTrainedModelPackageConfigAction extends ActionType<GetTrainedMod
         private final String packagedModelId;
 
         public Request(String packagedModelId) {
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
             this.packagedModelId = packagedModelId;
         }
 
         public Request(StreamInput in) throws IOException {
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
             this.packagedModelId = in.readString();
         }
 

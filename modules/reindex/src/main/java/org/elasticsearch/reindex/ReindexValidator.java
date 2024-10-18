@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.reindex;
@@ -155,19 +156,10 @@ public class ReindexValidator {
     }
 
     private static SearchRequest skipRemoteIndexNames(SearchRequest source) {
-        return new SearchRequest(source).indices(
-            Arrays.stream(source.indices()).filter(name -> isRemoteExpression(name) == false).toArray(String[]::new)
-        );
-    }
-
-    private static boolean isRemoteExpression(String expression) {
         // An index expression that references a remote cluster uses ":" to separate the cluster-alias from the index portion of the
         // expression, e.g., cluster0:index-name
-        // in the same time date-math `expression` can also contain ':' symbol inside its name
-        // to distinguish between those two, given `expression` is pre-evaluated using date-math resolver
-        // after evaluation date-math `expression` should not contain ':' symbol
-        // otherwise if `expression` is legit remote name, ':' symbol remains
-        return IndexNameExpressionResolver.resolveDateMathExpression(expression)
-            .contains(String.valueOf(RemoteClusterAware.REMOTE_CLUSTER_INDEX_SEPARATOR));
+        return new SearchRequest(source).indices(
+            Arrays.stream(source.indices()).filter(name -> RemoteClusterAware.isRemoteIndexName(name) == false).toArray(String[]::new)
+        );
     }
 }

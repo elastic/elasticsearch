@@ -1,15 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.gradle;
 
 import org.elasticsearch.gradle.distribution.ElasticsearchDistributionTypes;
-import org.gradle.api.Action;
 import org.gradle.api.Buildable;
 import org.gradle.api.file.ConfigurableFileCollection;
 import org.gradle.api.file.FileCollection;
@@ -55,7 +55,6 @@ public class ElasticsearchDistribution implements Buildable, Iterable<File> {
     private final Property<Boolean> failIfUnavailable;
     private final Property<Boolean> preferArchive;
     private final ConfigurableFileCollection extracted;
-    private transient Action<ElasticsearchDistribution> distributionFinalizer;
     private boolean frozen = false;
 
     ElasticsearchDistribution(
@@ -63,8 +62,7 @@ public class ElasticsearchDistribution implements Buildable, Iterable<File> {
         ObjectFactory objectFactory,
         Property<Boolean> dockerAvailability,
         ConfigurableFileCollection fileConfiguration,
-        ConfigurableFileCollection extractedConfiguration,
-        Action<ElasticsearchDistribution> distributionFinalizer
+        ConfigurableFileCollection extractedConfiguration
     ) {
         this.name = name;
         this.dockerAvailability = dockerAvailability;
@@ -78,7 +76,6 @@ public class ElasticsearchDistribution implements Buildable, Iterable<File> {
         this.failIfUnavailable = objectFactory.property(Boolean.class).convention(true);
         this.preferArchive = objectFactory.property(Boolean.class).convention(false);
         this.extracted = extractedConfiguration;
-        this.distributionFinalizer = distributionFinalizer;
     }
 
     public String getName() {
@@ -172,7 +169,6 @@ public class ElasticsearchDistribution implements Buildable, Iterable<File> {
     public ElasticsearchDistribution maybeFreeze() {
         if (frozen == false) {
             finalizeValues();
-            distributionFinalizer.execute(this);
             frozen = true;
         }
         return this;

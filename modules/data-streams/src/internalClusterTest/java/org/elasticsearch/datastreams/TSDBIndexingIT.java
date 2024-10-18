@@ -1,15 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.datastreams;
 
 import org.elasticsearch.action.DocWriteRequest;
-import org.elasticsearch.action.admin.indices.diskusage.AnalyzeIndexDiskUsageAction;
 import org.elasticsearch.action.admin.indices.diskusage.AnalyzeIndexDiskUsageRequest;
+import org.elasticsearch.action.admin.indices.diskusage.TransportAnalyzeIndexDiskUsageAction;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
@@ -22,6 +23,7 @@ import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.Template;
@@ -35,6 +37,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.indices.InvalidIndexTemplateException;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
@@ -260,7 +263,7 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
             assertThat(
                 e.getCause().getCause().getMessage(),
                 equalTo(
-                    "All fields that match routing_path must be keywords with [time_series_dimension: true] "
+                    "All fields that match routing_path must be configured with [time_series_dimension: true] "
                         + "or flattened fields with a list of dimensions in [time_series_dimensions] and "
                         + "without the [script] parameter. [metricset] was not a dimension."
                 )
@@ -289,7 +292,7 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
         }
     }
 
-    public void testInvalidTsdbTemplatesNoKeywordFieldType() throws Exception {
+    public void testTsdbTemplatesNoKeywordFieldType() throws Exception {
         var mappingTemplate = """
             {
               "_doc":{
@@ -315,18 +318,7 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
                 .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(false, false))
                 .build()
         );
-        Exception e = expectThrows(
-            IllegalArgumentException.class,
-            () -> client().execute(TransportPutComposableIndexTemplateAction.TYPE, request).actionGet()
-        );
-        assertThat(
-            e.getCause().getCause().getMessage(),
-            equalTo(
-                "All fields that match routing_path must be keywords with [time_series_dimension: true] "
-                    + "or flattened fields with a list of dimensions in [time_series_dimensions] and "
-                    + "without the [script] parameter. [metricset] was [long]."
-            )
-        );
+        client().execute(TransportPutComposableIndexTemplateAction.TYPE, request).actionGet();
     }
 
     public void testInvalidTsdbTemplatesMissingSettings() throws Exception {
@@ -468,6 +460,16 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
                 indexName = bulkResponse.getItems()[0].getIndex();
             }
             client().admin().indices().refresh(new RefreshRequest(dataStreamName)).actionGet();
+
+            // In rare cases we can end up with a single segment shard, which means we can't trim away the _id later.
+            // So update an existing doc to create a new segment without adding a new document after force merging:
+            var indexRequest = new IndexRequest(indexName).setIfPrimaryTerm(1L)
+                .setIfSeqNo((numBulkRequests * numDocsPerBulk) - 1)
+                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+            indexRequest.source(DOC.replace("$time", formatInstant(time.minusMillis(1))), XContentType.JSON);
+            var res = client().index(indexRequest).actionGet();
+            assertThat(res.status(), equalTo(RestStatus.OK));
+            assertThat(res.getVersion(), equalTo(2L));
         }
 
         // Check whether there are multiple segments:
@@ -479,7 +481,7 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
 
         // Pre check whether _id stored field uses diskspace:
         var diskUsageResponse = client().execute(
-            AnalyzeIndexDiskUsageAction.INSTANCE,
+            TransportAnalyzeIndexDiskUsageAction.TYPE,
             new AnalyzeIndexDiskUsageRequest(new String[] { dataStreamName }, AnalyzeIndexDiskUsageRequest.DEFAULT_INDICES_OPTIONS, true)
         ).actionGet();
         var map = XContentHelper.convertToMap(XContentType.JSON.xContent(), Strings.toString(diskUsageResponse), false);
@@ -505,7 +507,7 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
             assertThat(retentionLeasesStats.retentionLeases().leases(), hasSize(1));
             assertThat(
                 retentionLeasesStats.retentionLeases().leases().iterator().next().retainingSequenceNumber(),
-                equalTo((long) numBulkRequests * numDocsPerBulk)
+                equalTo((long) numBulkRequests * numDocsPerBulk + 1)
             );
         });
 
@@ -521,7 +523,7 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
 
         // Check the _id stored field uses no disk space:
         diskUsageResponse = client().execute(
-            AnalyzeIndexDiskUsageAction.INSTANCE,
+            TransportAnalyzeIndexDiskUsageAction.TYPE,
             new AnalyzeIndexDiskUsageRequest(new String[] { dataStreamName }, AnalyzeIndexDiskUsageRequest.DEFAULT_INDICES_OPTIONS, true)
         ).actionGet();
         map = XContentHelper.convertToMap(XContentType.JSON.xContent(), Strings.toString(diskUsageResponse), false);

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.test;
@@ -466,7 +467,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
             /* we use a private rewrite context here since we want the most realistic way of asserting that we are cacheable or not.
              * We do it this way in SearchService where
              * we first rewrite the query with a private context, then reset the context and then build the actual lucene query*/
-            QueryBuilder rewritten = rewriteQuery(firstQuery, new SearchExecutionContext(context));
+            QueryBuilder rewritten = rewriteQuery(firstQuery, createQueryRewriteContext(), new SearchExecutionContext(context));
             Query firstLuceneQuery = rewritten.toQuery(context);
             assertNotNull("toQuery should not return null", firstLuceneQuery);
             assertLuceneQuery(firstQuery, firstLuceneQuery, context);
@@ -500,7 +501,9 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
                 );
             }
             context = new SearchExecutionContext(context);
-            Query secondLuceneQuery = rewriteQuery(secondQuery, context).toQuery(context);
+            Query secondLuceneQuery = rewriteQuery(secondQuery, createQueryRewriteContext(), new SearchExecutionContext(context)).toQuery(
+                context
+            );
             assertNotNull("toQuery should not return null", secondLuceneQuery);
             assertLuceneQuery(secondQuery, secondLuceneQuery, context);
 
@@ -519,7 +522,8 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
 
             if (supportsBoost() && firstLuceneQuery instanceof MatchNoDocsQuery == false) {
                 secondQuery.boost(firstQuery.boost() + 1f + randomFloat());
-                Query thirdLuceneQuery = rewriteQuery(secondQuery, context).toQuery(context);
+                Query thirdLuceneQuery = rewriteQuery(secondQuery, createQueryRewriteContext(), new SearchExecutionContext(context))
+                    .toQuery(context);
                 assertNotEquals(
                     "modifying the boost doesn't affect the corresponding lucene query",
                     rewrite(firstLuceneQuery),
@@ -529,8 +533,47 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
         }
     }
 
-    protected QueryBuilder rewriteQuery(QB queryBuilder, QueryRewriteContext rewriteContext) throws IOException {
-        QueryBuilder rewritten = rewriteAndFetch(queryBuilder, rewriteContext);
+    /**
+     * Simulate rewriting the query builder exclusively on the data node.
+     * <br/>
+     * <br/>
+     * NOTE: This simulation does not reflect how the query builder will be rewritten in production.
+     * See {@link AbstractQueryTestCase#rewriteQuery(AbstractQueryBuilder, QueryRewriteContext, SearchExecutionContext)} for a more accurate
+     * simulation.
+     *
+     * @param queryBuilder The query builder to rewrite
+     * @param shardRewriteContext The data node rewrite context
+     * @return The rewritten query builder
+     * @throws IOException
+     */
+    protected QueryBuilder rewriteQuery(QB queryBuilder, SearchExecutionContext shardRewriteContext) throws IOException {
+        QueryBuilder rewritten = rewriteAndFetch(queryBuilder, shardRewriteContext);
+        // extra safety to fail fast - serialize the rewritten version to ensure it's serializable.
+        assertSerialization(rewritten);
+        return rewritten;
+    }
+
+    /**
+     * Simulate rewriting the query builder in stages across the coordinator node and data node.
+     * It is rewritten on the coordinator node first, then again on the data node.
+     *
+     * @param queryBuilder The query builder to rewrite
+     * @param coordinatorRewriteContext the coordinator node rewrite context
+     * @param shardRewriteContext The data node rewrite context
+     * @return The rewritten query builder
+     * @throws IOException
+     */
+    protected QueryBuilder rewriteQuery(
+        QB queryBuilder,
+        QueryRewriteContext coordinatorRewriteContext,
+        SearchExecutionContext shardRewriteContext
+    ) throws IOException {
+        // The first rewriteAndFetch call simulates rewriting on the coordinator node
+        // The second rewriteAndFetch call simulates rewriting on the shard
+        QueryBuilder rewritten = rewriteAndFetch(queryBuilder, coordinatorRewriteContext);
+        // extra safety to fail fast - serialize the rewritten version to ensure it's serializable.
+        assertSerialization(rewritten);
+        rewritten = rewriteAndFetch(rewritten, shardRewriteContext);
         // extra safety to fail fast - serialize the rewritten version to ensure it's serializable.
         assertSerialization(rewritten);
         return rewritten;
@@ -894,7 +937,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
     public void testCacheability() throws IOException {
         QB queryBuilder = createTestQueryBuilder();
         SearchExecutionContext context = createSearchExecutionContext();
-        QueryBuilder rewriteQuery = rewriteQuery(queryBuilder, new SearchExecutionContext(context));
+        QueryBuilder rewriteQuery = rewriteQuery(queryBuilder, createQueryRewriteContext(), new SearchExecutionContext(context));
         assertNotNull(rewriteQuery.toQuery(context));
         assertTrue("query should be cacheable: " + queryBuilder.toString(), context.isCacheable());
     }

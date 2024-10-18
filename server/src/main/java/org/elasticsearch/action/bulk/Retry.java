@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.action.bulk;
 
@@ -15,7 +16,9 @@ import org.elasticsearch.action.DelegatingActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.common.BackoffPolicy;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.Predicates;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.Scheduler;
@@ -104,14 +107,14 @@ public class Retry {
         public void onResponse(BulkResponse bulkItemResponses) {
             if (bulkItemResponses.hasFailures() == false) {
                 // we're done here, include all responses
-                addResponses(bulkItemResponses, (r -> true));
+                addResponses(bulkItemResponses, Predicates.always());
                 finishHim();
             } else {
                 if (canRetry(bulkItemResponses)) {
                     addResponses(bulkItemResponses, (r -> r.isFailed() == false));
                     retry(createBulkRequestForRetry(bulkItemResponses));
                 } else {
-                    addResponses(bulkItemResponses, (r -> true));
+                    addResponses(bulkItemResponses, Predicates.always());
                     finishHim();
                 }
             }

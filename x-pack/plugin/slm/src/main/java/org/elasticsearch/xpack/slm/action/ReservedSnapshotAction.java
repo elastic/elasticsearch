@@ -7,12 +7,15 @@
 
 package org.elasticsearch.xpack.slm.action;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.reservedstate.ReservedClusterStateHandler;
 import org.elasticsearch.reservedstate.TransformState;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicy;
+import org.elasticsearch.xpack.core.slm.action.DeleteSnapshotLifecycleAction;
 import org.elasticsearch.xpack.core.slm.action.PutSnapshotLifecycleAction;
 import org.elasticsearch.xpack.slm.SnapshotLifecycleService;
 
@@ -38,7 +41,11 @@ public class ReservedSnapshotAction implements ReservedClusterStateHandler<List<
 
     public static final String NAME = "slm";
 
-    public ReservedSnapshotAction() {}
+    private final FeatureService featureService;
+
+    public ReservedSnapshotAction(FeatureService featureService) {
+        this.featureService = featureService;
+    }
 
     @Override
     public String name() {
@@ -51,9 +58,15 @@ public class ReservedSnapshotAction implements ReservedClusterStateHandler<List<
         List<Exception> exceptions = new ArrayList<>();
 
         for (var policy : policies) {
-            PutSnapshotLifecycleAction.Request request = new PutSnapshotLifecycleAction.Request(policy.getId(), policy);
+            PutSnapshotLifecycleAction.Request request = new PutSnapshotLifecycleAction.Request(
+                RESERVED_CLUSTER_STATE_HANDLER_IGNORED_TIMEOUT,
+                RESERVED_CLUSTER_STATE_HANDLER_IGNORED_TIMEOUT,
+                policy.getId(),
+                policy
+            );
             try {
                 validate(request);
+                SnapshotLifecycleService.validateIntervalScheduleSupport(request.getLifecycle().getSchedule(), featureService, state);
                 SnapshotLifecycleService.validateRepositoryExists(request.getLifecycle().getRepository(), state);
                 SnapshotLifecycleService.validateMinimumInterval(request.getLifecycle(), state);
                 result.add(request);
@@ -91,7 +104,14 @@ public class ReservedSnapshotAction implements ReservedClusterStateHandler<List<
         toDelete.removeAll(entities);
 
         for (var policyToDelete : toDelete) {
-            var task = new TransportDeleteSnapshotLifecycleAction.DeleteSnapshotPolicyTask(policyToDelete);
+            var task = new TransportDeleteSnapshotLifecycleAction.DeleteSnapshotPolicyTask(
+                new DeleteSnapshotLifecycleAction.Request(
+                    RESERVED_CLUSTER_STATE_HANDLER_IGNORED_TIMEOUT,
+                    RESERVED_CLUSTER_STATE_HANDLER_IGNORED_TIMEOUT,
+                    policyToDelete
+                ),
+                ActionListener.noop()
+            );
             state = task.execute(state);
         }
 

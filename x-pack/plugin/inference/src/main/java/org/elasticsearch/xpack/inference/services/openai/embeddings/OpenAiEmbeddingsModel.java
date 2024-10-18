@@ -8,13 +8,14 @@
 package org.elasticsearch.xpack.inference.services.openai.embeddings;
 
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.external.action.openai.OpenAiActionVisitor;
+import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.openai.OpenAiModel;
-import org.elasticsearch.xpack.inference.services.openai.OpenAiParseContext;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 
 import java.util.Map;
@@ -36,8 +37,9 @@ public class OpenAiEmbeddingsModel extends OpenAiModel {
         String service,
         Map<String, Object> serviceSettings,
         Map<String, Object> taskSettings,
+        ChunkingSettings chunkingSettings,
         @Nullable Map<String, Object> secrets,
-        OpenAiParseContext context
+        ConfigurationParseContext context
     ) {
         this(
             inferenceEntityId,
@@ -45,6 +47,7 @@ public class OpenAiEmbeddingsModel extends OpenAiModel {
             service,
             OpenAiEmbeddingsServiceSettings.fromMap(serviceSettings, context),
             OpenAiEmbeddingsTaskSettings.fromMap(taskSettings, context),
+            chunkingSettings,
             DefaultSecretSettings.fromMap(secrets)
         );
     }
@@ -56,9 +59,15 @@ public class OpenAiEmbeddingsModel extends OpenAiModel {
         String service,
         OpenAiEmbeddingsServiceSettings serviceSettings,
         OpenAiEmbeddingsTaskSettings taskSettings,
+        ChunkingSettings chunkingSettings,
         @Nullable DefaultSecretSettings secrets
     ) {
-        super(new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings), new ModelSecrets(secrets));
+        super(
+            new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings, chunkingSettings),
+            new ModelSecrets(secrets),
+            serviceSettings,
+            secrets
+        );
     }
 
     private OpenAiEmbeddingsModel(OpenAiEmbeddingsModel originalModel, OpenAiEmbeddingsTaskSettings taskSettings) {

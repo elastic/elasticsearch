@@ -1,6 +1,6 @@
 keyword:
-  - skip:
-      version: " - 8.3.99"
+  - requires:
+      cluster_features: ["gte_v8.4.0"]
       reason: introduced in 8.4.0
 
   - do:
@@ -36,8 +36,8 @@ keyword:
 
 ---
 stored text:
-  - skip:
-      version: " - 8.4.99"
+  - requires:
+      cluster_features: ["gte_v8.5.0"]
       reason: introduced in 8.5.0
 
   - do:
@@ -74,8 +74,8 @@ stored text:
 
 ---
 stored keyword:
-  - skip:
-      version: " - 8.4.99"
+  - requires:
+      cluster_features: ["gte_v8.5.0"]
       reason: introduced in 8.5.0
 
   - do:
@@ -112,8 +112,8 @@ stored keyword:
 
 ---
 stored keyword without sibling fields:
-  - skip:
-      version: " - 8.4.99"
+  - requires:
+      cluster_features: ["gte_v8.5.0"]
       reason: introduced in 8.5.0
 
   - do:
@@ -157,8 +157,8 @@ stored keyword without sibling fields:
 
 ---
 force_synthetic_source_ok:
-  - skip:
-      version: " - 8.3.99"
+  - requires:
+      cluster_features: ["gte_v8.4.0"]
       reason: introduced in 8.4.0
 
   - do:
@@ -209,59 +209,9 @@ force_synthetic_source_ok:
           kwd: foo
 
 ---
-force_synthetic_source_bad_mapping:
-  - skip:
-      version: " - 8.3.99"
-      reason: introduced in 8.4.0
-
-  - do:
-      indices.create:
-        index: test
-        body:
-          settings:
-            number_of_shards: 1 # Use a single shard to get consistent error messages
-          mappings:
-            _source:
-              mode: stored
-            properties:
-              text:
-                type: text
-
-  - do:
-      index:
-        index:   test
-        id:      1
-        refresh: true
-        body:
-          text: foo
-
-  # When _source is used in the fetch the original _source is perfect
-  - do:
-      search:
-        index: test
-        body:
-          query:
-            ids:
-              values: [1]
-  - match:
-      hits.hits.0._source:
-        text: foo
-
-  # Forcing synthetic source fails because the mapping is invalid
-  - do:
-      catch: bad_request
-      search:
-        index: test
-        force_synthetic_source: true
-        body:
-          query:
-            ids:
-              values: [1]
-
----
 doc values keyword with ignore_above:
-  - skip:
-      version: " - 8.4.99"
+  - requires:
+      cluster_features: ["gte_v8.5.0"]
       reason: introduced in 8.5.0
 
   - do:
@@ -328,8 +278,8 @@ doc values keyword with ignore_above:
 
 ---
 stored keyword with ignore_above:
-  - skip:
-      version: " - 8.4.99"
+  - requires:
+      cluster_features: ["gte_v8.5.0"]
       reason: introduced in 8.5.0
 
   - do:
@@ -398,8 +348,8 @@ stored keyword with ignore_above:
 
 ---
 _source filtering:
-  - skip:
-      version: " - 8.3.99"
+  - requires:
+      cluster_features: ["gte_v8.4.0"]
       reason: introduced in 8.4.0
 
   - do:
@@ -439,8 +389,8 @@ _source filtering:
 
 ---
 _doc_count:
-  - skip:
-      version: " - 8.6.99"
+  - requires:
+      cluster_features: ["gte_v8.7.0"]
       reason: bug caused by many not having _doc_count fixed in 8.7.0
 
   - do:

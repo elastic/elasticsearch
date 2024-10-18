@@ -12,6 +12,7 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.BytesRefHash;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.compute.aggregation.SumLongAggregatorFunction;
@@ -25,6 +26,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.stream.IntStream;
 
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
 public class BlockSerializationTests extends SerializationTestCase {
@@ -35,6 +37,10 @@ public class BlockSerializationTests extends SerializationTestCase {
 
     public void testConstantLongBlockLong() throws IOException {
         assertConstantBlockImpl(blockFactory.newConstantLongBlockWith(randomLong(), randomIntBetween(1, 8192)));
+    }
+
+    public void testConstantFloatBlock() throws IOException {
+        assertConstantBlockImpl(blockFactory.newConstantFloatBlockWith(randomFloat(), randomIntBetween(1, 8192)));
     }
 
     public void testConstantDoubleBlock() throws IOException {
@@ -75,6 +81,17 @@ public class BlockSerializationTests extends SerializationTestCase {
         }
         assertEmptyBlock(blockFactory.newLongVectorBuilder(0).build().asBlock());
         try (LongVector toFilter = blockFactory.newLongVectorBuilder(0).appendLong(randomLong()).build()) {
+            assertEmptyBlock(toFilter.filter().asBlock());
+        }
+    }
+
+    public void testEmptyFloatBlock() throws IOException {
+        assertEmptyBlock(blockFactory.newFloatBlockBuilder(0).build());
+        try (FloatBlock toFilter = blockFactory.newFloatBlockBuilder(0).appendNull().build()) {
+            assertEmptyBlock(toFilter.filter());
+        }
+        assertEmptyBlock(blockFactory.newFloatVectorBuilder(0).build().asBlock());
+        try (FloatVector toFilter = blockFactory.newFloatVectorBuilder(0).appendFloat(randomFloat()).build()) {
             assertEmptyBlock(toFilter.filter().asBlock());
         }
     }
@@ -134,6 +151,22 @@ public class BlockSerializationTests extends SerializationTestCase {
             assertFilterBlock(toFilter.filter(0).asBlock());
         }
         try (LongVector toFilter = blockFactory.newLongVectorBuilder(1).appendLong(randomLong()).appendLong(randomLong()).build()) {
+            assertFilterBlock(toFilter.filter(0).asBlock());
+        }
+    }
+
+    public void testFilterFloatBlock() throws IOException {
+        try (FloatBlock toFilter = blockFactory.newFloatBlockBuilder(0).appendFloat(1).appendFloat(2).build()) {
+            assertFilterBlock(toFilter.filter(1));
+        }
+        try (FloatBlock toFilter = blockFactory.newFloatBlockBuilder(1).appendFloat(randomFloat()).appendNull().build()) {
+            assertFilterBlock(toFilter.filter(0));
+        }
+        try (FloatVector toFilter = blockFactory.newFloatVectorBuilder(1).appendFloat(randomFloat()).build()) {
+            assertFilterBlock(toFilter.filter(0).asBlock());
+
+        }
+        try (FloatVector toFilter = blockFactory.newFloatVectorBuilder(1).appendFloat(randomFloat()).appendFloat(randomFloat()).build()) {
             assertFilterBlock(toFilter.filter(0).asBlock());
         }
     }
@@ -203,10 +236,10 @@ public class BlockSerializationTests extends SerializationTestCase {
     public void testSimulateAggs() {
         DriverContext driverCtx = driverContext();
         Page page = new Page(blockFactory.newLongArrayVector(new long[] { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 }, 10).asBlock());
-        var bigArrays = BigArrays.NON_RECYCLING_INSTANCE;
-        var params = new Object[] {};
         var function = SumLongAggregatorFunction.create(driverCtx, List.of(0));
-        function.addRawInput(page);
+        try (BooleanVector noMasking = driverContext().blockFactory().newConstantBooleanVector(true, page.getPositionCount())) {
+            function.addRawInput(page, noMasking);
+        }
         Block[] blocks = new Block[function.intermediateBlockCount()];
         try {
             function.evaluateIntermediate(blocks, 0, driverCtx);
@@ -231,6 +264,131 @@ public class BlockSerializationTests extends SerializationTestCase {
         } finally {
             Releasables.close(blocks);
             page.releaseBlocks();
+        }
+    }
+
+    public void testOrdinalVector() throws Exception {
+        int numValues = randomIntBetween(1, 1000);
+        BlockFactory blockFactory = driverContext().blockFactory();
+        BytesRef scratch = new BytesRef();
+        try (
+            BytesRefVector.Builder regular = blockFactory.newBytesRefVectorBuilder(between(1, numValues * 3));
+            BytesRefHash hash = new BytesRefHash(1, blockFactory.bigArrays());
+            IntVector.Builder ordinals = blockFactory.newIntVectorBuilder(between(1, numValues * 3));
+            BytesRefVector.Builder dictionary = blockFactory.newBytesRefVectorBuilder(between(1, numValues * 3));
+        ) {
+            BytesRef v = new BytesRef("value-" + randomIntBetween(1, 20));
+            int ord = Math.toIntExact(hash.add(v));
+            ord = ord < 0 ? -1 - ord : ord;
+            ordinals.appendInt(ord);
+            regular.appendBytesRef(v);
+            for (long l = 0; l < hash.size(); l++) {
+                dictionary.appendBytesRef(hash.get(l, scratch));
+            }
+            try (BytesRefVector v1 = regular.build(); BytesRefVector v2 = new OrdinalBytesRefVector(ordinals.build(), dictionary.build())) {
+                BytesRefVector.equals(v1, v2);
+                for (BytesRefVector vector : List.of(v1, v2)) {
+                    try (BytesRefBlock deserBlock = serializeDeserializeBlock(vector.asBlock())) {
+                        EqualsHashCodeTestUtils.checkEqualsAndHashCode(deserBlock, unused -> deserBlock);
+                    }
+                }
+                for (int p = 0; p < v1.getPositionCount(); p++) {
+                    try (BytesRefVector f1 = v1.filter(p); BytesRefVector f2 = v2.filter(p)) {
+                        BytesRefVector.equals(f1, f2);
+                        for (BytesRefVector vector : List.of(f1, f2)) {
+                            try (BytesRefBlock deserBlock = serializeDeserializeBlock(vector.asBlock())) {
+                                EqualsHashCodeTestUtils.checkEqualsAndHashCode(deserBlock, unused -> deserBlock);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    public void testOrdinalBlock() throws Exception {
+        int numValues = randomIntBetween(1, 1000);
+        BlockFactory blockFactory = driverContext().blockFactory();
+        BytesRef scratch = new BytesRef();
+        try (
+            BytesRefBlock.Builder regular = blockFactory.newBytesRefBlockBuilder(between(1, numValues * 3));
+            BytesRefHash hash = new BytesRefHash(1, blockFactory.bigArrays());
+            IntBlock.Builder ordinals = blockFactory.newIntBlockBuilder(between(1, numValues * 3));
+            BytesRefVector.Builder dictionary = blockFactory.newBytesRefVectorBuilder(between(1, numValues * 3));
+        ) {
+            int valueCount = randomIntBetween(0, 3);
+            if (valueCount == 0) {
+                regular.appendNull();
+                ordinals.appendNull();
+            }
+            if (valueCount > 1) {
+                regular.beginPositionEntry();
+                ordinals.beginPositionEntry();
+            }
+            for (int v = 0; v < valueCount; v++) {
+                BytesRef bytes = new BytesRef("value-" + randomIntBetween(1, 20));
+                int ord = Math.toIntExact(hash.add(bytes));
+                ord = ord < 0 ? -1 - ord : ord;
+                ordinals.appendInt(ord);
+                regular.appendBytesRef(bytes);
+            }
+            if (valueCount > 1) {
+                regular.endPositionEntry();
+                ordinals.endPositionEntry();
+            }
+            for (long l = 0; l < hash.size(); l++) {
+                dictionary.appendBytesRef(hash.get(l, scratch));
+            }
+            try (BytesRefBlock b1 = regular.build(); BytesRefBlock b2 = new OrdinalBytesRefBlock(ordinals.build(), dictionary.build())) {
+                BytesRefBlock.equals(b1, b2);
+                for (BytesRefBlock block : List.of(b1, b2)) {
+                    try (BytesRefBlock deserBlock = serializeDeserializeBlock(block)) {
+                        EqualsHashCodeTestUtils.checkEqualsAndHashCode(deserBlock, unused -> deserBlock);
+                    }
+                }
+                for (int p = 0; p < b1.getPositionCount(); p++) {
+                    try (BytesRefBlock f1 = b1.filter(p); BytesRefBlock f2 = b2.filter(p)) {
+                        BytesRefBlock.equals(f1, f2);
+                        for (BytesRefBlock block : List.of(f1, f2)) {
+                            try (BytesRefBlock deserBlock = serializeDeserializeBlock(block)) {
+                                EqualsHashCodeTestUtils.checkEqualsAndHashCode(deserBlock, unused -> deserBlock);
+                            }
+                        }
+                    }
+                }
+                try (BytesRefBlock e1 = b1.expand(); BytesRefBlock e2 = b2.expand()) {
+                    BytesRefBlock.equals(e1, e2);
+                    for (BytesRefBlock block : List.of(e1, e2)) {
+                        try (BytesRefBlock deserBlock = serializeDeserializeBlock(block)) {
+                            EqualsHashCodeTestUtils.checkEqualsAndHashCode(deserBlock, unused -> deserBlock);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    public void testCompositeBlock() throws Exception {
+        final int numBlocks = randomIntBetween(1, 10);
+        final int positionCount = randomIntBetween(1, 1000);
+        final Block[] blocks = new Block[numBlocks];
+        for (int b = 0; b < numBlocks; b++) {
+            ElementType elementType = randomFrom(ElementType.LONG, ElementType.DOUBLE, ElementType.BOOLEAN, ElementType.NULL);
+            blocks[b] = BasicBlockTests.randomBlock(blockFactory, elementType, positionCount, true, 0, between(1, 2), 0, between(1, 2))
+                .block();
+        }
+        try (CompositeBlock origBlock = new CompositeBlock(blocks)) {
+            assertThat(origBlock.getBlockCount(), equalTo(numBlocks));
+            for (int b = 0; b < numBlocks; b++) {
+                assertThat(origBlock.getBlock(b), equalTo(blocks[b]));
+            }
+            try (CompositeBlock deserBlock = serializeDeserializeBlock(origBlock)) {
+                assertThat(deserBlock.getBlockCount(), equalTo(numBlocks));
+                for (int b = 0; b < numBlocks; b++) {
+                    assertThat(deserBlock.getBlock(b), equalTo(origBlock.getBlock(b)));
+                }
+                EqualsHashCodeTestUtils.checkEqualsAndHashCode(deserBlock, unused -> deserBlock);
+            }
         }
     }
 

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.support.broadcast.unpromotable;
@@ -13,6 +14,7 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
@@ -323,13 +325,14 @@ public class TransportBroadcastUnpromotableActionTests extends ESTestCase {
 
         // The request fails if we don't mark shards as stale
         assertThat(
-            expectThrows(NodeNotConnectedException.class, () -> brodcastUnpromotableRequest(wrongRoutingTable, false)).toString(),
+            asInstanceOf(NodeNotConnectedException.class, safeAwaitFailure(broadcastUnpromotableRequest(wrongRoutingTable, false)))
+                .toString(),
             containsString("discovery node must not be null")
         );
         Mockito.verifyNoInteractions(shardStateAction);
 
         // We were able to mark shards as stale, so the request finishes successfully
-        assertThat(brodcastUnpromotableRequest(wrongRoutingTable, true), equalTo(ActionResponse.Empty.INSTANCE));
+        assertThat(safeAwait(broadcastUnpromotableRequest(wrongRoutingTable, true)), equalTo(ActionResponse.Empty.INSTANCE));
         for (var shardRouting : wrongRoutingTable.unpromotableShards()) {
             Mockito.verify(shardStateAction)
                 .remoteShardFailed(
@@ -354,40 +357,35 @@ public class TransportBroadcastUnpromotableActionTests extends ESTestCase {
             .when(shardStateAction)
             .remoteShardFailed(any(ShardId.class), anyString(), anyLong(), anyBoolean(), anyString(), any(Exception.class), any());
         assertThat(
-            expectThrows(NodeNotConnectedException.class, () -> brodcastUnpromotableRequest(wrongRoutingTable, true)).toString(),
+            asInstanceOf(NodeNotConnectedException.class, safeAwaitFailure(broadcastUnpromotableRequest(wrongRoutingTable, true)))
+                .toString(),
             containsString("discovery node must not be null")
         );
     }
 
-    private ActionResponse brodcastUnpromotableRequest(IndexShardRoutingTable wrongRoutingTable, boolean failShardOnError)
-        throws Exception {
-        return PlainActionFuture.<ActionResponse.Empty, Exception>get(
-            f -> ActionTestUtils.execute(
+    private SubscribableListener<ActionResponse.Empty> broadcastUnpromotableRequest(
+        IndexShardRoutingTable wrongRoutingTable,
+        boolean failShardOnError
+    ) {
+        return SubscribableListener.newForked(
+            listener -> ActionTestUtils.execute(
                 broadcastUnpromotableAction,
                 null,
                 new TestBroadcastUnpromotableRequest(wrongRoutingTable, failShardOnError),
-                f
-            ),
-            10,
-            TimeUnit.SECONDS
+                listener
+            )
         );
     }
 
     public void testNullIndexShardRoutingTable() {
-        IndexShardRoutingTable shardRoutingTable = null;
         assertThat(
-
             expectThrows(
                 NullPointerException.class,
-                () -> PlainActionFuture.<ActionResponse.Empty, Exception>get(
-                    f -> ActionTestUtils.execute(
-                        broadcastUnpromotableAction,
-                        null,
-                        new TestBroadcastUnpromotableRequest(shardRoutingTable),
-                        f
-                    ),
-                    10,
-                    TimeUnit.SECONDS
+                () -> ActionTestUtils.execute(
+                    broadcastUnpromotableAction,
+                    null,
+                    new TestBroadcastUnpromotableRequest((IndexShardRoutingTable) null),
+                    ActionListener.running(ESTestCase::fail)
                 )
             ).toString(),
             containsString("index shard routing table is null")

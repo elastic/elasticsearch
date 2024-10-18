@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.blobstore.support;
@@ -25,6 +26,12 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
+/**
+ * A blob container that by default delegates all methods to an internal BlobContainer. Implementations must define {@link #wrapChild} so
+ * that the abstraction is complete: so that the internal BlobContainer instance cannot leak out of this wrapper.
+ *
+ * Inheritors can safely modify needed methods while continuing to have access to a complete BlobContainer implementation beneath.
+ */
 public abstract class FilterBlobContainer implements BlobContainer {
 
     private final BlobContainer delegate;
@@ -33,6 +40,10 @@ public abstract class FilterBlobContainer implements BlobContainer {
         this.delegate = Objects.requireNonNull(delegate);
     }
 
+    /**
+     * Wraps up any instances of the internal BlobContainer type in another BlobContainer type (presumably the implementation's type).
+     * Ensures that the internal {@link #delegate} type never leaks out of the BlobContainer wrapper type.
+     */
     protected abstract BlobContainer wrapChild(BlobContainer child);
 
     @Override
@@ -75,6 +86,17 @@ public abstract class FilterBlobContainer implements BlobContainer {
         CheckedConsumer<OutputStream, IOException> writer
     ) throws IOException {
         delegate.writeMetadataBlob(purpose, blobName, failIfAlreadyExists, atomic, writer);
+    }
+
+    @Override
+    public void writeBlobAtomic(
+        OperationPurpose purpose,
+        String blobName,
+        InputStream inputStream,
+        long blobSize,
+        boolean failIfAlreadyExists
+    ) throws IOException {
+        delegate.writeBlobAtomic(purpose, blobName, inputStream, blobSize, failIfAlreadyExists);
     }
 
     @Override

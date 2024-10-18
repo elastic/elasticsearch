@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.indices.template.post;
@@ -43,9 +44,12 @@ public class SimulateTemplateAction extends ActionType<SimulateIndexTemplateResp
         private TransportPutComposableIndexTemplateAction.Request indexTemplateRequest;
         private boolean includeDefaults = false;
 
-        public Request() {}
+        public Request() {
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
+        }
 
         public Request(String templateName) {
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
             if (templateName == null) {
                 throw new IllegalArgumentException("template name cannot be null");
             }
@@ -53,6 +57,7 @@ public class SimulateTemplateAction extends ActionType<SimulateIndexTemplateResp
         }
 
         public Request(TransportPutComposableIndexTemplateAction.Request indexTemplateRequest) {
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
             if (indexTemplateRequest == null) {
                 throw new IllegalArgumentException("index template body must be present");
             }

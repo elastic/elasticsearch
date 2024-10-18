@@ -50,8 +50,7 @@ public class CleanupSnapshotStep extends AsyncRetryDuringSnapshotActionStep {
         }
         getClient().admin()
             .cluster()
-            .prepareDeleteSnapshot(repositoryName, snapshotName)
-            .setMasterNodeTimeout(TimeValue.MAX_VALUE)
+            .prepareDeleteSnapshot(TimeValue.MAX_VALUE, repositoryName, snapshotName)
             .execute(new ActionListener<>() {
 
                 @Override

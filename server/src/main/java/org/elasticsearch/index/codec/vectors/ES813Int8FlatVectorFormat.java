@@ -1,21 +1,21 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.codec.vectors;
 
-import org.apache.lucene.codecs.FlatVectorsFormat;
-import org.apache.lucene.codecs.FlatVectorsReader;
-import org.apache.lucene.codecs.FlatVectorsWriter;
 import org.apache.lucene.codecs.KnnFieldVectorsWriter;
 import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.codecs.KnnVectorsReader;
 import org.apache.lucene.codecs.KnnVectorsWriter;
-import org.apache.lucene.codecs.lucene99.Lucene99ScalarQuantizedVectorsFormat;
+import org.apache.lucene.codecs.hnsw.FlatVectorsFormat;
+import org.apache.lucene.codecs.hnsw.FlatVectorsReader;
+import org.apache.lucene.codecs.hnsw.FlatVectorsWriter;
 import org.apache.lucene.index.ByteVectorValues;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FloatVectorValues;
@@ -30,6 +30,8 @@ import org.apache.lucene.util.hnsw.RandomVectorScorer;
 
 import java.io.IOException;
 
+import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.MAX_DIMS_COUNT;
+
 public class ES813Int8FlatVectorFormat extends KnnVectorsFormat {
 
     static final String NAME = "ES813Int8FlatVectorFormat";
@@ -37,15 +39,15 @@ public class ES813Int8FlatVectorFormat extends KnnVectorsFormat {
     private final FlatVectorsFormat format;
 
     public ES813Int8FlatVectorFormat() {
-        this(null);
+        this(null, 7, false);
     }
 
     /**
      * Sole constructor
      */
-    public ES813Int8FlatVectorFormat(Float confidenceInterval) {
+    public ES813Int8FlatVectorFormat(Float confidenceInterval, int bits, boolean compress) {
         super(NAME);
-        this.format = new Lucene99ScalarQuantizedVectorsFormat(confidenceInterval);
+        this.format = new ES814ScalarQuantizedVectorsFormat(confidenceInterval, bits, compress);
     }
 
     @Override
@@ -56,6 +58,16 @@ public class ES813Int8FlatVectorFormat extends KnnVectorsFormat {
     @Override
     public KnnVectorsReader fieldsReader(SegmentReadState state) throws IOException {
         return new ES813FlatVectorReader(format.fieldsReader(state));
+    }
+
+    @Override
+    public int getMaxDimensions(String fieldName) {
+        return MAX_DIMS_COUNT;
+    }
+
+    @Override
+    public String toString() {
+        return NAME + "(name=" + NAME + ", innerFormat=" + format + ")";
     }
 
     public static class ES813FlatVectorWriter extends KnnVectorsWriter {
@@ -69,7 +81,7 @@ public class ES813Int8FlatVectorFormat extends KnnVectorsFormat {
 
         @Override
         public KnnFieldVectorsWriter<?> addField(FieldInfo fieldInfo) throws IOException {
-            return writer.addField(fieldInfo, null);
+            return writer.addField(fieldInfo);
         }
 
         @Override

@@ -34,7 +34,7 @@ Note that if the prevalidation result for a set of nodes returns `true` (i.e. it
 [[prevalidate-node-removal-api-query-params]]
 ==== {api-query-parms-title}
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 
 `names`::
 (Optional, string) Comma-separated list of node names.

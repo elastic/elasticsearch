@@ -7,77 +7,37 @@
 
 package org.elasticsearch.xpack.security.action.reservedstate;
 
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.reservedstate.NonStateTransformResult;
 import org.elasticsearch.reservedstate.TransformState;
-import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.security.action.rolemapping.ReservedRoleMappingAction;
-import org.elasticsearch.xpack.security.authc.support.mapper.NativeRoleMappingStore;
-import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 
 import java.util.Collections;
-import java.util.Set;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.doAnswer;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.spy;
 
 /**
  * Tests that the ReservedRoleMappingAction does validation, can add and remove role mappings
  */
 public class ReservedRoleMappingActionTests extends ESTestCase {
+
     private TransformState processJSON(ReservedRoleMappingAction action, TransformState prevState, String json) throws Exception {
         try (XContentParser parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, json)) {
             var content = action.fromXContent(parser);
-            var state = action.transform(content, prevState);
-
-            CountDownLatch latch = new CountDownLatch(1);
-            AtomicReference<Set<String>> updatedKeys = new AtomicReference<>();
-            AtomicReference<Exception> error = new AtomicReference<>();
-            state.nonStateTransform().accept(new ActionListener<>() {
-                @Override
-                public void onResponse(NonStateTransformResult nonStateTransformResult) {
-                    updatedKeys.set(nonStateTransformResult.updatedKeys());
-                    latch.countDown();
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    error.set(e);
-                    latch.countDown();
-                }
-            });
-
-            latch.await();
-            if (error.get() != null) {
-                throw error.get();
-            }
-            return new TransformState(state.state(), updatedKeys.get());
+            return action.transform(content, prevState);
         }
     }
 
     public void testValidation() {
-        var nativeRoleMappingStore = mockNativeRoleMappingStore();
-
         ClusterState state = ClusterState.builder(new ClusterName("elasticsearch")).build();
         TransformState prevState = new TransformState(state, Collections.emptySet());
-        ReservedRoleMappingAction action = new ReservedRoleMappingAction(nativeRoleMappingStore);
-        action.securityIndexRecovered();
-
+        ReservedRoleMappingAction action = new ReservedRoleMappingAction();
         String badPolicyJSON = """
             {
                "everyone_kibana": {
@@ -97,7 +57,6 @@ public class ReservedRoleMappingActionTests extends ESTestCase {
                   }
                }
             }""";
-
         assertEquals(
             "failed to parse role-mapping [everyone_fleet]. missing field [rules]",
             expectThrows(ParsingException.class, () -> processJSON(action, prevState, badPolicyJSON)).getMessage()
@@ -105,13 +64,9 @@ public class ReservedRoleMappingActionTests extends ESTestCase {
     }
 
     public void testAddRemoveRoleMapping() throws Exception {
-        var nativeRoleMappingStore = mockNativeRoleMappingStore();
-
         ClusterState state = ClusterState.builder(new ClusterName("elasticsearch")).build();
         TransformState prevState = new TransformState(state, Collections.emptySet());
-        ReservedRoleMappingAction action = new ReservedRoleMappingAction(nativeRoleMappingStore);
-        action.securityIndexRecovered();
-
+        ReservedRoleMappingAction action = new ReservedRoleMappingAction();
         String emptyJSON = "";
 
         TransformState updatedState = processJSON(action, prevState, emptyJSON);
@@ -146,103 +101,5 @@ public class ReservedRoleMappingActionTests extends ESTestCase {
 
         updatedState = processJSON(action, prevState, emptyJSON);
         assertThat(updatedState.keys(), empty());
-    }
-
-    @SuppressWarnings("unchecked")
-    public void testNonStateTransformWaitsOnAsyncActions() throws Exception {
-        var nativeRoleMappingStore = mockNativeRoleMappingStore();
-
-        doAnswer(invocation -> {
-            new Thread(() -> {
-                // Simulate put role mapping async action taking a while
-                try {
-                    Thread.sleep(1_000);
-                    ((ActionListener<Boolean>) invocation.getArgument(1)).onFailure(new IllegalStateException("err_done"));
-                } catch (InterruptedException e) {
-                    throw new RuntimeException(e);
-                }
-            }).start();
-
-            return null;
-        }).when(nativeRoleMappingStore).putRoleMapping(any(), any());
-
-        doAnswer(invocation -> {
-            new Thread(() -> {
-                // Simulate delete role mapping async action taking a while
-                try {
-                    Thread.sleep(1_000);
-                    ((ActionListener<Boolean>) invocation.getArgument(1)).onFailure(new IllegalStateException("err_done"));
-                } catch (InterruptedException e) {
-                    throw new RuntimeException(e);
-                }
-            }).start();
-
-            return null;
-        }).when(nativeRoleMappingStore).deleteRoleMapping(any(), any());
-
-        ClusterState state = ClusterState.builder(new ClusterName("elasticsearch")).build();
-        TransformState updatedState = new TransformState(state, Collections.emptySet());
-        ReservedRoleMappingAction action = new ReservedRoleMappingAction(nativeRoleMappingStore);
-        action.securityIndexRecovered();
-
-        String json = """
-            {
-               "everyone_kibana": {
-                  "enabled": true,
-                  "roles": [ "kibana_user" ],
-                  "rules": { "field": { "username": "*" } },
-                  "metadata": {
-                     "uuid" : "b9a59ba9-6b92-4be2-bb8d-02bb270cb3a7",
-                     "_reserved": true
-                  }
-               },
-               "everyone_fleet": {
-                  "enabled": true,
-                  "roles": [ "fleet_user" ],
-                  "rules": { "field": { "username": "*" } },
-                  "metadata": {
-                     "uuid" : "a9a59ba9-6b92-4be2-bb8d-02bb270cb3a7",
-                     "_reserved": true
-                  }
-               }
-            }""";
-
-        assertEquals(
-            "err_done",
-            expectThrows(IllegalStateException.class, () -> processJSON(action, new TransformState(state, Collections.emptySet()), json))
-                .getMessage()
-        );
-
-        // Now that we've tested that we wait on putRoleMapping correctly, let it finish without exception, so we can test error on delete
-        doAnswer(invocation -> {
-            ((ActionListener<Boolean>) invocation.getArgument(1)).onResponse(true);
-            return null;
-        }).when(nativeRoleMappingStore).putRoleMapping(any(), any());
-
-        updatedState = processJSON(action, updatedState, json);
-        assertThat(updatedState.keys(), containsInAnyOrder("everyone_kibana", "everyone_fleet"));
-
-        final TransformState currentState = new TransformState(updatedState.state(), updatedState.keys());
-
-        assertEquals("err_done", expectThrows(IllegalStateException.class, () -> processJSON(action, currentState, "")).getMessage());
-    }
-
-    @SuppressWarnings("unchecked")
-    private NativeRoleMappingStore mockNativeRoleMappingStore() {
-        final NativeRoleMappingStore nativeRoleMappingStore = spy(
-            new NativeRoleMappingStore(Settings.EMPTY, mock(Client.class), mock(SecurityIndexManager.class), mock(ScriptService.class))
-        );
-
-        doAnswer(invocation -> {
-            ((ActionListener<Boolean>) invocation.getArgument(1)).onResponse(true);
-            return null;
-        }).when(nativeRoleMappingStore).putRoleMapping(any(), any());
-
-        doAnswer(invocation -> {
-            ((ActionListener<Boolean>) invocation.getArgument(1)).onResponse(true);
-            return null;
-        }).when(nativeRoleMappingStore).deleteRoleMapping(any(), any());
-
-        return nativeRoleMappingStore;
     }
 }

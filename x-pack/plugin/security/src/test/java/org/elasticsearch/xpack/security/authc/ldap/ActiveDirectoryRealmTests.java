@@ -318,7 +318,7 @@ public class ActiveDirectoryRealmTests extends ESTestCase {
         verify(sessionFactory, times(1)).session(eq("CN=ironman"), any(SecureString.class), anyActionListener());
 
         // Refresh the role mappings
-        roleMapper.notifyRefresh();
+        roleMapper.clearRealmCachesOnLocalNode();
 
         for (int i = 0; i < count; i++) {
             PlainActionFuture<AuthenticationResult<User>> future = new PlainActionFuture<>();
@@ -434,7 +434,7 @@ public class ActiveDirectoryRealmTests extends ESTestCase {
 
         final ScriptService scriptService = new ScriptService(
             settings,
-            Collections.singletonMap(MustacheScriptEngine.NAME, new MustacheScriptEngine()),
+            Collections.singletonMap(MustacheScriptEngine.NAME, new MustacheScriptEngine(Settings.EMPTY)),
             ScriptModule.CORE_CONTEXTS,
             () -> 1L
         );

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.gradle.testclusters;
 
@@ -433,7 +434,7 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
             if (node.getTestDistribution().equals(TestDistribution.INTEG_TEST)) {
                 node.defaultConfig.put("xpack.security.enabled", "false");
             } else {
-                if (node.getVersion().onOrAfter("7.16.0")) {
+                if (hasDeprecationIndexing(node)) {
                     node.defaultConfig.put("cluster.deprecation_indexing.enabled", "false");
                 }
             }
@@ -474,11 +475,15 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
         commonNodeConfig();
         nodeIndex += 1;
         if (node.getTestDistribution().equals(TestDistribution.DEFAULT)) {
-            if (node.getVersion().onOrAfter("7.16.0")) {
+            if (hasDeprecationIndexing(node)) {
                 node.setting("cluster.deprecation_indexing.enabled", "false");
             }
         }
         node.start();
+    }
+
+    private static boolean hasDeprecationIndexing(ElasticsearchNode node) {
+        return node.getVersion().onOrAfter("7.16.0") && node.getSettingKeys().contains("stateless.enabled") == false;
     }
 
     @Override

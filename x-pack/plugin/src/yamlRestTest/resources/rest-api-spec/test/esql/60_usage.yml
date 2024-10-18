@@ -1,8 +1,13 @@
 ---
 setup:
-  - skip:
-      version: " - 8.11.99"
-      reason: "Latest, more complete, telemetry available in 8.12+"
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ method, path, parameters, capabilities ]
+          capabilities: [ no_meta ]
+      reason: "META command removed which changes the count of the data returned"
+      test_runner_features: [capabilities]
 
   - do:
       indices.create:

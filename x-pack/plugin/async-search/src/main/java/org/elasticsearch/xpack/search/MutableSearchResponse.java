@@ -14,6 +14,7 @@ import org.elasticsearch.action.search.SearchResponse.Clusters;
 import org.elasticsearch.action.search.SearchResponseMerger;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Releasable;
@@ -38,7 +39,6 @@ import static org.elasticsearch.xpack.core.async.AsyncTaskIndexService.restoreRe
  * run concurrently to 1 and ensures that we pause the search progress when an {@link AsyncSearchResponse} is built.
  */
 class MutableSearchResponse implements Releasable {
-    private static final TotalHits EMPTY_TOTAL_HITS = new TotalHits(0L, TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO);
     private final int totalShards;
     private final int skippedShards;
     private final Clusters clusters;
@@ -95,7 +95,7 @@ class MutableSearchResponse implements Releasable {
         this.queryFailures = totalShards == -1 ? null : new AtomicArray<>(totalShards - skippedShards);
         this.isPartial = true;
         this.threadContext = threadContext;
-        this.totalHits = EMPTY_TOTAL_HITS;
+        this.totalHits = Lucene.TOTAL_HITS_GREATER_OR_EQUAL_TO_ZERO;
         this.localClusterComplete = false;
     }
 
@@ -306,12 +306,10 @@ class MutableSearchResponse implements Releasable {
      *         (for local-only/CCS minimize_roundtrips=false)
      */
     private SearchResponseMerger createSearchResponseMerger(AsyncSearchTask task) {
-        return null;
-        // TODO uncomment this code once Kibana moves to polling the _async_search/status endpoint to determine if a search is done
-        // if (task.getSearchResponseMergerSupplier() == null) {
-        // return null; // local search and CCS minimize_roundtrips=false
-        // }
-        // return task.getSearchResponseMergerSupplier().get();
+        if (task.getSearchResponseMergerSupplier() == null) {
+            return null; // local search and CCS minimize_roundtrips=false
+        }
+        return task.getSearchResponseMergerSupplier().get();
     }
 
     private SearchResponse getMergedResponse(SearchResponseMerger merger) {

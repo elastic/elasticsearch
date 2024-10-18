@@ -36,11 +36,11 @@ and indices, omit this parameter or use `*` or `_all`.
 [[get-index-api-query-params]]
 ==== {api-query-parms-title}
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=allow-no-indices]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=allow-no-indices]
 +
 Defaults to `true`.
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
 +
 Defaults to `open`.
 
@@ -50,15 +50,15 @@ Return information about specific index features. Supports comma-
 separated values. Valid values are `aliases`, `mappings`, and `settings`.
 Defaults to `aliases,mappings,settings`.
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=flat-settings]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=flat-settings]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=include-defaults]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=include-defaults]
 
 `ignore_unavailable`::
 (Optional, Boolean)
 If `false`, requests that target a missing index return an error. Defaults to
 `false`.
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=local]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=local]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]

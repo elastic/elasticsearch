@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.profile.query;
@@ -19,6 +20,7 @@ import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopScoreDocCollector;
+import org.apache.lucene.search.TopScoreDocCollectorManager;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.tests.search.DummyTotalHitCountCollector;
@@ -121,12 +123,12 @@ public class ProfileCollectorManagerTests extends ESTestCase {
      */
     public void testManagerWithSearcher() throws IOException {
         {
-            CollectorManager<TopScoreDocCollector, TopDocs> topDocsManager = TopScoreDocCollector.createSharedManager(10, null, 1000);
+            CollectorManager<TopScoreDocCollector, TopDocs> topDocsManager = new TopScoreDocCollectorManager(10, null, 1000);
             TopDocs topDocs = searcher.search(new MatchAllDocsQuery(), topDocsManager);
             assertEquals(numDocs, topDocs.totalHits.value);
         }
         {
-            CollectorManager<TopScoreDocCollector, TopDocs> topDocsManager = TopScoreDocCollector.createSharedManager(10, null, 1000);
+            CollectorManager<TopScoreDocCollector, TopDocs> topDocsManager = new TopScoreDocCollectorManager(10, null, 1000);
             String profileReason = "profiler_reason";
             ProfileCollectorManager<TopDocs> profileCollectorManager = new ProfileCollectorManager<>(topDocsManager, profileReason);
             TopDocs topDocs = searcher.search(new MatchAllDocsQuery(), profileCollectorManager);

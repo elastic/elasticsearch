@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.security.operator;
 
-import org.elasticsearch.rest.RestChannel;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.transport.TransportRequest;
@@ -22,18 +22,11 @@ public interface OperatorOnlyRegistry {
     OperatorPrivilegesViolation check(String action, TransportRequest request);
 
     /**
-     * Checks to see if a given {@link RestHandler} is subject to operator-only restrictions for the REST API. Any REST API may be
-     * fully or partially restricted. A fully restricted REST API mandates that the implementation call restChannel.sendResponse(...) and
-     * return a {@link OperatorPrivilegesViolation}. A partially restricted REST API mandates that the {@link RestRequest} is marked as
-     * restricted so that the downstream handler can behave appropriately. For example, to restrict the REST response the implementation
-     * should call {@link RestRequest#markPathRestricted(String)} so that the downstream handler can properly restrict the response
-     * before returning to the client. Note - a partial restriction should return null.
-     * @param restHandler The {@link RestHandler} to check for any restrictions
-     * @param restRequest The {@link RestRequest} to check for any restrictions and mark any partially restricted REST API's
-     * @param restChannel The {@link RestChannel} to enforce fully restricted REST API's
-     * @return {@link OperatorPrivilegesViolation} iff the request was fully restricted and the response has been sent back to the client.
-     * else returns null.
+     * This method is only called if the user is not an operator.
+     * Implementations should fail the request if the {@link RestRequest} is not allowed to proceed by throwing an
+     * {@link org.elasticsearch.ElasticsearchException}. If the request should be handled by the associated {@link RestHandler},
+     * then this implementations should do nothing.
      */
-    OperatorPrivilegesViolation checkRest(RestHandler restHandler, RestRequest restRequest, RestChannel restChannel);
+    void checkRest(RestHandler restHandler, RestRequest restRequest) throws ElasticsearchException;
 
 }

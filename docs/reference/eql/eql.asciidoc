@@ -1013,7 +1013,7 @@ You can also use the `fields` parameter to retrieve and format specific fields
 in the response. This field is identical to the search API's
 <<search-fields,`fields` parameter>>.
 
-include::{es-repo-dir}/search/search-your-data/retrieve-selected-fields.asciidoc[tag=fields-param-desc]
+include::{es-ref-dir}/search/search-your-data/retrieve-selected-fields.asciidoc[tag=fields-param-desc]
 
 The following search request uses the `fields` parameter to retrieve values for
 the `event.type` field, all fields starting with `process.`, and the
@@ -1039,7 +1039,7 @@ GET /my-data-stream/_eql/search?filter_path=-hits.events._source
 ----
 // TEST[setup:sec_logs]
 
-include::{es-repo-dir}/search/search-your-data/retrieve-selected-fields.asciidoc[tag=fields-param-callouts]
+include::{es-ref-dir}/search/search-your-data/retrieve-selected-fields.asciidoc[tag=fields-param-callouts]
 
 The response includes values as a flat list in the `fields` section for each
 hit.

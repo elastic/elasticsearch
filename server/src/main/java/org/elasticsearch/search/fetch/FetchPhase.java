@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.fetch;
@@ -31,6 +32,8 @@ import org.elasticsearch.search.lookup.SourceProvider;
 import org.elasticsearch.search.profile.ProfileResult;
 import org.elasticsearch.search.profile.Profilers;
 import org.elasticsearch.search.profile.Timer;
+import org.elasticsearch.search.rank.RankDoc;
+import org.elasticsearch.search.rank.RankDocShardInfo;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.xcontent.XContentType;
 
@@ -56,7 +59,7 @@ public final class FetchPhase {
         this.fetchSubPhases[fetchSubPhases.size()] = new InnerHitsPhase(this);
     }
 
-    public void execute(SearchContext context, int[] docIdsToLoad) {
+    public void execute(SearchContext context, int[] docIdsToLoad, RankDocShardInfo rankDocs) {
         if (LOGGER.isTraceEnabled()) {
             LOGGER.trace("{}", new SearchContextSourcePrinter(context));
         }
@@ -72,10 +75,13 @@ public final class FetchPhase {
             return;
         }
 
-        Profiler profiler = context.getProfilers() == null ? Profiler.NOOP : Profilers.startProfilingFetchPhase();
+        Profiler profiler = context.getProfilers() == null
+            || (context.request().source() != null && context.request().source().rankBuilder() != null)
+                ? Profiler.NOOP
+                : Profilers.startProfilingFetchPhase();
         SearchHits hits = null;
         try {
-            hits = buildSearchHits(context, docIdsToLoad, profiler);
+            hits = buildSearchHits(context, docIdsToLoad, profiler, rankDocs);
         } finally {
             // Always finish profiling
             ProfileResult profileResult = profiler.finish();
@@ -97,19 +103,28 @@ public final class FetchPhase {
         }
     }
 
-    private SearchHits buildSearchHits(SearchContext context, int[] docIdsToLoad, Profiler profiler) {
+    private SearchHits buildSearchHits(SearchContext context, int[] docIdsToLoad, Profiler profiler, RankDocShardInfo rankDocs) {
 
         FetchContext fetchContext = new FetchContext(context);
         SourceLoader sourceLoader = context.newSourceLoader();
 
         PreloadedSourceProvider sourceProvider = new PreloadedSourceProvider();
         PreloadedFieldLookupProvider fieldLookupProvider = new PreloadedFieldLookupProvider();
+        // The following relies on the fact that we fetch sequentially one segment after another, from a single thread
+        // This needs to be revised once we add concurrency to the fetch phase, and needs a work-around for situations
+        // where we run fetch as part of the query phase, where inter-segment concurrency is leveraged.
+        // One problem is the global setLookupProviders call against the shared execution context.
+        // Another problem is that the above provider implementations are not thread-safe
         context.getSearchExecutionContext().setLookupProviders(sourceProvider, ctx -> fieldLookupProvider);
 
         List<FetchSubPhaseProcessor> processors = getProcessors(context.shardTarget(), fetchContext, profiler);
-
         StoredFieldsSpec storedFieldsSpec = StoredFieldsSpec.build(processors, FetchSubPhaseProcessor::storedFieldsSpec);
         storedFieldsSpec = storedFieldsSpec.merge(new StoredFieldsSpec(false, false, sourceLoader.requiredStoredFields()));
+        // Ideally the required stored fields would be provided as constructor argument a few lines above, but that requires moving
+        // the getProcessors call to before the setLookupProviders call, which causes weird issues in InnerHitsPhase.
+        // setLookupProviders resets the SearchLookup used throughout the rest of the fetch phase, which StoredValueFetchers rely on
+        // to retrieve stored fields, and InnerHitsPhase is the last sub-fetch phase and re-runs the entire fetch phase.
+        fieldLookupProvider.setPreloadedStoredFieldNames(storedFieldsSpec.requiredStoredFields());
 
         StoredFieldLoader storedFieldLoader = profiler.storedFields(StoredFieldLoader.fromSpec(storedFieldsSpec));
         IdLoader idLoader = context.newIdLoader();
@@ -156,25 +171,38 @@ public final class FetchPhase {
                     doc,
                     ctx,
                     leafSourceLoader,
-                    leafIdLoader
+                    leafIdLoader,
+                    rankDocs == null ? null : rankDocs.get(doc)
                 );
-                sourceProvider.source = hit.source();
-                fieldLookupProvider.storedFields = hit.loadedFields();
-                for (FetchSubPhaseProcessor processor : processors) {
-                    processor.process(hit);
+                boolean success = false;
+                try {
+                    sourceProvider.source = hit.source();
+                    fieldLookupProvider.setPreloadedStoredFieldValues(hit.hit().getId(), hit.loadedFields());
+                    for (FetchSubPhaseProcessor processor : processors) {
+                        processor.process(hit);
+                    }
+                    success = true;
+                    return hit.hit();
+                } finally {
+                    if (success == false) {
+                        hit.hit().decRef();
+                    }
                 }
-                return hit.hit();
             }
         };
 
         SearchHit[] hits = docsIterator.iterate(context.shardTarget(), context.searcher().getIndexReader(), docIdsToLoad);
 
         if (context.isCancelled()) {
+            for (SearchHit hit : hits) {
+                // release all hits that would otherwise become owned and eventually released by SearchHits below
+                hit.decRef();
+            }
             throw new TaskCancelledException("cancelled");
         }
 
         TotalHits totalHits = context.getTotalHits();
-        return SearchHits.unpooled(hits, totalHits, context.getMaxScore());
+        return new SearchHits(hits, totalHits, context.getMaxScore());
     }
 
     List<FetchSubPhaseProcessor> getProcessors(SearchShardTarget target, FetchContext context, Profiler profiler) {
@@ -201,7 +229,8 @@ public final class FetchPhase {
         int docId,
         LeafReaderContext subReaderContext,
         SourceLoader.Leaf sourceLoader,
-        IdLoader.Leaf idLoader
+        IdLoader.Leaf idLoader,
+        RankDoc rankDoc
     ) throws IOException {
         if (nestedDocuments.advance(docId - subReaderContext.docBase) == null) {
             return prepareNonNestedHitContext(
@@ -211,7 +240,8 @@ public final class FetchPhase {
                 docId,
                 subReaderContext,
                 sourceLoader,
-                idLoader
+                idLoader,
+                rankDoc
             );
         } else {
             return prepareNestedHitContext(
@@ -221,7 +251,8 @@ public final class FetchPhase {
                 docId,
                 nestedDocuments,
                 subReaderContext,
-                leafStoredFieldLoader
+                leafStoredFieldLoader,
+                rankDoc
             );
         }
     }
@@ -240,7 +271,8 @@ public final class FetchPhase {
         int docId,
         LeafReaderContext subReaderContext,
         SourceLoader.Leaf sourceLoader,
-        IdLoader.Leaf idLoader
+        IdLoader.Leaf idLoader,
+        RankDoc rankDoc
     ) throws IOException {
         int subDocId = docId - subReaderContext.docBase;
 
@@ -248,12 +280,12 @@ public final class FetchPhase {
 
         String id = idLoader.getId(subDocId);
         if (id == null) {
-            // TODO: can we use pooled buffers here as well?
-            SearchHit hit = SearchHit.unpooled(docId, null);
+            SearchHit hit = new SearchHit(docId);
+            // TODO: can we use real pooled buffers here as well?
             Source source = Source.lazy(lazyStoredSourceLoader(profiler, subReaderContext, subDocId));
-            return new HitContext(hit, subReaderContext, subDocId, Map.of(), source);
+            return new HitContext(hit, subReaderContext, subDocId, Map.of(), source, rankDoc);
         } else {
-            SearchHit hit = SearchHit.unpooled(docId, id);
+            SearchHit hit = new SearchHit(docId, id);
             Source source;
             if (requiresSource) {
                 Timer timer = profiler.startLoadingSource();
@@ -267,7 +299,7 @@ public final class FetchPhase {
             } else {
                 source = Source.lazy(lazyStoredSourceLoader(profiler, subReaderContext, subDocId));
             }
-            return new HitContext(hit, subReaderContext, subDocId, leafStoredFieldLoader.storedFields(), source);
+            return new HitContext(hit, subReaderContext, subDocId, leafStoredFieldLoader.storedFields(), source, rankDoc);
         }
     }
 
@@ -299,7 +331,8 @@ public final class FetchPhase {
         int topDocId,
         LeafNestedDocuments nestedInfo,
         LeafReaderContext subReaderContext,
-        LeafStoredFieldLoader childFieldLoader
+        LeafStoredFieldLoader childFieldLoader,
+        RankDoc rankDoc
     ) throws IOException {
 
         String rootId;
@@ -330,8 +363,8 @@ public final class FetchPhase {
         assert nestedIdentity != null;
         Source nestedSource = nestedIdentity.extractSource(rootSource);
 
-        SearchHit hit = SearchHit.unpooled(topDocId, rootId, nestedIdentity);
-        return new HitContext(hit, subReaderContext, nestedInfo.doc(), childFieldLoader.storedFields(), nestedSource);
+        SearchHit hit = new SearchHit(topDocId, rootId, nestedIdentity);
+        return new HitContext(hit, subReaderContext, nestedInfo.doc(), childFieldLoader.storedFields(), nestedSource, rankDoc);
     }
 
     interface Profiler {

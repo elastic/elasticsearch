@@ -10,19 +10,21 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
-import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataTypes;
-import org.elasticsearch.xpack.ql.util.NumericUtils;
 
 import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
 
-public class Log10Tests extends AbstractFunctionTestCase {
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.bigIntegerToUnsignedLong;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.unsignedLongToDouble;
+
+public class Log10Tests extends AbstractScalarFunctionTestCase {
     public Log10Tests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }
@@ -35,7 +37,7 @@ public class Log10Tests extends AbstractFunctionTestCase {
         TestCaseSupplier.forUnaryInt(
             suppliers,
             "Log10IntEvaluator[val=" + read + "]",
-            DataTypes.DOUBLE,
+            DataType.DOUBLE,
             Math::log10,
             1,
             Integer.MAX_VALUE,
@@ -44,7 +46,7 @@ public class Log10Tests extends AbstractFunctionTestCase {
         TestCaseSupplier.forUnaryLong(
             suppliers,
             "Log10LongEvaluator[val=" + read + "]",
-            DataTypes.DOUBLE,
+            DataType.DOUBLE,
             Math::log10,
             1L,
             Long.MAX_VALUE,
@@ -53,8 +55,8 @@ public class Log10Tests extends AbstractFunctionTestCase {
         TestCaseSupplier.forUnaryUnsignedLong(
             suppliers,
             "Log10UnsignedLongEvaluator[val=" + read + "]",
-            DataTypes.DOUBLE,
-            ul -> Math.log10(ul == null ? null : NumericUtils.unsignedLongToDouble(NumericUtils.asLongUnsigned(ul))),
+            DataType.DOUBLE,
+            ul -> Math.log10(ul == null ? null : unsignedLongToDouble(bigIntegerToUnsignedLong(ul))),
             BigInteger.ONE,
             UNSIGNED_LONG_MAX,
             List.of()
@@ -62,7 +64,7 @@ public class Log10Tests extends AbstractFunctionTestCase {
         TestCaseSupplier.forUnaryDouble(
             suppliers,
             "Log10DoubleEvaluator[val=" + read + "]",
-            DataTypes.DOUBLE,
+            DataType.DOUBLE,
             Math::log10,
             Double.MIN_VALUE,
             Double.POSITIVE_INFINITY,
@@ -76,7 +78,7 @@ public class Log10Tests extends AbstractFunctionTestCase {
         TestCaseSupplier.forUnaryInt(
             suppliers,
             "Log10IntEvaluator[val=" + read + "]",
-            DataTypes.DOUBLE,
+            DataType.DOUBLE,
             k -> null,
             Integer.MIN_VALUE,
             0,
@@ -88,7 +90,7 @@ public class Log10Tests extends AbstractFunctionTestCase {
         TestCaseSupplier.forUnaryLong(
             suppliers,
             "Log10LongEvaluator[val=" + read + "]",
-            DataTypes.DOUBLE,
+            DataType.DOUBLE,
             k -> null,
             Long.MIN_VALUE,
             0L,
@@ -100,7 +102,7 @@ public class Log10Tests extends AbstractFunctionTestCase {
         TestCaseSupplier.forUnaryUnsignedLong(
             suppliers,
             "Log10UnsignedLongEvaluator[val=" + read + "]",
-            DataTypes.DOUBLE,
+            DataType.DOUBLE,
             k -> null,
             BigInteger.ZERO,
             BigInteger.ZERO,
@@ -112,7 +114,7 @@ public class Log10Tests extends AbstractFunctionTestCase {
         TestCaseSupplier.forUnaryDouble(
             suppliers,
             "Log10DoubleEvaluator[val=" + read + "]",
-            DataTypes.DOUBLE,
+            DataType.DOUBLE,
             k -> null,
             Double.NEGATIVE_INFINITY,
             0d,
@@ -122,7 +124,7 @@ public class Log10Tests extends AbstractFunctionTestCase {
             )
         );
 
-        return parameterSuppliersFromTypedData(errorsForCasesWithoutExamples(suppliers));
+        return parameterSuppliersFromTypedData(errorsForCasesWithoutExamples(suppliers, (v, p) -> "numeric"));
     }
 
     @Override

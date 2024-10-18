@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.gateway;
@@ -65,7 +66,7 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
                 }
 
                 // if we are allocating a replica because of index creation, no need to go and find a copy, there isn't one...
-                if (shard.unassignedInfo() != null && shard.unassignedInfo().getReason() == UnassignedInfo.Reason.INDEX_CREATED) {
+                if (shard.unassignedInfo() != null && shard.unassignedInfo().reason() == UnassignedInfo.Reason.INDEX_CREATED) {
                     continue;
                 }
 
@@ -103,7 +104,7 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
                         );
                         final Set<String> failedNodeIds = shard.unassignedInfo() == null
                             ? Collections.emptySet()
-                            : shard.unassignedInfo().getFailedNodeIds();
+                            : shard.unassignedInfo().failedNodeIds();
                         UnassignedInfo unassignedInfo = new UnassignedInfo(
                             UnassignedInfo.Reason.REALLOCATED_REPLICA,
                             "existing allocation of replica to ["
@@ -121,7 +122,7 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
                             null
                         );
                         // don't cancel shard in the loop as it will cause a ConcurrentModificationException
-                        shardCancellationActions.add(() -> routingNodes.failShard(logger, shard, unassignedInfo, allocation.changes()));
+                        shardCancellationActions.add(() -> routingNodes.failShard(shard, unassignedInfo, allocation.changes()));
                     }
                 }
             }
@@ -138,7 +139,7 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
         return shard.primary() == false // must be a replica
             && shard.unassigned() // must be unassigned
             // if we are allocating a replica because of index creation, no need to go and find a copy, there isn't one...
-            && shard.unassignedInfo().getReason() != UnassignedInfo.Reason.INDEX_CREATED;
+            && shard.unassignedInfo().reason() != UnassignedInfo.Reason.INDEX_CREATED;
     }
 
     @Override
@@ -234,7 +235,7 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
                 // we found a match
                 return AllocateUnassignedDecision.yes(nodeWithHighestMatch.node(), null, nodeDecisions, true);
             }
-        } else if (matchingNodes.hasAnyData() == false && unassignedShard.unassignedInfo().isDelayed()) {
+        } else if (matchingNodes.hasAnyData() == false && unassignedShard.unassignedInfo().delayed()) {
             // if we didn't manage to find *any* data (regardless of matching sizes), and the replica is
             // unassigned due to a node leaving, so we delay allocation of this replica to see if the
             // node with the shard copy will rejoin so we can re-use the copy it has
@@ -262,7 +263,7 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
             Metadata metadata = allocation.metadata();
             IndexMetadata indexMetadata = metadata.index(unassignedShard.index());
             totalDelayMillis = INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.get(indexMetadata.getSettings()).getMillis();
-            long remainingDelayNanos = unassignedInfo.getRemainingDelay(
+            long remainingDelayNanos = unassignedInfo.remainingDelay(
                 System.nanoTime(),
                 indexMetadata.getSettings(),
                 metadata.nodeShutdowns()
@@ -357,7 +358,7 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
             DiscoveryNode discoNode = nodeStoreEntry.getKey();
             if (noMatchFailedNodes
                 && shard.unassignedInfo() != null
-                && shard.unassignedInfo().getFailedNodeIds().contains(discoNode.getId())) {
+                && shard.unassignedInfo().failedNodeIds().contains(discoNode.getId())) {
                 continue;
             }
             TransportNodesListShardStoreMetadata.StoreFilesMetadata storeFilesMetadata = nodeStoreEntry.getValue().storeFilesMetadata();

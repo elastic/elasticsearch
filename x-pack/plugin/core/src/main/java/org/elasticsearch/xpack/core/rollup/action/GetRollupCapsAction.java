@@ -106,10 +106,6 @@ public class GetRollupCapsAction extends ActionType<GetRollupCapsAction.Response
             this.jobs = Collections.unmodifiableMap(Objects.requireNonNull(jobs));
         }
 
-        Response(StreamInput in) throws IOException {
-            jobs = in.readImmutableMap(RollableIndexCaps::new);
-        }
-
         public Map<String, RollableIndexCaps> getJobs() {
             return jobs;
         }

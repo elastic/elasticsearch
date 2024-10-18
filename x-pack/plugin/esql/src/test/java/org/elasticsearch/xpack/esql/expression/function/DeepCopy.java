@@ -7,18 +7,19 @@
 
 package org.elasticsearch.xpack.esql.expression.function;
 
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.UnaryExpression;
+import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
+import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.UnaryExpression;
-import org.elasticsearch.xpack.ql.tree.NodeInfo;
-import org.elasticsearch.xpack.ql.tree.Source;
 
-import java.util.function.Function;
+import java.io.IOException;
 
 /**
  * Expression that makes a deep copy of the block it receives.
@@ -29,9 +30,17 @@ public class DeepCopy extends UnaryExpression implements EvaluatorMapper {
     }
 
     @Override
-    public EvalOperator.ExpressionEvaluator.Factory toEvaluator(
-        Function<Expression, EvalOperator.ExpressionEvaluator.Factory> toEvaluator
-    ) {
+    public void writeTo(StreamOutput out) throws IOException {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public String getWriteableName() {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         EvalOperator.ExpressionEvaluator.Factory childEval = toEvaluator.apply(child());
         return ctx -> new EvalOperator.ExpressionEvaluator() {
             private final EvalOperator.ExpressionEvaluator child = childEval.get(ctx);

@@ -1,0 +1,119 @@
+setup:
+  - requires:
+      cluster_features: ["gte_v8.12.0"]
+      reason: Introduced in 8.12.0
+
+  - do:
+      connector.put:
+        connector_id: test-connector
+        body:
+          index_name: search-1-test
+          name: my-connector
+          language: pl
+          is_native: false
+          service_type: super-connector
+
+---
+"Update Connector Scheduling":
+  - do:
+      connector.update_scheduling:
+        connector_id: test-connector
+        body:
+          scheduling:
+            access_control:
+              enabled: true
+              interval: 1 0 0 * * ?
+            full:
+              enabled: false
+              interval: 2 0 0 * * ?
+            incremental:
+              enabled: false
+              interval: 3 0 0 * * ?
+
+
+  - match: { result: updated }
+
+  - do:
+      connector.get:
+        connector_id: test-connector
+
+  - match: { scheduling.access_control.enabled: true }
+  - match: { scheduling.access_control.interval: "1 0 0 * * ?" }
+  - match: { scheduling.full.enabled: false }
+  - match: { scheduling.full.interval: "2 0 0 * * ?" }
+  - match: { scheduling.incremental.enabled: false }
+  - match: { scheduling.incremental.interval: "3 0 0 * * ?" }
+
+
+---
+"Update Connector Scheduling - Update single schedule only":
+  - do:
+      connector.update_scheduling:
+        connector_id: test-connector
+        body:
+          scheduling:
+            incremental:
+              enabled: true
+              interval: 3 0 0 * * ?
+
+
+  - match: { result: updated }
+
+  - do:
+      connector.get:
+        connector_id: test-connector
+
+  - match: { scheduling.incremental.enabled: true }
+  - match: { scheduling.incremental.interval: "3 0 0 * * ?" }
+
+  # Other schedules are unchanged (those are defaults when connector is created)
+  - match: { scheduling.full.enabled: false }
+  - match: { scheduling.full.interval: "0 0 0 * * ?" }
+  - match: { scheduling.access_control.enabled: false }
+  - match: { scheduling.access_control.interval: "0 0 0 * * ?" }
+
+---
+"Update Connector Scheduling - Connector doesn't exist":
+  - do:
+      catch: "missing"
+      connector.update_scheduling:
+        connector_id: test-non-existent-connector
+        body:
+          scheduling:
+            access_control:
+              enabled: true
+              interval: 1 0 0 * * ?
+            full:
+              enabled: false
+              interval: 2 0 0 * * ?
+            incremental:
+              enabled: false
+              interval: 3 0 0 * * ?
+
+---
+"Update Connector Scheduling - Schedules are missing":
+  - do:
+      catch: "bad_request"
+      connector.update_scheduling:
+        connector_id: test-connector
+        body:
+          scheduling: {}
+
+---
+"Update Connector Scheduling - Wrong CRON expression":
+  - do:
+      catch: "bad_request"
+      connector.update_scheduling:
+        connector_id: test-connector
+        body:
+          scheduling:
+            access_control:
+              enabled: true
+              interval: 61 0 0 * * ?
+            full:
+              enabled: false
+              interval: 2 0 0 * * ?
+            incremental:
+              enabled: false
+              interval: 3 0 0 * * ?
+

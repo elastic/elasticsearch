@@ -33,6 +33,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata.Type.SIGTERM;
 import static org.elasticsearch.cluster.routing.TestShardRouting.shardRoutingBuilder;
 import static org.hamcrest.Matchers.containsString;
 
@@ -449,9 +450,7 @@ public class CheckShrinkReadyStepTests extends AbstractStepTestCase<CheckShrinkR
             Map<String, IndexMetadata> indices = Map.of(index.getName(), indexMetadata);
 
             final String targetNodeName = type == SingleNodeShutdownMetadata.Type.REPLACE ? randomAlphaOfLengthBetween(10, 20) : null;
-            final TimeValue grace = type == SingleNodeShutdownMetadata.Type.SIGTERM
-                ? TimeValue.parseTimeValue(randomTimeValue(), this.getTestName())
-                : null;
+            final TimeValue grace = type == SIGTERM ? randomTimeValue() : null;
             ClusterState clusterState = ClusterState.builder(ClusterState.EMPTY_STATE)
                 .metadata(
                     Metadata.builder()
@@ -530,9 +529,7 @@ public class CheckShrinkReadyStepTests extends AbstractStepTestCase<CheckShrinkR
             Map<String, IndexMetadata> indices = Map.of(index.getName(), indexMetadata);
 
             final String targetNodeName = type == SingleNodeShutdownMetadata.Type.REPLACE ? randomAlphaOfLengthBetween(10, 20) : null;
-            final TimeValue grace = type == SingleNodeShutdownMetadata.Type.SIGTERM
-                ? TimeValue.parseTimeValue(randomTimeValue(), this.getTestName())
-                : null;
+            final TimeValue grace = type == SIGTERM ? randomTimeValue() : null;
             ClusterState clusterState = ClusterState.builder(ClusterState.EMPTY_STATE)
                 .metadata(
                     Metadata.builder()

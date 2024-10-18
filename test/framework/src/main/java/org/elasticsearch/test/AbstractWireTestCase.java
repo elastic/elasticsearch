@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.test;
@@ -234,9 +235,22 @@ public abstract class AbstractWireTestCase<T> extends ESTestCase {
      * how equality is checked.
      */
     protected void assertEqualInstances(T expectedInstance, T newInstance) {
-        assertNotSame(newInstance, expectedInstance);
+        if (shouldBeSame(newInstance)) {
+            assertSame(newInstance, expectedInstance);
+        } else {
+            assertNotSame(newInstance, expectedInstance);
+        }
         assertThat(newInstance, equalTo(expectedInstance));
         assertThat(newInstance.hashCode(), equalTo(expectedInstance.hashCode()));
+    }
+
+    /**
+     * Should this copy be the same instance as what we're copying? Defaults to
+     * {@code false} but implementers might override if the serialization returns
+     * a reuse constant.
+     */
+    protected boolean shouldBeSame(T newInstance) {
+        return false;
     }
 
     protected final T copyInstance(T instance) throws IOException {

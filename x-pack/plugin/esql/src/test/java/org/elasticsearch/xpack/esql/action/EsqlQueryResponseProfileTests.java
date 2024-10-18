@@ -12,6 +12,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.operator.AbstractPageMappingOperator;
 import org.elasticsearch.compute.operator.DriverProfile;
+import org.elasticsearch.compute.operator.DriverSleeps;
 import org.elasticsearch.compute.operator.DriverStatus;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
@@ -47,12 +48,22 @@ public class EsqlQueryResponseProfileTests extends AbstractWireSerializingTestCa
     }
 
     private DriverProfile randomDriverProfile() {
-        return new DriverProfile(randomList(10, this::randomOperatorStatus));
+        return new DriverProfile(
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            randomList(10, this::randomOperatorStatus),
+            DriverSleeps.empty()
+        );
     }
 
     private DriverStatus.OperatorStatus randomOperatorStatus() {
         String name = randomAlphaOfLength(4);
-        Operator.Status status = randomBoolean() ? null : new AbstractPageMappingOperator.Status(between(0, Integer.MAX_VALUE));
+        Operator.Status status = randomBoolean()
+            ? null
+            : new AbstractPageMappingOperator.Status(randomNonNegativeLong(), between(0, Integer.MAX_VALUE));
         return new DriverStatus.OperatorStatus(name, status);
     }
 }

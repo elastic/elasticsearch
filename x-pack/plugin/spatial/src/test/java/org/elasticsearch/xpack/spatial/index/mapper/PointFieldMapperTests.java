@@ -6,9 +6,17 @@
  */
 package org.elasticsearch.xpack.spatial.index.mapper;
 
+import org.apache.lucene.document.XYDocValuesField;
 import org.apache.lucene.document.XYPointField;
+import org.apache.lucene.geo.GeoEncodingUtils;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.geo.GeometryTestUtils;
+import org.elasticsearch.geometry.Geometry;
+import org.elasticsearch.geometry.Point;
+import org.elasticsearch.geometry.utils.GeometryValidator;
+import org.elasticsearch.geometry.utils.WellKnownBinary;
+import org.elasticsearch.geometry.utils.WellKnownText;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -22,7 +30,11 @@ import org.elasticsearch.xpack.spatial.common.CartesianPoint;
 import org.junit.AssumptionViolatedException;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.function.Function;
 
 import static org.elasticsearch.geometry.utils.Geohash.stringEncode;
 import static org.hamcrest.Matchers.containsString;
@@ -419,7 +431,137 @@ public class PointFieldMapperTests extends CartesianFieldMapperTests {
 
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed) {
-        throw new AssumptionViolatedException("not supported");
+        return syntheticSourceSupport(ignoreMalformed, false);
+    }
+
+    @Override
+    protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed, boolean columnReader) {
+        return new SyntheticSourceSupport() {
+            private final boolean ignoreZValue = usually();
+            private final CartesianPoint nullValue = usually() ? null : randomCartesianPoint();
+
+            @Override
+            public boolean preservesExactSource() {
+                return true;
+            }
+
+            @Override
+            public SyntheticSourceExample example(int maxVals) {
+                if (randomBoolean()) {
+                    Value v = generateValue();
+
+                    if (v.point == null) {
+                        return new SyntheticSourceExample(v.representation(), v.representation(), null, this::mapping);
+                    } else if (columnReader) {
+                        return new SyntheticSourceExample(v.representation(), v.representation(), encode(v.point()), this::mapping);
+                    }
+                    return new SyntheticSourceExample(v.representation(), v.representation(), v.point().toWKT(), this::mapping);
+                }
+                List<Value> values = randomList(1, maxVals, this::generateValue);
+                var representations = values.stream().map(Value::representation).toList();
+
+                if (columnReader) {
+                    // When reading doc-values, the block is a list of encoded longs
+                    List<Long> outBlockList = values.stream()
+                        .map(Value::point)
+                        .filter(Objects::nonNull)
+                        .map(this::encode)
+                        .sorted()
+                        .toList();
+                    Object outBlock = outBlockList.size() == 1 ? outBlockList.get(0) : outBlockList;
+                    return new SyntheticSourceExample(representations, representations, outBlock, this::mapping);
+                } else {
+                    // When reading row-stride, the block is a list of WKT encoded BytesRefs
+                    List<String> outBlockList = values.stream()
+                        .map(Value::point)
+                        .filter(Objects::nonNull)
+                        .map(CartesianPoint::toWKT)
+                        .toList();
+                    Object outBlock = outBlockList.size() == 1 ? outBlockList.get(0) : outBlockList;
+                    return new SyntheticSourceExample(representations, representations, outBlock, this::mapping);
+                }
+            }
+
+            private record Value(CartesianPoint point, Object representation) {}
+
+            private Value generateValue() {
+                if (nullValue != null && randomBoolean()) {
+                    return new Value(nullValue, null);
+                }
+
+                if (ignoreMalformed && randomBoolean()) {
+                    // #exampleMalformedValues() covers a lot of cases
+
+                    // nice complex object
+                    return new Value(null, Map.of("one", 1, "two", List.of(2, 22, 222), "three", Map.of("three", 33)));
+                }
+
+                CartesianPoint point = randomCartesianPoint();
+                return new Value(point, randomInputFormat(point));
+            }
+
+            private CartesianPoint randomCartesianPoint() {
+                Point point = GeometryTestUtils.randomPoint(false);
+                return decode(encode(new CartesianPoint(point.getLat(), point.getLon())));
+            }
+
+            private Object randomInputFormat(CartesianPoint point) {
+                return switch (randomInt(4)) {
+                    case 0 -> Map.of("x", point.getX(), "y", point.getY());
+                    case 1 -> new double[] { point.getX(), point.getY() };
+                    case 2 -> "POINT( " + point.getX() + " " + point.getY() + " )";
+                    case 3 -> point.toString();
+                    default -> {
+                        List<Double> coords = new ArrayList<>();
+                        coords.add(point.getX());
+                        coords.add(point.getY());
+                        if (ignoreZValue) {
+                            coords.add(randomDouble());
+                        }
+                        yield Map.of("coordinates", coords, "type", "point");
+                    }
+                };
+            }
+
+            private long encode(CartesianPoint point) {
+                return new XYDocValuesField("f", (float) point.getX(), (float) point.getY()).numericValue().longValue();
+            }
+
+            private CartesianPoint decode(long point) {
+                double lat = GeoEncodingUtils.decodeLatitude((int) (point >> 32));
+                double lon = GeoEncodingUtils.decodeLongitude((int) (point & 0xFFFFFFFF));
+                return new CartesianPoint(lat, lon);
+            }
+
+            private void mapping(XContentBuilder b) throws IOException {
+                b.field("type", "point");
+                if (ignoreZValue == false || rarely()) {
+                    b.field("ignore_z_value", ignoreZValue);
+                }
+                if (nullValue != null) {
+                    b.field("null_value", randomInputFormat(nullValue));
+                }
+                if (rarely()) {
+                    b.field("index", false);
+                }
+                if (rarely()) {
+                    b.field("store", false);
+                }
+                if (ignoreMalformed) {
+                    b.field("ignore_malformed", true);
+                }
+            }
+
+            @Override
+            public List<SyntheticSourceInvalidExample> invalidExample() throws IOException {
+                return List.of();
+            }
+        };
+    }
+
+    @Override
+    public void testSyntheticSourceKeepArrays() {
+        // The mapper expects to parse an array of values by default, it's not compatible with array of arrays.
     }
 
     @Override
@@ -428,10 +570,35 @@ public class PointFieldMapperTests extends CartesianFieldMapperTests {
     }
 
     @Override
+    protected Function<Object, Object> loadBlockExpected(BlockReaderSupport blockReaderSupport, boolean columnReader) {
+        if (columnReader) {
+            // When using column reader, we expect the output to be doc-values (which means encoded longs)
+            return v -> asJacksonNumberOutput(((Number) v).longValue());
+        } else {
+            // When using row-stride reader, we expect the output to be WKT encoded BytesRef
+            return v -> asWKT((BytesRef) v);
+        }
+    }
+
+    protected static Object asJacksonNumberOutput(long l) {
+        // Cast to int to mimic jackson-core behaviour in NumberOutput.outputLong()
+        // that is called when deserializing expected value in SyntheticSourceExample.
+        if (l < 0 && l >= Integer.MIN_VALUE || l >= 0 && l <= Integer.MAX_VALUE) {
+            return (int) l;
+        } else {
+            return l;
+        }
+    }
+
+    protected static Object asWKT(BytesRef value) {
+        // Internally we use WKB in BytesRef, but for test assertions we want to use WKT for readability
+        Geometry geometry = WellKnownBinary.fromWKB(GeometryValidator.NOOP, false, value.bytes);
+        return WellKnownText.toWKT(geometry);
+    }
+
+    @Override
     protected BlockReaderSupport getSupportedReaders(MapperService mapper, String loaderFieldName) {
-        // TODO: Support testing both reading from source as well as reading from doc-values
         MappedFieldType ft = mapper.fieldType(loaderFieldName);
-        PointFieldMapper.PointFieldType point = (PointFieldMapper.PointFieldType) ft;
-        return new BlockReaderSupport(point.isIndexed() == false && ft.hasDocValues(), false, mapper, loaderFieldName);
+        return new BlockReaderSupport(ft.hasDocValues(), false, mapper, loaderFieldName);
     }
 }

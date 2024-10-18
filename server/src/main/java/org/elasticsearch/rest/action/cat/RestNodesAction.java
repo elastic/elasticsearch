@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.rest.action.cat;
@@ -57,10 +58,10 @@ import org.elasticsearch.script.ScriptStats;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
 
 import java.util.List;
-import java.util.Locale;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
+import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
 
 @ServerlessScope(Scope.INTERNAL)
 public class RestNodesAction extends AbstractCatAction {
@@ -85,9 +86,8 @@ public class RestNodesAction extends AbstractCatAction {
 
         final boolean fullId = request.paramAsBoolean("full_id", false);
 
-        final ClusterStateRequest clusterStateRequest = new ClusterStateRequest();
+        final ClusterStateRequest clusterStateRequest = new ClusterStateRequest(getMasterNodeTimeout(request));
         clusterStateRequest.clear().nodes(true);
-        clusterStateRequest.masterNodeTimeout(request.paramAsTime("master_timeout", clusterStateRequest.masterNodeTimeout()));
 
         final NodesInfoRequest nodesInfoRequest = new NodesInfoRequest();
         nodesInfoRequest.clear()
@@ -103,11 +103,11 @@ public class RestNodesAction extends AbstractCatAction {
         nodesStatsRequest.clear()
             .indices(true)
             .addMetrics(
-                NodesStatsRequestParameters.Metric.JVM.metricName(),
-                NodesStatsRequestParameters.Metric.OS.metricName(),
-                NodesStatsRequestParameters.Metric.FS.metricName(),
-                NodesStatsRequestParameters.Metric.PROCESS.metricName(),
-                NodesStatsRequestParameters.Metric.SCRIPT.metricName()
+                NodesStatsRequestParameters.Metric.JVM,
+                NodesStatsRequestParameters.Metric.OS,
+                NodesStatsRequestParameters.Metric.FS,
+                NodesStatsRequestParameters.Metric.PROCESS,
+                NodesStatsRequestParameters.Metric.SCRIPT
             );
         nodesStatsRequest.indices().includeUnloadedSegments(request.paramAsBoolean("include_unloaded_segments", false));
 
@@ -316,7 +316,7 @@ public class RestNodesAction extends AbstractCatAction {
 
         table.addCell(
             "shard_stats.total_count",
-            "alias:sstc,shardStatsTotalCount;default:false;text-align:right;desc:number of shards assigned"
+            "alias:sstc,shards,shardStatsTotalCount;default:false;text-align:right;desc:number of shards assigned"
         );
 
         table.addCell("mappings.total_count", "alias:mtc,mappingsTotalCount;default:false;text-align:right;desc:number of mappings");
@@ -375,14 +375,14 @@ public class RestNodesAction extends AbstractCatAction {
             ByteSizeValue diskTotal = null;
             ByteSizeValue diskUsed = null;
             ByteSizeValue diskAvailable = null;
-            String diskUsedPercent = null;
+            RestTable.FormattedDouble diskUsedPercent = null;
             if (fsInfo != null) {
                 diskTotal = fsInfo.getTotal().getTotal();
                 diskAvailable = fsInfo.getTotal().getAvailable();
                 diskUsed = ByteSizeValue.ofBytes(diskTotal.getBytes() - diskAvailable.getBytes());
 
                 double diskUsedRatio = diskTotal.getBytes() == 0 ? 1.0 : (double) diskUsed.getBytes() / diskTotal.getBytes();
-                diskUsedPercent = String.format(Locale.ROOT, "%.2f", 100.0 * diskUsedRatio);
+                diskUsedPercent = RestTable.FormattedDouble.format2DecimalPlaces(100.0 * diskUsedRatio);
             }
             table.addCell(diskTotal);
             table.addCell(diskUsed);
@@ -408,17 +408,17 @@ public class RestNodesAction extends AbstractCatAction {
             table.addCell(
                 hasLoadAverage == false || osStats.getCpu().getLoadAverage()[0] == -1
                     ? null
-                    : String.format(Locale.ROOT, "%.2f", osStats.getCpu().getLoadAverage()[0])
+                    : RestTable.FormattedDouble.format2DecimalPlaces(osStats.getCpu().getLoadAverage()[0])
             );
             table.addCell(
                 hasLoadAverage == false || osStats.getCpu().getLoadAverage()[1] == -1
                     ? null
-                    : String.format(Locale.ROOT, "%.2f", osStats.getCpu().getLoadAverage()[1])
+                    : RestTable.FormattedDouble.format2DecimalPlaces(osStats.getCpu().getLoadAverage()[1])
             );
             table.addCell(
                 hasLoadAverage == false || osStats.getCpu().getLoadAverage()[2] == -1
                     ? null
-                    : String.format(Locale.ROOT, "%.2f", osStats.getCpu().getLoadAverage()[2])
+                    : RestTable.FormattedDouble.format2DecimalPlaces(osStats.getCpu().getLoadAverage()[2])
             );
             table.addCell(jvmStats == null ? null : jvmStats.getUptime());
 

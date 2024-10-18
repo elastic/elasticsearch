@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.cluster.node.stats;
@@ -21,6 +22,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
+import org.elasticsearch.cluster.routing.allocation.NodeAllocationStats;
 import org.elasticsearch.cluster.service.ClusterApplierRecordingService;
 import org.elasticsearch.cluster.service.ClusterApplierRecordingService.Stats.Recording;
 import org.elasticsearch.cluster.service.ClusterStateUpdateStats;
@@ -53,6 +55,7 @@ import org.elasticsearch.index.shard.IndexingStats;
 import org.elasticsearch.index.shard.ShardCountStats;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
+import org.elasticsearch.index.shard.SparseVectorStats;
 import org.elasticsearch.index.stats.IndexingPressureStats;
 import org.elasticsearch.index.store.StoreStats;
 import org.elasticsearch.index.translog.TranslogStats;
@@ -559,7 +562,12 @@ public class NodeStatsTests extends ESTestCase {
 
     private static CommonStats createIndexLevelCommonStats() {
         CommonStats stats = new CommonStats(new CommonStatsFlags().clear().set(CommonStatsFlags.Flag.Mappings, true));
-        stats.nodeMappings = new NodeMappingStats(randomNonNegativeLong(), randomNonNegativeLong());
+        stats.nodeMappings = new NodeMappingStats(
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong()
+        );
         return stats;
     }
 
@@ -607,6 +615,8 @@ public class NodeStatsTests extends ESTestCase {
             ++iota,
             ++iota,
             ++iota,
+            ++iota,
+            ++iota,
             ++iota
         );
         Map<String, SearchStats.Stats> groupStats = new HashMap<>();
@@ -627,7 +637,7 @@ public class NodeStatsTests extends ESTestCase {
 
         indicesCommonStats.getMerge().add(mergeStats);
         indicesCommonStats.getRefresh().add(new RefreshStats(++iota, ++iota, ++iota, ++iota, ++iota));
-        indicesCommonStats.getFlush().add(new FlushStats(++iota, ++iota, ++iota));
+        indicesCommonStats.getFlush().add(new FlushStats(++iota, ++iota, ++iota, ++iota));
         indicesCommonStats.getWarmer().add(new WarmerStats(++iota, ++iota, ++iota));
         indicesCommonStats.getCompletion().add(new CompletionStats(++iota, null));
         indicesCommonStats.getTranslog().add(new TranslogStats(++iota, ++iota, ++iota, ++iota, ++iota));
@@ -642,6 +652,7 @@ public class NodeStatsTests extends ESTestCase {
         indicesCommonStats.getShards().add(new ShardCountStats(++iota));
 
         indicesCommonStats.getDenseVectorStats().add(new DenseVectorStats(++iota));
+        indicesCommonStats.getSparseVectorStats().add(new SparseVectorStats(++iota));
 
         return indicesCommonStats;
     }
@@ -970,7 +981,8 @@ public class NodeStatsTests extends ESTestCase {
                             randomLongBetween(0, maxStatValue),
                             randomLongBetween(0, maxStatValue),
                             randomLongBetween(0, maxStatValue)
-                        )
+                        ),
+                        new IngestStats.ByteStats(randomLongBetween(0, maxStatValue), randomLongBetween(0, maxStatValue))
                     )
                 );
 
@@ -1037,11 +1049,20 @@ public class NodeStatsTests extends ESTestCase {
                 randomLongBetween(0, maxStatValue),
                 randomLongBetween(0, maxStatValue),
                 randomLongBetween(0, maxStatValue),
+                randomLongBetween(0, maxStatValue),
+                randomLongBetween(0, maxStatValue),
                 randomLongBetween(0, maxStatValue)
             );
         }
         RepositoriesStats repositoriesStats = new RepositoriesStats(
             Map.of("test-repository", new RepositoriesStats.ThrottlingStats(100, 200))
+        );
+        NodeAllocationStats nodeAllocationStats = new NodeAllocationStats(
+            randomIntBetween(0, 10000),
+            randomIntBetween(0, 1000),
+            randomDoubleBetween(0, 8, true),
+            randomNonNegativeLong(),
+            randomNonNegativeLong()
         );
 
         return new NodeStats(
@@ -1062,7 +1083,8 @@ public class NodeStatsTests extends ESTestCase {
             adaptiveSelectionStats,
             scriptCacheStats,
             indexingPressureStats,
-            repositoriesStats
+            repositoriesStats,
+            nodeAllocationStats
         );
     }
 

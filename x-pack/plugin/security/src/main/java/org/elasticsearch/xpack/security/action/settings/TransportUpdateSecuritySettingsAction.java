@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.security.action.settings;
 
-import org.apache.log4j.LogManager;
-import org.apache.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsClusterStateUpdateRequest;
 import org.elasticsearch.action.support.ActionFilters;
@@ -23,11 +21,11 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetadataUpdateSettingsService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -46,7 +44,6 @@ import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SEC
 public class TransportUpdateSecuritySettingsAction extends TransportMasterNodeAction<
     UpdateSecuritySettingsAction.Request,
     AcknowledgedResponse> {
-    private static final Logger logger = LogManager.getLogger(TransportUpdateSecuritySettingsAction.class);
 
     private final MetadataUpdateSettingsService updateSettingsService;
 
@@ -60,12 +57,12 @@ public class TransportUpdateSecuritySettingsAction extends TransportMasterNodeAc
         IndexNameExpressionResolver indexNameExpressionResolver
     ) {
         super(
-            UpdateSecuritySettingsAction.NAME,
+            UpdateSecuritySettingsAction.INSTANCE.name(),
             transportService,
             clusterService,
             threadPool,
             actionFilters,
-            UpdateSecuritySettingsAction.Request::new,
+            UpdateSecuritySettingsAction.Request::readFrom,
             indexNameExpressionResolver,
             AcknowledgedResponse::readFrom,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
@@ -85,21 +82,21 @@ public class TransportUpdateSecuritySettingsAction extends TransportMasterNodeAc
             createUpdateSettingsRequest(
                 SECURITY_MAIN_ALIAS,
                 Settings.builder().loadFromMap(request.mainIndexSettings()).build(),
-                request.timeout(),
+                request.ackTimeout(),
                 request.masterNodeTimeout(),
                 state
             ),
             createUpdateSettingsRequest(
                 SECURITY_TOKENS_ALIAS,
                 Settings.builder().loadFromMap(request.tokensIndexSettings()).build(),
-                request.timeout(),
+                request.ackTimeout(),
                 request.masterNodeTimeout(),
                 state
             ),
             createUpdateSettingsRequest(
                 SECURITY_PROFILE_ALIAS,
                 Settings.builder().loadFromMap(request.profilesIndexSettings()).build(),
-                request.timeout(),
+                request.ackTimeout(),
                 request.masterNodeTimeout(),
                 state
             )
@@ -122,8 +119,8 @@ public class TransportUpdateSecuritySettingsAction extends TransportMasterNodeAc
     private Optional<UpdateSettingsClusterStateUpdateRequest> createUpdateSettingsRequest(
         String indexName,
         Settings settingsToUpdate,
-        TimeValue timeout,
-        TimeValue masterTimeout,
+        TimeValue ackTimeout,
+        TimeValue masterNodeTimeout,
         ClusterState state
     ) {
         if (settingsToUpdate.isEmpty()) {
@@ -139,10 +136,14 @@ public class TransportUpdateSecuritySettingsAction extends TransportMasterNodeAc
         }
 
         return Optional.of(
-            new UpdateSettingsClusterStateUpdateRequest().indices(new Index[] { writeIndex })
-                .settings(settingsToUpdate)
-                .ackTimeout(timeout)
-                .masterNodeTimeout(masterTimeout)
+            new UpdateSettingsClusterStateUpdateRequest(
+                masterNodeTimeout,
+                ackTimeout,
+                settingsToUpdate,
+                UpdateSettingsClusterStateUpdateRequest.OnExisting.OVERWRITE,
+                UpdateSettingsClusterStateUpdateRequest.OnStaticSetting.REJECT,
+                writeIndex
+            )
         );
     }
 

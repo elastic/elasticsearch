@@ -2,8 +2,6 @@
 [[security-api-create-cross-cluster-api-key]]
 === Create Cross-Cluster API key API
 
-beta::[]
-
 ++++
 <titleabbrev>Create Cross-Cluster API key</titleabbrev>
 ++++
@@ -67,10 +65,12 @@ At least one of them must be specified.
 `names`:::: (required, list) A list of indices or name patterns to which the
 permissions in this entry apply.
 `field_security`:::: (optional, object) The document fields that the owners of the role have
-read access to. For more information, check <<field-and-document-access-control>>.
+read access to. This may not be set when the `replication` field is also defined. For more information,
+see <<ccx-apikeys-dls-fls, Field and document level security with cross-cluster API keys>>.
 `query`:::: (optional) A search query that defines the documents the owners of the role have
-read access to. A document within the specified indices must match this query to be accessible by the owners of the role. For more information, check
-<<field-and-document-access-control>>.
+read access to. A document within the specified indices must match this query to be accessible by the
+owners of the role. This may not be set when the `replication` field is also defined. For more information,
+see <<ccx-apikeys-dls-fls, Field and document level security with cross-cluster API keys>>.
 `allow_restricted_indices`:::: (optional, boolean) This needs to be set to `true` (default
 is `false`) if the patterns in the `names` field should cover <<system-indices,system indices>>.
 `replication`::: (optional, list) A list of indices permission entries for cross-cluster replication.

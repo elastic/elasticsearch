@@ -1,7 +1,7 @@
 ---
 "Diagnosis":
-  - skip:
-      version: "- 8.6.99"
+  - requires:
+      cluster_features: "gte_v8.7.0"
       reason: "the API path changed in 8.7"
 
   - do:

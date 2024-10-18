@@ -1,7 +1,7 @@
 ---
 'Misspelled fields get "did you mean"':
-  - skip:
-      version: " - 7.5.99"
+  - requires:
+      cluster_features: ["gte_v7.6.0"]
       reason: Implemented in 7.6
   - do:
       catch: /\[UpdateRequest\] unknown field \[dac\] did you mean \[doc\]\?/

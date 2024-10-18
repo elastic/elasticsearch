@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search;
@@ -11,7 +12,6 @@ package org.elasticsearch.search;
 import org.apache.lucene.search.Explanation;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.TransportVersions;
-import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -27,28 +27,20 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RefCounted;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.SimpleRefCounted;
 import org.elasticsearch.index.mapper.IgnoredFieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.seqno.SequenceNumbers;
-import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.search.fetch.subphase.LookupField;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightField;
 import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.transport.LeakTracker;
 import org.elasticsearch.transport.RemoteClusterAware;
-import org.elasticsearch.xcontent.ConstructingObjectParser;
-import org.elasticsearch.xcontent.ObjectParser;
-import org.elasticsearch.xcontent.ObjectParser.ValueType;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xcontent.XContentParser.Token;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
@@ -56,7 +48,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -66,10 +57,6 @@ import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.common.lucene.Lucene.readExplanation;
 import static org.elasticsearch.common.lucene.Lucene.writeExplanation;
-import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
-import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureFieldName;
-import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
-import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 /**
  * A single search hit.
@@ -80,10 +67,10 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
 
     private final transient int docId;
 
-    private static final float DEFAULT_SCORE = Float.NaN;
+    static final float DEFAULT_SCORE = Float.NaN;
     private float score;
 
-    private static final int NO_RANK = -1;
+    static final int NO_RANK = -1;
     private int rank;
 
     private final Text id;
@@ -204,7 +191,7 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
         this.innerHits = innerHits;
         this.documentFields = documentFields;
         this.metaFields = metaFields;
-        this.refCounted = refCounted == null ? LeakTracker.wrap(new SimpleRefCounted()) : ALWAYS_REFERENCED;
+        this.refCounted = refCounted == null ? LeakTracker.wrap(new SimpleRefCounted()) : refCounted;
     }
 
     public static SearchHit readFrom(StreamInput in, boolean pooled) throws IOException {
@@ -233,8 +220,10 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
         }
         final Map<String, DocumentField> documentFields = in.readMap(DocumentField::new);
         final Map<String, DocumentField> metaFields = in.readMap(DocumentField::new);
-        final Map<String, HighlightField> highlightFields = in.readMapValues(HighlightField::new, HighlightField::name);
-        final SearchSortValues sortValues = new SearchSortValues(in);
+        Map<String, HighlightField> highlightFields = in.readMapValues(HighlightField::new, HighlightField::name);
+        highlightFields = highlightFields.isEmpty() ? null : unmodifiableMap(highlightFields);
+
+        final SearchSortValues sortValues = SearchSortValues.readFrom(in);
 
         final Map<String, Float> matchedQueries;
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
@@ -257,12 +246,17 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
             index = shardTarget.getIndex();
             clusterAlias = shardTarget.getClusterAlias();
         }
+
+        boolean isPooled = pooled && source != null;
         final Map<String, SearchHits> innerHits;
         int size = in.readVInt();
         if (size > 0) {
             innerHits = Maps.newMapWithExpectedSize(size);
             for (int i = 0; i < size; i++) {
-                innerHits.put(in.readString(), SearchHits.readFrom(in, pooled));
+                var key = in.readString();
+                var nestedHits = SearchHits.readFrom(in, pooled);
+                innerHits.put(key, nestedHits);
+                isPooled = isPooled || nestedHits.isPooled();
             }
         } else {
             innerHits = null;
@@ -277,7 +271,7 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
             seqNo,
             primaryTerm,
             source,
-            unmodifiableMap(highlightFields),
+            highlightFields,
             sortValues,
             matchedQueries,
             explanation,
@@ -288,7 +282,7 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
             innerHits,
             documentFields,
             metaFields,
-            pooled ? null : ALWAYS_REFERENCED
+            isPooled ? null : ALWAYS_REFERENCED
         );
     }
 
@@ -313,7 +307,7 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
             out.writeVInt(rank);
         } else if (rank != NO_RANK) {
-            throw new IllegalArgumentException("cannot serialize [rank] to version [" + out.getTransportVersion() + "]");
+            throw new IllegalArgumentException("cannot serialize [rank] to version [" + out.getTransportVersion().toReleaseVersion() + "]");
         }
         out.writeOptionalText(id);
         if (out.getTransportVersion().before(TransportVersions.V_8_0_0)) {
@@ -821,9 +815,6 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
         if (index != null) {
             builder.field(Fields._INDEX, RemoteClusterAware.buildRemoteIndexName(clusterAlias, index));
         }
-        if (builder.getRestApiVersion() == RestApiVersion.V_7 && metaFields.containsKey(MapperService.TYPE_FIELD_NAME) == false) {
-            builder.field(MapperService.TYPE_FIELD_NAME, MapperService.SINGLE_MAPPING_NAME);
-        }
         if (id != null) {
             builder.field(Fields._ID, id);
         }
@@ -928,258 +919,6 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
         return builder;
     }
 
-    // All fields on the root level of the parsed SearhHit are interpreted as metadata fields
-    // public because we use it in a completion suggestion option
-    @SuppressWarnings("unchecked")
-    public static final ObjectParser.UnknownFieldConsumer<Map<String, Object>> unknownMetaFieldConsumer = (map, fieldName, fieldValue) -> {
-        Map<String, DocumentField> fieldMap = (Map<String, DocumentField>) map.computeIfAbsent(
-            METADATA_FIELDS,
-            v -> new HashMap<String, DocumentField>()
-        );
-        if (fieldName.equals(IgnoredFieldMapper.NAME)) {
-            fieldMap.put(fieldName, new DocumentField(fieldName, (List<Object>) fieldValue));
-        } else {
-            fieldMap.put(fieldName, new DocumentField(fieldName, Collections.singletonList(fieldValue)));
-        }
-    };
-
-    /**
-     * This parser outputs a temporary map of the objects needed to create the
-     * SearchHit instead of directly creating the SearchHit. The reason for this
-     * is that this way we can reuse the parser when parsing xContent from
-     * {@link org.elasticsearch.search.suggest.completion.CompletionSuggestion.Entry.Option} which unfortunately inlines
-     * the output of
-     * {@link #toInnerXContent(XContentBuilder, org.elasticsearch.xcontent.ToXContent.Params)}
-     * of the included search hit. The output of the map is used to create the
-     * actual SearchHit instance via {@link #createFromMap(Map)}
-     */
-    private static final ObjectParser<Map<String, Object>, Void> MAP_PARSER = new ObjectParser<>(
-        "innerHitParser",
-        unknownMetaFieldConsumer,
-        HashMap::new
-    );
-
-    static {
-        declareInnerHitsParseFields(MAP_PARSER);
-    }
-
-    public static SearchHit fromXContent(XContentParser parser) {
-        return createFromMap(MAP_PARSER.apply(parser, null));
-    }
-
-    public static void declareInnerHitsParseFields(ObjectParser<Map<String, Object>, Void> parser) {
-        parser.declareString((map, value) -> map.put(Fields._INDEX, value), new ParseField(Fields._INDEX));
-        parser.declareString((map, value) -> map.put(Fields._ID, value), new ParseField(Fields._ID));
-        parser.declareString((map, value) -> map.put(Fields._NODE, value), new ParseField(Fields._NODE));
-        parser.declareField(
-            (map, value) -> map.put(Fields._SCORE, value),
-            SearchHit::parseScore,
-            new ParseField(Fields._SCORE),
-            ValueType.FLOAT_OR_NULL
-        );
-        parser.declareInt((map, value) -> map.put(Fields._RANK, value), new ParseField(Fields._RANK));
-
-        parser.declareLong((map, value) -> map.put(Fields._VERSION, value), new ParseField(Fields._VERSION));
-        parser.declareLong((map, value) -> map.put(Fields._SEQ_NO, value), new ParseField(Fields._SEQ_NO));
-        parser.declareLong((map, value) -> map.put(Fields._PRIMARY_TERM, value), new ParseField(Fields._PRIMARY_TERM));
-        parser.declareField(
-            (map, value) -> map.put(Fields._SHARD, value),
-            (p, c) -> ShardId.fromString(p.text()),
-            new ParseField(Fields._SHARD),
-            ValueType.STRING
-        );
-        parser.declareObject(
-            (map, value) -> map.put(SourceFieldMapper.NAME, value),
-            (p, c) -> parseSourceBytes(p),
-            new ParseField(SourceFieldMapper.NAME)
-        );
-        parser.declareObject(
-            (map, value) -> map.put(Fields.HIGHLIGHT, value),
-            (p, c) -> parseHighlightFields(p),
-            new ParseField(Fields.HIGHLIGHT)
-        );
-        parser.declareObject((map, value) -> {
-            Map<String, DocumentField> fieldMap = get(Fields.FIELDS, map, new HashMap<String, DocumentField>());
-            fieldMap.putAll(value);
-            map.put(DOCUMENT_FIELDS, fieldMap);
-        }, (p, c) -> parseFields(p), new ParseField(Fields.FIELDS));
-        parser.declareObject(
-            (map, value) -> map.put(Fields._EXPLANATION, value),
-            (p, c) -> parseExplanation(p),
-            new ParseField(Fields._EXPLANATION)
-        );
-        parser.declareObject(
-            (map, value) -> map.put(NestedIdentity._NESTED, value),
-            NestedIdentity::fromXContent,
-            new ParseField(NestedIdentity._NESTED)
-        );
-        parser.declareObject(
-            (map, value) -> map.put(Fields.INNER_HITS, value),
-            (p, c) -> parseInnerHits(p),
-            new ParseField(Fields.INNER_HITS)
-        );
-
-        parser.declareField((p, map, context) -> {
-            XContentParser.Token token = p.currentToken();
-            Map<String, Float> matchedQueries = new LinkedHashMap<>();
-            if (token == XContentParser.Token.START_OBJECT) {
-                String fieldName = null;
-                while ((token = p.nextToken()) != XContentParser.Token.END_OBJECT) {
-                    if (token == XContentParser.Token.FIELD_NAME) {
-                        fieldName = p.currentName();
-                    } else if (token.isValue()) {
-                        matchedQueries.put(fieldName, p.floatValue());
-                    }
-                }
-            } else if (token == XContentParser.Token.START_ARRAY) {
-                while (p.nextToken() != XContentParser.Token.END_ARRAY) {
-                    matchedQueries.put(p.text(), Float.NaN);
-                }
-            }
-            map.put(Fields.MATCHED_QUERIES, matchedQueries);
-        }, new ParseField(Fields.MATCHED_QUERIES), ObjectParser.ValueType.OBJECT_ARRAY);
-
-        parser.declareField(
-            (map, list) -> map.put(Fields.SORT, list),
-            SearchSortValues::fromXContent,
-            new ParseField(Fields.SORT),
-            ValueType.OBJECT_ARRAY
-        );
-    }
-
-    public static SearchHit createFromMap(Map<String, Object> values) {
-        String id = get(Fields._ID, values, null);
-        String index = get(Fields._INDEX, values, null);
-        String clusterAlias = null;
-        if (index != null) {
-            int indexOf = index.indexOf(RemoteClusterAware.REMOTE_CLUSTER_INDEX_SEPARATOR);
-            if (indexOf > 0) {
-                clusterAlias = index.substring(0, indexOf);
-                index = index.substring(indexOf + 1);
-            }
-        }
-        ShardId shardId = get(Fields._SHARD, values, null);
-        String nodeId = get(Fields._NODE, values, null);
-        final SearchShardTarget shardTarget;
-        if (shardId != null && nodeId != null) {
-            assert shardId.getIndexName().equals(index);
-            shardTarget = new SearchShardTarget(nodeId, shardId, clusterAlias);
-            index = shardTarget.getIndex();
-            clusterAlias = shardTarget.getClusterAlias();
-        } else {
-            shardTarget = null;
-        }
-        return new SearchHit(
-            -1,
-            get(Fields._SCORE, values, DEFAULT_SCORE),
-            get(Fields._RANK, values, NO_RANK),
-            id == null ? null : new Text(id),
-            get(NestedIdentity._NESTED, values, null),
-            get(Fields._VERSION, values, -1L),
-            get(Fields._SEQ_NO, values, SequenceNumbers.UNASSIGNED_SEQ_NO),
-            get(Fields._PRIMARY_TERM, values, SequenceNumbers.UNASSIGNED_PRIMARY_TERM),
-            get(SourceFieldMapper.NAME, values, null),
-            get(Fields.HIGHLIGHT, values, null),
-            get(Fields.SORT, values, SearchSortValues.EMPTY),
-            get(Fields.MATCHED_QUERIES, values, null),
-            get(Fields._EXPLANATION, values, null),
-            shardTarget,
-            index,
-            clusterAlias,
-            null,
-            get(Fields.INNER_HITS, values, null),
-            get(DOCUMENT_FIELDS, values, Collections.emptyMap()),
-            get(METADATA_FIELDS, values, Collections.emptyMap()),
-            ALWAYS_REFERENCED // TODO: do we ever want pooling here?
-        );
-    }
-
-    @SuppressWarnings("unchecked")
-    private static <T> T get(String key, Map<String, Object> map, T defaultValue) {
-        return (T) map.getOrDefault(key, defaultValue);
-    }
-
-    private static float parseScore(XContentParser parser) throws IOException {
-        if (parser.currentToken() == XContentParser.Token.VALUE_NUMBER || parser.currentToken() == XContentParser.Token.VALUE_STRING) {
-            return parser.floatValue();
-        } else {
-            return Float.NaN;
-        }
-    }
-
-    private static BytesReference parseSourceBytes(XContentParser parser) throws IOException {
-        try (XContentBuilder builder = XContentBuilder.builder(parser.contentType().xContent())) {
-            // the original document gets slightly modified: whitespaces or
-            // pretty printing are not preserved,
-            // it all depends on the current builder settings
-            builder.copyCurrentStructure(parser);
-            return BytesReference.bytes(builder);
-        }
-    }
-
-    private static Map<String, DocumentField> parseFields(XContentParser parser) throws IOException {
-        Map<String, DocumentField> fields = new HashMap<>();
-        while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
-            DocumentField field = DocumentField.fromXContent(parser);
-            fields.put(field.getName(), field);
-        }
-        return fields;
-    }
-
-    private static Map<String, SearchHits> parseInnerHits(XContentParser parser) throws IOException {
-        Map<String, SearchHits> innerHits = new HashMap<>();
-        while ((parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-            ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.currentToken(), parser);
-            String name = parser.currentName();
-            ensureExpectedToken(Token.START_OBJECT, parser.nextToken(), parser);
-            ensureFieldName(parser, parser.nextToken(), SearchHits.Fields.HITS);
-            innerHits.put(name, SearchHits.fromXContent(parser));
-            ensureExpectedToken(XContentParser.Token.END_OBJECT, parser.nextToken(), parser);
-        }
-        return innerHits;
-    }
-
-    private static Map<String, HighlightField> parseHighlightFields(XContentParser parser) throws IOException {
-        Map<String, HighlightField> highlightFields = new HashMap<>();
-        while ((parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-            HighlightField highlightField = HighlightField.fromXContent(parser);
-            highlightFields.put(highlightField.name(), highlightField);
-        }
-        return highlightFields;
-    }
-
-    private static Explanation parseExplanation(XContentParser parser) throws IOException {
-        ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser);
-        XContentParser.Token token;
-        Float value = null;
-        String description = null;
-        List<Explanation> details = new ArrayList<>();
-        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-            ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser);
-            String currentFieldName = parser.currentName();
-            token = parser.nextToken();
-            if (Fields.VALUE.equals(currentFieldName)) {
-                value = parser.floatValue();
-            } else if (Fields.DESCRIPTION.equals(currentFieldName)) {
-                description = parser.textOrNull();
-            } else if (Fields.DETAILS.equals(currentFieldName)) {
-                ensureExpectedToken(XContentParser.Token.START_ARRAY, token, parser);
-                while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                    details.add(parseExplanation(parser));
-                }
-            } else {
-                parser.skipChildren();
-            }
-        }
-        if (value == null) {
-            throw new ParsingException(parser.getTokenLocation(), "missing explanation value");
-        }
-        if (description == null) {
-            throw new ParsingException(parser.getTokenLocation(), "missing explanation description");
-        }
-        return Explanation.match(value, description, details);
-    }
-
     private static void buildExplanation(XContentBuilder builder, Explanation explanation) throws IOException {
         builder.startObject();
         builder.field(Fields.VALUE, explanation.getValue());
@@ -1244,9 +983,9 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
      */
     public static final class NestedIdentity implements Writeable, ToXContentFragment {
 
-        private static final String _NESTED = "_nested";
-        private static final String FIELD = "field";
-        private static final String OFFSET = "offset";
+        static final String _NESTED = "_nested";
+        static final String FIELD = "field";
+        static final String OFFSET = "offset";
 
         private final Text field;
         private final int offset;
@@ -1370,25 +1109,6 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
             }
             builder.endObject();
             return builder;
-        }
-
-        private static final ConstructingObjectParser<NestedIdentity, Void> PARSER = new ConstructingObjectParser<>(
-            "nested_identity",
-            true,
-            ctorArgs -> new NestedIdentity((String) ctorArgs[0], (int) ctorArgs[1], (NestedIdentity) ctorArgs[2])
-        );
-        static {
-            PARSER.declareString(constructorArg(), new ParseField(FIELD));
-            PARSER.declareInt(constructorArg(), new ParseField(OFFSET));
-            PARSER.declareObject(optionalConstructorArg(), PARSER, new ParseField(_NESTED));
-        }
-
-        static NestedIdentity fromXContent(XContentParser parser, Void context) {
-            return fromXContent(parser);
-        }
-
-        public static NestedIdentity fromXContent(XContentParser parser) {
-            return PARSER.apply(parser, null);
         }
 
         @Override

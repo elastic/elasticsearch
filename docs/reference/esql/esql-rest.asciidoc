@@ -111,6 +111,9 @@ s|Description
 |{wikipedia}/Smile_(data_interchange_format)[Smile] binary data format similar
 to CBOR
 
+|arrow
+|application/vnd.apache.arrow.stream
+|**Experimental.** https://arrow.apache.org/[Apache Arrow] dataframes, https://arrow.apache.org/docs/format/Columnar.html#ipc-streaming-format[IPC streaming format]
 |===
 
 The `csv` format accepts a formatting URL query attribute, `delimiter`, which
@@ -189,6 +192,7 @@ Which returns:
 [source,console-result]
 ----
 {
+  "took": 28,
   "columns": [
     {"name": "author", "type": "text"},
     {"name": "name", "type": "text"},
@@ -203,6 +207,7 @@ Which returns:
   ]
 }
 ----
+// TESTRESPONSE[s/"took": 28/"took": "$body.took"/]
 
 [discrete]
 [[esql-locale-param]]
@@ -222,7 +227,7 @@ POST /_query
 {
   "locale": "fr-FR",
   "query": """
-          ROW birth_date_string = "2023-01-15T00:00:00.000Z" 
+          ROW birth_date_string = "2023-01-15T00:00:00.000Z"
           | EVAL birth_date = date_parse(birth_date_string)
           | EVAL month_of_birth = DATE_FORMAT("MMMM",birth_date)
           | LIMIT 5
@@ -275,6 +280,47 @@ POST /_query
 ----
 // TEST[setup:library]
 
+The parameters can be named parameters or positional parameters.
+
+Named parameters use question mark placeholders (`?`) followed by a string.
+
+[source,console]
+----
+POST /_query
+{
+  "query": """
+    FROM library
+    | EVAL year = DATE_EXTRACT("year", release_date)
+    | WHERE page_count > ?page_count AND author == ?author
+    | STATS count = COUNT(*) by year
+    | WHERE count > ?count
+    | LIMIT 5
+  """,
+  "params": [{"page_count" : 300}, {"author" : "Frank Herbert"}, {"count" : 0}]
+}
+----
+// TEST[setup:library]
+
+Positional parameters use question mark placeholders (`?`) followed by an
+integer.
+
+[source,console]
+----
+POST /_query
+{
+  "query": """
+    FROM library
+    | EVAL year = DATE_EXTRACT("year", release_date)
+    | WHERE page_count > ?1 AND author == ?2
+    | STATS count = COUNT(*) by year
+    | WHERE count > ?3
+    | LIMIT 5
+  """,
+  "params": [300, "Frank Herbert", 0]
+}
+----
+// TEST[setup:library]
+
 [discrete]
 [[esql-rest-async-query]]
 ==== Running an async {esql} query
@@ -308,6 +354,7 @@ POST /_query/async
 }
 ----
 // TEST[setup:library]
+// TEST[skip:awaitsfix https://github.com/elastic/elasticsearch/issues/104013]
 
 If the results are not available within the given timeout period, 2
 seconds in this case, no results are returned but rather a response that
@@ -339,12 +386,13 @@ GET /_query/async/FmNJRUZ1YWZCU3dHY1BIOUhaenVSRkEaaXFlZ3h4c1RTWFNocDdnY2FSaERnUT
 // TEST[skip: no access to query ID - may return response values]
 
 If the response's `is_running` value is `false`, the query has finished
-and the results are returned.
+and the results are returned, along with the `took` time for the query.
 
 [source,console-result]
 ----
 {
   "is_running": false,
+  "took": 48,
   "columns": ...
 }
 ----

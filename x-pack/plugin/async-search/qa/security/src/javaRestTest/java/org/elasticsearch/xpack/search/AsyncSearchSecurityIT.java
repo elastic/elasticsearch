@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.search;
 
 import org.apache.http.util.EntityUtils;
+import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Request;
@@ -105,6 +106,7 @@ public class AsyncSearchSecurityIT extends ESRestTestCase {
         .user("user2", "x-pack-test-password", "user2", false)
         .user("user-dls", "x-pack-test-password", "user-dls", false)
         .user("user-cancel", "x-pack-test-password", "user-cancel", false)
+        .user("user-monitor", "x-pack-test-password", "user-monitor", false)
         .build();
 
     @Override
@@ -169,48 +171,53 @@ public class AsyncSearchSecurityIT extends ESRestTestCase {
         testCase("user2", "user1");
     }
 
+    /**
+     * This test uses a 10-second delay in the search completion so that all actions against that user are done
+     * while the search is still running (which has different code paths from when the search is finished, which
+     * the testWithUsers test is generally testing).
+     * @throws IOException
+     */
+    public void testStatusWithUsersWhileSearchIsRunning() throws IOException {
+        assumeTrue("[error_query] is only available in snapshot builds", Build.current().isSnapshot());
+        String user = randomFrom("user1", "user2");
+        String other = user.equals("user1") ? "user2" : "user1";
+        String indexName = "index-" + user;
+        String query = """
+            {
+              "query": {
+                "error_query": {
+                  "indices": [
+                    {
+                      "name": "*",
+                      "error_type": "none",
+                      "stall_time_seconds": 10
+                    }
+                  ]
+                }
+              }
+            }""";
+
+        Response submitResp = submitAsyncSearchWithJsonBody(indexName, query, TimeValue.timeValueMillis(10), user);
+        assertOK(submitResp);
+        String id = extractResponseId(submitResp);
+
+        userBasedPermissionsAsserts(user, other, indexName, id);
+
+        ResponseException exc = expectThrows(
+            ResponseException.class,
+            () -> submitAsyncSearch("index-" + other, "*", TimeValue.timeValueSeconds(10), user)
+        );
+        assertThat(exc.getResponse().getStatusLine().getStatusCode(), equalTo(403));
+        assertThat(exc.getMessage(), containsString("unauthorized"));
+    }
+
     private void testCase(String user, String other) throws Exception {
         for (String indexName : new String[] { "index", "index-" + user }) {
             Response submitResp = submitAsyncSearch(indexName, "foo:bar", TimeValue.timeValueSeconds(10), user);
             assertOK(submitResp);
             String id = extractResponseId(submitResp);
-            Response getResp = getAsyncSearch(id, user);
-            assertOK(getResp);
 
-            // other cannot access the result
-            ResponseException exc = expectThrows(ResponseException.class, () -> getAsyncSearch(id, other));
-            assertThat(exc.getResponse().getStatusLine().getStatusCode(), equalTo(404));
-
-            // user-cancel cannot access the result
-            exc = expectThrows(ResponseException.class, () -> getAsyncSearch(id, "user-cancel"));
-            assertThat(exc.getResponse().getStatusLine().getStatusCode(), equalTo(404));
-
-            // other cannot delete the result
-            exc = expectThrows(ResponseException.class, () -> deleteAsyncSearch(id, other));
-            assertThat(exc.getResponse().getStatusLine().getStatusCode(), equalTo(404));
-
-            // other and user cannot access the result from direct get calls
-            AsyncExecutionId searchId = AsyncExecutionId.decode(id);
-            for (String runAs : new String[] { user, other }) {
-                exc = expectThrows(ResponseException.class, () -> get(ASYNC_RESULTS_INDEX, searchId.getDocId(), runAs));
-                assertThat(exc.getResponse().getStatusLine().getStatusCode(), equalTo(403));
-                assertThat(exc.getMessage(), containsString("unauthorized"));
-            }
-
-            Response delResp = deleteAsyncSearch(id, user);
-            assertOK(delResp);
-
-            // check that users with the 'cancel_task' privilege can delete an async
-            // search submitted by a different user.
-            for (String runAs : new String[] { "user-cancel", "test_kibana_user" }) {
-                Response newResp = submitAsyncSearch(indexName, "foo:bar", TimeValue.timeValueSeconds(10), user);
-                assertOK(newResp);
-                String newId = extractResponseId(newResp);
-                exc = expectThrows(ResponseException.class, () -> getAsyncSearch(id, runAs));
-                assertThat(exc.getResponse().getStatusLine().getStatusCode(), greaterThan(400));
-                delResp = deleteAsyncSearch(newId, runAs);
-                assertOK(delResp);
-            }
+            userBasedPermissionsAsserts(user, other, indexName, id);
         }
         ResponseException exc = expectThrows(
             ResponseException.class,
@@ -220,10 +227,71 @@ public class AsyncSearchSecurityIT extends ESRestTestCase {
         assertThat(exc.getMessage(), containsString("unauthorized"));
     }
 
+    private static void userBasedPermissionsAsserts(String user, String other, String indexName, String id) throws IOException {
+        Response statusResp = getAsyncStatus(id, user);
+        assertOK(statusResp);
+
+        Response getResp = getAsyncSearch(id, user);
+        assertOK(getResp);
+
+        // other (user) cannot access the status
+        ResponseException exc = expectThrows(ResponseException.class, () -> getAsyncStatus(id, other));
+        assertThat(exc.getResponse().getStatusLine().getStatusCode(), equalTo(404));
+
+        // other (user) cannot access the result
+        exc = expectThrows(ResponseException.class, () -> getAsyncSearch(id, other));
+        assertThat(exc.getResponse().getStatusLine().getStatusCode(), equalTo(404));
+
+        // user-cancel cannot access the result
+        exc = expectThrows(ResponseException.class, () -> getAsyncSearch(id, "user-cancel"));
+        assertThat(exc.getResponse().getStatusLine().getStatusCode(), equalTo(404));
+
+        // user-monitor can access the status
+        assertOK(getAsyncStatus(id, "user-monitor"));
+
+        // user-monitor can access status and set keep_alive
+        assertOK(getAsyncStatusAndSetKeepAlive(id, "user-monitor"));
+
+        // user-monitor cannot access the result
+        exc = expectThrows(ResponseException.class, () -> getAsyncSearch(id, "user-monitor"));
+        assertThat(exc.getResponse().getStatusLine().getStatusCode(), equalTo(404));
+
+        // other cannot delete the result
+        exc = expectThrows(ResponseException.class, () -> deleteAsyncSearch(id, other));
+        assertThat(exc.getResponse().getStatusLine().getStatusCode(), equalTo(404));
+
+        // user-monitor cannot delete the result
+        exc = expectThrows(ResponseException.class, () -> deleteAsyncSearch(id, "user-monitor"));
+        assertThat(exc.getResponse().getStatusLine().getStatusCode(), equalTo(404));
+
+        // none of the users can access the result from direct get calls on the index
+        AsyncExecutionId searchId = AsyncExecutionId.decode(id);
+        for (String runAs : new String[] { user, other, "user-monitor", "user-cancel" }) {
+            exc = expectThrows(ResponseException.class, () -> get(ASYNC_RESULTS_INDEX, searchId.getDocId(), runAs));
+            assertThat(exc.getResponse().getStatusLine().getStatusCode(), equalTo(403));
+            assertThat(exc.getMessage(), containsString("unauthorized"));
+        }
+
+        Response delResp = deleteAsyncSearch(id, user);
+        assertOK(delResp);
+
+        // check that users with the 'cancel_task' privilege can delete an async
+        // search submitted by a different user.
+        for (String runAs : new String[] { "user-cancel", "test_kibana_user" }) {
+            Response newResp = submitAsyncSearch(indexName, "foo:bar", TimeValue.timeValueSeconds(10), user);
+            assertOK(newResp);
+            String newId = extractResponseId(newResp);
+            exc = expectThrows(ResponseException.class, () -> getAsyncSearch(id, runAs));
+            assertThat(exc.getResponse().getStatusLine().getStatusCode(), greaterThan(400));
+            delResp = deleteAsyncSearch(newId, runAs);
+            assertOK(delResp);
+        }
+    }
+
     private SearchHit[] getSearchHits(String asyncId, String user) throws IOException {
         final Response resp = getAsyncSearch(asyncId, user);
         assertOK(resp);
-        SearchResponse searchResponse = ASYNC_SEARCH_RESPONSE_PARSER.apply(
+        AsyncSearchResponse asyncSearchResponse = ASYNC_SEARCH_RESPONSE_PARSER.apply(
             XContentHelper.createParser(
                 NamedXContentRegistry.EMPTY,
                 LoggingDeprecationHandler.INSTANCE,
@@ -231,11 +299,13 @@ public class AsyncSearchSecurityIT extends ESRestTestCase {
                 XContentType.JSON
             ),
             null
-        ).getSearchResponse();
+        );
+        SearchResponse searchResponse = asyncSearchResponse.getSearchResponse();
         try {
             return searchResponse.getHits().asUnpooled().getHits();
         } finally {
             searchResponse.decRef();
+            asyncSearchResponse.decRef();
         }
     }
 
@@ -392,6 +462,17 @@ public class AsyncSearchSecurityIT extends ESRestTestCase {
         return client().performRequest(request);
     }
 
+    static Response submitAsyncSearchWithJsonBody(String indexName, String jsonBody, TimeValue waitForCompletion, String user)
+        throws IOException {
+        final Request request = new Request("POST", indexName + "/_async_search");
+        setRunAsHeader(request, user);
+        request.setJsonEntity(jsonBody);
+        request.addParameter("wait_for_completion_timeout", waitForCompletion.toString());
+        // we do the cleanup explicitly
+        request.addParameter("keep_on_completion", "true");
+        return client().performRequest(request);
+    }
+
     static Response submitAsyncSearch(String indexName, String query, TimeValue waitForCompletion, String user) throws IOException {
         final Request request = new Request("POST", indexName + "/_async_search");
         setRunAsHeader(request, user);
@@ -399,6 +480,19 @@ public class AsyncSearchSecurityIT extends ESRestTestCase {
         request.addParameter("wait_for_completion_timeout", waitForCompletion.toString());
         // we do the cleanup explicitly
         request.addParameter("keep_on_completion", "true");
+        return client().performRequest(request);
+    }
+
+    static Response getAsyncStatus(String id, String user) throws IOException {
+        final Request request = new Request("GET", "/_async_search/status/" + id);
+        setRunAsHeader(request, user);
+        return client().performRequest(request);
+    }
+
+    static Response getAsyncStatusAndSetKeepAlive(String id, String user) throws IOException {
+        final Request request = new Request("GET", "/_async_search/status/" + id);
+        setRunAsHeader(request, user);
+        request.addParameter("keep_alive", "3m");
         return client().performRequest(request);
     }
 

@@ -1,0 +1,1 @@
+arrow: org.elasticsearch.xpack.esql.arrow.AllocationManagerShim

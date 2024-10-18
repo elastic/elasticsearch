@@ -7,19 +7,13 @@
 
 package org.elasticsearch.xpack.core.security.action;
 
-import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.SecureString;
-import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
-import org.elasticsearch.xpack.core.security.authc.jwt.JwtAuthenticationToken;
 import org.elasticsearch.xpack.core.security.authc.jwt.JwtRealmSettings;
-import org.elasticsearch.xpack.core.security.authc.support.BearerToken;
-import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 
 import java.io.IOException;
 
@@ -134,30 +128,6 @@ public class Grant implements Writeable {
 
     public void setClientAuthentication(ClientAuthentication clientAuthentication) {
         this.clientAuthentication = clientAuthentication;
-    }
-
-    public AuthenticationToken getAuthenticationToken() {
-        assert validate(null) == null : "grant is invalid";
-        return switch (type) {
-            case PASSWORD_GRANT_TYPE -> new UsernamePasswordToken(username, password);
-            case ACCESS_TOKEN_GRANT_TYPE -> {
-                SecureString clientAuthentication = this.clientAuthentication != null ? this.clientAuthentication.value() : null;
-                AuthenticationToken token = JwtAuthenticationToken.tryParseJwt(accessToken, clientAuthentication);
-                if (token != null) {
-                    yield token;
-                }
-                if (clientAuthentication != null) {
-                    clientAuthentication.close();
-                    throw new ElasticsearchSecurityException(
-                        "[client_authentication] not supported with the supplied access_token type",
-                        RestStatus.BAD_REQUEST
-                    );
-                }
-                // here we effectively assume it's an ES access token (from the {@code TokenService})
-                yield new BearerToken(accessToken);
-            }
-            default -> throw new ElasticsearchSecurityException("the grant type [{}] is not supported", type);
-        };
     }
 
     public ActionRequestValidationException validate(ActionRequestValidationException validationException) {

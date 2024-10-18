@@ -15,7 +15,7 @@ import java.io.IOException;
 
 public class XPackUsageFeatureResponse extends ActionResponse {
 
-    private XPackFeatureSet.Usage usage;
+    private final XPackFeatureSet.Usage usage;
 
     public XPackUsageFeatureResponse(StreamInput in) throws IOException {
         super(in);

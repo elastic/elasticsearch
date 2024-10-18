@@ -20,6 +20,7 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.plugins.Plugin;
@@ -145,7 +146,7 @@ public abstract class AsyncSearchIntegTestCase extends ESIntegTestCase {
      */
     protected void restartTaskNode(String id, String indexName) throws Exception {
         AsyncExecutionId searchId = AsyncExecutionId.decode(id);
-        final ClusterStateResponse clusterState = clusterAdmin().prepareState().clear().setNodes(true).get();
+        final ClusterStateResponse clusterState = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).clear().setNodes(true).get();
         DiscoveryNode node = clusterState.getState().nodes().get(searchId.getTaskId().getNodeId());
 
         // Temporarily stop garbage collection, making sure to wait for any in-flight tasks to complete
@@ -239,7 +240,7 @@ public abstract class AsyncSearchIntegTestCase extends ESIntegTestCase {
         int numFailures,
         int progressStep
     ) throws Exception {
-        final String pitId;
+        final BytesReference pitId;
         final SubmitAsyncSearchRequest request;
         if (randomBoolean()) {
             OpenPointInTimeRequest openPIT = new OpenPointInTimeRequest(indexName).keepAlive(TimeValue.timeValueMinutes(between(5, 10)));

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 
@@ -261,7 +262,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
    *             Properties to expand when copying packaging files             *
    *****************************************************************************/
   configurations {
-    ['libs', 'libsVersionChecker', 'libsCliLauncher', 'libsServerCli', 'libsWindowsServiceCli', 'libsPluginCli', 'libsKeystoreCli', 'libsSecurityCli', 'libsGeoIpCli', 'libsAnsiConsole'].each {
+    ['libs', 'libsVersionChecker', 'libsCliLauncher', 'libsServerCli', 'libsWindowsServiceCli', 'libsPluginCli', 'libsKeystoreCli', 'libsSecurityCli', 'libsGeoIpCli', 'libsAnsiConsole', 'libsNative'].each {
       create(it) {
         canBeConsumed = false
         canBeResolved = true
@@ -280,8 +281,6 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
 
   dependencies {
     libs project(':server')
-    // this is a special circumstance of a jar that is not a dependency of server, but needs to be in the module path
-    libs project(':libs:elasticsearch-preallocate')
 
     libsVersionChecker project(':distribution:tools:java-version-checker')
     libsCliLauncher project(':distribution:tools:cli-launcher')
@@ -292,6 +291,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
     libsKeystoreCli project(path: ':distribution:tools:keystore-cli')
     libsSecurityCli project(':x-pack:plugin:security:cli')
     libsGeoIpCli project(':distribution:tools:geoip-cli')
+    libsNative project(':libs:elasticsearch-native:elasticsearch-native-libraries')
   }
 
   project.ext {
@@ -299,7 +299,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
     /*****************************************************************************
      *                   Common files in all distributions                       *
      *****************************************************************************/
-    libFiles =
+    libFiles = { os, architecture ->
       copySpec {
         // Delay by using closures, since they have not yet been configured, so no jar task exists yet.
         from(configurations.libs)
@@ -330,21 +330,33 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
         into('tools/ansi-console') {
           from(configurations.libsAnsiConsole)
         }
+        into('platform') {
+          from(configurations.libsNative)
+          if (os != null) {
+            include (os + '-' + architecture + '/*')
+          }
+        }
       }
+    }
 
-    modulesFiles = { platform ->
+    modulesFiles = { os, architecture ->
       copySpec {
         eachFile {
-          if (it.relativePath.segments[-2] == 'bin' || ((platform == 'darwin-x86_64' || platform == 'darwin-aarch64') && it.relativePath.segments[-2] == 'MacOS')) {
+          if (it.relativePath.segments[-2] == 'bin' || (os == 'darwin' && it.relativePath.segments[-2] == 'MacOS')) {
             // bin files, wherever they are within modules (eg platform specific) should be executable
             // and MacOS is an alternative to bin on macOS
-            it.mode = 0755
+            it.permissions.unix(0755)
           } else {
-            it.mode = 0644
+            it.permissions.unix(0644)
           }
         }
         List excludePlatforms = ['linux-x86_64', 'linux-aarch64', 'windows-x86_64', 'darwin-x86_64', 'darwin-aarch64']
-        if (platform != null) {
+        if (os != null) {
+          String platform = os + '-' + architecture
+          if (architecture == 'x64') {
+            // ML platform dir uses the x86_64 nomenclature
+            platform = os + '-x86_64'
+          }
           excludePlatforms.remove(excludePlatforms.indexOf(platform))
         } else {
           excludePlatforms = []
@@ -391,7 +403,11 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
           from '../src/bin'
           exclude '*.exe'
           exclude '*.bat'
-          eachFile { it.setMode(0755) }
+          eachFile {
+            it.permissions{
+              unix(0755)
+            }
+          }
           filter("tokens" : expansionsForDistribution(distributionType, testDistro), ReplaceTokens.class)
         }
         // windows files, only for zip
@@ -409,7 +425,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
         }
         // module provided bin files
         with copySpec {
-          eachFile { it.setMode(0755) }
+          eachFile { it.permissions.unix(0755) }
           from(testDistro ? integTestBinFiles : defaultBinFiles)
           if (distributionType != 'zip') {
             exclude '*.bat'
@@ -424,26 +440,34 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
           from buildServerNoticeTaskProvider
         } else {
           from (buildDefaultNoticeTaskProvider) {
-            fileMode = 0644
+            filePermissions {
+              unix(0644)
+            }
           }
         }
       }
     }
 
-    jdkFiles = { Project project, String platform, String architecture ->
+    jdkFiles = { Project project, String os, String architecture ->
       return copySpec {
-        from project.jdks."bundled_${platform}_${architecture}"
+        from project.jdks."bundled_${os}_${architecture}"
         exclude "demo/**"
         /*
          * The Contents/MacOS directory interferes with notarization, and is unused by our distribution, so we exclude
          * it from the build.
          */
-        if ("darwin".equals(platform)) {
+        if ("darwin".equals(os)) {
           exclude "Contents/MacOS"
         }
         eachFile { FileCopyDetails details ->
           if (details.relativePath.segments[-2] == 'bin' || details.relativePath.segments[-1] == 'jspawnhelper') {
-            details.mode = 0755
+            details.permissions {
+              unix(0755)
+            }
+          } else {
+            details.permissions {
+              unix(0644)
+            }
           }
           if (details.name == 'src.zip') {
             details.exclude()
@@ -487,7 +511,7 @@ subprojects {
 
     String licenseText
     if (isTestDistro) {
-      licenseText = rootProject.file('licenses/SSPL-1.0+ELASTIC-LICENSE-2.0.txt').getText('UTF-8')
+      licenseText = rootProject.file('licenses/AGPL-3.0+SSPL-1.0+ELASTIC-LICENSE-2.0.txt').getText('UTF-8')
     } else {
       licenseText = rootProject.file('licenses/ELASTIC-LICENSE-2.0.txt').getText('UTF-8')
     }

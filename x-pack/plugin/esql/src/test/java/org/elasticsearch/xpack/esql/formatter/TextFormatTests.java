@@ -18,9 +18,9 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.esql.TestBlockFactory;
-import org.elasticsearch.xpack.esql.action.ColumnInfo;
+import org.elasticsearch.xpack.esql.action.ColumnInfoImpl;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
-import org.elasticsearch.xpack.ql.util.StringUtils;
+import org.elasticsearch.xpack.esql.core.util.StringUtils;
 
 import java.io.IOException;
 import java.io.StringWriter;
@@ -34,11 +34,11 @@ import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.rest.RestResponseUtils.getTextBodyContent;
+import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.CARTESIAN;
+import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
 import static org.elasticsearch.xpack.esql.formatter.TextFormat.CSV;
 import static org.elasticsearch.xpack.esql.formatter.TextFormat.PLAIN_TEXT;
 import static org.elasticsearch.xpack.esql.formatter.TextFormat.TSV;
-import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.CARTESIAN;
-import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.GEO;
 
 public class TextFormatTests extends ESTestCase {
 
@@ -241,22 +241,22 @@ public class TextFormatTests extends ESTestCase {
     public void testPlainTextEmptyCursorWithoutColumns() {
         assertEquals(
             StringUtils.EMPTY,
-            getTextBodyContent(PLAIN_TEXT.format(req(), new EsqlQueryResponse(emptyList(), emptyList(), null, false, false)))
+            getTextBodyContent(PLAIN_TEXT.format(req(), new EsqlQueryResponse(emptyList(), emptyList(), null, false, false, null)))
         );
     }
 
     private static EsqlQueryResponse emptyData() {
-        return new EsqlQueryResponse(singletonList(new ColumnInfo("name", "keyword")), emptyList(), null, false, false);
+        return new EsqlQueryResponse(singletonList(new ColumnInfoImpl("name", "keyword")), emptyList(), null, false, false, null);
     }
 
     private static EsqlQueryResponse regularData() {
         BlockFactory blockFactory = TestBlockFactory.getNonBreakingInstance();
         // headers
-        List<ColumnInfo> headers = asList(
-            new ColumnInfo("string", "keyword"),
-            new ColumnInfo("number", "integer"),
-            new ColumnInfo("location", "geo_point"),
-            new ColumnInfo("location2", "cartesian_point")
+        List<ColumnInfoImpl> headers = asList(
+            new ColumnInfoImpl("string", "keyword"),
+            new ColumnInfoImpl("number", "integer"),
+            new ColumnInfoImpl("location", "geo_point"),
+            new ColumnInfoImpl("location2", "cartesian_point")
         );
 
         BytesRefArray geoPoints = new BytesRefArray(2, BigArrays.NON_RECYCLING_INSTANCE);
@@ -278,12 +278,12 @@ public class TextFormatTests extends ESTestCase {
             )
         );
 
-        return new EsqlQueryResponse(headers, values, null, false, false);
+        return new EsqlQueryResponse(headers, values, null, false, false, null);
     }
 
     private static EsqlQueryResponse escapedData() {
         // headers
-        List<ColumnInfo> headers = asList(new ColumnInfo("first", "keyword"), new ColumnInfo("\"special\"", "keyword"));
+        List<ColumnInfoImpl> headers = asList(new ColumnInfoImpl("first", "keyword"), new ColumnInfoImpl("\"special\"", "keyword"));
 
         // values
         List<Page> values = List.of(
@@ -299,7 +299,7 @@ public class TextFormatTests extends ESTestCase {
             )
         );
 
-        return new EsqlQueryResponse(headers, values, null, false, false);
+        return new EsqlQueryResponse(headers, values, null, false, false, null);
     }
 
     private static RestRequest req() {

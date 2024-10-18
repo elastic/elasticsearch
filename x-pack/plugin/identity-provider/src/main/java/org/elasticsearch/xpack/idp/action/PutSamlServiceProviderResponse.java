@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.idp.action;
 
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -32,15 +31,6 @@ public class PutSamlServiceProviderResponse extends ActionResponse implements To
         this.primaryTerm = primaryTerm;
         this.entityId = Objects.requireNonNull(entityId, "Entity Id cannot be null");
         this.enabled = enabled;
-    }
-
-    public PutSamlServiceProviderResponse(StreamInput in) throws IOException {
-        docId = in.readString();
-        created = in.readBoolean();
-        seqNo = in.readZLong();
-        primaryTerm = in.readVLong();
-        entityId = in.readString();
-        enabled = in.readBoolean();
     }
 
     @Override

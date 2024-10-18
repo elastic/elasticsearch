@@ -1,15 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper.extras;
 
 import org.apache.lucene.document.FeatureField;
-import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Query;
@@ -92,15 +92,14 @@ public class RankFeatureFieldMapper extends FieldMapper {
         @Override
         public RankFeatureFieldMapper build(MapperBuilderContext context) {
             return new RankFeatureFieldMapper(
-                name(),
+                leafName(),
                 new RankFeatureFieldType(
-                    context.buildFullName(name()),
+                    context.buildFullName(leafName()),
                     meta.getValue(),
                     positiveScoreImpact.getValue(),
                     nullValue.getValue()
                 ),
-                multiFieldsBuilder.build(this, context),
-                copyTo,
+                builderParams(this, context),
                 positiveScoreImpact.getValue(),
                 nullValue.getValue()
             );
@@ -136,12 +135,7 @@ public class RankFeatureFieldMapper extends FieldMapper {
 
         @Override
         public boolean fieldHasValue(FieldInfos fieldInfos) {
-            for (FieldInfo fieldInfo : fieldInfos) {
-                if (fieldInfo.getName().equals(NAME)) {
-                    return true;
-                }
-            }
-            return false;
+            return fieldInfos.fieldInfo(NAME) != null;
         }
 
         @Override
@@ -178,12 +172,11 @@ public class RankFeatureFieldMapper extends FieldMapper {
     private RankFeatureFieldMapper(
         String simpleName,
         MappedFieldType mappedFieldType,
-        MultiFields multiFields,
-        CopyTo copyTo,
+        BuilderParams builderParams,
         boolean positiveScoreImpact,
         Float nullValue
     ) {
-        super(simpleName, mappedFieldType, multiFields, copyTo, false, null);
+        super(simpleName, mappedFieldType, builderParams);
         this.positiveScoreImpact = positiveScoreImpact;
         this.nullValue = nullValue;
     }
@@ -211,9 +204,9 @@ public class RankFeatureFieldMapper extends FieldMapper {
             value = context.parser().floatValue();
         }
 
-        if (context.doc().getByKey(name()) != null) {
+        if (context.doc().getByKey(fullPath()) != null) {
             throw new IllegalArgumentException(
-                "[rank_feature] fields do not support indexing multiple values for the same field [" + name() + "] in the same document"
+                "[rank_feature] fields do not support indexing multiple values for the same field [" + fullPath() + "] in the same document"
             );
         }
 
@@ -221,7 +214,7 @@ public class RankFeatureFieldMapper extends FieldMapper {
             value = 1 / value;
         }
 
-        context.doc().addWithKey(name(), new FeatureField(NAME, name(), value));
+        context.doc().addWithKey(fullPath(), new FeatureField(NAME, fullPath(), value));
     }
 
     private static Float objectToFloat(Object value) {
@@ -239,6 +232,6 @@ public class RankFeatureFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(simpleName()).init(this);
+        return new Builder(leafName()).init(this);
     }
 }

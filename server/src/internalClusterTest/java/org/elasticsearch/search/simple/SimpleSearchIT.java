@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.simple;
@@ -480,6 +481,46 @@ public class SimpleSearchIT extends ESIntegTestCase {
                 "The length of regex ["
                     + regexp.length()
                     + "] used in the Regexp Query request has exceeded "
+                    + "the allowed maximum of ["
+                    + defaultMaxRegexLength
+                    + "]. "
+                    + "This maximum can be set by changing the ["
+                    + IndexSettings.MAX_REGEX_LENGTH_SETTING.getKey()
+                    + "] index level setting."
+            )
+        );
+    }
+
+    public void testTooLongPrefixInPrefixQuery() throws Exception {
+        createIndex("idx");
+
+        // Ensure the field `num` exists in the mapping
+        client().admin()
+            .indices()
+            .preparePutMapping("idx")
+            .setSource("{\"properties\":{\"num\":{\"type\":\"keyword\"}}}", XContentType.JSON)
+            .get();
+
+        // Index a simple document to ensure the field `num` is in the index
+        indexRandom(true, prepareIndex("idx").setSource("{\"num\":\"test\"}", XContentType.JSON));
+
+        int defaultMaxRegexLength = IndexSettings.MAX_REGEX_LENGTH_SETTING.get(Settings.EMPTY);
+        StringBuilder prefix = new StringBuilder(defaultMaxRegexLength);
+
+        while (prefix.length() <= defaultMaxRegexLength) {
+            prefix.append("a");
+        }
+
+        SearchPhaseExecutionException e = expectThrows(
+            SearchPhaseExecutionException.class,
+            () -> client().prepareSearch("idx").setQuery(QueryBuilders.prefixQuery("num", prefix.toString())).get()
+        );
+        assertThat(
+            e.getRootCause().getMessage(),
+            containsString(
+                "The length of prefix ["
+                    + prefix.length()
+                    + "] used in the Prefix Query request has exceeded "
                     + "the allowed maximum of ["
                     + defaultMaxRegexLength
                     + "]. "

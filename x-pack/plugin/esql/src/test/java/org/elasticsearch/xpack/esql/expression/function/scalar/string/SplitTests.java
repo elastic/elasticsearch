@@ -16,15 +16,15 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
-import org.elasticsearch.xpack.esql.expression.function.scalar.AbstractScalarFunctionTestCase;
-import org.elasticsearch.xpack.ql.InvalidArgumentException;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.Literal;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.DataTypes;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -41,49 +41,30 @@ public class SplitTests extends AbstractScalarFunctionTestCase {
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
-        return parameterSuppliersFromTypedData(List.of(new TestCaseSupplier("split basic test", () -> {
-            String delimiter = randomAlphaOfLength(1);
-            List<BytesRef> strings = IntStream.range(0, between(1, 5))
-                .mapToObj(i -> randomValueOtherThanMany(s -> s.contains(delimiter), () -> randomAlphaOfLength(4)))
-                .map(BytesRef::new)
-                .collect(Collectors.toList());
-            String str = strings.stream().map(BytesRef::utf8ToString).collect(joining(delimiter));
-            return new TestCaseSupplier.TestCase(
-                List.of(
-                    new TestCaseSupplier.TypedData(new BytesRef(str), DataTypes.KEYWORD, "str"),
-                    new TestCaseSupplier.TypedData(new BytesRef(delimiter), DataTypes.KEYWORD, "delim")
-                ),
-                "SplitVariableEvaluator[str=Attribute[channel=0], delim=Attribute[channel=1]]",
-                DataTypes.KEYWORD,
-                equalTo(strings.size() == 1 ? strings.get(0) : strings)
-            );
-        }), new TestCaseSupplier("split basic test with text input", () -> {
-            String delimiter = randomAlphaOfLength(1);
-            List<BytesRef> strings = IntStream.range(0, between(1, 5))
-                .mapToObj(i -> randomValueOtherThanMany(s -> s.contains(delimiter), () -> randomAlphaOfLength(4)))
-                .map(BytesRef::new)
-                .collect(Collectors.toList());
-            String str = strings.stream().map(BytesRef::utf8ToString).collect(joining(delimiter));
-            return new TestCaseSupplier.TestCase(
-                List.of(
-                    new TestCaseSupplier.TypedData(new BytesRef(str), DataTypes.TEXT, "str"),
-                    new TestCaseSupplier.TypedData(new BytesRef(delimiter), DataTypes.TEXT, "delim")
-                ),
-                "SplitVariableEvaluator[str=Attribute[channel=0], delim=Attribute[channel=1]]",
-                DataTypes.KEYWORD,
-                equalTo(strings.size() == 1 ? strings.get(0) : strings)
-            );
-        })));
-    }
-
-    @Override
-    protected DataType expectedType(List<DataType> argTypes) {
-        return DataTypes.KEYWORD;
-    }
-
-    @Override
-    protected List<ArgumentSpec> argSpec() {
-        return List.of(required(strings()), required(strings()));
+        List<TestCaseSupplier> suppliers = new ArrayList<>();
+        List<DataType> supportedDataTyes = List.of(DataType.KEYWORD, DataType.TEXT);
+        for (DataType sType : supportedDataTyes) {
+            for (DataType dType : supportedDataTyes) {
+                suppliers.add(new TestCaseSupplier("split test " + sType.toString() + " " + dType.toString(), List.of(sType, dType), () -> {
+                    String delimiter = randomAlphaOfLength(1);
+                    List<BytesRef> strings = IntStream.range(0, between(1, 5))
+                        .mapToObj(i -> randomValueOtherThanMany(s -> s.contains(delimiter), () -> randomAlphaOfLength(4)))
+                        .map(BytesRef::new)
+                        .collect(Collectors.toList());
+                    String str = strings.stream().map(BytesRef::utf8ToString).collect(joining(delimiter));
+                    return new TestCaseSupplier.TestCase(
+                        List.of(
+                            new TestCaseSupplier.TypedData(new BytesRef(str), sType, "str"),
+                            new TestCaseSupplier.TypedData(new BytesRef(delimiter), dType, "delim")
+                        ),
+                        "SplitVariableEvaluator[str=Attribute[channel=0], delim=Attribute[channel=1]]",
+                        DataType.KEYWORD,
+                        equalTo(strings.size() == 1 ? strings.get(0) : strings)
+                    );
+                }));
+            }
+        }
+        return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers, (v, p) -> "string");
     }
 
     @Override
@@ -95,7 +76,7 @@ public class SplitTests extends AbstractScalarFunctionTestCase {
         DriverContext driverContext = driverContext();
         try (
             EvalOperator.ExpressionEvaluator eval = evaluator(
-                new Split(Source.EMPTY, field("str", DataTypes.KEYWORD), new Literal(Source.EMPTY, new BytesRef(":"), DataTypes.KEYWORD))
+                new Split(Source.EMPTY, field("str", DataType.KEYWORD), new Literal(Source.EMPTY, new BytesRef(":"), DataType.KEYWORD))
             ).get(driverContext)
         ) {
             /*
@@ -123,8 +104,8 @@ public class SplitTests extends AbstractScalarFunctionTestCase {
             () -> evaluator(
                 new Split(
                     Source.EMPTY,
-                    field("str", DataTypes.KEYWORD),
-                    new Literal(Source.EMPTY, new BytesRef(delimiter), DataTypes.KEYWORD)
+                    field("str", DataType.KEYWORD),
+                    new Literal(Source.EMPTY, new BytesRef(delimiter), DataType.KEYWORD)
                 )
             ).get(driverContext)
         );

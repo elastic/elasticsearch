@@ -1,0 +1,134 @@
+setup:
+  - requires:
+      cluster_features: ["gte_v8.12.0"]
+      reason: Introduced in 8.12.0
+
+  - do:
+      connector.put:
+        connector_id: test-connector
+        body:
+          index_name: search-1-test
+          name: my-connector
+          language: pl
+          is_native: false
+          service_type: super-connector
+---
+"Update Connector Last Sync Stats":
+  - do:
+      connector.last_sync:
+        connector_id: test-connector
+        body:
+          last_sync_error: "oh no error"
+          last_access_control_sync_scheduled_at: "2023-05-25T12:30:00.000Z"
+
+  - match: { result: updated }
+
+  - do:
+      connector.get:
+        connector_id: test-connector
+
+  - match: { last_sync_error: "oh no error" }
+  - match: { last_access_control_sync_scheduled_at: "2023-05-25T12:30:00.000Z" }
+
+---
+"Update Connector Last Sync Stats - Supports different datetime format":
+  - do:
+      connector.last_sync:
+        connector_id: test-connector
+        body:
+          last_sync_error: "oh no error"
+          last_access_control_sync_scheduled_at: "2023-05-25T12:30:00.000Z"
+
+  - match: { result: updated }
+
+  - do:
+      connector.get:
+        connector_id: test-connector
+
+  - match: { last_sync_error: "oh no error" }
+  - match: { last_access_control_sync_scheduled_at: "2023-05-25T12:30:00.000Z" }
+
+---
+"Update Connector Last Sync Stats - Supports different partial updates":
+  - do:
+      connector.last_sync:
+        connector_id: test-connector
+        body:
+          last_deleted_document_count: 43
+
+  - match: { result: updated }
+
+  - do:
+      connector.last_sync:
+        connector_id: test-connector
+        body:
+          last_indexed_document_count: 42
+
+  - match: { result: updated }
+
+
+  - do:
+      connector.get:
+        connector_id: test-connector
+
+  - match: { last_deleted_document_count: 43 }
+  - match: { last_indexed_document_count: 42 }
+
+
+---
+"Update Connector Last Sync Stats - Supports sync_cursor updates":
+  - do:
+      connector.last_sync:
+        connector_id: test-connector
+        body:
+          last_deleted_document_count: 123
+
+  - match: { result: updated }
+
+  - do:
+      connector.last_sync:
+        connector_id: test-connector
+        body:
+          sync_cursor: { pointer: 42 }
+
+  - match: { result: updated }
+
+
+  - do:
+      connector.get:
+        connector_id: test-connector
+
+  - match: { sync_cursor: { pointer: 42 } }
+  - match: { last_deleted_document_count: 123 }
+
+
+---
+"Update Connector Last Sync Stats - Connector doesn't exist":
+  - do:
+      catch: "missing"
+      connector.last_sync:
+        connector_id: test-non-existent-connector
+        body:
+          last_sync_error: "oh no error"
+          last_access_control_sync_scheduled_at: "2023-05-25T12:30:00.000Z"
+
+---
+"Update Connector Filtering - Wrong datetime expression":
+  - do:
+      catch: "bad_request"
+      connector.last_sync:
+        connector_id: test-connector
+        body:
+          last_access_control_sync_scheduled_at: "this is not a timestamp"
+
+
+---
+"Update Connector Filtering - Wrong status":
+  - do:
+      catch: "bad_request"
+      connector.last_sync:
+        connector_id: test-connector
+        body:
+          last_sync_status: "this is not a valid status"
+
+

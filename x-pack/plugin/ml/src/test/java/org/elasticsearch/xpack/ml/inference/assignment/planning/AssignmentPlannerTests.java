@@ -42,7 +42,7 @@ public class AssignmentPlannerTests extends ESTestCase {
     public void testModelThatDoesNotFitInMemory() {
         { // Without perDeploymentMemory and perAllocationMemory specified
             List<Node> nodes = List.of(new Node("n_1", scaleNodeSize(50), 4));
-            Deployment deployment = new AssignmentPlan.Deployment("m_1", ByteSizeValue.ofMb(51).getBytes(), 4, 1, Map.of(), 0, 0, 0);
+            Deployment deployment = new AssignmentPlan.Deployment("m_1", ByteSizeValue.ofMb(51).getBytes(), 4, 1, Map.of(), 0, null, 0, 0);
             AssignmentPlan plan = new AssignmentPlanner(nodes, List.of(deployment)).computePlan();
             assertThat(plan.assignments(deployment), isEmpty());
         }
@@ -55,6 +55,7 @@ public class AssignmentPlannerTests extends ESTestCase {
                 1,
                 Map.of(),
                 0,
+                null,
                 ByteSizeValue.ofMb(250).getBytes(),
                 ByteSizeValue.ofMb(51).getBytes()
             );
@@ -65,7 +66,7 @@ public class AssignmentPlannerTests extends ESTestCase {
 
     public void testModelWithThreadsPerAllocationNotFittingOnAnyNode() {
         List<Node> nodes = List.of(new Node("n_1", scaleNodeSize(100), 4), new Node("n_2", scaleNodeSize(100), 5));
-        Deployment deployment = new AssignmentPlan.Deployment("m_1", ByteSizeValue.ofMb(1).getBytes(), 1, 6, Map.of(), 0, 0, 0);
+        Deployment deployment = new AssignmentPlan.Deployment("m_1", ByteSizeValue.ofMb(1).getBytes(), 1, 6, Map.of(), 0, null, 0, 0);
         AssignmentPlan plan = new AssignmentPlanner(nodes, List.of(deployment)).computePlan();
         assertThat(plan.assignments(deployment), isEmpty());
     }
@@ -73,13 +74,13 @@ public class AssignmentPlannerTests extends ESTestCase {
     public void testSingleModelThatFitsFullyOnSingleNode() {
         {
             Node node = new Node("n_1", scaleNodeSize(100), 4);
-            Deployment deployment = new AssignmentPlan.Deployment("m_1", ByteSizeValue.ofMb(100).getBytes(), 1, 1, Map.of(), 0, 0, 0);
+            Deployment deployment = new AssignmentPlan.Deployment("m_1", ByteSizeValue.ofMb(100).getBytes(), 1, 1, Map.of(), 0, null, 0, 0);
             AssignmentPlan plan = new AssignmentPlanner(List.of(node), List.of(deployment)).computePlan();
             assertModelFullyAssignedToNode(plan, deployment, node);
         }
         {
             Node node = new Node("n_1", scaleNodeSize(1000), 8);
-            Deployment deployment = new Deployment("m_1", ByteSizeValue.ofMb(1000).getBytes(), 8, 1, Map.of(), 0, 0, 0);
+            Deployment deployment = new Deployment("m_1", ByteSizeValue.ofMb(1000).getBytes(), 8, 1, Map.of(), 0, null, 0, 0);
             AssignmentPlan plan = new AssignmentPlanner(List.of(node), List.of(deployment)).computePlan();
             assertModelFullyAssignedToNode(plan, deployment, node);
         }
@@ -92,6 +93,7 @@ public class AssignmentPlannerTests extends ESTestCase {
                 16,
                 Map.of(),
                 0,
+                null,
                 0,
                 0
             );
@@ -100,7 +102,7 @@ public class AssignmentPlannerTests extends ESTestCase {
         }
         {
             Node node = new Node("n_1", scaleNodeSize(100), 4);
-            Deployment deployment = new AssignmentPlan.Deployment("m_1", ByteSizeValue.ofMb(100).getBytes(), 1, 1, Map.of(), 0, 0, 0);
+            Deployment deployment = new AssignmentPlan.Deployment("m_1", ByteSizeValue.ofMb(100).getBytes(), 1, 1, Map.of(), 0, null, 0, 0);
             AssignmentPlan plan = new AssignmentPlanner(List.of(node), List.of(deployment)).computePlan();
             assertModelFullyAssignedToNode(plan, deployment, node);
         }
@@ -116,6 +118,7 @@ public class AssignmentPlannerTests extends ESTestCase {
                 1,
                 Map.of(),
                 0,
+                null,
                 ByteSizeValue.ofMb(300).getBytes(),
                 ByteSizeValue.ofMb(100).getBytes()
             );
@@ -131,6 +134,7 @@ public class AssignmentPlannerTests extends ESTestCase {
                 1,
                 Map.of(),
                 0,
+                null,
                 ByteSizeValue.ofMb(100).getBytes(),
                 ByteSizeValue.ofMb(100).getBytes()
             );
@@ -142,7 +146,7 @@ public class AssignmentPlannerTests extends ESTestCase {
     public void testSingleModelThatFitsFullyOnSingleNode_GivenTwoNodes_ShouldBeFullyAssignedOnOneNode() {
         Node node1 = new Node("n_1", scaleNodeSize(100), 4);
         Node node2 = new Node("n_2", scaleNodeSize(100), 4);
-        AssignmentPlan.Deployment deployment = new Deployment("m_1", ByteSizeValue.ofMb(100).getBytes(), 4, 1, Map.of(), 0, 0, 0);
+        AssignmentPlan.Deployment deployment = new Deployment("m_1", ByteSizeValue.ofMb(100).getBytes(), 4, 1, Map.of(), 0, null, 0, 0);
 
         AssignmentPlan plan = new AssignmentPlanner(List.of(node1, node2), List.of(deployment)).computePlan();
 
@@ -164,6 +168,7 @@ public class AssignmentPlannerTests extends ESTestCase {
             1,
             Map.of(),
             0,
+            null,
             ByteSizeValue.ofMb(300).getBytes(),
             ByteSizeValue.ofMb(150).getBytes()
         );
@@ -179,7 +184,7 @@ public class AssignmentPlannerTests extends ESTestCase {
     }
 
     public void testModelWithMoreAllocationsThanAvailableCores_GivenSingleThreadPerAllocation() {
-        AssignmentPlan.Deployment deployment = new Deployment("m_1", ByteSizeValue.ofMb(30).getBytes(), 10, 1, Map.of(), 0, 0, 0);
+        AssignmentPlan.Deployment deployment = new Deployment("m_1", ByteSizeValue.ofMb(30).getBytes(), 10, 1, Map.of(), 0, null, 0, 0);
         // Single node
         {
             Node node = new Node("n_1", scaleNodeSize(100), 4);
@@ -220,6 +225,7 @@ public class AssignmentPlannerTests extends ESTestCase {
             1,
             Map.of(),
             0,
+            null,
             ByteSizeValue.ofMb(300).getBytes(),
             ByteSizeValue.ofMb(100).getBytes()
         );
@@ -255,15 +261,15 @@ public class AssignmentPlannerTests extends ESTestCase {
         }
     }
 
-    public void testMultipleModelsAndNodesWithSingleSolution() {
+    public void testMultipleDeploymentsAndNodesWithSingleSolution() {
         Node node1 = new Node("n_1", 2 * scaleNodeSize(50), 7);
         Node node2 = new Node("n_2", 2 * scaleNodeSize(50), 7);
         Node node3 = new Node("n_3", 2 * scaleNodeSize(50), 2);
         Node node4 = new Node("n_4", 2 * scaleNodeSize(50), 2);
-        Deployment deployment1 = new Deployment("m_1", ByteSizeValue.ofMb(50).getBytes(), 2, 4, Map.of(), 0, 0, 0);
-        Deployment deployment2 = new Deployment("m_2", ByteSizeValue.ofMb(50).getBytes(), 2, 3, Map.of(), 0, 0, 0);
-        Deployment deployment3 = new Deployment("m_3", ByteSizeValue.ofMb(50).getBytes(), 1, 2, Map.of(), 0, 0, 0);
-        Deployment deployment4 = new Deployment("m_4", ByteSizeValue.ofMb(50).getBytes(), 2, 1, Map.of(), 0, 0, 0);
+        Deployment deployment1 = new Deployment("m_1", ByteSizeValue.ofMb(50).getBytes(), 2, 4, Map.of(), 0, null, 0, 0);
+        Deployment deployment2 = new Deployment("m_2", ByteSizeValue.ofMb(50).getBytes(), 2, 3, Map.of(), 0, null, 0, 0);
+        Deployment deployment3 = new Deployment("m_3", ByteSizeValue.ofMb(50).getBytes(), 1, 2, Map.of(), 0, null, 0, 0);
+        Deployment deployment4 = new Deployment("m_4", ByteSizeValue.ofMb(50).getBytes(), 2, 1, Map.of(), 0, null, 0, 0);
 
         AssignmentPlan plan = new AssignmentPlanner(
             List.of(node1, node2, node3, node4),
@@ -310,7 +316,7 @@ public class AssignmentPlannerTests extends ESTestCase {
         }
     }
 
-    public void testMultipleModelsAndNodesWithSingleSolution_NewMemoryFields() {
+    public void testMultipleDeploymentsAndNodesWithSingleSolution_NewMemoryFields() {
         Node node1 = new Node("n_1", ByteSizeValue.ofMb(800).getBytes(), 7);
         Node node2 = new Node("n_2", ByteSizeValue.ofMb(800).getBytes(), 7);
         Node node3 = new Node("n_3", ByteSizeValue.ofMb(900).getBytes(), 2);
@@ -322,6 +328,7 @@ public class AssignmentPlannerTests extends ESTestCase {
             4,
             Map.of(),
             0,
+            null,
             ByteSizeValue.ofMb(300).getBytes(),
             ByteSizeValue.ofMb(50).getBytes()
         );
@@ -332,6 +339,7 @@ public class AssignmentPlannerTests extends ESTestCase {
             3,
             Map.of(),
             0,
+            null,
             ByteSizeValue.ofMb(300).getBytes(),
             ByteSizeValue.ofMb(50).getBytes()
         );
@@ -342,6 +350,7 @@ public class AssignmentPlannerTests extends ESTestCase {
             2,
             Map.of(),
             0,
+            null,
             ByteSizeValue.ofMb(300).getBytes(),
             ByteSizeValue.ofMb(50).getBytes()
         );
@@ -352,6 +361,7 @@ public class AssignmentPlannerTests extends ESTestCase {
             1,
             Map.of(),
             0,
+            null,
             ByteSizeValue.ofMb(300).getBytes(),
             ByteSizeValue.ofMb(50).getBytes()
         );
@@ -402,7 +412,7 @@ public class AssignmentPlannerTests extends ESTestCase {
     }
 
     public void testModelWithMoreAllocationsThanAvailableCores_GivenThreeThreadsPerAllocation() {
-        Deployment deployment = new AssignmentPlan.Deployment("m_1", ByteSizeValue.ofMb(30).getBytes(), 10, 3, Map.of(), 0, 0, 0);
+        Deployment deployment = new AssignmentPlan.Deployment("m_1", ByteSizeValue.ofMb(30).getBytes(), 10, 3, Map.of(), 0, null, 0, 0);
         // Single node
         {
             Node node = new Node("n_1", scaleNodeSize(100), 4);
@@ -443,6 +453,7 @@ public class AssignmentPlannerTests extends ESTestCase {
             3,
             Map.of(),
             0,
+            null,
             ByteSizeValue.ofMb(300).getBytes(),
             ByteSizeValue.ofMb(50).getBytes()
         );
@@ -487,6 +498,7 @@ public class AssignmentPlannerTests extends ESTestCase {
             1,
             Map.of("n_1", 4),
             0,
+            null,
             0,
             0
         );
@@ -496,7 +508,7 @@ public class AssignmentPlannerTests extends ESTestCase {
         assertThat(plan.assignments(deployment).get(), equalTo(Map.of(node, 4)));
     }
 
-    public void testFullCoreUtilization_GivenModelsWithSingleThreadPerAllocation() {
+    public void testFullCoreUtilization_GivenDeploymentsWithSingleThreadPerAllocation() {
         List<Node> nodes = List.of(
             new Node("n_1", ByteSizeValue.ofGb(18).getBytes(), 8),
             new Node("n_2", ByteSizeValue.ofGb(18).getBytes(), 8),
@@ -506,18 +518,18 @@ public class AssignmentPlannerTests extends ESTestCase {
             new Node("n_6", ByteSizeValue.ofGb(32).getBytes(), 16)
         );
         List<Deployment> deployments = List.of(
-            new Deployment("m_1", ByteSizeValue.ofGb(4).getBytes(), 10, 1, Map.of("n_1", 5), 0, 0, 0),
-            new AssignmentPlan.Deployment("m_2", ByteSizeValue.ofGb(2).getBytes(), 3, 1, Map.of("n_3", 2), 0, 0, 0),
-            new AssignmentPlan.Deployment("m_3", ByteSizeValue.ofGb(3).getBytes(), 3, 1, Map.of(), 0, 0, 0),
-            new Deployment("m_4", ByteSizeValue.ofGb(1).getBytes(), 4, 1, Map.of("n_3", 2), 0, 0, 0),
-            new Deployment("m_5", ByteSizeValue.ofGb(6).getBytes(), 2, 1, Map.of(), 0, 0, 0),
-            new Deployment("m_6", ByteSizeValue.ofGb(1).getBytes(), 12, 1, Map.of(), 0, 0, 0),
-            new AssignmentPlan.Deployment("m_7", ByteSizeValue.ofGb(1).getBytes() / 2, 12, 1, Map.of("n_2", 6), 0, 0, 0),
-            new Deployment("m_8", ByteSizeValue.ofGb(2).getBytes(), 4, 1, Map.of(), 0, 0, 0),
-            new Deployment("m_9", ByteSizeValue.ofGb(1).getBytes(), 4, 1, Map.of(), 0, 0, 0),
-            new AssignmentPlan.Deployment("m_10", ByteSizeValue.ofGb(7).getBytes(), 7, 1, Map.of(), 0, 0, 0),
-            new Deployment("m_11", ByteSizeValue.ofGb(2).getBytes(), 3, 1, Map.of(), 0, 0, 0),
-            new Deployment("m_12", ByteSizeValue.ofGb(1).getBytes(), 10, 1, Map.of(), 0, 0, 0)
+            new Deployment("m_1", ByteSizeValue.ofGb(4).getBytes(), 10, 1, Map.of("n_1", 5), 0, null, 0, 0),
+            new AssignmentPlan.Deployment("m_2", ByteSizeValue.ofGb(2).getBytes(), 3, 1, Map.of("n_3", 2), 0, null, 0, 0),
+            new AssignmentPlan.Deployment("m_3", ByteSizeValue.ofGb(3).getBytes(), 3, 1, Map.of(), 0, null, 0, 0),
+            new Deployment("m_4", ByteSizeValue.ofGb(1).getBytes(), 4, 1, Map.of("n_3", 2), 0, null, 0, 0),
+            new Deployment("m_5", ByteSizeValue.ofGb(6).getBytes(), 2, 1, Map.of(), 0, null, 0, 0),
+            new Deployment("m_6", ByteSizeValue.ofGb(1).getBytes(), 12, 1, Map.of(), 0, null, 0, 0),
+            new AssignmentPlan.Deployment("m_7", ByteSizeValue.ofGb(1).getBytes() / 2, 12, 1, Map.of("n_2", 6), 0, null, 0, 0),
+            new Deployment("m_8", ByteSizeValue.ofGb(2).getBytes(), 4, 1, Map.of(), 0, null, 0, 0),
+            new Deployment("m_9", ByteSizeValue.ofGb(1).getBytes(), 4, 1, Map.of(), 0, null, 0, 0),
+            new AssignmentPlan.Deployment("m_10", ByteSizeValue.ofGb(7).getBytes(), 7, 1, Map.of(), 0, null, 0, 0),
+            new Deployment("m_11", ByteSizeValue.ofGb(2).getBytes(), 3, 1, Map.of(), 0, null, 0, 0),
+            new Deployment("m_12", ByteSizeValue.ofGb(1).getBytes(), 10, 1, Map.of(), 0, null, 0, 0)
         );
 
         AssignmentPlan assignmentPlan = new AssignmentPlanner(nodes, deployments).computePlan();
@@ -532,7 +544,7 @@ public class AssignmentPlannerTests extends ESTestCase {
         assertPreviousAssignmentsAreSatisfied(deployments, assignmentPlan);
     }
 
-    public void testFullCoreUtilization_GivenModelsWithSingleThreadPerAllocation_NewMemoryFields() {
+    public void testFullCoreUtilization_GivenDeploymentsWithSingleThreadPerAllocation_NewMemoryFields() {
         List<Node> nodes = List.of(
             new Node("n_1", ByteSizeValue.ofGb(18).getBytes(), 8),
             new Node("n_2", ByteSizeValue.ofGb(18).getBytes(), 8),
@@ -550,10 +562,11 @@ public class AssignmentPlannerTests extends ESTestCase {
                 1,
                 Map.of("n_1", 5),
                 0,
+                null,
                 ByteSizeValue.ofMb(400).getBytes(),
                 ByteSizeValue.ofMb(100).getBytes()
             ),
-            new Deployment("m_2", ByteSizeValue.ofMb(100).getBytes(), 3, 1, Map.of("n_3", 2), 0, 0, 0),
+            new Deployment("m_2", ByteSizeValue.ofMb(100).getBytes(), 3, 1, Map.of("n_3", 2), 0, null, 0, 0),
             new Deployment(
                 "m_3",
                 ByteSizeValue.ofMb(50).getBytes(),
@@ -561,6 +574,7 @@ public class AssignmentPlannerTests extends ESTestCase {
                 1,
                 Map.of(),
                 0,
+                null,
                 ByteSizeValue.ofMb(300).getBytes(),
                 ByteSizeValue.ofMb(50).getBytes()
             ),
@@ -571,6 +585,7 @@ public class AssignmentPlannerTests extends ESTestCase {
                 1,
                 Map.of("n_3", 2),
                 0,
+                null,
                 ByteSizeValue.ofMb(400).getBytes(),
                 ByteSizeValue.ofMb(100).getBytes()
             ),
@@ -581,6 +596,7 @@ public class AssignmentPlannerTests extends ESTestCase {
                 1,
                 Map.of(),
                 0,
+                null,
                 ByteSizeValue.ofMb(800).getBytes(),
                 ByteSizeValue.ofMb(100).getBytes()
             ),
@@ -591,6 +607,7 @@ public class AssignmentPlannerTests extends ESTestCase {
                 1,
                 Map.of(),
                 0,
+                null,
                 ByteSizeValue.ofMb(50).getBytes(),
                 ByteSizeValue.ofMb(20).getBytes()
             ),
@@ -601,14 +618,15 @@ public class AssignmentPlannerTests extends ESTestCase {
                 1,
                 Map.of("n_2", 6),
                 0,
+                null,
                 ByteSizeValue.ofMb(300).getBytes(),
                 ByteSizeValue.ofMb(50).getBytes()
             ),
-            new Deployment("m_8", ByteSizeValue.ofGb(2).getBytes(), 4, 1, Map.of(), 0, 0, 0),
-            new Deployment("m_9", ByteSizeValue.ofGb(1).getBytes(), 4, 1, Map.of(), 0, 0, 0),
-            new Deployment("m_10", ByteSizeValue.ofGb(7).getBytes(), 7, 1, Map.of(), 0, 0, 0),
-            new Deployment("m_11", ByteSizeValue.ofGb(2).getBytes(), 3, 1, Map.of(), 0, 0, 0),
-            new Deployment("m_12", ByteSizeValue.ofGb(1).getBytes(), 10, 1, Map.of(), 0, 0, 0)
+            new Deployment("m_8", ByteSizeValue.ofGb(2).getBytes(), 4, 1, Map.of(), 0, null, 0, 0),
+            new Deployment("m_9", ByteSizeValue.ofGb(1).getBytes(), 4, 1, Map.of(), 0, null, 0, 0),
+            new Deployment("m_10", ByteSizeValue.ofGb(7).getBytes(), 7, 1, Map.of(), 0, null, 0, 0),
+            new Deployment("m_11", ByteSizeValue.ofGb(2).getBytes(), 3, 1, Map.of(), 0, null, 0, 0),
+            new Deployment("m_12", ByteSizeValue.ofGb(1).getBytes(), 10, 1, Map.of(), 0, null, 0, 0)
         );
 
         AssignmentPlan assignmentPlan = new AssignmentPlanner(nodes, deployments).computePlan();
@@ -623,32 +641,32 @@ public class AssignmentPlannerTests extends ESTestCase {
         assertPreviousAssignmentsAreSatisfied(deployments, assignmentPlan);
     }
 
-    public void testTooManyNodesAndModels_DoesNotThrowOOM_GivenNodesJustUnderLimit() {
-        runTooManyNodesAndModels(3161, 1);
+    public void testTooManyNodesAndDeployments_DoesNotThrowOOM_GivenNodesJustUnderLimit() {
+        runTooManyNodesAndDeployments(3161, 1);
     }
 
-    public void testTooManyNodesAndModels_DoesNotThrowOOM_GivenNodesJustOverLimit() {
-        runTooManyNodesAndModels(3162, 1);
+    public void testTooManyNodesAndDeployments_DoesNotThrowOOM_GivenNodesJustOverLimit() {
+        runTooManyNodesAndDeployments(3162, 1);
     }
 
-    public void testTooManyNodesAndModels_DoesNotThrowOOM_GivenModelsJustUnderLimit() {
-        runTooManyNodesAndModels(1, 3161);
+    public void testTooManyNodesAndModels_DoesNotThrowOOM_GivenDeploymentsJustUnderLimit() {
+        runTooManyNodesAndDeployments(1, 3161);
     }
 
-    public void testTooManyNodesAndModels_DoesNotThrowOOM_GivenModelsJustOverLimit() {
-        runTooManyNodesAndModels(1, 3162);
+    public void testTooManyNodesAndModels_DoesNotThrowOOM_GivenDeploymentsJustOverLimit() {
+        runTooManyNodesAndDeployments(1, 3162);
     }
 
-    public void testTooManyNodesAndModels_DoesNotThrowOOM_GivenComboJustUnderLimit() {
-        runTooManyNodesAndModels(170, 171);
+    public void testTooManyNodesAndDeployments_DoesNotThrowOOM_GivenComboJustUnderLimit() {
+        runTooManyNodesAndDeployments(170, 171);
     }
 
-    public void testTooManyNodesAndModels_DoesNotThrowOOM_GivenComboJustOverLimit() {
-        runTooManyNodesAndModels(171, 171);
+    public void testTooManyNodesAndDeployments_DoesNotThrowOOM_GivenComboJustOverLimit() {
+        runTooManyNodesAndDeployments(171, 171);
     }
 
-    public void testTooManyNodesAndModels_DoesNotThrowOOM_GivenComboWayOverLimit() {
-        runTooManyNodesAndModels(1000, 1000);
+    public void testTooManyNodesAndDeployments_DoesNotThrowOOM_GivenComboWayOverLimit() {
+        runTooManyNodesAndDeployments(1000, 1000);
     }
 
     public void testRandomBenchmark() {
@@ -661,7 +679,7 @@ public class AssignmentPlannerTests extends ESTestCase {
             int scale = randomIntBetween(0, 10);
             double load = randomDoubleBetween(0.1, 1.0, true);
             List<Node> nodes = randomNodes(scale);
-            List<Deployment> deployments = randomModels(scale, load);
+            List<Deployment> deployments = randomDeployments(scale, load);
             nodeSizes.add(nodes.size());
             modelSizes.add(deployments.size());
             logger.debug("Nodes = " + nodes.size() + "; Models = " + deployments.size());
@@ -701,7 +719,7 @@ public class AssignmentPlannerTests extends ESTestCase {
         int scale = randomIntBetween(0, 10);
         double load = randomDoubleBetween(0.1, 1.0, true);
         List<Node> nodes = randomNodes(scale);
-        List<AssignmentPlan.Deployment> deployments = randomModels(scale, load);
+        List<AssignmentPlan.Deployment> deployments = randomDeployments(scale, load);
         AssignmentPlan originalPlan = new AssignmentPlanner(nodes, deployments).computePlan();
 
         List<Deployment> previousModelsPlusNew = new ArrayList<>(deployments.size() + 1);
@@ -712,12 +730,13 @@ public class AssignmentPlannerTests extends ESTestCase {
                 .collect(Collectors.toMap(e -> e.getKey().id(), Map.Entry::getValue));
             previousModelsPlusNew.add(
                 new AssignmentPlan.Deployment(
-                    m.id(),
+                    m.deploymentId(),
                     m.memoryBytes(),
                     m.allocations(),
                     m.threadsPerAllocation(),
                     previousAssignments,
                     0,
+                    null,
                     0,
                     0
                 )
@@ -741,10 +760,11 @@ public class AssignmentPlannerTests extends ESTestCase {
             1,
             Map.of("n_1", 2, "n_2", 1),
             0,
+            null,
             0,
             0
         );
-        Deployment deployment2 = new Deployment("m_2", ByteSizeValue.ofMb(1100).getBytes(), 2, 1, Map.of(), 0, 0, 0);
+        Deployment deployment2 = new Deployment("m_2", ByteSizeValue.ofMb(1100).getBytes(), 2, 1, Map.of(), 0, null, 0, 0);
         AssignmentPlan assignmentPlan = new AssignmentPlanner(List.of(node1, node2, node3), List.of(deployment1, deployment2))
             .computePlan();
         assertThat(assignmentPlan.getRemainingNodeMemory("n_1"), greaterThanOrEqualTo(0L));
@@ -776,6 +796,7 @@ public class AssignmentPlannerTests extends ESTestCase {
             1,
             Map.of("n_1", 2, "n_2", 1),
             3,
+            null,
             0,
             0
         );
@@ -786,6 +807,7 @@ public class AssignmentPlannerTests extends ESTestCase {
             2,
             Map.of(),
             1,
+            null,
             0,
             0
         );
@@ -805,10 +827,10 @@ public class AssignmentPlannerTests extends ESTestCase {
         assertThat(assignmentPlan.getRemainingNodeMemory("n_2"), greaterThanOrEqualTo(0L));
     }
 
-    public void testGivenPreviouslyAssignedModels_CannotAllBeAllocated() {
+    public void testGivenPreviouslyAssignedDeployments_CannotAllBeAllocated() {
         Node node1 = new Node("n_1", scaleNodeSize(ByteSizeValue.ofGb(2).getMb()), 2);
-        AssignmentPlan.Deployment deployment1 = new Deployment("m_1", ByteSizeValue.ofMb(1200).getBytes(), 1, 1, Map.of(), 1, 0, 0);
-        AssignmentPlan.Deployment deployment2 = new Deployment("m_2", ByteSizeValue.ofMb(1100).getBytes(), 1, 1, Map.of(), 1, 0, 0);
+        AssignmentPlan.Deployment deployment1 = new Deployment("m_1", ByteSizeValue.ofMb(1200).getBytes(), 1, 1, Map.of(), 1, null, 0, 0);
+        AssignmentPlan.Deployment deployment2 = new Deployment("m_2", ByteSizeValue.ofMb(1100).getBytes(), 1, 1, Map.of(), 1, null, 0, 0);
 
         AssignmentPlan assignmentPlan = new AssignmentPlanner(List.of(node1), List.of(deployment1, deployment2)).computePlan();
 
@@ -818,9 +840,9 @@ public class AssignmentPlannerTests extends ESTestCase {
     public void testGivenClusterResize_AllocationShouldNotExceedMemoryConstraints() {
         Node node1 = new Node("n_1", ByteSizeValue.ofMb(1840).getBytes(), 2);
         Node node2 = new Node("n_2", ByteSizeValue.ofMb(2580).getBytes(), 2);
-        Deployment deployment1 = new Deployment("m_1", ByteSizeValue.ofMb(800).getBytes(), 2, 1, Map.of(), 0, 0, 0);
-        Deployment deployment2 = new AssignmentPlan.Deployment("m_2", ByteSizeValue.ofMb(800).getBytes(), 1, 1, Map.of(), 0, 0, 0);
-        Deployment deployment3 = new Deployment("m_3", ByteSizeValue.ofMb(250).getBytes(), 4, 1, Map.of(), 0, 0, 0);
+        Deployment deployment1 = new Deployment("m_1", ByteSizeValue.ofMb(800).getBytes(), 2, 1, Map.of(), 0, null, 0, 0);
+        Deployment deployment2 = new AssignmentPlan.Deployment("m_2", ByteSizeValue.ofMb(800).getBytes(), 1, 1, Map.of(), 0, null, 0, 0);
+        Deployment deployment3 = new Deployment("m_3", ByteSizeValue.ofMb(250).getBytes(), 4, 1, Map.of(), 0, null, 0, 0);
 
         // First only start m_1
         AssignmentPlan assignmentPlan = new AssignmentPlanner(List.of(node1, node2), List.of(deployment1)).computePlan();
@@ -832,7 +854,7 @@ public class AssignmentPlannerTests extends ESTestCase {
         // Then start m_2
         assignmentPlan = new AssignmentPlanner(
             List.of(node1, node2),
-            Stream.concat(createModelsFromPlan(assignmentPlan).stream(), Stream.of(deployment2)).toList()
+            Stream.concat(createDeploymentsFromPlan(assignmentPlan).stream(), Stream.of(deployment2)).toList()
         ).computePlan();
 
         indexedBasedPlan = convertToIdIndexed(assignmentPlan);
@@ -843,7 +865,7 @@ public class AssignmentPlannerTests extends ESTestCase {
         // Then start m_3
         assignmentPlan = new AssignmentPlanner(
             List.of(node1, node2),
-            Stream.concat(createModelsFromPlan(assignmentPlan).stream(), Stream.of(deployment3)).toList()
+            Stream.concat(createDeploymentsFromPlan(assignmentPlan).stream(), Stream.of(deployment3)).toList()
         ).computePlan();
 
         indexedBasedPlan = convertToIdIndexed(assignmentPlan);
@@ -853,16 +875,16 @@ public class AssignmentPlannerTests extends ESTestCase {
         assertThat(indexedBasedPlan.get("m_3"), equalTo(Map.of("n_2", 1)));
 
         // First, one node goes away.
-        assignmentPlan = new AssignmentPlanner(List.of(node1), createModelsFromPlan(assignmentPlan)).computePlan();
+        assignmentPlan = new AssignmentPlanner(List.of(node1), createDeploymentsFromPlan(assignmentPlan)).computePlan();
         assertThat(assignmentPlan.getRemainingNodeMemory("n_1"), greaterThanOrEqualTo(0L));
     }
 
     public void testGivenClusterResize_ShouldAllocateEachModelAtLeastOnce() {
         Node node1 = new Node("n_1", ByteSizeValue.ofMb(2600).getBytes(), 2);
         Node node2 = new Node("n_2", ByteSizeValue.ofMb(2600).getBytes(), 2);
-        Deployment deployment1 = new Deployment("m_1", ByteSizeValue.ofMb(800).getBytes(), 2, 1, Map.of(), 0, 0, 0);
-        Deployment deployment2 = new Deployment("m_2", ByteSizeValue.ofMb(800).getBytes(), 1, 1, Map.of(), 0, 0, 0);
-        Deployment deployment3 = new Deployment("m_3", ByteSizeValue.ofMb(250).getBytes(), 4, 1, Map.of(), 0, 0, 0);
+        Deployment deployment1 = new Deployment("m_1", ByteSizeValue.ofMb(800).getBytes(), 2, 1, Map.of(), 0, null, 0, 0);
+        Deployment deployment2 = new Deployment("m_2", ByteSizeValue.ofMb(800).getBytes(), 1, 1, Map.of(), 0, null, 0, 0);
+        Deployment deployment3 = new Deployment("m_3", ByteSizeValue.ofMb(250).getBytes(), 4, 1, Map.of(), 0, null, 0, 0);
 
         // First only start m_1
         AssignmentPlan assignmentPlan = new AssignmentPlanner(List.of(node1, node2), List.of(deployment1)).computePlan();
@@ -874,7 +896,7 @@ public class AssignmentPlannerTests extends ESTestCase {
         // Then start m_2
         assignmentPlan = new AssignmentPlanner(
             List.of(node1, node2),
-            Stream.concat(createModelsFromPlan(assignmentPlan).stream(), Stream.of(deployment2)).toList()
+            Stream.concat(createDeploymentsFromPlan(assignmentPlan).stream(), Stream.of(deployment2)).toList()
         ).computePlan();
 
         indexedBasedPlan = convertToIdIndexed(assignmentPlan);
@@ -885,7 +907,7 @@ public class AssignmentPlannerTests extends ESTestCase {
         // Then start m_3
         assignmentPlan = new AssignmentPlanner(
             List.of(node1, node2),
-            Stream.concat(createModelsFromPlan(assignmentPlan).stream(), Stream.of(deployment3)).toList()
+            Stream.concat(createDeploymentsFromPlan(assignmentPlan).stream(), Stream.of(deployment3)).toList()
         ).computePlan();
 
         indexedBasedPlan = convertToIdIndexed(assignmentPlan);
@@ -899,20 +921,20 @@ public class AssignmentPlannerTests extends ESTestCase {
         Node node4 = new Node("n_4", ByteSizeValue.ofMb(2600).getBytes(), 2);
 
         // First, one node goes away.
-        assignmentPlan = new AssignmentPlanner(List.of(node1), createModelsFromPlan(assignmentPlan)).computePlan();
+        assignmentPlan = new AssignmentPlanner(List.of(node1), createDeploymentsFromPlan(assignmentPlan)).computePlan();
         assertThat(assignmentPlan.getRemainingNodeMemory(node1.id()), greaterThanOrEqualTo(0L));
 
         // Then, a node double in memory size is added.
-        assignmentPlan = new AssignmentPlanner(List.of(node1, node3), createModelsFromPlan(assignmentPlan)).computePlan();
+        assignmentPlan = new AssignmentPlanner(List.of(node1, node3), createDeploymentsFromPlan(assignmentPlan)).computePlan();
         assertThat(assignmentPlan.getRemainingNodeMemory(node1.id()), greaterThanOrEqualTo(0L));
         assertThat(assignmentPlan.getRemainingNodeMemory(node3.id()), greaterThanOrEqualTo(0L));
         // And another.
-        assignmentPlan = new AssignmentPlanner(List.of(node1, node3, node4), createModelsFromPlan(assignmentPlan)).computePlan();
+        assignmentPlan = new AssignmentPlanner(List.of(node1, node3, node4), createDeploymentsFromPlan(assignmentPlan)).computePlan();
         assertThat(assignmentPlan.getRemainingNodeMemory(node1.id()), greaterThanOrEqualTo(0L));
         assertThat(assignmentPlan.getRemainingNodeMemory(node3.id()), greaterThanOrEqualTo(0L));
         assertThat(assignmentPlan.getRemainingNodeMemory(node4.id()), greaterThanOrEqualTo(0L));
         // Finally, the remaining smaller node is removed
-        assignmentPlan = new AssignmentPlanner(List.of(node3, node4), createModelsFromPlan(assignmentPlan)).computePlan();
+        assignmentPlan = new AssignmentPlanner(List.of(node3, node4), createDeploymentsFromPlan(assignmentPlan)).computePlan();
         assertThat(assignmentPlan.getRemainingNodeMemory(node3.id()), greaterThanOrEqualTo(0L));
         assertThat(assignmentPlan.getRemainingNodeMemory(node4.id()), greaterThanOrEqualTo(0L));
 
@@ -927,13 +949,13 @@ public class AssignmentPlannerTests extends ESTestCase {
         assertThat(assignmentPlan.getRemainingNodeCores("n_2"), equalTo(0));
     }
 
-    public void testGivenClusterResize_ShouldRemoveAllocatedModels() {
+    public void testGivenClusterResize_ShouldRemoveAllocatedDeployments() {
         // Ensure that plan is removing previously allocated models if not enough memory is available
         Node node1 = new Node("n_1", ByteSizeValue.ofMb(1840).getBytes(), 2);
         Node node2 = new Node("n_2", ByteSizeValue.ofMb(2580).getBytes(), 2);
-        Deployment deployment1 = new Deployment("m_1", ByteSizeValue.ofMb(800).getBytes(), 2, 1, Map.of(), 0, 0, 0);
-        Deployment deployment2 = new Deployment("m_2", ByteSizeValue.ofMb(800).getBytes(), 1, 1, Map.of(), 0, 0, 0);
-        Deployment deployment3 = new Deployment("m_3", ByteSizeValue.ofMb(250).getBytes(), 1, 1, Map.of(), 0, 0, 0);
+        Deployment deployment1 = new Deployment("m_1", ByteSizeValue.ofMb(800).getBytes(), 2, 1, Map.of(), 0, null, 0, 0);
+        Deployment deployment2 = new Deployment("m_2", ByteSizeValue.ofMb(800).getBytes(), 1, 1, Map.of(), 0, null, 0, 0);
+        Deployment deployment3 = new Deployment("m_3", ByteSizeValue.ofMb(250).getBytes(), 1, 1, Map.of(), 0, null, 0, 0);
 
         // Create a plan where all deployments are assigned at least once
         AssignmentPlan assignmentPlan = new AssignmentPlanner(List.of(node1, node2), List.of(deployment1, deployment2, deployment3))
@@ -947,14 +969,14 @@ public class AssignmentPlannerTests extends ESTestCase {
         assertThat(assignmentPlan.getRemainingNodeMemory(node2.id()), greaterThanOrEqualTo(0L));
 
         // Now the cluster starts getting resized. Ensure that resources are not over-allocated.
-        assignmentPlan = new AssignmentPlanner(List.of(node1), createModelsFromPlan(assignmentPlan)).computePlan();
+        assignmentPlan = new AssignmentPlanner(List.of(node1), createDeploymentsFromPlan(assignmentPlan)).computePlan();
         assertThat(indexedBasedPlan.get("m_1"), equalTo(Map.of("n_1", 2)));
         assertThat(assignmentPlan.getRemainingNodeMemory(node1.id()), greaterThanOrEqualTo(0L));
         assertThat(assignmentPlan.getRemainingNodeCores(node1.id()), greaterThanOrEqualTo(0));
 
     }
 
-    public void testGivenClusterResize_ShouldRemoveAllocatedModels_NewMemoryFields() {
+    public void testGivenClusterResize_ShouldRemoveAllocatedDeployments_NewMemoryFields() {
         // Ensure that plan is removing previously allocated models if not enough memory is available
         Node node1 = new Node("n_1", ByteSizeValue.ofMb(700).getBytes(), 2);
         Node node2 = new Node("n_2", ByteSizeValue.ofMb(1000).getBytes(), 2);
@@ -965,6 +987,7 @@ public class AssignmentPlannerTests extends ESTestCase {
             1,
             Map.of(),
             0,
+            null,
             ByteSizeValue.ofMb(400).getBytes(),
             ByteSizeValue.ofMb(100).getBytes()
         );
@@ -975,6 +998,7 @@ public class AssignmentPlannerTests extends ESTestCase {
             1,
             Map.of(),
             0,
+            null,
             ByteSizeValue.ofMb(400).getBytes(),
             ByteSizeValue.ofMb(150).getBytes()
         );
@@ -985,6 +1009,7 @@ public class AssignmentPlannerTests extends ESTestCase {
             1,
             Map.of(),
             0,
+            null,
             ByteSizeValue.ofMb(250).getBytes(),
             ByteSizeValue.ofMb(50).getBytes()
         );
@@ -1001,16 +1026,16 @@ public class AssignmentPlannerTests extends ESTestCase {
         assertThat(assignmentPlan.getRemainingNodeMemory(node2.id()), greaterThanOrEqualTo(0L));
 
         // Now the cluster starts getting resized. Ensure that resources are not over-allocated.
-        assignmentPlan = new AssignmentPlanner(List.of(node1), createModelsFromPlan(assignmentPlan)).computePlan();
+        assignmentPlan = new AssignmentPlanner(List.of(node1), createDeploymentsFromPlan(assignmentPlan)).computePlan();
         assertThat(indexedBasedPlan.get("m_1"), equalTo(Map.of("n_1", 2)));
         assertThat(assignmentPlan.getRemainingNodeMemory(node1.id()), greaterThanOrEqualTo(0L));
         assertThat(assignmentPlan.getRemainingNodeCores(node1.id()), greaterThanOrEqualTo(0));
 
     }
 
-    public static List<Deployment> createModelsFromPlan(AssignmentPlan plan) {
+    public static List<Deployment> createDeploymentsFromPlan(AssignmentPlan plan) {
         List<Deployment> deployments = new ArrayList<>();
-        for (Deployment m : plan.models()) {
+        for (Deployment m : plan.deployments()) {
             Optional<Map<Node, Integer>> assignments = plan.assignments(m);
             Map<String, Integer> currentAllocations = Map.of();
             if (assignments.isPresent()) {
@@ -1022,12 +1047,13 @@ public class AssignmentPlannerTests extends ESTestCase {
             int totalAllocations = currentAllocations.values().stream().mapToInt(Integer::intValue).sum();
             deployments.add(
                 new Deployment(
-                    m.id(),
+                    m.deploymentId(),
                     m.memoryBytes(),
                     m.allocations(),
                     m.threadsPerAllocation(),
                     currentAllocations,
                     Math.max(m.maxAssignedAllocations(), totalAllocations),
+                    null,
                     0,
                     0
                 )
@@ -1038,13 +1064,13 @@ public class AssignmentPlannerTests extends ESTestCase {
 
     public static Map<String, Map<String, Integer>> convertToIdIndexed(AssignmentPlan plan) {
         Map<String, Map<String, Integer>> result = new HashMap<>();
-        for (AssignmentPlan.Deployment m : plan.models()) {
+        for (AssignmentPlan.Deployment m : plan.deployments()) {
             Optional<Map<Node, Integer>> assignments = plan.assignments(m);
             Map<String, Integer> allocationsPerNodeId = assignments.isPresent() ? new HashMap<>() : Map.of();
             for (Map.Entry<Node, Integer> nodeAssignments : assignments.orElse(Map.of()).entrySet()) {
                 allocationsPerNodeId.put(nodeAssignments.getKey().id(), nodeAssignments.getValue());
             }
-            result.put(m.id(), allocationsPerNodeId);
+            result.put(m.deploymentId(), allocationsPerNodeId);
         }
         return result;
     }
@@ -1077,7 +1103,7 @@ public class AssignmentPlannerTests extends ESTestCase {
         return nodes;
     }
 
-    public static List<Deployment> randomModels(int scale, double load) {
+    public static List<Deployment> randomDeployments(int scale, double load) {
         List<Deployment> deployments = new ArrayList<>();
         for (int i = 0; i < Math.max(2, Math.round(load * (1 + 8 * scale))); i++) {
             deployments.add(randomModel(String.valueOf(i)));
@@ -1096,6 +1122,7 @@ public class AssignmentPlannerTests extends ESTestCase {
                 randomIntBetween(1, 4),
                 Map.of(),
                 0,
+                null,
                 0,
                 0
             );
@@ -1107,6 +1134,7 @@ public class AssignmentPlannerTests extends ESTestCase {
                 randomIntBetween(1, 4),
                 Map.of(),
                 0,
+                null,
                 randomLongBetween(ByteSizeValue.ofMb(100).getBytes(), ByteSizeValue.ofGb(1).getBytes()),
                 randomLongBetween(ByteSizeValue.ofMb(100).getBytes(), ByteSizeValue.ofGb(1).getBytes())
             );
@@ -1130,14 +1158,14 @@ public class AssignmentPlannerTests extends ESTestCase {
         }
     }
 
-    private void runTooManyNodesAndModels(int nodesSize, int modelsSize) {
+    private void runTooManyNodesAndDeployments(int nodesSize, int modelsSize) {
         List<Node> nodes = new ArrayList<>();
         for (int i = 0; i < nodesSize; i++) {
             nodes.add(new Node("n_" + i, ByteSizeValue.ofGb(6).getBytes(), 100));
         }
         List<Deployment> deployments = new ArrayList<>();
         for (int i = 0; i < modelsSize; i++) {
-            deployments.add(new Deployment("m_" + i, ByteSizeValue.ofMb(200).getBytes(), 2, 1, Map.of(), 0, 0, 0));
+            deployments.add(new Deployment("m_" + i, ByteSizeValue.ofMb(200).getBytes(), 2, 1, Map.of(), 0, null, 0, 0));
         }
 
         // Check plan is computed without OOM exception

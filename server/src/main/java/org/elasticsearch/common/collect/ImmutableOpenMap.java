@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.collect;
@@ -13,8 +14,6 @@ import com.carrotsearch.hppc.ObjectObjectHashMap;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import com.carrotsearch.hppc.procedures.ObjectObjectProcedure;
 import com.carrotsearch.hppc.procedures.ObjectProcedure;
-
-import org.elasticsearch.common.util.Maps;
 
 import java.util.AbstractCollection;
 import java.util.AbstractMap;
@@ -146,7 +145,7 @@ public final class ImmutableOpenMap<KType, VType> extends AbstractMap<KType, VTy
 
         @Override
         public Iterator<Map.Entry<KType, VType>> iterator() {
-            return Iterators.map(map.iterator(), c -> new Maps.ImmutableEntry<>(c.key, c.value));
+            return Iterators.map(map.iterator(), c -> new AbstractMap.SimpleImmutableEntry<>(c.key, c.value));
         }
 
         @Override
@@ -156,7 +155,9 @@ public final class ImmutableOpenMap<KType, VType> extends AbstractMap<KType, VTy
 
         @Override
         public void forEach(Consumer<? super Map.Entry<KType, VType>> action) {
-            map.forEach((Consumer<ObjectObjectCursor<KType, VType>>) c -> action.accept(new Maps.ImmutableEntry<>(c.key, c.value)));
+            map.forEach(
+                (Consumer<ObjectObjectCursor<KType, VType>>) c -> action.accept(new AbstractMap.SimpleImmutableEntry<>(c.key, c.value))
+            );
         }
 
         @SuppressWarnings("unchecked")

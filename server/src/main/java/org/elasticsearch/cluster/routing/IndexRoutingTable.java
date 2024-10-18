@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.routing;
@@ -23,6 +24,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Predicates;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 
@@ -54,11 +56,10 @@ public class IndexRoutingTable implements SimpleDiffable<IndexRoutingTable> {
 
     private static final List<Predicate<ShardRouting>> PRIORITY_REMOVE_CLAUSES = Stream.<Predicate<ShardRouting>>of(
         shardRouting -> shardRouting.isPromotableToPrimary() == false,
-        shardRouting -> true
+        Predicates.always()
     )
         .flatMap(
-            p1 -> Stream.<Predicate<ShardRouting>>of(ShardRouting::unassigned, ShardRouting::initializing, shardRouting -> true)
-                .map(p1::and)
+            p1 -> Stream.<Predicate<ShardRouting>>of(ShardRouting::unassigned, ShardRouting::initializing, Predicates.always()).map(p1::and)
         )
         .toList();
     private final Index index;
@@ -574,15 +575,15 @@ public class IndexRoutingTable implements SimpleDiffable<IndexRoutingTable> {
             return previousNodes == null || previousNodes.size() <= shardCopy
                 ? unassignedInfo
                 : new UnassignedInfo(
-                    unassignedInfo.getReason(),
-                    unassignedInfo.getMessage(),
-                    unassignedInfo.getFailure(),
-                    unassignedInfo.getNumFailedAllocations(),
-                    unassignedInfo.getUnassignedTimeInNanos(),
-                    unassignedInfo.getUnassignedTimeInMillis(),
-                    unassignedInfo.isDelayed(),
-                    unassignedInfo.getLastAllocationStatus(),
-                    unassignedInfo.getFailedNodeIds(),
+                    unassignedInfo.reason(),
+                    unassignedInfo.message(),
+                    unassignedInfo.failure(),
+                    unassignedInfo.failedAllocations(),
+                    unassignedInfo.unassignedTimeNanos(),
+                    unassignedInfo.unassignedTimeMillis(),
+                    unassignedInfo.delayed(),
+                    unassignedInfo.lastAllocationStatus(),
+                    unassignedInfo.failedNodeIds(),
                     previousNodes.get(shardCopy)
                 );
         }

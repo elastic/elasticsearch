@@ -23,10 +23,10 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -84,8 +84,8 @@ public class TransportResetTransformAction extends AcknowledgedTransportMasterNo
             indexNameExpressionResolver,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
-        this.transformConfigManager = transformServices.getConfigManager();
-        this.auditor = transformServices.getAuditor();
+        this.transformConfigManager = transformServices.configManager();
+        this.auditor = transformServices.auditor();
         this.client = Objects.requireNonNull(client);
         this.securityContext = XPackSettings.SECURITY_ENABLED.get(settings)
             ? new SecurityContext(settings, threadPool.getThreadContext())
@@ -110,7 +110,7 @@ public class TransportResetTransformAction extends AcknowledgedTransportMasterNo
         // <4> Reset transform
         ActionListener<TransformUpdater.UpdateResult> updateTransformListener = ActionListener.wrap(
             unusedUpdateResult -> transformConfigManager.resetTransform(request.getId(), ActionListener.wrap(resetResponse -> {
-                logger.debug("[{}] reset transform", request.getId());
+                logger.info("[{}] reset transform", request.getId());
                 auditor.info(request.getId(), "Reset transform.");
                 listener.onResponse(AcknowledgedResponse.of(resetResponse));
             }, listener::onFailure)),
@@ -135,7 +135,7 @@ public class TransportResetTransformAction extends AcknowledgedTransportMasterNo
                     false, // defer validation
                     false, // dry run
                     false, // check access
-                    request.timeout(),
+                    request.ackTimeout(),
                     destIndexSettings,
                     updateTransformListener
                 );
@@ -154,7 +154,14 @@ public class TransportResetTransformAction extends AcknowledgedTransportMasterNo
             stopTransformActionListener.onResponse(null);
             return;
         }
-        StopTransformAction.Request stopTransformRequest = new StopTransformAction.Request(request.getId(), true, false, null, true, false);
+        StopTransformAction.Request stopTransformRequest = new StopTransformAction.Request(
+            request.getId(),
+            true,
+            request.isForce(),
+            null,
+            true,
+            false
+        );
         executeAsyncWithOrigin(client, TRANSFORM_ORIGIN, StopTransformAction.INSTANCE, stopTransformRequest, stopTransformActionListener);
     }
 

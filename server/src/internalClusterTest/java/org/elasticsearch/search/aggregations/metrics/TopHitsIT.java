@@ -1,12 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.search.aggregations.metrics;
 
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.join.ScoreMode;
 import org.apache.lucene.util.ArrayUtil;
@@ -20,6 +22,7 @@ import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.script.Script;
@@ -34,8 +37,13 @@ import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.nested.Nested;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregatorFactory.ExecutionMode;
+import org.elasticsearch.search.fetch.FetchSubPhase;
+import org.elasticsearch.search.fetch.FetchSubPhaseProcessor;
+import org.elasticsearch.search.fetch.StoredFieldsSpec;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightField;
+import org.elasticsearch.search.lookup.FieldLookup;
+import org.elasticsearch.search.lookup.LeafSearchLookup;
 import org.elasticsearch.search.rescore.QueryRescorerBuilder;
 import org.elasticsearch.search.sort.ScriptSortBuilder.ScriptSortType;
 import org.elasticsearch.search.sort.SortBuilders;
@@ -43,6 +51,7 @@ import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -87,7 +96,7 @@ public class TopHitsIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Collections.singleton(CustomScriptPlugin.class);
+        return List.of(CustomScriptPlugin.class, FetchPlugin.class);
     }
 
     public static class CustomScriptPlugin extends MockScriptPlugin {
@@ -110,7 +119,7 @@ public class TopHitsIT extends ESIntegTestCase {
 
     @Override
     public void setupSuiteScopeCluster() throws Exception {
-        assertAcked(prepareCreate("idx").setMapping(TERMS_AGGS_FIELD, "type=keyword"));
+        assertAcked(prepareCreate("idx").setMapping(TERMS_AGGS_FIELD, "type=keyword", "text", "type=text,store=true"));
         assertAcked(prepareCreate("field-collapsing").setMapping("group", "type=keyword"));
         createIndex("empty");
         assertAcked(
@@ -453,7 +462,7 @@ public class TopHitsIT extends ESIntegTestCase {
                 assertThat(global, notNullValue());
                 assertThat(global.getName(), equalTo("global"));
                 assertThat(global.getAggregations(), notNullValue());
-                assertThat(global.getAggregations().asMap().size(), equalTo(1));
+                assertThat(global.getAggregations().asList().size(), equalTo(1));
 
                 TopHits topHits = global.getAggregations().get("hits");
                 assertThat(topHits, notNullValue());
@@ -592,7 +601,7 @@ public class TopHitsIT extends ESIntegTestCase {
         );
     }
 
-    public void testFetchFeatures() {
+    public void testFetchFeatures() throws IOException {
         final boolean seqNoAndTerm = randomBoolean();
         assertNoFailuresAndResponse(
             prepareSearch("idx").setQuery(matchQuery("text", "text").queryName("test"))
@@ -642,19 +651,14 @@ public class TopHitsIT extends ESIntegTestCase {
 
                     assertThat(hit.getMatchedQueries()[0], equalTo("test"));
 
-                    DocumentField field1 = hit.field("field1");
-                    assertThat(field1.getValue(), equalTo(5L));
-
-                    DocumentField field2 = hit.field("field2");
-                    assertThat(field2.getValue(), equalTo(2.71f));
-
-                    assertThat(hit.getSourceAsMap().get("text").toString(), equalTo("some text to entertain"));
-
-                    field2 = hit.field("script");
-                    assertThat(field2.getValue().toString(), equalTo("5"));
+                    assertThat(hit.field("field1").getValue(), equalTo(5L));
+                    assertThat(hit.field("field2").getValue(), equalTo(2.71f));
+                    assertThat(hit.field("script").getValue().toString(), equalTo("5"));
 
                     assertThat(hit.getSourceAsMap().size(), equalTo(1));
                     assertThat(hit.getSourceAsMap().get("text").toString(), equalTo("some text to entertain"));
+                    assertEquals("some text to entertain", hit.getFields().get("text").getValue());
+                    assertEquals("some text to entertain", hit.getFields().get("text_stored_lookup").getValue());
                 }
             }
         );
@@ -1079,9 +1083,7 @@ public class TopHitsIT extends ESIntegTestCase {
         try {
             assertAcked(
                 prepareCreate("cache_test_idx").setMapping("d", "type=long")
-                    .setSettings(
-                        Settings.builder().put("requests.cache.enable", true).put("number_of_shards", 1).put("number_of_replicas", 1)
-                    )
+                    .setSettings(indexSettings(1, 1).put("requests.cache.enable", true))
             );
             indexRandom(
                 true,
@@ -1262,5 +1264,38 @@ public class TopHitsIT extends ESIntegTestCase {
                 }
             }
         );
+    }
+
+    public static class FetchPlugin extends Plugin implements SearchPlugin {
+        @Override
+        public List<FetchSubPhase> getFetchSubPhases(FetchPhaseConstructionContext context) {
+            return Collections.singletonList(fetchContext -> {
+                if (fetchContext.getIndexName().equals("idx")) {
+                    return new FetchSubPhaseProcessor() {
+
+                        private LeafSearchLookup leafSearchLookup;
+
+                        @Override
+                        public void setNextReader(LeafReaderContext ctx) {
+                            leafSearchLookup = fetchContext.getSearchExecutionContext().lookup().getLeafSearchLookup(ctx);
+                        }
+
+                        @Override
+                        public void process(FetchSubPhase.HitContext hitContext) {
+                            leafSearchLookup.setDocument(hitContext.docId());
+                            FieldLookup fieldLookup = leafSearchLookup.fields().get("text");
+                            hitContext.hit()
+                                .setDocumentField("text_stored_lookup", new DocumentField("text_stored_lookup", fieldLookup.getValues()));
+                        }
+
+                        @Override
+                        public StoredFieldsSpec storedFieldsSpec() {
+                            return StoredFieldsSpec.NO_REQUIREMENTS;
+                        }
+                    };
+                }
+                return null;
+            });
+        }
     }
 }

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.termvectors;
@@ -41,7 +42,6 @@ import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.StringFieldType;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.shard.IndexShard;
-import org.elasticsearch.plugins.internal.DocumentSizeObserver;
 import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.xcontent.XContentType;
 
@@ -305,14 +305,7 @@ public class TermVectorsService {
     }
 
     private static Fields generateTermVectorsFromDoc(IndexShard indexShard, TermVectorsRequest request) throws IOException {
-        SourceToParse source = new SourceToParse(
-            "_id_for_tv_api",
-            request.doc(),
-            request.xContentType(),
-            request.routing(),
-            Map.of(),
-            DocumentSizeObserver.EMPTY_INSTANCE
-        );
+        SourceToParse source = new SourceToParse("_id_for_tv_api", request.doc(), request.xContentType(), request.routing());
         DocumentParser documentParser = indexShard.mapperService().documentParser();
         MappingLookup mappingLookup = indexShard.mapperService().mappingLookup();
         ParsedDocument parsedDocument = documentParser.parseDocument(source, mappingLookup);

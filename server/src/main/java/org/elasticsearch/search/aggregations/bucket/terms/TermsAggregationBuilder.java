@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.search.aggregations.bucket.terms;
 
@@ -112,6 +113,7 @@ public class TermsAggregationBuilder extends ValuesSourceAggregationBuilder<Term
     private final TermsAggregator.BucketCountThresholds bucketCountThresholds;
 
     private boolean showTermDocCountError = false;
+    private boolean excludeDeletedDocs = false;
 
     public TermsAggregationBuilder(String name) {
         super(name);
@@ -139,6 +141,11 @@ public class TermsAggregationBuilder extends ValuesSourceAggregationBuilder<Term
 
     @Override
     public boolean supportsParallelCollection(ToLongFunction<String> fieldCardinalityResolver) {
+        if (minDocCount() == 0) {
+            // if minDocCount os zero, we collect the zero buckets looking into all segments in the index. to avoid
+            // looking into the same segment for each thread we disable concurrency
+            return false;
+        }
         /*
          * we parallelize only if the cardinality of the field is lower than shard size, this is to minimize precision issues.
          * When ordered by term, we still take cardinality into account to avoid overhead that concurrency may cause against
@@ -164,7 +171,8 @@ public class TermsAggregationBuilder extends ValuesSourceAggregationBuilder<Term
                 return cardinality <= KEY_ORDER_CONCURRENCY_THRESHOLD;
             }
             BucketCountThresholds adjusted = TermsAggregatorFactory.adjustBucketCountThresholds(bucketCountThresholds, order);
-            return cardinality <= adjusted.getShardSize();
+            // for cardinality equal to shard size, we don't know if there were more terms when merging.
+            return cardinality < adjusted.getShardSize();
         }
         return false;
     }
@@ -190,6 +198,9 @@ public class TermsAggregationBuilder extends ValuesSourceAggregationBuilder<Term
         includeExclude = in.readOptionalWriteable(IncludeExclude::new);
         order = InternalOrder.Streams.readOrder(in);
         showTermDocCountError = in.readBoolean();
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
+            excludeDeletedDocs = in.readBoolean();
+        }
     }
 
     @Override
@@ -205,6 +216,9 @@ public class TermsAggregationBuilder extends ValuesSourceAggregationBuilder<Term
         out.writeOptionalWriteable(includeExclude);
         order.writeTo(out);
         out.writeBoolean(showTermDocCountError);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
+            out.writeBoolean(excludeDeletedDocs);
+        }
     }
 
     /**
@@ -386,6 +400,18 @@ public class TermsAggregationBuilder extends ValuesSourceAggregationBuilder<Term
         return this;
     }
 
+    /**
+     * Set whether deleted documents should be explicitly excluded from the aggregation results
+     */
+    public TermsAggregationBuilder excludeDeletedDocs(boolean excludeDeletedDocs) {
+        this.excludeDeletedDocs = excludeDeletedDocs;
+        return this;
+    }
+
+    public boolean excludeDeletedDocs() {
+        return excludeDeletedDocs;
+    }
+
     @Override
     public BucketCardinality bucketCardinality() {
         return BucketCardinality.MANY;
@@ -412,7 +438,8 @@ public class TermsAggregationBuilder extends ValuesSourceAggregationBuilder<Term
             parent,
             subFactoriesBuilder,
             metadata,
-            aggregatorSupplier
+            aggregatorSupplier,
+            excludeDeletedDocs
         );
     }
 
@@ -443,7 +470,8 @@ public class TermsAggregationBuilder extends ValuesSourceAggregationBuilder<Term
             executionHint,
             includeExclude,
             order,
-            showTermDocCountError
+            showTermDocCountError,
+            excludeDeletedDocs
         );
     }
 
@@ -458,7 +486,8 @@ public class TermsAggregationBuilder extends ValuesSourceAggregationBuilder<Term
             && Objects.equals(executionHint, other.executionHint)
             && Objects.equals(includeExclude, other.includeExclude)
             && Objects.equals(order, other.order)
-            && Objects.equals(showTermDocCountError, other.showTermDocCountError);
+            && Objects.equals(showTermDocCountError, other.showTermDocCountError)
+            && Objects.equals(excludeDeletedDocs, other.excludeDeletedDocs);
     }
 
     @Override

@@ -7,8 +7,6 @@ steps:
         matrix:
           setup:
             image:
-              - centos-7
-              - debian-10
               - debian-11
               - opensuse-leap-15
               - oraclelinux-7
@@ -47,11 +45,13 @@ steps:
               - checkPart1
               - checkPart2
               - checkPart3
+              - checkPart4
+              - checkPart5
               - checkRestCompat
         agents:
           provider: gcp
           image: family/elasticsearch-{{matrix.image}}
-          machineType: n1-standard-32
+          machineType: n1-standard-16
           diskType: pd-ssd
           diskSizeGb: 350
         env:
@@ -70,6 +70,8 @@ steps:
               - checkPart1
               - checkPart2
               - checkPart3
+              - checkPart4
+              - checkPart5
               - checkRestCompat
         agents:
           provider: aws

@@ -170,11 +170,6 @@ public class BertTokenizer extends NlpTokenizer {
     }
 
     @Override
-    int defaultSpanForChunking(int maxWindowSize) {
-        return (maxWindowSize - numExtraTokensForSingleSequence()) / 2;
-    }
-
-    @Override
     int getNumExtraTokensForSeqPair() {
         return 3;
     }
@@ -236,6 +231,10 @@ public class BertTokenizer extends NlpTokenizer {
         ).buildRequest(requestId, truncate);
     }
 
+    /**
+     * @param seq cannot be null
+     * @return InnerTokenization
+     */
     @Override
     public InnerTokenization innerTokenize(String seq) {
         List<Integer> tokenPositionMap = new ArrayList<>();

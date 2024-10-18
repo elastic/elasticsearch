@@ -8,9 +8,7 @@
 package org.elasticsearch.xpack.aggregatemetric;
 
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
@@ -19,12 +17,7 @@ import org.elasticsearch.xpack.core.action.XPackInfoFeatureTransportAction;
 public class AggregateMetricInfoTransportAction extends XPackInfoFeatureTransportAction {
 
     @Inject
-    public AggregateMetricInfoTransportAction(
-        TransportService transportService,
-        ActionFilters actionFilters,
-        Settings settings,
-        XPackLicenseState licenseState
-    ) {
+    public AggregateMetricInfoTransportAction(TransportService transportService, ActionFilters actionFilters) {
         super(XPackInfoFeatureAction.AGGREGATE_METRIC.name(), transportService, actionFilters);
     }
 

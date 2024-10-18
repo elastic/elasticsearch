@@ -144,6 +144,7 @@ public class SamlServiceProviderMetadataIT extends ESRestTestCase {
             } else {
                 if (randomBoolean()) {
                     http.sendResponseHeaders(randomFrom(404, 401, 403, 500), 0);
+                    http.getResponseBody().close();
                 } else {
                     sendXmlContent("not valid xml", http);
                 }

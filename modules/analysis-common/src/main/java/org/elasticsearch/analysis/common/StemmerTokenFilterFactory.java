@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.analysis.common;
@@ -23,6 +24,7 @@ import org.apache.lucene.analysis.en.EnglishPossessiveFilter;
 import org.apache.lucene.analysis.en.KStemFilter;
 import org.apache.lucene.analysis.en.PorterStemFilter;
 import org.apache.lucene.analysis.es.SpanishLightStemFilter;
+import org.apache.lucene.analysis.es.SpanishPluralStemFilter;
 import org.apache.lucene.analysis.fa.PersianStemFilter;
 import org.apache.lucene.analysis.fi.FinnishLightStemFilter;
 import org.apache.lucene.analysis.fr.FrenchLightStemFilter;
@@ -45,6 +47,8 @@ import org.apache.lucene.analysis.ru.RussianLightStemFilter;
 import org.apache.lucene.analysis.snowball.SnowballFilter;
 import org.apache.lucene.analysis.sv.SwedishLightStemFilter;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.logging.DeprecationCategory;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
@@ -79,6 +83,8 @@ import java.io.IOException;
 
 public class StemmerTokenFilterFactory extends AbstractTokenFilterFactory {
 
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(StemmerTokenFilterFactory.class);
+
     private static final TokenStream EMPTY_TOKEN_STREAM = new EmptyTokenStream();
 
     private String language;
@@ -88,6 +94,20 @@ public class StemmerTokenFilterFactory extends AbstractTokenFilterFactory {
         this.language = Strings.capitalize(settings.get("language", settings.get("name", "porter")));
         // check that we have a valid language by trying to create a TokenStream
         create(EMPTY_TOKEN_STREAM).close();
+        if ("lovins".equalsIgnoreCase(language)) {
+            deprecationLogger.critical(
+                DeprecationCategory.ANALYSIS,
+                "lovins_deprecation",
+                "The [lovins] stemmer is deprecated and will be removed in a future version."
+            );
+        }
+        if ("dutch_kp".equalsIgnoreCase(language) || "dutchKp".equalsIgnoreCase(language) || "kp".equalsIgnoreCase(language)) {
+            deprecationLogger.critical(
+                DeprecationCategory.ANALYSIS,
+                "dutch_kp_deprecation",
+                "The [dutch_kp] stemmer is deprecated and will be removed in a future version."
+            );
+        }
     }
 
     @Override
@@ -246,6 +266,8 @@ public class StemmerTokenFilterFactory extends AbstractTokenFilterFactory {
                 return new SnowballFilter(tokenStream, new SpanishStemmer());
             } else if ("light_spanish".equalsIgnoreCase(language) || "lightSpanish".equalsIgnoreCase(language)) {
                 return new SpanishLightStemFilter(tokenStream);
+            } else if ("spanish_plural".equalsIgnoreCase(language)) {
+                return new SpanishPluralStemFilter(tokenStream);
 
                 // Sorani Kurdish stemmer
             } else if ("sorani".equalsIgnoreCase(language)) {

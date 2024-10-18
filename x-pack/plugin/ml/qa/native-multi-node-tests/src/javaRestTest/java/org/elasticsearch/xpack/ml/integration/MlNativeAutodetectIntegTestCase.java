@@ -246,7 +246,7 @@ abstract class MlNativeAutodetectIntegTestCase extends MlNativeIntegTestCase {
 
     protected void waitForecastToFinish(String jobId, String forecastId) throws Exception {
         // Forecasts can take an eternity to complete in the FIPS JVM
-        waitForecastStatus(inFipsJvm() ? 300 : 60, jobId, forecastId, ForecastRequestStats.ForecastRequestStatus.FINISHED);
+        waitForecastStatus(inFipsJvm() ? 300 : 90, jobId, forecastId, ForecastRequestStats.ForecastRequestStatus.FINISHED);
     }
 
     protected void waitForecastStatus(String jobId, String forecastId, ForecastRequestStats.ForecastRequestStatus... status)
@@ -285,6 +285,27 @@ abstract class MlNativeAutodetectIntegTestCase extends MlNativeIntegTestCase {
             }
             assertThat("Annotations were: " + annotations, annotations, hasSize(expectedNumberOfAnnotations));
         });
+    }
+
+    protected List<Annotation> getAnnotations() throws Exception {
+        List<Annotation> annotations = new ArrayList<>();
+        // Refresh the annotations index so that recently indexed annotation docs are visible.
+        indicesAdmin().prepareRefresh(AnnotationIndex.LATEST_INDEX_NAME)
+            .setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN)
+            .get();
+
+        SearchRequest searchRequest = new SearchRequest(AnnotationIndex.READ_ALIAS_NAME).indicesOptions(
+            IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN
+        );
+        assertCheckedResponse(client().search(searchRequest), searchResponse -> {
+
+            for (SearchHit hit : searchResponse.getHits().getHits()) {
+                try (XContentParser parser = createParser(jsonXContent, hit.getSourceRef())) {
+                    annotations.add(Annotation.fromXContent(parser, null));
+                }
+            }
+        });
+        return annotations;
     }
 
     protected ForecastRequestStats getForecastStats(String jobId, String forecastId) throws Exception {

@@ -17,6 +17,7 @@ import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
+import org.elasticsearch.rest.action.RestCancellableNodeClient;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xpack.core.transform.TransformField;
@@ -45,7 +46,11 @@ public class RestStartTransformAction extends BaseRestHandler {
         TimeValue timeout = restRequest.paramAsTime(TransformField.TIMEOUT.getPreferredName(), AcknowledgedRequest.DEFAULT_ACK_TIMEOUT);
 
         StartTransformAction.Request request = new StartTransformAction.Request(id, from, timeout);
-        return channel -> client.execute(StartTransformAction.INSTANCE, request, new RestToXContentListener<>(channel));
+        return channel -> new RestCancellableNodeClient(client, restRequest.getHttpChannel()).execute(
+            StartTransformAction.INSTANCE,
+            request,
+            new RestToXContentListener<>(channel)
+        );
     }
 
     private static Instant parseDateOrThrow(String date, ParseField paramName, LongSupplier now) {

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.services.openai.embeddings;
 
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.inference.services.openai.OpenAiServiceFields;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -16,6 +17,11 @@ import java.util.Map;
 import static org.hamcrest.Matchers.is;
 
 public class OpenAiEmbeddingsRequestTaskSettingsTests extends ESTestCase {
+
+    public OpenAiEmbeddingsRequestTaskSettings createRandom() {
+        return new OpenAiEmbeddingsRequestTaskSettings(randomBoolean() ? null : "username");
+    }
+
     public void testFromMap_ReturnsEmptySettings_WhenTheMapIsEmpty() {
         var settings = OpenAiEmbeddingsRequestTaskSettings.fromMap(new HashMap<>(Map.of()));
         assertNull(settings.user());
@@ -27,15 +33,15 @@ public class OpenAiEmbeddingsRequestTaskSettingsTests extends ESTestCase {
     }
 
     public void testFromMap_ReturnsUser() {
-        var settings = OpenAiEmbeddingsRequestTaskSettings.fromMap(new HashMap<>(Map.of(OpenAiEmbeddingsTaskSettings.USER, "user")));
+        var settings = OpenAiEmbeddingsRequestTaskSettings.fromMap(new HashMap<>(Map.of(OpenAiServiceFields.USER, "user")));
         assertThat(settings.user(), is("user"));
     }
 
-    public static Map<String, Object> getRequestTaskSettingsMap(@Nullable String user) {
+    public static Map<String, Object> createRequestTaskSettingsMap(@Nullable String user) {
         var map = new HashMap<String, Object>();
 
         if (user != null) {
-            map.put(OpenAiEmbeddingsTaskSettings.USER, user);
+            map.put(OpenAiServiceFields.USER, user);
         }
 
         return map;

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.fielddata.plain;
@@ -42,26 +43,34 @@ public class SortedNumericIndexFieldData extends IndexNumericFieldData {
         private final NumericType numericType;
         private final ValuesSourceType valuesSourceType;
         protected final ToScriptFieldFactory<SortedNumericDocValues> toScriptFieldFactory;
+        private final boolean indexed;
 
-        public Builder(String name, NumericType numericType, ToScriptFieldFactory<SortedNumericDocValues> toScriptFieldFactory) {
-            this(name, numericType, numericType.getValuesSourceType(), toScriptFieldFactory);
+        public Builder(
+            String name,
+            NumericType numericType,
+            ToScriptFieldFactory<SortedNumericDocValues> toScriptFieldFactory,
+            boolean indexed
+        ) {
+            this(name, numericType, numericType.getValuesSourceType(), toScriptFieldFactory, indexed);
         }
 
         public Builder(
             String name,
             NumericType numericType,
             ValuesSourceType valuesSourceType,
-            ToScriptFieldFactory<SortedNumericDocValues> toScriptFieldFactory
+            ToScriptFieldFactory<SortedNumericDocValues> toScriptFieldFactory,
+            boolean indexed
         ) {
             this.name = name;
             this.numericType = numericType;
             this.valuesSourceType = valuesSourceType;
             this.toScriptFieldFactory = toScriptFieldFactory;
+            this.indexed = indexed;
         }
 
         @Override
         public SortedNumericIndexFieldData build(IndexFieldDataCache cache, CircuitBreakerService breakerService) {
-            return new SortedNumericIndexFieldData(name, numericType, valuesSourceType, toScriptFieldFactory);
+            return new SortedNumericIndexFieldData(name, numericType, valuesSourceType, toScriptFieldFactory, indexed);
         }
     }
 
@@ -69,18 +78,21 @@ public class SortedNumericIndexFieldData extends IndexNumericFieldData {
     protected final String fieldName;
     protected final ValuesSourceType valuesSourceType;
     protected final ToScriptFieldFactory<SortedNumericDocValues> toScriptFieldFactory;
+    protected final boolean indexed;
 
     public SortedNumericIndexFieldData(
         String fieldName,
         NumericType numericType,
         ValuesSourceType valuesSourceType,
-        ToScriptFieldFactory<SortedNumericDocValues> toScriptFieldFactory
+        ToScriptFieldFactory<SortedNumericDocValues> toScriptFieldFactory,
+        boolean indexed
     ) {
         this.fieldName = fieldName;
         this.numericType = Objects.requireNonNull(numericType);
         assert this.numericType.isFloatingPoint() == false;
         this.valuesSourceType = valuesSourceType;
         this.toScriptFieldFactory = toScriptFieldFactory;
+        this.indexed = indexed;
     }
 
     @Override
@@ -96,6 +108,11 @@ public class SortedNumericIndexFieldData extends IndexNumericFieldData {
     @Override
     protected boolean sortRequiresCustomComparator() {
         return false;
+    }
+
+    @Override
+    public boolean isIndexed() {
+        return indexed;
     }
 
     @Override
@@ -136,7 +153,7 @@ public class SortedNumericIndexFieldData extends IndexNumericFieldData {
     }
 
     @Override
-    public LeafNumericFieldData loadDirect(LeafReaderContext context) throws Exception {
+    public LeafNumericFieldData loadDirect(LeafReaderContext context) {
         return load(context);
     }
 
@@ -189,25 +206,9 @@ public class SortedNumericIndexFieldData extends IndexNumericFieldData {
 
         @Override
         public FormattedDocValues getFormattedValues(DocValueFormat format) {
-            DocValueFormat nanosFormat = DocValueFormat.withNanosecondResolution(format);
-            SortedNumericDocValues values = getLongValuesAsNanos();
-            return new FormattedDocValues() {
-                @Override
-                public boolean advanceExact(int docId) throws IOException {
-                    return values.advanceExact(docId);
-                }
-
-                @Override
-                public int docValueCount() throws IOException {
-                    return values.docValueCount();
-                }
-
-                @Override
-                public Object nextValue() throws IOException {
-                    return nanosFormat.format(values.nextValue());
-                }
-            };
+            return new FormattedSortedNumericDocValues(getLongValuesAsNanos(), DocValueFormat.withNanosecondResolution(format));
         }
+
     }
 
     /**
@@ -247,4 +248,5 @@ public class SortedNumericIndexFieldData extends IndexNumericFieldData {
             return toScriptFieldFactory.getScriptFieldFactory(getLongValues(), name);
         }
     }
+
 }

@@ -27,6 +27,7 @@ import java.io.IOException;
 import java.util.Objects;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 public class ConnectorScheduling implements Writeable, ToXContentObject {
 
@@ -45,15 +46,27 @@ public class ConnectorScheduling implements Writeable, ToXContentObject {
      * @param incremental   connector incremental sync schedule represented as {@link ScheduleConfig}
      */
     private ConnectorScheduling(ScheduleConfig accessControl, ScheduleConfig full, ScheduleConfig incremental) {
-        this.accessControl = Objects.requireNonNull(accessControl, ACCESS_CONTROL_FIELD.getPreferredName());
-        this.full = Objects.requireNonNull(full, FULL_FIELD.getPreferredName());
-        this.incremental = Objects.requireNonNull(incremental, INCREMENTAL_FIELD.getPreferredName());
+        this.accessControl = accessControl;
+        this.full = full;
+        this.incremental = incremental;
     }
 
     public ConnectorScheduling(StreamInput in) throws IOException {
         this.accessControl = new ScheduleConfig(in);
         this.full = new ScheduleConfig(in);
         this.incremental = new ScheduleConfig(in);
+    }
+
+    public ScheduleConfig getAccessControl() {
+        return accessControl;
+    }
+
+    public ScheduleConfig getFull() {
+        return full;
+    }
+
+    public ScheduleConfig getIncremental() {
+        return incremental;
     }
 
     private static final ConstructingObjectParser<ConnectorScheduling, Void> PARSER = new ConstructingObjectParser<>(
@@ -67,13 +80,18 @@ public class ConnectorScheduling implements Writeable, ToXContentObject {
 
     static {
         PARSER.declareField(
-            constructorArg(),
+            optionalConstructorArg(),
             (p, c) -> ScheduleConfig.fromXContent(p),
             ACCESS_CONTROL_FIELD,
             ObjectParser.ValueType.OBJECT
         );
-        PARSER.declareField(constructorArg(), (p, c) -> ScheduleConfig.fromXContent(p), FULL_FIELD, ObjectParser.ValueType.OBJECT);
-        PARSER.declareField(constructorArg(), (p, c) -> ScheduleConfig.fromXContent(p), INCREMENTAL_FIELD, ObjectParser.ValueType.OBJECT);
+        PARSER.declareField(optionalConstructorArg(), (p, c) -> ScheduleConfig.fromXContent(p), FULL_FIELD, ObjectParser.ValueType.OBJECT);
+        PARSER.declareField(
+            optionalConstructorArg(),
+            (p, c) -> ScheduleConfig.fromXContent(p),
+            INCREMENTAL_FIELD,
+            ObjectParser.ValueType.OBJECT
+        );
     }
 
     public static ConnectorScheduling fromXContentBytes(BytesReference source, XContentType xContentType) {
@@ -92,9 +110,15 @@ public class ConnectorScheduling implements Writeable, ToXContentObject {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         {
-            builder.field(ACCESS_CONTROL_FIELD.getPreferredName(), accessControl);
-            builder.field(FULL_FIELD.getPreferredName(), full);
-            builder.field(INCREMENTAL_FIELD.getPreferredName(), incremental);
+            if (accessControl != null) {
+                builder.field(ACCESS_CONTROL_FIELD.getPreferredName(), accessControl);
+            }
+            if (full != null) {
+                builder.field(FULL_FIELD.getPreferredName(), full);
+            }
+            if (incremental != null) {
+                builder.field(INCREMENTAL_FIELD.getPreferredName(), incremental);
+            }
         }
         builder.endObject();
         return builder;
@@ -182,10 +206,6 @@ public class ConnectorScheduling implements Writeable, ToXContentObject {
 
         public static ScheduleConfig fromXContent(XContentParser parser) throws IOException {
             return PARSER.parse(parser, null);
-        }
-
-        public static ConstructingObjectParser<ScheduleConfig, Void> getParser() {
-            return PARSER;
         }
 
         @Override

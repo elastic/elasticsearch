@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.aggregations;
 
@@ -18,11 +19,21 @@ import org.junit.ClassRule;
 
 public class AggregationsClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
     @ClassRule
-    public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
-        .module("aggregations")
-        .module("lang-painless")
-        .feature(FeatureFlag.TIME_SERIES_MODE)
-        .build();
+    public static ElasticsearchCluster cluster = makeCluster();
+
+    private static ElasticsearchCluster makeCluster() {
+        var cluster = ElasticsearchCluster.local().module("aggregations").module("lang-painless").feature(FeatureFlag.TIME_SERIES_MODE);
+
+        // On Serverless, we want to disallow scripted metrics aggs per default.
+        // The following override allows us to still run the scripted metrics agg tests without breaking bwc.
+        boolean disableAllowListPerDefault = Boolean.parseBoolean(
+            System.getProperty("tests.disable_scripted_metric_allow_list_per_default")
+        );
+        if (disableAllowListPerDefault) {
+            return cluster.setting("search.aggs.only_allowed_metric_scripts", "false").build();
+        }
+        return cluster.build();
+    }
 
     public AggregationsClientYamlTestSuiteIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {
         super(testCandidate);

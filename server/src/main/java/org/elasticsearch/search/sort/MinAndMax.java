@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.sort;
@@ -55,16 +56,27 @@ public class MinAndMax<T extends Comparable<? super T>> implements Writeable {
         return maxValue;
     }
 
+    @SuppressWarnings({ "unchecked", "rawtypes" })
+    private static final Comparator<MinAndMax> ASC_COMPARATOR = (left, right) -> {
+        if (left == null) {
+            return right == null ? 0 : -1; // nulls last
+        }
+        return right == null ? 1 : left.getMin().compareTo(right.getMin());
+    };
+
+    @SuppressWarnings({ "unchecked", "rawtypes" })
+    private static final Comparator<MinAndMax> DESC_COMPARATOR = (left, right) -> {
+        if (left == null) {
+            return right == null ? 0 : 1; // nulls first
+        }
+        return right == null ? -1 : right.getMax().compareTo(left.getMax());
+    };
+
     /**
      * Return a {@link Comparator} for {@link MinAndMax} values according to the provided {@link SortOrder}.
      */
+    @SuppressWarnings({ "unchecked", "rawtypes" })
     public static <T extends Comparable<? super T>> Comparator<MinAndMax<T>> getComparator(SortOrder order) {
-        Comparator<MinAndMax<T>> cmp = order == SortOrder.ASC
-            ? Comparator.comparing(MinAndMax::getMin)
-            : Comparator.comparing(MinAndMax::getMax);
-        if (order == SortOrder.DESC) {
-            cmp = cmp.reversed();
-        }
-        return Comparator.nullsLast(cmp);
+        return (Comparator) (order == SortOrder.ASC ? ASC_COMPARATOR : DESC_COMPARATOR);
     }
 }

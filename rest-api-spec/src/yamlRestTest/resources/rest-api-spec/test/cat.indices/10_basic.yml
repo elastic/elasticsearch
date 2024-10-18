@@ -9,8 +9,8 @@
                /^$/
 ---
 "Test cat indices output":
-  - skip:
-      version: " - 8.10.99"
+  - requires:
+      cluster_features: ["gte_v8.11.0"]
       reason:  dataset size was added in 8.11.0
 
   - do:
@@ -71,9 +71,10 @@
 ---
 "Test cat indices output for closed index (pre 7.2.0)":
   - skip:
-      version: "7.2.0 - "
       reason:  "closed indices are replicated starting version 7.2.0"
-      features: ["allowed_warnings"]
+      cluster_features: ["gte_v7.2.0"]
+  - requires:
+      test_runner_features: ["allowed_warnings"]
 
   - do:
       indices.create:
@@ -115,9 +116,10 @@
 ---
 "Test cat indices output for closed index":
   - skip:
-      version: " - 7.1.99"
       reason:  "closed indices are replicated starting version 7.2.0"
-      features: ["allowed_warnings"]
+      cluster_features: ["gte_v7.2.0"]
+  - requires:
+      test_runner_features: ["allowed_warnings"]
 
   - do:
       indices.create:
@@ -307,8 +309,8 @@
 
 ---
 "Test cat indices with invalid health parameter":
-  - skip:
-      version: " - 7.7.1"
+  - requires:
+      cluster_features: ["gte_v7.8.0"]
       reason:  "fixed in 7.7.1+"
 
   - do:

@@ -8,39 +8,70 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.multivalue;
 
 import org.apache.lucene.util.ArrayUtil;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.ann.MvEvaluator;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.tree.NodeInfo;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataTypes;
 
+import java.io.IOException;
 import java.math.BigInteger;
 import java.util.Arrays;
 import java.util.List;
 
-import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.isRepresentable;
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isType;
-import static org.elasticsearch.xpack.ql.util.NumericUtils.asLongUnsigned;
-import static org.elasticsearch.xpack.ql.util.NumericUtils.unsignedLongAsBigInteger;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
+import static org.elasticsearch.xpack.esql.core.type.DataType.isRepresentable;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.bigIntegerToUnsignedLong;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.unsignedLongToBigInteger;
 
 /**
- * Reduce a multivalued field to a single valued field containing the average value.
+ * Reduce a multivalued field to a single valued field containing the median of the values.
  */
 public class MvMedian extends AbstractMultivalueFunction {
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "MvMedian", MvMedian::new);
+
     @FunctionInfo(
         returnType = { "double", "integer", "long", "unsigned_long" },
-        description = "Converts a multivalued field into a single valued field containing the median value."
+        description = "Converts a multivalued field into a single valued field containing the median value.",
+        examples = {
+            @Example(file = "math", tag = "mv_median"),
+            @Example(
+                description = "If the row has an even number of values for a column, "
+                    + "the result will be the average of the middle two entries. If the column is not floating point, "
+                    + "the average rounds *down*:",
+                file = "math",
+                tag = "mv_median_round_down"
+            ) }
     )
-    public MvMedian(Source source, @Param(name = "v", type = { "double", "integer", "long", "unsigned_long" }) Expression field) {
+    public MvMedian(
+        Source source,
+        @Param(
+            name = "number",
+            type = { "double", "integer", "long", "unsigned_long" },
+            description = "Multivalue expression."
+        ) Expression field
+    ) {
         super(source, field);
+    }
+
+    private MvMedian(StreamInput in) throws IOException {
+        super(in);
+    }
+
+    @Override
+    public String getWriteableName() {
+        return ENTRY.name;
     }
 
     @Override
@@ -53,7 +84,7 @@ public class MvMedian extends AbstractMultivalueFunction {
         return switch (PlannerUtils.toElementType(field().dataType())) {
             case DOUBLE -> new MvMedianDoubleEvaluator.Factory(fieldEval);
             case INT -> new MvMedianIntEvaluator.Factory(fieldEval);
-            case LONG -> field().dataType() == DataTypes.UNSIGNED_LONG
+            case LONG -> field().dataType() == DataType.UNSIGNED_LONG
                 ? new MvMedianUnsignedLongEvaluator.Factory(fieldEval)
                 : new MvMedianLongEvaluator.Factory(fieldEval);
             default -> throw EsqlIllegalArgumentException.illegalDataType(field.dataType());
@@ -75,7 +106,7 @@ public class MvMedian extends AbstractMultivalueFunction {
         public int count;
     }
 
-    @MvEvaluator(extraName = "Double", finish = "finish")
+    @MvEvaluator(extraName = "Double", finish = "finish", ascending = "ascending")
     static void process(Doubles doubles, double v) {
         if (doubles.values.length < doubles.count + 1) {
             doubles.values = ArrayUtil.grow(doubles.values, doubles.count + 1);
@@ -156,9 +187,9 @@ public class MvMedian extends AbstractMultivalueFunction {
         Arrays.sort(longs.values, 0, longs.count);
         int middle = longs.count / 2;
         longs.count = 0;
-        BigInteger a = unsignedLongAsBigInteger(longs.values[middle - 1]);
-        BigInteger b = unsignedLongAsBigInteger(longs.values[middle]);
-        return asLongUnsigned(a.add(b).shiftRight(1).longValue());
+        BigInteger a = unsignedLongToBigInteger(longs.values[middle - 1]);
+        BigInteger b = unsignedLongToBigInteger(longs.values[middle]);
+        return bigIntegerToUnsignedLong(a.add(b).shiftRight(1));
     }
 
     /**
@@ -169,9 +200,9 @@ public class MvMedian extends AbstractMultivalueFunction {
         if (count % 2 == 1) {
             return values.getLong(middle);
         }
-        BigInteger a = unsignedLongAsBigInteger(values.getLong(middle - 1));
-        BigInteger b = unsignedLongAsBigInteger(values.getLong(middle));
-        return asLongUnsigned(a.add(b).shiftRight(1).longValue());
+        BigInteger a = unsignedLongToBigInteger(values.getLong(middle - 1));
+        BigInteger b = unsignedLongToBigInteger(values.getLong(middle));
+        return bigIntegerToUnsignedLong(a.add(b).shiftRight(1));
     }
 
     static class Ints {

@@ -10,11 +10,10 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.multivalue;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.math.BigInteger;
 import java.util.ArrayList;
@@ -72,11 +71,11 @@ public class MvMedianTests extends AbstractMultivalueFunctionTestCase {
         cases.add(
             new TestCaseSupplier(
                 "mv_median(<1, 2>)",
-                List.of(DataTypes.INTEGER),
+                List.of(DataType.INTEGER),
                 () -> new TestCaseSupplier.TestCase(
-                    List.of(new TestCaseSupplier.TypedData(List.of(1, 2), DataTypes.INTEGER, "field")),
+                    List.of(new TestCaseSupplier.TypedData(List.of(1, 2), DataType.INTEGER, "field")),
                     "MvMedian[field=Attribute[channel=0]]",
-                    DataTypes.INTEGER,
+                    DataType.INTEGER,
                     equalTo(1)
                 )
             )
@@ -84,25 +83,20 @@ public class MvMedianTests extends AbstractMultivalueFunctionTestCase {
         cases.add(
             new TestCaseSupplier(
                 "mv_median(<-1, -2>)",
-                List.of(DataTypes.INTEGER),
+                List.of(DataType.INTEGER),
                 () -> new TestCaseSupplier.TestCase(
-                    List.of(new TestCaseSupplier.TypedData(List.of(-1, -2), DataTypes.INTEGER, "field")),
+                    List.of(new TestCaseSupplier.TypedData(List.of(-1, -2), DataType.INTEGER, "field")),
                     "MvMedian[field=Attribute[channel=0]]",
-                    DataTypes.INTEGER,
+                    DataType.INTEGER,
                     equalTo(-2)
                 )
             )
         );
-        return parameterSuppliersFromTypedData(errorsForCasesWithoutExamples(anyNullIsNull(false, cases)));
+        return parameterSuppliersFromTypedDataWithDefaultChecks(false, cases, (v, p) -> "numeric");
     }
 
     @Override
     protected Expression build(Source source, Expression field) {
         return new MvMedian(source, field);
-    }
-
-    @Override
-    protected DataType[] supportedTypes() {
-        return representableNumerics();
     }
 }

@@ -1,13 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.search.aggregations.bucket.terms;
 
+import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.elasticsearch.common.util.LongHash;
 import org.elasticsearch.common.util.SetBackedScalingCuckooFilter;
@@ -66,34 +69,52 @@ public class LongRareTermsAggregator extends AbstractRareTermsAggregator {
 
     @Override
     public LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx, LeafBucketCollector sub) throws IOException {
-        SortedNumericDocValues values = getValues(valuesSource, aggCtx.getLeafReaderContext());
+        final SortedNumericDocValues values = getValues(valuesSource, aggCtx.getLeafReaderContext());
+        final NumericDocValues singleton = DocValues.unwrapSingleton(values);
+        return singleton != null ? getLeafCollector(singleton, sub) : getLeafCollector(values, sub);
+    }
+
+    private LeafBucketCollector getLeafCollector(SortedNumericDocValues values, LeafBucketCollector sub) {
         return new LeafBucketCollectorBase(sub, values) {
             @Override
             public void collect(int docId, long owningBucketOrd) throws IOException {
-                if (false == values.advanceExact(docId)) {
-                    return;
-                }
-                int valuesCount = values.docValueCount();
-                long previous = Long.MAX_VALUE;
-                for (int i = 0; i < valuesCount; ++i) {
-                    long val = values.nextValue();
-                    if (i == 0 && previous == val) {
-                        continue;
-                    }
-                    previous = val;
-                    if (filter != null && false == filter.accept(val)) {
-                        continue;
-                    }
-                    long bucketOrdinal = bucketOrds.add(owningBucketOrd, val);
-                    if (bucketOrdinal < 0) { // already seen
-                        bucketOrdinal = -1 - bucketOrdinal;
-                        collectExistingBucket(sub, docId, bucketOrdinal);
-                    } else {
-                        collectBucket(sub, docId, bucketOrdinal);
+                if (values.advanceExact(docId)) {
+                    long previous = Long.MAX_VALUE;
+                    for (int i = 0; i < values.docValueCount(); ++i) {
+                        long val = values.nextValue();
+                        if (i == 0 && previous == val) {
+                            continue;
+                        }
+                        collectValue(val, docId, owningBucketOrd, sub);
+                        previous = val;
                     }
                 }
             }
         };
+    }
+
+    private LeafBucketCollector getLeafCollector(NumericDocValues values, LeafBucketCollector sub) {
+        return new LeafBucketCollectorBase(sub, values) {
+            @Override
+            public void collect(int docId, long owningBucketOrd) throws IOException {
+                if (values.advanceExact(docId)) {
+                    collectValue(values.longValue(), docId, owningBucketOrd, sub);
+                }
+            }
+        };
+    }
+
+    private void collectValue(long val, int docId, long owningBucketOrd, LeafBucketCollector sub) throws IOException {
+        if (filter == null || filter.accept(val)) {
+            long bucketOrdinal = bucketOrds.add(owningBucketOrd, val);
+            if (bucketOrdinal < 0) { // already seen
+                bucketOrdinal = -1 - bucketOrdinal;
+                collectExistingBucket(sub, docId, bucketOrdinal);
+            } else {
+                collectBucket(sub, docId, bucketOrdinal);
+            }
+        }
+
     }
 
     @Override

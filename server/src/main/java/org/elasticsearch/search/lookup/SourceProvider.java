@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.lookup;
@@ -11,6 +12,8 @@ package org.elasticsearch.search.lookup;
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
 import org.elasticsearch.index.mapper.Mapping;
+import org.elasticsearch.index.mapper.SourceFieldMetrics;
+import org.elasticsearch.index.mapper.SourceLoader;
 
 import java.io.IOException;
 
@@ -45,7 +48,7 @@ public interface SourceProvider {
      * but it is not safe to use this to access documents from the same segment across
      * multiple threads.
      */
-    static SourceProvider fromSyntheticSource(Mapping mapping) {
-        return new SyntheticSourceProvider(mapping);
+    static SourceProvider fromSyntheticSource(Mapping mapping, SourceFieldMetrics metrics) {
+        return new SyntheticSourceProvider(new SourceLoader.Synthetic(mapping::syntheticFieldLoader, metrics));
     }
 }

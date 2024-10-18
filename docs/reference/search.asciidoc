@@ -52,6 +52,8 @@ include::search/point-in-time-api.asciidoc[]
 
 include::search/knn-search.asciidoc[]
 
+include::search/retriever.asciidoc[]
+
 include::search/rrf.asciidoc[]
 
 include::search/scroll-api.asciidoc[]

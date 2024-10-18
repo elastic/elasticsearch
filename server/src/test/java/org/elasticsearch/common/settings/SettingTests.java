@@ -1,19 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.common.settings;
 
 import org.apache.logging.log4j.Level;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.LogEvent;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.AbstractScopedSettings.SettingUpdater;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -23,7 +21,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 
 import java.util.Arrays;
@@ -40,6 +38,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.index.IndexSettingsTests.newIndexMeta;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -914,19 +913,32 @@ public class SettingTests extends ESTestCase {
         assertFalse(listAffixSetting.match("foo"));
     }
 
-    public void testAffixKeyExists() {
-        Setting<Boolean> setting = Setting.affixKeySetting("foo.", "enable", (key) -> Setting.boolSetting(key, false, Property.NodeScope));
+    public void testAffixKeySettingWithSecure() {
+        Setting.AffixSetting<SecureString> secureSetting = Setting.affixKeySetting(
+            "foo.",
+            "secret",
+            (key) -> SecureSetting.secureString(key, null)
+        );
 
-        assertFalse(setting.exists(Settings.EMPTY));
-        assertTrue(setting.exists(Settings.builder().put("foo.test.enable", "true").build()));
+        MockSecureSettings secureSettings = new MockSecureSettings();
+        secureSettings.setString("foo.a.secret", "secret1");
+        secureSettings.setString("foo.b.secret", "secret2");
+        Settings settings = Settings.builder().setSecureSettings(secureSettings).build();
+
+        assertThat(secureSetting.exists(settings), is(true));
+
+        Map<String, SecureString> secrets = secureSetting.getAsMap(settings);
+        assertThat(secrets.keySet(), contains("a", "b"));
+
+        Setting<SecureString> secureA = secureSetting.getConcreteSetting("foo.a.secret");
+        assertThat(secureA.get(settings), is("secret1"));
+        assertThat(secrets.get("a"), is("secret1"));
     }
 
-    public void testAffixKeyExistsWithSecure() {
+    public void testAffixKeyExists() {
         Setting<Boolean> setting = Setting.affixKeySetting("foo.", "enable", (key) -> Setting.boolSetting(key, false, Property.NodeScope));
-
-        final MockSecureSettings secureSettings = new MockSecureSettings();
-        secureSettings.setString("foo.test.enabled", "true");
-        assertFalse(setting.exists(Settings.builder().setSecureSettings(secureSettings).build()));
+        assertFalse(setting.exists(Settings.EMPTY));
+        assertTrue(setting.exists(Settings.builder().put("foo.test.enable", "true").build()));
     }
 
     public void testAffixSettingNamespaces() {
@@ -1153,7 +1165,7 @@ public class SettingTests extends ESTestCase {
     }
 
     public void testTimeValue() {
-        final TimeValue random = TimeValue.parseTimeValue(randomTimeValue(), "test");
+        final TimeValue random = randomTimeValue();
 
         Setting<TimeValue> setting = Setting.timeSetting("foo", random);
         assertThat(setting.get(Settings.EMPTY), equalTo(random));
@@ -1412,7 +1424,7 @@ public class SettingTests extends ESTestCase {
     }
 
     @TestLogging(
-        value = "org.elasticsearch.common.settings.IndexScopedSettings:INFO",
+        value = "org.elasticsearch.common.settings.IndexScopedSettings:DEBUG",
         reason = "to ensure we log INFO-level messages from IndexScopedSettings"
     )
     public void testLogSettingUpdate() throws Exception {
@@ -1422,32 +1434,25 @@ public class SettingTests extends ESTestCase {
         );
         final IndexSettings settings = new IndexSettings(metadata, Settings.EMPTY);
 
-        final MockLogAppender mockLogAppender = new MockLogAppender();
-        mockLogAppender.addExpectation(
-            new MockLogAppender.SeenEventExpectation(
-                "message",
-                "org.elasticsearch.common.settings.IndexScopedSettings",
-                Level.INFO,
-                "updating [index.refresh_interval] from [20s] to [10s]"
-            ) {
-                @Override
-                public boolean innerMatch(LogEvent event) {
-                    return event.getMarker().getName().equals(" [index1]");
+        try (var mockLog = MockLog.capture(IndexScopedSettings.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "message",
+                    "org.elasticsearch.common.settings.IndexScopedSettings",
+                    Level.DEBUG,
+                    "updating [index.refresh_interval] from [20s] to [10s]"
+                ) {
+                    @Override
+                    public boolean innerMatch(LogEvent event) {
+                        return event.getMarker().getName().equals(" [index1]");
+                    }
                 }
-            }
-        );
-        mockLogAppender.start();
-        final Logger logger = LogManager.getLogger(IndexScopedSettings.class);
-        try {
-            Loggers.addAppender(logger, mockLogAppender);
+            );
             settings.updateIndexMetadata(
                 newIndexMeta("index1", Settings.builder().put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), "10s").build())
             );
 
-            mockLogAppender.assertAllExpectationsMatched();
-        } finally {
-            Loggers.removeAppender(logger, mockLogAppender);
-            mockLogAppender.stop();
+            mockLog.assertAllExpectationsMatched();
         }
     }
 

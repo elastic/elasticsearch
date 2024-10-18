@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.ingest;
@@ -39,8 +40,8 @@ public class SimulatePipelineRequest extends ActionRequest implements ToXContent
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(SimulatePipelineRequest.class);
     private String id;
     private boolean verbose;
-    private BytesReference source;
-    private XContentType xContentType;
+    private final BytesReference source;
+    private final XContentType xContentType;
     private RestApiVersion restApiVersion;
 
     /**
@@ -55,8 +56,6 @@ public class SimulatePipelineRequest extends ActionRequest implements ToXContent
         this.xContentType = Objects.requireNonNull(xContentType);
         this.restApiVersion = restApiVersion;
     }
-
-    SimulatePipelineRequest() {}
 
     SimulatePipelineRequest(StreamInput in) throws IOException {
         super(in);

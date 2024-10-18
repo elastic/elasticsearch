@@ -27,12 +27,18 @@
               "description": "The unique identifier of the connector to be created or updated."
             }
           }
+        },
+        {
+          "path": "/_connector",
+          "methods": [
+            "PUT"
+          ]
         }
       ]
     },
     "body": {
       "description": "The connector configuration.",
-      "required": true
+      "required": false
     }
   }
 }

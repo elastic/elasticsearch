@@ -9,11 +9,14 @@ package org.elasticsearch.compute.aggregation;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.apache.lucene.document.InetAddressPoint;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockTestUtils;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -26,19 +29,31 @@ public class ArrayStateTests extends ESTestCase {
         List<Object[]> params = new ArrayList<>();
 
         for (boolean inOrder : new boolean[] { true, false }) {
-            params.add(new Object[] { ElementType.INT, 1000, inOrder });
-            params.add(new Object[] { ElementType.LONG, 1000, inOrder });
-            params.add(new Object[] { ElementType.DOUBLE, 1000, inOrder });
+            params.add(new Object[] { DataType.INTEGER, 1000, inOrder });
+            params.add(new Object[] { DataType.LONG, 1000, inOrder });
+            params.add(new Object[] { DataType.FLOAT, 1000, inOrder });
+            params.add(new Object[] { DataType.DOUBLE, 1000, inOrder });
+            params.add(new Object[] { DataType.IP, 1000, inOrder });
         }
         return params;
     }
 
+    private final DataType type;
     private final ElementType elementType;
     private final int valueCount;
     private final boolean inOrder;
 
-    public ArrayStateTests(ElementType elementType, int valueCount, boolean inOrder) {
-        this.elementType = elementType;
+    public ArrayStateTests(DataType type, int valueCount, boolean inOrder) {
+        this.type = type;
+        this.elementType = switch (type) {
+            case INTEGER -> ElementType.INT;
+            case LONG -> ElementType.LONG;
+            case FLOAT -> ElementType.FLOAT;
+            case DOUBLE -> ElementType.DOUBLE;
+            case BOOLEAN -> ElementType.BOOLEAN;
+            case IP -> ElementType.BYTES_REF;
+            default -> throw new IllegalArgumentException();
+        };
         this.valueCount = valueCount;
         this.inOrder = inOrder;
     }
@@ -155,34 +170,47 @@ public class ArrayStateTests extends ESTestCase {
     }
 
     private AbstractArrayState newState() {
-        return switch (elementType) {
-            case INT -> new IntArrayState(BigArrays.NON_RECYCLING_INSTANCE, 1);
+        return switch (type) {
+            case INTEGER -> new IntArrayState(BigArrays.NON_RECYCLING_INSTANCE, 1);
             case LONG -> new LongArrayState(BigArrays.NON_RECYCLING_INSTANCE, 1);
+            case FLOAT -> new FloatArrayState(BigArrays.NON_RECYCLING_INSTANCE, 1);
             case DOUBLE -> new DoubleArrayState(BigArrays.NON_RECYCLING_INSTANCE, 1);
+            case BOOLEAN -> new BooleanArrayState(BigArrays.NON_RECYCLING_INSTANCE, false);
+            case IP -> new IpArrayState(BigArrays.NON_RECYCLING_INSTANCE, new BytesRef(new byte[16]));
             default -> throw new IllegalArgumentException();
         };
     }
 
-    private void set(AbstractArrayState state, int groupdId, Object value) {
-        switch (elementType) {
-            case INT -> ((IntArrayState) state).set(groupdId, (Integer) value);
-            case LONG -> ((LongArrayState) state).set(groupdId, (Long) value);
-            case DOUBLE -> ((DoubleArrayState) state).set(groupdId, (Double) value);
+    private void set(AbstractArrayState state, int groupId, Object value) {
+        switch (type) {
+            case INTEGER -> ((IntArrayState) state).set(groupId, (Integer) value);
+            case LONG -> ((LongArrayState) state).set(groupId, (Long) value);
+            case FLOAT -> ((FloatArrayState) state).set(groupId, (Float) value);
+            case DOUBLE -> ((DoubleArrayState) state).set(groupId, (Double) value);
+            case BOOLEAN -> ((BooleanArrayState) state).set(groupId, (Boolean) value);
+            case IP -> ((IpArrayState) state).set(groupId, (BytesRef) value);
             default -> throw new IllegalArgumentException();
         }
     }
 
     private Object get(AbstractArrayState state, int index) {
-        return switch (elementType) {
-            case INT -> ((IntArrayState) state).get(index);
+        return switch (type) {
+            case INTEGER -> ((IntArrayState) state).get(index);
             case LONG -> ((LongArrayState) state).get(index);
+            case FLOAT -> ((FloatArrayState) state).get(index);
             case DOUBLE -> ((DoubleArrayState) state).get(index);
+            case BOOLEAN -> ((BooleanArrayState) state).get(index);
+            case IP -> ((IpArrayState) state).get(index, new BytesRef());
             default -> throw new IllegalArgumentException();
         };
     }
 
     private Object randomValue() {
-        return BlockTestUtils.randomValue(elementType);
+        return switch (type) {
+            case INTEGER, LONG, FLOAT, DOUBLE, BOOLEAN -> BlockTestUtils.randomValue(elementType);
+            case IP -> new BytesRef(InetAddressPoint.encode(randomIp(randomBoolean())));
+            default -> throw new IllegalArgumentException();
+        };
     }
 
     private Object nullableRandomValue() {

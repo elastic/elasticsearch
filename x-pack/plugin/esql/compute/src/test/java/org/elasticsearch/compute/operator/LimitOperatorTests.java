@@ -12,6 +12,7 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
+import org.hamcrest.Matcher;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -32,13 +33,13 @@ public class LimitOperatorTests extends OperatorTestCase {
     }
 
     @Override
-    protected String expectedDescriptionOfSimple() {
-        return "LimitOperator[limit = 100]";
+    protected Matcher<String> expectedDescriptionOfSimple() {
+        return equalTo("LimitOperator[limit = 100]");
     }
 
     @Override
-    protected String expectedToStringOfSimple() {
-        return "LimitOperator[limit = 100/100]";
+    protected Matcher<String> expectedToStringOfSimple() {
+        return equalTo("LimitOperator[limit = 100/100]");
     }
 
     @Override
@@ -133,11 +134,11 @@ public class LimitOperatorTests extends OperatorTestCase {
 
     static ElementType randomElement() {
         List<ElementType> l = new ArrayList<>();
-        for (ElementType elementType : ElementType.values()) {
-            if (elementType == ElementType.UNKNOWN || elementType == ElementType.NULL || elementType == ElementType.DOC) {
+        for (ElementType e : ElementType.values()) {
+            if (e == ElementType.UNKNOWN || e == ElementType.NULL || e == ElementType.DOC || e == ElementType.COMPOSITE) {
                 continue;
             }
-            l.add(elementType);
+            l.add(e);
         }
         return randomFrom(l);
     }

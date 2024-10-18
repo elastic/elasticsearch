@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
@@ -174,7 +175,7 @@ public abstract class MetadataFieldMapper extends FieldMapper {
     }
 
     protected MetadataFieldMapper(MappedFieldType mappedFieldType) {
-        super(mappedFieldType.name(), mappedFieldType, MultiFields.empty(), CopyTo.empty(), false, null);
+        super(mappedFieldType.name(), mappedFieldType, BuilderParams.empty());
     }
 
     @Override
@@ -188,7 +189,7 @@ public abstract class MetadataFieldMapper extends FieldMapper {
         if (mergeBuilder == null || mergeBuilder.isConfigured() == false) {
             return builder;
         }
-        builder.startObject(simpleName());
+        builder.startObject(leafName());
         getMergeBuilder().toXContent(builder, params);
         return builder.endObject();
     }
@@ -197,7 +198,7 @@ public abstract class MetadataFieldMapper extends FieldMapper {
     protected void parseCreateField(DocumentParserContext context) throws IOException {
         throw new DocumentParsingException(
             context.parser().getTokenLocation(),
-            "Field [" + name() + "] is a metadata field and cannot be added inside a document. Use the index API request parameters."
+            "Field [" + fullPath() + "] is a metadata field and cannot be added inside a document. Use the index API request parameters."
         );
     }
 
@@ -216,5 +217,7 @@ public abstract class MetadataFieldMapper extends FieldMapper {
     }
 
     @Override
-    public abstract SourceLoader.SyntheticFieldLoader syntheticFieldLoader();
+    protected SyntheticSourceSupport syntheticSourceSupport() {
+        return new SyntheticSourceSupport.Native(SourceLoader.SyntheticFieldLoader.NOTHING);
+    }
 }

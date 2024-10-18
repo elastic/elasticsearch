@@ -145,6 +145,40 @@ public class AdjustableCapacityBlockingQueue<E> {
         }
     }
 
+    public E peek() {
+        final ReentrantReadWriteLock.ReadLock readLock = lock.readLock();
+
+        readLock.lock();
+        try {
+            var oldItem = prioritizedReadingQueue.peek();
+
+            if (oldItem != null) {
+                return oldItem;
+            }
+
+            return currentQueue.peek();
+        } finally {
+            readLock.unlock();
+        }
+    }
+
+    public E poll() {
+        final ReentrantReadWriteLock.ReadLock readLock = lock.readLock();
+
+        readLock.lock();
+        try {
+            var oldItem = prioritizedReadingQueue.poll();
+
+            if (oldItem != null) {
+                return oldItem;
+            }
+
+            return currentQueue.poll();
+        } finally {
+            readLock.unlock();
+        }
+    }
+
     /**
      * Returns the number of elements stored in the queue. If the capacity was recently changed, the value returned could be
      * greater than the capacity. This occurs when the capacity was reduced and there were more elements in the queue than the

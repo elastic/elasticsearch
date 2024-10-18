@@ -97,12 +97,16 @@ returned.
 [[get-data-stream-api-query-parms]]
 ==== {api-query-parms-title}
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=ds-expand-wildcards]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=ds-expand-wildcards]
 +
 Defaults to `open`.
 
 `include_defaults`::
 (Optional, Boolean) Functionality in preview:[]. If `true`, return all default settings in the response.
+Defaults to `false`.
+
+`verbose`::
+(Optional, Boolean). If `true`, Returns the `maximum_timestamp` corresponding to the `@timestamp` field for documents in the data stream.
 Defaults to `false`.
 
 [role="child_attributes"]
@@ -358,4 +362,4 @@ The API returns the following response:
 // TESTRESPONSE[s/"index_name": ".ds-my-data-stream-two-2099.03.08-000001"/"index_name": $body.data_streams.1.indices.0.index_name/]
 // TESTRESPONSE[s/"index_uuid": "3liBu2SYS5axasRt6fUIpA"/"index_uuid": $body.data_streams.1.indices.0.index_uuid/]
 // TESTRESPONSE[s/"status": "GREEN"/"status": "YELLOW"/]
-// TESTRESPONSE[s/"replicated": false/"replicated": false,"failure_indices":[],"failure_store":false/]
+// TESTRESPONSE[s/"replicated": false/"replicated": false,"failure_store":{"enabled": false, "indices": [], "rollover_on_write": true}/]

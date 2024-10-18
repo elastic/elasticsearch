@@ -77,6 +77,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -349,10 +350,36 @@ public class WatcherServiceTests extends ESTestCase {
         ClusterState.Builder csBuilder = new ClusterState.Builder(new ClusterName("_name"));
         csBuilder.metadata(Metadata.builder());
 
-        service.reload(csBuilder.build(), "whatever");
+        service.reload(csBuilder.build(), "whatever", exception -> {});
         verify(executionService).clearExecutionsAndQueue(any());
         verify(executionService, never()).pause(any());
         verify(triggerService).pauseExecution();
+    }
+
+    // the trigger service should not start unless watches are loaded successfully
+    public void testReloadingWatcherDoesNotStartTriggerServiceIfFailingToLoadWatches() {
+        ExecutionService executionService = mock(ExecutionService.class);
+        TriggerService triggerService = mock(TriggerService.class);
+        WatcherService service = new WatcherService(
+            Settings.EMPTY,
+            triggerService,
+            mock(TriggeredWatchStore.class),
+            executionService,
+            mock(WatchParser.class),
+            client,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
+        ) {
+            @Override
+            void stopExecutor() {}
+        };
+
+        ClusterState.Builder csBuilder = new ClusterState.Builder(new ClusterName("_name"));
+        Metadata metadata = spy(Metadata.builder().build());
+        when(metadata.getIndicesLookup()).thenThrow(RuntimeException.class); // simulate exception in WatcherService's private loadWatches()
+
+        service.reload(csBuilder.metadata(metadata).build(), "whatever", exception -> {});
+        verify(triggerService).pauseExecution();
+        verify(triggerService, never()).start(any());
     }
 
     private static DiscoveryNode newNode() {

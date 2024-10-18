@@ -1,15 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.reservedstate.service;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
@@ -101,7 +103,7 @@ public class FileSettingsService extends MasterNodeFileWatchingService implement
         // We check if the version was reset to 0, and force an update if a file exists. This can happen in situations
         // like snapshot restores.
         ReservedStateMetadata fileSettingsMetadata = clusterState.metadata().reservedStateMetadata().get(NAMESPACE);
-        return fileSettingsMetadata != null && fileSettingsMetadata.version() == 0L;
+        return fileSettingsMetadata != null && fileSettingsMetadata.version().equals(ReservedStateMetadata.RESTORED_VERSION);
     }
 
     /**
@@ -122,6 +124,14 @@ public class FileSettingsService extends MasterNodeFileWatchingService implement
         ) {
             stateService.process(NAMESPACE, parser, (e) -> completeProcessing(e, completion));
         }
+        completion.get();
+    }
+
+    @Override
+    protected void processInitialFileMissing() throws ExecutionException, InterruptedException, IOException {
+        PlainActionFuture<ActionResponse.Empty> completion = new PlainActionFuture<>();
+        logger.info("setting file [{}] not found, initializing [{}] as empty", watchedFile(), NAMESPACE);
+        stateService.initEmpty(NAMESPACE, completion);
         completion.get();
     }
 

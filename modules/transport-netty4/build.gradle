@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 import org.elasticsearch.gradle.internal.test.RestIntegTestTask
@@ -176,6 +177,9 @@ tasks.named("thirdPartyAudit").configure {
     'com.google.protobuf.nano.CodedOutputByteBufferNano',
     'com.google.protobuf.nano.MessageNano',
     'com.github.luben.zstd.Zstd',
+    'com.github.luben.zstd.BaseZstdBufferDecompressingStreamNoFinalizer',
+    'com.github.luben.zstd.ZstdBufferDecompressingStreamNoFinalizer',
+    'com.github.luben.zstd.ZstdDirectBufferDecompressingStreamNoFinalizer',
     'com.jcraft.jzlib.Deflater',
     'com.jcraft.jzlib.Inflater',
     'com.jcraft.jzlib.JZlib$WrapperType',
@@ -236,4 +240,8 @@ tasks.named("thirdPartyAudit").configure {
     'io.netty.handler.ssl.util.OpenJdkSelfSignedCertGenerator$4',
     'io.netty.handler.ssl.util.OpenJdkSelfSignedCertGenerator$5'
   )
+}
+
+tasks.named('forbiddenApisMain').configure {
+  signaturesFiles += files('forbidden/netty-signatures.txt')
 }

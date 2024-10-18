@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.windows.service;
@@ -22,6 +23,8 @@ import java.util.Map;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.emptyString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.startsWith;
 
 public class ProcrunCommandTests extends WindowsServiceCliTestCase {
 
@@ -111,8 +114,10 @@ public class ProcrunCommandTests extends WindowsServiceCliTestCase {
 
     public void testMissingExe() throws Exception {
         Files.delete(serviceExe);
-        var e = expectThrows(IllegalStateException.class, () -> executeMain("install"));
-        assertThat(e.getMessage(), containsString("Missing procrun exe"));
+        int exitCode = executeMain("install");
+
+        assertThat(exitCode, is(ExitCodes.CODE_ERROR));
+        assertThat(terminal.getErrorOutput(), startsWith("java.lang.IllegalStateException: Missing procrun exe"));
     }
 
     public void testServiceId() throws Exception {

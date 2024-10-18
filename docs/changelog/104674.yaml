@@ -1,5 +1,0 @@
-pr: 104674
-summary: "[Profiling] Speed up processing of stacktraces"
-area: Application
-type: enhancement
-issues: []

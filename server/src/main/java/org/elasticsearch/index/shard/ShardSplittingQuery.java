@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.index.shard;
 
@@ -33,6 +34,7 @@ import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.core.Predicates;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.mapper.IdFieldMapper;
@@ -140,7 +142,12 @@ final class ShardSplittingQuery extends Query {
                              * of the document that contains them.
                              */
                             FixedBitSet hasRoutingValue = new FixedBitSet(leafReader.maxDoc());
-                            findSplitDocs(RoutingFieldMapper.NAME, ref -> false, leafReader, maybeWrapConsumer.apply(hasRoutingValue::set));
+                            findSplitDocs(
+                                RoutingFieldMapper.NAME,
+                                Predicates.never(),
+                                leafReader,
+                                maybeWrapConsumer.apply(hasRoutingValue::set)
+                            );
                             IntConsumer bitSetConsumer = maybeWrapConsumer.apply(bitSet::set);
                             findSplitDocs(IdFieldMapper.NAME, includeInShard, leafReader, docId -> {
                                 if (hasRoutingValue.get(docId) == false) {

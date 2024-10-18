@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql;
 
 import org.apache.http.HttpStatus;
+import org.apache.http.util.EntityUtils;
 import org.elasticsearch.Build;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
@@ -17,6 +18,8 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.test.MapMatcher;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.cluster.util.resource.Resource;
@@ -31,10 +34,12 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
+import static org.elasticsearch.test.MapMatcher.assertMap;
+import static org.elasticsearch.test.MapMatcher.matchesMap;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class EsqlSecurityIT extends ESRestTestCase {
-
     @ClassRule
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .distribution(DistributionType.DEFAULT)
@@ -47,6 +52,10 @@ public class EsqlSecurityIT extends ESRestTestCase {
         .user("user3", "x-pack-test-password", "user3", false)
         .user("user4", "x-pack-test-password", "user4", false)
         .user("user5", "x-pack-test-password", "user5", false)
+        .user("fls_user", "x-pack-test-password", "fls_user", false)
+        .user("metadata1_read2", "x-pack-test-password", "metadata1_read2", false)
+        .user("alias_user1", "x-pack-test-password", "alias_user1", false)
+        .user("alias_user2", "x-pack-test-password", "alias_user2", false)
         .build();
 
     @Override
@@ -62,7 +71,11 @@ public class EsqlSecurityIT extends ESRestTestCase {
 
     private void indexDocument(String index, int id, double value, String org) throws IOException {
         Request indexDoc = new Request("PUT", index + "/_doc/" + id);
-        indexDoc.setJsonEntity("{\"value\":" + value + ",\"org\":\"" + org + "\"}");
+        XContentBuilder builder = JsonXContent.contentBuilder().startObject();
+        builder.field("value", value);
+        builder.field("org", org);
+        builder.field("partial", org + value);
+        indexDoc.setJsonEntity(Strings.toString(builder.endObject()));
         client().performRequest(indexDoc);
     }
 
@@ -85,6 +98,43 @@ public class EsqlSecurityIT extends ESRestTestCase {
         indexDocument("index-user2", 1, 32.0, "marketing");
         indexDocument("index-user2", 2, 40.0, "sales");
         refresh("index-user2");
+
+        createIndex("indexpartial", Settings.EMPTY, mapping);
+        indexDocument("indexpartial", 1, 32.0, "marketing");
+        indexDocument("indexpartial", 2, 40.0, "sales");
+        refresh("indexpartial");
+
+        if (aliasExists("second-alias") == false) {
+            Request aliasRequest = new Request("POST", "_aliases");
+            aliasRequest.setJsonEntity("""
+                {
+                    "actions": [
+                        {
+                          "add": {
+                            "alias": "first-alias",
+                            "index": "index-user1",
+                            "filter": {
+                                "term": {
+                                    "org": "sales"
+                                }
+                            }
+                          }
+                        },
+                        {
+                          "add": {
+                            "alias": "second-alias",
+                            "index": "index-user2"
+                          }
+                        }
+                    ]
+                }
+                """);
+            assertOK(client().performRequest(aliasRequest));
+        }
+    }
+
+    protected MapMatcher responseMatcher() {
+        return matchesMap();
     }
 
     public void testAllowedIndices() throws Exception {
@@ -93,23 +143,80 @@ public class EsqlSecurityIT extends ESRestTestCase {
             assertOK(resp);
             Map<String, Object> respMap = entityAsMap(resp);
             assertThat(respMap.get("columns"), equalTo(List.of(Map.of("name", "sum", "type", "double"))));
-            assertThat(respMap.get("values"), equalTo(List.of(List.of(30.0))));
+            assertThat(respMap.get("values"), equalTo(List.of(List.of(30.0d))));
         }
 
         for (String user : List.of("test-admin", "user1")) {
             Response resp = runESQLCommand(user, "from index-user1 | stats sum=sum(value)");
             assertOK(resp);
-            Map<String, Object> respMap = entityAsMap(resp);
-            assertThat(respMap.get("columns"), equalTo(List.of(Map.of("name", "sum", "type", "double"))));
-            assertThat(respMap.get("values"), equalTo(List.of(List.of(43.0))));
+            Map<String, Object> responseMap = entityAsMap(resp);
+            MapMatcher mapMatcher = responseMatcher();
+            if (responseMap.get("took") != null) {
+                mapMatcher = mapMatcher.entry("took", ((Integer) responseMap.get("took")).intValue());
+            }
+            MapMatcher matcher = mapMatcher.entry("columns", List.of(Map.of("name", "sum", "type", "double")))
+                .entry("values", List.of(List.of(43.0d)));
+            assertMap(responseMap, matcher);
         }
 
         for (String user : List.of("test-admin", "user2")) {
             Response resp = runESQLCommand(user, "from index-user2 | stats sum=sum(value)");
             assertOK(resp);
-            Map<String, Object> respMap = entityAsMap(resp);
-            assertThat(respMap.get("columns"), equalTo(List.of(Map.of("name", "sum", "type", "double"))));
-            assertThat(respMap.get("values"), equalTo(List.of(List.of(72.0))));
+            Map<String, Object> responseMap = entityAsMap(resp);
+            MapMatcher mapMatcher = responseMatcher();
+            if (responseMap.get("took") != null) {
+                mapMatcher = mapMatcher.entry("took", ((Integer) responseMap.get("took")).intValue());
+            }
+            MapMatcher matcher = mapMatcher.entry("columns", List.of(Map.of("name", "sum", "type", "double")))
+                .entry("values", List.of(List.of(72.0d)));
+            assertMap(responseMap, matcher);
+        }
+
+        for (var index : List.of("index-user2", "index-user*", "index*")) {
+            Response resp = runESQLCommand("metadata1_read2", "from " + index + " | stats sum=sum(value)");
+            assertOK(resp);
+            Map<String, Object> responseMap = entityAsMap(resp);
+            MapMatcher mapMatcher = responseMatcher();
+            if (responseMap.get("took") != null) {
+                mapMatcher = mapMatcher.entry("took", ((Integer) responseMap.get("took")).intValue());
+            }
+            MapMatcher matcher = mapMatcher.entry("columns", List.of(Map.of("name", "sum", "type", "double")))
+                .entry("values", List.of(List.of(72.0d)));
+            assertMap(responseMap, matcher);
+        }
+    }
+
+    public void testAliases() throws Exception {
+        for (var index : List.of("second-alias", "second-*", "second-*,index*")) {
+            Response resp = runESQLCommand(
+                "alias_user2",
+                "from " + index + " METADATA _index" + "| stats sum=sum(value), index=VALUES(_index)"
+            );
+            assertOK(resp);
+            Map<String, Object> responseMap = entityAsMap(resp);
+            MapMatcher matcher = responseMatcher().entry("took", ((Integer) responseMap.get("took")).intValue())
+                .entry("columns", List.of(Map.of("name", "sum", "type", "double"), Map.of("name", "index", "type", "keyword")))
+                .entry("values", List.of(List.of(72.0d, "index-user2")));
+            assertMap(responseMap, matcher);
+        }
+    }
+
+    public void testAliasFilter() throws Exception {
+        for (var index : List.of("first-alias", "first-alias,index-*", "first-*,index-*")) {
+            Response resp = runESQLCommand("alias_user1", "from " + index + " METADATA _index" + "| KEEP _index, org, value | LIMIT 10");
+            assertOK(resp);
+            Map<String, Object> responseMap = entityAsMap(resp);
+            MapMatcher matcher = responseMatcher().entry("took", ((Integer) responseMap.get("took")).intValue())
+                .entry(
+                    "columns",
+                    List.of(
+                        Map.of("name", "_index", "type", "keyword"),
+                        Map.of("name", "org", "type", "keyword"),
+                        Map.of("name", "value", "type", "double")
+                    )
+                )
+                .entry("values", List.of(List.of("index-user1", "sales", 31.0d)));
+            assertMap(responseMap, matcher);
         }
     }
 
@@ -120,14 +227,182 @@ public class EsqlSecurityIT extends ESRestTestCase {
 
         error = expectThrows(ResponseException.class, () -> runESQLCommand("user2", "from index-user1 | stats sum(value)"));
         assertThat(error.getResponse().getStatusLine().getStatusCode(), equalTo(400));
+
+        error = expectThrows(ResponseException.class, () -> runESQLCommand("alias_user2", "from index-user2 | stats sum(value)"));
+        assertThat(error.getResponse().getStatusLine().getStatusCode(), equalTo(400));
+
+        error = expectThrows(ResponseException.class, () -> runESQLCommand("metadata1_read2", "from index-user1 | stats sum(value)"));
+        assertThat(error.getResponse().getStatusLine().getStatusCode(), equalTo(400));
     }
 
-    public void testDLS() throws Exception {
+    public void testInsufficientPrivilege() {
+        Exception error = expectThrows(Exception.class, () -> runESQLCommand("metadata1_read2", "FROM index-user1 | STATS sum=sum(value)"));
+        logger.info("error", error);
+        assertThat(error.getMessage(), containsString("Unknown index [index-user1]"));
+    }
+
+    public void testIndexPatternErrorMessageComparison_ESQL_SearchDSL() throws Exception {
+        // _search match_all query on the index-user1,index-user2 index pattern
+        XContentBuilder json = JsonXContent.contentBuilder();
+        json.startObject();
+        json.field("query", QueryBuilders.matchAllQuery());
+        json.endObject();
+        Request searchRequest = new Request("GET", "/index-user1,index-user2/_search");
+        searchRequest.setJsonEntity(Strings.toString(json));
+        searchRequest.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("es-security-runas-user", "metadata1_read2"));
+
+        // ES|QL query on the same index pattern
+        var esqlResp = expectThrows(ResponseException.class, () -> runESQLCommand("metadata1_read2", "FROM index-user1,index-user2"));
+        var srchResp = expectThrows(ResponseException.class, () -> client().performRequest(searchRequest));
+
+        for (ResponseException r : List.of(esqlResp, srchResp)) {
+            assertThat(
+                EntityUtils.toString(r.getResponse().getEntity()),
+                containsString(
+                    "unauthorized for user [test-admin] run as [metadata1_read2] with effective roles [metadata1_read2] on indices [index-user1]"
+                )
+            );
+        }
+        assertThat(esqlResp.getResponse().getStatusLine().getStatusCode(), equalTo(srchResp.getResponse().getStatusLine().getStatusCode()));
+    }
+
+    public void testLimitedPrivilege() throws Exception {
+        ResponseException resp = expectThrows(
+            ResponseException.class,
+            () -> runESQLCommand(
+                "metadata1_read2",
+                "FROM index-user1,index-user2 METADATA _index | STATS sum=sum(value), index=VALUES(_index)"
+            )
+        );
+        assertThat(
+            EntityUtils.toString(resp.getResponse().getEntity()),
+            containsString(
+                "unauthorized for user [test-admin] run as [metadata1_read2] with effective roles [metadata1_read2] on indices [index-user1]"
+            )
+        );
+        assertThat(resp.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_FORBIDDEN));
+
+        resp = expectThrows(
+            ResponseException.class,
+            () -> runESQLCommand("metadata1_read2", "FROM index-user1,index-user2 METADATA _index | STATS index=VALUES(_index)")
+        );
+        assertThat(
+            EntityUtils.toString(resp.getResponse().getEntity()),
+            containsString(
+                "unauthorized for user [test-admin] run as [metadata1_read2] with effective roles [metadata1_read2] on indices [index-user1]"
+            )
+        );
+        assertThat(resp.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_FORBIDDEN));
+
+        resp = expectThrows(
+            ResponseException.class,
+            () -> runESQLCommand("metadata1_read2", "FROM index-user1,index-user2 | STATS sum=sum(value)")
+        );
+        assertThat(
+            EntityUtils.toString(resp.getResponse().getEntity()),
+            containsString(
+                "unauthorized for user [test-admin] run as [metadata1_read2] with effective roles [metadata1_read2] on indices [index-user1]"
+            )
+        );
+        assertThat(resp.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_FORBIDDEN));
+
+        resp = expectThrows(
+            ResponseException.class,
+            () -> runESQLCommand("alias_user1", "FROM first-alias,index-user1 METADATA _index | KEEP _index, org, value | LIMIT 10")
+        );
+        assertThat(
+            EntityUtils.toString(resp.getResponse().getEntity()),
+            containsString(
+                "unauthorized for user [test-admin] run as [alias_user1] with effective roles [alias_user1] on indices [index-user1]"
+            )
+        );
+        assertThat(resp.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_FORBIDDEN));
+
+        resp = expectThrows(
+            ResponseException.class,
+            () -> runESQLCommand(
+                "alias_user2",
+                "from second-alias,index-user2 METADATA _index | stats sum=sum(value), index=VALUES(_index)"
+            )
+        );
+        assertThat(
+            EntityUtils.toString(resp.getResponse().getEntity()),
+            containsString(
+                "unauthorized for user [test-admin] run as [alias_user2] with effective roles [alias_user2] on indices [index-user2]"
+            )
+        );
+        assertThat(resp.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_FORBIDDEN));
+    }
+
+    public void testDocumentLevelSecurity() throws Exception {
         Response resp = runESQLCommand("user3", "from index | stats sum=sum(value)");
         assertOK(resp);
         Map<String, Object> respMap = entityAsMap(resp);
         assertThat(respMap.get("columns"), equalTo(List.of(Map.of("name", "sum", "type", "double"))));
         assertThat(respMap.get("values"), equalTo(List.of(List.of(10.0))));
+    }
+
+    public void testFieldLevelSecurityAllow() throws Exception {
+        Response resp = runESQLCommand("fls_user", "FROM index* | SORT value | LIMIT 1");
+        assertOK(resp);
+        assertMap(
+            entityAsMap(resp),
+            matchesMap().extraOk()
+                .entry(
+                    "columns",
+                    List.of(
+                        matchesMap().entry("name", "partial").entry("type", "text"),
+                        matchesMap().entry("name", "value").entry("type", "double")
+                    )
+                )
+                .entry("values", List.of(List.of("sales10.0", 10.0)))
+        );
+    }
+
+    public void testFieldLevelSecurityAllowPartial() throws Exception {
+        Request request = new Request("GET", "/index*/_field_caps");
+        request.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("es-security-runas-user", "fls_user"));
+        request.addParameter("error_trace", "true");
+        request.addParameter("pretty", "true");
+        request.addParameter("fields", "*");
+
+        request = new Request("GET", "/index*/_search");
+        request.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("es-security-runas-user", "fls_user"));
+        request.addParameter("error_trace", "true");
+        request.addParameter("pretty", "true");
+
+        Response resp = runESQLCommand("fls_user", "FROM index* | SORT partial | LIMIT 1");
+        assertOK(resp);
+        assertMap(
+            entityAsMap(resp),
+            matchesMap().extraOk()
+                .entry(
+                    "columns",
+                    List.of(
+                        matchesMap().entry("name", "partial").entry("type", "text"),
+                        matchesMap().entry("name", "value").entry("type", "double")
+                    )
+                )
+                .entry("values", List.of(List.of("engineering20.0", 20.0)))
+        );
+    }
+
+    public void testFieldLevelSecuritySpellingMistake() throws Exception {
+        ResponseException e = expectThrows(
+            ResponseException.class,
+            () -> runESQLCommand("fls_user", "FROM index* | SORT parial | LIMIT 1")
+        );
+        assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(400));
+        assertThat(EntityUtils.toString(e.getResponse().getEntity()), containsString("Unknown column [parial]"));
+    }
+
+    public void testFieldLevelSecurityNotAllowed() throws Exception {
+        ResponseException e = expectThrows(
+            ResponseException.class,
+            () -> runESQLCommand("fls_user", "FROM index* | SORT org DESC | LIMIT 1")
+        );
+        assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(400));
+        assertThat(EntityUtils.toString(e.getResponse().getEntity()), containsString("Unknown column [org]"));
     }
 
     public void testRowCommand() throws Exception {
@@ -283,6 +558,7 @@ public class EsqlSecurityIT extends ESRestTestCase {
         Request request = new Request("POST", "_query");
         request.setJsonEntity(Strings.toString(json));
         request.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("es-security-runas-user", user));
+        request.addParameter("error_trace", "true");
         return client().performRequest(request);
     }
 
@@ -310,6 +586,9 @@ public class EsqlSecurityIT extends ESRestTestCase {
         }
         if (randomBoolean()) {
             settings.put("enrich_max_workers", between(1, 5));
+        }
+        if (randomBoolean()) {
+            settings.put("node_level_reduction", randomBoolean());
         }
         return settings.build();
     }

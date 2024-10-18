@@ -1,14 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.indices.cluster;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteRequest;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
@@ -61,6 +63,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
+import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
@@ -439,7 +442,7 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
 
         // randomly reroute
         if (rarely()) {
-            state = cluster.reroute(state, new ClusterRerouteRequest());
+            state = cluster.reroute(state, new ClusterRerouteRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT));
         }
 
         // randomly start and fail allocated shards
@@ -526,16 +529,16 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
             Collections.emptySet()
         );
         final ClusterService clusterService = mock(ClusterService.class);
+        final NodeClient client = mock(NodeClient.class);
         final RepositoriesService repositoriesService = new RepositoriesService(
             settings,
             clusterService,
-            transportService,
             Collections.emptyMap(),
             Collections.emptyMap(),
             threadPool,
+            client,
             List.of()
         );
-        final NodeClient client = mock(NodeClient.class);
         final PeerRecoveryTargetService recoveryTargetService = new PeerRecoveryTargetService(
             client,
             threadPool,
@@ -570,8 +573,14 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
         private Set<Index> deletedIndices = Collections.emptySet();
 
         @Override
-        public synchronized void removeIndex(Index index, IndexRemovalReason reason, String extraInfo) {
-            super.removeIndex(index, reason, extraInfo);
+        public synchronized void removeIndex(
+            Index index,
+            IndexRemovalReason reason,
+            String extraInfo,
+            Executor shardCloseExecutor,
+            ActionListener<Void> shardsClosedListener
+        ) {
+            super.removeIndex(index, reason, extraInfo, shardCloseExecutor, shardsClosedListener);
             if (reason == IndexRemovalReason.DELETED) {
                 Set<Index> newSet = Sets.newHashSet(deletedIndices);
                 newSet.add(index);

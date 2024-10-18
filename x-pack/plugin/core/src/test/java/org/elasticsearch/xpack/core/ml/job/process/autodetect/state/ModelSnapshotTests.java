@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.core.ml.job.process.autodetect.state;
 
 import org.elasticsearch.common.io.stream.Writeable.Reader;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.json.JsonXContent;
@@ -159,13 +158,13 @@ public class ModelSnapshotTests extends AbstractXContentSerializingTestCase<Mode
     public static ModelSnapshot createRandomized() {
         ModelSnapshot.Builder modelSnapshot = new ModelSnapshot.Builder(randomAlphaOfLengthBetween(1, 20));
         modelSnapshot.setMinVersion(MlConfigVersion.CURRENT);
-        modelSnapshot.setTimestamp(new Date(TimeValue.parseTimeValue(randomTimeValue(), "test").millis()));
+        modelSnapshot.setTimestamp(new Date(randomTimeValue().millis()));
         modelSnapshot.setDescription(randomAlphaOfLengthBetween(1, 20));
         modelSnapshot.setSnapshotId(randomAlphaOfLength(10));
         modelSnapshot.setSnapshotDocCount(randomInt());
         modelSnapshot.setModelSizeStats(ModelSizeStatsTests.createRandomized());
-        modelSnapshot.setLatestResultTimeStamp(new Date(TimeValue.parseTimeValue(randomTimeValue(), "test").millis()));
-        modelSnapshot.setLatestRecordTimeStamp(new Date(TimeValue.parseTimeValue(randomTimeValue(), "test").millis()));
+        modelSnapshot.setLatestResultTimeStamp(new Date(randomTimeValue().millis()));
+        modelSnapshot.setLatestRecordTimeStamp(new Date(randomTimeValue().millis()));
         modelSnapshot.setQuantiles(QuantilesTests.createRandomized());
         modelSnapshot.setRetain(randomBoolean());
         return modelSnapshot.build();

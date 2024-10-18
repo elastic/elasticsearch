@@ -17,10 +17,29 @@ module org.elasticsearch.inference {
     requires org.apache.httpcomponents.httpasyncclient;
     requires org.apache.httpcomponents.httpcore.nio;
     requires org.apache.lucene.core;
+    requires org.apache.lucene.join;
+    requires com.ibm.icu;
+    requires com.google.auth.oauth2;
+    requires com.google.auth;
+    requires com.google.api.client;
+    requires com.google.gson;
+    requires software.amazon.awssdk.services.bedrockruntime;
+    requires software.amazon.awssdk.utils;
+    requires software.amazon.awssdk.core;
+    requires software.amazon.awssdk.auth;
+    requires software.amazon.awssdk.regions;
+    requires software.amazon.awssdk.http.nio.netty;
+    requires software.amazon.awssdk.profiles;
+    requires org.slf4j;
+    requires software.amazon.awssdk.retries.api;
+    requires org.reactivestreams;
 
     exports org.elasticsearch.xpack.inference.action;
     exports org.elasticsearch.xpack.inference.registry;
     exports org.elasticsearch.xpack.inference.rest;
     exports org.elasticsearch.xpack.inference.services;
     exports org.elasticsearch.xpack.inference;
+    exports org.elasticsearch.xpack.inference.action.task;
+
+    provides org.elasticsearch.features.FeatureSpecification with org.elasticsearch.xpack.inference.InferenceFeatures;
 }

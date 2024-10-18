@@ -1,0 +1,5 @@
+pr: 111105
+summary: "ESQL: TOP aggregation IP support"
+area: ES|QL
+type: feature
+issues: []

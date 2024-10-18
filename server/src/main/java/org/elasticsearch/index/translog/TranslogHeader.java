@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.translog;
@@ -168,7 +169,7 @@ final class TranslogHeader {
     /**
      * Writes this header with the latest format into the file channel
      */
-    void write(final FileChannel channel) throws IOException {
+    void write(final FileChannel channel, boolean fsync) throws IOException {
         final byte[] buffer = Arrays.copyOf(TRANSLOG_HEADER, headerSizeInBytes);
         // Write uuid and leave 4 bytes for its length
         final int uuidOffset = TRANSLOG_HEADER.length + Integer.BYTES;
@@ -183,7 +184,9 @@ final class TranslogHeader {
         // Checksum header
         ByteUtils.writeIntBE((int) crc32.getValue(), buffer, offset);
         Channels.writeToChannel(buffer, channel);
-        channel.force(true);
+        if (fsync) {
+            channel.force(true);
+        }
         assert channel.position() == headerSizeInBytes
             : "Header is not fully written; header size [" + headerSizeInBytes + "], channel position [" + channel.position() + "]";
     }

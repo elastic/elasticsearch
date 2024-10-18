@@ -21,6 +21,13 @@ import java.util.concurrent.atomic.AtomicLong;
  */
 public final class SizeLimitInputStream extends FilterInputStream {
 
+    public static class InputStreamTooLargeException extends IOException {
+
+        public InputStreamTooLargeException(String message) {
+            super(message);
+        }
+    }
+
     private final long maxByteSize;
     private final AtomicLong byteCounter = new AtomicLong(0);
 
@@ -73,9 +80,9 @@ public final class SizeLimitInputStream extends FilterInputStream {
         return false;
     }
 
-    private void checkMaximumLengthReached() throws IOException {
+    private void checkMaximumLengthReached() throws InputStreamTooLargeException {
         if (byteCounter.get() > maxByteSize) {
-            throw new IOException("Maximum limit of [" + maxByteSize + "] bytes reached");
+            throw new InputStreamTooLargeException("Maximum limit of [" + maxByteSize + "] bytes reached");
         }
     }
 }

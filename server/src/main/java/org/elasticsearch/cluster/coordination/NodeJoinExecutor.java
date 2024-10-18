@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.cluster.coordination;
 
@@ -26,6 +27,7 @@ import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.version.CompatibilityVersions;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
@@ -123,7 +125,14 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
             newState = ClusterState.builder(initialState);
         } else {
             logger.trace("processing node joins, but we are not the master. current master: {}", currentNodes.getMasterNode());
-            throw new NotMasterException("Node [" + currentNodes.getLocalNode() + "] not master for join request");
+            throw new NotMasterException(
+                Strings.format(
+                    "Node [%s] not master for join request. Current known master [%s], current term [%d]",
+                    currentNodes.getLocalNode(),
+                    currentNodes.getMasterNode(),
+                    term
+                )
+            );
         }
 
         DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder(newState.nodes());
@@ -341,7 +350,7 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
     private static void blockForbiddenVersions(TransportVersion joiningTransportVersion) {
         if (FORBIDDEN_VERSIONS.contains(joiningTransportVersion)) {
             throw new IllegalStateException(
-                "A node with transport version " + joiningTransportVersion + " is forbidden from joining this cluster"
+                "A node with transport version " + joiningTransportVersion.toReleaseVersion() + " is forbidden from joining this cluster"
             );
         }
     }
@@ -362,9 +371,9 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
                     "index "
                         + idxMetadata.getIndex()
                         + " version not supported: "
-                        + idxMetadata.getCompatibilityVersion()
+                        + idxMetadata.getCompatibilityVersion().toReleaseVersion()
                         + " maximum compatible index version is: "
-                        + maxSupportedVersion
+                        + maxSupportedVersion.toReleaseVersion()
                 );
             }
             if (idxMetadata.getCompatibilityVersion().before(minSupportedVersion)) {
@@ -372,9 +381,9 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
                     "index "
                         + idxMetadata.getIndex()
                         + " version not supported: "
-                        + idxMetadata.getCompatibilityVersion()
+                        + idxMetadata.getCompatibilityVersion().toReleaseVersion()
                         + " minimum compatible index version is: "
-                        + minSupportedVersion
+                        + minSupportedVersion.toReleaseVersion()
                 );
             }
         }
@@ -427,9 +436,9 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
         if (joiningCompatibilityVersions.transportVersion().before(minClusterTransportVersion)) {
             throw new IllegalStateException(
                 "node with transport version ["
-                    + joiningCompatibilityVersions.transportVersion()
+                    + joiningCompatibilityVersions.transportVersion().toReleaseVersion()
                     + "] may not join a cluster with minimum transport version ["
-                    + minClusterTransportVersion
+                    + minClusterTransportVersion.toReleaseVersion()
                     + "]"
             );
         }

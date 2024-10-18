@@ -32,6 +32,7 @@ public class BlockValueAsserter {
                 switch (block.elementType()) {
                     case INT -> assertIntRowValues((IntBlock) block, firstValueIndex, valueCount, expectedRowValues);
                     case LONG -> assertLongRowValues((LongBlock) block, firstValueIndex, valueCount, expectedRowValues);
+                    case FLOAT -> assertFloatRowValues((FloatBlock) block, firstValueIndex, valueCount, expectedRowValues);
                     case DOUBLE -> assertDoubleRowValues((DoubleBlock) block, firstValueIndex, valueCount, expectedRowValues);
                     case BYTES_REF -> assertBytesRefRowValues((BytesRefBlock) block, firstValueIndex, valueCount, expectedRowValues);
                     case BOOLEAN -> assertBooleanRowValues((BooleanBlock) block, firstValueIndex, valueCount, expectedRowValues);
@@ -52,6 +53,13 @@ public class BlockValueAsserter {
         for (int valueIndex = 0; valueIndex < valueCount; valueIndex++) {
             long expectedValue = ((Number) expectedRowValues.get(valueIndex)).longValue();
             assertThat(block.getLong(firstValueIndex + valueIndex), is(equalTo(expectedValue)));
+        }
+    }
+
+    private static void assertFloatRowValues(FloatBlock block, int firstValueIndex, int valueCount, List<Object> expectedRowValues) {
+        for (int valueIndex = 0; valueIndex < valueCount; valueIndex++) {
+            float expectedValue = ((Number) expectedRowValues.get(valueIndex)).floatValue();
+            assertThat(block.getFloat(firstValueIndex + valueIndex), is(equalTo(expectedValue)));
         }
     }
 

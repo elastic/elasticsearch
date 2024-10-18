@@ -564,8 +564,7 @@ setup:
 ---
 "Test delete given model referenced by pipeline":
   - skip:
-       version: all
-       reason: "@AwaitsFix https://github.com/elastic/elasticsearch/issues/80703"
+      awaits_fix: "https://github.com/elastic/elasticsearch/issues/80703"
 
   - do:
       ingest.put_pipeline:
@@ -594,8 +593,7 @@ setup:
 ---
 "Test force delete given model referenced by pipeline":
   - skip:
-      version: all
-      reason: "@AwaitsFix https://github.com/elastic/elasticsearch/issues/80703"
+      awaits_fix: "https://github.com/elastic/elasticsearch/issues/80703"
 
   - do:
       ingest.put_pipeline:
@@ -625,8 +623,7 @@ setup:
 ---
 "Test delete given model with alias referenced by pipeline":
   - skip:
-      version: all
-      reason: "@AwaitsFix https://github.com/elastic/elasticsearch/issues/80703"
+      awaits_fix: "https://github.com/elastic/elasticsearch/issues/80703"
 
   - do:
       ml.put_trained_model_alias:
@@ -658,6 +655,8 @@ setup:
 
 ---
 "Test force delete given model with alias referenced by pipeline":
+  - skip:
+      awaits_fix: "https://github.com/elastic/elasticsearch/issues/106652"
   - do:
       ml.put_trained_model_alias:
         model_alias: "alias-to-a-classification-model"
@@ -1114,8 +1113,7 @@ setup:
 ---
 "Test put with defer_definition_decompression with invalid definition and no memory estimate":
   - skip:
-       version: all
-       reason: "@AwaitsFix https://github.com/elastic/elasticsearch/issues/94854"
+      awaits_fix: "https://github.com/elastic/elasticsearch/issues/94854"
 
   - do:
       catch: /Model \[my-regression-model\] inference config type \[classification\] does not support definition target type \[regression\]/

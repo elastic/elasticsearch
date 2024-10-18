@@ -14,8 +14,8 @@ setup:
 
 ---
 "Usage stats on analytics indices":
-  - skip:
-      version: " - 7.99.99"
+  - requires:
+      cluster_features: ["gte_v8.0.0"]
       reason:  "stats is not working in earlier versions at the moment"
 
   - do: {xpack.usage: {}}

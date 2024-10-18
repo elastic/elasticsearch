@@ -11,9 +11,9 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
-import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
+import org.elasticsearch.action.bulk.TransportBulkAction;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
@@ -142,7 +142,7 @@ public class RollupJobTask extends AllocatedPersistentTask implements SchedulerE
                 job.getHeaders(),
                 ClientHelper.ROLLUP_ORIGIN,
                 client,
-                BulkAction.INSTANCE,
+                TransportBulkAction.TYPE,
                 request,
                 nextPhase
             );
@@ -463,8 +463,8 @@ public class RollupJobTask extends AllocatedPersistentTask implements SchedulerE
     public synchronized void triggered(SchedulerEngine.Event event) {
         // Verify this is actually the event that we care about, then trigger the indexer.
         // Note that the status of the indexer is checked in the indexer itself
-        if (event.getJobName().equals(SCHEDULE_NAME + "_" + job.getConfig().getId())) {
-            logger.debug("Rollup indexer [" + event.getJobName() + "] schedule has triggered, state: [" + indexer.getState() + "]");
+        if (event.jobName().equals(SCHEDULE_NAME + "_" + job.getConfig().getId())) {
+            logger.debug("Rollup indexer [" + event.jobName() + "] schedule has triggered, state: [" + indexer.getState() + "]");
             indexer.maybeTriggerAsyncJob(System.currentTimeMillis());
         }
     }

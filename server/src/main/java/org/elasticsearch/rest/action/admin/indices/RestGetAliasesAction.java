@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.rest.action.admin.indices;
@@ -51,7 +52,7 @@ import static org.elasticsearch.rest.RestRequest.Method.HEAD;
 @ServerlessScope(Scope.PUBLIC)
 public class RestGetAliasesAction extends BaseRestHandler {
 
-    @UpdateForV9 // reject the deprecated ?local parameter
+    @UpdateForV9(owner = UpdateForV9.Owner.DATA_MANAGEMENT) // reject the deprecated ?local parameter
     private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(RestGetAliasesAction.class);
 
     @Override
@@ -198,6 +199,8 @@ public class RestGetAliasesAction extends BaseRestHandler {
     }
 
     @Override
+    @UpdateForV9(owner = UpdateForV9.Owner.DATA_MANAGEMENT)
+    // v7 REST API no longer exists: eliminate ref to RestApiVersion.V_7; reject local parameter in v9 too?
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         // The TransportGetAliasesAction was improved do the same post processing as is happening here.
         // We can't remove this logic yet to support mixed clusters. We should be able to remove this logic here

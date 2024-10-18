@@ -9,17 +9,18 @@ package org.elasticsearch.xpack.esql.plan.logical.show;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Build;
-import org.elasticsearch.xpack.ql.expression.Attribute;
-import org.elasticsearch.xpack.ql.expression.ReferenceAttribute;
-import org.elasticsearch.xpack.ql.plan.logical.LeafPlan;
-import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.ql.tree.NodeInfo;
-import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
+import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.plan.logical.LeafPlan;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
 import java.util.ArrayList;
 import java.util.List;
 
-import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
+import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 
 public class ShowInfo extends LeafPlan {
 
@@ -35,6 +36,16 @@ public class ShowInfo extends LeafPlan {
     }
 
     @Override
+    public void writeTo(StreamOutput out) {
+        throw new UnsupportedOperationException("not serialized");
+    }
+
+    @Override
+    public String getWriteableName() {
+        throw new UnsupportedOperationException("not serialized");
+    }
+
+    @Override
     public List<Attribute> output() {
         return attributes;
     }
@@ -45,6 +56,11 @@ public class ShowInfo extends LeafPlan {
         row.add(new BytesRef(Build.current().date()));
         row.add(new BytesRef(Build.current().hash()));
         return List.of(row);
+    }
+
+    @Override
+    public String commandName() {
+        return "SHOW";
     }
 
     @Override

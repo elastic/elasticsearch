@@ -18,6 +18,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
+import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicyMetadataTests;
 import org.elasticsearch.xpack.core.watcher.watch.ClockMock;
 import org.elasticsearch.xpack.slm.history.SnapshotHistoryStore;
 
@@ -52,7 +53,7 @@ public class SnapshotRetentionServiceTests extends ESTestCase {
             assertThat(service.getScheduler().jobCount(), equalTo(0));
 
             service.onMaster();
-            service.setUpdateSchedule(SnapshotLifecycleServiceTests.randomSchedule());
+            service.setUpdateSchedule(SnapshotLifecyclePolicyMetadataTests.randomCronSchedule());
             assertThat(service.getScheduler().scheduledJobIds(), containsInAnyOrder(SnapshotRetentionService.SLM_RETENTION_JOB_ID));
 
             service.offMaster();
@@ -81,7 +82,7 @@ public class SnapshotRetentionServiceTests extends ESTestCase {
         try (
             ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool, clusterSettings);
             SnapshotRetentionService service = new SnapshotRetentionService(Settings.EMPTY, () -> new FakeRetentionTask(event -> {
-                assertThat(event.getJobName(), equalTo(SnapshotRetentionService.SLM_RETENTION_MANUAL_JOB_ID));
+                assertThat(event.jobName(), equalTo(SnapshotRetentionService.SLM_RETENTION_MANUAL_JOB_ID));
                 invoked.incrementAndGet();
             }), clock)
         ) {

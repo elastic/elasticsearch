@@ -118,7 +118,7 @@ public class DeprecationInfoActionResponseTests extends AbstractWireSerializingT
             emptyList()
         );
 
-        DeprecationInfoAction.Request request = new DeprecationInfoAction.Request(Strings.EMPTY_ARRAY);
+        DeprecationInfoAction.Request request = new DeprecationInfoAction.Request(randomTimeValue(), Strings.EMPTY_ARRAY);
         DeprecationInfoAction.Response response = DeprecationInfoAction.Response.from(
             state,
             resolver,
@@ -207,7 +207,7 @@ public class DeprecationInfoActionResponseTests extends AbstractWireSerializingT
             emptyList()
         );
 
-        DeprecationInfoAction.Request request = new DeprecationInfoAction.Request(Strings.EMPTY_ARRAY);
+        DeprecationInfoAction.Request request = new DeprecationInfoAction.Request(randomTimeValue(), Strings.EMPTY_ARRAY);
         DeprecationInfoAction.Response response = DeprecationInfoAction.Response.from(
             state,
             resolver,
@@ -263,7 +263,7 @@ public class DeprecationInfoActionResponseTests extends AbstractWireSerializingT
             emptyList()
         );
 
-        DeprecationInfoAction.Request request = new DeprecationInfoAction.Request(Strings.EMPTY_ARRAY);
+        DeprecationInfoAction.Request request = new DeprecationInfoAction.Request(randomTimeValue(), Strings.EMPTY_ARRAY);
         DeprecationInfoAction.Response.from(
             state,
             resolver,

@@ -769,8 +769,8 @@ bad path:
 ---
 "Bad window":
 
-  - skip:
-      version: " - 7.1.99"
+  - requires:
+      cluster_features: ["gte_v7.2.0"]
       reason:  "calendar_interval added in 7.2"
 
   - do:

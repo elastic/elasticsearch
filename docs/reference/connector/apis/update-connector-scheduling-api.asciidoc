@@ -4,9 +4,12 @@
 <titleabbrev>Update connector scheduling</titleabbrev>
 ++++
 
-preview::[]
+beta::[]
 
 Updates the `scheduling` configuration of a connector.
+
+To get started with Connector APIs, check out <<es-connectors-tutorial-api, our tutorial>>.
+
 
 [[update-connector-scheduling-api-request]]
 ==== {api-request-title}
@@ -16,7 +19,7 @@ Updates the `scheduling` configuration of a connector.
 [[update-connector-scheduling-api-prereq]]
 ==== {api-prereq-title}
 
-* To sync data using connectors, it's essential to have the Elastic connectors service running.
+* To sync data using self-managed connectors, you need to deploy the <<es-connectors-deploy-connector-service,Elastic connector service>>. on your own infrastructure. This service runs automatically on Elastic Cloud for Elastic managed connectors.
 * The `connector_id` parameter should reference an existing connector.
 
 [[update-connector-scheduling-api-path-params]]
@@ -32,13 +35,13 @@ Updates the `scheduling` configuration of a connector.
 `scheduling`::
 (Required, object) The scheduling configuration for the connector. This configuration determines frequency of synchronization operations for the connector.
 
-The scheduling configuration includes the following attributes, each represented as a `ScheduleConfig` object:
+The scheduling configuration includes the following attributes, each represented as a `ScheduleConfig` object. If the `scheduling` object does not include all schedule types, only those provided will be updated; the others will remain unchanged.
 
-- `access_control` (Required, `ScheduleConfig` object) Defines the schedule for synchronizing access control settings of the connector.
+- `access_control` (Optional, `ScheduleConfig` object) Defines the schedule for synchronizing access control settings of the connector.
 
-- `full` (Required, `ScheduleConfig` object) Defines the schedule for a full content syncs.
+- `full` (Optional, `ScheduleConfig` object) Defines the schedule for a full content syncs.
 
-- `incremental` (Required, `ScheduleConfig` object) Defines the schedule for incremental content syncs.
+- `incremental` (Optional, `ScheduleConfig` object) Defines the schedule for incremental content syncs.
 
 Each `ScheduleConfig` object includes the following sub-attributes:
 
@@ -99,6 +102,28 @@ PUT _connector/my-connector/_scheduling
         "incremental": {
             "enabled": false,
             "interval": "0 30 0 * * ?"
+        }
+    }
+}
+----
+
+[source,console-result]
+----
+{
+    "result": "updated"
+}
+----
+
+The following example updates `full` sync schedule only, other schedule types remain unchanged:
+
+[source,console]
+----
+PUT _connector/my-connector/_scheduling
+{
+    "scheduling": {
+        "full": {
+            "enabled": true,
+            "interval": "0 10 0 * * ?"
         }
     }
 }

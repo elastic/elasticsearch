@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.search;
@@ -24,15 +25,18 @@ import org.apache.lucene.search.TotalHits.Relation;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.io.stream.DelayableWriteable;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
+import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.lucene.grouping.TopFieldGroups;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchService;
+import org.elasticsearch.search.SearchSortValues;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.InternalAggregations;
@@ -46,8 +50,9 @@ import org.elasticsearch.search.profile.SearchProfileQueryPhaseResult;
 import org.elasticsearch.search.profile.SearchProfileResults;
 import org.elasticsearch.search.profile.SearchProfileResultsBuilder;
 import org.elasticsearch.search.query.QuerySearchResult;
-import org.elasticsearch.search.rank.RankCoordinatorContext;
 import org.elasticsearch.search.rank.RankDoc;
+import org.elasticsearch.search.rank.context.QueryPhaseRankCoordinatorContext;
+import org.elasticsearch.search.sort.ShardDocSortField;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.search.suggest.Suggest.Suggestion;
 import org.elasticsearch.search.suggest.completion.CompletionSuggestion;
@@ -66,7 +71,6 @@ import java.util.function.Supplier;
 import static org.elasticsearch.search.SearchService.DEFAULT_SIZE;
 
 public final class SearchPhaseController {
-    private static final ScoreDoc[] EMPTY_DOCS = new ScoreDoc[0];
 
     private final BiFunction<
         Supplier<Boolean>,
@@ -195,7 +199,7 @@ public final class SearchPhaseController {
             return SortedTopDocs.EMPTY;
         }
         final TopDocs mergedTopDocs = mergeTopDocs(topDocs, size, ignoreFrom ? 0 : from);
-        final ScoreDoc[] mergedScoreDocs = mergedTopDocs == null ? EMPTY_DOCS : mergedTopDocs.scoreDocs;
+        final ScoreDoc[] mergedScoreDocs = mergedTopDocs == null ? Lucene.EMPTY_SCORE_DOCS : mergedTopDocs.scoreDocs;
         ScoreDoc[] scoreDocs = mergedScoreDocs;
         int numSuggestDocs = 0;
         if (reducedCompletionSuggestions.isEmpty() == false) {
@@ -301,11 +305,13 @@ public final class SearchPhaseController {
     }
 
     private static SortField.Type getType(SortField sortField) {
-        if (sortField instanceof SortedNumericSortField) {
-            return ((SortedNumericSortField) sortField).getNumericType();
-        }
-        if (sortField instanceof SortedSetSortField) {
+        if (sortField instanceof SortedNumericSortField sf) {
+            return sf.getNumericType();
+        } else if (sortField instanceof SortedSetSortField) {
             return SortField.Type.STRING;
+        } else if (sortField.getComparatorSource() instanceof IndexFieldData.XFieldComparatorSource cmp) {
+            // This can occur if the sort field wasn't rewritten by Lucene#rewriteMergeSortField because all search shards are local.
+            return cmp.reducedType();
         } else {
             return sortField.getType();
         }
@@ -456,9 +462,16 @@ public final class SearchPhaseController {
                     : "not enough hits fetched. index [" + index + "] length: " + fetchResult.hits().getHits().length;
                 SearchHit searchHit = fetchResult.hits().getHits()[index];
                 searchHit.shard(fetchResult.getSearchShardTarget());
-                if (reducedQueryPhase.rankCoordinatorContext != null) {
-                    assert shardDoc instanceof RankDoc;
+                if (shardDoc instanceof RankDoc) {
                     searchHit.setRank(((RankDoc) shardDoc).rank);
+                    searchHit.score(shardDoc.score);
+                    long shardAndDoc = ShardDocSortField.encodeShardAndDoc(shardDoc.shardIndex, shardDoc.doc);
+                    searchHit.sortValues(
+                        new SearchSortValues(
+                            new Object[] { shardDoc.score, shardAndDoc },
+                            new DocValueFormat[] { DocValueFormat.RAW, DocValueFormat.RAW }
+                        )
+                    );
                 } else if (sortedTopDocs.isSortedByField) {
                     FieldDoc fieldDoc = (FieldDoc) shardDoc;
                     searchHit.sortValues(fieldDoc.fields, reducedQueryPhase.sortValueFormats);
@@ -541,7 +554,7 @@ public final class SearchPhaseController {
         int numReducePhases,
         boolean isScrollRequest,
         AggregationReduceContext.Builder aggReduceContextBuilder,
-        RankCoordinatorContext rankCoordinatorContext,
+        QueryPhaseRankCoordinatorContext queryPhaseRankCoordinatorContext,
         boolean performFinalReduce
     ) {
         assert numReducePhases >= 0 : "num reduce phases must be >= 0 but was: " + numReducePhases;
@@ -633,11 +646,20 @@ public final class SearchPhaseController {
         final SearchProfileResultsBuilder profileBuilder = profileShardResults.isEmpty()
             ? null
             : new SearchProfileResultsBuilder(profileShardResults);
-        final SortedTopDocs sortedTopDocs = rankCoordinatorContext == null
-            ? sortDocs(isScrollRequest, bufferedTopDocs, from, size, reducedCompletionSuggestions)
-            : rankCoordinatorContext.rank(queryResults.stream().map(SearchPhaseResult::queryResult).toList(), topDocsStats);
-        if (rankCoordinatorContext != null) {
+        final SortedTopDocs sortedTopDocs;
+        if (queryPhaseRankCoordinatorContext == null) {
+            sortedTopDocs = sortDocs(isScrollRequest, bufferedTopDocs, from, size, reducedCompletionSuggestions);
+        } else {
+            ScoreDoc[] rankedDocs = queryPhaseRankCoordinatorContext.rankQueryPhaseResults(
+                queryResults.stream().map(SearchPhaseResult::queryResult).toList(),
+                topDocsStats
+            );
+            sortedTopDocs = new SortedTopDocs(rankedDocs, false, null, null, null, 0);
             size = sortedTopDocs.scoreDocs.length;
+            // we need to reset from here as pagination and result trimming has already taken place
+            // within the `QueryPhaseRankCoordinatorContext#rankQueryPhaseResults` and we don't want
+            // to apply it again in the `getHits` method.
+            from = 0;
         }
         final TotalHits totalHits = topDocsStats.getTotalHits();
         return new ReducedQueryPhase(
@@ -651,7 +673,7 @@ public final class SearchPhaseController {
             profileBuilder,
             sortedTopDocs,
             sortValueFormats,
-            rankCoordinatorContext,
+            queryPhaseRankCoordinatorContext,
             numReducePhases,
             size,
             from,
@@ -712,6 +734,12 @@ public final class SearchPhaseController {
             return DEFAULT_SIZE;
         }
         SearchSourceBuilder source = request.source();
+        if (source.rankBuilder() != null) {
+            // if we have a RankBuilder defined, it needs to have access to all the documents in order to rerank them
+            // so we override size here and keep all `rank_window_size` docs.
+            // Pagination is taking place later through RankFeaturePhaseRankCoordinatorContext#rankAndPaginate
+            return source.rankBuilder().rankWindowSize();
+        }
         return (source.size() == -1 ? DEFAULT_SIZE : source.size()) + (source.from() == -1 ? SearchService.DEFAULT_FROM : source.from());
     }
 
@@ -737,7 +765,7 @@ public final class SearchPhaseController {
         // sort value formats used to sort / format the result
         DocValueFormat[] sortValueFormats,
         // the rank context if ranking is used
-        RankCoordinatorContext rankCoordinatorContext,
+        QueryPhaseRankCoordinatorContext queryPhaseRankCoordinatorContext,
         // the number of reduces phases
         int numReducePhases,
         // the size of the top hits to return
@@ -897,6 +925,6 @@ public final class SearchPhaseController {
         Object[] collapseValues,
         int numberOfCompletionsSuggestions
     ) {
-        public static final SortedTopDocs EMPTY = new SortedTopDocs(EMPTY_DOCS, false, null, null, null, 0);
+        public static final SortedTopDocs EMPTY = new SortedTopDocs(Lucene.EMPTY_SCORE_DOCS, false, null, null, null, 0);
     }
 }

@@ -1,9 +1,9 @@
 ---
 setup:
-  - skip:
-      version: " - 8.10.99"
+  - requires:
+      cluster_features: ["gte_v8.11.0"]
       reason: "ESQL is available in 8.11+"
-      features: allowed_warnings_regex
+      test_runner_features: allowed_warnings_regex
   - do:
       indices.create:
         index: events
@@ -29,6 +29,7 @@ setup:
   - do:
       allowed_warnings_regex:
         - "No limit defined, adding default limit of \\[.*\\]"
+        - "Date format \\[MMMM\\] contains textual field specifiers that could change in JDK 23.*"
       esql.query:
         body:
           query: 'FROM events | eval fixed_format = date_format("MMMM", @timestamp), variable_format = date_format(format, @timestamp) | sort @timestamp | keep @timestamp, fixed_format, variable_format'
@@ -50,6 +51,7 @@ setup:
   - do:
       allowed_warnings_regex:
         - "No limit defined, adding default limit of \\[.*\\]"
+        - "Date format \\[MMMM\\] contains textual field specifiers that could change in JDK 23.*"
       esql.query:
         body:
           query: 'FROM events | eval fixed_format = date_format("MMMM", @timestamp), variable_format = date_format(format, @timestamp) | sort @timestamp | keep @timestamp, fixed_format, variable_format'

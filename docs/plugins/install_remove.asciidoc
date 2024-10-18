@@ -4,7 +4,7 @@
 
 ifeval::["{release-state}"=="unreleased"]
 
-WARNING: Version {version} of the Elastic Stack has not yet been released.
+WARNING: Version {version} of the Elastic Stack has not yet been released. The plugin might not be available.
 
 endif::[]
 

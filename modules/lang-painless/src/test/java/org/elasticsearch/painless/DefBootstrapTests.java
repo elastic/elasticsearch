@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.painless;
@@ -21,9 +22,11 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 
+import static org.elasticsearch.painless.ScriptTestCase.PAINLESS_BASE_WHITELIST;
+
 public class DefBootstrapTests extends ESTestCase {
     private final PainlessLookup painlessLookup = PainlessLookupBuilder.buildFromWhitelists(
-        PainlessPlugin.BASE_WHITELISTS,
+        PAINLESS_BASE_WHITELIST,
         new HashMap<>(),
         new HashMap<>()
     );

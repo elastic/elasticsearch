@@ -40,11 +40,11 @@ public class SubmitAsyncSearchRequestTests extends AbstractWireSerializingTransf
             searchRequest = new SubmitAsyncSearchRequest();
         }
         if (randomBoolean()) {
-            searchRequest.setWaitForCompletionTimeout(TimeValue.parseTimeValue(randomPositiveTimeValue(), "wait_for_completion"));
+            searchRequest.setWaitForCompletionTimeout(randomPositiveTimeValue());
         }
         searchRequest.setKeepOnCompletion(randomBoolean());
         if (randomBoolean()) {
-            searchRequest.setKeepAlive(TimeValue.parseTimeValue(randomPositiveTimeValue(), "keep_alive"));
+            searchRequest.setKeepAlive(randomPositiveTimeValue());
         }
         if (randomBoolean()) {
             searchRequest.getSearchRequest()

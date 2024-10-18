@@ -53,10 +53,10 @@ setup:
 
 ---
 "matrix stats all fields available with two fields":
-  - skip:
-      version: " - 8.2.99"
+  - requires:
+      cluster_features: ["gte_v8.3.0"]
       reason: bug fixed in 8.3.0
-      features: close_to
+      test_runner_features: close_to
 
   - do:
       search:
@@ -95,10 +95,10 @@ setup:
 
 ---
 "matrix stats all fields available with one field":
-  - skip:
-      version: " - 8.2.99"
+  - requires:
+      cluster_features: ["gte_v8.3.0"]
       reason: bug fixed in 8.3.0
-      features: close_to
+      test_runner_features: close_to
 
   - do:
       search:
@@ -124,10 +124,10 @@ setup:
 
 ---
 "matrix stats field not in all indices bad request":
-  - skip:
-      version: " - 8.2.99"
+  - requires:
+      cluster_features: ["gte_v8.3.0"]
       reason: bug fixed in 8.3.0
-      features: close_to
+      test_runner_features: close_to
 
   - do:
       catch: bad_request
@@ -147,10 +147,10 @@ setup:
 
 ---
 "matrix stats with bucket_selector":
-  - skip:
-      version: " - 8.3.99"
+  - requires:
+      cluster_features: ["gte_v8.4.0"]
       reason: bug fixed in 8.4.0
-      features: close_to
+      test_runner_features: close_to
 
   - do:
       search:
@@ -209,10 +209,10 @@ setup:
 
 ---
 "Counter field":
-  - skip:
-      version: " - 8.9.99"
+  - requires:
+      cluster_features: ["gte_v8.10.0"]
       reason: "counter field support added in 8.10"
-      features: close_to
+      test_runner_features: close_to
 
   - do:
       indices.create:

@@ -17,6 +17,8 @@ import org.elasticsearch.xpack.core.ml.inference.results.ClassificationInference
 import org.elasticsearch.xpack.core.ml.inference.results.ClassificationInferenceResultsTests;
 import org.elasticsearch.xpack.core.ml.inference.results.FillMaskResults;
 import org.elasticsearch.xpack.core.ml.inference.results.FillMaskResultsTests;
+import org.elasticsearch.xpack.core.ml.inference.results.MlTextEmbeddingResults;
+import org.elasticsearch.xpack.core.ml.inference.results.MlTextEmbeddingResultsTests;
 import org.elasticsearch.xpack.core.ml.inference.results.NerResults;
 import org.elasticsearch.xpack.core.ml.inference.results.NerResultsTests;
 import org.elasticsearch.xpack.core.ml.inference.results.PyTorchPassThroughResults;
@@ -25,8 +27,6 @@ import org.elasticsearch.xpack.core.ml.inference.results.QuestionAnsweringInfere
 import org.elasticsearch.xpack.core.ml.inference.results.QuestionAnsweringInferenceResultsTests;
 import org.elasticsearch.xpack.core.ml.inference.results.RegressionInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.RegressionInferenceResultsTests;
-import org.elasticsearch.xpack.core.ml.inference.results.TextEmbeddingResults;
-import org.elasticsearch.xpack.core.ml.inference.results.TextEmbeddingResultsTests;
 import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
 import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResultsTests;
 import org.elasticsearch.xpack.core.ml.inference.results.TextSimilarityInferenceResults;
@@ -50,7 +50,7 @@ public class InferModelActionResponseTests extends AbstractWireSerializingTestCa
         PyTorchPassThroughResults.NAME,
         QuestionAnsweringInferenceResults.NAME,
         RegressionInferenceResults.NAME,
-        TextEmbeddingResults.NAME,
+        MlTextEmbeddingResults.NAME,
         TextExpansionResults.NAME,
         TextSimilarityInferenceResults.NAME,
         WarningInferenceResults.NAME
@@ -87,7 +87,7 @@ public class InferModelActionResponseTests extends AbstractWireSerializingTestCa
             case PyTorchPassThroughResults.NAME -> PyTorchPassThroughResultsTests.createRandomResults();
             case QuestionAnsweringInferenceResults.NAME -> QuestionAnsweringInferenceResultsTests.createRandomResults();
             case RegressionInferenceResults.NAME -> RegressionInferenceResultsTests.createRandomResults();
-            case TextEmbeddingResults.NAME -> TextEmbeddingResultsTests.createRandomResults();
+            case MlTextEmbeddingResults.NAME -> MlTextEmbeddingResultsTests.createRandomResults();
             case TextExpansionResults.NAME -> TextExpansionResultsTests.createRandomResults();
             case TextSimilarityInferenceResults.NAME -> TextSimilarityInferenceResultsTests.createRandomResults();
             case WarningInferenceResults.NAME -> WarningInferenceResultsTests.createRandomResults();

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper.vectors;
@@ -17,6 +18,8 @@ import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.ElementType;
 import org.elasticsearch.script.field.DocValuesScriptFieldFactory;
 import org.elasticsearch.script.field.vectors.BinaryDenseVectorDocValuesField;
+import org.elasticsearch.script.field.vectors.BitBinaryDenseVectorDocValuesField;
+import org.elasticsearch.script.field.vectors.BitKnnDenseVectorDocValuesField;
 import org.elasticsearch.script.field.vectors.ByteBinaryDenseVectorDocValuesField;
 import org.elasticsearch.script.field.vectors.ByteKnnDenseVectorDocValuesField;
 import org.elasticsearch.script.field.vectors.KnnDenseVectorDocValuesField;
@@ -58,12 +61,14 @@ final class VectorDVLeafFieldData implements LeafFieldData {
                 return switch (elementType) {
                     case BYTE -> new ByteKnnDenseVectorDocValuesField(reader.getByteVectorValues(field), name, dims);
                     case FLOAT -> new KnnDenseVectorDocValuesField(reader.getFloatVectorValues(field), name, dims);
+                    case BIT -> new BitKnnDenseVectorDocValuesField(reader.getByteVectorValues(field), name, dims);
                 };
             } else {
                 BinaryDocValues values = DocValues.getBinary(reader, field);
                 return switch (elementType) {
                     case BYTE -> new ByteBinaryDenseVectorDocValuesField(values, name, elementType, dims);
                     case FLOAT -> new BinaryDenseVectorDocValuesField(values, name, elementType, dims, indexVersion);
+                    case BIT -> new BitBinaryDenseVectorDocValuesField(values, name, elementType, dims);
                 };
             }
         } catch (IOException e) {
@@ -71,8 +76,4 @@ final class VectorDVLeafFieldData implements LeafFieldData {
         }
     }
 
-    @Override
-    public void close() {
-        // no-op
-    }
 }

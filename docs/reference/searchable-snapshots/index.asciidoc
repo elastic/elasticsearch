@@ -170,6 +170,20 @@ do not have a dedicated frozen tier, you must configure the
 cache on one or more nodes. Partially mounted indices are only allocated to
 nodes that have a shared cache.
 
+[[manually-mounting-snapshots]]
+[WARNING]
+.Manual snapshot mounting
+====
+Manually mounting snapshots captured by an Index Lifecycle Management ({ilm-init}) policy can
+interfere with {ilm-init}'s automatic management. This may lead to issues such as data loss
+or complications with snapshot handling. 
+
+For optimal results, allow {ilm-init} to manage
+snapshots automatically. 
+
+<<ilm-searchable-snapshot,Learn more about {ilm-init} snapshot management>>.
+====
+
 [[searchable-snapshots-shared-cache]]
 `xpack.searchable.snapshot.shared_cache.size`::
 (<<static-cluster-setting,Static>>)
@@ -303,30 +317,38 @@ Because {search-snap} indices are not regular indices, it is not possible to use
 a <<snapshots-source-only-repository,source-only repository>> to take snapshots
 of {search-snap} indices.
 
-[discrete]
 [[searchable-snapshots-reliability]]
-=== Reliability of {search-snaps}
-
+[WARNING]
+.Reliability of {search-snaps}
+====
 The sole copy of the data in a {search-snap} index is the underlying snapshot,
-stored in the repository. For example:
+stored in the repository. If you remove this snapshot, the data will be
+permanently lost. Although {es} may have cached some of the data onto local
+storage for faster searches, this cached data is incomplete and cannot be used
+for recovery if you remove the underlying snapshot. For example:
 
-* You cannot unregister a repository while any of the searchable snapshots it
-contains are mounted in {es}. You also cannot delete a snapshot if any of its
-indices are mounted as a searchable snapshot in the same cluster.
+* You must not unregister a repository while any of the {search-snaps} it
+contains are mounted in {es}.
+
+* You must not delete a snapshot if any of its indices are mounted as
+{search-snap} indices. The snapshot contains the sole full copy of your data. If
+you delete it then the data cannot be recovered from elsewhere.
 
 * If you mount indices from snapshots held in a repository to which a different
 cluster has write access then you must make sure that the other cluster does not
-delete these snapshots.
+delete these snapshots. The snapshot contains the sole full copy of your data.
+If you delete it then the data cannot be recovered from elsewhere.
 
-* If you delete a snapshot while it is mounted as a searchable snapshot then the
-data is lost. Similarly, if the repository fails or corrupts the contents of the
-snapshot then the data is lost.
+* The data in a searchable snapshot index are cached in local storage, so if you
+delete the underlying searchable snapshot {es} will continue to operate normally
+until the first cache miss. This may be much later, for instance when a shard
+relocates to a different node, or when the node holding the shard restarts.
 
-* Although {es} may have cached the data onto local storage, these caches may be
-incomplete and cannot be used to recover any data after a repository failure.
-You must make sure that your repository is reliable and protects against
-corruption of your data while it is at rest in the repository.
-
+* If the repository fails or corrupts the contents of the snapshot and you
+cannot restore it to its previous healthy state then the data is permanently
+lost.
++
 The blob storage offered by all major public cloud providers typically offers
-very good protection against data loss or corruption. If you manage your own
+very good protection against failure or corruption. If you manage your own
 repository storage then you are responsible for its reliability.
+====

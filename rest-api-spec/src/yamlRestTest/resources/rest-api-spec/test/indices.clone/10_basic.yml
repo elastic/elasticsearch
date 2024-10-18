@@ -28,8 +28,8 @@ setup:
 
 ---
 "Clone index via API":
-  - skip:
-      version: " - 7.3.99"
+  - requires:
+      cluster_features: ["gte_v7.4.0"]
       reason: index cloning was added in 7.4.0
   # make it read-only
   - do:
@@ -84,8 +84,8 @@ setup:
 
 ---
 "Create illegal clone indices":
-  - skip:
-      version: " - 7.3.99"
+  - requires:
+      cluster_features: ["gte_v7.4.0"]
       reason: index cloning was added in 7.4.0
   # try to do an illegal clone with illegal number_of_shards
   - do:

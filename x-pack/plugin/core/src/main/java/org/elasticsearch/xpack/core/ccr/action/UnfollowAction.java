@@ -15,6 +15,7 @@ import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.TimeValue;
 
 import java.io.IOException;
 
@@ -33,7 +34,8 @@ public class UnfollowAction extends ActionType<AcknowledgedResponse> {
 
         private final String followerIndex;
 
-        public Request(String followerIndex) {
+        public Request(TimeValue masterNodeTimeout, TimeValue ackTimeout, String followerIndex) {
+            super(masterNodeTimeout, ackTimeout);
             this.followerIndex = followerIndex;
         }
 

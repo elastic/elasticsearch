@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 import org.elasticsearch.gradle.internal.info.BuildParams;
 
@@ -16,7 +17,6 @@ dependencies {
   api project(':libs:elasticsearch-ssl-config')
   api project(":server")
   api project(":libs:elasticsearch-cli")
-  api project(':libs:elasticsearch-preallocate')
   api "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
   api "junit:junit:${versions.junit}"
   api "org.hamcrest:hamcrest:${versions.hamcrest}"
@@ -26,12 +26,15 @@ dependencies {
   api "commons-codec:commons-codec:${versions.commonscodec}"
 
   // mockito
-  api 'org.mockito:mockito-core:5.9.0'
-  api 'org.mockito:mockito-subclass:5.9.0'
-  api 'net.bytebuddy:byte-buddy:1.14.11'
+  api 'org.mockito:mockito-core:5.11.0'
+  api 'org.mockito:mockito-subclass:5.11.0'
+  api 'net.bytebuddy:byte-buddy:1.14.12'
   api 'org.objenesis:objenesis:3.3'
 
   api "org.elasticsearch:mocksocket:${versions.mocksocket}"
+
+  testImplementation project(':x-pack:plugin:mapper-unsigned-long')
+  testImplementation project(":modules:mapper-extras")
 }
 
 sourceSets {
@@ -64,7 +67,15 @@ tasks.named("thirdPartyAudit").configure {
           // mockito
           'net.bytebuddy.agent.ByteBuddyAgent',
           'org.mockito.internal.creation.bytebuddy.inject.MockMethodDispatcher',
-          'org.opentest4j.AssertionFailedError'
+          'org.opentest4j.AssertionFailedError',
+
+          // not using JNA
+         'com.sun.jna.FunctionMapper',
+         'com.sun.jna.JNIEnv',
+         'com.sun.jna.Library',
+         'com.sun.jna.Native',
+         'com.sun.jna.NativeLibrary',
+         'com.sun.jna.Platform'
   )
 
   ignoreViolations(

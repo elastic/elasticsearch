@@ -31,7 +31,7 @@ deprecated::[8.3.0,Replaced by <<infer-trained-model>>.]
 
 `<model_id>`::
 (Required, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=model-id-or-alias]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=model-id-or-alias]
 
 [[infer-trained-model-deployment-query-params]]
 == {api-query-parms-title}

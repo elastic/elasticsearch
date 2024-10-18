@@ -1,0 +1,59 @@
+---
+stored _source mode is supported:
+  - requires:
+      cluster_features: ["mapper.source.remove_synthetic_source_only_validation"]
+      reason: requires new validation logic
+
+  - do:
+      indices.create:
+        index: test-stored-source
+        body:
+          settings:
+            index:
+              mode: logsdb
+          mappings:
+            _source:
+              mode: stored
+  - do:
+      indices.get:
+        index: test-stored-source
+
+  - match: { test-stored-source.mappings._source.mode: "stored" }
+
+---
+disabled _source is not supported:
+  - requires:
+      cluster_features: ["mapper.source.remove_synthetic_source_only_validation"]
+      reason: requires new error message
+
+  - do:
+      catch: bad_request
+      indices.create:
+        index: test-disabled-source
+        body:
+          settings:
+            index:
+              mode: logsdb
+          mappings:
+            _source:
+              enabled: false
+
+  - match: { error.type: "mapper_parsing_exception" }
+  - match: { error.root_cause.0.type: "mapper_parsing_exception" }
+  - match: { error.reason: "Failed to parse mapping: _source can not be disabled in index using [logsdb] index mode" }
+
+  - do:
+      catch: bad_request
+      indices.create:
+        index: test-disabled-mode-source
+        body:
+          settings:
+            index:
+              mode: logsdb
+          mappings:
+            _source:
+              mode: disabled
+
+  - match: { error.type: "mapper_parsing_exception" }
+  - match: { error.root_cause.0.type: "mapper_parsing_exception" }
+  - match: { error.reason: "Failed to parse mapping: _source can not be disabled in index using [logsdb] index mode" }

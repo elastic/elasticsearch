@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.indices;
 
@@ -236,7 +237,7 @@ public class IndexingMemoryControllerTests extends IndexShardTestCase {
             Settings.builder().put("indices.memory.index_buffer_size", "0.001%").put("indices.memory.min_index_buffer_size", "6mb").build()
         );
 
-        assertThat(controller.indexingBufferSize(), equalTo(new ByteSizeValue(6, ByteSizeUnit.MB)));
+        assertThat(controller.indexingBufferSize(), equalTo(new ByteSizeValue(6, ByteSizeUnit.MB).getBytes()));
     }
 
     public void testNegativeMinIndexBufferSize() {
@@ -288,7 +289,7 @@ public class IndexingMemoryControllerTests extends IndexShardTestCase {
             Settings.builder().put("indices.memory.index_buffer_size", "90%").put("indices.memory.max_index_buffer_size", "6mb").build()
         );
 
-        assertThat(controller.indexingBufferSize(), equalTo(new ByteSizeValue(6, ByteSizeUnit.MB)));
+        assertThat(controller.indexingBufferSize(), equalTo(new ByteSizeValue(6, ByteSizeUnit.MB).getBytes()));
     }
 
     public void testThrottling() throws Exception {
@@ -363,7 +364,7 @@ public class IndexingMemoryControllerTests extends IndexShardTestCase {
         for (int i = 0; i < 100; i++) {
             indexDoc(shard, Integer.toString(i), "{\"foo\" : \"bar\"}", XContentType.JSON, null);
         }
-        shard.close("simon says", false);
+        closeShardNoCheck(shard);
         AtomicReference<IndexShard> shardRef = new AtomicReference<>();
         Settings settings = Settings.builder().put("indices.memory.index_buffer_size", "50kb").build();
         Iterable<IndexShard> iterable = () -> (shardRef.get() == null)

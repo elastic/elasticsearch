@@ -8,9 +8,12 @@
 package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.index.mapper.BlockLoader;
 
 import java.io.IOException;
@@ -19,8 +22,8 @@ import java.io.IOException;
  * Block that stores BytesRef values.
  * This class is generated. Do not edit it.
  */
-public sealed interface BytesRefBlock extends Block permits BytesRefArrayBlock, BytesRefVectorBlock, ConstantNullBlock {
-
+public sealed interface BytesRefBlock extends Block permits BytesRefArrayBlock, BytesRefVectorBlock, ConstantNullBlock,
+    OrdinalBytesRefBlock {
     BytesRef NULL_VALUE = new BytesRef();
 
     /**
@@ -38,8 +41,23 @@ public sealed interface BytesRefBlock extends Block permits BytesRefArrayBlock, 
     @Override
     BytesRefVector asVector();
 
+    /**
+     * Returns an ordinal bytesref block if this block is backed by a dictionary and ordinals; otherwise,
+     * returns null. Callers must not release the returned block as no extra reference is retained by this method.
+     */
+    OrdinalBytesRefBlock asOrdinals();
+
     @Override
     BytesRefBlock filter(int... positions);
+
+    @Override
+    BytesRefBlock keepMask(BooleanVector mask);
+
+    @Override
+    ReleasableIterator<? extends BytesRefBlock> lookup(IntBlock positions, ByteSizeValue targetBlockSize);
+
+    @Override
+    BytesRefBlock expand();
 
     @Override
     default String getWriteableName() {
@@ -52,11 +70,21 @@ public sealed interface BytesRefBlock extends Block permits BytesRefArrayBlock, 
         return readFrom((BlockStreamInput) in);
     }
 
-    private static BytesRefBlock readFrom(BlockStreamInput in) throws IOException {
-        final boolean isVector = in.readBoolean();
-        if (isVector) {
-            return BytesRefVector.readFrom(in.blockFactory(), in).asBlock();
-        }
+    static BytesRefBlock readFrom(BlockStreamInput in) throws IOException {
+        final byte serializationType = in.readByte();
+        return switch (serializationType) {
+            case SERIALIZE_BLOCK_VALUES -> BytesRefBlock.readValues(in);
+            case SERIALIZE_BLOCK_VECTOR -> BytesRefVector.readFrom(in.blockFactory(), in).asBlock();
+            case SERIALIZE_BLOCK_ARRAY -> BytesRefArrayBlock.readArrayBlock(in.blockFactory(), in);
+            case SERIALIZE_BLOCK_ORDINAL -> OrdinalBytesRefBlock.readOrdinalBlock(in.blockFactory(), in);
+            default -> {
+                assert false : "invalid block serialization type " + serializationType;
+                throw new IllegalStateException("invalid serialization type " + serializationType);
+            }
+        };
+    }
+
+    private static BytesRefBlock readValues(BlockStreamInput in) throws IOException {
         final int positions = in.readVInt();
         try (BytesRefBlock.Builder builder = in.blockFactory().newBytesRefBlockBuilder(positions)) {
             for (int i = 0; i < positions; i++) {
@@ -78,22 +106,35 @@ public sealed interface BytesRefBlock extends Block permits BytesRefArrayBlock, 
     @Override
     default void writeTo(StreamOutput out) throws IOException {
         BytesRefVector vector = asVector();
-        out.writeBoolean(vector != null);
+        final var version = out.getTransportVersion();
         if (vector != null) {
+            out.writeByte(SERIALIZE_BLOCK_VECTOR);
             vector.writeTo(out);
+        } else if (version.onOrAfter(TransportVersions.V_8_14_0) && this instanceof BytesRefArrayBlock b) {
+            out.writeByte(SERIALIZE_BLOCK_ARRAY);
+            b.writeArrayBlock(out);
+        } else if (version.onOrAfter(TransportVersions.V_8_14_0) && this instanceof OrdinalBytesRefBlock b && b.isDense()) {
+            out.writeByte(SERIALIZE_BLOCK_ORDINAL);
+            b.writeOrdinalBlock(out);
         } else {
-            final int positions = getPositionCount();
-            out.writeVInt(positions);
-            for (int pos = 0; pos < positions; pos++) {
-                if (isNull(pos)) {
-                    out.writeBoolean(true);
-                } else {
-                    out.writeBoolean(false);
-                    final int valueCount = getValueCount(pos);
-                    out.writeVInt(valueCount);
-                    for (int valueIndex = 0; valueIndex < valueCount; valueIndex++) {
-                        out.writeBytesRef(getBytesRef(getFirstValueIndex(pos) + valueIndex, new BytesRef()));
-                    }
+            out.writeByte(SERIALIZE_BLOCK_VALUES);
+            BytesRefBlock.writeValues(this, out);
+        }
+    }
+
+    private static void writeValues(BytesRefBlock block, StreamOutput out) throws IOException {
+        final int positions = block.getPositionCount();
+        out.writeVInt(positions);
+        for (int pos = 0; pos < positions; pos++) {
+            if (block.isNull(pos)) {
+                out.writeBoolean(true);
+            } else {
+                out.writeBoolean(false);
+                final int valueCount = block.getValueCount(pos);
+                out.writeVInt(valueCount);
+                var scratch = new BytesRef();
+                for (int valueIndex = 0; valueIndex < valueCount; valueIndex++) {
+                    out.writeBytesRef(block.getBytesRef(block.getFirstValueIndex(pos) + valueIndex, scratch));
                 }
             }
         }
@@ -201,19 +242,6 @@ public sealed interface BytesRefBlock extends Block permits BytesRefArrayBlock, 
 
         @Override
         Builder mvOrdering(Block.MvOrdering mvOrdering);
-
-        /**
-         * Appends the all values of the given block into a the current position
-         * in this builder.
-         */
-        @Override
-        Builder appendAllValuesToCurrentPosition(Block block);
-
-        /**
-         * Appends the all values of the given block into a the current position
-         * in this builder.
-         */
-        Builder appendAllValuesToCurrentPosition(BytesRefBlock block);
 
         @Override
         BytesRefBlock build();

@@ -20,15 +20,12 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 
 public class ModelSecretsTests extends AbstractWireSerializingTestCase<ModelSecrets> {
 
     public static ModelSecrets createRandomInstance() {
         return new ModelSecrets(randomSecretSettings());
-    }
-
-    public static ModelSecrets mutateTestInstance(ModelSecrets instance) {
-        return createRandomInstance();
     }
 
     private static SecretSettings randomSecretSettings() {
@@ -54,7 +51,7 @@ public class ModelSecretsTests extends AbstractWireSerializingTestCase<ModelSecr
 
     @Override
     protected ModelSecrets mutateInstance(ModelSecrets instance) {
-        return mutateTestInstance(instance);
+        return randomValueOtherThan(instance, ModelSecretsTests::createRandomInstance);
     }
 
     public record FakeSecretSettings(String apiKey) implements SecretSettings {
@@ -86,6 +83,11 @@ public class ModelSecretsTests extends AbstractWireSerializingTestCase<ModelSecr
         @Override
         public TransportVersion getMinimalSupportedVersion() {
             return TransportVersions.V_8_11_X;
+        }
+
+        @Override
+        public SecretSettings newSecretSettings(Map<String, Object> newSecrets) {
+            return new FakeSecretSettings(newSecrets.get(API_KEY).toString());
         }
     }
 }

@@ -4,6 +4,9 @@ import org.elasticsearch.gradle.internal.toolchain.AdoptiumJdkToolchainResolver
 
 pluginManagement {
   repositories {
+    maven {
+      url 'https://jitpack.io'
+    }
     mavenCentral()
     gradlePluginPortal()
   }
@@ -14,7 +17,7 @@ pluginManagement {
 }
 
 plugins {
-  id "com.gradle.enterprise" version "3.16.1"
+  id "com.gradle.develocity" version "3.17.4"
   id 'elasticsearch.java-toolchain'
 }
 
@@ -70,6 +73,8 @@ List projects = [
   'distribution:docker:ironbank-docker-export',
   'distribution:docker:ubi-docker-aarch64-export',
   'distribution:docker:ubi-docker-export',
+  'distribution:docker:wolfi-docker-aarch64-export',
+  'distribution:docker:wolfi-docker-export',
   'distribution:packages:aarch64-deb',
   'distribution:packages:deb',
   'distribution:packages:aarch64-rpm',
@@ -86,12 +91,15 @@ List projects = [
   'distribution:tools:keystore-cli',
   'distribution:tools:geoip-cli',
   'distribution:tools:ansi-console',
+  'distribution:tools:entitlement-agent',
+  'distribution:tools:entitlement-agent:impl',
+  'distribution:tools:entitlement-bridge',
+  'distribution:tools:entitlement-runtime',
   'server',
   'test:framework',
   'test:fixtures:azure-fixture',
   'test:fixtures:gcs-fixture',
-  'test:fixtures:hdfs2-fixture',
-  'test:fixtures:hdfs3-fixture',
+  'test:fixtures:hdfs-fixture',
   'test:fixtures:krb5kdc-fixture',
   'test:fixtures:minio-fixture',
   'test:fixtures:old-elasticsearch',
@@ -103,7 +111,8 @@ List projects = [
   'test:test-clusters',
   'test:x-content',
   'test:yaml-rest-runner',
-  'test:metadata-extractor'
+  'test:metadata-extractor',
+  'test:immutable-collections-patch'
 ]
 
 /**
@@ -154,6 +163,7 @@ project(":libs").children.each { libsProject ->
     lp.name = lp.name  // for :libs:elasticsearch-x-content:impl
   }
 }
+project(":libs:elasticsearch-native:libraries").name = "elasticsearch-native-libraries"
 
 project(":qa:stable-api").children.each { libsProject ->
   libsProject.name = "elasticsearch-${libsProject.name}"

@@ -52,7 +52,7 @@ public class PrevalidateNodeRemovalWithSearchableSnapshotIntegTests extends Base
         // Make sure the searchable snapshot index is red
         internalCluster().stopNode(node1);
         assertBusy(() -> {
-            ClusterHealthResponse healthResponse = clusterAdmin().prepareHealth(restoredIndexName)
+            ClusterHealthResponse healthResponse = clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT, restoredIndexName)
                 .setWaitForStatus(ClusterHealthStatus.RED)
                 .setWaitForEvents(Priority.LANGUID)
                 .execute()
@@ -63,11 +63,12 @@ public class PrevalidateNodeRemovalWithSearchableSnapshotIntegTests extends Base
         PrevalidateNodeRemovalRequest.Builder req = PrevalidateNodeRemovalRequest.builder();
         switch (randomIntBetween(0, 2)) {
             case 0 -> req.setNames(node2);
-            case 1 -> req.setIds(internalCluster().clusterService(node2).localNode().getId());
+            case 1 -> req.setIds(getNodeId(node2));
             case 2 -> req.setExternalIds(internalCluster().clusterService(node2).localNode().getExternalId());
             default -> throw new IllegalStateException("Unexpected value");
         }
-        PrevalidateNodeRemovalResponse resp = client().execute(PrevalidateNodeRemovalAction.INSTANCE, req.build()).get();
+        PrevalidateNodeRemovalResponse resp = client().execute(PrevalidateNodeRemovalAction.INSTANCE, req.build(TEST_REQUEST_TIMEOUT))
+            .get();
         assertTrue(resp.getPrevalidation().isSafe());
         assertThat(resp.getPrevalidation().message(), equalTo("all red indices are searchable snapshot indices"));
         assertThat(resp.getPrevalidation().nodes().size(), equalTo(1));

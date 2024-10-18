@@ -114,8 +114,6 @@ xpack.security.http.filter.deny: _all
 [discrete]
 === Remote cluster (API key based model) filtering
 
-beta::[]
-
 If other clusters connect <<remote-clusters-api-key,using API key
 authentication>> for {ccs} or {ccr}, you may want to have different IP filtering
 for the remote cluster server interface.

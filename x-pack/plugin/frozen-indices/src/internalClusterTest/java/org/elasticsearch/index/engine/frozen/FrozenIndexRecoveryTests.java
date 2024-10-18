@@ -74,7 +74,10 @@ public class FrozenIndexRecoveryTests extends ESIntegTestCase {
                 for (int i = 0; i < moreDocs; i++) {
                     client.prepareIndex(indexName).setSource("num", i).get();
                 }
-                assertAcked(client().execute(FreezeIndexAction.INSTANCE, new FreezeRequest(indexName)).actionGet());
+                assertAcked(
+                    client().execute(FreezeIndexAction.INSTANCE, new FreezeRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, indexName))
+                        .actionGet()
+                );
                 return super.onNodeStopped(nodeName);
             }
         });

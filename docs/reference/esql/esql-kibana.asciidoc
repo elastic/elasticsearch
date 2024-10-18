@@ -14,19 +14,26 @@ data* from the {kib} Home, selecting *Other sample data sets*, and clicking *Add
 data* on the *Sample web logs* card.
 
 [discrete]
+[[esql-kibana-enable]]
+=== Enable or disable {esql}
+
+{esql} is enabled by default in {kib}. It can be
+disabled using the `enableESQL` setting from the
+{kibana-ref}/advanced-options.html[Advanced Settings].
+
+This will hide the {esql} user interface from various applications.
+However, users will be able to access existing {esql} artifacts like saved searches and visualizations.
+
+[discrete]
 [[esql-kibana-get-started]]
 === Get started with {esql}
 
 // tag::esql-mode[]
 To get started with {esql} in Discover, open the main menu and select
-*Discover*. Next, from the Data views menu, select *Try ES|QL*.
+*Discover*. Next, from the Data views menu, select *Language: ES|QL*.
 
 image::images/esql/esql-data-view-menu.png[align="center",width=33%]
 // end::esql-mode[]
-
-The ability to select {esql} from the Data views menu can be enabled and
-disabled using the `discover:enableESQL` setting from
-{kibana-ref}/advanced-options.html[Advanced Settings].
 
 [discrete]
 [[esql-kibana-query-bar]]
@@ -47,7 +54,7 @@ A source command can be followed by one or more <<esql-commands,processing
 commands>>. In this query, the processing command is <<esql-limit>>. `LIMIT`
 limits the number of rows that are retrieved.
 
-TIP: Click the help icon (image:images/esql/esql-icon-help.svg[]) to open the
+TIP: Click the help icon (image:images/esql/esql-icon-help.svg[Static,20]) to open the
 in-product reference documentation for all commands and functions.
 
 // tag::autocomplete[]
@@ -97,6 +104,19 @@ To return to a compact query bar, click the minimize editor button
 A query may result in warnings, for example when querying an unsupported field
 type. When that happens, a warning symbol is shown in the query bar. To see the
 detailed warning, expand the query bar, and click *warnings*.
+
+[discrete]
+[[esql-kibana-query-history]]
+==== Query history
+
+You can reuse your recent {esql} queries in the query bar.
+In the query bar click *Show recent queries*:
+
+image::images/esql/esql-discover-show-recent-query.png[align="center",size="50%"]
+
+You can then scroll through your recent queries:
+
+image::images/esql/esql-discover-query-history.png[align="center",size="50%"]
 
 [discrete]
 [[esql-kibana-results-table]]
@@ -170,7 +190,7 @@ FROM kibana_sample_data_logs
 === Analyze and visualize data
 
 Between the query bar and the results table, Discover shows a date histogram
-visualization. If the indices you're querying do not contain an `@timestamp`
+visualization. If the indices you're querying do not contain a `@timestamp`
 field, the histogram is not shown.
 
 The visualization adapts to the query. A query's nature determines the type of
@@ -189,24 +209,39 @@ The resulting visualization is a bar chart showing the top 3 countries:
 
 image::images/esql/esql-kibana-bar-chart.png[align="center"]
 
-To change the visualization into another type, click the visualization type
-dropdown:
-
-image::images/esql/esql-kibana-visualization-type.png[align="center",width=33%]
-
-To make other changes to the visualization, like the axes and colors, click the
+To make changes to the visualization, like changing the visualization type, axes and colors, click the
 pencil button (image:images/esql/esql-icon-edit-visualization.svg[]). This opens
 an in-line editor:
 
-image::images/esql/esql-kibana-in-line-editor.png[align="center"]
+image::images/esql/esql-kibana-in-line-editor.png[align="center",width=66%]
 
 You can save the visualization to a new or existing dashboard by clicking the
 save button (image:images/esql/esql-icon-save-visualization.svg[]). Once saved
-to a dashboard, you can continue to make changes to visualization. Click the
+to a dashboard, you'll be taken to the Dashboards page. You can continue to 
+make changes to the visualization. Click the
 options button in the top-right (image:images/esql/esql-icon-options.svg[]) and
 select *Edit ESQL visualization* to open the in-line editor:
 
-image::images/esql/esql-kibana-edit-on-dashboard.png[align="center"]
+image::images/esql/esql-kibana-edit-on-dashboard.png[align="center",width=66%]
+
+[discrete]
+[[esql-kibana-dashboard-panel]]
+==== Add a panel to a dashboard
+
+You can use {esql} queries to create panels on your dashboards.
+To add a panel to a dashboard, under *Dashboards*, click the *Add panel* button and select {esql}.
+
+image::images/esql/esql-dashboard-panel.png[align="center",width=50%]
+
+Check the {esql} query by clicking the Panel filters button (image:images/esql/dashboard_panel_filter_button.png[Panel filters button on panel header]):
+
+image::images/esql/esql-dashboard-panel-query.png[align="center",width=50%]
+
+You can also edit the {esql} visualization from here.
+Click the options button in the top-right (image:images/esql/esql-icon-options.svg[]) and
+select *Edit ESQL visualization* to open the in-line editor.
+
+image::images/esql/esql-dashboard-panel-edit-visualization.png[align="center",width=50%]
 
 [discrete]
 [[esql-kibana-enrich]]
@@ -233,7 +268,14 @@ Finally, click *Create and execute*.
 
 Now, you can use the enrich policy in an {esql} query:
 
-image::images/esql/esql-kibana-enriched-data.png[align="center"]
+[source,esql]
+----
+FROM kibana_sample_data_logs
+| STATS total_bytes = SUM(bytes) BY geo.dest
+| SORT total_bytes DESC
+| LIMIT 3
+| ENRICH countries
+----
 
 [discrete]
 [[esql-kibana-alerting-rule]]
@@ -254,8 +296,6 @@ image::images/esql/esql-kibana-create-rule.png[align="center",width=50%]
 * The user interface to filter data is not enabled when Discover is in {esql}
 mode. To filter data, write a query that uses the <<esql-where>> command
 instead.
-* In {esql} mode, clicking a field in the field list in Discover does not show
-quick statistics for that field.
 * Discover shows no more than 10,000 rows. This limit only applies to the number
 of rows that are retrieved by the query and displayed in Discover. Queries and
 aggregations run on the full data set.

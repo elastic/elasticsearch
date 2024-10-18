@@ -1,13 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.join.BitSetProducer;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
@@ -37,6 +40,7 @@ public class MappingParserContext {
     private final IndexAnalyzers indexAnalyzers;
     private final IndexSettings indexSettings;
     private final IdFieldMapper idFieldMapper;
+    private final Function<Query, BitSetProducer> bitSetProducer;
     private final long mappingObjectDepthLimit;
     private long mappingObjectDepth = 0;
 
@@ -50,7 +54,8 @@ public class MappingParserContext {
         ScriptCompiler scriptCompiler,
         IndexAnalyzers indexAnalyzers,
         IndexSettings indexSettings,
-        IdFieldMapper idFieldMapper
+        IdFieldMapper idFieldMapper,
+        Function<Query, BitSetProducer> bitSetProducer
     ) {
         this.similarityLookupService = similarityLookupService;
         this.typeParsers = typeParsers;
@@ -63,6 +68,7 @@ public class MappingParserContext {
         this.indexSettings = indexSettings;
         this.idFieldMapper = idFieldMapper;
         this.mappingObjectDepthLimit = indexSettings.getMappingDepthLimit();
+        this.bitSetProducer = bitSetProducer;
     }
 
     public IndexAnalyzers getIndexAnalyzers() {
@@ -132,6 +138,10 @@ public class MappingParserContext {
         return scriptCompiler;
     }
 
+    public BitSetProducer bitSetProducer(Query query) {
+        return bitSetProducer.apply(query);
+    }
+
     void incrementMappingObjectDepth() throws MapperParsingException {
         mappingObjectDepth++;
         if (mappingObjectDepth > mappingObjectDepthLimit) {
@@ -159,7 +169,8 @@ public class MappingParserContext {
                 in.scriptCompiler,
                 in.indexAnalyzers,
                 in.indexSettings,
-                in.idFieldMapper
+                in.idFieldMapper,
+                in.bitSetProducer
             );
         }
 
@@ -188,7 +199,8 @@ public class MappingParserContext {
                 in.scriptCompiler,
                 in.indexAnalyzers,
                 in.indexSettings,
-                in.idFieldMapper
+                in.idFieldMapper,
+                in.bitSetProducer
             );
             this.dateFormatter = dateFormatter;
         }

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.sort;
@@ -18,6 +19,7 @@ import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.RestApiVersion;
+import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.mapper.NestedObjectMapper;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -49,6 +51,8 @@ public abstract class SortBuilder<T extends SortBuilder<T>>
 
     // parse fields common to more than one SortBuilder
     public static final ParseField ORDER_FIELD = new ParseField("order");
+
+    @UpdateForV9(owner = UpdateForV9.Owner.SEARCH_FOUNDATIONS) // v7 REST API no longer exists: eliminate ref to RestApiVersion.V_7
     public static final ParseField NESTED_FILTER_FIELD = new ParseField("nested_filter").withAllDeprecated()
         .forRestApiVersion(RestApiVersion.equalTo(RestApiVersion.V_7));
     public static final ParseField NESTED_PATH_FIELD = new ParseField("nested_path").withAllDeprecated()
@@ -158,8 +162,8 @@ public abstract class SortBuilder<T extends SortBuilder<T>>
         List<DocValueFormat> sortFormats = new ArrayList<>(sortBuilders.size());
         for (SortBuilder<?> builder : sortBuilders) {
             SortFieldAndFormat sf = builder.build(context);
-            sortFields.add(sf.field);
-            sortFormats.add(sf.format);
+            sortFields.add(sf.field());
+            sortFormats.add(sf.format());
         }
         if (sortFields.isEmpty() == false) {
             // optimize if we just sort on score non reversed, we don't really

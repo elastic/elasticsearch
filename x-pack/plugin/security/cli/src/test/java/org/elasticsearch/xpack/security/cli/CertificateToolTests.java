@@ -25,7 +25,10 @@ import org.bouncycastle.asn1.x509.Extensions;
 import org.bouncycastle.asn1.x509.GeneralName;
 import org.bouncycastle.asn1.x509.GeneralNames;
 import org.bouncycastle.cert.X509CertificateHolder;
+import org.bouncycastle.openssl.PEMEncryptedKeyPair;
+import org.bouncycastle.openssl.PEMKeyPair;
 import org.bouncycastle.openssl.PEMParser;
+import org.bouncycastle.openssl.bc.BcPEMDecryptorProvider;
 import org.bouncycastle.pkcs.PKCS10CertificationRequest;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.MockTerminal;
@@ -77,6 +80,7 @@ import java.security.cert.Certificate;
 import java.security.cert.X509Certificate;
 import java.security.interfaces.RSAKey;
 import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -88,6 +92,7 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.TrustManagerFactory;
@@ -266,9 +271,12 @@ public class CertificateToolTests extends ESTestCase {
         assertThat(terminal.getErrorOutput(), containsString("could not be converted to a valid DN"));
     }
 
-    public void testGeneratingCsr() throws Exception {
+    public void testGeneratingCsrFromInstancesFile() throws Exception {
         Path tempDir = initTempDir();
         Path outputFile = tempDir.resolve("out.zip");
+        MockTerminal terminal = MockTerminal.create();
+        final List<String> args = new ArrayList<>();
+
         Path instanceFile = writeInstancesTo(tempDir.resolve("instances.yml"));
         Collection<CertificateInformation> certInfos = CertificateTool.parseFile(instanceFile);
         assertEquals(4, certInfos.size());
@@ -276,7 +284,22 @@ public class CertificateToolTests extends ESTestCase {
         assertFalse(Files.exists(outputFile));
         int keySize = randomFrom(1024, 2048);
 
-        new CertificateTool.SigningRequestCommand().generateAndWriteCsrs(outputFile, keySize, certInfos);
+        final boolean encrypt = randomBoolean();
+        final String password = encrypt ? randomAlphaOfLengthBetween(8, 12) : null;
+        if (encrypt) {
+            args.add("--pass");
+            if (randomBoolean()) {
+                args.add(password);
+            } else {
+                for (var ignore : certInfos) {
+                    terminal.addSecretInput(password);
+                }
+            }
+        }
+
+        final CertificateTool.SigningRequestCommand command = new CertificateTool.SigningRequestCommand();
+        final OptionSet options = command.getParser().parse(Strings.toStringArray(args));
+        command.generateAndWriteCsrs(terminal, options, outputFile, keySize, certInfos);
         assertTrue(Files.exists(outputFile));
 
         Set<PosixFilePermission> perms = Files.getPosixFilePermissions(outputFile);
@@ -292,7 +315,6 @@ public class CertificateToolTests extends ESTestCase {
             assertTrue(Files.exists(zipRoot.resolve(filename)));
             final Path csr = zipRoot.resolve(filename + "/" + filename + ".csr");
             assertTrue(Files.exists(csr));
-            assertTrue(Files.exists(zipRoot.resolve(filename + "/" + filename + ".key")));
             PKCS10CertificationRequest request = readCertificateRequest(csr);
             assertEquals(certInfo.name.x500Principal.getName(), request.getSubject().toString());
             Attribute[] extensionsReq = request.getAttributes(PKCSObjectIdentifiers.pkcs_9_at_extensionRequest);
@@ -304,7 +326,82 @@ public class CertificateToolTests extends ESTestCase {
             } else {
                 assertEquals(0, extensionsReq.length);
             }
+
+            final Path keyPath = zipRoot.resolve(filename + "/" + filename + ".key");
+            assertTrue(Files.exists(keyPath));
+            PEMKeyPair key = readPrivateKey(keyPath, password);
+            assertNotNull(key);
         }
+    }
+
+    public void testGeneratingCsrFromCommandLineParameters() throws Exception {
+        Path tempDir = initTempDir();
+        Path outputFile = tempDir.resolve("out.zip");
+        MockTerminal terminal = MockTerminal.create();
+        final List<String> args = new ArrayList<>();
+
+        final int keySize = randomFrom(1024, 2048);
+        args.add("--keysize");
+        args.add(String.valueOf(keySize));
+
+        final String name = randomAlphaOfLengthBetween(4, 16);
+        args.add("--name");
+        args.add(name);
+
+        final List<String> dns = randomList(0, 4, () -> randomAlphaOfLengthBetween(4, 8) + "." + randomAlphaOfLengthBetween(2, 5));
+        dns.stream().map(s -> "--dns=" + s).forEach(args::add);
+        final List<String> ip = randomList(
+            0,
+            2,
+            () -> Stream.generate(() -> randomIntBetween(10, 250)).limit(4).map(String::valueOf).collect(Collectors.joining("."))
+        );
+        ip.stream().map(s -> "--ip=" + s).forEach(args::add);
+
+        final boolean encrypt = randomBoolean();
+        final String password = encrypt ? randomAlphaOfLengthBetween(8, 12) : null;
+        if (encrypt) {
+            args.add("--pass");
+            if (randomBoolean()) {
+                args.add(password);
+            } else {
+                terminal.addSecretInput(password);
+            }
+        }
+
+        final CertificateTool.SigningRequestCommand command = new CertificateTool.SigningRequestCommand();
+        final OptionSet options = command.getParser().parse(Strings.toStringArray(args));
+        command.generateAndWriteCsrs(terminal, options, outputFile);
+        assertTrue(Files.exists(outputFile));
+
+        Set<PosixFilePermission> perms = Files.getPosixFilePermissions(outputFile);
+        assertTrue(perms.toString(), perms.contains(PosixFilePermission.OWNER_READ));
+        assertTrue(perms.toString(), perms.contains(PosixFilePermission.OWNER_WRITE));
+        assertEquals(perms.toString(), 2, perms.size());
+
+        final Path zipRoot = getRootPathOfZip(outputFile);
+
+        assertFalse(Files.exists(zipRoot.resolve("ca")));
+        assertTrue(Files.exists(zipRoot.resolve(name)));
+        final Path csr = zipRoot.resolve(name + "/" + name + ".csr");
+        assertTrue(Files.exists(csr));
+
+        PKCS10CertificationRequest request = readCertificateRequest(csr);
+        assertEquals("CN=" + name, request.getSubject().toString());
+
+        Attribute[] extensionsReq = request.getAttributes(PKCSObjectIdentifiers.pkcs_9_at_extensionRequest);
+        if (dns.size() > 0 || ip.size() > 0) {
+            assertEquals(1, extensionsReq.length);
+            Extensions extensions = Extensions.getInstance(extensionsReq[0].getAttributeValues()[0]);
+            GeneralNames subjAltNames = GeneralNames.fromExtensions(extensions, Extension.subjectAlternativeName);
+            assertSubjAltNames(subjAltNames, ip, dns);
+        } else {
+            assertEquals(0, extensionsReq.length);
+        }
+
+        final Path keyPath = zipRoot.resolve(name + "/" + name + ".key");
+        assertTrue(Files.exists(keyPath));
+        PEMKeyPair key = readPrivateKey(keyPath, password);
+        assertNotNull(key);
     }
 
     public void testGeneratingSignedPemCertificates() throws Exception {
@@ -939,19 +1036,6 @@ public class CertificateToolTests extends ESTestCase {
         return (int) ChronoUnit.DAYS.between(cert.getNotBefore().toInstant(), cert.getNotAfter().toInstant());
     }
 
-    private void assertSubjAltNames(Certificate certificate, String ip, String dns) throws Exception {
-        final X509CertificateHolder holder = new X509CertificateHolder(certificate.getEncoded());
-        final GeneralNames names = GeneralNames.fromExtensions(holder.getExtensions(), Extension.subjectAlternativeName);
-        final CertificateInformation certInfo = new CertificateInformation(
-            "n",
-            "n",
-            Collections.singletonList(ip),
-            Collections.singletonList(dns),
-            Collections.emptyList()
-        );
-        assertSubjAltNames(names, certInfo);
-    }
-
     /**
      * Checks whether there are keys in {@code keyStore} that are trusted by {@code trustStore}.
      */
@@ -981,11 +1065,37 @@ public class CertificateToolTests extends ESTestCase {
         }
     }
 
+    private PEMKeyPair readPrivateKey(Path path, String password) throws Exception {
+        try (Reader reader = Files.newBufferedReader(path); PEMParser pemParser = new PEMParser(reader)) {
+            Object object = pemParser.readObject();
+            if (password == null) {
+                assertThat(object, instanceOf(PEMKeyPair.class));
+                return (PEMKeyPair) object;
+            } else {
+                assertThat(object, instanceOf(PEMEncryptedKeyPair.class));
+                final PEMEncryptedKeyPair encryptedKeyPair = (PEMEncryptedKeyPair) object;
+                assertThat(encryptedKeyPair.getDekAlgName(), is("AES-128-CBC"));
+                return encryptedKeyPair.decryptKeyPair(new BcPEMDecryptorProvider(password.toCharArray()));
+            }
+        }
+    }
+
     private X509Certificate readX509Certificate(InputStream input) throws Exception {
         List<Certificate> list = CertParsingUtils.readCertificates(input);
         assertEquals(1, list.size());
         assertThat(list.get(0), instanceOf(X509Certificate.class));
         return (X509Certificate) list.get(0);
+    }
+
+    private void assertSubjAltNames(Certificate certificate, String ip, String dns) throws Exception {
+        final X509CertificateHolder holder = new X509CertificateHolder(certificate.getEncoded());
+        final GeneralNames names = GeneralNames.fromExtensions(holder.getExtensions(), Extension.subjectAlternativeName);
+        assertSubjAltNames(names, Collections.singletonList(ip), Collections.singletonList(dns));
+    }
+
+    private void assertSubjAltNames(GeneralNames generalNames, List<String> ip, List<String> dns) throws Exception {
+        final CertificateInformation certInfo = new CertificateInformation("n", "n", ip, dns, Collections.emptyList());
+        assertSubjAltNames(generalNames, certInfo);
     }
 
     private void assertSubjAltNames(GeneralNames subjAltNames, CertificateInformation certInfo) throws Exception {

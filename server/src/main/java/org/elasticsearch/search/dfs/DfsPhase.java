@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.dfs;
@@ -17,7 +18,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.TermStatistics;
 import org.apache.lucene.search.TopDocs;
-import org.apache.lucene.search.TopScoreDocCollector;
+import org.apache.lucene.search.TopScoreDocCollectorManager;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -52,7 +53,9 @@ import static org.elasticsearch.index.query.AbstractQueryBuilder.DEFAULT_BOOST;
  */
 public class DfsPhase {
 
-    public void execute(SearchContext context) {
+    private DfsPhase() {}
+
+    public static void execute(SearchContext context) {
         try {
             collectStatistics(context);
             executeKnnVectorQuery(context);
@@ -65,7 +68,7 @@ public class DfsPhase {
         }
     }
 
-    private void collectStatistics(SearchContext context) throws IOException {
+    private static void collectStatistics(SearchContext context) throws IOException {
         final DfsProfiler profiler = context.getProfilers() == null ? null : context.getProfilers().getDfsProfiler();
 
         Map<String, CollectionStatistics> fieldStatistics = new HashMap<>();
@@ -203,7 +206,7 @@ public class DfsPhase {
 
     static DfsKnnResults singleKnnSearch(Query knnQuery, int k, Profilers profilers, ContextIndexSearcher searcher, String nestedPath)
         throws IOException {
-        CollectorManager<? extends Collector, TopDocs> topDocsCollectorManager = TopScoreDocCollector.createSharedManager(
+        CollectorManager<? extends Collector, TopDocs> topDocsCollectorManager = new TopScoreDocCollectorManager(
             k,
             null,
             Integer.MAX_VALUE

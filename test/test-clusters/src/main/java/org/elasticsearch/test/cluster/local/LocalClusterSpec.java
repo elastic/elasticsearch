@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.test.cluster.local;
@@ -70,6 +71,15 @@ public class LocalClusterSpec implements ClusterSpec {
 
         if (nodeNames.isEmpty() == false) {
             throw new IllegalArgumentException("Cluster cannot contain nodes with duplicates names: " + nodeNames);
+        }
+
+        // Ensure we do not configure older version nodes with the integTest distribution
+        if (nodes.stream().anyMatch(n -> n.getVersion() != Version.CURRENT && n.getDistributionType() == DistributionType.INTEG_TEST)) {
+            throw new IllegalArgumentException(
+                "Error configuring test cluster '"
+                    + name
+                    + "'. When configuring a node for a prior Elasticsearch version, the default distribution type must be used."
+            );
         }
     }
 

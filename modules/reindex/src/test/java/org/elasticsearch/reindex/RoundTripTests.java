@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.reindex;
@@ -37,7 +38,6 @@ import java.util.Collections;
 import java.util.Map;
 
 import static org.apache.lucene.tests.util.TestUtil.randomSimpleString;
-import static org.elasticsearch.core.TimeValue.parseTimeValue;
 
 /**
  * Round trip tests for all {@link Writeable} things declared in this plugin.
@@ -58,8 +58,8 @@ public class RoundTripTests extends ESTestCase {
             while (headers.size() < headersCount) {
                 headers.put(randomAlphaOfLength(5), randomAlphaOfLength(5));
             }
-            TimeValue socketTimeout = parseTimeValue(randomPositiveTimeValue(), "socketTimeout");
-            TimeValue connectTimeout = parseTimeValue(randomPositiveTimeValue(), "connectTimeout");
+            TimeValue socketTimeout = randomPositiveTimeValue();
+            TimeValue connectTimeout = randomPositiveTimeValue();
             reindex.setRemoteInfo(
                 new RemoteInfo(
                     randomAlphaOfLength(5),
@@ -121,7 +121,7 @@ public class RoundTripTests extends ESTestCase {
         }
         request.setAbortOnVersionConflict(random().nextBoolean());
         request.setRefresh(rarely());
-        request.setTimeout(TimeValue.parseTimeValue(randomTimeValue(), null, "test"));
+        request.setTimeout(randomTimeValue());
         request.setWaitForActiveShards(randomIntBetween(0, 10));
         request.setRequestsPerSecond(between(0, Integer.MAX_VALUE));
 

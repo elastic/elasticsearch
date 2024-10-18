@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.support.nodes;
@@ -15,6 +16,7 @@ import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.CancellableFanOut;
+import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.cluster.ClusterState;
@@ -25,6 +27,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
@@ -36,7 +39,6 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.Executor;
@@ -44,10 +46,11 @@ import java.util.concurrent.Executor;
 import static org.elasticsearch.core.Strings.format;
 
 public abstract class TransportNodesAction<
-    NodesRequest extends BaseNodesRequest<NodesRequest>,
+    NodesRequest extends BaseNodesRequest,
     NodesResponse extends BaseNodesResponse<?>,
     NodeRequest extends TransportRequest,
-    NodeResponse extends BaseNodeResponse> extends TransportAction<NodesRequest, NodesResponse> {
+    NodeResponse extends BaseNodeResponse,
+    ActionContext> extends TransportAction<NodesRequest, NodesResponse> {
 
     private static final Logger logger = LogManager.getLogger(TransportNodesAction.class);
 
@@ -73,7 +76,9 @@ public abstract class TransportNodesAction<
         Writeable.Reader<NodeRequest> nodeRequest,
         Executor executor
     ) {
-        super(actionName, actionFilters, transportService.getTaskManager());
+        // Only part of this action execution needs to be forked off - coordination can run on SAME because it's only O(#nodes) work.
+        // Hence the separate "finalExecutor", and why we run the whole TransportAction.execute on SAME.
+        super(actionName, actionFilters, transportService.getTaskManager(), EsExecutors.DIRECT_EXECUTOR_SERVICE);
         assert executor.equals(EsExecutors.DIRECT_EXECUTOR_SERVICE) == false
             : "TransportNodesAction must always fork off the transport thread";
         this.clusterService = Objects.requireNonNull(clusterService);
@@ -86,14 +91,13 @@ public abstract class TransportNodesAction<
     @Override
     protected void doExecute(Task task, NodesRequest request, ActionListener<NodesResponse> listener) {
         // coordination can run on SAME because it's only O(#nodes) work
-        if (request.concreteNodes() == null) {
-            resolveRequest(request, clusterService.state());
-            assert request.concreteNodes() != null;
-        }
+
+        final var concreteNodes = Objects.requireNonNull(resolveRequest(request, clusterService.state()));
 
         new CancellableFanOut<DiscoveryNode, NodeResponse, CheckedConsumer<ActionListener<NodesResponse>, Exception>>() {
 
-            final ArrayList<NodeResponse> responses = new ArrayList<>(request.concreteNodes().length);
+            final ActionContext actionContext = createActionContext(task, request);
+            final ArrayList<NodeResponse> responses = new ArrayList<>(concreteNodes.length);
             final ArrayList<FailedNodeException> exceptions = new ArrayList<>(0);
 
             final TransportRequestOptions transportRequestOptions = TransportRequestOptions.timeout(request.timeout());
@@ -160,7 +164,7 @@ public abstract class TransportNodesAction<
                 // ref releases all happen-before here so no need to be synchronized
                 return l -> {
                     try (var ignored = Releasables.wrap(Iterators.map(responses.iterator(), r -> r::decRef))) {
-                        newResponseAsync(task, request, responses, exceptions, l);
+                        newResponseAsync(task, request, actionContext, responses, exceptions, l);
                     }
                 };
             }
@@ -171,7 +175,7 @@ public abstract class TransportNodesAction<
             }
         }.run(
             task,
-            Iterators.forArray(request.concreteNodes()),
+            Iterators.forArray(concreteNodes),
             new ThreadedActionListener<>(finalExecutor, listener.delegateFailureAndWrap((l, c) -> c.accept(l)))
         );
     }
@@ -179,6 +183,16 @@ public abstract class TransportNodesAction<
     private Writeable.Reader<NodeResponse> nodeResponseReader(DiscoveryNode discoveryNode) {
         // not an inline lambda to avoid capturing CancellableFanOut.this.
         return in -> TransportNodesAction.this.newNodeResponse(in, discoveryNode);
+    }
+
+    /**
+     * Create an (optional) {@link ActionContext}: called when starting to execute this action, and the result passed to
+     * {@link #newResponseAsync} on completion. NB runs on the transport worker thread, must not do anything expensive without dispatching
+     * to a different executor.
+     */
+    @Nullable
+    protected ActionContext createActionContext(Task task, NodesRequest request) {
+        return null;
     }
 
     /**
@@ -205,6 +219,7 @@ public abstract class TransportNodesAction<
     protected void newResponseAsync(
         Task task,
         NodesRequest request,
+        ActionContext actionContext,
         List<NodeResponse> responses,
         List<FailedNodeException> failures,
         ActionListener<NodesResponse> listener
@@ -216,27 +231,35 @@ public abstract class TransportNodesAction<
 
     protected abstract NodeResponse newNodeResponse(StreamInput in, DiscoveryNode node) throws IOException;
 
+    /**
+     * Implements the request recipient logic.
+     * If access to the request listener is needed, override {@link #nodeOperationAsync(TransportRequest, Task, ActionListener)}.
+     */
     protected abstract NodeResponse nodeOperation(NodeRequest request, Task task);
 
     /**
-     * resolve node ids to concrete nodes of the incoming request
-     **/
-    protected void resolveRequest(NodesRequest request, ClusterState clusterState) {
-        assert request.concreteNodes() == null : "request concreteNodes shouldn't be set";
-        String[] nodesIds = clusterState.nodes().resolveNodes(request.nodesIds());
-        request.setConcreteNodes(Arrays.stream(nodesIds).map(clusterState.nodes()::get).toArray(DiscoveryNode[]::new));
+     * This method can be overridden if a subclass needs to access to a listener in order to asynchronously respond to the node request.
+     * The default implementation is to fall through to {@link #nodeOperation}.
+     */
+    protected void nodeOperationAsync(NodeRequest request, Task task, ActionListener<NodeResponse> listener) {
+        ActionListener.respondAndRelease(listener, nodeOperation(request, task));
+    }
+
+    /**
+     * Resolves node ids to concrete nodes of the incoming request.
+     * NB: if the request's nodeIds() returns nothing, then the request will be sent to ALL known nodes in the cluster.
+     */
+    protected DiscoveryNode[] resolveRequest(NodesRequest request, ClusterState clusterState) {
+        return request.resolveNodes(clusterState);
     }
 
     class NodeTransportHandler implements TransportRequestHandler<NodeRequest> {
         @Override
         public void messageReceived(NodeRequest request, TransportChannel channel, Task task) throws Exception {
-            final var nodeResponse = nodeOperation(request, task);
-            try {
-                channel.sendResponse(nodeResponse);
-            } finally {
-                nodeResponse.decRef();
-            }
+            ActionListener.run(
+                new ChannelActionListener<NodeResponse>(channel),
+                channelListener -> nodeOperationAsync(request, task, channelListener)
+            );
         }
     }
-
 }

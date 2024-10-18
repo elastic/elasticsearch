@@ -35,12 +35,13 @@ Dates::                 Date types, including <<date,`date`>> and
 [[object-types]]
 ==== Objects and relational types
 
-<<object,`object`>>::         A JSON object.
-<<flattened,`flattened`>>::   An entire JSON object as a single field value.
-<<nested,`nested`>>::         A JSON object that preserves the relationship
-                              between its subfields.
-<<parent-join,`join`>>::      Defines a parent/child relationship for documents
-                              in the same index.
+<<object,`object`>>::           A JSON object.
+<<flattened,`flattened`>>::     An entire JSON object as a single field value.
+<<nested,`nested`>>::           A JSON object that preserves the relationship
+                                between its subfields.
+<<parent-join,`join`>>::        Defines a parent/child relationship for documents
+                                in the same index.
+<<passthrough,`passthrough`>>:: Provides aliases for sub-fields at the same level.
 
 
 [discrete]
@@ -75,6 +76,7 @@ markup. Used for identifying named entities.
 <<completion-suggester,`completion`>>:: Used for auto-complete suggestions.
 <<search-as-you-type,`search_as_you_type`>>:: `text`-like type for
 as-you-type completion.
+<<semantic-text, `semantic_text`>>:: Used for performing <<semantic-search,semantic search>>.
 <<token-count,`token_count`>>:: A count of tokens in a text.
 
 
@@ -166,6 +168,8 @@ include::types/numeric.asciidoc[]
 
 include::types/object.asciidoc[]
 
+include::types/passthrough.asciidoc[]
+
 include::types/percolator.asciidoc[]
 
 include::types/point.asciidoc[]
@@ -177,6 +181,8 @@ include::types/rank-feature.asciidoc[]
 include::types/rank-features.asciidoc[]
 
 include::types/search-as-you-type.asciidoc[]
+
+include::types/semantic-text.asciidoc[]
 
 include::types/shape.asciidoc[]
 

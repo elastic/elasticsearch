@@ -11,6 +11,7 @@ import java.lang.StringBuilder;
 import java.util.List;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.ElementType;
@@ -42,7 +43,7 @@ public final class MedianAbsoluteDeviationIntAggregatorFunction implements Aggre
 
   public static MedianAbsoluteDeviationIntAggregatorFunction create(DriverContext driverContext,
       List<Integer> channels) {
-    return new MedianAbsoluteDeviationIntAggregatorFunction(driverContext, channels, MedianAbsoluteDeviationIntAggregator.initSingle());
+    return new MedianAbsoluteDeviationIntAggregatorFunction(driverContext, channels, MedianAbsoluteDeviationIntAggregator.initSingle(driverContext));
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -55,13 +56,29 @@ public final class MedianAbsoluteDeviationIntAggregatorFunction implements Aggre
   }
 
   @Override
-  public void addRawInput(Page page) {
+  public void addRawInput(Page page, BooleanVector mask) {
+    if (mask.allFalse()) {
+      // Entire page masked away
+      return;
+    }
+    if (mask.allTrue()) {
+      // No masking
+      IntBlock block = page.getBlock(channels.get(0));
+      IntVector vector = block.asVector();
+      if (vector != null) {
+        addRawVector(vector);
+      } else {
+        addRawBlock(block);
+      }
+      return;
+    }
+    // Some positions masked away, others kept
     IntBlock block = page.getBlock(channels.get(0));
     IntVector vector = block.asVector();
     if (vector != null) {
-      addRawVector(vector);
+      addRawVector(vector, mask);
     } else {
-      addRawBlock(block);
+      addRawBlock(block, mask);
     }
   }
 
@@ -71,8 +88,33 @@ public final class MedianAbsoluteDeviationIntAggregatorFunction implements Aggre
     }
   }
 
+  private void addRawVector(IntVector vector, BooleanVector mask) {
+    for (int i = 0; i < vector.getPositionCount(); i++) {
+      if (mask.getBoolean(i) == false) {
+        continue;
+      }
+      MedianAbsoluteDeviationIntAggregator.combine(state, vector.getInt(i));
+    }
+  }
+
   private void addRawBlock(IntBlock block) {
     for (int p = 0; p < block.getPositionCount(); p++) {
+      if (block.isNull(p)) {
+        continue;
+      }
+      int start = block.getFirstValueIndex(p);
+      int end = start + block.getValueCount(p);
+      for (int i = start; i < end; i++) {
+        MedianAbsoluteDeviationIntAggregator.combine(state, block.getInt(i));
+      }
+    }
+  }
+
+  private void addRawBlock(IntBlock block, BooleanVector mask) {
+    for (int p = 0; p < block.getPositionCount(); p++) {
+      if (mask.getBoolean(p) == false) {
+        continue;
+      }
       if (block.isNull(p)) {
         continue;
       }

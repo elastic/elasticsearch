@@ -335,7 +335,7 @@ through a script:
 The `script_score` query has equivalent <<decay-functions-numeric-fields, decay
 functions>> that can be used in scripts.
 
-include::{es-repo-dir}/vectors/vector-functions.asciidoc[]
+include::{es-ref-dir}/vectors/vector-functions.asciidoc[]
 
 [[score-explanation]]
 ===== Explain request

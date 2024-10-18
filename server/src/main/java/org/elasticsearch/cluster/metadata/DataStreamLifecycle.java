@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.metadata;
@@ -18,15 +19,18 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.xcontent.AbstractObjectParser;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -34,6 +38,8 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
@@ -49,8 +55,18 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
 
     // Versions over the wire
     public static final TransportVersion ADDED_ENABLED_FLAG_VERSION = TransportVersions.V_8_10_X;
+    public static final String EFFECTIVE_RETENTION_REST_API_CAPABILITY = "data_stream_lifecycle_effective_retention";
 
     public static final String DATA_STREAMS_LIFECYCLE_ONLY_SETTING_NAME = "data_streams.lifecycle_only.mode";
+    // The following XContent params are used to enrich the DataStreamLifecycle json with effective retention information
+    // This should be set only when the lifecycle is used in a response to the user and NEVER when we expect the json to
+    // be deserialized.
+    public static final String INCLUDE_EFFECTIVE_RETENTION_PARAM_NAME = "include_effective_retention";
+    public static final Map<String, String> INCLUDE_EFFECTIVE_RETENTION_PARAMS = Map.of(
+        DataStreamLifecycle.INCLUDE_EFFECTIVE_RETENTION_PARAM_NAME,
+        "true"
+    );
+    public static final Tuple<TimeValue, RetentionSource> INFINITE_RETENTION = Tuple.tuple(null, RetentionSource.DATA_STREAM_CONFIGURATION);
 
     /**
      * Check if {@link #DATA_STREAMS_LIFECYCLE_ONLY_SETTING_NAME} is present and set to {@code true}, indicating that
@@ -77,6 +93,8 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
 
     public static final ParseField ENABLED_FIELD = new ParseField("enabled");
     public static final ParseField DATA_RETENTION_FIELD = new ParseField("data_retention");
+    public static final ParseField EFFECTIVE_RETENTION_FIELD = new ParseField("effective_retention");
+    public static final ParseField RETENTION_SOURCE_FIELD = new ParseField("retention_determined_by");
     public static final ParseField DOWNSAMPLING_FIELD = new ParseField("downsampling");
     private static final ParseField ROLLOVER_FIELD = new ParseField("rollover");
 
@@ -129,12 +147,101 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
     }
 
     /**
-     * The least amount of time data should be kept by elasticsearch.
+     * The least amount of time data should be kept by elasticsearch. The effective retention is a function with three parameters,
+     * the {@link DataStreamLifecycle#dataRetention}, the global retention and whether this lifecycle is associated with an internal
+     * data stream.
+     * @param globalRetention The global retention, or null if global retention does not exist.
+     * @param isInternalDataStream A flag denoting if this lifecycle is associated with an internal data stream or not
      * @return the time period or null, null represents that data should never be deleted.
      */
     @Nullable
-    public TimeValue getEffectiveDataRetention() {
+    public TimeValue getEffectiveDataRetention(@Nullable DataStreamGlobalRetention globalRetention, boolean isInternalDataStream) {
+        return getEffectiveDataRetentionWithSource(globalRetention, isInternalDataStream).v1();
+    }
+
+    /**
+     * The least amount of time data should be kept by elasticsearch.. The effective retention is a function with three parameters,
+     * the {@link DataStreamLifecycle#dataRetention}, the global retention and whether this lifecycle is associated with an internal
+     * data stream.
+     * @param globalRetention The global retention, or null if global retention does not exist.
+     * @param isInternalDataStream A flag denoting if this lifecycle is associated with an internal data stream or not
+     * @return A tuple containing the time period or null as v1 (where null represents that data should never be deleted), and the non-null
+     * retention source as v2.
+     */
+    public Tuple<TimeValue, RetentionSource> getEffectiveDataRetentionWithSource(
+        @Nullable DataStreamGlobalRetention globalRetention,
+        boolean isInternalDataStream
+    ) {
+        // If lifecycle is disabled there is no effective retention
+        if (enabled == false) {
+            return INFINITE_RETENTION;
+        }
+        var dataStreamRetention = getDataStreamRetention();
+        if (globalRetention == null || isInternalDataStream) {
+            return Tuple.tuple(dataStreamRetention, RetentionSource.DATA_STREAM_CONFIGURATION);
+        }
+        if (dataStreamRetention == null) {
+            return globalRetention.defaultRetention() != null
+                ? Tuple.tuple(globalRetention.defaultRetention(), RetentionSource.DEFAULT_GLOBAL_RETENTION)
+                : Tuple.tuple(globalRetention.maxRetention(), RetentionSource.MAX_GLOBAL_RETENTION);
+        }
+        if (globalRetention.maxRetention() != null && globalRetention.maxRetention().getMillis() < dataStreamRetention.getMillis()) {
+            return Tuple.tuple(globalRetention.maxRetention(), RetentionSource.MAX_GLOBAL_RETENTION);
+        } else {
+            return Tuple.tuple(dataStreamRetention, RetentionSource.DATA_STREAM_CONFIGURATION);
+        }
+    }
+
+    /**
+     * The least amount of time data the data stream is requesting es to keep the data.
+     * NOTE: this can be overridden by the {@link DataStreamLifecycle#getEffectiveDataRetention(DataStreamGlobalRetention,boolean)}.
+     * @return the time period or null, null represents that data should never be deleted.
+     */
+    @Nullable
+    public TimeValue getDataStreamRetention() {
         return dataRetention == null ? null : dataRetention.value;
+    }
+
+    /**
+     * This method checks if the effective retention is matching what the user has configured; if the effective retention
+     * does not match then it adds a warning informing the user about the effective retention and the source.
+     */
+    public void addWarningHeaderIfDataRetentionNotEffective(
+        @Nullable DataStreamGlobalRetention globalRetention,
+        boolean isInternalDataStream
+    ) {
+        if (globalRetention == null || isInternalDataStream) {
+            return;
+        }
+        Tuple<TimeValue, DataStreamLifecycle.RetentionSource> effectiveDataRetentionWithSource = getEffectiveDataRetentionWithSource(
+            globalRetention,
+            isInternalDataStream
+        );
+        if (effectiveDataRetentionWithSource.v1() == null) {
+            return;
+        }
+        String effectiveRetentionStringRep = effectiveDataRetentionWithSource.v1().getStringRep();
+        switch (effectiveDataRetentionWithSource.v2()) {
+            case DEFAULT_GLOBAL_RETENTION -> HeaderWarning.addWarning(
+                "Not providing a retention is not allowed for this project. The default retention of ["
+                    + effectiveRetentionStringRep
+                    + "] will be applied."
+            );
+            case MAX_GLOBAL_RETENTION -> {
+                String retentionProvidedPart = getDataStreamRetention() == null
+                    ? "Not providing a retention is not allowed for this project."
+                    : "The retention provided ["
+                        + (getDataStreamRetention() == null ? "infinite" : getDataStreamRetention().getStringRep())
+                        + "] is exceeding the max allowed data retention of this project ["
+                        + effectiveRetentionStringRep
+                        + "].";
+                HeaderWarning.addWarning(
+                    retentionProvidedPart + " The max retention of [" + effectiveRetentionStringRep + "] will be applied"
+                );
+            }
+            case DATA_STREAM_CONFIGURATION -> {
+            }
+        }
     }
 
     /**
@@ -222,14 +329,23 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        return toXContent(builder, params, null);
+        return toXContent(builder, params, null, null, false);
     }
 
     /**
-     * Converts the data stream lifecycle to XContent and injects the RolloverConditions if they exist.
+     * Converts the data stream lifecycle to XContent, enriches it with effective retention information when requested
+     * and injects the RolloverConditions if they exist.
+     * In order to request the effective retention you need to set {@link #INCLUDE_EFFECTIVE_RETENTION_PARAM_NAME} to true
+     * in the XContent params.
+     * NOTE: this is used for serialising user output and the result is never deserialised in elasticsearch.
      */
-    public XContentBuilder toXContent(XContentBuilder builder, Params params, @Nullable RolloverConfiguration rolloverConfiguration)
-        throws IOException {
+    public XContentBuilder toXContent(
+        XContentBuilder builder,
+        Params params,
+        @Nullable RolloverConfiguration rolloverConfiguration,
+        @Nullable DataStreamGlobalRetention globalRetention,
+        boolean isInternalDataStream
+    ) throws IOException {
         builder.startObject();
         builder.field(ENABLED_FIELD.getPreferredName(), enabled);
         if (dataRetention != null) {
@@ -239,20 +355,46 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
                 builder.field(DATA_RETENTION_FIELD.getPreferredName(), dataRetention.value().getStringRep());
             }
         }
+        Tuple<TimeValue, RetentionSource> effectiveDataRetentionWithSource = getEffectiveDataRetentionWithSource(
+            globalRetention,
+            isInternalDataStream
+        );
+        if (params.paramAsBoolean(INCLUDE_EFFECTIVE_RETENTION_PARAM_NAME, false)) {
+            if (effectiveDataRetentionWithSource.v1() != null) {
+                builder.field(EFFECTIVE_RETENTION_FIELD.getPreferredName(), effectiveDataRetentionWithSource.v1().getStringRep());
+                builder.field(RETENTION_SOURCE_FIELD.getPreferredName(), effectiveDataRetentionWithSource.v2().displayName());
+            }
+        }
+
         if (downsampling != null) {
             builder.field(DOWNSAMPLING_FIELD.getPreferredName());
             downsampling.toXContent(builder, params);
         }
         if (rolloverConfiguration != null) {
             builder.field(ROLLOVER_FIELD.getPreferredName());
-            rolloverConfiguration.evaluateAndConvertToXContent(builder, params, getEffectiveDataRetention());
+            rolloverConfiguration.evaluateAndConvertToXContent(builder, params, effectiveDataRetentionWithSource.v1());
         }
         builder.endObject();
         return builder;
     }
 
+    /**
+     * This method deserialises XContent format as it was generated ONLY by {@link DataStreamLifecycle#toXContent(XContentBuilder, Params)}.
+     * It does not support the output of
+     * {@link DataStreamLifecycle#toXContent(XContentBuilder, Params, RolloverConfiguration, DataStreamGlobalRetention, boolean)} because
+     * this output is enriched with derived fields we do not handle in this deserialisation.
+     */
     public static DataStreamLifecycle fromXContent(XContentParser parser) throws IOException {
         return PARSER.parse(parser, null);
+    }
+
+    /**
+     * Adds a retention param to signal that this serialisation should include the effective retention metadata.
+     * @param params the XContent params to be extended with the new flag
+     * @return XContent params with `include_effective_retention` set to true. If the flag exists it will override it.
+     */
+    public static ToXContent.Params addEffectiveRetentionParams(ToXContent.Params params) {
+        return new DelegatingMapParams(INCLUDE_EFFECTIVE_RETENTION_PARAMS, params);
     }
 
     public static Builder newBuilder(DataStreamLifecycle lifecycle) {
@@ -454,6 +596,19 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
                 builder.endArray();
             }
             return builder;
+        }
+    }
+
+    /**
+     * This enum represents all configuration sources that can influence the retention of a data stream.
+     */
+    public enum RetentionSource {
+        DATA_STREAM_CONFIGURATION,
+        DEFAULT_GLOBAL_RETENTION,
+        MAX_GLOBAL_RETENTION;
+
+        public String displayName() {
+            return this.toString().toLowerCase(Locale.ROOT);
         }
     }
 }

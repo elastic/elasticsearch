@@ -52,7 +52,7 @@ public class AggregatorProcessor implements Processor {
 
     @Override
     public SourceVersion getSupportedSourceVersion() {
-        return SourceVersion.RELEASE_17;
+        return SourceVersion.RELEASE_21;
     }
 
     @Override
@@ -80,28 +80,43 @@ public class AggregatorProcessor implements Processor {
         }
         for (TypeElement aggClass : annotatedClasses) {
             AggregatorImplementer implementer = null;
+            var warnExceptionsTypes = Annotations.listAttributeValues(
+                aggClass,
+                Set.of(Aggregator.class, GroupingAggregator.class),
+                "warnExceptions"
+            );
             if (aggClass.getAnnotation(Aggregator.class) != null) {
                 IntermediateState[] intermediateState = aggClass.getAnnotation(Aggregator.class).value();
-                implementer = new AggregatorImplementer(env.getElementUtils(), aggClass, intermediateState);
+                implementer = new AggregatorImplementer(env.getElementUtils(), aggClass, intermediateState, warnExceptionsTypes);
                 write(aggClass, "aggregator", implementer.sourceFile(), env);
             }
             GroupingAggregatorImplementer groupingAggregatorImplementer = null;
-            if (aggClass.getAnnotation(Aggregator.class) != null) {
-                assert aggClass.getAnnotation(GroupingAggregator.class) != null;
+            if (aggClass.getAnnotation(GroupingAggregator.class) != null) {
                 IntermediateState[] intermediateState = aggClass.getAnnotation(GroupingAggregator.class).value();
-                if (intermediateState.length == 0) {
+                if (intermediateState.length == 0 && aggClass.getAnnotation(Aggregator.class) != null) {
                     intermediateState = aggClass.getAnnotation(Aggregator.class).value();
                 }
-
-                groupingAggregatorImplementer = new GroupingAggregatorImplementer(env.getElementUtils(), aggClass, intermediateState);
+                boolean includeTimestamps = aggClass.getAnnotation(GroupingAggregator.class).includeTimestamps();
+                groupingAggregatorImplementer = new GroupingAggregatorImplementer(
+                    env.getElementUtils(),
+                    aggClass,
+                    intermediateState,
+                    warnExceptionsTypes,
+                    includeTimestamps
+                );
                 write(aggClass, "grouping aggregator", groupingAggregatorImplementer.sourceFile(), env);
             }
-            if (implementer != null && groupingAggregatorImplementer != null) {
+            if (implementer != null || groupingAggregatorImplementer != null) {
                 write(
                     aggClass,
                     "aggregator function supplier",
-                    new AggregatorFunctionSupplierImplementer(env.getElementUtils(), aggClass, implementer, groupingAggregatorImplementer)
-                        .sourceFile(),
+                    new AggregatorFunctionSupplierImplementer(
+                        env.getElementUtils(),
+                        aggClass,
+                        implementer,
+                        groupingAggregatorImplementer,
+                        warnExceptionsTypes.isEmpty() == false
+                    ).sourceFile(),
                     env
                 );
             }

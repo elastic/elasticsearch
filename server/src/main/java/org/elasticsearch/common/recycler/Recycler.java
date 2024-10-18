@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.recycler;
@@ -30,6 +31,11 @@ public interface Recycler<T> {
 
         /** Destroy the data. This operation allows the data structure to release any internal resources before GC. */
         void destroy(T value);
+
+        /**
+         * @return see {@link Recycler#pageSize()}
+         */
+        int pageSize();
     }
 
     interface V<T> extends Releasable {
@@ -43,5 +49,10 @@ public interface Recycler<T> {
     }
 
     V<T> obtain();
+
+    /**
+     * @return the page size of the recycled object if it is array backed.
+     */
+    int pageSize();
 
 }

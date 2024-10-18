@@ -1,14 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper.vectors;
 
 import org.apache.lucene.document.FeatureField;
+import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
@@ -44,7 +46,7 @@ public class SparseVectorFieldMapper extends FieldMapper {
 
     static final String ERROR_MESSAGE_7X = "[sparse_vector] field type in old 7.x indices is allowed to "
         + "contain [sparse_vector] fields, but they cannot be indexed or searched.";
-    static final String ERROR_MESSAGE_8X = "The [sparse_vector] field type is not supported from 8.0 to 8.10 versions.";
+    static final String ERROR_MESSAGE_8X = "The [sparse_vector] field type is not supported on indices created on versions 8.0 to 8.10.";
     static final IndexVersion PREVIOUS_SPARSE_VECTOR_INDEX_VERSION = IndexVersions.V_8_0_0;
 
     static final IndexVersion NEW_SPARSE_VECTOR_INDEX_VERSION = IndexVersions.NEW_SPARSE_VECTOR;
@@ -66,10 +68,9 @@ public class SparseVectorFieldMapper extends FieldMapper {
         @Override
         public SparseVectorFieldMapper build(MapperBuilderContext context) {
             return new SparseVectorFieldMapper(
-                name(),
-                new SparseVectorFieldType(context.buildFullName(name()), meta.getValue()),
-                multiFieldsBuilder.build(this, context),
-                copyTo
+                leafName(),
+                new SparseVectorFieldType(context.buildFullName(leafName()), meta.getValue()),
+                builderParams(this, context)
             );
         }
     }
@@ -130,8 +131,8 @@ public class SparseVectorFieldMapper extends FieldMapper {
         }
     }
 
-    private SparseVectorFieldMapper(String simpleName, MappedFieldType mappedFieldType, MultiFields multiFields, CopyTo copyTo) {
-        super(simpleName, mappedFieldType, multiFields, copyTo, false, null);
+    private SparseVectorFieldMapper(String simpleName, MappedFieldType mappedFieldType, BuilderParams builderParams) {
+        super(simpleName, mappedFieldType, builderParams);
     }
 
     @Override
@@ -141,7 +142,7 @@ public class SparseVectorFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(simpleName()).init(this);
+        return new Builder(leafName()).init(this);
     }
 
     @Override
@@ -177,24 +178,21 @@ public class SparseVectorFieldMapper extends FieldMapper {
             for (Token token = context.parser().nextToken(); token != Token.END_OBJECT; token = context.parser().nextToken()) {
                 if (token == Token.FIELD_NAME) {
                     feature = context.parser().currentName();
-                    if (feature.contains(".")) {
-                        throw new IllegalArgumentException(
-                            "[sparse_vector] fields do not support dots in feature names but found [" + feature + "]"
-                        );
-                    }
                 } else if (token == Token.VALUE_NULL) {
                     // ignore feature, this is consistent with numeric fields
                 } else if (token == Token.VALUE_NUMBER || token == Token.VALUE_STRING) {
-                    final String key = name() + "." + feature;
+                    // Use a delimiter that won't collide with subfields & escape the dots in the feature name
+                    final String key = fullPath() + "\\." + feature.replace(".", "\\.");
                     float value = context.parser().floatValue(true);
-                    if (context.doc().getByKey(key) != null) {
-                        throw new IllegalArgumentException(
-                            "[sparse_vector] fields do not support indexing multiple values for the same feature ["
-                                + key
-                                + "] in the same document"
-                        );
+
+                    // if we have an existing feature of the same name we'll select for the one with the max value
+                    // based on recommendations from this paper: https://arxiv.org/pdf/2305.18494.pdf
+                    IndexableField currentField = context.doc().getByKey(key);
+                    if (currentField == null) {
+                        context.doc().addWithKey(key, new FeatureField(fullPath(), feature, value));
+                    } else if (currentField instanceof FeatureField && ((FeatureField) currentField).getFeatureValue() < value) {
+                        ((FeatureField) currentField).setFeatureValue(value);
                     }
-                    context.doc().addWithKey(key, new FeatureField(name(), feature, value));
                 } else {
                     throw new IllegalArgumentException(
                         "[sparse_vector] fields take hashes that map a feature to a strictly positive "

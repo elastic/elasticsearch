@@ -9,14 +9,14 @@ package org.elasticsearch.xpack.ccr.repository;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
-import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.BytesRefIterator;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
+import org.elasticsearch.common.lucene.store.InputStreamIndexInput;
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.ByteArray;
 import org.elasticsearch.common.util.CombinedRateLimiter;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.KeyedLock;
@@ -243,25 +243,22 @@ public class CcrRestoreSourceService extends AbstractLifecycleComponent implemen
             }
         }
 
-        private long readFileBytes(String fileName, BytesReference reference) throws IOException {
+        private long readFileBytes(String fileName, ByteArray reference) throws IOException {
             try (Releasable ignored = keyedLock.acquire(fileName)) {
+                var context = fileName.startsWith(IndexFileNames.SEGMENTS) ? IOContext.READONCE : IOContext.READ;
                 final IndexInput indexInput = cachedInputs.computeIfAbsent(fileName, f -> {
                     try {
-                        return commitRef.getIndexCommit().getDirectory().openInput(fileName, IOContext.READONCE);
+                        return commitRef.getIndexCommit().getDirectory().openInput(fileName, context);
                     } catch (IOException e) {
                         throw new UncheckedIOException(e);
                     }
                 });
 
-                BytesRefIterator refIterator = reference.iterator();
-                BytesRef ref;
-                while ((ref = refIterator.next()) != null) {
-                    indexInput.readBytes(ref.bytes, ref.offset, ref.length);
-                }
+                reference.fillWith(new InputStreamIndexInput(indexInput, reference.size()));
 
                 long offsetAfterRead = indexInput.getFilePointer();
 
-                if (offsetAfterRead == indexInput.length()) {
+                if (offsetAfterRead == indexInput.length() || context == IOContext.READONCE) {
                     cachedInputs.remove(fileName);
                     IOUtils.close(indexInput);
                 }
@@ -302,9 +299,9 @@ public class CcrRestoreSourceService extends AbstractLifecycleComponent implemen
          * @return the offset of the file after the read is complete
          * @throws IOException if the read fails
          */
-        public long readFileBytes(String fileName, BytesReference reference) throws IOException {
+        public long readFileBytes(String fileName, ByteArray reference) throws IOException {
             CombinedRateLimiter rateLimiter = ccrSettings.getRateLimiter();
-            long throttleTime = rateLimiter.maybePause(reference.length());
+            long throttleTime = rateLimiter.maybePause(Math.toIntExact(reference.size()));
             throttleListener.accept(throttleTime);
             return restoreSession.readFileBytes(fileName, reference);
         }

@@ -1,8 +1,13 @@
 ---
 setup:
+  - requires:
+      cluster_features: "gte_v8.2.0"
+      reason: "tsdb indexing changed in 8.2.0"
   - skip:
-      version: " - 8.1.99,8.7.00 - 8.9.99"
-      reason: "tsdb indexing changed in 8.2.0, synthetic source shows up in the mapping in 8.10 and on, may trigger assert failures in mixed cluster tests"
+      known_issues:
+        - cluster_feature: "gte_v8.7.0"
+          fixed_by: "gte_v8.10.0"
+      reason: "Synthetic source shows up in the mapping in 8.10 and on, may trigger assert failures in mixed cluster tests"
 
   - do:
       indices.create:
@@ -63,8 +68,8 @@ setup:
 
 ---
 search an alias:
-  - skip:
-      version: " - 8.12.99"
+  - requires:
+      cluster_features: ["gte_v8.13.0"]
       reason: _tsid hashing introduced in 8.13
 
   - do:
@@ -92,8 +97,8 @@ search an alias:
 
 ---
 index into alias:
-  - skip:
-      version: " - 8.12.99"
+  - requires:
+      cluster_features: ["gte_v8.13.0"]
       reason: _tsid hashing introduced in 8.13
 
   - do:

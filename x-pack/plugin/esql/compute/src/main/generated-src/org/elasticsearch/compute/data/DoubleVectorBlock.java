@@ -7,6 +7,8 @@
 
 package org.elasticsearch.compute.data;
 
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
 
 /**
@@ -21,7 +23,6 @@ public final class DoubleVectorBlock extends AbstractVectorBlock implements Doub
      * @param vector considered owned by the current block; must not be used in any other {@code Block}
      */
     DoubleVectorBlock(DoubleVector vector) {
-        super(vector.getPositionCount(), vector.blockFactory());
         this.vector = vector;
     }
 
@@ -36,7 +37,7 @@ public final class DoubleVectorBlock extends AbstractVectorBlock implements Doub
     }
 
     @Override
-    public int getTotalValueCount() {
+    public int getPositionCount() {
         return vector.getPositionCount();
     }
 
@@ -48,6 +49,22 @@ public final class DoubleVectorBlock extends AbstractVectorBlock implements Doub
     @Override
     public DoubleBlock filter(int... positions) {
         return vector.filter(positions).asBlock();
+    }
+
+    @Override
+    public DoubleBlock keepMask(BooleanVector mask) {
+        return vector.keepMask(mask);
+    }
+
+    @Override
+    public ReleasableIterator<? extends DoubleBlock> lookup(IntBlock positions, ByteSizeValue targetBlockSize) {
+        return vector.lookup(positions, targetBlockSize);
+    }
+
+    @Override
+    public DoubleBlock expand() {
+        incRef();
+        return this;
     }
 
     @Override

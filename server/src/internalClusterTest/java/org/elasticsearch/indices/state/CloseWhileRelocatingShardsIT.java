@@ -1,19 +1,20 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.indices.state;
 
-import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteRequest;
+import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteUtils;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.cluster.routing.allocation.command.AllocationCommands;
+import org.elasticsearch.cluster.routing.allocation.command.AllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.decider.ConcurrentRebalanceAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
@@ -35,7 +36,6 @@ import org.elasticsearch.test.transport.StubbableTransport;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
@@ -125,7 +125,7 @@ public class CloseWhileRelocatingShardsIT extends ESIntegTestCase {
             final CountDownLatch release = new CountDownLatch(indices.length);
 
             // relocate one shard for every index to be closed
-            final AllocationCommands commands = new AllocationCommands();
+            final var commands = new ArrayList<AllocationCommand>();
             for (final String index : indices) {
                 final NumShards numShards = getNumShards(index);
                 final int shardId = numShards.numPrimaries == 1 ? 0 : randomIntBetween(0, numShards.numPrimaries - 1);
@@ -146,8 +146,7 @@ public class CloseWhileRelocatingShardsIT extends ESIntegTestCase {
             }
 
             // Build the list of shards for which recoveries will be blocked
-            final Set<ShardId> blockedShards = commands.commands()
-                .stream()
+            final Set<ShardId> blockedShards = commands.stream()
                 .map(c -> (MoveAllocationCommand) c)
                 .map(c -> new ShardId(clusterService.state().metadata().index(c.index()).getIndex(), c.shardId()))
                 .collect(Collectors.toSet());
@@ -185,33 +184,20 @@ public class CloseWhileRelocatingShardsIT extends ESIntegTestCase {
                 }
             }
 
-            assertAcked(clusterAdmin().reroute(new ClusterRerouteRequest().commands(commands)).get());
+            ClusterRerouteUtils.reroute(client(), commands.toArray(AllocationCommand[]::new));
 
             // start index closing threads
-            final List<Thread> threads = new ArrayList<>();
-            for (final String indexToClose : indices) {
-                final Thread thread = new Thread(() -> {
-                    try {
-                        safeAwait(latch);
-                    } finally {
-                        release.countDown();
-                    }
-                    // Closing is not always acknowledged when shards are relocating: this is the case when the target shard is initializing
-                    // or is catching up operations. In these cases the TransportVerifyShardBeforeCloseAction will detect that the global
-                    // and max sequence number don't match and will not ack the close.
-                    AcknowledgedResponse closeResponse = indicesAdmin().prepareClose(indexToClose).get();
-                    if (closeResponse.isAcknowledged()) {
-                        assertTrue("Index closing should not be acknowledged twice", acknowledgedCloses.add(indexToClose));
-                    }
-                });
-                threads.add(thread);
-                thread.start();
-            }
-
-            latch.countDown();
-            for (Thread thread : threads) {
-                thread.join();
-            }
+            startInParallel(indices.length, i -> {
+                release.countDown();
+                // Closing is not always acknowledged when shards are relocating: this is the case when the target shard is initializing
+                // or is catching up operations. In these cases the TransportVerifyShardBeforeCloseAction will detect that the global
+                // and max sequence number don't match and will not ack the close.
+                final String indexToClose = indices[i];
+                AcknowledgedResponse closeResponse = indicesAdmin().prepareClose(indexToClose).get();
+                if (closeResponse.isAcknowledged()) {
+                    assertTrue("Index closing should not be acknowledged twice", acknowledgedCloses.add(indexToClose));
+                }
+            });
 
             // stop indexers first without waiting for stop to not redundantly index on some while waiting for another one to stop
             for (BackgroundIndexer indexer : indexers.values()) {

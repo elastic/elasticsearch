@@ -11,24 +11,18 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.application.connector.ConnectorIndexService;
 
-public class TransportPutConnectorAction extends HandledTransportAction<PutConnectorAction.Request, PutConnectorAction.Response> {
+public class TransportPutConnectorAction extends HandledTransportAction<PutConnectorAction.Request, ConnectorCreateActionResponse> {
 
     protected final ConnectorIndexService connectorIndexService;
 
     @Inject
-    public TransportPutConnectorAction(
-        TransportService transportService,
-        ClusterService clusterService,
-        ActionFilters actionFilters,
-        Client client
-    ) {
+    public TransportPutConnectorAction(TransportService transportService, ActionFilters actionFilters, Client client) {
         super(
             PutConnectorAction.NAME,
             transportService,
@@ -40,7 +34,16 @@ public class TransportPutConnectorAction extends HandledTransportAction<PutConne
     }
 
     @Override
-    protected void doExecute(Task task, PutConnectorAction.Request request, ActionListener<PutConnectorAction.Response> listener) {
-        connectorIndexService.createConnectorWithDocId(request, listener.map(r -> new PutConnectorAction.Response(r.getResult())));
+    protected void doExecute(Task task, PutConnectorAction.Request request, ActionListener<ConnectorCreateActionResponse> listener) {
+        connectorIndexService.createConnector(
+            request.getConnectorId(),
+            request.getDescription(),
+            request.getIndexName(),
+            request.getIsNative(),
+            request.getLanguage(),
+            request.getName(),
+            request.getServiceType(),
+            listener
+        );
     }
 }

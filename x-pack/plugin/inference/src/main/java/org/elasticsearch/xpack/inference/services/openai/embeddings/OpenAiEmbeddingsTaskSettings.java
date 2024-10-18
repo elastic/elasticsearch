@@ -16,13 +16,15 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.inference.services.openai.OpenAiParseContext;
+import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalString;
+import static org.elasticsearch.xpack.inference.services.openai.OpenAiServiceFields.USER;
 
 /**
  * Defines the task settings for the openai service.
@@ -33,9 +35,8 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOpt
 public class OpenAiEmbeddingsTaskSettings implements TaskSettings {
 
     public static final String NAME = "openai_embeddings_task_settings";
-    public static final String USER = "user";
 
-    public static OpenAiEmbeddingsTaskSettings fromMap(Map<String, Object> map, OpenAiParseContext context) {
+    public static OpenAiEmbeddingsTaskSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
         ValidationException validationException = new ValidationException();
 
         String user = extractOptionalString(map, USER, ModelConfigurations.TASK_SETTINGS, validationException);
@@ -67,8 +68,13 @@ public class OpenAiEmbeddingsTaskSettings implements TaskSettings {
         this.user = user;
     }
 
+    @Override
+    public boolean isEmpty() {
+        return user == null;
+    }
+
     public OpenAiEmbeddingsTaskSettings(StreamInput in) throws IOException {
-        if (in.getTransportVersion().onOrAfter(TransportVersions.ML_MODEL_IN_SERVICE_SETTINGS)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
             this.user = in.readOptionalString();
         } else {
             var discard = in.readString();
@@ -102,7 +108,7 @@ public class OpenAiEmbeddingsTaskSettings implements TaskSettings {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ML_MODEL_IN_SERVICE_SETTINGS)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
             out.writeOptionalString(user);
         } else {
             out.writeString("m"); // write any string
@@ -121,5 +127,11 @@ public class OpenAiEmbeddingsTaskSettings implements TaskSettings {
     @Override
     public int hashCode() {
         return Objects.hash(user);
+    }
+
+    @Override
+    public TaskSettings updatedTaskSettings(Map<String, Object> newSettings) {
+        OpenAiEmbeddingsRequestTaskSettings requestSettings = OpenAiEmbeddingsRequestTaskSettings.fromMap(new HashMap<>(newSettings));
+        return of(this, requestSettings);
     }
 }

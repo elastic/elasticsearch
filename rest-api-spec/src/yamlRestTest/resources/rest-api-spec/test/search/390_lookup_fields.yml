@@ -26,8 +26,8 @@ setup:
 
 ---
 "Retrieve lookup fields":
-  - skip:
-      version: " - 8.1.99"
+  - requires:
+      cluster_features: ["gte_v8.2.0"]
       reason: "Lookup fields are introduced in 8.2"
   - do:
       search:
@@ -52,8 +52,8 @@ setup:
 
 ---
 "Fails to query or aggregate on lookup fields":
-  - skip:
-      version: " - 8.1.99"
+  - requires:
+      cluster_features: ["gte_v8.2.0"]
       reason: "Lookup fields are introduced in 8.2"
   - do:
       catch: /Field \[location\] of type \[lookup\] does not support match queries/

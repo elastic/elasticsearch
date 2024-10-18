@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.metadata;
@@ -57,7 +58,7 @@ public final class DesiredNode implements Writeable, ToXContentObject, Comparabl
     private static final ParseField PROCESSORS_RANGE_FIELD = new ParseField("processors_range");
     private static final ParseField MEMORY_FIELD = new ParseField("memory");
     private static final ParseField STORAGE_FIELD = new ParseField("storage");
-    @UpdateForV9 // Remove deprecated field
+    @UpdateForV9(owner = UpdateForV9.Owner.DISTRIBUTED_COORDINATION) // Remove deprecated field
     private static final ParseField VERSION_FIELD = new ParseField("node_version");
 
     public static final ConstructingObjectParser<DesiredNode, Void> PARSER = new ConstructingObjectParser<>(
@@ -117,7 +118,7 @@ public final class DesiredNode implements Writeable, ToXContentObject, Comparabl
     private final ByteSizeValue memory;
     private final ByteSizeValue storage;
 
-    @UpdateForV9 // Remove deprecated version field
+    @UpdateForV9(owner = UpdateForV9.Owner.DISTRIBUTED_COORDINATION) // Remove deprecated version field
     private final String version;
     private final String externalId;
     private final Set<DiscoveryNodeRole> roles;
@@ -204,7 +205,7 @@ public final class DesiredNode implements Writeable, ToXContentObject, Comparabl
         final var memory = ByteSizeValue.readFrom(in);
         final var storage = ByteSizeValue.readFrom(in);
         final String version;
-        if (in.getTransportVersion().onOrAfter(TransportVersions.DESIRED_NODE_VERSION_OPTIONAL_STRING)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
             version = in.readOptionalString();
         } else {
             version = Version.readVersion(in).toString();
@@ -237,7 +238,7 @@ public final class DesiredNode implements Writeable, ToXContentObject, Comparabl
         }
         memory.writeTo(out);
         storage.writeTo(out);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.DESIRED_NODE_VERSION_OPTIONAL_STRING)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
             out.writeOptionalString(version);
         } else {
             Version parsedVersion = parseLegacyVersion(version);
@@ -277,7 +278,7 @@ public final class DesiredNode implements Writeable, ToXContentObject, Comparabl
         addDeprecatedVersionField(builder);
     }
 
-    @UpdateForV9 // Remove deprecated field from response
+    @UpdateForV9(owner = UpdateForV9.Owner.DISTRIBUTED_COORDINATION) // Remove deprecated field from response
     private void addDeprecatedVersionField(XContentBuilder builder) throws IOException {
         if (version != null) {
             builder.field(VERSION_FIELD.getPreferredName(), version);

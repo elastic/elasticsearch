@@ -30,6 +30,7 @@ public class DeleteTrainedModelAssignmentAction extends ActionType<AcknowledgedR
         private final String modelId;
 
         public Request(String modelId) {
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
             this.modelId = ExceptionsHelper.requireNonNull(modelId, "model_id");
         }
 

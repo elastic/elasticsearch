@@ -7,11 +7,12 @@
 
 package org.elasticsearch.xpack.security.support;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.security.support.CacheInvalidatorRegistry.CacheInvalidator;
+import org.elasticsearch.xpack.security.support.SecuritySystemIndices.SecurityMainIndexMappingVersion;
 import org.junit.Before;
 
 import java.time.Instant;
@@ -60,12 +61,15 @@ public class CacheInvalidatorRegistryTests extends ESTestCase {
             true,
             true,
             true,
-            Version.CURRENT,
+            true,
+            null,
+            new SystemIndexDescriptor.MappingsVersion(SecurityMainIndexMappingVersion.latest().id(), 0),
+            null,
             ".security",
             ClusterHealthStatus.GREEN,
             IndexMetadata.State.OPEN,
-            null,
-            "my_uuid"
+            "my_uuid",
+            Set.of()
         );
 
         cacheInvalidatorRegistry.onSecurityIndexStateChange(previousState, currentState);

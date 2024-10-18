@@ -5,7 +5,7 @@
 <titleabbrev>Forget follower</titleabbrev>
 ++++
 
-Removes the follower retention leases from the leader.
+Removes the <<xpack-ccr,{ccr}>> follower retention leases from the leader.
 
 [[ccr-post-forget-follower-request]]
 ==== {api-request-title}
@@ -99,6 +99,12 @@ the <<ccr-post-unfollow,unfollow API>> is invoked.
 
 `<leader_index>`::
   (Required, string) The name of the leader index.
+
+[[ccr-post-forget-follower-query-params]]
+==== {api-query-parms-title}
+
+`timeout`::
+(Optional, time) Controls the amount of time to wait for results. Defaults to unlimited.
 
 [[ccr-post-forget-follower-request-body]]
 ==== {api-request-body-title}

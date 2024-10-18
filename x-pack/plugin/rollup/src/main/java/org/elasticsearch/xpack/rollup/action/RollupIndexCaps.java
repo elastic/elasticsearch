@@ -60,7 +60,7 @@ public class RollupIndexCaps implements Writeable, ToXContentFragment {
                     ... job config, parsable by RollupJobConfig.PARSER ...
                   }
                 },
-                "rollup-version": "7.0.0"
+                "rollup-version": ""
               }
             }
          */

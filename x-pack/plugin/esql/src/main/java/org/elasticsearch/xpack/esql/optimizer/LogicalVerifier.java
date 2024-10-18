@@ -8,13 +8,13 @@
 package org.elasticsearch.xpack.esql.optimizer;
 
 import org.elasticsearch.xpack.esql.capabilities.Validatable;
-import org.elasticsearch.xpack.esql.optimizer.OptimizerRules.LogicalPlanDependencyCheck;
-import org.elasticsearch.xpack.ql.common.Failures;
-import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.common.Failures;
+import org.elasticsearch.xpack.esql.optimizer.rules.PlanConsistencyChecker;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
 public final class LogicalVerifier {
 
-    private static final LogicalPlanDependencyCheck DEPENDENCY_CHECK = new LogicalPlanDependencyCheck();
+    private static final PlanConsistencyChecker<LogicalPlan> DEPENDENCY_CHECK = new PlanConsistencyChecker<>();
     public static final LogicalVerifier INSTANCE = new LogicalVerifier();
 
     private LogicalVerifier() {}
@@ -22,11 +22,10 @@ public final class LogicalVerifier {
     /** Verifies the optimized logical plan. */
     public Failures verify(LogicalPlan plan) {
         Failures failures = new Failures();
+        Failures dependencyFailures = new Failures();
 
         plan.forEachUp(p -> {
-            // dependency check
-            // FIXME: re-enable
-            // DEPENDENCY_CHECK.checkPlan(p, failures);
+            DEPENDENCY_CHECK.checkPlan(p, dependencyFailures);
 
             if (failures.hasFailures() == false) {
                 p.forEachExpression(ex -> {
@@ -36,6 +35,10 @@ public final class LogicalVerifier {
                 });
             }
         });
+
+        if (dependencyFailures.hasFailures()) {
+            throw new IllegalStateException(dependencyFailures.toString());
+        }
 
         return failures;
     }

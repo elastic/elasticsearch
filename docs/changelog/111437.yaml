@@ -1,0 +1,5 @@
+pr: 111437
+summary: "[ES|QL] Create `Range` in `PushFiltersToSource` for qualified pushable filters on the same field"
+area: ES|QL
+type: enhancement
+issues: []

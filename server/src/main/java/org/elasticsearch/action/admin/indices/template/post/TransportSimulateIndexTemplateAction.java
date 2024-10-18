@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.indices.template.post;
@@ -16,6 +17,7 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -26,7 +28,6 @@ import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.compress.CompressedXContent;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -36,8 +37,10 @@ import org.elasticsearch.index.IndexSettingProviders;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.shard.IndexLongFieldRange;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.SystemIndices;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -207,8 +210,12 @@ public class TransportSimulateIndexTemplateAction extends TransportMasterNodeRea
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
             .put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
             .build();
-        final IndexMetadata indexMetadata = IndexMetadata.builder(indexName).settings(dummySettings).build();
 
+        final IndexMetadata indexMetadata = IndexMetadata.builder(indexName)
+            // handle mixed-cluster states by passing in minTransportVersion to reset event.ingested range to UNKNOWN if an older version
+            .eventIngestedRange(getEventIngestedRange(indexName, simulatedState), simulatedState.getMinTransportVersion())
+            .settings(dummySettings)
+            .build();
         return ClusterState.builder(simulatedState)
             .metadata(Metadata.builder(simulatedState.metadata()).put(indexMetadata, true).build())
             .build();
@@ -244,13 +251,20 @@ public class TransportSimulateIndexTemplateAction extends TransportMasterNodeRea
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
             .put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID());
 
-        // empty request mapping as the user can't specify any explicit mappings via the simulate api
+        /*
+         * If the index name doesn't look like a data stream backing index, then MetadataCreateIndexService.collectV2Mappings() won't
+         * include data stream specific mappings in its response.
+         */
+        String simulatedIndexName = template.getDataStreamTemplate() != null
+            && indexName.startsWith(DataStream.BACKING_INDEX_PREFIX) == false
+                ? DataStream.getDefaultBackingIndexName(indexName, 1)
+                : indexName;
         List<CompressedXContent> mappings = MetadataCreateIndexService.collectV2Mappings(
-            null,
+            null, // empty request mapping as the user can't specify any explicit mappings via the simulate api
             simulatedState,
             matchingTemplate,
             xContentRegistry,
-            indexName
+            simulatedIndexName
         );
 
         // First apply settings sourced from index settings providers
@@ -260,19 +274,24 @@ public class TransportSimulateIndexTemplateAction extends TransportMasterNodeRea
             Settings result = provider.getAdditionalIndexSettings(
                 indexName,
                 template.getDataStreamTemplate() != null ? indexName : null,
-                template.getDataStreamTemplate() != null && metadata.isTimeSeriesTemplate(template),
+                metadata.retrieveIndexModeFromTemplate(template),
                 simulatedState.getMetadata(),
                 now,
                 templateSettings,
                 mappings
             );
+            MetadataCreateIndexService.validateAdditionalSettings(provider, result, additionalSettings);
             dummySettings.put(result);
             additionalSettings.put(result);
         }
         // Then apply settings resolved from templates:
         dummySettings.put(templateSettings);
 
-        final IndexMetadata indexMetadata = IndexMetadata.builder(indexName).settings(dummySettings).build();
+        final IndexMetadata indexMetadata = IndexMetadata.builder(indexName)
+            // handle mixed-cluster states by passing in minTransportVersion to reset event.ingested range to UNKNOWN if an older version
+            .eventIngestedRange(getEventIngestedRange(indexName, simulatedState), simulatedState.getMinTransportVersion())
+            .settings(dummySettings)
+            .build();
 
         final ClusterState tempClusterState = ClusterState.builder(simulatedState)
             .metadata(Metadata.builder(simulatedState.metadata()).put(indexMetadata, true).build())
@@ -294,7 +313,9 @@ public class TransportSimulateIndexTemplateAction extends TransportMasterNodeRea
             )
         );
 
-        Map<String, AliasMetadata> aliasesByName = aliases.stream().collect(Collectors.toMap(AliasMetadata::getAlias, Function.identity()));
+        Map<String, AliasMetadata> aliasesByName = aliases == null
+            ? Map.of()
+            : aliases.stream().collect(Collectors.toMap(AliasMetadata::getAlias, Function.identity()));
 
         CompressedXContent mergedMapping = indicesService.<CompressedXContent, Exception>withTempIndexService(
             indexMetadata,
@@ -313,5 +334,10 @@ public class TransportSimulateIndexTemplateAction extends TransportMasterNodeRea
             lifecycle = DataStreamLifecycle.DEFAULT;
         }
         return new Template(settings, mergedMapping, aliasesByName, lifecycle);
+    }
+
+    private static IndexLongFieldRange getEventIngestedRange(String indexName, ClusterState simulatedState) {
+        final IndexMetadata indexMetadata = simulatedState.metadata().index(indexName);
+        return indexMetadata == null ? IndexLongFieldRange.NO_SHARDS : indexMetadata.getEventIngestedRange();
     }
 }

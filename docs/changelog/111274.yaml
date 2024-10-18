@@ -1,0 +1,5 @@
+pr: 111274
+summary: Include account name in Azure settings exceptions
+area: Snapshot/Restore
+type: enhancement
+issues: []

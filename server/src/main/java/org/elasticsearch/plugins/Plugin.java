@@ -1,15 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.plugins;
 
 import org.elasticsearch.bootstrap.BootstrapCheck;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.metadata.DataStreamGlobalRetentionSettings;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.routing.RerouteService;
@@ -27,8 +29,10 @@ import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettingProvider;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.SystemIndices;
+import org.elasticsearch.plugins.internal.DocumentParsingProvider;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -42,7 +46,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 
 /**
@@ -125,11 +128,9 @@ public abstract class Plugin implements Closeable {
         IndexNameExpressionResolver indexNameExpressionResolver();
 
         /**
-         * A supplier for the service that manages snapshot repositories.
-         * This will return null when {@link #createComponents(PluginServices)} is called,
-         * but will return the repositories service once the node is initialized.
+         * A service that manages snapshot repositories.
          */
-        Supplier<RepositoriesService> repositoriesServiceSupplier();
+        RepositoriesService repositoriesService();
 
         /**
          * An interface for distributed tracing
@@ -155,6 +156,23 @@ public abstract class Plugin implements Closeable {
          * The system indices for the cluster
          */
         SystemIndices systemIndices();
+
+        /**
+         * A service that holds the data stream global retention settings that applies to
+         * data streams managed by the data stream lifecycle.
+         */
+        DataStreamGlobalRetentionSettings dataStreamGlobalRetentionSettings();
+
+        /**
+         * A provider of utilities to observe and report parsing of documents
+         */
+        DocumentParsingProvider documentParsingProvider();
+
+        /**
+         * The task manager for the node. This should only be used by plugins
+         * to track task removal by registering a RemovedTaskListener.
+         */
+        TaskManager taskManager();
     }
 
     /**

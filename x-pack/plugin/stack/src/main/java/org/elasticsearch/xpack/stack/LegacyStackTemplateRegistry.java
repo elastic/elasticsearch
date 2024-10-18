@@ -43,7 +43,7 @@ public class LegacyStackTemplateRegistry extends IndexTemplateRegistry {
 
     // The stack template registry version. This number must be incremented when we make changes
     // to built-in templates.
-    public static final int REGISTRY_VERSION = 4;
+    public static final int REGISTRY_VERSION = 5;
 
     public static final String TEMPLATE_VERSION_VARIABLE = "xpack.stack.template.version";
 

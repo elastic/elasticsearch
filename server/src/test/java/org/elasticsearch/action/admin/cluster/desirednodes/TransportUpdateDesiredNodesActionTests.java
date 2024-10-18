@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.cluster.desirednodes;
@@ -117,7 +118,14 @@ public class TransportUpdateDesiredNodesActionTests extends DesiredNodesTestCase
                 .stream()
                 .map(DesiredNodeWithStatus::desiredNode)
                 .toList();
-            request = new UpdateDesiredNodesRequest(desiredNodes.historyID(), desiredNodes.version() + 1, updatedNodes, false);
+            request = new UpdateDesiredNodesRequest(
+                TEST_REQUEST_TIMEOUT,
+                TEST_REQUEST_TIMEOUT,
+                desiredNodes.historyID(),
+                desiredNodes.version() + 1,
+                updatedNodes,
+                false
+            );
         } else {
             request = randomUpdateDesiredNodesRequest();
         }
@@ -148,6 +156,8 @@ public class TransportUpdateDesiredNodesActionTests extends DesiredNodesTestCase
             Collections.shuffle(equivalentDesiredNodesList, random());
         }
         final UpdateDesiredNodesRequest equivalentDesiredNodesRequest = new UpdateDesiredNodesRequest(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
             updateDesiredNodesRequest.getHistoryID(),
             updateDesiredNodesRequest.getVersion(),
             equivalentDesiredNodesList,
@@ -165,6 +175,8 @@ public class TransportUpdateDesiredNodesActionTests extends DesiredNodesTestCase
         final var latestDesiredNodes = TransportUpdateDesiredNodesAction.updateDesiredNodes(null, updateDesiredNodesRequest);
 
         final UpdateDesiredNodesRequest request = new UpdateDesiredNodesRequest(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
             latestDesiredNodes.historyID(),
             latestDesiredNodes.version(),
             randomList(1, 10, DesiredNodesTestCase::randomDesiredNode),
@@ -182,6 +194,8 @@ public class TransportUpdateDesiredNodesActionTests extends DesiredNodesTestCase
         final var updateDesiredNodesRequest = randomUpdateDesiredNodesRequest();
         final var latestDesiredNodes = TransportUpdateDesiredNodesAction.updateDesiredNodes(null, updateDesiredNodesRequest);
         final UpdateDesiredNodesRequest request = new UpdateDesiredNodesRequest(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
             latestDesiredNodes.historyID(),
             latestDesiredNodes.version() - 1,
             List.copyOf(latestDesiredNodes.nodes().stream().map(DesiredNodeWithStatus::desiredNode).toList()),

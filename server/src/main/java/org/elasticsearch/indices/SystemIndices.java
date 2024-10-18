@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.indices;
@@ -33,6 +34,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Predicates;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.plugins.SystemIndexPlugin;
@@ -384,11 +386,11 @@ public class SystemIndices {
     public Predicate<String> getProductSystemIndexNamePredicate(ThreadContext threadContext) {
         final String product = threadContext.getHeader(EXTERNAL_SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY);
         if (product == null) {
-            return name -> false;
+            return Predicates.never();
         }
         final CharacterRunAutomaton automaton = productToSystemIndicesMatcher.get(product);
         if (automaton == null) {
-            return name -> false;
+            return Predicates.never();
         }
         return automaton::run;
     }
@@ -561,11 +563,10 @@ public class SystemIndices {
         // This method intentionally cannot return BACKWARDS_COMPATIBLE_ONLY - that access level should only be used manually
         // in known special cases.
         final String headerValue = threadContext.getHeader(SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY);
-        final String productHeaderValue = threadContext.getHeader(EXTERNAL_SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY);
 
         final boolean allowed = Booleans.parseBoolean(headerValue, true);
         if (allowed) {
-            if (productHeaderValue != null) {
+            if (threadContext.getHeader(EXTERNAL_SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY) != null) {
                 return SystemIndexAccessLevel.RESTRICTED;
             } else {
                 return SystemIndexAccessLevel.ALL;

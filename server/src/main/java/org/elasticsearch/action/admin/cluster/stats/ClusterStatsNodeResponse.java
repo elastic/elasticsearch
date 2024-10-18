@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.cluster.stats;
@@ -20,28 +21,38 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 
 import java.io.IOException;
+import java.util.Objects;
 
 public class ClusterStatsNodeResponse extends BaseNodeResponse {
 
     private final NodeInfo nodeInfo;
     private final NodeStats nodeStats;
     private final ShardStats[] shardsStats;
-    private ClusterHealthStatus clusterStatus;
+    private final ClusterHealthStatus clusterStatus;
     private final SearchUsageStats searchUsageStats;
+    private final RepositoryUsageStats repositoryUsageStats;
+    private final CCSTelemetrySnapshot ccsMetrics;
 
     public ClusterStatsNodeResponse(StreamInput in) throws IOException {
         super(in);
-        clusterStatus = null;
-        if (in.readBoolean()) {
-            clusterStatus = ClusterHealthStatus.readFrom(in);
-        }
+        this.clusterStatus = in.readOptionalWriteable(ClusterHealthStatus::readFrom);
         this.nodeInfo = new NodeInfo(in);
         this.nodeStats = new NodeStats(in);
-        shardsStats = in.readArray(ShardStats::new, ShardStats[]::new);
+        this.shardsStats = in.readArray(ShardStats::new, ShardStats[]::new);
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_6_0)) {
             searchUsageStats = new SearchUsageStats(in);
         } else {
             searchUsageStats = new SearchUsageStats();
+        }
+        if (in.getTransportVersion().onOrAfter(TransportVersions.REPOSITORIES_TELEMETRY)) {
+            repositoryUsageStats = RepositoryUsageStats.readFrom(in);
+        } else {
+            repositoryUsageStats = RepositoryUsageStats.EMPTY;
+        }
+        if (in.getTransportVersion().onOrAfter(TransportVersions.CCS_TELEMETRY_STATS)) {
+            ccsMetrics = new CCSTelemetrySnapshot(in);
+        } else {
+            ccsMetrics = new CCSTelemetrySnapshot();
         }
     }
 
@@ -51,14 +62,18 @@ public class ClusterStatsNodeResponse extends BaseNodeResponse {
         NodeInfo nodeInfo,
         NodeStats nodeStats,
         ShardStats[] shardsStats,
-        SearchUsageStats searchUsageStats
+        SearchUsageStats searchUsageStats,
+        RepositoryUsageStats repositoryUsageStats,
+        CCSTelemetrySnapshot ccsTelemetrySnapshot
     ) {
         super(node);
         this.nodeInfo = nodeInfo;
         this.nodeStats = nodeStats;
         this.shardsStats = shardsStats;
         this.clusterStatus = clusterStatus;
-        this.searchUsageStats = searchUsageStats;
+        this.searchUsageStats = Objects.requireNonNull(searchUsageStats);
+        this.repositoryUsageStats = Objects.requireNonNull(repositoryUsageStats);
+        this.ccsMetrics = ccsTelemetrySnapshot;
     }
 
     public NodeInfo nodeInfo() {
@@ -85,24 +100,30 @@ public class ClusterStatsNodeResponse extends BaseNodeResponse {
         return searchUsageStats;
     }
 
-    public static ClusterStatsNodeResponse readNodeResponse(StreamInput in) throws IOException {
-        return new ClusterStatsNodeResponse(in);
+    public RepositoryUsageStats repositoryUsageStats() {
+        return repositoryUsageStats;
+    }
+
+    public CCSTelemetrySnapshot getCcsMetrics() {
+        return ccsMetrics;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        if (clusterStatus == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            out.writeByte(clusterStatus.value());
-        }
+        out.writeOptionalWriteable(clusterStatus);
         nodeInfo.writeTo(out);
         nodeStats.writeTo(out);
         out.writeArray(shardsStats);
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_6_0)) {
             searchUsageStats.writeTo(out);
         }
+        if (out.getTransportVersion().onOrAfter(TransportVersions.REPOSITORIES_TELEMETRY)) {
+            repositoryUsageStats.writeTo(out);
+        } // else just drop these stats, ok for bwc
+        if (out.getTransportVersion().onOrAfter(TransportVersions.CCS_TELEMETRY_STATS)) {
+            ccsMetrics.writeTo(out);
+        }
     }
+
 }

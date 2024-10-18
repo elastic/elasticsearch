@@ -12,7 +12,7 @@ sed -i "s/^-Xmx.*$/-Xmx$JETTY_MAX_HEAP/g" /opt/shib-jetty-base/start.ini
 
 # For some reason, this container always immediately (in less than 1 second) exits with code 0 when starting for the first time
 # Even with a health check, docker-compose will immediately report the container as unhealthy when using --wait instead of waiting for it to become healthy
-# So, let's just start it a second time if it exits quickly
+# So, let's just start it a second time
 set +e
 start_time=$(date +%s)
 /opt/jetty-home/bin/jetty.sh run
@@ -20,9 +20,13 @@ exit_code=$?
 end_time=$(date +%s)
 
 duration=$((end_time - start_time))
-if [ $duration -lt 10 ]; then
-  /opt/jetty-home/bin/jetty.sh run
-  exit_code=$?
+echo "Duration for initial idp run was $duration seconds."
+
+if [ $duration -lt 60 ]; then
+   echo "Restarting idp."
+
+   /opt/jetty-home/bin/jetty.sh run
+   exit_code=$?
 fi
 
 exit $exit_code

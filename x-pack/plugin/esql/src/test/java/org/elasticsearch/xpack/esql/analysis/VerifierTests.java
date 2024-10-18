@@ -7,25 +7,50 @@
 
 package org.elasticsearch.xpack.esql.analysis;
 
+import org.elasticsearch.Build;
+import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.VerificationException;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
+import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
+import org.elasticsearch.xpack.esql.index.EsIndex;
+import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
-import org.elasticsearch.xpack.esql.parser.TypedParamValue;
-import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
-import org.elasticsearch.xpack.ql.type.DataType;
+import org.elasticsearch.xpack.esql.parser.QueryParam;
+import org.elasticsearch.xpack.esql.parser.QueryParams;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
 
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.paramAsConstant;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
-import static org.elasticsearch.xpack.ql.type.DataTypes.UNSIGNED_LONG;
+import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.loadMapping;
+import static org.elasticsearch.xpack.esql.core.type.DataType.COUNTER_DOUBLE;
+import static org.elasticsearch.xpack.esql.core.type.DataType.COUNTER_INTEGER;
+import static org.elasticsearch.xpack.esql.core.type.DataType.COUNTER_LONG;
+import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.matchesRegex;
 
 //@TestLogging(value = "org.elasticsearch.xpack.esql:TRACE,org.elasticsearch.compute:TRACE", reason = "debug")
 public class VerifierTests extends ESTestCase {
 
     private static final EsqlParser parser = new EsqlParser();
     private final Analyzer defaultAnalyzer = AnalyzerTestUtils.expandedDefaultAnalyzer();
+    private final Analyzer tsdb = AnalyzerTestUtils.analyzer(AnalyzerTestUtils.tsdbIndexResolution());
+
+    private final List<String> TIME_DURATIONS = List.of("millisecond", "second", "minute", "hour");
+    private final List<String> DATE_PERIODS = List.of("day", "week", "month", "year");
 
     public void testIncompatibleTypesInMathOperation() {
         assertEquals(
@@ -35,6 +60,189 @@ public class VerifierTests extends ESTestCase {
         assertEquals(
             "1:40: second argument of [a - c] must be [datetime or numeric], found value [c] type [keyword]",
             error("row a = 1, b = 2, c = \"xxx\" | eval y = a - c")
+        );
+    }
+
+    public void testUnsupportedAndMultiTypedFields() {
+        final String unsupported = "unsupported";
+        final String multiTyped = "multi_typed";
+
+        EsField unsupportedField = new UnsupportedEsField(unsupported, "flattened");
+        // Use linked maps/sets to fix the order in the error message.
+        LinkedHashSet<String> ipIndices = new LinkedHashSet<>();
+        ipIndices.add("test1");
+        ipIndices.add("test2");
+        ipIndices.add("test3");
+        ipIndices.add("test4");
+        ipIndices.add("test5");
+        LinkedHashMap<String, Set<String>> typesToIndices = new LinkedHashMap<>();
+        typesToIndices.put("ip", ipIndices);
+        typesToIndices.put("keyword", Set.of("test6"));
+        EsField multiTypedField = new InvalidMappedField(multiTyped, typesToIndices);
+
+        // Also add an unsupported/multityped field under the names `int` and `double` so we can use `LOOKUP int_number_names ...` and
+        // `LOOKUP double_number_names` without renaming the fields first.
+        IndexResolution indexWithUnsupportedAndMultiTypedField = IndexResolution.valid(
+            new EsIndex(
+                "test*",
+                Map.of(unsupported, unsupportedField, multiTyped, multiTypedField, "int", unsupportedField, "double", multiTypedField)
+            )
+        );
+        Analyzer analyzer = AnalyzerTestUtils.analyzer(indexWithUnsupportedAndMultiTypedField);
+
+        assertEquals(
+            "1:22: Cannot use field [unsupported] with unsupported type [flattened]",
+            error("from test* | dissect unsupported \"%{foo}\"", analyzer)
+        );
+        assertEquals(
+            "1:22: Cannot use field [multi_typed] due to ambiguities being mapped as [2] incompatible types:"
+                + " [ip] in [test1, test2, test3] and [2] other indices, [keyword] in [test6]",
+            error("from test* | dissect multi_typed \"%{foo}\"", analyzer)
+        );
+
+        assertEquals(
+            "1:19: Cannot use field [unsupported] with unsupported type [flattened]",
+            error("from test* | grok unsupported \"%{WORD:foo}\"", analyzer)
+        );
+        assertEquals(
+            "1:19: Cannot use field [multi_typed] due to ambiguities being mapped as [2] incompatible types:"
+                + " [ip] in [test1, test2, test3] and [2] other indices, [keyword] in [test6]",
+            error("from test* | grok multi_typed \"%{WORD:foo}\"", analyzer)
+        );
+
+        assertEquals(
+            "1:36: Cannot use field [unsupported] with unsupported type [flattened]",
+            error("from test* | enrich client_cidr on unsupported", analyzer)
+        );
+        assertEquals(
+            "1:36: Unsupported type [unsupported] for enrich matching field [multi_typed];"
+                + " only [keyword, text, ip, long, integer, float, double, datetime] allowed for type [range]",
+            error("from test* | enrich client_cidr on multi_typed", analyzer)
+        );
+
+        assertEquals(
+            "1:23: Cannot use field [unsupported] with unsupported type [flattened]",
+            error("from test* | eval x = unsupported", analyzer)
+        );
+        assertEquals(
+            "1:23: Cannot use field [multi_typed] due to ambiguities being mapped as [2] incompatible types:"
+                + " [ip] in [test1, test2, test3] and [2] other indices, [keyword] in [test6]",
+            error("from test* | eval x = multi_typed", analyzer)
+        );
+
+        assertEquals(
+            "1:32: Cannot use field [unsupported] with unsupported type [flattened]",
+            error("from test* | eval x = to_lower(unsupported)", analyzer)
+        );
+        assertEquals(
+            "1:32: Cannot use field [multi_typed] due to ambiguities being mapped as [2] incompatible types:"
+                + " [ip] in [test1, test2, test3] and [2] other indices, [keyword] in [test6]",
+            error("from test* | eval x = to_lower(multi_typed)", analyzer)
+        );
+
+        assertEquals(
+            "1:32: Cannot use field [unsupported] with unsupported type [flattened]",
+            error("from test* | stats count(1) by unsupported", analyzer)
+        );
+        assertEquals(
+            "1:32: Cannot use field [multi_typed] due to ambiguities being mapped as [2] incompatible types:"
+                + " [ip] in [test1, test2, test3] and [2] other indices, [keyword] in [test6]",
+            error("from test* | stats count(1) by multi_typed", analyzer)
+        );
+        if (EsqlCapabilities.Cap.INLINESTATS.isEnabled()) {
+            assertEquals(
+                "1:38: Cannot use field [unsupported] with unsupported type [flattened]",
+                error("from test* | inlinestats count(1) by unsupported", analyzer)
+            );
+            assertEquals(
+                "1:38: Cannot use field [multi_typed] due to ambiguities being mapped as [2] incompatible types:"
+                    + " [ip] in [test1, test2, test3] and [2] other indices, [keyword] in [test6]",
+                error("from test* | inlinestats count(1) by multi_typed", analyzer)
+            );
+        }
+
+        assertEquals(
+            "1:27: Cannot use field [unsupported] with unsupported type [flattened]",
+            error("from test* | stats values(unsupported)", analyzer)
+        );
+        assertEquals(
+            "1:27: Cannot use field [multi_typed] due to ambiguities being mapped as [2] incompatible types:"
+                + " [ip] in [test1, test2, test3] and [2] other indices, [keyword] in [test6]",
+            error("from test* | stats values(multi_typed)", analyzer)
+        );
+        if (EsqlCapabilities.Cap.INLINESTATS.isEnabled()) {
+            assertEquals(
+                "1:33: Cannot use field [unsupported] with unsupported type [flattened]",
+                error("from test* | inlinestats values(unsupported)", analyzer)
+            );
+            assertEquals(
+                "1:33: Cannot use field [multi_typed] due to ambiguities being mapped as [2] incompatible types:"
+                    + " [ip] in [test1, test2, test3] and [2] other indices, [keyword] in [test6]",
+                error("from test* | inlinestats values(multi_typed)", analyzer)
+            );
+        }
+
+        assertEquals(
+            "1:27: Cannot use field [unsupported] with unsupported type [flattened]",
+            error("from test* | stats values(unsupported)", analyzer)
+        );
+        assertEquals(
+            "1:27: Cannot use field [multi_typed] due to ambiguities being mapped as [2] incompatible types:"
+                + " [ip] in [test1, test2, test3] and [2] other indices, [keyword] in [test6]",
+            error("from test* | stats values(multi_typed)", analyzer)
+        );
+
+        if (EsqlCapabilities.Cap.LOOKUP_V4.isEnabled()) {
+            // LOOKUP with unsupported type
+            assertEquals(
+                "1:41: column type mismatch, table column was [integer] and original column was [unsupported]",
+                error("from test* | lookup int_number_names on int", analyzer)
+            );
+            // LOOKUP with multi-typed field
+            assertEquals(
+                "1:44: column type mismatch, table column was [double] and original column was [unsupported]",
+                error("from test* | lookup double_number_names on double", analyzer)
+            );
+        }
+
+        assertEquals(
+            "1:24: Cannot use field [unsupported] with unsupported type [flattened]",
+            error("from test* | mv_expand unsupported", analyzer)
+        );
+        assertEquals(
+            "1:24: Cannot use field [multi_typed] due to ambiguities being mapped as [2] incompatible types:"
+                + " [ip] in [test1, test2, test3] and [2] other indices, [keyword] in [test6]",
+            error("from test* | mv_expand multi_typed", analyzer)
+        );
+
+        assertEquals(
+            "1:21: Cannot use field [unsupported] with unsupported type [flattened]",
+            error("from test* | rename unsupported as x", analyzer)
+        );
+        assertEquals(
+            "1:21: Cannot use field [multi_typed] due to ambiguities being mapped as [2] incompatible types:"
+                + " [ip] in [test1, test2, test3] and [2] other indices, [keyword] in [test6]",
+            error("from test* | rename multi_typed as x", analyzer)
+        );
+
+        assertEquals(
+            "1:19: Cannot use field [unsupported] with unsupported type [flattened]",
+            error("from test* | sort unsupported asc", analyzer)
+        );
+        assertEquals(
+            "1:19: Cannot use field [multi_typed] due to ambiguities being mapped as [2] incompatible types:"
+                + " [ip] in [test1, test2, test3] and [2] other indices, [keyword] in [test6]",
+            error("from test* | sort multi_typed desc", analyzer)
+        );
+
+        assertEquals(
+            "1:20: Cannot use field [unsupported] with unsupported type [flattened]",
+            error("from test* | where unsupported is null", analyzer)
+        );
+        assertEquals(
+            "1:20: Cannot use field [multi_typed] due to ambiguities being mapped as [2] incompatible types:"
+                + " [ip] in [test1, test2, test3] and [2] other indices, [keyword] in [test6]",
+            error("from test* | where multi_typed is not null", analyzer)
         );
     }
 
@@ -55,10 +263,41 @@ public class VerifierTests extends ESTestCase {
             "1:31: second argument of [round(a, 3.5)] must be [integer], found value [3.5] type [double]",
             error("row a = 1, b = \"c\" | eval x = round(a, 3.5)")
         );
+    }
+
+    public void testImplicitCastingErrorMessages() {
         assertEquals(
-            "1:9: second argument of [round(123.45, \"1\")] must be [integer], found value [\"1\"] type [keyword]",
-            error("row a = round(123.45, \"1\")")
+            "1:23: Cannot convert string [c] to [INTEGER], error [Cannot parse number [c]]",
+            error("row a = round(123.45, \"c\")")
         );
+        assertEquals(
+            "1:27: Cannot convert string [c] to [DOUBLE], error [Cannot parse number [c]]",
+            error("row a = 1 | eval x = acos(\"c\")")
+        );
+        assertEquals(
+            "1:33: Cannot convert string [c] to [DOUBLE], error [Cannot parse number [c]]\n"
+                + "line 1:38: Cannot convert string [a] to [INTEGER], error [Cannot parse number [a]]",
+            error("row a = 1 | eval x = round(acos(\"c\"),\"a\")")
+        );
+        assertEquals(
+            "1:63: Cannot convert string [x] to [INTEGER], error [Cannot parse number [x]]",
+            error("row ip4 = to_ip(\"1.2.3.4\") | eval ip4_prefix = ip_prefix(ip4, \"x\", 0)")
+        );
+        assertEquals(
+            "1:42: Cannot convert string [a] to [DOUBLE], error [Cannot parse number [a]]",
+            error("ROW a=[3, 5, 1, 6] | EVAL avg_a = MV_AVG(\"a\")")
+        );
+        assertEquals(
+            "1:19: Unknown column [languages.*], did you mean any of [languages, languages.byte, languages.long, languages.short]?",
+            error("from test | where `languages.*` in (1, 2)")
+        );
+        assertEquals("1:22: Unknown function [func]", error("from test | eval x = func(languages) | where x in (1, 2)"));
+        assertEquals(
+            "1:32: Unknown column [languages.*], did you mean any of [languages, languages.byte, languages.long, languages.short]?",
+            error("from test | eval x = coalesce( `languages.*`, languages, 0 )")
+        );
+        String error = error("from test | eval x = func(languages) | eval y = coalesce(x, languages, 0 )");
+        assertThat(error, containsString("function [func]"));
     }
 
     public void testAggsExpressionsInStatsAggs() {
@@ -67,19 +306,12 @@ public class VerifierTests extends ESTestCase {
             error("from test | eval z = 2 | stats x = avg(z), salary by emp_no")
         );
         assertEquals(
-            "1:26: scalar functions over groupings [first_name] not allowed yet",
-            error("from test | stats length(first_name), count(1) by first_name")
-        );
-        assertEquals(
-            "1:36: scalar functions over groupings [languages] not allowed yet",
-            error("from test | stats max(languages) + languages by l = languages")
-        );
-        assertEquals(
             "1:23: nested aggregations [max(salary)] not allowed inside other aggregations [max(max(salary))]",
             error("from test | stats max(max(salary)) by first_name")
         );
         assertEquals(
-            "1:25: argument of [avg(first_name)] must be [numeric except unsigned_long], found value [first_name] type [keyword]",
+            "1:25: argument of [avg(first_name)] must be [numeric except unsigned_long or counter types],"
+                + " found value [first_name] type [keyword]",
             error("from test | stats count(avg(first_name)) by first_name")
         );
         assertEquals(
@@ -90,7 +322,35 @@ public class VerifierTests extends ESTestCase {
             "1:23: second argument of [count_distinct(languages, languages)] must be a constant, received [languages]",
             error("from test | stats x = count_distinct(languages, languages) by emp_no")
         );
+        // no agg function
+        assertEquals("1:19: expected an aggregate function but found [5]", error("from test | stats 5 by emp_no"));
 
+        // don't allow naked group
+        assertEquals("1:19: grouping key [emp_no] already specified in the STATS BY clause", error("from test | stats emp_no BY emp_no"));
+        // don't allow naked group - even when it's an expression
+        assertEquals(
+            "1:19: grouping key [languages + emp_no] already specified in the STATS BY clause",
+            error("from test | stats languages + emp_no BY languages + emp_no")
+        );
+        // don't allow group alias
+        assertEquals(
+            "1:19: grouping key [e] already specified in the STATS BY clause",
+            error("from test | stats e BY e = languages + emp_no")
+        );
+
+        var message = error("from test | stats languages + emp_no BY e = languages + emp_no");
+        assertThat(
+            message,
+            containsString(
+                "column [emp_no] cannot be used as an aggregate once declared in the STATS BY grouping key [e = languages + emp_no]"
+            )
+        );
+        assertThat(
+            message,
+            containsString(
+                " column [languages] cannot be used as an aggregate once declared in the STATS BY grouping key [e = languages + emp_no]"
+            )
+        );
     }
 
     public void testAggsInsideGrouping() {
@@ -100,18 +360,186 @@ public class VerifierTests extends ESTestCase {
         );
     }
 
+    public void testAggFilterOnNonAggregates() {
+        assertEquals(
+            "1:36: WHERE clause allowed only for aggregate functions, none found in [emp_no + 1 where languages > 1]",
+            error("from test | stats emp_no + 1 where languages > 1 by emp_no")
+        );
+        assertEquals(
+            "1:53: WHERE clause allowed only for aggregate functions, none found in [abs(emp_no + languages) % 2 WHERE languages > 1]",
+            error("from test | stats abs(emp_no + languages) % 2 WHERE languages > 1 by emp_no, languages")
+        );
+    }
+
+    public void testAggFilterOnBucketingOrAggFunctions() {
+        // query passes when the bucket function is part of the BY clause
+        query("from test | stats max(languages) WHERE bucket(salary, 10) > 1 by bucket(salary, 10)");
+
+        // but fails if it's different
+        assertEquals(
+            "1:40: can only use grouping function [bucket(salary, 10)] part of the BY clause",
+            error("from test | stats max(languages) WHERE bucket(salary, 10) > 1 by emp_no")
+        );
+
+        assertEquals(
+            "1:40: cannot use aggregate function [max(salary)] in aggregate WHERE clause [max(languages) WHERE max(salary) > 1]",
+            error("from test | stats max(languages) WHERE max(salary) > 1 by emp_no")
+        );
+
+        assertEquals(
+            "1:40: cannot use aggregate function [max(salary)] in aggregate WHERE clause [max(languages) WHERE max(salary) + 2 > 1]",
+            error("from test | stats max(languages) WHERE max(salary) + 2 > 1 by emp_no")
+        );
+
+        assertEquals("1:60: Unknown column [m]", error("from test | stats m = max(languages), min(languages) WHERE m + 2 > 1 by emp_no"));
+    }
+
+    public void testGroupingInsideAggsAsAgg() {
+        assertEquals(
+            "1:18: can only use grouping function [bucket(emp_no, 5.)] part of the BY clause",
+            error("from test| stats bucket(emp_no, 5.) by emp_no")
+        );
+        assertEquals(
+            "1:18: can only use grouping function [bucket(emp_no, 5.)] part of the BY clause",
+            error("from test| stats bucket(emp_no, 5.)")
+        );
+        assertEquals(
+            "1:18: can only use grouping function [bucket(emp_no, 5.)] part of the BY clause",
+            error("from test| stats bucket(emp_no, 5.) by bucket(emp_no, 6.)")
+        );
+        assertEquals(
+            "1:22: can only use grouping function [bucket(emp_no, 5.)] part of the BY clause",
+            error("from test| stats 3 + bucket(emp_no, 5.) by bucket(emp_no, 6.)")
+        );
+    }
+
+    public void testGroupingInsideAggsAsGrouping() {
+        assertEquals(
+            "1:18: grouping function [bucket(emp_no, 5.)] cannot be used as an aggregate once declared in the STATS BY clause",
+            error("from test| stats bucket(emp_no, 5.) by bucket(emp_no, 5.)")
+        );
+        assertEquals(
+            "1:18: grouping function [bucket(emp_no, 5.)] cannot be used as an aggregate once declared in the STATS BY clause",
+            error("from test| stats bucket(emp_no, 5.) by emp_no, bucket(emp_no, 5.)")
+        );
+        assertEquals(
+            "1:18: grouping function [bucket(emp_no, 5.)] cannot be used as an aggregate once declared in the STATS BY clause",
+            error("from test| stats bucket(emp_no, 5.) by x = bucket(emp_no, 5.)")
+        );
+        assertEquals(
+            "1:22: grouping function [bucket(emp_no, 5.)] cannot be used as an aggregate once declared in the STATS BY clause",
+            error("from test| stats z = bucket(emp_no, 5.) by x = bucket(emp_no, 5.)")
+        );
+        assertEquals(
+            "1:22: grouping function [bucket(emp_no, 5.)] cannot be used as an aggregate once declared in the STATS BY clause",
+            error("from test| stats y = bucket(emp_no, 5.) by y = bucket(emp_no, 5.)")
+        );
+        assertEquals(
+            "1:22: grouping function [bucket(emp_no, 5.)] cannot be used as an aggregate once declared in the STATS BY clause",
+            error("from test| stats z = bucket(emp_no, 5.) by bucket(emp_no, 5.)")
+        );
+    }
+
+    public void testGroupingInsideGrouping() {
+        assertEquals(
+            "1:40: cannot nest grouping functions; found [bucket(emp_no, 5.)] inside [bucket(bucket(emp_no, 5.), 6.)]",
+            error("from test| stats max(emp_no) by bucket(bucket(emp_no, 5.), 6.)")
+        );
+    }
+
+    public void testInvalidBucketCalls() {
+        assertThat(
+            error("from test | stats max(emp_no) by bucket(emp_no, 5, \"2000-01-01\")"),
+            containsString(
+                "function expects exactly four arguments when the first one is of type [INTEGER] and the second of type [INTEGER]"
+            )
+        );
+
+        assertThat(
+            error("from test | stats max(emp_no) by bucket(emp_no, 1 week, \"2000-01-01\")"),
+            containsString(
+                "second argument of [bucket(emp_no, 1 week, \"2000-01-01\")] must be [numeric], found value [1 week] type [date_period]"
+            )
+        );
+
+        assertThat(
+            error("from test | stats max(emp_no) by bucket(hire_date, 5.5, \"2000-01-01\")"),
+            containsString(
+                "second argument of [bucket(hire_date, 5.5, \"2000-01-01\")] must be [integral, date_period or time_duration], "
+                    + "found value [5.5] type [double]"
+            )
+        );
+
+        assertThat(
+            error("from test | stats max(emp_no) by bucket(hire_date, 5, 1 day, 1 month)"),
+            containsString(
+                "third argument of [bucket(hire_date, 5, 1 day, 1 month)] must be [datetime or string], "
+                    + "found value [1 day] type [date_period]"
+            )
+        );
+
+        assertThat(
+            error("from test | stats max(emp_no) by bucket(hire_date, 5, \"2000-01-01\", 1 month)"),
+            containsString(
+                "fourth argument of [bucket(hire_date, 5, \"2000-01-01\", 1 month)] must be [datetime or string], "
+                    + "found value [1 month] type [date_period]"
+            )
+        );
+
+        assertThat(
+            error("from test | stats max(emp_no) by bucket(hire_date, 5, \"2000-01-01\")"),
+            containsString(
+                "function expects exactly four arguments when the first one is of type [DATETIME] and the second of type [INTEGER]"
+            )
+        );
+
+        assertThat(
+            error("from test | stats max(emp_no) by bucket(emp_no, \"5\")"),
+            containsString("second argument of [bucket(emp_no, \"5\")] must be [numeric], found value [\"5\"] type [keyword]")
+        );
+
+        assertThat(
+            error("from test | stats max(emp_no) by bucket(hire_date, \"5\")"),
+            containsString(
+                "second argument of [bucket(hire_date, \"5\")] must be [integral, date_period or time_duration], "
+                    + "found value [\"5\"] type [keyword]"
+            )
+        );
+    }
+
     public void testAggsWithInvalidGrouping() {
         assertEquals(
-            "1:35: column [languages] must appear in the STATS BY clause or be used in an aggregate function",
+            "1:35: column [languages] cannot be used as an aggregate once declared in the STATS BY grouping key [l = languages % 3]",
             error("from test| stats max(languages) + languages by l = languages % 3")
         );
+    }
+
+    public void testGroupingAlias() throws Exception {
+        assertEquals(
+            "1:23: column [languages] cannot be used as an aggregate once declared in the STATS BY grouping key [l = languages % 3]",
+            error("from test | stats l = languages + 3 by l = languages % 3 | keep l")
+        );
+    }
+
+    public void testGroupingAliasDuplicate() throws Exception {
+        assertEquals(
+            "1:22: column [languages] cannot be used as an aggregate "
+                + "once declared in the STATS BY grouping key [l = languages % 3, l = languages, l = languages % 2]",
+            error("from test| stats l = languages + 3 by l = languages % 3, l = languages, l = languages % 2 | keep l")
+        );
+
+        assertEquals(
+            "1:22: column [languages] cannot be used as an aggregate " + "once declared in the STATS BY grouping key [l = languages % 3]",
+            error("from test| stats l = languages + 3, l = languages % 2  by l = languages % 3 | keep l")
+        );
+
     }
 
     public void testAggsIgnoreCanonicalGrouping() {
         // the grouping column should appear verbatim - ignore canonical representation as they complicate things significantly
         // for no real benefit (1+languages != languages + 1)
         assertEquals(
-            "1:39: column [languages] must appear in the STATS BY clause or be used in an aggregate function",
+            "1:39: column [languages] cannot be used as an aggregate once declared in the STATS BY grouping key [l = languages + 1]",
             error("from test| stats max(languages) + 1 + languages by l = languages + 1")
         );
     }
@@ -128,25 +556,26 @@ public class VerifierTests extends ESTestCase {
         assertEquals("1:29: aggregate function [max(b)] not allowed outside STATS command", error("row a = 1, b = 2 | eval x = max(b)"));
     }
 
-    public void testAggsWithExpressionOverAggs() {
-        assertEquals(
-            "1:44: scalar functions over groupings [languages] not allowed yet",
-            error("from test | stats max(languages + 1) , m = languages + min(salary + 1) by l = languages, s = salary")
-        );
-    }
-
-    public void testAggScalarOverGroupingColumn() {
-        assertEquals(
-            "1:26: scalar functions over groupings [first_name] not allowed yet",
-            error("from test | stats length(first_name), count(1) by first_name")
-        );
-    }
-
     public void testGroupingInAggs() {
         assertEquals("2:12: column [salary] must appear in the STATS BY clause or be used in an aggregate function", error("""
              from test
             |stats e = salary + max(salary) by languages
             """));
+    }
+
+    public void testBucketOnlyInAggs() {
+        assertEquals(
+            "1:23: cannot use grouping function [BUCKET(emp_no, 100.)] outside of a STATS command",
+            error("FROM test | WHERE ABS(BUCKET(emp_no, 100.)) > 0")
+        );
+        assertEquals(
+            "1:22: cannot use grouping function [BUCKET(emp_no, 100.)] outside of a STATS command",
+            error("FROM test | EVAL 3 + BUCKET(emp_no, 100.)")
+        );
+        assertEquals(
+            "1:18: cannot use grouping function [BUCKET(emp_no, 100.)] outside of a STATS command",
+            error("FROM test | SORT BUCKET(emp_no, 100.)")
+        );
     }
 
     public void testDoubleRenamingField() {
@@ -207,9 +636,9 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testUnsignedLongTypeMixInComparisons() {
-        List<String> types = EsqlDataTypes.types()
+        List<String> types = DataType.types()
             .stream()
-            .filter(dt -> dt.isNumeric() && EsqlDataTypes.isRepresentable(dt) && dt != UNSIGNED_LONG)
+            .filter(dt -> dt.isNumeric() && DataType.isRepresentable(dt) && dt != UNSIGNED_LONG)
             .map(DataType::typeName)
             .toList();
         for (var type : types) {
@@ -245,9 +674,9 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testUnsignedLongTypeMixInArithmetics() {
-        List<String> types = EsqlDataTypes.types()
+        List<String> types = DataType.types()
             .stream()
-            .filter(dt -> dt.isNumeric() && EsqlDataTypes.isRepresentable(dt) && dt != UNSIGNED_LONG)
+            .filter(dt -> dt.isNumeric() && DataType.isRepresentable(dt) && dt != UNSIGNED_LONG)
             .map(DataType::typeName)
             .toList();
         for (var type : types) {
@@ -282,7 +711,8 @@ public class VerifierTests extends ESTestCase {
 
     public void testSumOnDate() {
         assertEquals(
-            "1:19: argument of [sum(hire_date)] must be [numeric except unsigned_long], found value [hire_date] type [datetime]",
+            "1:19: argument of [sum(hire_date)] must be [numeric except unsigned_long or counter types],"
+                + " found value [hire_date] type [datetime]",
             error("from test | stats sum(hire_date)")
         );
     }
@@ -300,41 +730,170 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testPeriodAndDurationInRowAssignment() {
-        for (var unit : List.of("millisecond", "second", "minute", "hour", "day", "week", "month", "year")) {
+        for (var unit : TIME_DURATIONS) {
             assertEquals("1:5: cannot use [1 " + unit + "] directly in a row assignment", error("row a = 1 " + unit));
+            assertEquals(
+                "1:5: cannot use [1 " + unit + "::time_duration] directly in a row assignment",
+                error("row a = 1 " + unit + "::time_duration")
+            );
+            assertEquals(
+                "1:5: cannot use [\"1 " + unit + "\"::time_duration] directly in a row assignment",
+                error("row a = \"1 " + unit + "\"::time_duration")
+            );
+            assertEquals(
+                "1:5: cannot use [to_timeduration(1 " + unit + ")] directly in a row assignment",
+                error("row a = to_timeduration(1 " + unit + ")")
+            );
+            assertEquals(
+                "1:5: cannot use [to_timeduration(\"1 " + unit + "\")] directly in a row assignment",
+                error("row a = to_timeduration(\"1 " + unit + "\")")
+            );
+        }
+        for (var unit : DATE_PERIODS) {
+            assertEquals("1:5: cannot use [1 " + unit + "] directly in a row assignment", error("row a = 1 " + unit));
+            assertEquals(
+                "1:5: cannot use [1 " + unit + "::date_period] directly in a row assignment",
+                error("row a = 1 " + unit + "::date_period")
+            );
+            assertEquals(
+                "1:5: cannot use [\"1 " + unit + "\"::date_period] directly in a row assignment",
+                error("row a = \"1 " + unit + "\"::date_period")
+            );
+            assertEquals(
+                "1:5: cannot use [to_dateperiod(1 " + unit + ")] directly in a row assignment",
+                error("row a = to_dateperiod(1 " + unit + ")")
+            );
+            assertEquals(
+                "1:5: cannot use [to_dateperiod(\"1 " + unit + "\")] directly in a row assignment",
+                error("row a = to_dateperiod(\"1 " + unit + "\")")
+            );
         }
     }
 
     public void testSubtractDateTimeFromTemporal() {
-        for (var unit : List.of("millisecond", "second", "minute", "hour")) {
+        for (var unit : TIME_DURATIONS) {
             assertEquals(
-                "1:5: [-] arguments are in unsupported order: cannot subtract a [DATETIME] value [now()] from a [TIME_DURATION] amount [1 "
+                "1:5: [-] arguments are in unsupported order: cannot subtract a [DATETIME] value [now()] "
+                    + "from a [TIME_DURATION] amount [1 "
                     + unit
                     + "]",
                 error("row 1 " + unit + " - now() ")
             );
-        }
-        for (var unit : List.of("day", "week", "month", "year")) {
             assertEquals(
-                "1:5: [-] arguments are in unsupported order: cannot subtract a [DATETIME] value [now()] from a [DATE_PERIOD] amount [1 "
+                "1:5: [-] arguments are in unsupported order: cannot subtract a [DATETIME] value [now()] "
+                    + "from a [TIME_DURATION] amount [1 "
+                    + unit
+                    + "::time_duration]",
+                error("row 1 " + unit + "::time_duration" + " - now() ")
+            );
+            assertEquals(
+                "1:5: [-] arguments are in unsupported order: cannot subtract a [DATETIME] value [now()] "
+                    + "from a [TIME_DURATION] amount [\"1 "
+                    + unit
+                    + "\"::time_duration]",
+                error("row \"1 " + unit + "\"::time_duration" + " - now() ")
+            );
+            assertEquals(
+                "1:5: [-] arguments are in unsupported order: cannot subtract a [DATETIME] value [now()] "
+                    + "from a [TIME_DURATION] amount [to_timeduration(1 "
+                    + unit
+                    + ")]",
+                error("row to_timeduration(1 " + unit + ") - now() ")
+            );
+            assertEquals(
+                "1:5: [-] arguments are in unsupported order: cannot subtract a [DATETIME] value [now()] "
+                    + "from a [TIME_DURATION] amount [to_timeduration(\"1 "
+                    + unit
+                    + "\")]",
+                error("row to_timeduration(\"1 " + unit + "\") - now() ")
+            );
+        }
+        for (var unit : DATE_PERIODS) {
+            assertEquals(
+                "1:5: [-] arguments are in unsupported order: cannot subtract a [DATETIME] value [now()] "
+                    + "from a [DATE_PERIOD] amount [1 "
                     + unit
                     + "]",
                 error("row 1 " + unit + " - now() ")
+            );
+            assertEquals(
+                "1:5: [-] arguments are in unsupported order: cannot subtract a [DATETIME] value [now()] "
+                    + "from a [DATE_PERIOD] amount [1 "
+                    + unit
+                    + "::date_period]",
+                error("row 1 " + unit + "::date_period" + " - now() ")
+            );
+            assertEquals(
+                "1:5: [-] arguments are in unsupported order: cannot subtract a [DATETIME] value [now()] "
+                    + "from a [DATE_PERIOD] amount [\"1 "
+                    + unit
+                    + "\"::date_period]",
+                error("row \"1 " + unit + "\"::date_period" + " - now() ")
+            );
+            assertEquals(
+                "1:5: [-] arguments are in unsupported order: cannot subtract a [DATETIME] value [now()] "
+                    + "from a [DATE_PERIOD] amount [to_dateperiod(1 "
+                    + unit
+                    + ")]",
+                error("row to_dateperiod(1 " + unit + ") - now() ")
+            );
+            assertEquals(
+                "1:5: [-] arguments are in unsupported order: cannot subtract a [DATETIME] value [now()] "
+                    + "from a [DATE_PERIOD] amount [to_dateperiod(\"1 "
+                    + unit
+                    + "\")]",
+                error("row to_dateperiod(\"1 " + unit + "\") - now() ")
             );
         }
     }
 
     public void testPeriodAndDurationInEval() {
-        for (var unit : List.of("millisecond", "second", "minute", "hour")) {
+        for (var unit : TIME_DURATIONS) {
             assertEquals(
-                "1:18: EVAL does not support type [time_duration] in expression [1 " + unit + "]",
+                "1:18: EVAL does not support type [time_duration] as the return data type of expression [1 " + unit + "]",
                 error("row x = 1 | eval y = 1 " + unit)
             );
-        }
-        for (var unit : List.of("day", "week", "month", "year")) {
             assertEquals(
-                "1:18: EVAL does not support type [date_period] in expression [1 " + unit + "]",
+                "1:18: EVAL does not support type [time_duration] as the return data type of expression [1 " + unit + "::time_duration]",
+                error("row x = 1 | eval y = 1 " + unit + "::time_duration")
+            );
+            assertEquals(
+                "1:18: EVAL does not support type [time_duration] as the return data type of expression [\"1 "
+                    + unit
+                    + "\"::time_duration]",
+                error("row x = 1 | eval y = \"1 " + unit + "\"::time_duration")
+            );
+            assertEquals(
+                "1:18: EVAL does not support type [time_duration] as the return data type of expression [to_timeduration(1 " + unit + ")]",
+                error("row x = 1 | eval y = to_timeduration(1 " + unit + ")")
+            );
+            assertEquals(
+                "1:18: EVAL does not support type [time_duration] as the return data type of expression [to_timeduration(\"1 "
+                    + unit
+                    + "\")]",
+                error("row x = 1 | eval y = to_timeduration(\"1 " + unit + "\")")
+            );
+        }
+        for (var unit : DATE_PERIODS) {
+            assertEquals(
+                "1:18: EVAL does not support type [date_period] as the return data type of expression [1 " + unit + "]",
                 error("row x = 1 | eval y = 1 " + unit)
+            );
+            assertEquals(
+                "1:18: EVAL does not support type [date_period] as the return data type of expression [1 " + unit + "::date_period]",
+                error("row x = 1 | eval y = 1 " + unit + "::date_period")
+            );
+            assertEquals(
+                "1:18: EVAL does not support type [date_period] as the return data type of expression [\"1 " + unit + "\"::date_period]",
+                error("row x = 1 | eval y = \"1 " + unit + "\"::date_period")
+            );
+            assertEquals(
+                "1:18: EVAL does not support type [date_period] as the return data type of expression [to_dateperiod(1 " + unit + ")]",
+                error("row x = 1 | eval y = to_dateperiod(1 " + unit + ")")
+            );
+            assertEquals(
+                "1:18: EVAL does not support type [date_period] as the return data type of expression [to_dateperiod(\"1 " + unit + "\")]",
+                error("row x = 1 | eval y = to_dateperiod(\"1 " + unit + "\")")
             );
         }
     }
@@ -345,14 +904,645 @@ public class VerifierTests extends ESTestCase {
 
     public void testFilterDateConstant() {
         assertEquals("1:19: Condition expression needs to be boolean, found [DATE_PERIOD]", error("from test | where 1 year"));
+        assertEquals(
+            "1:19: Condition expression needs to be boolean, found [DATE_PERIOD]",
+            error("from test | where \"1 year\"::date_period")
+        );
+        assertEquals(
+            "1:19: Condition expression needs to be boolean, found [DATE_PERIOD]",
+            error("from test | where to_dateperiod(\"1 year\")")
+        );
     }
 
     public void testNestedAggField() {
         assertEquals("1:27: Unknown column [avg]", error("from test | stats c = avg(avg)"));
     }
 
-    public void testUnfinishedAggFunction() {
-        assertEquals("1:23: invalid stats declaration; [avg] is not an aggregate function", error("from test | stats c = avg"));
+    public void testNotFoundFieldInNestedFunction() {
+        assertEquals("""
+            1:30: Unknown column [missing]
+            line 1:43: Unknown column [not_found]
+            line 1:23: Unknown column [avg]""", error("from test | stats c = avg by missing + 1, not_found"));
+    }
+
+    public void testSpatialSort() {
+        String prefix = "ROW wkt = [\"POINT(42.9711 -14.7553)\", \"POINT(75.8093 22.7277)\"] | MV_EXPAND wkt ";
+        assertEquals("1:130: cannot sort on geo_point", error(prefix + "| EVAL shape = TO_GEOPOINT(wkt) | limit 5 | sort shape"));
+        assertEquals(
+            "1:136: cannot sort on cartesian_point",
+            error(prefix + "| EVAL shape = TO_CARTESIANPOINT(wkt) | limit 5 | sort shape")
+        );
+        assertEquals("1:130: cannot sort on geo_shape", error(prefix + "| EVAL shape = TO_GEOSHAPE(wkt) | limit 5 | sort shape"));
+        assertEquals(
+            "1:136: cannot sort on cartesian_shape",
+            error(prefix + "| EVAL shape = TO_CARTESIANSHAPE(wkt) | limit 5 | sort shape")
+        );
+        var airports = AnalyzerTestUtils.analyzer(loadMapping("mapping-airports.json", "airports"));
+        var airportsWeb = AnalyzerTestUtils.analyzer(loadMapping("mapping-airports_web.json", "airports_web"));
+        var countriesBbox = AnalyzerTestUtils.analyzer(loadMapping("mapping-countries_bbox.json", "countries_bbox"));
+        var countriesBboxWeb = AnalyzerTestUtils.analyzer(loadMapping("mapping-countries_bbox_web.json", "countries_bbox_web"));
+        assertEquals("1:32: cannot sort on geo_point", error("FROM airports | LIMIT 5 | sort location", airports));
+        assertEquals("1:36: cannot sort on cartesian_point", error("FROM airports_web | LIMIT 5 | sort location", airportsWeb));
+        assertEquals("1:38: cannot sort on geo_shape", error("FROM countries_bbox | LIMIT 5 | sort shape", countriesBbox));
+        assertEquals("1:42: cannot sort on cartesian_shape", error("FROM countries_bbox_web | LIMIT 5 | sort shape", countriesBboxWeb));
+    }
+
+    public void testSourceSorting() {
+        assertEquals("1:35: cannot sort on _source", error("from test metadata _source | sort _source"));
+    }
+
+    public void testCountersSorting() {
+        Map<DataType, String> counterDataTypes = Map.of(
+            COUNTER_DOUBLE,
+            "network.message_in",
+            COUNTER_INTEGER,
+            "network.message_out",
+            COUNTER_LONG,
+            "network.bytes_out"
+        );
+        for (DataType counterDT : counterDataTypes.keySet()) {
+            var fieldName = counterDataTypes.get(counterDT);
+            assertEquals("1:18: cannot sort on " + counterDT.name().toLowerCase(Locale.ROOT), error("from test | sort " + fieldName, tsdb));
+        }
+    }
+
+    public void testInlineImpossibleConvert() {
+        assertEquals("1:5: argument of [false::ip] must be [ip or string], found value [false] type [boolean]", error("ROW false::ip"));
+    }
+
+    public void testAggregateOnCounter() {
+        assertThat(
+            error("FROM tests | STATS min(network.bytes_in)", tsdb),
+            equalTo(
+                "1:20: argument of [min(network.bytes_in)] must be"
+                    + " [representable except unsigned_long and spatial types],"
+                    + " found value [network.bytes_in] type [counter_long]"
+            )
+        );
+
+        assertThat(
+            error("FROM tests | STATS max(network.bytes_in)", tsdb),
+            equalTo(
+                "1:20: argument of [max(network.bytes_in)] must be"
+                    + " [representable except unsigned_long and spatial types],"
+                    + " found value [network.bytes_in] type [counter_long]"
+            )
+        );
+
+        assertThat(
+            error("FROM tests | STATS count(network.bytes_out)", tsdb),
+            equalTo(
+                "1:20: argument of [count(network.bytes_out)] must be [any type except counter types],"
+                    + " found value [network.bytes_out] type [counter_long]"
+            )
+        );
+    }
+
+    public void testGroupByCounter() {
+        assertThat(
+            error("FROM tests | STATS count(*) BY network.bytes_in", tsdb),
+            equalTo("1:32: cannot group by on [counter_long] type for grouping [network.bytes_in]")
+        );
+    }
+
+    public void testAggsResolutionWithUnresolvedGroupings() {
+        String agg_func = randomFrom(
+            new String[] { "avg", "count", "count_distinct", "min", "max", "median", "median_absolute_deviation", "sum", "values" }
+        );
+
+        assertThat(error("FROM tests | STATS " + agg_func + "(emp_no) by foobar"), matchesRegex("1:\\d+: Unknown column \\[foobar]"));
+        assertThat(
+            error("FROM tests | STATS " + agg_func + "(x) by foobar, x = emp_no"),
+            matchesRegex("1:\\d+: Unknown column \\[foobar]")
+        );
+        assertThat(error("FROM tests | STATS " + agg_func + "(foobar) by foobar"), matchesRegex("1:\\d+: Unknown column \\[foobar]"));
+        assertThat(
+            error("FROM tests | STATS " + agg_func + "(foobar) by BUCKET(hire_date, 10)"),
+            matchesRegex(
+                "1:\\d+: function expects exactly four arguments when the first one is of type \\[DATETIME]"
+                    + " and the second of type \\[INTEGER]\n"
+                    + "line 1:\\d+: Unknown column \\[foobar]"
+            )
+        );
+        assertThat(error("FROM tests | STATS " + agg_func + "(foobar) by emp_no"), matchesRegex("1:\\d+: Unknown column \\[foobar]"));
+        // TODO: Ideally, we'd detect that count_distinct(x) doesn't require an error message.
+        assertThat(
+            error("FROM tests | STATS " + agg_func + "(x) by x = foobar"),
+            matchesRegex("1:\\d+: Unknown column \\[foobar]\n" + "line 1:\\d+: Unknown column \\[x]")
+        );
+    }
+
+    public void testNotAllowRateOutsideMetrics() {
+        assumeTrue("requires snapshot builds", Build.current().isSnapshot());
+        assertThat(
+            error("FROM tests | STATS avg(rate(network.bytes_in))", tsdb),
+            equalTo("1:24: the rate aggregate[rate(network.bytes_in)] can only be used within the metrics command")
+        );
+        assertThat(
+            error("METRICS tests | STATS sum(rate(network.bytes_in))", tsdb),
+            equalTo("1:27: the rate aggregate[rate(network.bytes_in)] can only be used within the metrics command")
+        );
+        assertThat(
+            error("FROM tests | STATS rate(network.bytes_in)", tsdb),
+            equalTo("1:20: the rate aggregate[rate(network.bytes_in)] can only be used within the metrics command")
+        );
+        assertThat(
+            error("FROM tests | EVAL r = rate(network.bytes_in)", tsdb),
+            equalTo("1:23: aggregate function [rate(network.bytes_in)] not allowed outside METRICS command")
+        );
+    }
+
+    public void testRateNotEnclosedInAggregate() {
+        assumeTrue("requires snapshot builds", Build.current().isSnapshot());
+        assertThat(
+            error("METRICS tests rate(network.bytes_in)", tsdb),
+            equalTo(
+                "1:15: the rate aggregate [rate(network.bytes_in)] can only be used within the metrics command and inside another aggregate"
+            )
+        );
+        assertThat(
+            error("METRICS tests avg(rate(network.bytes_in)), rate(network.bytes_in)", tsdb),
+            equalTo(
+                "1:44: the rate aggregate [rate(network.bytes_in)] can only be used within the metrics command and inside another aggregate"
+            )
+        );
+        assertThat(error("METRICS tests max(avg(rate(network.bytes_in)))", tsdb), equalTo("""
+            1:19: nested aggregations [avg(rate(network.bytes_in))] not allowed inside other aggregations\
+             [max(avg(rate(network.bytes_in)))]
+            line 1:23: the rate aggregate [rate(network.bytes_in)] can only be used within the metrics command\
+             and inside another aggregate"""));
+        assertThat(error("METRICS tests max(avg(rate(network.bytes_in)))", tsdb), equalTo("""
+            1:19: nested aggregations [avg(rate(network.bytes_in))] not allowed inside other aggregations\
+             [max(avg(rate(network.bytes_in)))]
+            line 1:23: the rate aggregate [rate(network.bytes_in)] can only be used within the metrics command\
+             and inside another aggregate"""));
+    }
+
+    public void testWeightedAvg() {
+        assertEquals(
+            "1:35: SECOND argument of [weighted_avg(v, null)] cannot be null or 0, received [null]",
+            error("row v = [1, 2, 3] | stats w_avg = weighted_avg(v, null)")
+        );
+        assertEquals(
+            "1:27: SECOND argument of [weighted_avg(salary, null)] cannot be null or 0, received [null]",
+            error("from test | stats w_avg = weighted_avg(salary, null)")
+        );
+        assertEquals(
+            "1:45: SECOND argument of [weighted_avg(v, w)] cannot be null or 0, received [null]",
+            error("row v = [1, 2, 3], w = null | stats w_avg = weighted_avg(v, w)")
+        );
+        assertEquals(
+            "1:44: SECOND argument of [weighted_avg(salary, w)] cannot be null or 0, received [null]",
+            error("from test | eval w = null |  stats w_avg = weighted_avg(salary, w)")
+        );
+        assertEquals(
+            "1:51: SECOND argument of [weighted_avg(salary, w)] cannot be null or 0, received [null]",
+            error("from test | eval w = null + null |  stats w_avg = weighted_avg(salary, w)")
+        );
+        assertEquals(
+            "1:35: SECOND argument of [weighted_avg(v, 0)] cannot be null or 0, received [0]",
+            error("row v = [1, 2, 3] | stats w_avg = weighted_avg(v, 0)")
+        );
+        assertEquals(
+            "1:27: SECOND argument of [weighted_avg(salary, 0.0)] cannot be null or 0, received [0.0]",
+            error("from test | stats w_avg = weighted_avg(salary, 0.0)")
+        );
+    }
+
+    public void testMatchInsideEval() throws Exception {
+        assumeTrue("Match operator is available just for snapshots", Build.current().isSnapshot());
+
+        assertEquals("1:36: EVAL does not support MATCH expressions", error("row title = \"brown fox\" | eval x = title match \"fox\" "));
+    }
+
+    public void testMatchFilter() throws Exception {
+        assumeTrue("Match operator is available just for snapshots", Build.current().isSnapshot());
+
+        assertEquals(
+            "1:63: MATCH requires a mapped index field, found [name]",
+            error("from test | eval name = concat(first_name, last_name) | where name match \"Anna\"")
+        );
+
+        assertEquals(
+            "1:19: MATCH requires a text or keyword field, but [salary] has type [integer]",
+            error("from test | where salary match \"100\"")
+        );
+
+        assertEquals(
+            "1:19: Invalid condition using MATCH",
+            error("from test | where first_name match \"Anna\" or starts_with(first_name, \"Anne\")")
+        );
+
+        assertEquals(
+            "1:51: Invalid condition using MATCH",
+            error("from test | eval new_salary = salary + 10 | where first_name match \"Anna\" OR new_salary > 100")
+        );
+
+        assertEquals(
+            "1:45: MATCH requires a mapped index field, found [fn]",
+            error("from test | rename first_name as fn | where fn match \"Anna\"")
+        );
+    }
+
+    public void testMatchFunctionNotAllowedAfterCommands() throws Exception {
+        assertEquals(
+            "1:24: [MATCH] function cannot be used after LIMIT",
+            error("from test | limit 10 | where match(first_name, \"Anna\")")
+        );
+    }
+
+    public void testQueryStringFunctionsNotAllowedAfterCommands() throws Exception {
+        // Source commands
+        assertEquals("1:13: [QSTR] function cannot be used after SHOW", error("show info | where qstr(\"8.16.0\")"));
+        assertEquals("1:17: [QSTR] function cannot be used after ROW", error("row a= \"Anna\" | where qstr(\"Anna\")"));
+
+        // Processing commands
+        assertEquals(
+            "1:43: [QSTR] function cannot be used after DISSECT",
+            error("from test | dissect first_name \"%{foo}\" | where qstr(\"Connection\")")
+        );
+        assertEquals("1:27: [QSTR] function cannot be used after DROP", error("from test | drop emp_no | where qstr(\"Anna\")"));
+        assertEquals(
+            "1:71: [QSTR] function cannot be used after ENRICH",
+            error("from test | enrich languages on languages with lang = language_name | where qstr(\"Anna\")")
+        );
+        assertEquals("1:26: [QSTR] function cannot be used after EVAL", error("from test | eval z = 2 | where qstr(\"Anna\")"));
+        assertEquals(
+            "1:44: [QSTR] function cannot be used after GROK",
+            error("from test | grok last_name \"%{WORD:foo}\" | where qstr(\"Anna\")")
+        );
+        assertEquals("1:27: [QSTR] function cannot be used after KEEP", error("from test | keep emp_no | where qstr(\"Anna\")"));
+        assertEquals("1:24: [QSTR] function cannot be used after LIMIT", error("from test | limit 10 | where qstr(\"Anna\")"));
+        assertEquals(
+            "1:35: [QSTR] function cannot be used after MV_EXPAND",
+            error("from test | mv_expand last_name | where qstr(\"Anna\")")
+        );
+        assertEquals(
+            "1:45: [QSTR] function cannot be used after RENAME",
+            error("from test | rename last_name as full_name | where qstr(\"Anna\")")
+        );
+        assertEquals(
+            "1:52: [QSTR] function cannot be used after STATS",
+            error("from test | STATS c = COUNT(emp_no) BY languages | where qstr(\"Anna\")")
+        );
+
+        // Some combination of processing commands
+        assertEquals(
+            "1:38: [QSTR] function cannot be used after LIMIT",
+            error("from test | keep emp_no | limit 10 | where qstr(\"Anna\")")
+        );
+        assertEquals(
+            "1:46: [QSTR] function cannot be used after MV_EXPAND",
+            error("from test | limit 10 | mv_expand last_name | where qstr(\"Anna\")")
+        );
+        assertEquals(
+            "1:52: [QSTR] function cannot be used after KEEP",
+            error("from test | mv_expand last_name | keep last_name | where qstr(\"Anna\")")
+        );
+        assertEquals(
+            "1:77: [QSTR] function cannot be used after RENAME",
+            error("from test | STATS c = COUNT(emp_no) BY languages | rename c as total_emps | where qstr(\"Anna\")")
+        );
+        assertEquals(
+            "1:54: [QSTR] function cannot be used after KEEP",
+            error("from test | rename last_name as name | keep emp_no | where qstr(\"Anna\")")
+        );
+    }
+
+    public void testQueryStringFunctionOnlyAllowedInWhere() throws Exception {
+        assertEquals("1:9: [QSTR] function is only supported in WHERE commands", error("row a = qstr(\"Anna\")"));
+        checkFullTextFunctionsOnlyAllowedInWhere("QSTR", "qstr(\"Anna\")");
+    }
+
+    public void testMatchFunctionOnlyAllowedInWhere() throws Exception {
+        checkFullTextFunctionsOnlyAllowedInWhere("MATCH", "match(first_name, \"Anna\")");
+    }
+
+    private void checkFullTextFunctionsOnlyAllowedInWhere(String functionName, String functionInvocation) throws Exception {
+        assertEquals(
+            "1:22: [" + functionName + "] function is only supported in WHERE commands",
+            error("from test | eval y = " + functionInvocation)
+        );
+        assertEquals(
+            "1:18: [" + functionName + "] function is only supported in WHERE commands",
+            error("from test | sort " + functionInvocation + " asc")
+        );
+        assertEquals(
+            "1:23: [" + functionName + "] function is only supported in WHERE commands",
+            error("from test | STATS c = " + functionInvocation + " BY first_name")
+        );
+    }
+
+    public void testQueryStringFunctionArgNotNullOrConstant() throws Exception {
+        assertEquals(
+            "1:19: argument of [qstr(first_name)] must be a constant, received [first_name]",
+            error("from test | where qstr(first_name)")
+        );
+        assertEquals("1:19: argument of [qstr(null)] cannot be null, received [null]", error("from test | where qstr(null)"));
+        // Other value types are tested in QueryStringFunctionTests
+    }
+
+    public void testQueryStringWithDisjunctions() {
+        checkWithDisjunctions("QSTR", "qstr(\"first_name: Anna\")");
+    }
+
+    public void testMatchWithDisjunctions() {
+        checkWithDisjunctions("MATCH", "match(first_name, \"Anna\")");
+    }
+
+    private void checkWithDisjunctions(String functionName, String functionInvocation) {
+        assertEquals(
+            LoggerMessageFormat.format(
+                null,
+                "1:19: Invalid condition [{} or length(first_name) > 12]. " + "Function {} can't be used as part of an or condition",
+                functionInvocation,
+                functionName
+            ),
+            error("from test | where " + functionInvocation + " or length(first_name) > 12")
+        );
+        assertEquals(
+            LoggerMessageFormat.format(
+                null,
+                "1:19: Invalid condition [({} and first_name is not null) or (length(first_name) > 12 and first_name is null)]. "
+                    + "Function {} can't be used as part of an or condition",
+                functionInvocation,
+                functionName
+            ),
+            error(
+                "from test | where ("
+                    + functionInvocation
+                    + " and first_name is not null) or (length(first_name) > 12 and first_name is null)"
+            )
+        );
+        assertEquals(
+            LoggerMessageFormat.format(
+                null,
+                "1:19: Invalid condition [({} and first_name is not null) or first_name is null]. "
+                    + "Function {} can't be used as part of an or condition",
+                functionInvocation,
+                functionName
+            ),
+            error("from test | where (" + functionInvocation + " and first_name is not null) or first_name is null")
+        );
+    }
+
+    public void testQueryStringFunctionWithNonBooleanFunctions() {
+        checkFullTextFunctionsWithNonBooleanFunctions("QSTR", "qstr(\"first_name: Anna\")");
+    }
+
+    public void testMatchFunctionWithNonBooleanFunctions() {
+        checkFullTextFunctionsWithNonBooleanFunctions("MATCH", "match(first_name, \"Anna\")");
+    }
+
+    private void checkFullTextFunctionsWithNonBooleanFunctions(String functionName, String functionInvocation) {
+        assertEquals(
+            "1:19: Invalid condition [" + functionInvocation + " is not null]. Function " + functionName + " can't be used with ISNOTNULL",
+            error("from test | where " + functionInvocation + " is not null")
+        );
+        assertEquals(
+            "1:19: Invalid condition [" + functionInvocation + " is null]. Function " + functionName + " can't be used with ISNULL",
+            error("from test | where " + functionInvocation + " is null")
+        );
+        assertEquals(
+            "1:19: Invalid condition ["
+                + functionInvocation
+                + " in (\"hello\", \"world\")]. Function "
+                + functionName
+                + " can't be used with IN",
+            error("from test | where " + functionInvocation + " in (\"hello\", \"world\")")
+        );
+    }
+
+    public void testMatchFunctionArgNotConstant() throws Exception {
+        assertEquals(
+            "1:19: second argument of [match(first_name, first_name)] must be a constant, received [first_name]",
+            error("from test | where match(first_name, first_name)")
+        );
+        assertEquals(
+            "1:59: second argument of [match(first_name, query)] must be a constant, received [query]",
+            error("from test | eval query = concat(\"first\", \" name\") | where match(first_name, query)")
+        );
+        // Other value types are tested in QueryStringFunctionTests
+    }
+
+    // These should pass eventually once we lift some restrictions on match function
+    public void testMatchFunctionCurrentlyUnsupportedBehaviour() throws Exception {
+        assertEquals(
+            "1:68: Unknown column [first_name]",
+            error("from test | stats max_salary = max(salary) by emp_no | where match(first_name, \"Anna\")")
+        );
+    }
+
+    public void testMatchFunctionNullArgs() throws Exception {
+        assertEquals(
+            "1:19: first argument of [match(null, \"query\")] cannot be null, received [null]",
+            error("from test | where match(null, \"query\")")
+        );
+        assertEquals(
+            "1:19: second argument of [match(first_name, null)] cannot be null, received [null]",
+            error("from test | where match(first_name, null)")
+        );
+    }
+
+    public void testMatchFunctionTargetsExistingField() throws Exception {
+        assertEquals("1:39: Unknown column [first_name]", error("from test | keep emp_no | where match(first_name, \"Anna\")"));
+    }
+
+    public void testCoalesceWithMixedNumericTypes() {
+        assertEquals(
+            "1:22: second argument of [coalesce(languages, height)] must be [integer], found value [height] type [double]",
+            error("from test | eval x = coalesce(languages, height)")
+        );
+        assertEquals(
+            "1:22: second argument of [coalesce(languages.long, height)] must be [long], found value [height] type [double]",
+            error("from test | eval x = coalesce(languages.long, height)")
+        );
+        assertEquals(
+            "1:22: second argument of [coalesce(salary, languages.long)] must be [integer], found value [languages.long] type [long]",
+            error("from test | eval x = coalesce(salary, languages.long)")
+        );
+        assertEquals(
+            "1:22: second argument of [coalesce(languages.short, height)] must be [integer], found value [height] type [double]",
+            error("from test | eval x = coalesce(languages.short, height)")
+        );
+        assertEquals(
+            "1:22: second argument of [coalesce(languages.byte, height)] must be [integer], found value [height] type [double]",
+            error("from test | eval x = coalesce(languages.byte, height)")
+        );
+        assertEquals(
+            "1:22: second argument of [coalesce(languages, height.float)] must be [integer], found value [height.float] type [double]",
+            error("from test | eval x = coalesce(languages, height.float)")
+        );
+        assertEquals(
+            "1:22: second argument of [coalesce(languages, height.scaled_float)] must be [integer], "
+                + "found value [height.scaled_float] type [double]",
+            error("from test | eval x = coalesce(languages, height.scaled_float)")
+        );
+        assertEquals(
+            "1:22: second argument of [coalesce(languages, height.half_float)] must be [integer], "
+                + "found value [height.half_float] type [double]",
+            error("from test | eval x = coalesce(languages, height.half_float)")
+        );
+
+        assertEquals(
+            "1:22: third argument of [coalesce(null, languages, height)] must be [integer], found value [height] type [double]",
+            error("from test | eval x = coalesce(null, languages, height)")
+        );
+        assertEquals(
+            "1:22: third argument of [coalesce(null, languages.long, height)] must be [long], found value [height] type [double]",
+            error("from test | eval x = coalesce(null, languages.long, height)")
+        );
+        assertEquals(
+            "1:22: third argument of [coalesce(null, salary, languages.long)] must be [integer], "
+                + "found value [languages.long] type [long]",
+            error("from test | eval x = coalesce(null, salary, languages.long)")
+        );
+        assertEquals(
+            "1:22: third argument of [coalesce(null, languages.short, height)] must be [integer], found value [height] type [double]",
+            error("from test | eval x = coalesce(null, languages.short, height)")
+        );
+        assertEquals(
+            "1:22: third argument of [coalesce(null, languages.byte, height)] must be [integer], found value [height] type [double]",
+            error("from test | eval x = coalesce(null, languages.byte, height)")
+        );
+        assertEquals(
+            "1:22: third argument of [coalesce(null, languages, height.float)] must be [integer], "
+                + "found value [height.float] type [double]",
+            error("from test | eval x = coalesce(null, languages, height.float)")
+        );
+        assertEquals(
+            "1:22: third argument of [coalesce(null, languages, height.scaled_float)] must be [integer], "
+                + "found value [height.scaled_float] type [double]",
+            error("from test | eval x = coalesce(null, languages, height.scaled_float)")
+        );
+        assertEquals(
+            "1:22: third argument of [coalesce(null, languages, height.half_float)] must be [integer], "
+                + "found value [height.half_float] type [double]",
+            error("from test | eval x = coalesce(null, languages, height.half_float)")
+        );
+
+        // counter
+        assertEquals(
+            "1:23: second argument of [coalesce(network.bytes_in, 0)] must be [counter_long], found value [0] type [integer]",
+            error("FROM tests | eval x = coalesce(network.bytes_in, 0)", tsdb)
+        );
+
+        assertEquals(
+            "1:23: second argument of [coalesce(network.bytes_in, to_long(0))] must be [counter_long], "
+                + "found value [to_long(0)] type [long]",
+            error("FROM tests | eval x = coalesce(network.bytes_in, to_long(0))", tsdb)
+        );
+        assertEquals(
+            "1:23: second argument of [coalesce(network.bytes_in, 0.0)] must be [counter_long], found value [0.0] type [double]",
+            error("FROM tests | eval x = coalesce(network.bytes_in, 0.0)", tsdb)
+        );
+
+        assertEquals(
+            "1:23: third argument of [coalesce(null, network.bytes_in, 0)] must be [counter_long], found value [0] type [integer]",
+            error("FROM tests | eval x = coalesce(null, network.bytes_in, 0)", tsdb)
+        );
+
+        assertEquals(
+            "1:23: third argument of [coalesce(null, network.bytes_in, to_long(0))] must be [counter_long], "
+                + "found value [to_long(0)] type [long]",
+            error("FROM tests | eval x = coalesce(null, network.bytes_in, to_long(0))", tsdb)
+        );
+        assertEquals(
+            "1:23: third argument of [coalesce(null, network.bytes_in, 0.0)] must be [counter_long], found value [0.0] type [double]",
+            error("FROM tests | eval x = coalesce(null, network.bytes_in, 0.0)", tsdb)
+        );
+    }
+
+    public void testToDatePeriodTimeDurationInInvalidPosition() {
+        // arithmetic operations in eval
+        assertEquals(
+            "1:39: EVAL does not support type [date_period] as the return data type of expression [3 months + 5 days]",
+            error("row x = \"2024-01-01\"::datetime | eval y = 3 months + 5 days")
+        );
+
+        assertEquals(
+            "1:39: EVAL does not support type [date_period] as the return data type of expression "
+                + "[\"3 months\"::date_period + \"5 days\"::date_period]",
+            error("row x = \"2024-01-01\"::datetime | eval y = \"3 months\"::date_period + \"5 days\"::date_period")
+        );
+
+        assertEquals(
+            "1:39: EVAL does not support type [time_duration] as the return data type of expression [3 hours + 5 minutes]",
+            error("row x = \"2024-01-01\"::datetime | eval y = 3 hours + 5 minutes")
+        );
+
+        assertEquals(
+            "1:39: EVAL does not support type [time_duration] as the return data type of expression "
+                + "[\"3 hours\"::time_duration + \"5 minutes\"::time_duration]",
+            error("row x = \"2024-01-01\"::datetime | eval y = \"3 hours\"::time_duration + \"5 minutes\"::time_duration")
+        );
+
+        // where
+        assertEquals(
+            "1:26: first argument of [\"3 days\"::date_period == to_dateperiod(\"3 days\")] must be "
+                + "[boolean, cartesian_point, cartesian_shape, date_nanos, datetime, double, geo_point, geo_shape, integer, ip, keyword, "
+                + "long, text, unsigned_long or version], found value [\"3 days\"::date_period] type [date_period]",
+            error("row x = \"3 days\" | where \"3 days\"::date_period == to_dateperiod(\"3 days\")")
+        );
+
+        assertEquals(
+            "1:26: first argument of [\"3 hours\"::time_duration <= to_timeduration(\"3 hours\")] must be "
+                + "[date_nanos, datetime, double, integer, ip, keyword, long, text, unsigned_long or version], "
+                + "found value [\"3 hours\"::time_duration] type [time_duration]",
+            error("row x = \"3 days\" | where \"3 hours\"::time_duration <= to_timeduration(\"3 hours\")")
+        );
+
+        assertEquals(
+            "1:19: second argument of [first_name <= to_timeduration(\"3 hours\")] must be "
+                + "[date_nanos, datetime, double, integer, ip, keyword, long, text, unsigned_long or version], "
+                + "found value [to_timeduration(\"3 hours\")] type [time_duration]",
+            error("from test | where first_name <= to_timeduration(\"3 hours\")")
+        );
+
+        assertEquals(
+            "1:19: 1st argument of [first_name IN ( to_timeduration(\"3 hours\"), \"3 days\"::date_period)] must be [keyword], "
+                + "found value [to_timeduration(\"3 hours\")] type [time_duration]",
+            error("from test | where first_name IN ( to_timeduration(\"3 hours\"), \"3 days\"::date_period)")
+        );
+    }
+
+    public void testToDatePeriodToTimeDurationWithInvalidType() {
+        assertEquals(
+            "1:36: argument of [1.5::date_period] must be [date_period or string], found value [1.5] type [double]",
+            error("from types | EVAL x = birth_date + 1.5::date_period")
+        );
+        assertEquals(
+            "1:37: argument of [to_timeduration(1)] must be [time_duration or string], found value [1] type [integer]",
+            error("from types  | EVAL x = birth_date - to_timeduration(1)")
+        );
+        assertEquals(
+            "1:45: argument of [x::date_period] must be [date_period or string], found value [x] type [double]",
+            error("from types | EVAL x = 1.5, y = birth_date + x::date_period")
+        );
+        assertEquals(
+            "1:44: argument of [to_timeduration(x)] must be [time_duration or string], found value [x] type [integer]",
+            error("from types  | EVAL x = 1, y = birth_date - to_timeduration(x)")
+        );
+        assertEquals(
+            "1:64: argument of [x::date_period] must be [date_period or string], found value [x] type [datetime]",
+            error("from types | EVAL x = \"2024-09-08\"::datetime, y = birth_date + x::date_period")
+        );
+        assertEquals(
+            "1:65: argument of [to_timeduration(x)] must be [time_duration or string], found value [x] type [datetime]",
+            error("from types  | EVAL x = \"2024-09-08\"::datetime, y = birth_date - to_timeduration(x)")
+        );
+        assertEquals(
+            "1:58: argument of [x::date_period] must be [date_period or string], found value [x] type [ip]",
+            error("from types | EVAL x = \"2024-09-08\"::ip, y = birth_date + x::date_period")
+        );
+        assertEquals(
+            "1:59: argument of [to_timeduration(x)] must be [time_duration or string], found value [x] type [ip]",
+            error("from types  | EVAL x = \"2024-09-08\"::ip, y = birth_date - to_timeduration(x)")
+        );
+    }
+
+    private void query(String query) {
+        defaultAnalyzer.analyze(parser.createStatement(query));
     }
 
     private String error(String query) {
@@ -364,24 +1554,29 @@ public class VerifierTests extends ESTestCase {
     }
 
     private String error(String query, Analyzer analyzer, Object... params) {
-        List<TypedParamValue> parameters = new ArrayList<>();
+        return error(query, analyzer, VerificationException.class, params);
+    }
+
+    private String error(String query, Analyzer analyzer, Class<? extends Exception> exception, Object... params) {
+        List<QueryParam> parameters = new ArrayList<>();
         for (Object param : params) {
             if (param == null) {
-                parameters.add(new TypedParamValue("null", null));
+                parameters.add(paramAsConstant(null, null));
             } else if (param instanceof String) {
-                parameters.add(new TypedParamValue("keyword", param));
+                parameters.add(paramAsConstant(null, param));
             } else if (param instanceof Number) {
-                parameters.add(new TypedParamValue("param", param));
+                parameters.add(paramAsConstant(null, param));
             } else {
                 throw new IllegalArgumentException("VerifierTests don't support params of type " + param.getClass());
             }
         }
-        VerificationException e = expectThrows(
-            VerificationException.class,
-            () -> analyzer.analyze(parser.createStatement(query, parameters))
-        );
+        Throwable e = expectThrows(exception, () -> analyzer.analyze(parser.createStatement(query, new QueryParams(parameters))));
+        assertThat(e, instanceOf(exception));
+
         String message = e.getMessage();
-        assertTrue(message.startsWith("Found "));
+        if (e instanceof VerificationException) {
+            assertTrue(message.startsWith("Found "));
+        }
         String pattern = "\nline ";
         int index = message.indexOf(pattern);
         return message.substring(index + pattern.length());

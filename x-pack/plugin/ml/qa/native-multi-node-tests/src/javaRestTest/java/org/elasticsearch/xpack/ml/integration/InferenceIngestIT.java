@@ -33,7 +33,6 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
@@ -284,6 +283,7 @@ public class InferenceIngestIT extends ESRestTestCase {
         assertThat(stats.toString(), (Integer) XContentMapValues.extractValue("inference_stats.cache_miss_count", stats), greaterThan(0));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/105955")
     public void testSimulate() throws IOException {
         String classificationModelId = "test_classification_simulate";
         putModel(classificationModelId, CLASSIFICATION_CONFIG);
@@ -388,6 +388,7 @@ public class InferenceIngestIT extends ESRestTestCase {
         assertThat(responseString, containsString("Could not find trained model [test_classification_missing]"));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/105955")
     public void testSimulateWithDefaultMappedField() throws IOException {
         String classificationModelId = "test_classification_default_mapped_field";
         putModel(classificationModelId, CLASSIFICATION_CONFIG);
@@ -539,15 +540,17 @@ public class InferenceIngestIT extends ESRestTestCase {
         return request;
     }
 
-    private Map<String, Object> generateSourceDoc() {
-        return new HashMap<>() {
-            {
-                put("col1", randomFrom("female", "male"));
-                put("col2", randomFrom("S", "M", "L", "XL"));
-                put("col3", randomFrom("true", "false", "none", "other"));
-                put("col4", randomIntBetween(0, 10));
-            }
-        };
+    private static Map<String, Object> generateSourceDoc() {
+        return Map.of(
+            "col1",
+            randomFrom("female", "male"),
+            "col2",
+            randomFrom("S", "M", "L", "XL"),
+            "col3",
+            randomFrom("true", "false", "none", "other"),
+            "col4",
+            randomIntBetween(0, 10)
+        );
     }
 
     private static final String REGRESSION_DEFINITION = """

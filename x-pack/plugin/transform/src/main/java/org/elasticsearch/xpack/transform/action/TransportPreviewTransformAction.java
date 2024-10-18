@@ -21,7 +21,6 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -29,6 +28,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.ingest.IngestService;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.RemoteClusterLicenseChecker;
 import org.elasticsearch.tasks.Task;
@@ -52,6 +52,7 @@ import org.elasticsearch.xpack.core.transform.transforms.SourceConfig;
 import org.elasticsearch.xpack.core.transform.transforms.SyncConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformDestIndexSettings;
+import org.elasticsearch.xpack.core.transform.transforms.TransformEffectiveSettings;
 import org.elasticsearch.xpack.transform.TransformExtensionHolder;
 import org.elasticsearch.xpack.transform.persistence.TransformIndex;
 import org.elasticsearch.xpack.transform.transforms.Function;
@@ -147,7 +148,7 @@ public class TransportPreviewTransformAction extends HandledTransportAction<Requ
         ActionListener<Boolean> validateConfigListener = ActionListener.wrap(
             validateConfigResponse -> getPreview(
                 parentTaskId,
-                request.timeout(),
+                request.ackTimeout(),
                 config.getId(), // note: @link{PreviewTransformAction} sets an id, so this is never null
                 function,
                 config.getSource(),
@@ -289,7 +290,7 @@ public class TransportPreviewTransformAction extends HandledTransportAction<Requ
         }, listener::onFailure);
 
         ActionListener<Map<String, String>> deduceMappingsListener = ActionListener.wrap(deducedMappings -> {
-            if (Boolean.FALSE.equals(settingsConfig.getDeduceMappings())) {
+            if (TransformEffectiveSettings.isDeduceMappingsDisabled(settingsConfig)) {
                 mappings.set(emptyMap());
             } else {
                 mappings.set(deducedMappings);

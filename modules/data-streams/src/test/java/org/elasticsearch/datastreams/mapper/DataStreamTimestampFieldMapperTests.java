@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.datastreams.mapper;
 
@@ -177,11 +178,29 @@ public class DataStreamTimestampFieldMapperTests extends MetadataMapperTestCase 
                     b.startObject("@timestamp");
                     b.field("type", "date");
                     b.endObject();
+                    b.startObject("summary");
+                    {
+                        b.startObject("properties");
+                        {
+                            b.startObject("@timestamp");
+                            b.field("type", "date");
+                            b.endObject();
+                        }
+                        b.endObject();
+                    }
+                    b.endObject();
                 })
             );
             assertThat(mapperService, notNullValue());
             assertThat(mapperService.documentMapper().mappers().getMapper("@timestamp"), notNullValue());
             assertThat(((DateFieldMapper) mapperService.documentMapper().mappers().getMapper("@timestamp")).ignoreMalformed(), is(false));
+            DateFieldMapper summaryTimestamp = (DateFieldMapper) (mapperService.documentMapper()
+                .mappers()
+                .objectMappers()
+                .get("summary")
+                .getMapper("@timestamp"));
+            assertThat(summaryTimestamp, notNullValue());
+            assertThat(summaryTimestamp.ignoreMalformed(), is(true));
         }
         {
             MapperService mapperService = createMapperService(
@@ -193,11 +212,22 @@ public class DataStreamTimestampFieldMapperTests extends MetadataMapperTestCase 
                     b.field("type", "date");
                     b.field("ignore_malformed", false);
                     b.endObject();
+                    b.startObject("summary.@timestamp");
+                    b.field("type", "date");
+                    b.field("ignore_malformed", false);
+                    b.endObject();
                 })
             );
             assertThat(mapperService, notNullValue());
             assertThat(mapperService.documentMapper().mappers().getMapper("@timestamp"), notNullValue());
             assertThat(((DateFieldMapper) mapperService.documentMapper().mappers().getMapper("@timestamp")).ignoreMalformed(), is(false));
+            DateFieldMapper summaryTimestamp = (DateFieldMapper) (mapperService.documentMapper()
+                .mappers()
+                .objectMappers()
+                .get("summary")
+                .getMapper("@timestamp"));
+            assertThat(summaryTimestamp, notNullValue());
+            assertThat(summaryTimestamp.ignoreMalformed(), is(false));
         }
     }
 }

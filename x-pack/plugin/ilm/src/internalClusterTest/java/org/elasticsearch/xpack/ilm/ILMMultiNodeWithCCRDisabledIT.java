@@ -70,13 +70,13 @@ public class ILMMultiNodeWithCCRDisabledIT extends ESIntegTestCase {
         ensureGreen();
         Map<String, LifecycleAction> actions = new HashMap<>();
         RolloverAction rolloverAction = new RolloverAction(null, null, null, 1L, null, null, null, null, null, null);
-        ShrinkAction shrinkAction = new ShrinkAction(1, null);
+        ShrinkAction shrinkAction = new ShrinkAction(1, null, false);
         actions.put(rolloverAction.getWriteableName(), rolloverAction);
         actions.put(shrinkAction.getWriteableName(), shrinkAction);
         Phase hotPhase = new Phase("hot", TimeValue.ZERO, actions);
 
         LifecyclePolicy lifecyclePolicy = new LifecyclePolicy("shrink-policy", Collections.singletonMap(hotPhase.getName(), hotPhase));
-        client().execute(ILMActions.PUT, new PutLifecycleRequest(lifecyclePolicy)).get();
+        client().execute(ILMActions.PUT, new PutLifecycleRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, lifecyclePolicy)).get();
 
         Template t = new Template(
             Settings.builder()

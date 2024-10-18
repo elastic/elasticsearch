@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.gateway;
@@ -14,7 +15,6 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.coordination.CoordinationMetadata;
@@ -35,6 +35,7 @@ import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.core.UpdateForV9;
+import org.elasticsearch.env.BuildVersion;
 import org.elasticsearch.env.NodeMetadata;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.node.Node;
@@ -185,7 +186,7 @@ public class GatewayMetaState implements Closeable {
         long currentTerm = onDiskState.currentTerm;
 
         if (onDiskState.empty()) {
-            @UpdateForV9 // legacy metadata loader is not needed anymore from v9 onwards
+            @UpdateForV9(owner = UpdateForV9.Owner.DISTRIBUTED_COORDINATION) // legacy metadata loader is not needed anymore from v9 onwards
             final Tuple<Manifest, Metadata> legacyState = metaStateService.loadFullState();
             if (legacyState.v1().isEmpty() == false) {
                 metadata = legacyState.v2();
@@ -222,7 +223,11 @@ public class GatewayMetaState implements Closeable {
             }
             // write legacy node metadata to prevent accidental downgrades from spawning empty cluster state
             NodeMetadata.FORMAT.writeAndCleanup(
-                new NodeMetadata(persistedClusterStateService.getNodeId(), Version.CURRENT, clusterState.metadata().oldestIndexVersion()),
+                new NodeMetadata(
+                    persistedClusterStateService.getNodeId(),
+                    BuildVersion.current(),
+                    clusterState.metadata().oldestIndexVersion()
+                ),
                 persistedClusterStateService.getDataPaths()
             );
             success = true;
@@ -260,7 +265,11 @@ public class GatewayMetaState implements Closeable {
             metaStateService.deleteAll();
             // write legacy node metadata to prevent downgrades from spawning empty cluster state
             NodeMetadata.FORMAT.writeAndCleanup(
-                new NodeMetadata(persistedClusterStateService.getNodeId(), Version.CURRENT, clusterState.metadata().oldestIndexVersion()),
+                new NodeMetadata(
+                    persistedClusterStateService.getNodeId(),
+                    BuildVersion.current(),
+                    clusterState.metadata().oldestIndexVersion()
+                ),
                 persistedClusterStateService.getDataPaths()
             );
         }

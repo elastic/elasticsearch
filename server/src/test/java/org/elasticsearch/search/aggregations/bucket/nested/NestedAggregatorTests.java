@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.bucket.nested;
@@ -766,8 +767,8 @@ public class NestedAggregatorTests extends AggregatorTestCase {
                 assertNotNull(terms);
 
                 for (LongTerms.Bucket bucket : terms.getBuckets()) {
-                    Max max = (Max) bucket.getAggregations().asMap().get(MAX_AGG_NAME);
-                    InternalSimpleValue bucketScript = (InternalSimpleValue) bucket.getAggregations().asMap().get("bucketscript");
+                    Max max = (Max) bucket.getAggregations().get(MAX_AGG_NAME);
+                    InternalSimpleValue bucketScript = (InternalSimpleValue) bucket.getAggregations().get("bucketscript");
                     assertNotNull(max);
                     assertNotNull(bucketScript);
                     assertEquals(max.value(), -bucketScript.getValue(), Double.MIN_VALUE);
@@ -912,6 +913,7 @@ public class NestedAggregatorTests extends AggregatorTestCase {
     );
 
     public static NestedObjectMapper nestedObject(String path) {
-        return new NestedObjectMapper.Builder(path, IndexVersion.current()).build(MapperBuilderContext.root(false, false));
+        return new NestedObjectMapper.Builder(path, IndexVersion.current(), query -> { throw new UnsupportedOperationException(); }, null)
+            .build(MapperBuilderContext.root(false, false));
     }
 }

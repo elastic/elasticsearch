@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.cluster.coordination;
 
@@ -11,7 +12,6 @@ import org.apache.logging.log4j.Level;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionTestUtils;
-import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.NotMasterException;
@@ -40,7 +40,7 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -799,15 +799,14 @@ public class NodeJoinExecutorTests extends ESTestCase {
             .nodes(DiscoveryNodes.builder().add(masterNode).localNodeId(masterNode.getId()).masterNodeId(masterNode.getId()))
             .build();
 
-        final MockLogAppender appender = new MockLogAppender();
         final ThreadPool threadPool = new TestThreadPool("test");
         try (
-            var ignored = appender.capturing(NodeJoinExecutor.class);
+            var mockLog = MockLog.capture(NodeJoinExecutor.class);
             var clusterService = ClusterServiceUtils.createClusterService(clusterState, threadPool)
         ) {
             final var node1 = DiscoveryNodeUtils.create(UUIDs.base64UUID());
-            appender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
                     "info message",
                     LOGGER_NAME,
                     Level.INFO,
@@ -815,24 +814,22 @@ public class NodeJoinExecutorTests extends ESTestCase {
                 )
             );
             assertNull(
-                PlainActionFuture.<Void, RuntimeException>get(
-                    future -> clusterService.getMasterService()
+                safeAwait(
+                    (ActionListener<Void> listener) -> clusterService.getMasterService()
                         .createTaskQueue("test", Priority.NORMAL, executor)
                         .submitTask(
                             "test",
-                            JoinTask.singleNode(node1, CompatibilityVersionsUtils.staticCurrent(), Set.of(), TEST_REASON, future, 0L),
+                            JoinTask.singleNode(node1, CompatibilityVersionsUtils.staticCurrent(), Set.of(), TEST_REASON, listener, 0L),
                             null
-                        ),
-                    10,
-                    TimeUnit.SECONDS
+                        )
                 )
             );
-            appender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
 
             final var node2 = DiscoveryNodeUtils.create(UUIDs.base64UUID());
             final var testReasonWithLink = new JoinReason("test", ReferenceDocs.UNSTABLE_CLUSTER_TROUBLESHOOTING);
-            appender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
                     "warn message with troubleshooting link",
                     LOGGER_NAME,
                     Level.WARN,
@@ -844,8 +841,8 @@ public class NodeJoinExecutorTests extends ESTestCase {
                 )
             );
             assertNull(
-                PlainActionFuture.<Void, RuntimeException>get(
-                    future -> clusterService.getMasterService()
+                safeAwait(
+                    (ActionListener<Void> listener) -> clusterService.getMasterService()
                         .createTaskQueue("test", Priority.NORMAL, executor)
                         .submitTask(
                             "test",
@@ -854,16 +851,14 @@ public class NodeJoinExecutorTests extends ESTestCase {
                                 CompatibilityVersionsUtils.staticCurrent(),
                                 Set.of(),
                                 testReasonWithLink,
-                                future,
+                                listener,
                                 0L
                             ),
                             null
-                        ),
-                    10,
-                    TimeUnit.SECONDS
+                        )
                 )
             );
-            appender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
         } finally {
             TestThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS);
         }

@@ -1,9 +1,9 @@
 ---
 setup:
-  - skip:
-      version: " - 8.11.99"
+  - requires:
+      cluster_features: ["gte_v8.12.0"]
       reason: "more field loading added in 8.12+"
-      features: allowed_warnings_regex
+      test_runner_features: allowed_warnings_regex
 
 ---
 constant_keyword:
@@ -49,7 +49,6 @@ constant_keyword:
       esql.query:
         body:
           query: 'from test | eval l=length(kind) | keep l'
-
   - match: {columns.0.name: l}
   - match: {columns.0.type: integer}
   - length: {values: 1}
@@ -436,7 +435,6 @@ ip:
       esql.query:
         body:
           query: 'from test | where keyword == "127.0.0.2" | rename ip as IP | drop keyword'
-
   - match: {columns.0.name: IP }
   - match: {columns.0.type: ip }
   - length: {values: 1 }
@@ -621,8 +619,8 @@ version:
 
 ---
 id:
-  - skip:
-      version: " - 8.12.99"
+  - requires:
+      cluster_features: ["gte_v8.13.0"]
       reason: "_source is available in 8.13+"
   - do:
       indices.create:
@@ -685,8 +683,8 @@ unsigned_long:
 
 ---
 _source:
-  - skip:
-      version: " - 8.12.99"
+  - requires:
+      cluster_features: ["gte_v8.13.0"]
       reason: "_source is available in 8.13+"
 
   - do:
@@ -713,8 +711,8 @@ _source:
 
 ---
 _source keep all:
-  - skip:
-      version: " - 8.12.99"
+  - requires:
+      cluster_features: ["gte_v8.13.0"]
       reason: "_source is available in 8.13+"
 
   - do:
@@ -748,8 +746,8 @@ _source keep all:
 
 ---
 _source disabled:
-  - skip:
-      version: " - 8.12.99"
+  - requires:
+      cluster_features: ["gte_v8.13.0"]
       reason: "_source is available in 8.13+"
 
   - do:
@@ -871,8 +869,8 @@ synthetic _source text with parent keyword:
 
 ---
 geo_point:
-  - skip:
-      version: " - 8.12.99"
+  - requires:
+      cluster_features: ["gte_v8.13.0"]
       reason: "geo_point precision changed in 8.13.0"
   - do:
       indices.create:
@@ -904,8 +902,8 @@ geo_point:
 
 ---
 cartesian_point:
-  - skip:
-      version: " - 8.12.99"
+  - requires:
+      cluster_features: ["gte_v8.13.0"]
       reason: "cartesian_point precision changed in 8.13.0"
   - do:
       indices.create:

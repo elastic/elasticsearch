@@ -223,7 +223,7 @@ public class DatafeedConfigProvider {
             client.threadPool().getThreadContext(),
             ML_ORIGIN,
             searchRequest,
-            ActionListener.<SearchResponse>wrap(response -> {
+            listener.<SearchResponse>delegateFailureAndWrap((delegate, response) -> {
                 Set<String> datafeedIds = new HashSet<>();
                 // There cannot be more than one datafeed per job
                 assert response.getHits().getTotalHits().value <= jobIds.size();
@@ -233,8 +233,8 @@ public class DatafeedConfigProvider {
                     datafeedIds.add(hit.field(DatafeedConfig.ID.getPreferredName()).getValue());
                 }
 
-                listener.onResponse(datafeedIds);
-            }, listener::onFailure),
+                delegate.onResponse(datafeedIds);
+            }),
             client::search
         );
     }
@@ -256,7 +256,7 @@ public class DatafeedConfigProvider {
             client.threadPool().getThreadContext(),
             ML_ORIGIN,
             searchRequest,
-            ActionListener.<SearchResponse>wrap(response -> {
+            listener.<SearchResponse>delegateFailureAndWrap((delegate, response) -> {
                 Map<String, DatafeedConfig.Builder> datafeedsByJobId = new HashMap<>();
                 // There cannot be more than one datafeed per job
                 assert response.getHits().getTotalHits().value <= jobIds.size();
@@ -265,8 +265,8 @@ public class DatafeedConfigProvider {
                     DatafeedConfig.Builder builder = parseLenientlyFromSource(hit.getSourceRef());
                     datafeedsByJobId.put(builder.getJobId(), builder);
                 }
-                listener.onResponse(datafeedsByJobId);
-            }, listener::onFailure),
+                delegate.onResponse(datafeedsByJobId);
+            }),
             client::search
         );
     }
@@ -351,14 +351,20 @@ public class DatafeedConfigProvider {
                         return;
                     }
 
-                    ActionListener<Boolean> validatedListener = ActionListener.wrap(
-                        ok -> indexUpdatedConfig(updatedConfig, seqNo, primaryTerm, ActionListener.wrap(indexResponse -> {
-                            assert indexResponse.getResult() == DocWriteResponse.Result.UPDATED;
-                            delegate.onResponse(updatedConfig);
-                        }, delegate::onFailure)),
-                        delegate::onFailure
+                    validator.accept(
+                        updatedConfig,
+                        delegate.delegateFailureAndWrap(
+                            (l, ok) -> indexUpdatedConfig(
+                                updatedConfig,
+                                seqNo,
+                                primaryTerm,
+                                l.delegateFailureAndWrap((ll, indexResponse) -> {
+                                    assert indexResponse.getResult() == DocWriteResponse.Result.UPDATED;
+                                    ll.onResponse(updatedConfig);
+                                })
+                            )
+                        )
                     );
-                    validator.accept(updatedConfig, validatedListener);
                 }
             }
         );
@@ -440,7 +446,7 @@ public class DatafeedConfigProvider {
             client.threadPool().getThreadContext(),
             ML_ORIGIN,
             searchRequest,
-            ActionListener.<SearchResponse>wrap(response -> {
+            listener.<SearchResponse>delegateFailureAndWrap((delegate, response) -> {
                 SortedSet<String> datafeedIds = new TreeSet<>();
                 SearchHit[] hits = response.getHits().getHits();
                 for (SearchHit hit : hits) {
@@ -453,12 +459,12 @@ public class DatafeedConfigProvider {
                 requiredMatches.filterMatchedIds(datafeedIds);
                 if (requiredMatches.hasUnmatchedIds()) {
                     // some required datafeeds were not found
-                    listener.onFailure(ExceptionsHelper.missingDatafeedException(requiredMatches.unmatchedIdsString()));
+                    delegate.onFailure(ExceptionsHelper.missingDatafeedException(requiredMatches.unmatchedIdsString()));
                     return;
                 }
 
-                listener.onResponse(datafeedIds);
-            }, listener::onFailure),
+                delegate.onResponse(datafeedIds);
+            }),
             client::search
         );
 
@@ -502,7 +508,7 @@ public class DatafeedConfigProvider {
             client.threadPool().getThreadContext(),
             ML_ORIGIN,
             searchRequest,
-            ActionListener.<SearchResponse>wrap(response -> {
+            listener.<SearchResponse>delegateFailureAndWrap((delegate, response) -> {
                 List<DatafeedConfig.Builder> datafeeds = new ArrayList<>();
                 Set<String> datafeedIds = new HashSet<>();
                 SearchHit[] hits = response.getHits().getHits();
@@ -521,12 +527,12 @@ public class DatafeedConfigProvider {
                 requiredMatches.filterMatchedIds(datafeedIds);
                 if (requiredMatches.hasUnmatchedIds()) {
                     // some required datafeeds were not found
-                    listener.onFailure(ExceptionsHelper.missingDatafeedException(requiredMatches.unmatchedIdsString()));
+                    delegate.onFailure(ExceptionsHelper.missingDatafeedException(requiredMatches.unmatchedIdsString()));
                     return;
                 }
 
-                listener.onResponse(datafeeds);
-            }, listener::onFailure),
+                delegate.onResponse(datafeeds);
+            }),
             client::search
         );
 

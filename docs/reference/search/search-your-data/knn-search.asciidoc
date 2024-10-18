@@ -242,6 +242,27 @@ POST byte-image-index/_search
 // TEST[s/"k": 10/"k": 3/]
 // TEST[s/"num_candidates": 100/"num_candidates": 3/]
 
+
+_Note_: In addition to the standard byte array, one can also provide a hex-encoded string value
+for the `query_vector` param. As an example, the search request above can also be expressed as follows,
+which would yield the same results
+[source,console]
+----
+POST byte-image-index/_search
+{
+  "knn": {
+    "field": "byte-image-vector",
+    "query_vector": "fb09",
+    "k": 10,
+    "num_candidates": 100
+  },
+  "fields": [ "title" ]
+}
+----
+// TEST[continued]
+// TEST[s/"k": 10/"k": 3/]
+// TEST[s/"num_candidates": 100/"num_candidates": 3/]
+
 [discrete]
 [[knn-search-quantized-example]]
 ==== Byte quantized kNN search
@@ -251,7 +272,9 @@ If you want to provide `float` vectors, but want the memory savings of `byte` ve
 internally they are indexed as `byte` vectors. Additionally, the original `float` vectors are still retained
 in the index.
 
-To use quantization, you can use the index type `int8_hnsw` object in the `dense_vector` mapping.
+NOTE: The default index type for `dense_vector` is `int8_hnsw`.
+
+To use quantization, you can use the index type `int8_hnsw` or `int4_hnsw` object in the `dense_vector` mapping.
 
 [source,console]
 ----
@@ -386,6 +409,24 @@ that `k` matching documents are returned. This contrasts with a
 post-filtering approach, where the filter is applied **after** the approximate
 kNN search completes. Post-filtering has the downside that it sometimes
 returns fewer than k results, even when there are enough matching documents.
+
+[discrete]
+[[approximate-knn-search-and-filtering]]
+==== Approximate kNN search and filtering
+
+Unlike conventional query filtering, where more restrictive filters typically lead to faster queries,
+applying filters in an approximate kNN search with an HNSW index can decrease performance.
+This is because searching the HNSW graph requires additional exploration to obtain the `num_candidates`
+that meet the filter criteria.
+
+To avoid significant performance drawbacks, Lucene implements the following strategies per segment:
+
+* If the filtered document count is less than or equal to num_candidates, the search bypasses the HNSW graph and
+uses a brute force search on the filtered documents.
+
+* While exploring the HNSW graph, if the number of nodes explored exceeds the number of documents that satisfy the filter,
+the search will stop exploring the graph and switch to a brute force search over the filtered documents.
+
 
 [discrete]
 ==== Combine approximate kNN with other features
@@ -631,7 +672,10 @@ PUT passage_vectors
                 "properties": {
                     "vector": {
                         "type": "dense_vector",
-                        "dims": 2
+                        "dims": 2,
+                        "index_options": {
+                            "type": "hnsw"
+                        }
                     },
                     "text": {
                         "type": "text",
@@ -1015,7 +1059,7 @@ PUT image-index
 option is not supported.
 
 * {blank}
-include::{es-repo-dir}/search/knn-search.asciidoc[tag=hnsw-algorithm]
+include::{es-ref-dir}/search/knn-search.asciidoc[tag=hnsw-algorithm]
 
 NOTE: Approximate kNN search always uses the
 <<dfs-query-then-fetch,`dfs_query_then_fetch`>> search type in order to gather
@@ -1105,3 +1149,95 @@ POST product-index/_search
 ----
 //TEST[continued]
 
+[discrete]
+[[dense-vector-knn-search-reranking]]
+==== Oversampling and rescoring for quantized vectors
+
+All forms of quantization will result in some accuracy loss and as the quantization level increases the accuracy loss will also increase.
+Generally, we have found that:
+- `int8` requires minimal if any rescoring
+- `int4` requires some rescoring for higher accuracy and larger recall scenarios. Generally, oversampling by 1.5x-2x recovers most of the accuracy loss.
+- `bbq` requires rescoring except on exceptionally large indices or models specifically designed for quantization. We have found that between 3x-5x oversampling is generally sufficient. But for fewer dimensions or vectors that do not quantize well, higher oversampling may be required.
+
+There are two main ways to oversample and rescore. The first is to utilize the <<rescore, rescore section>> in the `_search` request.
+
+Here is an example using the top level `knn` search with oversampling and using `rescore` to rerank the results:
+
+[source,console]
+--------------------------------------------------
+POST /my-index/_search
+{
+  "size": 10, <1>
+  "knn": {
+    "query_vector": [0.04283529, 0.85670587, -0.51402352, 0],
+    "field": "my_int4_vector",
+    "k": 20, <2>
+    "num_candidates": 50
+  },
+  "rescore": {
+    "window_size": 20, <3>
+    "query": {
+      "rescore_query": {
+        "script_score": {
+          "query": {
+            "match_all": {}
+          },
+          "script": {
+            "source": "(dotProduct(params.queryVector, 'my_int4_vector') + 1.0)", <4>
+            "params": {
+              "queryVector": [0.04283529, 0.85670587, -0.51402352, 0]
+            }
+          }
+        }
+      },
+      "query_weight": 0, <5>
+      "rescore_query_weight": 1 <6>
+    }
+  }
+}
+--------------------------------------------------
+// TEST[skip: setup not provided]
+<1> The number of results to return, note its only 10 and we will oversample by 2x, gathering 20 nearest neighbors.
+<2> The number of results to return from the KNN search. This will do an approximate KNN search with 50 candidates
+per HNSW graph and use the quantized vectors, returning the 20 most similar vectors
+according to the quantized score. Additionally, since this is the top-level `knn` object, the global top 20 results
+will from all shards will be gathered before rescoring. Combining with `rescore`, this is oversampling by `2x`, meaning
+gathering 20 nearest neighbors according to quantized scoring and rescoring with higher fidelity float vectors.
+<3> The number of results to rescore, if you want to rescore all results, set this to the same value as `k`
+<4> The script to rescore the results. Script score will interact directly with the originally provided float32 vector.
+<5> The weight of the original query, here we simply throw away the original score
+<6> The weight of the rescore query, here we only use the rescore query
+
+The second way is to score per shard with the <<query-dsl-knn-query, knn query>> and <<query-dsl-script-score-query, script_score query >>. Generally, this means that there will be more rescoring per shard, but this
+can increase overall recall at the cost of compute.
+
+[source,console]
+--------------------------------------------------
+POST /my-index/_search
+{
+  "size": 10, <1>
+  "query": {
+    "script_score": {
+      "query": {
+        "knn": { <2>
+          "query_vector": [0.04283529, 0.85670587, -0.51402352, 0],
+          "field": "my_int4_vector",
+          "num_candidates": 20 <3>
+        }
+      },
+      "script": {
+        "source": "(dotProduct(params.queryVector, 'my_int4_vector') + 1.0)", <4>
+        "params": {
+          "queryVector": [0.04283529, 0.85670587, -0.51402352, 0]
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
+// TEST[skip: setup not provided]
+<1> The number of results to return
+<2> The `knn` query to perform the initial search, this is executed per-shard
+<3> The number of candidates to use for the initial approximate `knn` search. This will search using the quantized vectors
+and return the top 20 candidates per shard to then be scored
+<4> The script to score the results. Script score will interact directly with the originally provided float32 vector.

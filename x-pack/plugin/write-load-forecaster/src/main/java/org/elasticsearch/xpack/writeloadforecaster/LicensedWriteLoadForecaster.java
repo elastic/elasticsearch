@@ -76,7 +76,13 @@ class LicensedWriteLoadForecaster implements WriteLoadForecaster {
 
         clearPreviousForecast(dataStream, metadata);
 
-        final List<IndexWriteLoad> indicesWriteLoadWithinMaxAgeRange = getIndicesWithinMaxAgeRange(dataStream, metadata).stream()
+        final List<IndexWriteLoad> indicesWriteLoadWithinMaxAgeRange = DataStream.getIndicesWithinMaxAgeRange(
+            dataStream,
+            metadata::getSafe,
+            maxIndexAge,
+            threadPool::absoluteTimeInMillis
+        )
+            .stream()
             .filter(index -> index.equals(dataStream.getWriteIndex()) == false)
             .map(metadata::getSafe)
             .map(IndexMetadata::getStats)
@@ -132,25 +138,6 @@ class LicensedWriteLoadForecaster implements WriteLoadForecaster {
         }
 
         return totalShardUptime == 0 ? OptionalDouble.empty() : OptionalDouble.of(totalWeightedWriteLoad / totalShardUptime);
-    }
-
-    // Visible for testing
-    List<Index> getIndicesWithinMaxAgeRange(DataStream dataStream, Metadata.Builder metadata) {
-        final List<Index> dataStreamIndices = dataStream.getIndices();
-        final long currentTimeMillis = threadPool.absoluteTimeInMillis();
-        // Consider at least 1 index (including the write index) for cases where rollovers happen less often than maxIndexAge
-        int firstIndexWithinAgeRange = Math.max(dataStreamIndices.size() - 2, 0);
-        for (int i = 0; i < dataStreamIndices.size(); i++) {
-            Index index = dataStreamIndices.get(i);
-            final IndexMetadata indexMetadata = metadata.getSafe(index);
-            final long indexAge = currentTimeMillis - indexMetadata.getCreationDate();
-            if (indexAge < maxIndexAge.getMillis()) {
-                // We need to consider the previous index too in order to cover the entire max-index-age range.
-                firstIndexWithinAgeRange = i == 0 ? 0 : i - 1;
-                break;
-            }
-        }
-        return dataStreamIndices.subList(firstIndexWithinAgeRange, dataStreamIndices.size());
     }
 
     @Override

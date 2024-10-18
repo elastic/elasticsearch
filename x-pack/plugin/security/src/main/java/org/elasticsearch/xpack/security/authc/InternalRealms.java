@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.core.security.authc.ldap.LdapRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.pki.PkiRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings;
+import org.elasticsearch.xpack.core.security.authc.support.UserRoleMapper;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.authc.esnative.NativeRealm;
@@ -39,7 +40,6 @@ import org.elasticsearch.xpack.security.authc.oidc.OpenIdConnectRealm;
 import org.elasticsearch.xpack.security.authc.pki.PkiRealm;
 import org.elasticsearch.xpack.security.authc.saml.SamlRealm;
 import org.elasticsearch.xpack.security.authc.support.RoleMappingFileBootstrapCheck;
-import org.elasticsearch.xpack.security.authc.support.mapper.NativeRoleMappingStore;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 
 import java.util.Collection;
@@ -134,7 +134,7 @@ public final class InternalRealms {
         ResourceWatcherService resourceWatcherService,
         SSLService sslService,
         NativeUsersStore nativeUsersStore,
-        NativeRoleMappingStore nativeRoleMappingStore,
+        UserRoleMapper userRoleMapper,
         SecurityIndexManager securityIndex
     ) {
         return Map.of(
@@ -146,25 +146,25 @@ public final class InternalRealms {
             config -> buildNativeRealm(threadPool, settings, nativeUsersStore, securityIndex, config),
             // active directory realm
             LdapRealmSettings.AD_TYPE,
-            config -> new LdapRealm(config, sslService, resourceWatcherService, nativeRoleMappingStore, threadPool),
+            config -> new LdapRealm(config, sslService, resourceWatcherService, userRoleMapper, threadPool),
             // LDAP realm
             LdapRealmSettings.LDAP_TYPE,
-            config -> new LdapRealm(config, sslService, resourceWatcherService, nativeRoleMappingStore, threadPool),
+            config -> new LdapRealm(config, sslService, resourceWatcherService, userRoleMapper, threadPool),
             // PKI realm
             PkiRealmSettings.TYPE,
-            config -> new PkiRealm(config, resourceWatcherService, nativeRoleMappingStore),
+            config -> new PkiRealm(config, resourceWatcherService, userRoleMapper),
             // SAML realm
             SamlRealmSettings.TYPE,
-            config -> SamlRealm.create(config, sslService, resourceWatcherService, nativeRoleMappingStore),
+            config -> SamlRealm.create(config, sslService, resourceWatcherService, userRoleMapper),
             // Kerberos realm
             KerberosRealmSettings.TYPE,
-            config -> new KerberosRealm(config, nativeRoleMappingStore, threadPool),
+            config -> new KerberosRealm(config, userRoleMapper, threadPool),
             // OpenID Connect realm
             OpenIdConnectRealmSettings.TYPE,
-            config -> new OpenIdConnectRealm(config, sslService, nativeRoleMappingStore, resourceWatcherService),
+            config -> new OpenIdConnectRealm(config, sslService, userRoleMapper, resourceWatcherService),
             // JWT realm
             JwtRealmSettings.TYPE,
-            config -> new JwtRealm(config, sslService, nativeRoleMappingStore)
+            config -> new JwtRealm(config, sslService, userRoleMapper)
         );
     }
 

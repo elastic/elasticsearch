@@ -12,7 +12,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.license.internal.TrialLicenseVersion;
 import org.elasticsearch.xpack.core.XPackPlugin;
@@ -51,7 +50,6 @@ public class StartBasicClusterTask implements ClusterStateTaskListener {
 
     public LicensesMetadata execute(
         LicensesMetadata currentLicensesMetadata,
-        DiscoveryNodes discoveryNodes,
         ClusterStateTaskExecutor.TaskContext<StartBasicClusterTask> taskContext
     ) throws Exception {
         assert taskContext.getTask() == this;
@@ -62,7 +60,7 @@ public class StartBasicClusterTask implements ClusterStateTaskListener {
         License currentLicense = LicensesMetadata.extractLicense(currentLicensesMetadata);
         final LicensesMetadata updatedLicensesMetadata;
         if (shouldGenerateNewBasicLicense(currentLicense)) {
-            License selfGeneratedLicense = generateBasicLicense(discoveryNodes);
+            License selfGeneratedLicense = generateBasicLicense();
             if (request.isAcknowledged() == false && currentLicense != null) {
                 Map<String, String[]> ackMessageMap = LicenseUtils.getAckMessages(selfGeneratedLicense, currentLicense);
                 if (ackMessageMap.isEmpty() == false) {
@@ -104,7 +102,7 @@ public class StartBasicClusterTask implements ClusterStateTaskListener {
             || LicenseSettings.BASIC_SELF_GENERATED_LICENSE_EXPIRATION_MILLIS != LicenseUtils.getExpiryDate(currentLicense);
     }
 
-    private License generateBasicLicense(DiscoveryNodes discoveryNodes) {
+    private License generateBasicLicense() {
         final License.Builder specBuilder = License.builder()
             .uid(UUID.randomUUID().toString())
             .issuedTo(clusterName)
@@ -113,7 +111,7 @@ public class StartBasicClusterTask implements ClusterStateTaskListener {
             .type(License.LicenseType.BASIC)
             .expiryDate(LicenseSettings.BASIC_SELF_GENERATED_LICENSE_EXPIRATION_MILLIS);
 
-        return SelfGeneratedLicense.create(specBuilder, discoveryNodes);
+        return SelfGeneratedLicense.create(specBuilder);
     }
 
     public String getDescription() {
@@ -129,7 +127,7 @@ public class StartBasicClusterTask implements ClusterStateTaskListener {
             var currentLicensesMetadata = originalLicensesMetadata;
             for (final var taskContext : batchExecutionContext.taskContexts()) {
                 try (var ignored = taskContext.captureResponseHeaders()) {
-                    currentLicensesMetadata = taskContext.getTask().execute(currentLicensesMetadata, initialState.nodes(), taskContext);
+                    currentLicensesMetadata = taskContext.getTask().execute(currentLicensesMetadata, taskContext);
                 }
             }
             if (currentLicensesMetadata == originalLicensesMetadata) {

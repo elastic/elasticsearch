@@ -15,16 +15,18 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAction;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ClientHelper;
@@ -42,13 +44,10 @@ import org.elasticsearch.xpack.transform.TransformServices;
 import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
 import org.elasticsearch.xpack.transform.persistence.AuthorizationStatePersistenceUtils;
 import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
-import org.elasticsearch.xpack.transform.transforms.Function;
 import org.elasticsearch.xpack.transform.transforms.FunctionFactory;
 
 import java.time.Instant;
-import java.util.List;
 
-import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.transform.utils.SecondaryAuthorizationUtils.getSecurityHeadersPreferringSecondary;
 
 public class TransportPutTransformAction extends AcknowledgedTransportMasterNodeAction<Request> {
@@ -84,11 +83,11 @@ public class TransportPutTransformAction extends AcknowledgedTransportMasterNode
         );
         this.settings = settings;
         this.client = client;
-        this.transformConfigManager = transformServices.getConfigManager();
+        this.transformConfigManager = transformServices.configManager();
         this.securityContext = XPackSettings.SECURITY_ENABLED.get(settings)
             ? new SecurityContext(settings, threadPool.getThreadContext())
             : null;
-        this.auditor = transformServices.getAuditor();
+        this.auditor = transformServices.auditor();
     }
 
     @Override
@@ -108,21 +107,21 @@ public class TransportPutTransformAction extends AcknowledgedTransportMasterNode
         }
 
         // <3> Create the transform
-        ActionListener<ValidateTransformAction.Response> validateTransformListener = ActionListener.wrap(
-            unusedValidationResponse -> putTransform(request, listener),
-            listener::onFailure
+        ActionListener<ValidateTransformAction.Response> validateTransformListener = listener.delegateFailureAndWrap(
+            (l, unused) -> putTransform(request, l)
         );
 
         // <2> Validate source and destination indices
-        ActionListener<Void> checkPrivilegesListener = ActionListener.wrap(
-            aVoid -> ClientHelper.executeAsyncWithOrigin(
-                client,
+
+        var parentTaskId = new TaskId(clusterService.localNode().getId(), task.getId());
+        ActionListener<Void> checkPrivilegesListener = validateTransformListener.delegateFailureAndWrap(
+            (l, aVoid) -> ClientHelper.executeAsyncWithOrigin(
+                new ParentTaskAssigningClient(client, parentTaskId),
                 ClientHelper.TRANSFORM_ORIGIN,
                 ValidateTransformAction.INSTANCE,
-                new ValidateTransformAction.Request(config, request.isDeferValidation(), request.timeout()),
-                validateTransformListener
-            ),
-            listener::onFailure
+                new ValidateTransformAction.Request(config, request.isDeferValidation(), request.ackTimeout()),
+                l
+            )
         );
 
         // <1> Early check to verify that the user can create the destination index and can read from the source
@@ -170,24 +169,19 @@ public class TransportPutTransformAction extends AcknowledgedTransportMasterNode
     }
 
     private void putTransform(Request request, ActionListener<AcknowledgedResponse> listener) {
+        var config = request.getConfig();
+        transformConfigManager.putTransformConfiguration(config, listener.delegateFailureAndWrap((l, unused) -> {
+            var transformId = config.getId();
+            logger.info("[{}] created transform", transformId);
+            auditor.info(transformId, "Created transform.");
 
-        final TransformConfig config = request.getConfig();
-        // create the function for validation
-        final Function function = FunctionFactory.create(config);
+            var validationFunc = FunctionFactory.create(config);
+            TransformConfigLinter.getWarnings(validationFunc, config.getSource(), config.getSyncConfig()).forEach(warning -> {
+                logger.warn("[{}] {}", transformId, warning);
+                auditor.warning(transformId, warning);
+            });
 
-        // <2> Return to the listener
-        ActionListener<Boolean> putTransformConfigurationListener = ActionListener.wrap(putTransformConfigurationResult -> {
-            logger.debug("[{}] created transform", config.getId());
-            auditor.info(config.getId(), "Created transform.");
-            List<String> warnings = TransformConfigLinter.getWarnings(function, config.getSource(), config.getSyncConfig());
-            for (String warning : warnings) {
-                logger.warn(() -> format("[%s] %s", config.getId(), warning));
-                auditor.warning(config.getId(), warning);
-            }
-            listener.onResponse(AcknowledgedResponse.TRUE);
-        }, listener::onFailure);
-
-        // <1> Put our transform
-        transformConfigManager.putTransformConfiguration(config, putTransformConfigurationListener);
+            l.onResponse(AcknowledgedResponse.TRUE);
+        }));
     }
 }

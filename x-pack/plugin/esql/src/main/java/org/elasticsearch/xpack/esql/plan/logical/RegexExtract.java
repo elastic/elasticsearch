@@ -7,18 +7,20 @@
 
 package org.elasticsearch.xpack.esql.plan.logical;
 
-import org.elasticsearch.xpack.ql.expression.Attribute;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.ql.plan.logical.UnaryPlan;
-import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.NameId;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.plan.GeneratingPlan;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
 import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputAttributes;
 
-public abstract class RegexExtract extends UnaryPlan {
+public abstract class RegexExtract extends UnaryPlan implements GeneratingPlan<RegexExtract> {
     protected final Expression input;
     protected final List<Attribute> extractedFields;
 
@@ -38,12 +40,43 @@ public abstract class RegexExtract extends UnaryPlan {
         return mergeOutputAttributes(extractedFields, child().output());
     }
 
+    @Override
+    protected AttributeSet computeReferences() {
+        return input.references();
+    }
+
     public Expression input() {
         return input;
     }
 
+    /**
+     * Upon parsing, these are named according to the {@link Dissect} or {@link Grok} pattern, but can be renamed without changing the
+     * pattern.
+     */
     public List<Attribute> extractedFields() {
         return extractedFields;
+    }
+
+    @Override
+    public List<Attribute> generatedAttributes() {
+        return extractedFields;
+    }
+
+    List<Attribute> renameExtractedFields(List<String> newNames) {
+        checkNumberOfNewNames(newNames);
+
+        List<Attribute> renamedExtractedFields = new ArrayList<>(extractedFields.size());
+        for (int i = 0; i < newNames.size(); i++) {
+            Attribute extractedField = extractedFields.get(i);
+            String newName = newNames.get(i);
+            if (extractedField.name().equals(newName)) {
+                renamedExtractedFields.add(extractedField);
+            } else {
+                renamedExtractedFields.add(extractedFields.get(i).withName(newNames.get(i)).withId(new NameId()));
+            }
+        }
+
+        return renamedExtractedFields;
     }
 
     @Override

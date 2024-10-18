@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.file;
@@ -73,6 +74,8 @@ public abstract class AbstractFileWatchingService extends AbstractLifecycleCompo
      * @throws InterruptedException if the file processing is interrupted by another thread.
      */
     protected abstract void processFileChanges() throws InterruptedException, ExecutionException, IOException;
+
+    protected abstract void processInitialFileMissing() throws InterruptedException, ExecutionException, IOException;
 
     public final void addFileChangedListener(FileChangedListener listener) {
         eventListeners.add(listener);
@@ -173,6 +176,7 @@ public abstract class AbstractFileWatchingService extends AbstractLifecycleCompo
                 logger.debug("found initial operator settings file [{}], applying...", path);
                 processSettingsAndNotifyListeners();
             } else {
+                processInitialFileMissing();
                 // Notify everyone we don't have any initial file settings
                 for (var listener : eventListeners) {
                     listener.watchedFileChanged();

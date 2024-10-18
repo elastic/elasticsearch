@@ -12,7 +12,7 @@ This could lead to unassigned shards or shards not transitioning to the desired
 
 In order to fix this follow the next steps:
 
-include::{es-repo-dir}/tab-widgets/troubleshooting/data/migrate-to-data-tiers-routing-guide-widget.asciidoc[]
+include::{es-ref-dir}/tab-widgets/troubleshooting/data/migrate-to-data-tiers-routing-guide-widget.asciidoc[]
 
 
 

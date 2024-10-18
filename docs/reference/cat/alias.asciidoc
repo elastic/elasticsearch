@@ -12,7 +12,7 @@ consumption, use the <<aliases,aliases API>>.
 ====
 
 Retrieves the cluster's <<aliases,index aliases>>, including filter and routing
-information. The API does not return data stream aliases.
+information. The API does not return <<data-streams,data stream>> aliases.
 
 [[cat-alias-api-request]]
 ==== {api-request-title}
@@ -39,19 +39,19 @@ wildcards (`*`). To retrieve all aliases, omit this parameter or use `*` or
 [[cat-alias-api-query-params]]
 ==== {api-query-parms-title}
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=http-format]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=http-format]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=cat-h]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=cat-h]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=help]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=help]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=local]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=local]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=cat-s]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=cat-s]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=cat-v]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=cat-v]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
 
 [[cat-alias-api-example]]
 ==== {api-examples-title}

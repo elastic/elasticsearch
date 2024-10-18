@@ -19,7 +19,7 @@ import java.util.Objects;
 
 public class GetSecretResponse extends ActionResponse implements ToXContentObject {
 
-    private String id;
+    private final String id;
     private final String value;
 
     public GetSecretResponse(StreamInput in) throws IOException {

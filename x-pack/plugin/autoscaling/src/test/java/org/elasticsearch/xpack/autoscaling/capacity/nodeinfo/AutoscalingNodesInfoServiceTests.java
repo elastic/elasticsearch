@@ -443,6 +443,7 @@ public class AutoscalingNodesInfoServiceTests extends AutoscalingTestCase {
             null,
             null,
             null,
+            null,
             null
         );
     }

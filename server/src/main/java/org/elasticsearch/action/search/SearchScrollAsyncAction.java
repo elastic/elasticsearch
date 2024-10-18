@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.search;
@@ -147,7 +148,7 @@ abstract class SearchScrollAsyncAction<T extends SearchPhaseResult> implements R
             // we can't create a SearchShardTarget here since we don't know the index and shard ID we are talking to
             // we only know the node and the search context ID. Yet, the response will contain the SearchShardTarget
             // from the target node instead...that's why we pass null here
-            SearchActionListener<T> searchActionListener = new SearchActionListener<T>(null, shardIndex) {
+            SearchActionListener<T> searchActionListener = new SearchActionListener<>(null, shardIndex) {
 
                 @Override
                 protected void setSearchShardTarget(T response) {
@@ -215,7 +216,7 @@ abstract class SearchScrollAsyncAction<T extends SearchPhaseResult> implements R
     protected abstract void executeInitialPhase(
         Transport.Connection connection,
         InternalScrollSearchRequest internalRequest,
-        SearchActionListener<T> searchActionListener
+        ActionListener<T> searchActionListener
     );
 
     protected abstract SearchPhase moveToNextPhase(BiFunction<String, String, DiscoveryNode> clusterNodeLookup);

@@ -20,22 +20,22 @@ Returns the health status of a cluster.
 [[cluster-health-api-desc]]
 ==== {api-description-title}
 
-The cluster health API returns a simple status on the health of the 
+The cluster health API returns a simple status on the health of the
 cluster. You can also use the API to get the health status of only specified
 data streams and indices. For data streams, the API retrieves the health status
 of the stream's backing indices.
 
-The cluster health status is: `green`, `yellow` or `red`. On the shard level, a 
-`red` status indicates that the specific shard is not allocated in the cluster, 
-`yellow` means that the primary shard is allocated but replicas are not, and 
-`green` means that all shards are allocated. The index level status is 
-controlled by the worst shard status. The cluster status is controlled by the 
+The cluster health status is: `green`, `yellow` or `red`. On the shard level, a
+`red` status indicates that the specific shard is not allocated in the cluster,
+`yellow` means that the primary shard is allocated but replicas are not, and
+`green` means that all shards are allocated. The index level status is
+controlled by the worst shard status. The cluster status is controlled by the
 worst index status.
 
-One of the main benefits of the API is the ability to wait until the cluster 
-reaches a certain high water-mark health level. For example, the following will 
-wait for 50 seconds for the cluster to reach the `yellow` level (if it reaches 
-the `green` or `yellow` status before 50 seconds elapse, it will return at that 
+One of the main benefits of the API is the ability to wait until the cluster
+reaches a certain high water-mark health level. For example, the following will
+wait for 50 seconds for the cluster to reach the `yellow` level (if it reaches
+the `green` or `yellow` status before 50 seconds elapse, it will return at that
 point):
 
 [source,console]
@@ -58,31 +58,31 @@ To target all data streams and indices in a cluster, omit this parameter or use
 ==== {api-query-parms-title}
 
 `level`::
-    (Optional, string) Can be one of `cluster`, `indices` or `shards`. Controls 
+    (Optional, string) Can be one of `cluster`, `indices` or `shards`. Controls
     the details level of the health information returned. Defaults to `cluster`.
-    
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=local]
-    
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
+
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=local]
+
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 
 `wait_for_active_shards`::
-    (Optional, string) A number controlling to how many active shards to wait 
-    for, `all` to wait for all shards in the cluster to be active, or `0` to not 
+    (Optional, string) A number controlling to how many active shards to wait
+    for, `all` to wait for all shards in the cluster to be active, or `0` to not
     wait. Defaults to `0`.
-    
+
 `wait_for_events`::
-    (Optional, string) Can be one of `immediate`, `urgent`, `high`, `normal`, 
-    `low`, `languid`. Wait until all currently queued events with the given 
+    (Optional, string) Can be one of `immediate`, `urgent`, `high`, `normal`,
+    `low`, `languid`. Wait until all currently queued events with the given
     priority are processed.
 
 `wait_for_no_initializing_shards`::
-    (Optional, Boolean) A boolean value which controls whether to wait (until 
-    the timeout provided) for the cluster to have no shard initializations. 
+    (Optional, Boolean) A boolean value which controls whether to wait (until
+    the timeout provided) for the cluster to have no shard initializations.
     Defaults to false, which means it will not wait for initializing shards.
 
 `wait_for_no_relocating_shards`::
-    (Optional, Boolean) A boolean value which controls whether to wait (until 
-    the timeout provided) for the cluster to have no shard relocations. Defaults 
+    (Optional, Boolean) A boolean value which controls whether to wait (until
+    the timeout provided) for the cluster to have no shard relocations. Defaults
     to false, which means it will not wait for relocating shards.
 
 `wait_for_nodes`::
@@ -92,7 +92,7 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
     `lt(N)` notation.
 
 `wait_for_status`::
-    (Optional, string) One of `green`, `yellow` or `red`. Will wait (until the 
+    (Optional, string) One of `green`, `yellow` or `red`. Will wait (until the
     timeout provided) until the status of the cluster changes to the one
     provided or better, i.e. `green` > `yellow` > `red`. By default, will not
     wait for any status.
@@ -104,10 +104,10 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
     (string) The name of the cluster.
 
 `status`::
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=cluster-health-status]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=cluster-health-status]
 
 `timed_out`::
-    (Boolean) If `false` the response returned within the period of 
+    (Boolean) If `false` the response returned within the period of
     time that is specified by the `timeout` parameter (`30s` by default).
 
 `number_of_nodes`::
@@ -131,23 +131,26 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=cluster-health-status]
 `unassigned_shards`::
     (integer) The number of shards that are not allocated.
 
+`unassigned_primary_shards`::
+    (integer) The number of shards that are primary but not allocated. **Note**: This number may be lower than the true value if your cluster contains nodes running a version below 8.16. For a more accurate count in this scenario, please use the <<cluster-health,cluster health API>>.
+
 `delayed_unassigned_shards`::
-    (integer) The number of shards whose allocation has been delayed by the 
+    (integer) The number of shards whose allocation has been delayed by the
     timeout settings.
 
 `number_of_pending_tasks`::
-    (integer) The number of cluster-level changes that have not yet been 
+    (integer) The number of cluster-level changes that have not yet been
     executed.
 
 `number_of_in_flight_fetch`::
     (integer) The number of unfinished fetches.
 
 `task_max_waiting_in_queue_millis`::
-    (integer) The time expressed in milliseconds since the earliest initiated task 
+    (integer) The time expressed in milliseconds since the earliest initiated task
     is waiting for being performed.
 
 `active_shards_percent_as_number`::
-    (float) The ratio of active shards in the cluster expressed as a percentage. 
+    (float) The ratio of active shards in the cluster expressed as a percentage.
 
 [[cluster-health-api-example]]
 ==== {api-examples-title}
@@ -158,7 +161,7 @@ GET _cluster/health
 --------------------------------------------------
 // TEST[s/^/PUT test1\n/]
 
-The API returns the following response in case of a quiet single node cluster 
+The API returns the following response in case of a quiet single node cluster
 with a single index with one shard and one replica:
 
 [source,console-result]
@@ -174,6 +177,7 @@ with a single index with one shard and one replica:
   "relocating_shards" : 0,
   "initializing_shards" : 0,
   "unassigned_shards" : 1,
+  "unassigned_primary_shards" : 0,
   "delayed_unassigned_shards": 0,
   "number_of_pending_tasks" : 0,
   "number_of_in_flight_fetch": 0,

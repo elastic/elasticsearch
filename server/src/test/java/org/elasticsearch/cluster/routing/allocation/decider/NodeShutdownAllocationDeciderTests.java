@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.routing.allocation.decider;
@@ -25,7 +26,6 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 
@@ -34,6 +34,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Set;
 
+import static org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata.Type.SIGTERM;
 import static org.elasticsearch.common.settings.ClusterSettings.createBuiltInClusterSettings;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -230,11 +231,7 @@ public class NodeShutdownAllocationDeciderTests extends ESAllocationTestCase {
                 .setReason(this.getTestName())
                 .setStartedAtMillis(1L)
                 .setTargetNodeName(targetNodeName)
-                .setGracePeriod(
-                    shutdownType == SingleNodeShutdownMetadata.Type.SIGTERM
-                        ? TimeValue.parseTimeValue(randomTimeValue(), this.getTestName())
-                        : null
-                )
+                .setGracePeriod(shutdownType == SIGTERM ? randomTimeValue() : null)
                 .build()
         );
     }

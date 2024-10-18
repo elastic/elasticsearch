@@ -1,12 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.repositories.s3;
 
+import com.amazonaws.services.s3.model.AmazonS3Exception;
 import com.amazonaws.services.s3.model.GetObjectRequest;
 import com.amazonaws.services.s3.model.InitiateMultipartUploadRequest;
 import com.amazonaws.services.s3.model.ListMultipartUploadsRequest;
@@ -14,7 +16,6 @@ import com.amazonaws.services.s3.model.MultipartUpload;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope;
 
-import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.blobstore.OptionalBytesReference;
@@ -31,6 +32,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.repositories.AbstractThirdPartyRepositoryTestCase;
 import org.elasticsearch.repositories.RepositoriesService;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.fixtures.minio.MinioTestContainer;
 import org.elasticsearch.test.fixtures.testcontainers.TestContainersThreadFilter;
@@ -120,10 +122,11 @@ public class S3RepositoryThirdPartyTests extends AbstractThirdPartyRepositoryTes
                 settings.put("storage_class", storageClass);
             }
         }
-        AcknowledgedResponse putRepositoryResponse = clusterAdmin().preparePutRepository(repoName)
-            .setType("s3")
-            .setSettings(settings)
-            .get();
+        AcknowledgedResponse putRepositoryResponse = clusterAdmin().preparePutRepository(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
+            repoName
+        ).setType("s3").setSettings(settings).get();
         assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
     }
 
@@ -159,19 +162,12 @@ public class S3RepositoryThirdPartyTests extends AbstractThirdPartyRepositoryTes
 
                 class TestHarness {
                     boolean tryCompareAndSet(BytesReference expected, BytesReference updated) {
-                        return PlainActionFuture.<Boolean, RuntimeException>get(
-                            future -> blobContainer.compareAndSetRegister(randomPurpose(), "key", expected, updated, future),
-                            10,
-                            TimeUnit.SECONDS
-                        );
+                        return safeAwait(l -> blobContainer.compareAndSetRegister(randomPurpose(), "key", expected, updated, l));
                     }
 
                     BytesReference readRegister() {
-                        return PlainActionFuture.get(
-                            future -> blobContainer.getRegister(randomPurpose(), "key", future.map(OptionalBytesReference::bytesReference)),
-                            10,
-                            TimeUnit.SECONDS
-                        );
+                        final OptionalBytesReference result = safeAwait(l -> blobContainer.getRegister(randomPurpose(), "key", l));
+                        return result.bytesReference();
                     }
 
                     List<MultipartUpload> listMultipartUploads() {
@@ -222,4 +218,9 @@ public class S3RepositoryThirdPartyTests extends AbstractThirdPartyRepositoryTes
         }
     }
 
+    public void testReadFromPositionLargerThanBlobLength() {
+        testReadFromPositionLargerThanBlobLength(
+            e -> asInstanceOf(AmazonS3Exception.class, e.getCause()).getStatusCode() == RestStatus.REQUESTED_RANGE_NOT_SATISFIED.getStatus()
+        );
+    }
 }

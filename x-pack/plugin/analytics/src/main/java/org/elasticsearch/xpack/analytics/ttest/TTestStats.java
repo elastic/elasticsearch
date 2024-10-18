@@ -20,6 +20,8 @@ import java.util.function.Consumer;
  * Collects basic stats that are needed to perform t-test
  */
 public class TTestStats implements Writeable {
+    static final TTestStats EMPTY = new TTestStats(0, 0, 0);
+
     public final long count;
     public final double sum;
     public final double sumOfSqrs;

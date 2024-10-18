@@ -1,0 +1,29 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+apply plugin: 'elasticsearch.build'
+apply plugin: 'com.github.johnrengelman.shadow'
+
+// See the build.gradle file in the parent directory for an explanation of this unusual build
+
+dependencies {
+  implementation "com.nimbusds:nimbus-jose-jwt:9.37.3"
+}
+
+tasks.named('shadowJar').configure {
+  // Attempting to exclude all of the classes we *don't* move here ought to be possible per the
+  // shadowJar docs, but actually attempting to do so results in an empty JAR. May be a bug in the shadowJar plugin.
+  relocate 'com.nimbusds.jose.util.JSONObjectUtils', 'org.elasticsearch.nimbus.jose.util.JSONObjectUtils'
+  relocate 'com.nimbusds.jose.util.JSONStringUtils', 'org.elasticsearch.nimbus.jose.util.JSONStringUtils'
+}
+
+['jarHell', 'thirdPartyAudit', 'forbiddenApisMain', 'splitPackagesAudit', 'licenseHeaders'].each {
+  tasks.named(it).configure {
+    enabled = false
+  }
+}
+

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.test.cluster.local;
@@ -64,7 +65,7 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
     implements
         LocalClusterFactory<S, H> {
     private static final Logger LOGGER = LogManager.getLogger(AbstractLocalClusterFactory.class);
-    private static final Duration NODE_UP_TIMEOUT = Duration.ofMinutes(2);
+    private static final Duration NODE_UP_TIMEOUT = Duration.ofMinutes(3);
     private static final Map<Pair<Version, DistributionType>, DistributionDescriptor> TEST_DISTRIBUTIONS = new ConcurrentHashMap<>();
     private static final String TESTS_CLUSTER_MODULES_PATH_SYSPROP = "tests.cluster.modules.path";
     private static final String TESTS_CLUSTER_PLUGINS_PATH_SYSPROP = "tests.cluster.plugins.path";
@@ -719,6 +720,11 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
             environment.put("ES_TMPDIR", workingDir.resolve("tmp").toString());
             // Windows requires this as it defaults to `c:\windows` despite ES_TMPDIR
             environment.put("TMP", workingDir.resolve("tmp").toString());
+
+            environment = environment.entrySet()
+                .stream()
+                .map(p -> Map.entry(p.getKey(), p.getValue().replace("${ES_PATH_CONF}", configDir.toString())))
+                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
 
             String featureFlagProperties = "";
             if (spec.getFeatures().isEmpty() == false && distributionDescriptor.isSnapshot() == false) {

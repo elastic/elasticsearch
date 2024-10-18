@@ -14,8 +14,8 @@ setup:
 
 ---
 "Search idle stats":
-  - skip:
-      version: " - 8.8.99"
+  - requires:
+      cluster_features: ["gte_v8.9.0"]
       reason: "search idle stats added in 8.9.0"
 
   - do:

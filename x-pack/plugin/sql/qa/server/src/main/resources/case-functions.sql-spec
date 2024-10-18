@@ -21,7 +21,7 @@ ucaseInline3
 SELECT UCASE(' elastic ') upper;
 
 multipleGroupingsAndOrderingByGroupsWithFunctions_1
-SELECT first_name f, last_name l, gender g, CONCAT(UCASE(first_name), LCASE(last_name)) c FROM test_emp GROUP BY gender, l, f, c ORDER BY c DESC, first_name, l ASC, g;
+SELECT first_name f, last_name l, gender g, CONCAT(UCASE(first_name), LCASE(last_name)) c FROM test_emp WHERE emp_no IN (10003, 10009, 10023, 10024, 10025, 10029, 10030, 10033, 10034, 10035) GROUP BY gender, l, f, c ORDER BY c DESC, first_name, l ASC, g;
 
 multipleGroupingsAndOrderingByGroupsWithFunctions_2
-SELECT first_name f, last_name l, LCASE(gender) g, CONCAT(UCASE(first_name), LCASE(last_name)) c FROM test_emp GROUP BY f, LCASE(gender), l, c ORDER BY c DESC, first_name, l ASC, g;
+SELECT first_name f, last_name l, LCASE(gender) g, CONCAT(UCASE(first_name), LCASE(last_name)) c FROM test_emp WHERE emp_no IN (10003, 10009, 10023, 10024, 10025, 10029, 10030, 10033, 10034, 10035) GROUP BY f, LCASE(gender), l, c ORDER BY c DESC, first_name, l ASC, g;

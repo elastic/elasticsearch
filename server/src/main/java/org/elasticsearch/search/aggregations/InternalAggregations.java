@@ -1,14 +1,13 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.search.aggregations;
 
-import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.DelayableWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -21,22 +20,18 @@ import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.search.sort.SortValue;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.AbstractList;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
-import static java.util.Collections.unmodifiableList;
 import static java.util.Collections.unmodifiableMap;
-import static org.elasticsearch.common.xcontent.XContentParserUtils.parseTypedKeysObject;
 
 /**
  * Represents a set of {@link InternalAggregation}s
@@ -52,7 +47,7 @@ public final class InternalAggregations implements Iterable<InternalAggregation>
     /**
      * Constructs a new aggregation.
      */
-    private InternalAggregations(List<InternalAggregation> aggregations) {
+    public InternalAggregations(List<InternalAggregation> aggregations) {
         this.aggregations = aggregations;
         if (aggregations.isEmpty()) {
             aggregationsAsMap = Map.of();
@@ -71,20 +66,10 @@ public final class InternalAggregations implements Iterable<InternalAggregation>
      * The list of {@link InternalAggregation}s.
      */
     public List<InternalAggregation> asList() {
-        return unmodifiableList(aggregations);
+        return aggregations;
     }
 
-    /**
-     * Returns the {@link InternalAggregation}s keyed by aggregation name.
-     */
-    public Map<String, InternalAggregation> asMap() {
-        return getAsMap();
-    }
-
-    /**
-     * Returns the {@link InternalAggregation}s keyed by aggregation name.
-     */
-    public Map<String, InternalAggregation> getAsMap() {
+    private Map<String, InternalAggregation> asMap() {
         if (aggregationsAsMap == null) {
             Map<String, InternalAggregation> newAggregationsAsMap = Maps.newMapWithExpectedSize(aggregations.size());
             for (InternalAggregation aggregation : aggregations) {
@@ -134,27 +119,6 @@ public final class InternalAggregations implements Iterable<InternalAggregation>
             aggregation.toXContent(builder, params);
         }
         return builder;
-    }
-
-    public static InternalAggregations fromXContent(XContentParser parser) throws IOException {
-        final List<InternalAggregation> aggregations = new ArrayList<>();
-        XContentParser.Token token;
-        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-            if (token == XContentParser.Token.START_OBJECT) {
-                SetOnce<InternalAggregation> typedAgg = new SetOnce<>();
-                String currentField = parser.currentName();
-                parseTypedKeysObject(parser, Aggregation.TYPED_KEYS_DELIMITER, InternalAggregation.class, typedAgg::set);
-                if (typedAgg.get() != null) {
-                    aggregations.add(typedAgg.get());
-                } else {
-                    throw new ParsingException(
-                        parser.getTokenLocation(),
-                        String.format(Locale.ROOT, "Could not parse aggregation keyed as [%s]", currentField)
-                    );
-                }
-            }
-        }
-        return new InternalAggregations(aggregations);
     }
 
     public static InternalAggregations from(List<InternalAggregation> aggregations) {
@@ -263,7 +227,7 @@ public final class InternalAggregations implements Iterable<InternalAggregation>
         }
         // handle special case when there is just one aggregation
         if (aggregationsList.size() == 1) {
-            final List<InternalAggregation> internalAggregations = aggregationsList.iterator().next().asList();
+            final List<InternalAggregation> internalAggregations = aggregationsList.get(0).asList();
             final List<InternalAggregation> reduced = new ArrayList<>(internalAggregations.size());
             for (InternalAggregation aggregation : internalAggregations) {
                 if (aggregation.mustReduceOnSingleInternalAgg()) {
@@ -278,7 +242,7 @@ public final class InternalAggregations implements Iterable<InternalAggregation>
             return from(reduced);
         }
         // general case
-        try (AggregatorsReducer reducer = new AggregatorsReducer(context, aggregationsList.size())) {
+        try (AggregatorsReducer reducer = new AggregatorsReducer(aggregationsList.get(0), context, aggregationsList.size())) {
             for (InternalAggregations aggregations : aggregationsList) {
                 reducer.accept(aggregations);
             }

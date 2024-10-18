@@ -14,4 +14,8 @@ public class InputTypeTests extends ESTestCase {
     public static InputType randomWithoutUnspecified() {
         return randomFrom(InputType.INGEST, InputType.SEARCH, InputType.CLUSTERING, InputType.CLASSIFICATION);
     }
+
+    public static InputType randomWithIngestAndSearch() {
+        return randomFrom(InputType.INGEST, InputType.SEARCH);
+    }
 }

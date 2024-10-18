@@ -65,7 +65,8 @@ public class ApiKeyAggsIT extends SecurityInBasicRestTestCase {
             ),
             API_KEY_USER_AUTH_HEADER
         );
-        assertAggs(API_KEY_ADMIN_AUTH_HEADER, """
+        final boolean typedAggs = randomBoolean();
+        assertAggs(API_KEY_ADMIN_AUTH_HEADER, typedAggs, """
             {
               "aggs": {
                 "hostnames": {
@@ -79,24 +80,25 @@ public class ApiKeyAggsIT extends SecurityInBasicRestTestCase {
               }
             }
             """, aggs -> {
-            assertThat(((Map<String, Object>) ((Map<String, Object>) aggs.get("hostnames")).get("buckets")).size(), is(2));
+            String aggName = typedAggs ? "filters#hostnames" : "hostnames";
+            assertThat(((Map<String, Object>) ((Map<String, Object>) aggs.get(aggName)).get("buckets")).size(), is(2));
             assertThat(
-                ((Map<String, Object>) ((Map<String, Object>) ((Map<String, Object>) aggs.get("hostnames")).get("buckets")).get(
+                ((Map<String, Object>) ((Map<String, Object>) ((Map<String, Object>) aggs.get(aggName)).get("buckets")).get(
                     "my-org-host-1"
                 )).get("doc_count"),
                 is(2)
             );
             assertThat(
-                ((Map<String, Object>) ((Map<String, Object>) ((Map<String, Object>) aggs.get("hostnames")).get("buckets")).get(
+                ((Map<String, Object>) ((Map<String, Object>) ((Map<String, Object>) aggs.get(aggName)).get("buckets")).get(
                     "my-org-host-2"
                 )).get("doc_count"),
                 is(2)
             );
         });
         // other bucket
-        assertAggs(API_KEY_USER_AUTH_HEADER, """
+        assertAggs(API_KEY_USER_AUTH_HEADER, typedAggs, """
             {
-              "aggs": {
+              "aggregations": {
                 "only_user_keys": {
                   "filters": {
                     "other_bucket_key": "other_user_keys",
@@ -108,22 +110,23 @@ public class ApiKeyAggsIT extends SecurityInBasicRestTestCase {
               }
             }
             """, aggs -> {
-            assertThat(((Map<String, Object>) ((Map<String, Object>) aggs.get("only_user_keys")).get("buckets")).size(), is(2));
+            String aggName = typedAggs ? "filters#only_user_keys" : "only_user_keys";
+            assertThat(((Map<String, Object>) ((Map<String, Object>) aggs.get(aggName)).get("buckets")).size(), is(2));
             assertThat(
-                ((Map<String, Object>) ((Map<String, Object>) ((Map<String, Object>) aggs.get("only_user_keys")).get("buckets")).get(
+                ((Map<String, Object>) ((Map<String, Object>) ((Map<String, Object>) aggs.get(aggName)).get("buckets")).get(
                     "only_key4_match"
                 )).get("doc_count"),
                 is(1)
             );
             assertThat(
-                ((Map<String, Object>) ((Map<String, Object>) ((Map<String, Object>) aggs.get("only_user_keys")).get("buckets")).get(
+                ((Map<String, Object>) ((Map<String, Object>) ((Map<String, Object>) aggs.get(aggName)).get("buckets")).get(
                     "other_user_keys"
                 )).get("doc_count"),
                 is(1)
             );
         });
         // anonymous filters
-        assertAggs(API_KEY_USER_AUTH_HEADER, """
+        assertAggs(API_KEY_USER_AUTH_HEADER, typedAggs, """
             {
               "aggs": {
                 "all_user_keys": {
@@ -139,27 +142,28 @@ public class ApiKeyAggsIT extends SecurityInBasicRestTestCase {
               }
             }
             """, aggs -> {
-            assertThat(((List<Map<String, Object>>) ((Map<String, Object>) aggs.get("all_user_keys")).get("buckets")).size(), is(4));
+            String aggName = typedAggs ? "filters#all_user_keys" : "all_user_keys";
+            assertThat(((List<Map<String, Object>>) ((Map<String, Object>) aggs.get(aggName)).get("buckets")).size(), is(4));
             assertThat(
-                ((List<Map<String, Object>>) ((Map<String, Object>) aggs.get("all_user_keys")).get("buckets")).get(0).get("doc_count"),
+                ((List<Map<String, Object>>) ((Map<String, Object>) aggs.get(aggName)).get("buckets")).get(0).get("doc_count"),
                 is(2)
             );
             assertThat(
-                ((List<Map<String, Object>>) ((Map<String, Object>) aggs.get("all_user_keys")).get("buckets")).get(1).get("doc_count"),
+                ((List<Map<String, Object>>) ((Map<String, Object>) aggs.get(aggName)).get("buckets")).get(1).get("doc_count"),
                 is(2)
             );
             assertThat(
-                ((List<Map<String, Object>>) ((Map<String, Object>) aggs.get("all_user_keys")).get("buckets")).get(2).get("doc_count"),
+                ((List<Map<String, Object>>) ((Map<String, Object>) aggs.get(aggName)).get("buckets")).get(2).get("doc_count"),
                 is(2)
             );
             // the "other" bucket
             assertThat(
-                ((List<Map<String, Object>>) ((Map<String, Object>) aggs.get("all_user_keys")).get("buckets")).get(3).get("doc_count"),
+                ((List<Map<String, Object>>) ((Map<String, Object>) aggs.get(aggName)).get("buckets")).get(3).get("doc_count"),
                 is(0)
             );
         });
         // nested filters
-        assertAggs(API_KEY_USER_AUTH_HEADER, """
+        assertAggs(API_KEY_USER_AUTH_HEADER, typedAggs, """
             {
               "aggs": {
                 "level1": {
@@ -184,36 +188,44 @@ public class ApiKeyAggsIT extends SecurityInBasicRestTestCase {
               }
             }
             """, aggs -> {
-            List<Map<String, Object>> level1Buckets = (List<Map<String, Object>>) ((Map<String, Object>) aggs.get("level1")).get("buckets");
+            String level1AggName = typedAggs ? "filters#level1" : "level1";
+            List<Map<String, Object>> level1Buckets = (List<Map<String, Object>>) ((Map<String, Object>) aggs.get(level1AggName)).get(
+                "buckets"
+            );
             assertThat(level1Buckets.size(), is(2));
             assertThat(level1Buckets.get(0).get("doc_count"), is(2));
             assertThat(level1Buckets.get(0).get("key"), is("rest-filter"));
+            String level2AggName = typedAggs ? "filters#level2" : "level2";
             assertThat(
-                ((Map<String, Object>) ((Map<String, Object>) ((Map<String, Object>) level1Buckets.get(0).get("level2")).get("buckets"))
-                    .get("invalidated")).get("doc_count"),
+                ((Map<String, Object>) ((Map<String, Object>) ((Map<String, Object>) level1Buckets.get(0).get(level2AggName)).get(
+                    "buckets"
+                )).get("invalidated")).get("doc_count"),
                 is(0)
             );
             assertThat(
-                ((Map<String, Object>) ((Map<String, Object>) ((Map<String, Object>) level1Buckets.get(0).get("level2")).get("buckets"))
-                    .get("not-invalidated")).get("doc_count"),
+                ((Map<String, Object>) ((Map<String, Object>) ((Map<String, Object>) level1Buckets.get(0).get(level2AggName)).get(
+                    "buckets"
+                )).get("not-invalidated")).get("doc_count"),
                 is(2)
             );
             assertThat(level1Buckets.get(1).get("doc_count"), is(2));
             assertThat(level1Buckets.get(1).get("key"), is("user-filter"));
             assertThat(
-                ((Map<String, Object>) ((Map<String, Object>) ((Map<String, Object>) level1Buckets.get(1).get("level2")).get("buckets"))
-                    .get("invalidated")).get("doc_count"),
+                ((Map<String, Object>) ((Map<String, Object>) ((Map<String, Object>) level1Buckets.get(1).get(level2AggName)).get(
+                    "buckets"
+                )).get("invalidated")).get("doc_count"),
                 is(0)
             );
             assertThat(
-                ((Map<String, Object>) ((Map<String, Object>) ((Map<String, Object>) level1Buckets.get(1).get("level2")).get("buckets"))
-                    .get("not-invalidated")).get("doc_count"),
+                ((Map<String, Object>) ((Map<String, Object>) ((Map<String, Object>) level1Buckets.get(1).get(level2AggName)).get(
+                    "buckets"
+                )).get("not-invalidated")).get("doc_count"),
                 is(2)
             );
         });
         // filter on disallowed fields
         {
-            Request request = new Request("GET", "/_security/_query/api_key");
+            Request request = new Request("GET", "/_security/_query/api_key" + (randomBoolean() ? "?typed_keys" : ""));
             request.setOptions(
                 request.getOptions()
                     .toBuilder()
@@ -234,13 +246,10 @@ public class ApiKeyAggsIT extends SecurityInBasicRestTestCase {
                 """);
             ResponseException exception = expectThrows(ResponseException.class, () -> client().performRequest(request));
             assertThat(exception.getResponse().toString(), exception.getResponse().getStatusLine().getStatusCode(), is(400));
-            assertThat(
-                exception.getMessage(),
-                containsString("Field [api_key_invalidated] is not allowed for API Key query or aggregation")
-            );
+            assertThat(exception.getMessage(), containsString("Field [api_key_invalidated] is not allowed for querying or aggregation"));
         }
         {
-            Request request = new Request("GET", "/_security/_query/api_key");
+            Request request = new Request("GET", "/_security/_query/api_key" + (randomBoolean() ? "?typed_keys" : ""));
             request.setOptions(
                 request.getOptions()
                     .toBuilder()
@@ -255,7 +264,7 @@ public class ApiKeyAggsIT extends SecurityInBasicRestTestCase {
                           "good-api-key-invalidated": { "term": {"invalidated": false}}
                         }
                       },
-                      "aggs": {
+                      "aggregations": {
                         "wrong-field": {
                           "filters": {
                             "filters": {
@@ -270,7 +279,7 @@ public class ApiKeyAggsIT extends SecurityInBasicRestTestCase {
                 """);
             ResponseException exception = expectThrows(ResponseException.class, () -> client().performRequest(request));
             assertThat(exception.getResponse().toString(), exception.getResponse().getStatusLine().getStatusCode(), is(400));
-            assertThat(exception.getMessage(), containsString("Field [creator.realm] is not allowed for API Key query or aggregation"));
+            assertThat(exception.getMessage(), containsString("Field [creator.realm] is not allowed for querying or aggregation"));
         }
     }
 
@@ -310,7 +319,8 @@ public class ApiKeyAggsIT extends SecurityInBasicRestTestCase {
         updateApiKeys(systemWriteCreds, "ctx._source['type']='cross_cluster';", crossApiKeyIds);
 
         boolean isAdmin = randomBoolean();
-        assertAggs(isAdmin ? API_KEY_ADMIN_AUTH_HEADER : API_KEY_USER_AUTH_HEADER, """
+        final boolean typedAggs = randomBoolean();
+        assertAggs(isAdmin ? API_KEY_ADMIN_AUTH_HEADER : API_KEY_USER_AUTH_HEADER, typedAggs, """
             {
               "size": 0,
               "aggs": {
@@ -324,9 +334,8 @@ public class ApiKeyAggsIT extends SecurityInBasicRestTestCase {
               }
             }
             """, aggs -> {
-            List<Map<String, Object>> buckets = (List<Map<String, Object>>) ((Map<String, Object>) aggs.get("all_keys_by_type")).get(
-                "buckets"
-            );
+            String aggName = typedAggs ? "composite#all_keys_by_type" : "all_keys_by_type";
+            List<Map<String, Object>> buckets = (List<Map<String, Object>>) ((Map<String, Object>) aggs.get(aggName)).get("buckets");
             assertThat(buckets.size(), is(3));
             assertThat(((Map<String, Object>) buckets.get(0).get("key")).get("type"), is("cross_cluster"));
             assertThat(((Map<String, Object>) buckets.get(1).get("key")).get("type"), is("other"));
@@ -342,7 +351,7 @@ public class ApiKeyAggsIT extends SecurityInBasicRestTestCase {
             }
         });
 
-        assertAggs(isAdmin ? API_KEY_ADMIN_AUTH_HEADER : API_KEY_USER_AUTH_HEADER, """
+        assertAggs(isAdmin ? API_KEY_ADMIN_AUTH_HEADER : API_KEY_USER_AUTH_HEADER, typedAggs, """
             {
               "size": 0,
               "aggs": {
@@ -371,23 +380,23 @@ public class ApiKeyAggsIT extends SecurityInBasicRestTestCase {
             """, aggs -> {
             assertThat(aggs.size(), is(4));
             // 3 types
-            assertThat(((Map<String, Object>) aggs.get("type_cardinality")).get("value"), is(3));
+            assertThat(((Map<String, Object>) aggs.get((typedAggs ? "cardinality#" : "") + "type_cardinality")).get("value"), is(3));
             if (isAdmin) {
                 // 8 keys
-                assertThat(((Map<String, Object>) aggs.get("type_value_count")).get("value"), is(8));
+                assertThat(((Map<String, Object>) aggs.get((typedAggs ? "value_count#" : "") + "type_value_count")).get("value"), is(8));
             } else {
                 // 4 keys
-                assertThat(((Map<String, Object>) aggs.get("type_value_count")).get("value"), is(4));
+                assertThat(((Map<String, Object>) aggs.get((typedAggs ? "value_count#" : "") + "type_value_count")).get("value"), is(4));
             }
-            assertThat(((Map<String, Object>) aggs.get("missing_type_count")).get("doc_count"), is(0));
-            List<Map<String, Object>> typeTermsBuckets = (List<Map<String, Object>>) ((Map<String, Object>) aggs.get("type_terms")).get(
-                "buckets"
-            );
+            assertThat(((Map<String, Object>) aggs.get((typedAggs ? "missing#" : "") + "missing_type_count")).get("doc_count"), is(0));
+            List<Map<String, Object>> typeTermsBuckets = (List<Map<String, Object>>) ((Map<String, Object>) aggs.get(
+                (typedAggs ? "sterms#" : "") + "type_terms"
+            )).get("buckets");
             assertThat(typeTermsBuckets.size(), is(3));
         });
         // runtime type field is disallowed
         {
-            Request request = new Request("GET", "/_security/_query/api_key");
+            Request request = new Request("GET", "/_security/_query/api_key" + (typedAggs ? "?typed_keys" : ""));
             request.setOptions(
                 request.getOptions()
                     .toBuilder()
@@ -406,7 +415,7 @@ public class ApiKeyAggsIT extends SecurityInBasicRestTestCase {
                 """);
             ResponseException exception = expectThrows(ResponseException.class, () -> client().performRequest(request));
             assertThat(exception.getResponse().toString(), exception.getResponse().getStatusLine().getStatusCode(), is(400));
-            assertThat(exception.getMessage(), containsString("Field [runtime_key_type] is not allowed for API Key query or aggregation"));
+            assertThat(exception.getMessage(), containsString("Field [runtime_key_type] is not allowed for querying or aggregation"));
         }
     }
 
@@ -432,7 +441,8 @@ public class ApiKeyAggsIT extends SecurityInBasicRestTestCase {
         invalidateApiKey(key2User1KeyId, false, API_KEY_ADMIN_AUTH_HEADER);
         invalidateApiKey(key1User3KeyId, false, API_KEY_ADMIN_AUTH_HEADER);
 
-        assertAggs(API_KEY_ADMIN_AUTH_HEADER, """
+        final boolean typedAggs = randomBoolean();
+        assertAggs(API_KEY_ADMIN_AUTH_HEADER, typedAggs, """
             {
               "size": 0,
               "aggs": {
@@ -451,10 +461,11 @@ public class ApiKeyAggsIT extends SecurityInBasicRestTestCase {
               }
             }
             """, aggs -> {
-            assertThat(((Map<String, Object>) aggs.get("not_invalidated")).get("doc_count"), is(4)); // 6 - 2 (invalidated)
+            // 6 - 2 (invalidated)
+            assertThat(((Map<String, Object>) aggs.get(typedAggs ? "filter#not_invalidated" : "not_invalidated")).get("doc_count"), is(4));
             List<Map<String, Object>> buckets = (List<Map<String, Object>>) ((Map<String, Object>) ((Map<String, Object>) aggs.get(
-                "not_invalidated"
-            )).get("keys_by_username")).get("buckets");
+                typedAggs ? "filter#not_invalidated" : "not_invalidated"
+            )).get(typedAggs ? "composite#keys_by_username" : "keys_by_username")).get("buckets");
             assertThat(buckets.size(), is(3));
             assertThat(((Map<String, Object>) buckets.get(0).get("key")).get("usernames"), is("test-user-1"));
             assertThat(buckets.get(0).get("doc_count"), is(1));
@@ -464,7 +475,7 @@ public class ApiKeyAggsIT extends SecurityInBasicRestTestCase {
             assertThat(buckets.get(2).get("doc_count"), is(1));
         });
 
-        assertAggs(API_KEY_ADMIN_AUTH_HEADER, """
+        assertAggs(API_KEY_ADMIN_AUTH_HEADER, typedAggs, """
             {
               "aggs": {
                 "keys_by_username": {
@@ -473,7 +484,7 @@ public class ApiKeyAggsIT extends SecurityInBasicRestTestCase {
                       { "usernames": { "terms": { "field": "username" } } }
                     ]
                   },
-                  "aggs": {
+                  "aggregations": {
                     "not_expired": {
                       "filter": {
                         "range": {
@@ -488,23 +499,32 @@ public class ApiKeyAggsIT extends SecurityInBasicRestTestCase {
               }
             }
             """, aggs -> {
-            List<Map<String, Object>> buckets = (List<Map<String, Object>>) ((Map<String, Object>) aggs.get("keys_by_username")).get(
-                "buckets"
-            );
+            List<Map<String, Object>> buckets = (List<Map<String, Object>>) ((Map<String, Object>) aggs.get(
+                typedAggs ? "composite#keys_by_username" : "keys_by_username"
+            )).get("buckets");
             assertThat(buckets.size(), is(3));
             assertThat(buckets.get(0).get("doc_count"), is(2));
             assertThat(((Map<String, Object>) buckets.get(0).get("key")).get("usernames"), is("test-user-1"));
-            assertThat(((Map<String, Object>) buckets.get(0).get("not_expired")).get("doc_count"), is(0));
+            assertThat(
+                ((Map<String, Object>) buckets.get(0).get(typedAggs ? "filter#not_expired" : "not_expired")).get("doc_count"),
+                is(0)
+            );
             assertThat(buckets.get(1).get("doc_count"), is(2));
             assertThat(((Map<String, Object>) buckets.get(1).get("key")).get("usernames"), is("test-user-2"));
-            assertThat(((Map<String, Object>) buckets.get(1).get("not_expired")).get("doc_count"), is(1));
+            assertThat(
+                ((Map<String, Object>) buckets.get(1).get(typedAggs ? "filter#not_expired" : "not_expired")).get("doc_count"),
+                is(1)
+            );
             assertThat(buckets.get(2).get("doc_count"), is(2));
             assertThat(((Map<String, Object>) buckets.get(2).get("key")).get("usernames"), is("test-user-3"));
-            assertThat(((Map<String, Object>) buckets.get(2).get("not_expired")).get("doc_count"), is(2));
+            assertThat(
+                ((Map<String, Object>) buckets.get(2).get(typedAggs ? "filter#not_expired" : "not_expired")).get("doc_count"),
+                is(2)
+            );
         });
         // "creator" field is disallowed
         {
-            Request request = new Request("GET", "/_security/_query/api_key");
+            Request request = new Request("GET", "/_security/_query/api_key" + (typedAggs ? "?typed_keys" : "?typed_keys=false"));
             request.setOptions(
                 request.getOptions()
                     .toBuilder()
@@ -526,14 +546,14 @@ public class ApiKeyAggsIT extends SecurityInBasicRestTestCase {
                 """);
             ResponseException exception = expectThrows(ResponseException.class, () -> client().performRequest(request));
             assertThat(exception.getResponse().toString(), exception.getResponse().getStatusLine().getStatusCode(), is(400));
-            assertThat(exception.getMessage(), containsString("Field [creator] is not allowed for API Key query or aggregation"));
+            assertThat(exception.getMessage(), containsString("Field [creator] is not allowed for querying or aggregation"));
         }
     }
 
     public void testDisallowedAggTypes() {
         // global aggregation type MUST never be allowed in order to not expose non-owned non-API key docs
         {
-            Request request = new Request("GET", "/_security/_query/api_key");
+            Request request = new Request("GET", "/_security/_query/api_key" + (randomBoolean() ? "?typed_keys=true" : ""));
             request.setOptions(
                 request.getOptions()
                     .toBuilder()
@@ -541,7 +561,7 @@ public class ApiKeyAggsIT extends SecurityInBasicRestTestCase {
             );
             request.setJsonEntity("""
                 {
-                  "aggs": {
+                  "aggregations": {
                     "all_.security_docs": {
                       "global": {},
                       "aggs": {
@@ -559,7 +579,7 @@ public class ApiKeyAggsIT extends SecurityInBasicRestTestCase {
         }
         // pipeline aggs are not allowed but could be if there's an identified use-case
         {
-            Request request = new Request("GET", "/_security/_query/api_key");
+            Request request = new Request("GET", "/_security/_query/api_key" + (randomBoolean() ? "?typed_keys=true" : ""));
             request.setOptions(
                 request.getOptions()
                     .toBuilder()
@@ -587,8 +607,11 @@ public class ApiKeyAggsIT extends SecurityInBasicRestTestCase {
         }
     }
 
-    void assertAggs(String authHeader, String body, Consumer<Map<String, Object>> aggsVerifier) throws IOException {
-        final Request request = new Request("GET", "/_security/_query/api_key");
+    void assertAggs(String authHeader, boolean typedAggs, String body, Consumer<Map<String, Object>> aggsVerifier) throws IOException {
+        final Request request = new Request(
+            "GET",
+            "/_security/_query/api_key" + (typedAggs ? randomFrom("?typed_keys", "?typed_keys=true") : randomFrom("", "?typed_keys=false"))
+        );
         request.setJsonEntity(body);
         request.setOptions(request.getOptions().toBuilder().addHeader(HttpHeaders.AUTHORIZATION, authHeader));
         final Response response = client().performRequest(request);

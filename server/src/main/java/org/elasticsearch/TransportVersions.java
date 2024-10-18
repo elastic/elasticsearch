@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch;
@@ -49,7 +50,7 @@ public class TransportVersions {
         return new TransportVersion(id);
     }
 
-    @UpdateForV9 // remove the transport versions with which v9 will not need to interact
+    @UpdateForV9(owner = UpdateForV9.Owner.CORE_INFRA) // remove the transport versions with which v9 will not need to interact
     public static final TransportVersion ZERO = def(0);
     public static final TransportVersion V_7_0_0 = def(7_00_00_99);
     public static final TransportVersion V_7_0_1 = def(7_00_01_99);
@@ -97,43 +98,85 @@ public class TransportVersions {
     public static final TransportVersion V_8_10_X = def(8_500_061);
     public static final TransportVersion V_8_11_X = def(8_512_00_1);
     public static final TransportVersion V_8_12_0 = def(8_560_00_0);
-    public static final TransportVersion DATE_HISTOGRAM_SUPPORT_DOWNSAMPLED_TZ_8_12_PATCH = def(8_560_00_1);
-    public static final TransportVersion NODE_STATS_REQUEST_SIMPLIFIED = def(8_561_00_0);
-    public static final TransportVersion TEXT_EXPANSION_TOKEN_PRUNING_CONFIG_ADDED = def(8_562_00_0);
-    public static final TransportVersion ESQL_ASYNC_QUERY = def(8_563_00_0);
-    public static final TransportVersion ESQL_STATUS_INCLUDE_LUCENE_QUERIES = def(8_564_00_0);
-    public static final TransportVersion ESQL_CLUSTER_ALIAS = def(8_565_00_0);
-    public static final TransportVersion SNAPSHOTS_IN_PROGRESS_TRACKING_REMOVING_NODES_ADDED = def(8_566_00_0);
-    public static final TransportVersion SMALLER_RELOAD_SECURE_SETTINGS_REQUEST = def(8_567_00_0);
-    public static final TransportVersion UPDATE_API_KEY_EXPIRATION_TIME_ADDED = def(8_568_00_0);
-    public static final TransportVersion LAZY_ROLLOVER_ADDED = def(8_569_00_0);
-    public static final TransportVersion ESQL_PLAN_POINT_LITERAL_WKB = def(8_570_00_0);
-    public static final TransportVersion HOT_THREADS_AS_BYTES = def(8_571_00_0);
-    public static final TransportVersion ML_INFERENCE_REQUEST_INPUT_TYPE_ADDED = def(8_572_00_0);
-    public static final TransportVersion ESQL_ENRICH_POLICY_CCQ_MODE = def(8_573_00_0);
-    public static final TransportVersion DATE_HISTOGRAM_SUPPORT_DOWNSAMPLED_TZ = def(8_574_00_0);
-    public static final TransportVersion PEERFINDER_REPORTS_PEERS_MASTERS = def(8_575_00_0);
-    public static final TransportVersion ESQL_MULTI_CLUSTERS_ENRICH = def(8_576_00_0);
-    public static final TransportVersion NESTED_KNN_MORE_INNER_HITS = def(8_577_00_0);
-    public static final TransportVersion REQUIRE_DATA_STREAM_ADDED = def(8_578_00_0);
-    public static final TransportVersion ML_INFERENCE_COHERE_EMBEDDINGS_ADDED = def(8_579_00_0);
-    public static final TransportVersion DESIRED_NODE_VERSION_OPTIONAL_STRING = def(8_580_00_0);
-    public static final TransportVersion ML_INFERENCE_REQUEST_INPUT_TYPE_UNSPECIFIED_ADDED = def(8_581_00_0);
-    public static final TransportVersion ASYNC_SEARCH_STATUS_SUPPORTS_KEEP_ALIVE = def(8_582_00_0);
-    public static final TransportVersion KNN_QUERY_NUMCANDS_AS_OPTIONAL_PARAM = def(8_583_00_0);
-    public static final TransportVersion TRANSFORM_GET_BASIC_STATS = def(8_584_00_0);
-    public static final TransportVersion NLP_DOCUMENT_CHUNKING_ADDED = def(8_585_00_0);
-    public static final TransportVersion SEARCH_TIMEOUT_EXCEPTION_ADDED = def(8_586_00_0);
-    public static final TransportVersion ML_TEXT_EMBEDDING_INFERENCE_SERVICE_ADDED = def(8_587_00_0);
-    public static final TransportVersion HEALTH_INFO_ENRICHED_WITH_REPOS = def(8_588_00_0);
-    public static final TransportVersion RESOLVE_CLUSTER_ENDPOINT_ADDED = def(8_589_00_0);
-    public static final TransportVersion FIELD_CAPS_FIELD_HAS_VALUE = def(8_590_00_0);
-    public static final TransportVersion ML_INFERENCE_REQUEST_INPUT_TYPE_CLASS_CLUSTER_ADDED = def(8_591_00_0);
-    public static final TransportVersion ML_DIMENSIONS_SET_BY_USER_ADDED = def(8_592_00_0);
-    public static final TransportVersion INDEX_REQUEST_NORMALIZED_BYTES_PARSED = def(8_593_00_0);
-    public static final TransportVersion INGEST_GRAPH_STRUCTURE_EXCEPTION = def(8_594_00_0);
-    public static final TransportVersion ML_MODEL_IN_SERVICE_SETTINGS = def(8_595_00_0);
-    public static final TransportVersion RANDOM_AGG_SHARD_SEED = def(8_596_00_0);
+    public static final TransportVersion V_8_12_1 = def(8_560_00_1);
+    public static final TransportVersion V_8_13_0 = def(8_595_00_0);
+    public static final TransportVersion V_8_13_4 = def(8_595_00_1);
+    public static final TransportVersion V_8_14_0 = def(8_636_00_1);
+    public static final TransportVersion V_8_15_0 = def(8_702_00_2);
+    public static final TransportVersion V_8_15_2 = def(8_702_00_3);
+    public static final TransportVersion ML_INFERENCE_DONT_DELETE_WHEN_SEMANTIC_TEXT_EXISTS = def(8_703_00_0);
+    public static final TransportVersion INFERENCE_ADAPTIVE_ALLOCATIONS = def(8_704_00_0);
+    public static final TransportVersion INDEX_REQUEST_UPDATE_BY_SCRIPT_ORIGIN = def(8_705_00_0);
+    public static final TransportVersion ML_INFERENCE_COHERE_UNUSED_RERANK_SETTINGS_REMOVED = def(8_706_00_0);
+    public static final TransportVersion ENRICH_CACHE_STATS_SIZE_ADDED = def(8_707_00_0);
+    public static final TransportVersion ENTERPRISE_GEOIP_DOWNLOADER = def(8_708_00_0);
+    public static final TransportVersion NODES_STATS_ENUM_SET = def(8_709_00_0);
+    public static final TransportVersion MASTER_NODE_METRICS = def(8_710_00_0);
+    public static final TransportVersion SEGMENT_LEVEL_FIELDS_STATS = def(8_711_00_0);
+    public static final TransportVersion ML_ADD_DETECTION_RULE_PARAMS = def(8_712_00_0);
+    public static final TransportVersion FIX_VECTOR_SIMILARITY_INNER_HITS = def(8_713_00_0);
+    public static final TransportVersion INDEX_REQUEST_UPDATE_BY_DOC_ORIGIN = def(8_714_00_0);
+    public static final TransportVersion ESQL_ATTRIBUTE_CACHED_SERIALIZATION = def(8_715_00_0);
+    public static final TransportVersion REGISTER_SLM_STATS = def(8_716_00_0);
+    public static final TransportVersion ESQL_NESTED_UNSUPPORTED = def(8_717_00_0);
+    public static final TransportVersion ESQL_SINGLE_VALUE_QUERY_SOURCE = def(8_718_00_0);
+    public static final TransportVersion ESQL_ORIGINAL_INDICES = def(8_719_00_0);
+    public static final TransportVersion ML_INFERENCE_EIS_INTEGRATION_ADDED = def(8_720_00_0);
+    public static final TransportVersion INGEST_PIPELINE_EXCEPTION_ADDED = def(8_721_00_0);
+    public static final TransportVersion ZDT_NANOS_SUPPORT_BROKEN = def(8_722_00_0);
+    public static final TransportVersion REMOVE_GLOBAL_RETENTION_FROM_TEMPLATES = def(8_723_00_0);
+    public static final TransportVersion RANDOM_RERANKER_RETRIEVER = def(8_724_00_0);
+    public static final TransportVersion ESQL_PROFILE_SLEEPS = def(8_725_00_0);
+    public static final TransportVersion ZDT_NANOS_SUPPORT = def(8_726_00_0);
+    public static final TransportVersion LTR_SERVERLESS_RELEASE = def(8_727_00_0);
+    public static final TransportVersion ALLOW_PARTIAL_SEARCH_RESULTS_IN_PIT = def(8_728_00_0);
+    public static final TransportVersion RANK_DOCS_RETRIEVER = def(8_729_00_0);
+    public static final TransportVersion ESQL_ES_FIELD_CACHED_SERIALIZATION = def(8_730_00_0);
+    public static final TransportVersion ADD_MANAGE_ROLES_PRIVILEGE = def(8_731_00_0);
+    public static final TransportVersion REPOSITORIES_TELEMETRY = def(8_732_00_0);
+    public static final TransportVersion ML_INFERENCE_ALIBABACLOUD_SEARCH_ADDED = def(8_733_00_0);
+    public static final TransportVersion FIELD_CAPS_RESPONSE_INDEX_MODE = def(8_734_00_0);
+    public static final TransportVersion GET_DATA_STREAMS_VERBOSE = def(8_735_00_0);
+    public static final TransportVersion ESQL_ADD_INDEX_MODE_CONCRETE_INDICES = def(8_736_00_0);
+    public static final TransportVersion UNASSIGNED_PRIMARY_COUNT_ON_CLUSTER_HEALTH = def(8_737_00_0);
+    public static final TransportVersion ESQL_AGGREGATE_EXEC_TRACKS_INTERMEDIATE_ATTRS = def(8_738_00_0);
+    public static final TransportVersion CCS_TELEMETRY_STATS = def(8_739_00_0);
+    public static final TransportVersion GLOBAL_RETENTION_TELEMETRY = def(8_740_00_0);
+    public static final TransportVersion ROUTING_TABLE_VERSION_REMOVED = def(8_741_00_0);
+    public static final TransportVersion ML_SCHEDULED_EVENT_TIME_SHIFT_CONFIGURATION = def(8_742_00_0);
+    public static final TransportVersion SIMULATE_COMPONENT_TEMPLATES_SUBSTITUTIONS = def(8_743_00_0);
+    public static final TransportVersion ML_INFERENCE_IBM_WATSONX_EMBEDDINGS_ADDED = def(8_744_00_0);
+    public static final TransportVersion BULK_INCREMENTAL_STATE = def(8_745_00_0);
+    public static final TransportVersion FAILURE_STORE_STATUS_IN_INDEX_RESPONSE = def(8_746_00_0);
+    public static final TransportVersion ESQL_AGGREGATION_OPERATOR_STATUS_FINISH_NANOS = def(8_747_00_0);
+    public static final TransportVersion ML_TELEMETRY_MEMORY_ADDED = def(8_748_00_0);
+    public static final TransportVersion ILM_ADD_SEARCHABLE_SNAPSHOT_TOTAL_SHARDS_PER_NODE = def(8_749_00_0);
+    public static final TransportVersion SEMANTIC_TEXT_SEARCH_INFERENCE_ID = def(8_750_00_0);
+    public static final TransportVersion ML_INFERENCE_CHUNKING_SETTINGS = def(8_751_00_0);
+    public static final TransportVersion SEMANTIC_QUERY_INNER_HITS = def(8_752_00_0);
+    public static final TransportVersion RETAIN_ILM_STEP_INFO = def(8_753_00_0);
+    public static final TransportVersion ADD_DATA_STREAM_OPTIONS = def(8_754_00_0);
+    public static final TransportVersion CCS_REMOTE_TELEMETRY_STATS = def(8_755_00_0);
+    public static final TransportVersion ESQL_CCS_EXECUTION_INFO = def(8_756_00_0);
+    public static final TransportVersion REGEX_AND_RANGE_INTERVAL_QUERIES = def(8_757_00_0);
+    public static final TransportVersion RRF_QUERY_REWRITE = def(8_758_00_0);
+    public static final TransportVersion SEARCH_FAILURE_STATS = def(8_759_00_0);
+    public static final TransportVersion INGEST_GEO_DATABASE_PROVIDERS = def(8_760_00_0);
+    public static final TransportVersion DATE_TIME_DOC_VALUES_LOCALES = def(8_761_00_0);
+    public static final TransportVersion FAST_REFRESH_RCO = def(8_762_00_0);
+    public static final TransportVersion TEXT_SIMILARITY_RERANKER_QUERY_REWRITE = def(8_763_00_0);
+    public static final TransportVersion SIMULATE_INDEX_TEMPLATES_SUBSTITUTIONS = def(8_764_00_0);
+    public static final TransportVersion RETRIEVERS_TELEMETRY_ADDED = def(8_765_00_0);
+    public static final TransportVersion ESQL_CACHED_STRING_SERIALIZATION = def(8_766_00_0);
+    public static final TransportVersion CHUNK_SENTENCE_OVERLAP_SETTING_ADDED = def(8_767_00_0);
+    public static final TransportVersion OPT_IN_ESQL_CCS_EXECUTION_INFO = def(8_768_00_0);
+    public static final TransportVersion QUERY_RULE_TEST_API = def(8_769_00_0);
+    public static final TransportVersion ESQL_PER_AGGREGATE_FILTER = def(8_770_00_0);
+    public static final TransportVersion ML_INFERENCE_ATTACH_TO_EXISTSING_DEPLOYMENT = def(8_771_00_0);
+    public static final TransportVersion CONVERT_FAILURE_STORE_OPTIONS_TO_SELECTOR_OPTIONS_INTERNALLY = def(8_772_00_0);
+    public static final TransportVersion REMOVE_MIN_COMPATIBLE_SHARD_NODE = def(8_773_00_0);
+    public static final TransportVersion REVERT_REMOVE_MIN_COMPATIBLE_SHARD_NODE = def(8_774_00_0);
+    public static final TransportVersion ESQL_FIELD_ATTRIBUTE_PARENT_SIMPLIFIED = def(8_775_00_0);
 
     /*
      * STOP! READ THIS FIRST! No, really,
@@ -192,13 +235,15 @@ public class TransportVersions {
      * Reference to the earliest compatible transport version to this version of the codebase.
      * This should be the transport version used by the highest minor version of the previous major.
      */
+    @UpdateForV9(owner = UpdateForV9.Owner.CORE_INFRA)
+    // This needs to be bumped to the 8.last
     public static final TransportVersion MINIMUM_COMPATIBLE = V_7_17_0;
 
     /**
      * Reference to the minimum transport version that can be used with CCS.
      * This should be the transport version used by the previous minor release.
      */
-    public static final TransportVersion MINIMUM_CCS_VERSION = V_8_12_0;
+    public static final TransportVersion MINIMUM_CCS_VERSION = V_8_15_0;
 
     static final NavigableMap<Integer, TransportVersion> VERSION_IDS = getAllVersionIds(TransportVersions.class);
 
@@ -255,7 +300,7 @@ public class TransportVersions {
         return VERSION_IDS.values();
     }
 
-    static final IntFunction<String> VERSION_LOOKUP = ReleaseVersions.generateVersionsLookup(TransportVersions.class);
+    static final IntFunction<String> VERSION_LOOKUP = ReleaseVersions.generateVersionsLookup(TransportVersions.class, LATEST_DEFINED.id());
 
     // no instance
     private TransportVersions() {}

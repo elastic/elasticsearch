@@ -1,18 +1,21 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.ingest.geoip;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -51,6 +54,8 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.ingest.geoip.GeoIpDownloader.DATABASES_INDEX;
 import static org.elasticsearch.ingest.geoip.GeoIpDownloader.GEOIP_DOWNLOADER;
 import static org.elasticsearch.ingest.geoip.GeoIpProcessor.Factory.downloadDatabaseOnPipelineCreation;
+import static org.elasticsearch.ingest.geoip.GeoIpProcessor.GEOIP_TYPE;
+import static org.elasticsearch.ingest.geoip.GeoIpProcessor.IP_LOCATION_TYPE;
 
 /**
  * Persistent task executor that is responsible for starting {@link GeoIpDownloader} after task is allocated by master node.
@@ -103,7 +108,7 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
         this.clusterService = clusterService;
         this.threadPool = threadPool;
         this.settings = clusterService.getSettings();
-        persistentTasksService = new PersistentTasksService(clusterService, threadPool, client);
+        this.persistentTasksService = new PersistentTasksService(clusterService, threadPool, client);
         this.pollInterval = POLL_INTERVAL_SETTING.get(settings);
         this.eagerDownload = EAGER_DOWNLOAD_SETTING.get(settings);
     }
@@ -153,7 +158,7 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
     @Override
     protected void nodeOperation(AllocatedPersistentTask task, GeoIpTaskParams params, PersistentTaskState state) {
         GeoIpDownloader downloader = (GeoIpDownloader) task;
-        GeoIpTaskState geoIpTaskState = state == null ? GeoIpTaskState.EMPTY : (GeoIpTaskState) state;
+        GeoIpTaskState geoIpTaskState = (state == null) ? GeoIpTaskState.EMPTY : (GeoIpTaskState) state;
         downloader.setState(geoIpTaskState);
         currentTask.set(downloader);
         if (ENABLED_SETTING.get(clusterService.state().metadata().settings(), settings)) {
@@ -215,7 +220,7 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
         }
 
         boolean hasIndicesChanges = event.previousState().metadata().indices().equals(event.state().metadata().indices()) == false;
-        boolean hasIngestPipelineChanges = event.changedCustomMetadataSet().contains(IngestMetadata.TYPE);
+        boolean hasIngestPipelineChanges = event.metadataChanged() && event.changedCustomMetadataSet().contains(IngestMetadata.TYPE);
 
         if (hasIngestPipelineChanges || hasIndicesChanges) {
             boolean newAtLeastOneGeoipProcessor = hasAtLeastOneGeoipProcessor(event.state());
@@ -293,9 +298,18 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
             return false;
         }
 
-        if (processor.containsKey(GeoIpProcessor.TYPE)) {
-            Map<String, Object> processorConfig = (Map<String, Object>) processor.get(GeoIpProcessor.TYPE);
-            return downloadDatabaseOnPipelineCreation(processorConfig) == downloadDatabaseOnPipelineCreation;
+        {
+            final Map<String, Object> processorConfig = (Map<String, Object>) processor.get(GEOIP_TYPE);
+            if (processorConfig != null) {
+                return downloadDatabaseOnPipelineCreation(GEOIP_TYPE, processorConfig, null) == downloadDatabaseOnPipelineCreation;
+            }
+        }
+
+        {
+            final Map<String, Object> processorConfig = (Map<String, Object>) processor.get(IP_LOCATION_TYPE);
+            if (processorConfig != null) {
+                return downloadDatabaseOnPipelineCreation(IP_LOCATION_TYPE, processorConfig, null) == downloadDatabaseOnPipelineCreation;
+            }
         }
 
         return isProcessorWithOnFailureGeoIpProcessor(processor, downloadDatabaseOnPipelineCreation)
@@ -333,11 +347,9 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
      */
     @SuppressWarnings("unchecked")
     private static boolean isForeachProcessorWithGeoipProcessor(Map<String, Object> processor, boolean downloadDatabaseOnPipelineCreation) {
-        return processor.containsKey("foreach")
-            && hasAtLeastOneGeoipProcessor(
-                ((Map<String, Map<String, Object>>) processor.get("foreach")).get("processor"),
-                downloadDatabaseOnPipelineCreation
-            );
+        final Map<String, Object> processorConfig = (Map<String, Object>) processor.get("foreach");
+        return processorConfig != null
+            && hasAtLeastOneGeoipProcessor((Map<String, Object>) processorConfig.get("processor"), downloadDatabaseOnPipelineCreation);
     }
 
     private void startTask(Runnable onFailure) {
@@ -345,9 +357,9 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
             GEOIP_DOWNLOADER,
             GEOIP_DOWNLOADER,
             new GeoIpTaskParams(),
-            null,
+            MasterNodeRequest.INFINITE_MASTER_NODE_TIMEOUT,
             ActionListener.wrap(r -> logger.debug("Started geoip downloader task"), e -> {
-                Throwable t = e instanceof RemoteTransportException ? e.getCause() : e;
+                Throwable t = e instanceof RemoteTransportException ? ExceptionsHelper.unwrapCause(e) : e;
                 if (t instanceof ResourceAlreadyExistsException == false) {
                     logger.error("failed to create geoip downloader task", e);
                     onFailure.run();
@@ -360,26 +372,30 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
         ActionListener<PersistentTasksCustomMetadata.PersistentTask<?>> listener = ActionListener.wrap(
             r -> logger.debug("Stopped geoip downloader task"),
             e -> {
-                Throwable t = e instanceof RemoteTransportException ? e.getCause() : e;
+                Throwable t = e instanceof RemoteTransportException ? ExceptionsHelper.unwrapCause(e) : e;
                 if (t instanceof ResourceNotFoundException == false) {
                     logger.error("failed to remove geoip downloader task", e);
                     onFailure.run();
                 }
             }
         );
-        persistentTasksService.sendRemoveRequest(GEOIP_DOWNLOADER, null, ActionListener.runAfter(listener, () -> {
-            IndexAbstraction databasesAbstraction = clusterService.state().metadata().getIndicesLookup().get(DATABASES_INDEX);
-            if (databasesAbstraction != null) {
-                // regardless of whether DATABASES_INDEX is an alias, resolve it to a concrete index
-                Index databasesIndex = databasesAbstraction.getWriteIndex();
-                client.admin().indices().prepareDelete(databasesIndex.getName()).execute(ActionListener.wrap(rr -> {}, e -> {
-                    Throwable t = e instanceof RemoteTransportException ? e.getCause() : e;
-                    if (t instanceof ResourceNotFoundException == false) {
-                        logger.warn("failed to remove " + databasesIndex, e);
-                    }
-                }));
-            }
-        }));
+        persistentTasksService.sendRemoveRequest(
+            GEOIP_DOWNLOADER,
+            MasterNodeRequest.INFINITE_MASTER_NODE_TIMEOUT,
+            ActionListener.runAfter(listener, () -> {
+                IndexAbstraction databasesAbstraction = clusterService.state().metadata().getIndicesLookup().get(DATABASES_INDEX);
+                if (databasesAbstraction != null) {
+                    // regardless of whether DATABASES_INDEX is an alias, resolve it to a concrete index
+                    Index databasesIndex = databasesAbstraction.getWriteIndex();
+                    client.admin().indices().prepareDelete(databasesIndex.getName()).execute(ActionListener.wrap(rr -> {}, e -> {
+                        Throwable t = e instanceof RemoteTransportException ? ExceptionsHelper.unwrapCause(e) : e;
+                        if (t instanceof ResourceNotFoundException == false) {
+                            logger.warn("failed to remove " + databasesIndex, e);
+                        }
+                    }));
+                }
+            })
+        );
     }
 
     public GeoIpDownloader getCurrentTask() {

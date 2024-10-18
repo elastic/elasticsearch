@@ -1,14 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.cluster.allocation;
 
 import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -48,7 +50,6 @@ import org.elasticsearch.transport.TransportService;
 import java.util.List;
 import java.util.Map;
 import java.util.Queue;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Predicate;
 
@@ -76,7 +77,7 @@ public class TransportDeleteDesiredBalanceActionTests extends ESAllocationTestCa
             mock(IndexNameExpressionResolver.class),
             mock(AllocationService.class),
             mock(ShardsAllocator.class)
-        ).masterOperation(mock(Task.class), new DesiredBalanceRequest(), ClusterState.EMPTY_STATE, listener);
+        ).masterOperation(mock(Task.class), new DesiredBalanceRequest(TEST_REQUEST_TIMEOUT), ClusterState.EMPTY_STATE, listener);
 
         var exception = expectThrows(ResourceNotFoundException.class, listener);
         assertThat(exception.getMessage(), equalTo("Desired balance allocator is not in use, no desired balance found"));
@@ -131,11 +132,7 @@ public class TransportDeleteDesiredBalanceActionTests extends ESAllocationTestCa
             SNAPSHOT_INFO_SERVICE_WITH_NO_SHARD_SIZES
         );
 
-        PlainActionFuture.<Void, RuntimeException>get(
-            f -> allocationService.reroute(clusterState, "inital-allocate", f),
-            10,
-            TimeUnit.SECONDS
-        );
+        safeAwait((ActionListener<Void> listener) -> allocationService.reroute(clusterState, "inital-allocate", listener));
 
         var balanceBeforeReset = allocator.getDesiredBalance();
         assertThat(balanceBeforeReset.lastConvergedIndex(), greaterThan(DesiredBalance.INITIAL.lastConvergedIndex()));
@@ -156,7 +153,7 @@ public class TransportDeleteDesiredBalanceActionTests extends ESAllocationTestCa
             allocator
         );
 
-        action.masterOperation(mock(Task.class), new DesiredBalanceRequest(), clusterState, listener);
+        action.masterOperation(mock(Task.class), new DesiredBalanceRequest(TEST_REQUEST_TIMEOUT), clusterState, listener);
 
         try {
             assertThat(listener.get(), notNullValue());

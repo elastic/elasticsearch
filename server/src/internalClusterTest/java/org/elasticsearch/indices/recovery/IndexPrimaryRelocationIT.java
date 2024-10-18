@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.indices.recovery;
@@ -11,6 +12,7 @@ package org.elasticsearch.indices.recovery;
 import org.apache.logging.log4j.Level;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
+import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteUtils;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -52,7 +54,7 @@ public class IndexPrimaryRelocationIT extends ESIntegTestCase {
         };
         indexingThread.start();
 
-        ClusterState initialState = clusterAdmin().prepareState().get().getState();
+        ClusterState initialState = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
         DiscoveryNode[] dataNodes = initialState.getNodes().getDataNodes().values().toArray(DiscoveryNode[]::new);
         DiscoveryNode relocationSource = initialState.getNodes()
             .getDataNodes()
@@ -63,10 +65,8 @@ public class IndexPrimaryRelocationIT extends ESIntegTestCase {
                 relocationTarget = randomFrom(dataNodes);
             }
             logger.info("--> [iteration {}] relocating from {} to {} ", i, relocationSource.getName(), relocationTarget.getName());
-            clusterAdmin().prepareReroute()
-                .add(new MoveAllocationCommand("test", 0, relocationSource.getId(), relocationTarget.getId()))
-                .get();
-            ClusterHealthResponse clusterHealthResponse = clusterAdmin().prepareHealth()
+            ClusterRerouteUtils.reroute(client(), new MoveAllocationCommand("test", 0, relocationSource.getId(), relocationTarget.getId()));
+            ClusterHealthResponse clusterHealthResponse = clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT)
                 .setTimeout(TimeValue.timeValueSeconds(60))
                 .setWaitForEvents(Priority.LANGUID)
                 .setWaitForNoRelocatingShards(true)
@@ -78,7 +78,7 @@ public class IndexPrimaryRelocationIT extends ESIntegTestCase {
                     "timed out waiting for relocation iteration [" + i + "]",
                     ReferenceDocs.LOGGING
                 );
-                final ClusterState clusterState = clusterAdmin().prepareState().get().getState();
+                final ClusterState clusterState = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
                 logger.info("timed out for waiting for relocation iteration [{}] \ncluster state {}", i, clusterState);
                 finished.set(true);
                 indexingThread.join();

@@ -12,7 +12,7 @@ that can be applied automatically to new indices.
 --------------------------------------------------
 PUT /_index_template/template_1
 {
-  "index_patterns" : ["te*"],
+  "index_patterns" : ["template*"],
   "priority" : 1,
   "template": {
     "settings" : {
@@ -85,6 +85,8 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=master-timeout]
 [[put-index-template-api-request-body]]
 ==== {api-request-body-title}
 
+// tag::request-body[]
+
 `composed_of`::
 (Optional, array of strings)
 An ordered list of component template names. Component templates are merged in the order
@@ -102,7 +104,7 @@ See <<create-index-template,create an index template>>.
 +
 .Properties of `data_stream`
 [%collapsible%open]
-====
+=====
 `allow_custom_routing`::
 (Optional, Boolean) If `true`, the data stream supports
 <<mapping-routing-field,custom routing>>. Defaults to `false`.
@@ -117,7 +119,7 @@ See <<create-index-template,create an index template>>.
 +
 If `time_series`, each backing index has an `index.mode` index setting of
 `time_series`.
-====
+=====
 
 `index_patterns`::
 (Required, array of strings)
@@ -146,7 +148,7 @@ Template to be applied. It may optionally include an `aliases`, `mappings`, or
 +
 .Properties of `template`
 [%collapsible%open]
-====
+=====
 `aliases`::
 (Optional, object of objects) Aliases to add.
 +
@@ -156,12 +158,12 @@ aliases. Otherwise, these are index aliases. Data stream aliases ignore the
 `index_routing`, `routing`, and `search_routing` options.
 // end::template-ds-alias[]
 +
-include::{es-repo-dir}/indices/create-index.asciidoc[tag=aliases-props]
+include::{es-ref-dir}/indices/create-index.asciidoc[tag=aliases-props]
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=mappings]
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=settings]
-====
+=====
 
 `version`::
 (Optional, integer)
@@ -174,6 +176,7 @@ Marks this index template as deprecated.
 When creating or updating a non-deprecated index template that uses deprecated components,
 {es} will emit a deprecation warning.
 // end::index-template-api-body[]
+// end::request-body[]
 
 [[put-index-template-api-example]]
 ==== {api-examples-title}
@@ -186,7 +189,7 @@ You can include <<aliases,index aliases>> in an index template.
 --------------------------------------------------
 PUT _index_template/template_1
 {
-  "index_patterns" : ["te*"],
+  "index_patterns" : ["template*"],
   "template": {
     "settings" : {
         "number_of_shards" : 1
@@ -218,7 +221,7 @@ the template with the highest priority is used. For example:
 --------------------------------------------------
 PUT /_index_template/template_1
 {
-  "index_patterns" : ["t*"],
+  "index_patterns" : ["temp*"],
   "priority" : 0,
   "template": {
     "settings" : {
@@ -233,7 +236,7 @@ PUT /_index_template/template_1
 
 PUT /_index_template/template_2
 {
-  "index_patterns" : ["te*"],
+  "index_patterns" : ["template*"],
   "priority" : 1,
   "template": {
     "settings" : {
@@ -246,7 +249,7 @@ PUT /_index_template/template_2
 }
 --------------------------------------------------
 
-For indices that start with `te*`, `_source` will enabled, and the index will have two primary
+For indices that start with `template*`, `_source` will enabled, and the index will have two primary
 shards and one replica, because only `template_2` will be applied.
 
 NOTE: Multiple templates with overlapping index patterns at the same priority are not allowed, and

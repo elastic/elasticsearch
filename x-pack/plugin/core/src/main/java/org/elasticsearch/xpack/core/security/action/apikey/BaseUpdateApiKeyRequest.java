@@ -7,10 +7,9 @@
 
 package org.elasticsearch.xpack.core.security.action.apikey;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
@@ -41,17 +40,6 @@ public abstract class BaseUpdateApiKeyRequest extends ActionRequest {
         this.roleDescriptors = roleDescriptors;
         this.metadata = metadata;
         this.expiration = expiration;
-    }
-
-    public BaseUpdateApiKeyRequest(StreamInput in) throws IOException {
-        super(in);
-        this.roleDescriptors = in.readOptionalCollectionAsList(RoleDescriptor::new);
-        this.metadata = in.readGenericMap();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.UPDATE_API_KEY_EXPIRATION_TIME_ADDED)) {
-            expiration = in.readOptionalTimeValue();
-        } else {
-            expiration = null;
-        }
     }
 
     public Map<String, Object> getMetadata() {
@@ -90,12 +78,7 @@ public abstract class BaseUpdateApiKeyRequest extends ActionRequest {
     }
 
     @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        out.writeOptionalCollection(roleDescriptors);
-        out.writeGenericMap(metadata);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.UPDATE_API_KEY_EXPIRATION_TIME_ADDED)) {
-            out.writeOptionalTimeValue(expiration);
-        }
+    public final void writeTo(StreamOutput out) throws IOException {
+        TransportAction.localOnly();
     }
 }

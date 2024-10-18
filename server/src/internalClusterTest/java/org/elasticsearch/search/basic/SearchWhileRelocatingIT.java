@@ -1,18 +1,21 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.basic;
 
 import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
+import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteUtils;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.test.ESIntegTestCase;
 
@@ -117,17 +120,17 @@ public class SearchWhileRelocatingIT extends ESIntegTestCase {
                 threads[j].start();
             }
             allowNodes("test", between(1, 3));
-            clusterAdmin().prepareReroute().get();
+            ClusterRerouteUtils.reroute(client());
             stop.set(true);
             for (int j = 0; j < threads.length; j++) {
                 threads[j].join();
             }
             // this might time out on some machines if they are really busy and you hit lots of throttling
-            ClusterHealthResponse resp = clusterAdmin().prepareHealth()
+            ClusterHealthResponse resp = clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT)
                 .setWaitForYellowStatus()
                 .setWaitForNoRelocatingShards(true)
                 .setWaitForEvents(Priority.LANGUID)
-                .setTimeout("5m")
+                .setTimeout(TimeValue.timeValueMinutes(5))
                 .get();
             assertNoTimeout(resp);
             // if we hit only non-critical exceptions we make sure that the post search works

@@ -12,7 +12,7 @@ import org.elasticsearch.action.admin.indices.alias.TransportIndicesAliasesActio
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesAction;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequestBuilder;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesResponse;
-import org.elasticsearch.action.admin.indices.create.CreateIndexAction;
+import org.elasticsearch.action.admin.indices.create.TransportCreateIndexAction;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.settings.Settings;
@@ -700,7 +700,7 @@ public class IndexAliasesTests extends SecurityIntegTestCase {
                     basicAuthHeaderValue("aliases_only", SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING)
                 )
             ).admin().indices().prepareCreate("test_1")::get,
-            CreateIndexAction.NAME,
+            TransportCreateIndexAction.TYPE.name(),
             "aliases_only"
         );
     }
@@ -719,7 +719,7 @@ public class IndexAliasesTests extends SecurityIntegTestCase {
             client.admin()
                 .indices()
                 .prepareGetAliases("alias_1")
-                .addIndices("test_1")
+                .setIndices("test_1")
                 .setIndicesOptions(IndicesOptions.strictExpandOpen())::get
         );
         assertEquals("no such index [test_1]", indexNotFoundException.getMessage());
@@ -729,7 +729,7 @@ public class IndexAliasesTests extends SecurityIntegTestCase {
             client.admin()
                 .indices()
                 .prepareGetAliases("non_authorized")
-                .addIndices("test_1")
+                .setIndices("test_1")
                 .setIndicesOptions(IndicesOptions.strictExpandOpen())::get,
             GetAliasesAction.NAME,
             "aliases_only"
@@ -740,7 +740,7 @@ public class IndexAliasesTests extends SecurityIntegTestCase {
             client.admin()
                 .indices()
                 .prepareGetAliases("alias_1")
-                .addIndices("non_authorized")
+                .setIndices("non_authorized")
                 .setIndicesOptions(IndicesOptions.strictExpandOpen())::get,
             GetAliasesAction.NAME,
             "aliases_only"
@@ -759,7 +759,7 @@ public class IndexAliasesTests extends SecurityIntegTestCase {
         GetAliasesResponse getAliasesResponse = client.admin()
             .indices()
             .prepareGetAliases("alias_1")
-            .addIndices("test_1")
+            .setIndices("test_1")
             .setIndicesOptions(IndicesOptions.lenientExpandOpen())
             .get();
         assertEquals(0, getAliasesResponse.getAliases().size());
@@ -769,7 +769,7 @@ public class IndexAliasesTests extends SecurityIntegTestCase {
             client.admin()
                 .indices()
                 .prepareGetAliases("non_authorized")
-                .addIndices("test_1")
+                .setIndices("test_1")
                 .setIndicesOptions(IndicesOptions.lenientExpandOpen())::get,
             GetAliasesAction.NAME,
             "aliases_only"
@@ -779,7 +779,7 @@ public class IndexAliasesTests extends SecurityIntegTestCase {
         getAliasesResponse = client.admin()
             .indices()
             .prepareGetAliases("alias_1")
-            .addIndices("non_authorized")
+            .setIndices("non_authorized")
             .setIndicesOptions(IndicesOptions.lenientExpandOpen())
             .get();
         assertEquals(0, getAliasesResponse.getAliases().size());

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.builder;
@@ -12,10 +13,10 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.admin.cluster.stats.SearchUsageStats;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
@@ -39,6 +40,8 @@ import org.elasticsearch.search.collapse.CollapseBuilder;
 import org.elasticsearch.search.collapse.CollapseBuilderTests;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
 import org.elasticsearch.search.rescore.QueryRescorerBuilder;
+import org.elasticsearch.search.retriever.KnnRetrieverBuilder;
+import org.elasticsearch.search.retriever.StandardRetrieverBuilder;
 import org.elasticsearch.search.slice.SliceBuilder;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.ScoreSortBuilder;
@@ -62,6 +65,8 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.util.Base64;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -385,13 +390,13 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
     }
 
     public void testTimeoutWithUnits() throws IOException {
-        final String timeout = randomTimeValue();
+        final var timeout = randomTimeValue();
         final String query = Strings.format("""
             { "query": { "match_all": {}}, "timeout": "%s"}
-            """, timeout);
+            """, timeout.getStringRep());
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, query)) {
             final SearchSourceBuilder builder = new SearchSourceBuilder().parseXContent(parser, true, nf -> false);
-            assertThat(builder.timeout(), equalTo(TimeValue.parseTimeValue(timeout, null, "timeout")));
+            assertThat(builder.timeout(), equalTo(timeout));
         }
     }
 
@@ -436,7 +441,7 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
         XContentType xContentType = randomFrom(XContentType.values());
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
         TimeValue keepAlive = randomBoolean() ? TimeValue.timeValueHours(1) : null;
-        searchSourceBuilder.pointInTimeBuilder(new PointInTimeBuilder("id").setKeepAlive(keepAlive));
+        searchSourceBuilder.pointInTimeBuilder(new PointInTimeBuilder(new BytesArray("id")).setKeepAlive(keepAlive));
         XContentBuilder builder = XContentFactory.contentBuilder(xContentType);
         searchSourceBuilder.toXContent(builder, ToXContent.EMPTY_PARAMS);
         BytesReference bytes = BytesReference.bytes(builder);
@@ -444,7 +449,10 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
         assertEquals(1, sourceAsMap.size());
         @SuppressWarnings("unchecked")
         Map<String, Object> pit = (Map<String, Object>) sourceAsMap.get("pit");
-        assertEquals("id", pit.get("id"));
+        assertEquals(
+            new String(Base64.getUrlEncoder().encode("id".getBytes(StandardCharsets.UTF_8)), StandardCharsets.ISO_8859_1),
+            pit.get("id")
+        );
         if (keepAlive != null) {
             assertEquals("1h", pit.get("keep_alive"));
             assertEquals(2, pit.size());
@@ -455,18 +463,6 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
     }
 
     public void testParseIndicesBoost() throws IOException {
-        {
-            String restContent = """
-                { "indices_boost": {"foo": 1.0, "bar": 2.0}}""";
-            try (XContentParser parser = createParserWithCompatibilityFor(JsonXContent.jsonXContent, restContent, RestApiVersion.V_7)) {
-                SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().parseXContent(parser, true, nf -> false);
-                assertEquals(2, searchSourceBuilder.indexBoosts().size());
-                assertEquals(new SearchSourceBuilder.IndexBoost("foo", 1.0f), searchSourceBuilder.indexBoosts().get(0));
-                assertEquals(new SearchSourceBuilder.IndexBoost("bar", 2.0f), searchSourceBuilder.indexBoosts().get(1));
-                assertCriticalWarnings("Object format in indices_boost is deprecated, please use array format instead");
-            }
-        }
-
         {
             String restContent = """
                 {
@@ -545,16 +541,6 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
             );
             assertThat(ex.getMessage(), containsString(Integer.toString(boundedRandomSize)));
         }
-
-        restContent = "{\"size\" : -1}";
-        try (XContentParser parser = createParserWithCompatibilityFor(JsonXContent.jsonXContent, restContent, RestApiVersion.V_7)) {
-            SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().parseXContent(parser, true, nf -> false);
-            assertEquals(-1, searchSourceBuilder.size());
-        }
-        assertCriticalWarnings(
-            "Using search size of -1 is deprecated and will be removed in future versions. Instead, don't use the `size` "
-                + "parameter if you don't want to set it explicitly."
-        );
     }
 
     public void testNegativeTerminateAfter() throws IOException {
@@ -590,6 +576,75 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
                 () -> new SearchSourceBuilder().parseXContent(parser, true, nf -> false)
             );
             assertEquals("[track_total_hits] parameter must be positive or equals to -1, got " + randomNegativeValue, ex.getMessage());
+        }
+    }
+
+    public void testStandardRetrieverParsing() throws IOException {
+        String restContent = "{"
+            + "  \"retriever\": {"
+            + "    \"standard\": {"
+            + "      \"query\": {"
+            + "        \"match_all\": {}"
+            + "      },"
+            + "      \"min_score\": 10,"
+            + "      \"_name\": \"foo_standard\""
+            + "    }"
+            + "  }"
+            + "}";
+        SearchUsageHolder searchUsageHolder = new UsageService().getSearchUsageHolder();
+        try (XContentParser jsonParser = createParser(JsonXContent.jsonXContent, restContent)) {
+            SearchSourceBuilder source = new SearchSourceBuilder().parseXContent(jsonParser, true, searchUsageHolder, nf -> true);
+            assertThat(source.retriever(), instanceOf(StandardRetrieverBuilder.class));
+            StandardRetrieverBuilder parsed = (StandardRetrieverBuilder) source.retriever();
+            assertThat(parsed.minScore(), equalTo(10f));
+            assertThat(parsed.retrieverName(), equalTo("foo_standard"));
+            try (XContentParser parseSerialized = createParser(JsonXContent.jsonXContent, Strings.toString(source))) {
+                SearchSourceBuilder deserializedSource = new SearchSourceBuilder().parseXContent(
+                    parseSerialized,
+                    true,
+                    searchUsageHolder,
+                    nf -> true
+                );
+                assertThat(deserializedSource.retriever(), instanceOf(StandardRetrieverBuilder.class));
+                StandardRetrieverBuilder deserialized = (StandardRetrieverBuilder) source.retriever();
+                assertThat(parsed, equalTo(deserialized));
+            }
+        }
+    }
+
+    public void testKnnRetrieverParsing() throws IOException {
+        String restContent = "{"
+            + "  \"retriever\": {"
+            + "    \"knn\": {"
+            + "      \"query_vector\": ["
+            + "        3"
+            + "      ],"
+            + "      \"field\": \"vector\","
+            + "      \"k\": 10,"
+            + "      \"num_candidates\": 15,"
+            + "      \"min_score\": 10,"
+            + "      \"_name\": \"foo_knn\""
+            + "     }"
+            + "  }"
+            + "}";
+        SearchUsageHolder searchUsageHolder = new UsageService().getSearchUsageHolder();
+        try (XContentParser jsonParser = createParser(JsonXContent.jsonXContent, restContent)) {
+            SearchSourceBuilder source = new SearchSourceBuilder().parseXContent(jsonParser, true, searchUsageHolder, nf -> true);
+            assertThat(source.retriever(), instanceOf(KnnRetrieverBuilder.class));
+            KnnRetrieverBuilder parsed = (KnnRetrieverBuilder) source.retriever();
+            assertThat(parsed.minScore(), equalTo(10f));
+            assertThat(parsed.retrieverName(), equalTo("foo_knn"));
+            try (XContentParser parseSerialized = createParser(JsonXContent.jsonXContent, Strings.toString(source))) {
+                SearchSourceBuilder deserializedSource = new SearchSourceBuilder().parseXContent(
+                    parseSerialized,
+                    true,
+                    searchUsageHolder,
+                    nf -> true
+                );
+                assertThat(deserializedSource.retriever(), instanceOf(KnnRetrieverBuilder.class));
+                KnnRetrieverBuilder deserialized = (KnnRetrieverBuilder) source.retriever();
+                assertThat(parsed, equalTo(deserialized));
+            }
         }
     }
 
@@ -771,7 +826,7 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
         // these are not correct runtime mappings but they are counted compared to empty object
         searchSourceBuilder.runtimeMappings(Collections.singletonMap("field", "keyword"));
         searchSourceBuilder.knnSearch(List.of(new KnnSearchBuilder("field", new float[] {}, 2, 5, null)));
-        searchSourceBuilder.pointInTimeBuilder(new PointInTimeBuilder("pitid"));
+        searchSourceBuilder.pointInTimeBuilder(new PointInTimeBuilder(new BytesArray("pitid")));
         searchSourceBuilder.docValueField("field");
         searchSourceBuilder.storedField("field");
         searchSourceBuilder.explain(true);

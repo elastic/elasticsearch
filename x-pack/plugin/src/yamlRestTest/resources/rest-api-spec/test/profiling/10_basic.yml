@@ -1,7 +1,7 @@
 ---
 setup:
-  - skip:
-      version: " - 8.12.99"
+  - requires:
+      cluster_features: ["gte_v8.13.0"]
       reason: "Universal Profiling test infrastructure is available in 8.12+"
 
   - do:
@@ -29,7 +29,7 @@ setup:
 
   - do:
       bulk:
-        refresh: wait_for
+        refresh: true
         body:
           - {"create": {"_index": "profiling-events-all"}}
           - {"Stacktrace.count": [1], "profiling.project.id": ["100"], "os.kernel": ["9.9.9-0"], "tags": ["environment:qa", "region:eu-west-1"], "host.ip": ["192.168.1.2"], "@timestamp": ["1700504427"], "container.name": ["instance-0000000010"], "ecs.version": ["1.12.0"], "Stacktrace.id": ["S07KmaoGhvNte78xwwRbZQ"], "agent.version": ["head-be593ef3-1688111067"], "host.name": ["ip-192-168-1-2"], "host.id": ["8457605156473051743"], "process.thread.name": ["497295213074376"]}
@@ -116,7 +116,7 @@ setup:
           - {"create": {"_index": "profiling-executables", "_id": "lHp5_WAgpLy2alrUVab6HA"}}
           - {"@timestamp": "1698624000", "Executable": {"build": {"id": "c5f89ea1c68710d2a493bb604c343a92c4f8ddeb"}, "file": {"name": "vmlinux"}}, "Symbolization": {"next_time": "4852491791"}, "ecs": {"version": "1.12.0"}}
           - {"create": {"_index": "profiling-hosts", "_id": "eLH27YsBj2lLi3tJYlvr"}}
-          - {"profiling.project.id": 100, "host.id": "8457605156473051743", "@timestamp": 1700504426, "ecs.version": "1.12.0", "profiling.agent.build_timestamp": 1688111067, "profiling.instance.private_ipv4s": ["192.168.1.2"], "ec2.instance_life_cycle": "on-demand", "profiling.agent.config.map_scale_factor": 0, "ec2.instance_type": "i3.2xlarge", "profiling.host.ip": "192.168.1.2", "profiling.agent.config.bpf_log_level": 0, "profiling.host.sysctl.net.core.bpf_jit_enable": 1, "profiling.agent.config.file": "/etc/prodfiler/prodfiler.conf", "ec2.local_ipv4": "192.168.1.2", "profiling.agent.config.no_kernel_version_check": false, "profiling.host.machine": "x86_64", "profiling.host.tags": ["cloud_provider:aws", "cloud_environment:qa", "cloud_region:eu-west-1"], "profiling.agent.config.probabilistic_threshold": 100, "profiling.agent.config.disable_tls": false, "profiling.agent.config.tracers": "all", "profiling.agent.start_time": 1700090045589, "profiling.agent.config.max_elements_per_interval": 800, "ec2.placement.region": "eu-west-1", "profiling.agent.config.present_cpu_cores": 8, "profiling.host.kernel_version": "9.9.9-0-aws", "profiling.agent.config.bpf_log_size": 65536, "profiling.agent.config.known_traces_entries": 65536, "profiling.host.sysctl.kernel.unprivileged_bpf_disabled": 1, "profiling.agent.config.verbose": false, "profiling.agent.config.probabilistic_interval": "1m0s", "ec2.placement.availability_zone_id": "euw1-az1", "ec2.security_groups": "", "ec2.local_hostname": "ip-192-168-1-2.eu-west-1.compute.internal", "ec2.placement.availability_zone": "eu-west-1c", "profiling.agent.config.upload_symbols": false, "profiling.host.sysctl.kernel.bpf_stats_enabled": 0, "profiling.host.name": "ip-192-168-1-2", "ec2.mac": "00:11:22:33:44:55", "profiling.host.kernel_proc_version": "Linux version 9.9.9-0-aws", "profiling.agent.config.cache_directory": "/var/cache/optimyze/", "profiling.agent.version": "v8.12.0", "ec2.hostname": "ip-192-168-1-2.eu-west-1.compute.internal", "profiling.agent.config.elastic_mode": false, "ec2.ami_id": "ami-aaaaaaaaaaa", "ec2.instance_id": "i-0b999999999999999" }
+          - {"profiling.project.id": 100, "host.id": "8457605156473051743", "@timestamp": 1700504426, "ecs.version": "1.12.0", "profiling.agent.build_timestamp": 1688111067, "profiling.instance.private_ipv4s": ["192.168.1.2"], "ec2.instance_life_cycle": "on-demand", "profiling.agent.config.map_scale_factor": 0, "host.type": "i3.2xlarge", "profiling.host.ip": "192.168.1.2", "profiling.agent.config.bpf_log_level": 0, "profiling.host.sysctl.net.core.bpf_jit_enable": 1, "profiling.agent.config.file": "/etc/prodfiler/prodfiler.conf", "ec2.local_ipv4": "192.168.1.2", "profiling.agent.config.no_kernel_version_check": false, "host.arch": "amd64", "profiling.host.tags": ["cloud_provider:aws", "cloud_environment:qa", "cloud_region:eu-west-1"], "profiling.agent.config.probabilistic_threshold": 100, "profiling.agent.config.disable_tls": false, "profiling.agent.config.tracers": "all", "profiling.agent.start_time": 1700090045589, "profiling.agent.config.max_elements_per_interval": 800, "cloud.provider": "aws", "cloud.region": "eu-west-1", "profiling.agent.config.present_cpu_cores": 8, "profiling.host.kernel_version": "9.9.9-0-aws", "profiling.agent.config.bpf_log_size": 65536, "profiling.agent.config.known_traces_entries": 65536, "profiling.host.sysctl.kernel.unprivileged_bpf_disabled": 1, "profiling.agent.config.verbose": false, "profiling.agent.config.probabilistic_interval": "1m0s", "ec2.placement.availability_zone_id": "euw1-az1", "ec2.security_groups": "", "ec2.local_hostname": "ip-192-168-1-2.eu-west-1.compute.internal", "ec2.placement.availability_zone": "eu-west-1c", "profiling.agent.config.upload_symbols": false, "profiling.host.sysctl.kernel.bpf_stats_enabled": 0, "profiling.host.name": "ip-192-168-1-2", "ec2.mac": "00:11:22:33:44:55", "profiling.host.kernel_proc_version": "Linux version 9.9.9-0-aws", "profiling.agent.config.cache_directory": "/var/cache/optimyze/", "profiling.agent.version": "v8.12.0", "ec2.hostname": "ip-192-168-1-2.eu-west-1.compute.internal", "profiling.agent.config.elastic_mode": false, "ec2.ami_id": "ami-aaaaaaaaaaa", "ec2.instance_id": "i-0b999999999999999" }
           - {"index": {"_index": "test-events"}}
           - {"@timestamp": "1700504427", "events": ["S07KmaoGhvNte78xwwRbZQ"]}
 ---
@@ -137,6 +137,62 @@ teardown:
   - match: {resources.created: true}
   - match: {resources.pre_8_9_1_data: false}
   - match: {resources.has_data: true}
+
+---
+"Test stacktraces agg":
+  # This test mimics the behavior of the first query of the get stacktraces API. In certain environments we have
+  # observed that the stacktrace API returns a count of 2, although we only ever add one document with a count of 1.
+  # As these failures are very rare we start by adding a minimal reproduction that only relies on core ES features
+  # and eliminates any use of profiling-related APIs.
+  - do:
+      search:
+        index: profiling-events-all
+        body:
+          "query": {
+            "bool": {
+              "filter": [
+                {
+                  "range": {
+                    "@timestamp": {
+                      "gte": "2023-11-20",
+                      "lt": "2023-11-21",
+                      "format": "yyyy-MM-dd"
+                    }
+                  }
+                }
+              ]
+            }
+          }
+          size: 0
+          track_total_hits: false
+          aggs:
+            group_by:
+              terms:
+                field: host.id
+                execution_hint: map
+                size: 150000
+              aggs:
+                group_by:
+                  terms:
+                    field: Stacktrace.id
+                    execution_hint: map
+                    size: 150000
+                  aggs:
+                    count:
+                      sum:
+                        field: Stacktrace.count
+            total_count:
+              sum:
+                field: Stacktrace.count
+            min_time:
+              min:
+                field: "@timestamp"
+            max_time:
+              max:
+                field: "@timestamp"
+
+  - match: { aggregations.group_by.buckets.0.group_by.buckets.0.key: "S07KmaoGhvNte78xwwRbZQ" }
+  - match: { aggregations.group_by.buckets.0.group_by.buckets.0.count.value: 1 }
 
 ---
 "Test get stacktraces":
@@ -217,3 +273,67 @@ teardown:
             }
           }
   - match: { Size: 47}
+
+---
+"Test topN functions from profiling-events":
+  - requires:
+      cluster_features: "gte_v8.14.0"
+      reason: "the topN functions API was added in 8.14.0"
+
+  - do:
+      profiling.topn_functions:
+        body: >
+          {
+            "sample_size": 20000,
+            "requested_duration": 86400,
+            "limit": 10,
+            "query": {
+              "bool": {
+                "filter": [
+                  {
+                    "range": {
+                      "@timestamp": {
+                        "gte": "2023-11-20",
+                        "lt": "2023-11-21",
+                        "format": "yyyy-MM-dd"
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          }
+  - length: { topn: 10}
+
+---
+"Test topN functions from test-events":
+  - requires:
+      cluster_features: "gte_v8.14.0"
+      reason: "the topN functions API was added in 8.14.0"
+
+  - do:
+      profiling.topn_functions:
+        body: >
+          {
+            "sample_size": 20000,
+            "indices": ["test-event*"],
+            "stacktrace_ids_field": "events",
+            "requested_duration": 86400,
+            "limit": 10,
+            "query": {
+              "bool": {
+                "filter": [
+                  {
+                    "range": {
+                      "@timestamp": {
+                        "gte": "2023-11-20",
+                        "lt": "2023-11-21",
+                        "format": "yyyy-MM-dd"
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          }
+  - length: { topn: 10}

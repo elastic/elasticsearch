@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.indices.recovery;
@@ -89,7 +90,7 @@ public class MultiFileWriterTests extends IndexShardTestCase {
     }
 
     private MultiFileWriter createMultiFileWriter(boolean verifyOutput) {
-        return new MultiFileWriter(store, mock(RecoveryState.Index.class), "temp_", logger, mock(Runnable.class), verifyOutput);
+        return new MultiFileWriter(store, mock(RecoveryState.Index.class), "temp_", logger, verifyOutput);
     }
 
     private record FileAndMetadata(byte[] bytes, StoreFileMetadata metadata) {}

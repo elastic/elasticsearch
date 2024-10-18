@@ -21,11 +21,11 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.elasticsearch.ingest.IngestMetadata;
 import org.elasticsearch.ingest.IngestService;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
@@ -36,6 +36,7 @@ import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignme
 import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignmentMetadata;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.core.ml.utils.InferenceProcessorInfoExtractor;
 import org.elasticsearch.xpack.ml.inference.assignment.TrainedModelAssignmentClusterService;
 import org.elasticsearch.xpack.ml.inference.deployment.TrainedModelDeploymentTask;
 import org.elasticsearch.xpack.ml.notifications.InferenceAuditor;
@@ -47,7 +48,6 @@ import java.util.Set;
 
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.ml.action.TransportDeleteTrainedModelAction.getModelAliases;
-import static org.elasticsearch.xpack.ml.action.TransportDeleteTrainedModelAction.getReferencedModelKeys;
 
 /**
  * Class for transporting stop trained model deployment requests.
@@ -82,7 +82,6 @@ public class TransportStopTrainedModelDeploymentAction extends TransportTasksAct
             transportService,
             actionFilters,
             StopTrainedModelDeploymentAction.Request::new,
-            StopTrainedModelDeploymentAction.Response::new,
             StopTrainedModelDeploymentAction.Response::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
@@ -124,7 +123,7 @@ public class TransportStopTrainedModelDeploymentAction extends TransportTasksAct
         }
 
         IngestMetadata currentIngestMetadata = state.metadata().custom(IngestMetadata.TYPE);
-        Set<String> referencedModels = getReferencedModelKeys(currentIngestMetadata, ingestService);
+        Set<String> referencedModels = InferenceProcessorInfoExtractor.getModelIdsFromInferenceProcessors(currentIngestMetadata);
 
         if (request.isForce() == false) {
             if (referencedModels.contains(request.getId())) {

@@ -4,7 +4,7 @@
 
 NOTE: {cloud-only}
 
-The autoscaling feature enables an operator to configure tiers of nodes that
+The {cloud}/ec-autoscaling.html[autoscaling] feature enables an operator to configure tiers of nodes that
 self-monitor whether or not they need to scale based on an operator-defined
 policy. Then, via the autoscaling API, an Elasticsearch cluster can report
 whether or not it needs additional resources to meet the policy. For example, an

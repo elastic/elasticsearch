@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.core.ilm;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
 import org.elasticsearch.action.admin.indices.close.CloseIndexResponse;
-import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.index.IndexVersion;
 import org.mockito.Mockito;
@@ -44,7 +43,7 @@ public class CloseFollowerIndexStepTests extends AbstractStepTestCase<CloseFollo
         }).when(indicesClient).close(Mockito.any(), Mockito.any());
 
         CloseFollowerIndexStep step = new CloseFollowerIndexStep(randomStepKey(), randomStepKey(), client);
-        PlainActionFuture.<Void, Exception>get(f -> step.performAction(indexMetadata, emptyClusterState(), null, f));
+        performActionAndWait(step, indexMetadata, emptyClusterState(), null);
     }
 
     public void testRequestNotAcknowledged() {
@@ -60,10 +59,7 @@ public class CloseFollowerIndexStepTests extends AbstractStepTestCase<CloseFollo
         }).when(indicesClient).close(Mockito.any(), Mockito.any());
 
         CloseFollowerIndexStep step = new CloseFollowerIndexStep(randomStepKey(), randomStepKey(), client);
-        Exception e = expectThrows(
-            Exception.class,
-            () -> PlainActionFuture.<Void, Exception>get(f -> step.performAction(indexMetadata, emptyClusterState(), null, f))
-        );
+        Exception e = expectThrows(Exception.class, () -> performActionAndWait(step, indexMetadata, emptyClusterState(), null));
         assertThat(e.getMessage(), is("close index request failed to be acknowledged"));
     }
 
@@ -81,13 +77,7 @@ public class CloseFollowerIndexStepTests extends AbstractStepTestCase<CloseFollo
         }).when(indicesClient).close(Mockito.any(), Mockito.any());
 
         CloseFollowerIndexStep step = new CloseFollowerIndexStep(randomStepKey(), randomStepKey(), client);
-        assertSame(
-            error,
-            expectThrows(
-                Exception.class,
-                () -> PlainActionFuture.<Void, Exception>get(f -> step.performAction(indexMetadata, emptyClusterState(), null, f))
-            )
-        );
+        assertSame(error, expectThrows(Exception.class, () -> performActionAndWait(step, indexMetadata, emptyClusterState(), null)));
         Mockito.verify(indicesClient).close(Mockito.any(), Mockito.any());
         Mockito.verifyNoMoreInteractions(indicesClient);
     }
@@ -101,7 +91,7 @@ public class CloseFollowerIndexStepTests extends AbstractStepTestCase<CloseFollo
             .numberOfReplicas(0)
             .build();
         CloseFollowerIndexStep step = new CloseFollowerIndexStep(randomStepKey(), randomStepKey(), client);
-        PlainActionFuture.<Void, Exception>get(f -> step.performAction(indexMetadata, emptyClusterState(), null, f));
+        performActionAndWait(step, indexMetadata, emptyClusterState(), null);
         Mockito.verifyNoMoreInteractions(client);
     }
 

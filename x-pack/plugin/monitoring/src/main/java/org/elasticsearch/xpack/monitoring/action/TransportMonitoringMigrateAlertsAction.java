@@ -22,9 +22,9 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -98,7 +98,11 @@ public class TransportMonitoringMigrateAlertsAction extends TransportMasterNodeA
             Settings.Builder decommissionAlertSetting = Settings.builder().put(Monitoring.MIGRATION_DECOMMISSION_ALERTS.getKey(), true);
             client.admin()
                 .cluster()
-                .prepareUpdateSettings()
+                .prepareUpdateSettings(
+                    request.masterNodeTimeout(),
+                    /* TODO expose separate ack timeout? use masterNodeTimeout() for now */
+                    request.masterNodeTimeout()
+                )
                 .setPersistentSettings(decommissionAlertSetting)
                 .execute(completeOnManagementThread(listener));
         } catch (Exception e) {

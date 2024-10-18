@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
@@ -13,6 +14,7 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
@@ -24,6 +26,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.query.ExistsQueryBuilder;
@@ -63,6 +66,18 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
     protected abstract MappedFieldType loopFieldType();
 
     protected abstract String typeName();
+
+    /**
+     * Add the provided document to the provided writer, and randomly flush.
+     * This is useful for situations where there are not enough documents indexed to trigger random flush and commit performed
+     * by {@link RandomIndexWriter}. Flushing is important to obtain multiple slices and inter-segment concurrency.
+     */
+    protected static <T extends IndexableField> void addDocument(RandomIndexWriter iw, Iterable<T> indexableFields) throws IOException {
+        iw.addDocument(indexableFields);
+        if (randomBoolean()) {
+            iw.flush();
+        }
+    }
 
     public final void testMinimalSerializesToItself() throws IOException {
         XContentBuilder orig = JsonXContent.contentBuilder().startObject();
@@ -252,6 +267,7 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
         SearchExecutionContext searchExecutionContext = mockContext();
         return new FieldDataContext(
             "test",
+            null,
             searchExecutionContext::lookup,
             mockContext()::sourcePath,
             MappedFieldType.FielddataOperation.SCRIPT
@@ -286,7 +302,7 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
         when(context.allowExpensiveQueries()).thenReturn(allowExpensiveQueries);
         SearchLookup lookup = new SearchLookup(
             context::getFieldType,
-            (mft, lookupSupplier, fdo) -> mft.fielddataBuilder(new FieldDataContext("test", lookupSupplier, context::sourcePath, fdo))
+            (mft, lookupSupplier, fdo) -> mft.fielddataBuilder(new FieldDataContext("test", null, lookupSupplier, context::sourcePath, fdo))
                 .build(null, null),
             sourceProvider
         );
@@ -294,7 +310,7 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
         when(context.getForField(any(), any())).then(args -> {
             MappedFieldType ft = args.getArgument(0);
             MappedFieldType.FielddataOperation fdo = args.getArgument(1);
-            return ft.fielddataBuilder(new FieldDataContext("test", context::lookup, context::sourcePath, fdo))
+            return ft.fielddataBuilder(new FieldDataContext("test", null, context::lookup, context::sourcePath, fdo))
                 .build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService());
         });
         when(context.getMatchingFieldNames(any())).thenReturn(Set.of("dummy_field"));
@@ -436,6 +452,11 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
         return new MappedFieldType.BlockLoaderContext() {
             @Override
             public String indexName() {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public IndexSettings indexSettings() {
                 throw new UnsupportedOperationException();
             }
 

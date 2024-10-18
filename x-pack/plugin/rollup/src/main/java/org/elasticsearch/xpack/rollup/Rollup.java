@@ -42,6 +42,8 @@ import org.elasticsearch.xpack.core.rollup.action.PutRollupJobAction;
 import org.elasticsearch.xpack.core.rollup.action.RollupSearchAction;
 import org.elasticsearch.xpack.core.rollup.action.StartRollupJobAction;
 import org.elasticsearch.xpack.core.rollup.action.StopRollupJobAction;
+import org.elasticsearch.xpack.rollup.action.RollupInfoTransportAction;
+import org.elasticsearch.xpack.rollup.action.RollupUsageTransportAction;
 import org.elasticsearch.xpack.rollup.action.TransportDeleteRollupJobAction;
 import org.elasticsearch.xpack.rollup.action.TransportGetRollupCapsAction;
 import org.elasticsearch.xpack.rollup.action.TransportGetRollupIndexCapsAction;
@@ -77,8 +79,6 @@ public class Rollup extends Plugin implements ActionPlugin, PersistentTaskPlugin
 
     public static final String TASK_THREAD_POOL_NAME = RollupField.NAME + "_indexing";
 
-    public static final String ROLLUP_TEMPLATE_VERSION_FIELD = "rollup-version";
-
     private final SetOnce<SchedulerEngine> schedulerEngine = new SetOnce<>();
     private final Settings settings;
 
@@ -99,7 +99,7 @@ public class Rollup extends Plugin implements ActionPlugin, PersistentTaskPlugin
         Predicate<NodeFeature> clusterSupportsFeature
     ) {
         return Arrays.asList(
-            new RestRollupSearchAction(namedWriteableRegistry, clusterSupportsFeature),
+            new RestRollupSearchAction(clusterSupportsFeature),
             new RestPutRollupJobAction(),
             new RestStartRollupJobAction(),
             new RestStopRollupJobAction(),

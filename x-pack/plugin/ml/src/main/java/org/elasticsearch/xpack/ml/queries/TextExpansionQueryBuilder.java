@@ -15,6 +15,8 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.logging.DeprecationCategory;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -30,6 +32,8 @@ import org.elasticsearch.xpack.core.ml.inference.TrainedModelPrefixStrings;
 import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
 import org.elasticsearch.xpack.core.ml.inference.results.WarningInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextExpansionConfigUpdate;
+import org.elasticsearch.xpack.core.ml.search.TokenPruningConfig;
+import org.elasticsearch.xpack.core.ml.search.WeightedTokensQueryBuilder;
 
 import java.io.IOException;
 import java.util.List;
@@ -37,11 +41,15 @@ import java.util.Objects;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
+import static org.elasticsearch.xpack.core.ml.search.WeightedTokensQueryBuilder.PRUNING_CONFIG;
 
+/**
+ * @deprecated Replaced by sparse_vector query
+ */
+@Deprecated
 public class TextExpansionQueryBuilder extends AbstractQueryBuilder<TextExpansionQueryBuilder> {
 
     public static final String NAME = "text_expansion";
-    public static final ParseField PRUNING_CONFIG = new ParseField("pruning_config");
     public static final ParseField MODEL_TEXT = new ParseField("model_text");
     public static final ParseField MODEL_ID = new ParseField("model_id");
 
@@ -50,6 +58,9 @@ public class TextExpansionQueryBuilder extends AbstractQueryBuilder<TextExpansio
     private final String modelId;
     private SetOnce<TextExpansionResults> weightedTokensSupplier;
     private final TokenPruningConfig tokenPruningConfig;
+
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(ParseField.class);
+    public static final String TEXT_EXPANSION_DEPRECATION_MESSAGE = NAME + " is deprecated. Use sparse_vector instead.";
 
     public TextExpansionQueryBuilder(String fieldName, String modelText, String modelId) {
         this(fieldName, modelText, modelId, null);
@@ -76,7 +87,7 @@ public class TextExpansionQueryBuilder extends AbstractQueryBuilder<TextExpansio
         this.fieldName = in.readString();
         this.modelText = in.readString();
         this.modelId = in.readString();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.TEXT_EXPANSION_TOKEN_PRUNING_CONFIG_ADDED)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
             this.tokenPruningConfig = in.readOptionalWriteable(TokenPruningConfig::new);
         } else {
             this.tokenPruningConfig = null;
@@ -119,7 +130,7 @@ public class TextExpansionQueryBuilder extends AbstractQueryBuilder<TextExpansio
         out.writeString(fieldName);
         out.writeString(modelText);
         out.writeString(modelId);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.TEXT_EXPANSION_TOKEN_PRUNING_CONFIG_ADDED)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
             out.writeOptionalWriteable(tokenPruningConfig);
         }
     }
@@ -139,8 +150,7 @@ public class TextExpansionQueryBuilder extends AbstractQueryBuilder<TextExpansio
     }
 
     @Override
-    protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
-
+    protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) {
         if (weightedTokensSupplier != null) {
             if (weightedTokensSupplier.get() == null) {
                 return this;
@@ -159,8 +169,8 @@ public class TextExpansionQueryBuilder extends AbstractQueryBuilder<TextExpansio
         inferRequest.setPrefixType(TrainedModelPrefixStrings.PrefixType.SEARCH);
 
         SetOnce<TextExpansionResults> textExpansionResultsSupplier = new SetOnce<>();
-        queryRewriteContext.registerAsyncAction((client, listener) -> {
-            executeAsyncWithOrigin(
+        queryRewriteContext.registerAsyncAction(
+            (client, listener) -> executeAsyncWithOrigin(
                 client,
                 ML_ORIGIN,
                 CoordinatedInferenceAction.INSTANCE,
@@ -191,8 +201,8 @@ public class TextExpansionQueryBuilder extends AbstractQueryBuilder<TextExpansio
                         );
                     }
                 }, listener::onFailure)
-            );
-        });
+            )
+        );
 
         return new TextExpansionQueryBuilder(this, textExpansionResultsSupplier);
     }
@@ -208,13 +218,16 @@ public class TextExpansionQueryBuilder extends AbstractQueryBuilder<TextExpansio
             weightedTokensQueryBuilder.boost(boost);
             return weightedTokensQueryBuilder;
         }
+        // Note: Weighted tokens queries were introduced in 8.13.0. To support mixed version clusters prior to 8.13.0,
+        // if no token pruning configuration is specified we fall back to a boolean query.
+        // TODO this should be updated to always use a WeightedTokensQueryBuilder once it's in all supported versions.
         var boolQuery = QueryBuilders.boolQuery();
         for (var weightedToken : textExpansionResults.getWeightedTokens()) {
             boolQuery.should(QueryBuilders.termQuery(fieldName, weightedToken.token()).boost(weightedToken.weight()));
         }
         boolQuery.minimumShouldMatch(1);
-        boolQuery.boost(this.boost);
-        boolQuery.queryName(this.queryName);
+        boolQuery.boost(boost);
+        boolQuery.queryName(queryName);
         return boolQuery;
     }
 
@@ -238,6 +251,9 @@ public class TextExpansionQueryBuilder extends AbstractQueryBuilder<TextExpansio
     }
 
     public static TextExpansionQueryBuilder fromXContent(XContentParser parser) throws IOException {
+
+        deprecationLogger.warn(DeprecationCategory.API, NAME, TEXT_EXPANSION_DEPRECATION_MESSAGE);
+
         String fieldName = null;
         String modelText = null;
         String modelId = null;

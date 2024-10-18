@@ -1,13 +1,13 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.gradle.internal.test;
 
-import org.elasticsearch.gradle.internal.ElasticsearchTestBasePlugin;
 import org.gradle.api.internal.tasks.testing.logging.FullExceptionFormatter;
 import org.gradle.api.internal.tasks.testing.logging.TestExceptionFormatter;
 import org.gradle.api.logging.Logger;
@@ -39,19 +39,22 @@ import java.util.concurrent.ConcurrentHashMap;
 public class ErrorReportingTestListener implements TestOutputListener, TestListener {
     private static final String REPRODUCE_WITH_PREFIX = "REPRODUCE WITH";
 
-    private final Test testTask;
     private final TestExceptionFormatter formatter;
     private final File outputDirectory;
     private final Logger taskLogger;
     private Map<Descriptor, EventWriter> eventWriters = new ConcurrentHashMap<>();
     private Map<Descriptor, Deque<String>> reproductionLines = new ConcurrentHashMap<>();
     private Set<Descriptor> failedTests = new LinkedHashSet<>();
+    private boolean dumpOutputOnFailure = true;
 
     public ErrorReportingTestListener(Test testTask, File outputDirectory) {
-        this.testTask = testTask;
         this.formatter = new FullExceptionFormatter(testTask.getTestLogging());
         this.taskLogger = testTask.getLogger();
         this.outputDirectory = outputDirectory;
+    }
+
+    public void setDumpOutputOnFailure(boolean dumpOutputOnFailure) {
+        this.dumpOutputOnFailure = dumpOutputOnFailure;
     }
 
     @Override
@@ -83,7 +86,7 @@ public class ErrorReportingTestListener implements TestOutputListener, TestListe
         Descriptor descriptor = Descriptor.of(suite);
 
         try {
-            if (isDumpOutputEnabled()) {
+            if (dumpOutputOnFailure) {
                 // if the test suite failed, report all captured output
                 if (result.getResultType().equals(TestResult.ResultType.FAILURE)) {
                     EventWriter eventWriter = eventWriters.get(descriptor);
@@ -255,12 +258,5 @@ public class ErrorReportingTestListener implements TestOutputListener, TestListe
             // there's no need to keep this stuff on disk after suite execution
             outputFile.delete();
         }
-    }
-
-    private boolean isDumpOutputEnabled() {
-        return (Boolean) testTask.getExtensions()
-            .getExtraProperties()
-            .getProperties()
-            .getOrDefault(ElasticsearchTestBasePlugin.DUMP_OUTPUT_ON_FAILURE_PROP_NAME, true);
     }
 }

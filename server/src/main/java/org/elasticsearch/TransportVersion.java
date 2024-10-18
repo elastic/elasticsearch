@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch;
@@ -99,6 +100,30 @@ public record TransportVersion(int id) implements VersionId<TransportVersion> {
 
     public static TransportVersion fromString(String str) {
         return TransportVersion.fromId(Integer.parseInt(str));
+    }
+
+    /**
+     * Returns {@code true} if this version is a patch version at or after {@code version}.
+     * <p>
+     * This should not be used normally. It is used for matching patch versions of the same base version,
+     * using the standard version number format specified in {@link TransportVersions}.
+     * When a patch version of an existing transport version is created, {@code transportVersion.isPatchFrom(patchVersion)}
+     * will match any transport version at or above {@code patchVersion} that is also of the same base version.
+     * <p>
+     * For example, {@code version.isPatchFrom(8_800_00_4)} will return the following for the given {@code version}:
+     * <ul>
+     *     <li>{@code 8_799_00_0.isPatchFrom(8_800_00_4)}: {@code false}</li>
+     *     <li>{@code 8_799_00_9.isPatchFrom(8_800_00_4)}: {@code false}</li>
+     *     <li>{@code 8_800_00_0.isPatchFrom(8_800_00_4)}: {@code false}</li>
+     *     <li>{@code 8_800_00_3.isPatchFrom(8_800_00_4)}: {@code false}</li>
+     *     <li>{@code 8_800_00_4.isPatchFrom(8_800_00_4)}: {@code true}</li>
+     *     <li>{@code 8_800_00_9.isPatchFrom(8_800_00_4)}: {@code true}</li>
+     *     <li>{@code 8_800_01_0.isPatchFrom(8_800_00_4)}: {@code false}</li>
+     *     <li>{@code 8_801_00_0.isPatchFrom(8_800_00_4)}: {@code false}</li>
+     * </ul>
+     */
+    public boolean isPatchFrom(TransportVersion version) {
+        return onOrAfter(version) && id < version.id + 10 - (version.id % 10);
     }
 
     /**

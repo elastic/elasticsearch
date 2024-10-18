@@ -11,7 +11,9 @@
 ---
 "Info build flavor":
     - skip:
-        version: "8.3.0 - 8.3.2"
+        known_issues:
+            - cluster_feature: "gte_v8.3.0"
+              fixed_by: "gte_v8.3.3"
         reason: "build flavor in info was missing in 8.3.0 to 8.3.2"
     - do:         {info: {}}
     - match:      { version.build_flavor: default }

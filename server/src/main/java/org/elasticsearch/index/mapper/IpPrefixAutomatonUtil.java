@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
@@ -107,7 +108,7 @@ public class IpPrefixAutomatonUtil {
                 } else {
                     // potentially partial block
                     if (groupsAdded == 0 && ONLY_ZEROS.matcher(group).matches()) {
-                        // here we have a leading group with only "0" characters. If we would allow this to match
+                        // here we have a leading group with only "0" characters. If we allowed this to match
                         // ipv6 addresses, this would include things like 0000::127.0.0.1 (and all other ipv4 addresses).
                         // Allowing this would be counterintuitive, so "0*" prefixes should only expand
                         // to ipv4 addresses like "0.1.2.3" and we return with an automaton not matching anything here
@@ -128,7 +129,7 @@ public class IpPrefixAutomatonUtil {
 
     static Automaton automatonFromIPv6Group(String ipv6Group) {
         assert ipv6Group.length() > 0 && ipv6Group.length() <= 4 : "expected a full ipv6 group or prefix";
-        Automaton result = Automata.makeString("");
+        Automaton result = Automata.makeEmpty();
         for (int leadingZeros = 0; leadingZeros <= 4 - ipv6Group.length(); leadingZeros++) {
             int bytesAdded = 0;
             String padded = padWithZeros(ipv6Group, leadingZeros);

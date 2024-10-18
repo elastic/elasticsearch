@@ -67,7 +67,7 @@ the API immediately compiles the script or template in this context.
 If you specify both this and the `<context>` request path parameter, the API
 uses the request path parameter.
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 
 [role="child_attributes"]
 [[create-stored-script-api-request-body]]

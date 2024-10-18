@@ -18,10 +18,6 @@ final class LongState implements AggregatorState {
     private long value;
     private boolean seen;
 
-    LongState() {
-        this(0);
-    }
-
     LongState(long init) {
         this.value = init;
     }

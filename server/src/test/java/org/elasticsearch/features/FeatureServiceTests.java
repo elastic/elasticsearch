@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.features;
@@ -81,6 +82,18 @@ public class FeatureServiceTests extends ESTestCase {
         assertThat(
             expectThrows(IllegalArgumentException.class, () -> new FeatureService(List.of(fs))).getMessage(),
             containsString("not a historical version")
+        );
+    }
+
+    public void testFailsSameRegularAndHistoricalFeature() {
+        FeatureSpecification fs = new TestFeatureSpecification(
+            Set.of(new NodeFeature("f1")),
+            Map.of(new NodeFeature("f1"), Version.V_8_12_0)
+        );
+
+        assertThat(
+            expectThrows(IllegalArgumentException.class, () -> new FeatureService(List.of(fs))).getMessage(),
+            containsString("cannot be declared as both a regular and historical feature")
         );
     }
 

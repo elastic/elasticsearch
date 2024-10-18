@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.cluster.routing;
 
@@ -457,7 +458,7 @@ public class IndexRoutingTests extends ESTestCase {
      */
     private int shardIdFromSimple(IndexRouting indexRouting, String id, @Nullable String routing) {
         return switch (between(0, 3)) {
-            case 0 -> indexRouting.indexShard(id, routing, null, null);
+            case 0 -> indexRouting.indexShard(id, routing, null, null, null);
             case 1 -> indexRouting.updateShard(id, routing);
             case 2 -> indexRouting.deleteShard(id, routing);
             case 3 -> indexRouting.getShard(id, routing);
@@ -490,7 +491,7 @@ public class IndexRoutingTests extends ESTestCase {
         IndexRouting routing = indexRoutingForPath(between(1, 5), randomAlphaOfLength(5));
         Exception e = expectThrows(
             IllegalArgumentException.class,
-            () -> routing.indexShard(randomAlphaOfLength(5), null, XContentType.JSON, source(Map.of()))
+            () -> routing.indexShard(randomAlphaOfLength(5), null, XContentType.JSON, source(Map.of()), null)
         );
         assertThat(e.getMessage(), equalTo("Error extracting routing: source didn't contain any routing fields"));
     }
@@ -499,7 +500,7 @@ public class IndexRoutingTests extends ESTestCase {
         IndexRouting routing = indexRoutingForPath(between(1, 5), "foo");
         Exception e = expectThrows(
             IllegalArgumentException.class,
-            () -> routing.indexShard(randomAlphaOfLength(5), null, XContentType.JSON, source(Map.of("bar", "dog")))
+            () -> routing.indexShard(randomAlphaOfLength(5), null, XContentType.JSON, source(Map.of("bar", "dog")), null)
         );
         assertThat(e.getMessage(), equalTo("Error extracting routing: source didn't contain any routing fields"));
     }
@@ -520,7 +521,7 @@ public class IndexRoutingTests extends ESTestCase {
         String docRouting = randomAlphaOfLength(5);
         Exception e = expectThrows(
             IllegalArgumentException.class,
-            () -> indexRouting.indexShard(randomAlphaOfLength(5), docRouting, XContentType.JSON, source)
+            () -> indexRouting.indexShard(randomAlphaOfLength(5), docRouting, XContentType.JSON, source, null)
         );
         assertThat(
             e.getMessage(),
@@ -589,6 +590,39 @@ public class IndexRoutingTests extends ESTestCase {
         assertIndexShard(routing, Map.of("foo", 123), Math.floorMod(hash(List.of("foo", "123")), shards));
     }
 
+    public void testRoutingPathBooleansInSource() throws IOException {
+        int shards = between(2, 1000);
+        IndexRouting routing = indexRoutingForPath(shards, "foo");
+        assertIndexShard(routing, Map.of("foo", true), Math.floorMod(hash(List.of("foo", "true")), shards));
+        assertIndexShard(routing, Map.of("foo", false), Math.floorMod(hash(List.of("foo", "false")), shards));
+    }
+
+    public void testRoutingPathArraysInSource() throws IOException {
+        int shards = between(2, 1000);
+        IndexRouting routing = indexRoutingForPath(shards, "a,b,c,d");
+        assertIndexShard(
+            routing,
+            Map.of("c", List.of(true), "d", List.of(), "a", List.of("foo", "bar", "foo"), "b", List.of(21, 42)),
+            // Note that the fields are sorted
+            Math.floorMod(hash(List.of("a", "foo", "a", "bar", "a", "foo", "b", "21", "b", "42", "c", "true")), shards)
+        );
+    }
+
+    public void testRoutingPathObjectArraysInSource() throws IOException {
+        int shards = between(2, 1000);
+        IndexRouting routing = indexRoutingForPath(shards, "a");
+
+        BytesReference source = source(Map.of("a", List.of("foo", Map.of("foo", "bar"))));
+        Exception e = expectThrows(
+            IllegalArgumentException.class,
+            () -> routing.indexShard(randomAlphaOfLength(5), null, XContentType.JSON, source, s -> {})
+        );
+        assertThat(
+            e.getMessage(),
+            equalTo("Error extracting routing: Failed to parse object: expecting value token but found [START_OBJECT]")
+        );
+    }
+
     public void testRoutingPathBwc() throws IOException {
         IndexVersion version = IndexVersionUtils.randomCompatibleVersion(random());
         IndexRouting routing = indexRoutingForPath(version, 8, "dim.*,other.*,top");
@@ -649,7 +683,7 @@ public class IndexRoutingTests extends ESTestCase {
     private void assertIndexShard(IndexRouting routing, Map<String, Object> source, int expectedShard) throws IOException {
         byte[] suffix = randomSuffix();
         BytesReference sourceBytes = source(source);
-        assertThat(routing.indexShard(randomAlphaOfLength(5), null, XContentType.JSON, sourceBytes), equalTo(expectedShard));
+        assertThat(routing.indexShard(randomAlphaOfLength(5), null, XContentType.JSON, sourceBytes, s -> {}), equalTo(expectedShard));
         IndexRouting.ExtractFromSource r = (IndexRouting.ExtractFromSource) routing;
         String idFromSource = r.createId(XContentType.JSON, sourceBytes, suffix);
         assertThat(shardIdForReadFromSourceExtracting(routing, idFromSource), equalTo(expectedShard));
@@ -659,7 +693,11 @@ public class IndexRoutingTests extends ESTestCase {
 
         IndexRouting.ExtractFromSource.Builder b = r.builder();
         for (Map.Entry<String, Object> e : flattened.entrySet()) {
-            b.addMatching(e.getKey(), new BytesRef(e.getValue().toString()));
+            if (e.getValue() instanceof List<?> listValue) {
+                listValue.forEach(v -> b.addMatching(e.getKey(), new BytesRef(v.toString())));
+            } else {
+                b.addMatching(e.getKey(), new BytesRef(e.getValue().toString()));
+            }
         }
         String idFromBuilder = b.createId(suffix, () -> { throw new AssertionError(); });
         assertThat(idFromBuilder, equalTo(idFromSource));

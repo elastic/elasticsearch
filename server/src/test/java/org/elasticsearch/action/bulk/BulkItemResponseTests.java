@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.bulk;
@@ -17,12 +18,14 @@ import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.delete.DeleteResponseTests;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.index.IndexResponseTests;
+import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.action.update.UpdateResponseTests;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.CheckedConsumer;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
@@ -30,10 +33,8 @@ import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
-import java.util.UUID;
 
 import static org.elasticsearch.ElasticsearchExceptionTests.assertDeepEquals;
 import static org.elasticsearch.ElasticsearchExceptionTests.randomExceptions;
@@ -43,26 +44,52 @@ import static org.hamcrest.Matchers.containsString;
 
 public class BulkItemResponseTests extends ESTestCase {
 
-    public void testBulkItemResponseShouldContainTypeInV7CompatibilityMode() throws IOException {
-        BulkItemResponse bulkItemResponse = BulkItemResponse.success(
-            randomInt(),
-            DocWriteRequest.OpType.INDEX,
-            new IndexResponse(
-                new ShardId(randomAlphaOfLength(8), UUID.randomUUID().toString(), randomInt()),
-                randomAlphaOfLength(4),
-                randomNonNegativeLong(),
-                randomNonNegativeLong(),
-                randomNonNegativeLong(),
-                true
-            )
-        );
-        XContentBuilder xContentBuilder = bulkItemResponse.toXContent(
-            XContentBuilder.builder(JsonXContent.jsonXContent, RestApiVersion.V_7),
-            ToXContent.EMPTY_PARAMS
-        );
+    /**
+     * Parse the output of the {@link DocWriteResponse#innerToXContent(XContentBuilder, ToXContent.Params)} method.
+     *
+     * This method is intended to be called by subclasses and must be called multiple times to parse all the information concerning
+     * {@link DocWriteResponse} objects. It always parses the current token, updates the given parsing context accordingly
+     * if needed and then immediately returns.
+     */
+    public static void parseInnerToXContent(XContentParser parser, DocWriteResponse.Builder context) throws IOException {
+        XContentParser.Token token = parser.currentToken();
+        ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser);
 
-        String json = BytesReference.bytes(xContentBuilder).utf8ToString();
-        assertThat(json, containsString("\"_type\":\"_doc\""));
+        String currentFieldName = parser.currentName();
+        token = parser.nextToken();
+
+        if (token.isValue()) {
+            if (DocWriteResponse._INDEX.equals(currentFieldName)) {
+                // index uuid and shard id are unknown and can't be parsed back for now.
+                context.setShardId(new ShardId(new Index(parser.text(), IndexMetadata.INDEX_UUID_NA_VALUE), -1));
+            } else if (DocWriteResponse._ID.equals(currentFieldName)) {
+                context.setId(parser.text());
+            } else if (DocWriteResponse._VERSION.equals(currentFieldName)) {
+                context.setVersion(parser.longValue());
+            } else if (DocWriteResponse.RESULT.equals(currentFieldName)) {
+                String result = parser.text();
+                for (DocWriteResponse.Result r : DocWriteResponse.Result.values()) {
+                    if (r.getLowercase().equals(result)) {
+                        context.setResult(r);
+                        break;
+                    }
+                }
+            } else if (DocWriteResponse.FORCED_REFRESH.equals(currentFieldName)) {
+                context.setForcedRefresh(parser.booleanValue());
+            } else if (DocWriteResponse._SEQ_NO.equals(currentFieldName)) {
+                context.setSeqNo(parser.longValue());
+            } else if (DocWriteResponse._PRIMARY_TERM.equals(currentFieldName)) {
+                context.setPrimaryTerm(parser.longValue());
+            }
+        } else if (token == XContentParser.Token.START_OBJECT) {
+            if (DocWriteResponse._SHARDS.equals(currentFieldName)) {
+                context.setShardInfo(ReplicationResponse.ShardInfo.fromXContent(parser));
+            } else {
+                parser.skipChildren(); // skip potential inner objects for forward compatibility
+            }
+        } else if (token == XContentParser.Token.START_ARRAY) {
+            parser.skipChildren(); // skip potential inner arrays for forward compatibility
+        }
     }
 
     public void testFailureToString() {
@@ -192,17 +219,16 @@ public class BulkItemResponseTests extends ESTestCase {
         if (opType == DocWriteRequest.OpType.INDEX || opType == DocWriteRequest.OpType.CREATE) {
             final IndexResponse.Builder indexResponseBuilder = new IndexResponse.Builder();
             builder = indexResponseBuilder;
-            itemParser = (indexParser) -> IndexResponse.parseXContentFields(indexParser, indexResponseBuilder);
-
+            itemParser = indexParser -> parseInnerToXContent(indexParser, indexResponseBuilder);
         } else if (opType == DocWriteRequest.OpType.UPDATE) {
             final UpdateResponse.Builder updateResponseBuilder = new UpdateResponse.Builder();
             builder = updateResponseBuilder;
-            itemParser = (updateParser) -> UpdateResponse.parseXContentFields(updateParser, updateResponseBuilder);
+            itemParser = updateParser -> UpdateResponseTests.parseXContentFields(updateParser, updateResponseBuilder);
 
         } else if (opType == DocWriteRequest.OpType.DELETE) {
             final DeleteResponse.Builder deleteResponseBuilder = new DeleteResponse.Builder();
             builder = deleteResponseBuilder;
-            itemParser = (deleteParser) -> DeleteResponse.parseXContentFields(deleteParser, deleteResponseBuilder);
+            itemParser = deleteParser -> parseInnerToXContent(deleteParser, deleteResponseBuilder);
         } else {
             throwUnknownField(currentFieldName, parser);
         }

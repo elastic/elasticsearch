@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.remotecluster;
 
-import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
@@ -41,7 +40,6 @@ import static org.hamcrest.Matchers.notNullValue;
 /**
  * BWC test which ensures that users and API keys with defined {@code remote_indices} privileges can be used to query legacy remote clusters
  */
-@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/104858")
 public class RemoteClusterSecurityBwcRestIT extends AbstractRemoteClusterSecurityTestCase {
 
     private static final Version OLD_CLUSTER_VERSION = Version.fromString(System.getProperty("tests.old_cluster_version"));
@@ -49,7 +47,7 @@ public class RemoteClusterSecurityBwcRestIT extends AbstractRemoteClusterSecurit
     static {
         fulfillingCluster = ElasticsearchCluster.local()
             .version(OLD_CLUSTER_VERSION)
-            .distribution(DistributionType.INTEG_TEST)
+            .distribution(DistributionType.DEFAULT)
             .name("fulfilling-cluster")
             .apply(commonClusterConfig)
             .setting("xpack.ml.enabled", "false")
@@ -101,6 +99,7 @@ public class RemoteClusterSecurityBwcRestIT extends AbstractRemoteClusterSecurit
             final var putRoleRequest = new Request("PUT", "/_security/role/" + REMOTE_SEARCH_ROLE);
             putRoleRequest.setJsonEntity("""
                 {
+                  "description": "This description should not be sent to remote clusters.",
                   "cluster": ["manage_own_api_key"],
                   "indices": [
                     {
@@ -113,6 +112,12 @@ public class RemoteClusterSecurityBwcRestIT extends AbstractRemoteClusterSecurit
                       "names": ["remote_index1"],
                       "privileges": ["read", "read_cross_cluster"],
                       "clusters": ["my_remote_cluster"]
+                    }
+                  ],
+                  "remote_cluster": [
+                    {
+                      "privileges": ["monitor_enrich"],
+                      "clusters": ["*"]
                     }
                   ]
                 }""");
@@ -157,6 +162,12 @@ public class RemoteClusterSecurityBwcRestIT extends AbstractRemoteClusterSecurit
                           "names": ["remote_index1", "remote_index2"],
                           "privileges": ["read", "read_cross_cluster"],
                           "clusters": ["my_remote_*", "non_existing_remote_cluster"]
+                        }
+                      ],
+                      "remote_cluster": [
+                        {
+                          "privileges": ["monitor_enrich"],
+                          "clusters": ["*"]
                         }
                       ]
                     }

@@ -14,6 +14,7 @@ import org.elasticsearch.action.admin.indices.close.CloseIndexClusterStateUpdate
 import org.elasticsearch.action.admin.indices.close.CloseIndexResponse;
 import org.elasticsearch.action.admin.indices.open.OpenIndexClusterStateUpdateRequest;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
@@ -30,13 +31,13 @@ import org.elasticsearch.cluster.metadata.MetadataIndexStateService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.frozen.FrozenEngine;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.protocol.xpack.frozen.FreezeRequest;
 import org.elasticsearch.protocol.xpack.frozen.FreezeResponse;
 import org.elasticsearch.tasks.Task;
@@ -114,9 +115,13 @@ public final class TransportFreezeIndexAction extends TransportMasterNodeAction<
             return;
         }
 
-        final CloseIndexClusterStateUpdateRequest closeRequest = new CloseIndexClusterStateUpdateRequest(task.getId()).ackTimeout(
-            request.timeout()
-        ).masterNodeTimeout(request.masterNodeTimeout()).indices(concreteIndices);
+        final CloseIndexClusterStateUpdateRequest closeRequest = new CloseIndexClusterStateUpdateRequest(
+            request.masterNodeTimeout(),
+            request.ackTimeout(),
+            task.getId(),
+            ActiveShardCount.DEFAULT,
+            concreteIndices
+        );
 
         indexStateService.closeIndices(closeRequest, new ActionListener<>() {
             @Override
@@ -145,10 +150,12 @@ public final class TransportFreezeIndexAction extends TransportMasterNodeAction<
         submitUnbatchedTask(
             "toggle-frozen-settings",
             new AckedClusterStateUpdateTask(Priority.URGENT, request, listener.delegateFailure((delegate, acknowledgedResponse) -> {
-                OpenIndexClusterStateUpdateRequest updateRequest = new OpenIndexClusterStateUpdateRequest().ackTimeout(request.timeout())
-                    .masterNodeTimeout(request.masterNodeTimeout())
-                    .indices(concreteIndices)
-                    .waitForActiveShards(request.waitForActiveShards());
+                OpenIndexClusterStateUpdateRequest updateRequest = new OpenIndexClusterStateUpdateRequest(
+                    request.masterNodeTimeout(),
+                    request.ackTimeout(),
+                    request.waitForActiveShards(),
+                    concreteIndices
+                );
                 indexStateService.openIndices(
                     updateRequest,
                     delegate.safeMap(

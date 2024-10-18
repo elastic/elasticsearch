@@ -254,7 +254,7 @@ public class TransformContinuousIT extends TransformRestTestCase {
                 source.append("\r\n");
                 doBulk(source.toString(), false);
             }
-            refreshIndex(sourceIndexName, RequestOptions.DEFAULT);
+            refreshIndex(sourceIndexName);
 
             // start all transforms, wait until the processed all data and stop them
             startTransforms();

@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.ml.action;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.TransportVersion;
@@ -25,7 +26,6 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -34,9 +34,11 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.tasks.Task;
@@ -143,61 +145,7 @@ public class TransportPutTrainedModelAction extends TransportMasterNodeAction<Re
         // NOTE: hasModelDefinition is false if we don't parse it. But, if the fully parsed model was already provided, continue
         boolean hasModelDefinition = config.getModelDefinition() != null;
         if (hasModelDefinition) {
-            try {
-                config.getModelDefinition().getTrainedModel().validate();
-            } catch (ElasticsearchException ex) {
-                finalResponseListener.onFailure(
-                    ExceptionsHelper.badRequestException("Definition for [{}] has validation failures.", ex, config.getModelId())
-                );
-                return;
-            }
-
-            TrainedModelType trainedModelType = TrainedModelType.typeFromTrainedModel(config.getModelDefinition().getTrainedModel());
-            if (trainedModelType == null) {
-                finalResponseListener.onFailure(
-                    ExceptionsHelper.badRequestException(
-                        "Unknown trained model definition class [{}]",
-                        config.getModelDefinition().getTrainedModel().getName()
-                    )
-                );
-                return;
-            }
-
-            if (config.getModelType() == null) {
-                // Set the model type from the definition
-                config = new TrainedModelConfig.Builder(config).setModelType(trainedModelType).build();
-            } else if (trainedModelType != config.getModelType()) {
-                finalResponseListener.onFailure(
-                    ExceptionsHelper.badRequestException(
-                        "{} [{}] does not match the model definition type [{}]",
-                        TrainedModelConfig.MODEL_TYPE.getPreferredName(),
-                        config.getModelType(),
-                        trainedModelType
-                    )
-                );
-                return;
-            }
-
-            if (config.getInferenceConfig().isTargetTypeSupported(config.getModelDefinition().getTrainedModel().targetType()) == false) {
-                finalResponseListener.onFailure(
-                    ExceptionsHelper.badRequestException(
-                        "Model [{}] inference config type [{}] does not support definition target type [{}]",
-                        config.getModelId(),
-                        config.getInferenceConfig().getName(),
-                        config.getModelDefinition().getTrainedModel().targetType()
-                    )
-                );
-                return;
-            }
-
-            TransportVersion minCompatibilityVersion = config.getModelDefinition().getTrainedModel().getMinimalCompatibilityVersion();
-            if (state.getMinTransportVersion().before(minCompatibilityVersion)) {
-                finalResponseListener.onFailure(
-                    ExceptionsHelper.badRequestException(
-                        "Cannot create model [{}] while cluster upgrade is in progress.",
-                        config.getModelId()
-                    )
-                );
+            if (validateModelDefinition(config, state, licenseState, finalResponseListener) == false) {
                 return;
             }
         }
@@ -323,13 +271,13 @@ public class TransportPutTrainedModelAction extends TransportMasterNodeAction<Re
             }
         }, finalResponseListener::onFailure);
 
-        checkForExistingTask(
+        checkForExistingModelDownloadTask(
             client,
             trainedModelConfig.getModelId(),
             request.isWaitForCompletion(),
             finalResponseListener,
-            handlePackageAndTagsListener,
-            request.timeout()
+            () -> handlePackageAndTagsListener.onResponse(null),
+            request.ackTimeout()
         );
     }
 
@@ -371,14 +319,26 @@ public class TransportPutTrainedModelAction extends TransportMasterNodeAction<Re
     }
 
     /**
-     * This method is package private for testing
+     * Check if the model is being downloaded.
+     * If the download is in progress then the response will be on
+     * the {@code isBeingDownloadedListener} otherwise {@code createModelAction}
+     * is called to trigger the next step in the model install.
+     * Should only be called for Elasticsearch hosted models.
+     *
+     * @param client Client
+     * @param modelId Model Id
+     * @param isWaitForCompletion Wait for the download to complete
+     * @param isBeingDownloadedListener The listener called if the download is in progress
+     * @param createModelAction If no download is in progress this is called to continue
+     *                          the model install process.
+     * @param timeout Model download timeout
      */
-    static void checkForExistingTask(
+    static void checkForExistingModelDownloadTask(
         Client client,
         String modelId,
         boolean isWaitForCompletion,
-        ActionListener<Response> sendResponseListener,
-        ActionListener<Void> storeModelListener,
+        ActionListener<Response> isBeingDownloadedListener,
+        Runnable createModelAction,
         TimeValue timeout
     ) {
         TaskRetriever.getDownloadTaskInfo(
@@ -389,12 +349,12 @@ public class TransportPutTrainedModelAction extends TransportMasterNodeAction<Re
             () -> "Timed out waiting for model download to complete",
             ActionListener.wrap(taskInfo -> {
                 if (taskInfo != null) {
-                    getModelInformation(client, modelId, sendResponseListener);
+                    getModelInformation(client, modelId, isBeingDownloadedListener);
                 } else {
                     // no task exists so proceed with creating the model
-                    storeModelListener.onResponse(null);
+                    createModelAction.run();
                 }
-            }, sendResponseListener::onFailure)
+            }, isBeingDownloadedListener::onFailure)
         );
     }
 
@@ -495,6 +455,85 @@ public class TransportPutTrainedModelAction extends TransportMasterNodeAction<Re
         );
     }
 
+    public static boolean validateModelDefinition(
+        TrainedModelConfig config,
+        ClusterState state,
+        XPackLicenseState licenseState,
+        ActionListener<Response> finalResponseListener
+    ) {
+        try {
+            config.getModelDefinition().getTrainedModel().validate();
+        } catch (ElasticsearchException ex) {
+            finalResponseListener.onFailure(
+                ExceptionsHelper.badRequestException("Definition for [{}] has validation failures.", ex, config.getModelId())
+            );
+            return false;
+        }
+
+        TrainedModelType trainedModelType = TrainedModelType.typeFromTrainedModel(config.getModelDefinition().getTrainedModel());
+        if (trainedModelType == null) {
+            finalResponseListener.onFailure(
+                ExceptionsHelper.badRequestException(
+                    "Unknown trained model definition class [{}]",
+                    config.getModelDefinition().getTrainedModel().getName()
+                )
+            );
+            return false;
+        }
+
+        var configModelType = config.getModelType();
+        if (configModelType == null) {
+            // Set the model type from the definition
+            config = new TrainedModelConfig.Builder(config).setModelType(trainedModelType).build();
+        } else if (trainedModelType != configModelType) {
+            finalResponseListener.onFailure(
+                ExceptionsHelper.badRequestException(
+                    "{} [{}] does not match the model definition type [{}]",
+                    TrainedModelConfig.MODEL_TYPE.getPreferredName(),
+                    configModelType,
+                    trainedModelType
+                )
+            );
+            return false;
+        }
+
+        var inferenceConfig = config.getInferenceConfig();
+        if (inferenceConfig.isTargetTypeSupported(config.getModelDefinition().getTrainedModel().targetType()) == false) {
+            finalResponseListener.onFailure(
+                ExceptionsHelper.badRequestException(
+                    "Model [{}] inference config type [{}] does not support definition target type [{}]",
+                    config.getModelId(),
+                    config.getInferenceConfig().getName(),
+                    config.getModelDefinition().getTrainedModel().targetType()
+                )
+            );
+            return false;
+        }
+
+        var minLicenseSupported = inferenceConfig.getMinLicenseSupportedForAction(RestRequest.Method.PUT);
+        if (licenseState.isAllowedByLicense(minLicenseSupported) == false) {
+            finalResponseListener.onFailure(
+                new ElasticsearchSecurityException(
+                    "Model of type [{}] requires [{}] license level",
+                    RestStatus.FORBIDDEN,
+                    config.getInferenceConfig().getName(),
+                    minLicenseSupported
+                )
+            );
+            return false;
+        }
+
+        TransportVersion minCompatibilityVersion = config.getModelDefinition().getTrainedModel().getMinimalCompatibilityVersion();
+        if (state.getMinTransportVersion().before(minCompatibilityVersion)) {
+            finalResponseListener.onFailure(
+                ExceptionsHelper.badRequestException("Cannot create model [{}] while cluster upgrade is in progress.", config.getModelId())
+            );
+            return false;
+        }
+
+        return true;
+    }
+
     @Override
     protected ClusterBlockException checkBlock(Request request, ClusterState state) {
         return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
@@ -554,5 +593,4 @@ public class TransportPutTrainedModelAction extends TransportMasterNodeAction<Re
             return inferenceConfig;
         }
     }
-
 }

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.search.aggregations;
 
@@ -41,6 +42,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Queue;
 import java.util.Set;
 import java.util.function.ToLongFunction;
 import java.util.regex.Matcher;
@@ -332,6 +334,46 @@ public class AggregatorFactories {
                 }
             }
             return false;
+        }
+
+        /**
+         * Return true if any of the builders is a terms aggregation with min_doc_count=0
+         */
+        public boolean hasZeroMinDocTermsAggregation() {
+            final Queue<AggregationBuilder> queue = new LinkedList<>(aggregationBuilders);
+            while (queue.isEmpty() == false) {
+                final AggregationBuilder current = queue.poll();
+                if (current == null) {
+                    continue;
+                }
+                if (current instanceof TermsAggregationBuilder termsBuilder) {
+                    if (termsBuilder.minDocCount() == 0) {
+                        return true;
+                    }
+                }
+                queue.addAll(current.getSubAggregations());
+            }
+            return false;
+        }
+
+        /**
+         * Force all min_doc_count=0 terms aggregations to exclude deleted docs.
+         */
+        public void forceTermsAggsToExcludeDeletedDocs() {
+            assert hasZeroMinDocTermsAggregation();
+            final Queue<AggregationBuilder> queue = new LinkedList<>(aggregationBuilders);
+            while (queue.isEmpty() == false) {
+                final AggregationBuilder current = queue.poll();
+                if (current == null) {
+                    continue;
+                }
+                if (current instanceof TermsAggregationBuilder termsBuilder) {
+                    if (termsBuilder.minDocCount() == 0) {
+                        termsBuilder.excludeDeletedDocs(true);
+                    }
+                }
+                queue.addAll(current.getSubAggregations());
+            }
         }
 
         /**

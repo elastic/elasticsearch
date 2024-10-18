@@ -1,16 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.transport;
 
 import org.apache.logging.log4j.Level;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
@@ -26,7 +25,6 @@ import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.network.HandlingTimeTracker;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -37,7 +35,7 @@ import org.elasticsearch.core.Streams;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -537,16 +535,13 @@ public class OutboundHandlerTests extends ESTestCase {
     private static final String EXPECTED_LOGGER_NAME = "org.elasticsearch.transport.OutboundHandler";
 
     public void testSlowLogOutboundMessage() throws Exception {
-        final MockLogAppender mockAppender = new MockLogAppender();
-        mockAppender.start();
-        mockAppender.addExpectation(
-            new MockLogAppender.SeenEventExpectation("expected message", EXPECTED_LOGGER_NAME, Level.WARN, "sending transport message ")
-        );
-        final Logger outboundHandlerLogger = LogManager.getLogger(OutboundHandler.class);
-        Loggers.addAppender(outboundHandlerLogger, mockAppender);
         handler.setSlowLogThreshold(TimeValue.timeValueMillis(5L));
 
-        try {
+        try (var mockLog = MockLog.capture(OutboundHandler.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation("expected message", EXPECTED_LOGGER_NAME, Level.WARN, "sending transport message ")
+            );
+
             final int length = randomIntBetween(1, 100);
             final PlainActionFuture<Void> f = new PlainActionFuture<>();
             handler.sendBytes(new FakeTcpChannel() {
@@ -561,10 +556,7 @@ public class OutboundHandlerTests extends ESTestCase {
                 }
             }, new BytesArray(randomByteArrayOfLength(length)), f);
             f.get();
-            mockAppender.assertAllExpectationsMatched();
-        } finally {
-            Loggers.removeAppender(outboundHandlerLogger, mockAppender);
-            mockAppender.stop();
+            mockLog.assertAllExpectationsMatched();
         }
     }
 

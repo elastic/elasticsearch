@@ -1,0 +1,197 @@
+---
+setup:
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ method, path, parameters, capabilities ]
+          capabilities: [ match_operator ]
+      cluster_features: [ "gte_v8.16.0" ]
+      reason: "Match operator added in 8.16.0"
+      test_runner_features: [capabilities, allowed_warnings_regex]
+  - do:
+      indices.create:
+        index:  test
+        body:
+          mappings:
+            properties:
+              content:
+                type: text
+              id:
+                type: integer
+  - do:
+      bulk:
+        index: "test"
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "content": "This is a brown fox", "id": 1 }
+          - { "index": { } }
+          - { "content": "This is a brown dog", "id": 2 }
+          - { "index": { } }
+          - { "content": "This dog is really brown", "id": 3 }
+          - { "index": { } }
+          - { "content": "The dog is brown but this document is very very long", "id": 4 }
+          - { "index": { } }
+          - { "content": "There is also a white cat", "id": 5 }
+          - { "index": { } }
+          - { "content": "The quick brown fox jumps over the lazy dog", "id": 6 }
+
+---
+"simple where match":
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM test | WHERE content MATCH "fox" | KEEP id | SORT id'
+
+  - match: { columns.0.name: "id" }
+  - match: { columns.0.type: "integer" }
+  - length: { values: 2 }
+  - match: { values.0.0: 1 }
+  - match: { values.1.0: 6 }
+
+---
+"combined where match":
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM test | WHERE content MATCH "fox" AND id > 5 | KEEP id | SORT id'
+
+  - match: { columns.0.name: "id" }
+  - match: { columns.0.type: "integer" }
+  - length: { values: 1 }
+  - match: { values.0.0: 6 }
+
+---
+"multiple match":
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM test | WHERE content MATCH "fox" OR content MATCH "brown" | KEEP id | SORT id'
+
+  - match: { columns.0.name: "id" }
+  - match: { columns.0.type: "integer" }
+  - length: { values: 5 }
+  - match: { values.0.0: 1 }
+  - match: { values.1.0: 2 }
+  - match: { values.2.0: 3 }
+  - match: { values.3.0: 4 }
+  - match: { values.4.0: 6 }
+
+---
+"not where match":
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM test | WHERE NOT content MATCH "brown fox" | KEEP id | SORT id'
+
+  - match: { columns.0.name: "id" }
+  - match: { columns.0.type: "integer" }
+  - length: { values: 1 }
+  - match: { values.0.0: 5 }
+
+---
+"match on non existing column":
+  - do:
+      catch: bad_request
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM test | WHERE something match "fox"'
+
+  - match: { status: 400 }
+  - match: { error.type: verification_exception }
+  - match: { error.reason: "Found 1 problem\nline 1:19: Unknown column [something]" }
+
+---
+"match on eval column":
+  - do:
+      catch: bad_request
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM test | EVAL upper_content = to_upper(content) | WHERE upper_content MATCH "FOX" | KEEP id'
+
+  - match: { status: 400 }
+  - match: { error.type: verification_exception }
+  - match: { error.reason: "Found 1 problem\nline 1:60: MATCH requires a mapped index field, found [upper_content]" }
+
+---
+"match on overwritten column":
+  - do:
+      catch: bad_request
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM test | DROP content | EVAL content = CONCAT("ID: ", to_str(id)) | WHERE content match "fox"'
+
+  - match: { status: 400 }
+  - match: { error.type: verification_exception }
+  - match: { error.reason: "Found 1 problem\nline 1:78: MATCH requires a mapped index field, found [content]" }
+
+---
+"match after stats":
+  - do:
+      catch: bad_request
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM test | STATS count(*) | WHERE content match "fox"'
+
+  - match: { status: 400 }
+  - match: { error.type: verification_exception }
+  - match: { error.reason: "Found 1 problem\nline 1:36: Unknown column [content], did you mean [count(*)]?" }
+
+---
+"match with functions":
+  - do:
+      catch: bad_request
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM test | WHERE content MATCH "fox" OR to_upper(content) == "FOX"'
+
+  - match: { status: 400 }
+  - match: { error.type: verification_exception }
+  - match: { error.reason: "Found 1 problem\nline 1:19: Invalid condition using MATCH" }
+
+---
+"match within eval":
+  - do:
+      catch: bad_request
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM test | EVAL matches_query = content MATCH "fox"'
+
+  - match: { status: 400 }
+  - match: { error.type: verification_exception }
+  - match: { error.reason: "Found 1 problem\nline 1:34: EVAL does not support MATCH expressions" }
+
+---
+"match with non text field":
+  - do:
+      catch: bad_request
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM test | WHERE id MATCH "fox"'
+
+  - match: { status: 400 }
+  - match: { error.type: verification_exception }
+  - match: { error.reason: "Found 1 problem\nline 1:19: MATCH requires a text or keyword field, but [id] has type [integer]" }

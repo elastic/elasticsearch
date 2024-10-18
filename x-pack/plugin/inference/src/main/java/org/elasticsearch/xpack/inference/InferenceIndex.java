@@ -24,9 +24,10 @@ public class InferenceIndex {
 
     public static final String INDEX_NAME = ".inference";
     public static final String INDEX_PATTERN = INDEX_NAME + "*";
+    public static final String INDEX_ALIAS = ".inference-alias";
 
     // Increment this version number when the mappings change
-    private static final int INDEX_MAPPING_VERSION = 1;
+    private static final int INDEX_MAPPING_VERSION = 2;
 
     public static Settings settings() {
         return Settings.builder()
@@ -62,6 +63,50 @@ public class InferenceIndex {
                 .startObject(SINGLE_MAPPING_NAME)
                 .startObject("_meta")
                 .field(SystemIndexDescriptor.VERSION_META_KEY, INDEX_MAPPING_VERSION)
+                .endObject()
+                .field("dynamic", "strict")
+                .startObject("properties")
+                .startObject("model_id")
+                .field("type", "keyword")
+                .endObject()
+                .startObject("task_type")
+                .field("type", "keyword")
+                .endObject()
+                .startObject("service")
+                .field("type", "keyword")
+                .endObject()
+                .startObject("service_settings")
+                .field("dynamic", "false")
+                .startObject("properties")
+                .endObject()
+                .endObject()
+                .startObject("task_settings")
+                .field("dynamic", "false")
+                .startObject("properties")
+                .endObject()
+                .endObject()
+                .startObject("chunking_settings")
+                .field("dynamic", "false")
+                .startObject("properties")
+                .startObject("strategy")
+                .field("type", "keyword")
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject();
+        } catch (IOException e) {
+            throw new UncheckedIOException("Failed to build mappings for index " + INDEX_NAME, e);
+        }
+    }
+
+    public static XContentBuilder mappingsV1() {
+        try {
+            return jsonBuilder().startObject()
+                .startObject(SINGLE_MAPPING_NAME)
+                .startObject("_meta")
+                .field(SystemIndexDescriptor.VERSION_META_KEY, 1)
                 .endObject()
                 .field("dynamic", "strict")
                 .startObject("properties")

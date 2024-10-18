@@ -9,9 +9,8 @@ package org.elasticsearch.xpack.esql.expression.function.scalar;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
-import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.hamcrest.Matcher;
 
 import java.util.ArrayList;
@@ -203,16 +202,16 @@ public class VaragsTestCaseBuilder {
                 int paramCount = count;
                 suppliers.add(
                     new TestCaseSupplier(
-                        testCaseName(paramCount, multivalued, DataTypes.KEYWORD),
-                        dataTypes(paramCount, DataTypes.KEYWORD),
-                        () -> stringCase(DataTypes.KEYWORD, paramCount, multivalued)
+                        testCaseName(paramCount, multivalued, DataType.KEYWORD),
+                        dataTypes(paramCount, DataType.KEYWORD),
+                        () -> stringCase(DataType.KEYWORD, paramCount, multivalued)
                     )
                 );
                 suppliers.add(
                     new TestCaseSupplier(
-                        testCaseName(paramCount, multivalued, DataTypes.TEXT),
-                        dataTypes(paramCount, DataTypes.TEXT),
-                        () -> stringCase(DataTypes.TEXT, paramCount, multivalued)
+                        testCaseName(paramCount, multivalued, DataType.TEXT),
+                        dataTypes(paramCount, DataType.TEXT),
+                        () -> stringCase(DataType.TEXT, paramCount, multivalued)
                     )
                 );
             }
@@ -240,8 +239,8 @@ public class VaragsTestCaseBuilder {
                 int paramCount = count;
                 suppliers.add(
                     new TestCaseSupplier(
-                        testCaseName(paramCount, multivalued, DataTypes.LONG),
-                        dataTypes(paramCount, DataTypes.LONG),
+                        testCaseName(paramCount, multivalued, DataType.LONG),
+                        dataTypes(paramCount, DataType.LONG),
                         () -> longCase(paramCount, multivalued)
                     )
                 );
@@ -257,14 +256,14 @@ public class VaragsTestCaseBuilder {
                 List<Long> d = ESTestCase.randomList(1, 4, () -> ESTestCase.randomLong());
                 data[p] = d.stream().mapToLong(Long::longValue).toArray();
                 typedData.add(
-                    new TestCaseSupplier.TypedData(Arrays.stream(data[p]).mapToObj(Long::valueOf).toList(), DataTypes.LONG, "field" + p)
+                    new TestCaseSupplier.TypedData(Arrays.stream(data[p]).mapToObj(Long::valueOf).toList(), DataType.LONG, "field" + p)
                 );
             } else {
                 data[p] = new long[] { ESTestCase.randomLong() };
-                typedData.add(new TestCaseSupplier.TypedData(data[p][0], DataTypes.LONG, "field" + p));
+                typedData.add(new TestCaseSupplier.TypedData(data[p][0], DataType.LONG, "field" + p));
             }
         }
-        return testCase(typedData, expectedEvaluatorPrefix.apply("Long"), DataTypes.LONG, expectedLong.apply(data));
+        return testCase(typedData, expectedEvaluatorPrefix.apply("Long"), DataType.LONG, expectedLong.apply(data));
     }
 
     private void ints(List<TestCaseSupplier> suppliers) {
@@ -273,8 +272,8 @@ public class VaragsTestCaseBuilder {
                 int paramCount = count;
                 suppliers.add(
                     new TestCaseSupplier(
-                        testCaseName(paramCount, multivalued, DataTypes.INTEGER),
-                        dataTypes(paramCount, DataTypes.INTEGER),
+                        testCaseName(paramCount, multivalued, DataType.INTEGER),
+                        dataTypes(paramCount, DataType.INTEGER),
                         () -> intCase(paramCount, multivalued)
                     )
                 );
@@ -289,13 +288,13 @@ public class VaragsTestCaseBuilder {
             if (multivalued) {
                 List<Integer> d = ESTestCase.randomList(1, 4, () -> ESTestCase.randomInt());
                 data[p] = d.stream().mapToInt(Integer::intValue).toArray();
-                typedData.add(new TestCaseSupplier.TypedData(d, DataTypes.INTEGER, "field" + p));
+                typedData.add(new TestCaseSupplier.TypedData(d, DataType.INTEGER, "field" + p));
             } else {
                 data[p] = new int[] { ESTestCase.randomInt() };
-                typedData.add(new TestCaseSupplier.TypedData(data[p][0], DataTypes.INTEGER, "field" + p));
+                typedData.add(new TestCaseSupplier.TypedData(data[p][0], DataType.INTEGER, "field" + p));
             }
         }
-        return testCase(typedData, expectedEvaluatorPrefix.apply("Int"), DataTypes.INTEGER, expectedInt.apply(data));
+        return testCase(typedData, expectedEvaluatorPrefix.apply("Int"), DataType.INTEGER, expectedInt.apply(data));
     }
 
     private void booleans(List<TestCaseSupplier> suppliers) {
@@ -304,8 +303,8 @@ public class VaragsTestCaseBuilder {
                 int paramCount = count;
                 suppliers.add(
                     new TestCaseSupplier(
-                        testCaseName(paramCount, multivalued, DataTypes.BOOLEAN),
-                        dataTypes(paramCount, DataTypes.BOOLEAN),
+                        testCaseName(paramCount, multivalued, DataType.BOOLEAN),
+                        dataTypes(paramCount, DataType.BOOLEAN),
                         () -> booleanCase(paramCount, multivalued)
                     )
                 );
@@ -325,13 +324,13 @@ public class VaragsTestCaseBuilder {
                     data[p][i] = ESTestCase.randomBoolean();
                     paramData.add(data[p][i]);
                 }
-                typedData.add(new TestCaseSupplier.TypedData(paramData, DataTypes.BOOLEAN, "field" + p));
+                typedData.add(new TestCaseSupplier.TypedData(paramData, DataType.BOOLEAN, "field" + p));
             } else {
                 data[p] = new boolean[] { ESTestCase.randomBoolean() };
-                typedData.add(new TestCaseSupplier.TypedData(data[p][0], DataTypes.BOOLEAN, "field" + p));
+                typedData.add(new TestCaseSupplier.TypedData(data[p][0], DataType.BOOLEAN, "field" + p));
             }
         }
-        return testCase(typedData, expectedEvaluatorPrefix.apply("Boolean"), DataTypes.BOOLEAN, expectedBoolean.apply(data));
+        return testCase(typedData, expectedEvaluatorPrefix.apply("Boolean"), DataType.BOOLEAN, expectedBoolean.apply(data));
     }
 
     private String testCaseName(int count, boolean multivalued, DataType type) {

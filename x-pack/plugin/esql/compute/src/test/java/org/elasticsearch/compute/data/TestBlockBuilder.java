@@ -63,6 +63,7 @@ public abstract class TestBlockBuilder implements Block.Builder {
             case INT -> new TestIntBlockBuilder(blockFactory, 0);
             case LONG -> new TestLongBlockBuilder(blockFactory, 0);
             case DOUBLE -> new TestDoubleBlockBuilder(blockFactory, 0);
+            case FLOAT -> new TestFloatBlockBuilder(blockFactory, 0);
             case BYTES_REF -> new TestBytesRefBlockBuilder(blockFactory, 0);
             case BOOLEAN -> new TestBooleanBlockBuilder(blockFactory, 0);
             default -> throw new AssertionError(type);
@@ -114,9 +115,8 @@ public abstract class TestBlockBuilder implements Block.Builder {
         }
 
         @Override
-        public Block.Builder appendAllValuesToCurrentPosition(Block block) {
-            builder.appendAllValuesToCurrentPosition(block);
-            return this;
+        public long estimatedBytes() {
+            return builder.estimatedBytes();
         }
 
         @Override
@@ -175,9 +175,8 @@ public abstract class TestBlockBuilder implements Block.Builder {
         }
 
         @Override
-        public Block.Builder appendAllValuesToCurrentPosition(Block block) {
-            builder.appendAllValuesToCurrentPosition(block);
-            return this;
+        public long estimatedBytes() {
+            return builder.estimatedBytes();
         }
 
         @Override
@@ -236,13 +235,72 @@ public abstract class TestBlockBuilder implements Block.Builder {
         }
 
         @Override
-        public Block.Builder appendAllValuesToCurrentPosition(Block block) {
-            builder.appendAllValuesToCurrentPosition(block);
-            return this;
+        public long estimatedBytes() {
+            return builder.estimatedBytes();
         }
 
         @Override
         public DoubleBlock build() {
+            return builder.build();
+        }
+
+        @Override
+        public void close() {
+            builder.close();
+        }
+    }
+
+    private static class TestFloatBlockBuilder extends TestBlockBuilder {
+
+        private final FloatBlock.Builder builder;
+
+        TestFloatBlockBuilder(BlockFactory blockFactory, int estimatedSize) {
+            builder = blockFactory.newFloatBlockBuilder(estimatedSize);
+        }
+
+        @Override
+        public TestBlockBuilder appendObject(Object object) {
+            builder.appendFloat(((Number) object).floatValue());
+            return this;
+        }
+
+        @Override
+        public TestBlockBuilder appendNull() {
+            builder.appendNull();
+            return this;
+        }
+
+        @Override
+        public TestBlockBuilder beginPositionEntry() {
+            builder.beginPositionEntry();
+            return this;
+        }
+
+        @Override
+        public TestBlockBuilder endPositionEntry() {
+            builder.endPositionEntry();
+            return this;
+        }
+
+        @Override
+        public TestBlockBuilder copyFrom(Block block, int beginInclusive, int endExclusive) {
+            builder.copyFrom(block, beginInclusive, endExclusive);
+            return this;
+        }
+
+        @Override
+        public TestBlockBuilder mvOrdering(Block.MvOrdering mvOrdering) {
+            builder.mvOrdering(mvOrdering);
+            return this;
+        }
+
+        @Override
+        public long estimatedBytes() {
+            return builder.estimatedBytes();
+        }
+
+        @Override
+        public FloatBlock build() {
             return builder.build();
         }
 
@@ -297,9 +355,8 @@ public abstract class TestBlockBuilder implements Block.Builder {
         }
 
         @Override
-        public Block.Builder appendAllValuesToCurrentPosition(Block block) {
-            builder.appendAllValuesToCurrentPosition(block);
-            return this;
+        public long estimatedBytes() {
+            return builder.estimatedBytes();
         }
 
         @Override
@@ -361,9 +418,8 @@ public abstract class TestBlockBuilder implements Block.Builder {
         }
 
         @Override
-        public Block.Builder appendAllValuesToCurrentPosition(Block block) {
-            builder.appendAllValuesToCurrentPosition(block);
-            return this;
+        public long estimatedBytes() {
+            return builder.estimatedBytes();
         }
 
         @Override

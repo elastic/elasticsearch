@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.transport;
 
@@ -99,6 +100,21 @@ public class RemoteConnectionManagerTests extends ESTestCase {
         proxyNodes.add(((ProxyConnection) remoteConnectionManager.getConnection(node4)).getConnection().getNode().getId());
 
         assertThat(proxyNodes, containsInAnyOrder("node-2"));
+    }
+
+    public void testDisconnectedException() {
+        assertEquals(
+            "Unable to connect to [remote-cluster]",
+            expectThrows(ConnectTransportException.class, remoteConnectionManager::getAnyRemoteConnection).getMessage()
+        );
+
+        assertEquals(
+            "Unable to connect to [remote-cluster]",
+            expectThrows(
+                ConnectTransportException.class,
+                () -> remoteConnectionManager.getConnection(DiscoveryNodeUtils.create("node-1", address))
+            ).getMessage()
+        );
     }
 
     public void testResolveRemoteClusterAlias() throws ExecutionException, InterruptedException {

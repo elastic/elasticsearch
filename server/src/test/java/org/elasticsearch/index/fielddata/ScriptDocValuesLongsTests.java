@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.fielddata;
@@ -35,6 +36,9 @@ public class ScriptDocValuesLongsTests extends ESTestCase {
                 assertEquals(values[d][0], (long) longs.get(0));
                 assertEquals(values[d][0], longField.get(Long.MIN_VALUE));
                 assertEquals(values[d][0], longField.get(0, Long.MIN_VALUE));
+
+                Exception e = expectThrows(IndexOutOfBoundsException.class, () -> { long l = longs.get(longs.size()); });
+                assertEquals("A document doesn't have a value for a field at position [" + longs.size() + "]!", e.getMessage());
             } else {
                 Exception e = expectThrows(IllegalStateException.class, longs::getValue);
                 assertEquals(

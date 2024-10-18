@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.http;
@@ -14,6 +15,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionModule;
+import org.elasticsearch.action.bulk.IncrementalBulkService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -39,9 +41,10 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -417,15 +420,15 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
     }
 
     public void testHandlingCompatibleVersionParsingErrors() {
-        // a compatible version exception (v7 on accept and v8 on content-type) should be handled gracefully
+        // a compatible version exception (v8 on accept and v9 on content-type) should be handled gracefully
         final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
 
         try (
             AbstractHttpServerTransport transport = failureAssertingtHttpServerTransport(clusterSettings, Set.of("Accept", "Content-Type"))
         ) {
             Map<String, List<String>> headers = new HashMap<>();
-            headers.put("Accept", Collections.singletonList("aaa/bbb;compatible-with=7"));
-            headers.put("Content-Type", Collections.singletonList("aaa/bbb;compatible-with=8"));
+            headers.put("Accept", Collections.singletonList("aaa/bbb;compatible-with=8"));
+            headers.put("Content-Type", Collections.singletonList("aaa/bbb;compatible-with=9"));
 
             FakeRestRequest.FakeHttpRequest fakeHttpRequest = new FakeRestRequest.FakeHttpRequest(
                 RestRequest.Method.GET,
@@ -581,12 +584,11 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
                     .put(HttpTransportSettings.SETTING_HTTP_TRACE_LOG_EXCLUDE.getKey(), excludeSettings)
                     .build()
             );
-            MockLogAppender appender = new MockLogAppender();
-            try (var ignored = appender.capturing(HttpTracer.class)) {
+            try (var mockLog = MockLog.capture(HttpTracer.class)) {
 
                 final String opaqueId = UUIDs.randomBase64UUID(random());
-                appender.addExpectation(
-                    new MockLogAppender.PatternSeenEventExpectation(
+                mockLog.addExpectation(
+                    new MockLog.PatternSeenEventExpectation(
                         "received request",
                         HttpTracerTests.HTTP_TRACER_LOGGER,
                         Level.TRACE,
@@ -596,8 +598,8 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
 
                 final boolean badRequest = randomBoolean();
 
-                appender.addExpectation(
-                    new MockLogAppender.PatternSeenEventExpectation(
+                mockLog.addExpectation(
+                    new MockLog.PatternSeenEventExpectation(
                         "sent response",
                         HttpTracerTests.HTTP_TRACER_LOGGER,
                         Level.TRACE,
@@ -611,8 +613,8 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
                     )
                 );
 
-                appender.addExpectation(
-                    new MockLogAppender.UnseenEventExpectation(
+                mockLog.addExpectation(
+                    new MockLog.UnseenEventExpectation(
                         "received other request",
                         HttpTracerTests.HTTP_TRACER_LOGGER,
                         Level.TRACE,
@@ -658,32 +660,21 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
                 try (var httpChannel = fakeRestRequestExcludedPath.getHttpChannel()) {
                     transport.incomingRequest(fakeRestRequestExcludedPath.getHttpRequest(), httpChannel);
                 }
-                appender.assertAllExpectationsMatched();
+                mockLog.assertAllExpectationsMatched();
             }
         }
     }
 
     public void testLogsSlowInboundProcessing() throws Exception {
-        final MockLogAppender mockAppender = new MockLogAppender();
-        mockAppender.start();
         final String opaqueId = UUIDs.randomBase64UUID(random());
         final String path = "/internal/test";
         final RestRequest.Method method = randomFrom(RestRequest.Method.values());
-        mockAppender.addExpectation(
-            new MockLogAppender.SeenEventExpectation(
-                "expected message",
-                AbstractHttpServerTransport.class.getCanonicalName(),
-                Level.WARN,
-                "handling request [" + opaqueId + "][" + method + "][" + path + "]"
-            )
-        );
-        final Logger inboundHandlerLogger = LogManager.getLogger(AbstractHttpServerTransport.class);
-        Loggers.addAppender(inboundHandlerLogger, mockAppender);
         final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         final Settings settings = Settings.builder()
             .put(TransportSettings.SLOW_OPERATION_THRESHOLD_SETTING.getKey(), TimeValue.timeValueMillis(5))
             .build();
         try (
+            var mockLog = MockLog.capture(AbstractHttpServerTransport.class);
             AbstractHttpServerTransport transport = new AbstractHttpServerTransport(
                 settings,
                 networkService,
@@ -730,6 +721,14 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
                 }
             }
         ) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "expected message",
+                    AbstractHttpServerTransport.class.getCanonicalName(),
+                    Level.WARN,
+                    "handling request [" + opaqueId + "][" + method + "][" + path + "]"
+                )
+            );
 
             final FakeRestRequest fakeRestRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withMethod(method)
                 .withPath(path)
@@ -737,10 +736,7 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
                 .build();
             transport.serverAcceptedChannel(fakeRestRequest.getHttpChannel());
             transport.incomingRequest(fakeRestRequest.getHttpRequest(), fakeRestRequest.getHttpChannel());
-            mockAppender.assertAllExpectationsMatched();
-        } finally {
-            Loggers.removeAppender(inboundHandlerLogger, mockAppender);
-            mockAppender.stop();
+            mockLog.assertAllExpectationsMatched();
         }
     }
 
@@ -918,8 +914,8 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
         }
     }
 
-    public void testStopDoesntWaitIfGraceIsZero() {
-        try (var noWait = LogExpectation.unexpectWait(); var transport = new TestHttpServerTransport(Settings.EMPTY)) {
+    public void testStopWaitsIndefinitelyIfGraceIsZero() {
+        try (var wait = LogExpectation.expectWait(); var transport = new TestHttpServerTransport(Settings.EMPTY)) {
             TestHttpChannel httpChannel = new TestHttpChannel();
             transport.serverAcceptedChannel(httpChannel);
             transport.incomingRequest(testHttpRequest(), httpChannel);
@@ -927,7 +923,33 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
             transport.doStop();
             assertFalse(transport.testHttpServerChannel.isOpen());
             assertFalse(httpChannel.isOpen());
-            noWait.assertExpectationsMatched();
+            wait.assertExpectationsMatched();
+        }
+    }
+
+    public void testStopLogsProgress() throws Exception {
+        TestHttpChannel httpChannel = new TestHttpChannel();
+        var doneWithRequest = new CountDownLatch(1);
+        try (var wait = LogExpectation.expectUpdate(1); var transport = new TestHttpServerTransport(gracePeriod(SHORT_GRACE_PERIOD_MS))) {
+
+            httpChannel.blockSendResponse();
+            var inResponse = httpChannel.notifyInSendResponse();
+
+            transport.serverAcceptedChannel(httpChannel);
+            new Thread(() -> {
+                transport.incomingRequest(testHttpRequest(), httpChannel);
+                doneWithRequest.countDown();
+            }, "testStopLogsProgress -> incomingRequest").start();
+
+            inResponse.await();
+
+            transport.doStop();
+            assertFalse(transport.testHttpServerChannel.isOpen());
+            assertFalse(httpChannel.isOpen());
+            wait.assertExpectationsMatched();
+        } finally {
+            httpChannel.allowSendResponse();
+            doneWithRequest.await();
         }
     }
 
@@ -1152,11 +1174,12 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
             null,
             new UsageService(),
             null,
-            null,
+            TelemetryProvider.NOOP,
             mock(ClusterService.class),
             null,
             List.of(),
-            RestExtension.allowAll()
+            RestExtension.allowAll(),
+            new IncrementalBulkService(null, null, new ThreadContext(Settings.EMPTY))
         );
     }
 
@@ -1331,69 +1354,74 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
 
     private static class LogExpectation implements AutoCloseable {
         private final Logger mockLogger;
-        private final MockLogAppender appender;
-        private boolean checked = false;
+        private final MockLog mockLog;
         private final int grace;
 
         private LogExpectation(int grace) {
             mockLogger = LogManager.getLogger(AbstractHttpServerTransport.class);
             Loggers.setLevel(mockLogger, Level.DEBUG);
-            appender = new MockLogAppender();
-            Loggers.addAppender(mockLogger, appender);
-            appender.start();
+            mockLog = MockLog.capture(AbstractHttpServerTransport.class);
             this.grace = grace;
         }
 
         public static LogExpectation expectTimeout(int grace) {
-            return new LogExpectation(grace).timedOut(true).wait(true);
+            return new LogExpectation(grace).timedOut(true).wait(false);
         }
 
         public static LogExpectation unexpectedTimeout(int grace) {
-            return new LogExpectation(grace).timedOut(false).wait(true);
+            return new LogExpectation(grace).timedOut(false).wait(false);
         }
 
-        public static LogExpectation unexpectWait() {
-            return new LogExpectation(0).wait(false);
+        public static LogExpectation expectWait() {
+            return new LogExpectation(0).wait(true);
+        }
+
+        public static LogExpectation expectUpdate(int connections) {
+            return new LogExpectation(0).update(connections);
         }
 
         private LogExpectation timedOut(boolean expected) {
             var message = "timed out while waiting [" + grace + "]ms for clients to close connections";
-            var name = "message";
+            var name = "timed out message";
             var logger = AbstractHttpServerTransport.class.getName();
             var level = Level.WARN;
             if (expected) {
-                appender.addExpectation(new MockLogAppender.SeenEventExpectation(name, logger, level, message));
+                mockLog.addExpectation(new MockLog.SeenEventExpectation(name, logger, level, message));
             } else {
-                appender.addExpectation(new MockLogAppender.UnseenEventExpectation(name, logger, level, message));
+                mockLog.addExpectation(new MockLog.UnseenEventExpectation(name, logger, level, message));
             }
             return this;
         }
 
         private LogExpectation wait(boolean expected) {
-            var message = "closing all client connections immediately";
-            var name = "message";
+            var message = "waiting indefinitely for clients to close connections";
+            var name = "wait message";
             var logger = AbstractHttpServerTransport.class.getName();
             var level = Level.DEBUG;
             if (expected) {
-                appender.addExpectation(new MockLogAppender.UnseenEventExpectation(name, logger, level, message));
+                mockLog.addExpectation(new MockLog.SeenEventExpectation(name, logger, level, message));
             } else {
-                appender.addExpectation(new MockLogAppender.SeenEventExpectation(name, logger, level, message));
+                mockLog.addExpectation(new MockLog.UnseenEventExpectation(name, logger, level, message));
             }
             return this;
         }
 
+        private LogExpectation update(int connections) {
+            var message = "still waiting on " + connections + " client connections to close";
+            var name = "update message";
+            var logger = AbstractHttpServerTransport.class.getName();
+            var level = Level.INFO;
+            mockLog.addExpectation(new MockLog.SeenEventExpectation(name, logger, level, message));
+            return this;
+        }
+
         public void assertExpectationsMatched() {
-            appender.assertAllExpectationsMatched();
-            checked = true;
+            mockLog.assertAllExpectationsMatched();
         }
 
         @Override
         public void close() {
-            Loggers.removeAppender(mockLogger, appender);
-            appender.stop();
-            if (checked == false) {
-                fail("did not check expectations matched in TimedOutLogExpectation");
-            }
+            mockLog.close();
         }
     }
 

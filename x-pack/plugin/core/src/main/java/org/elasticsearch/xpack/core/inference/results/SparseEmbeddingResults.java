@@ -7,20 +7,25 @@
 
 package org.elasticsearch.xpack.core.inference.results;
 
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.TaskType;
-import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
+import org.elasticsearch.xpack.core.ml.search.WeightedToken;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -43,8 +48,22 @@ public record SparseEmbeddingResults(List<Embedding> embeddings) implements Infe
         for (InferenceResults result : results) {
             if (result instanceof TextExpansionResults expansionResults) {
                 embeddings.add(Embedding.create(expansionResults.getWeightedTokens(), expansionResults.isTruncated()));
+            } else if (result instanceof org.elasticsearch.xpack.core.ml.inference.results.ErrorInferenceResults errorResult) {
+                if (errorResult.getException() instanceof ElasticsearchStatusException statusException) {
+                    throw statusException;
+                } else {
+                    throw new ElasticsearchStatusException(
+                        "Received error inference result.",
+                        RestStatus.INTERNAL_SERVER_ERROR,
+                        errorResult.getException()
+                    );
+                }
             } else {
-                throw new IllegalArgumentException("Received invalid legacy inference result");
+                throw new IllegalArgumentException(
+                    "Received invalid legacy inference result, of type "
+                        + result.getClass().getName()
+                        + " but expected SparseEmbeddingResults."
+                );
             }
         }
 
@@ -52,15 +71,8 @@ public record SparseEmbeddingResults(List<Embedding> embeddings) implements Infe
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startArray(SPARSE_EMBEDDING);
-
-        for (Embedding embedding : embeddings) {
-            embedding.toXContent(builder, params);
-        }
-
-        builder.endArray();
-        return builder;
+    public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
+        return ChunkedToXContentHelper.array(SPARSE_EMBEDDING, embeddings.iterator());
     }
 
     @Override
@@ -94,7 +106,7 @@ public record SparseEmbeddingResults(List<Embedding> embeddings) implements Infe
                     DEFAULT_RESULTS_FIELD,
                     embedding.tokens()
                         .stream()
-                        .map(weightedToken -> new TextExpansionResults.WeightedToken(weightedToken.token, weightedToken.weight))
+                        .map(weightedToken -> new WeightedToken(weightedToken.token(), weightedToken.weight()))
                         .toList(),
                     embedding.isTruncated
                 )
@@ -111,7 +123,7 @@ public record SparseEmbeddingResults(List<Embedding> embeddings) implements Infe
             this(in.readCollectionAsList(WeightedToken::new), in.readBoolean());
         }
 
-        public static Embedding create(List<TextExpansionResults.WeightedToken> weightedTokens, boolean isTruncated) {
+        public static Embedding create(List<WeightedToken> weightedTokens, boolean isTruncated) {
             return new Embedding(
                 weightedTokens.stream().map(token -> new WeightedToken(token.token(), token.weight())).toList(),
                 isTruncated
@@ -145,33 +157,6 @@ public record SparseEmbeddingResults(List<Embedding> embeddings) implements Infe
             );
 
             return new LinkedHashMap<>(Map.of(IS_TRUNCATED, isTruncated, EMBEDDING, embeddingMap));
-        }
-
-        @Override
-        public String toString() {
-            return Strings.toString(this);
-        }
-    }
-
-    public record WeightedToken(String token, float weight) implements Writeable, ToXContentFragment {
-        public WeightedToken(StreamInput in) throws IOException {
-            this(in.readString(), in.readFloat());
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeString(token);
-            out.writeFloat(weight);
-        }
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.field(token, weight);
-            return builder;
-        }
-
-        public Map<String, Object> asMap() {
-            return Map.of(token, weight);
         }
 
         @Override

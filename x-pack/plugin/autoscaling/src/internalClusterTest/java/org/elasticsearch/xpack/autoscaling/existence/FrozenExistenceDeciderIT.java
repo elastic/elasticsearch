@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.autoscaling.existence;
 
+import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteUtils;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.blobcache.BlobCachePlugin;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
@@ -98,7 +99,7 @@ public class FrozenExistenceDeciderIT extends AbstractFrozenAutoscalingIntegTest
             singletonMap(SearchableSnapshotAction.NAME, new SearchableSnapshotAction(fsRepoName, randomBoolean()))
         );
         LifecyclePolicy lifecyclePolicy = new LifecyclePolicy("policy", Map.of("hot", hotPhase, "frozen", frozenPhase));
-        PutLifecycleRequest putLifecycleRequest = new PutLifecycleRequest(lifecyclePolicy);
+        PutLifecycleRequest putLifecycleRequest = new PutLifecycleRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, lifecyclePolicy);
         assertAcked(client().execute(ILMActions.PUT, putLifecycleRequest).get());
 
         Settings settings = Settings.builder()
@@ -115,7 +116,7 @@ public class FrozenExistenceDeciderIT extends AbstractFrozenAutoscalingIntegTest
         assertMinimumCapacity(capacity().results().get("frozen").requiredCapacity().node());
 
         assertThat(
-            clusterAdmin().prepareHealth().get().getStatus(),
+            clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT).get().getStatus(),
             anyOf(equalTo(ClusterHealthStatus.YELLOW), equalTo(ClusterHealthStatus.GREEN))
         );
 
@@ -138,6 +139,9 @@ public class FrozenExistenceDeciderIT extends AbstractFrozenAutoscalingIntegTest
         // we've seen a case where bootstrapping a node took just over 60 seconds in the test environment, so using an (excessive) 90
         // seconds max wait time to avoid flakiness
         assertBusy(() -> {
+            // cause a bit of cluster activity using an empty reroute call in case the `wait-for-index-colour` ILM step missed the
+            // notification that partial-index is now GREEN.
+            ClusterRerouteUtils.reroute(client());
             String[] indices = indices();
             assertThat(indices, arrayContaining(PARTIAL_INDEX_NAME));
             assertThat(indices, not(arrayContaining(INDEX_NAME)));

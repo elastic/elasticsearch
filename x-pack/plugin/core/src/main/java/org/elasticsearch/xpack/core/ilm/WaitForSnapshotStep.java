@@ -104,7 +104,7 @@ public class WaitForSnapshotStep extends AsyncWaitStep {
         );
         String snapshotName = snapPolicyMeta.getLastSuccess().getSnapshotName();
         String repositoryName = snapPolicyMeta.getPolicy().getRepository();
-        GetSnapshotsRequest request = new GetSnapshotsRequest().repositories(repositoryName)
+        GetSnapshotsRequest request = new GetSnapshotsRequest(TimeValue.MAX_VALUE).repositories(repositoryName)
             .snapshots(new String[] { snapshotName })
             .includeIndexNames(true)
             .verbose(false);

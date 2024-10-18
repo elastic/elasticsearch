@@ -43,7 +43,7 @@ you created or updated the {dfeed}, those credentials are used instead.
 
 `<feed_id>`::
 (Required, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=datafeed-id]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=datafeed-id]
 
 [[ml-start-datafeed-query-parms]]
 == {api-query-parms-title}

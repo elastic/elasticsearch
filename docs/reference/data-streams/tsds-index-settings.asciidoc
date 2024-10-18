@@ -60,5 +60,5 @@ information, refer to <<dimension-based-routing>>.
 `index.mapping.dimension_fields.limit`::
 (<<dynamic-index-settings,Dynamic>>, integer)
 Maximum number of <<time-series-dimension,time series dimensions>> for the
-index. Defaults to `21`.
+index. Defaults to `32768`.
 // end::dimensions-limit[]

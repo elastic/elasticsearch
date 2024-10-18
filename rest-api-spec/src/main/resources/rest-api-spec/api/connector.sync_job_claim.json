@@ -1,0 +1,38 @@
+{
+  "connector.sync_job_claim": {
+    "documentation": {
+      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/master/claim-connector-sync-job-api.html",
+      "description": "Claims a connector sync job."
+    },
+    "stability": "experimental",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ],
+      "content_type": [
+        "application/json"
+      ]
+    },
+    "url": {
+      "paths": [
+        {
+          "path": "/_connector/_sync_job/{connector_sync_job_id}/_claim",
+          "methods": [
+            "PUT"
+          ],
+          "parts": {
+            "connector_sync_job_id": {
+              "type": "string",
+              "description": "The unique identifier of the connector sync job to be claimed."
+            }
+          }
+        }
+      ]
+    },
+    "body": {
+      "description": "Data to claim a sync job.",
+      "required": true
+    }
+  }
+}

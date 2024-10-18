@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.node;
@@ -527,6 +528,9 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode>, SimpleDiffable<D
      * Returns the changes comparing this nodes to the provided nodes.
      */
     public Delta delta(DiscoveryNodes other) {
+        if (this == other) {
+            return new Delta(this.masterNode, this.masterNode, localNodeId, List.of(), List.of());
+        }
         final List<DiscoveryNode> removed = new ArrayList<>();
         final List<DiscoveryNode> added = new ArrayList<>();
         for (DiscoveryNode node : other) {
@@ -622,6 +626,11 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode>, SimpleDiffable<D
 
         public List<DiscoveryNode> addedNodes() {
             return added;
+        }
+
+        @Override
+        public String toString() {
+            return shortSummary();
         }
 
         public String shortSummary() {

@@ -71,55 +71,6 @@ final class IntBlockBuilder extends AbstractBlockBuilder implements IntBlock.Bui
         return this;
     }
 
-    /**
-     * Appends the all values of the given block into a the current position
-     * in this builder.
-     */
-    @Override
-    public IntBlockBuilder appendAllValuesToCurrentPosition(Block block) {
-        if (block.areAllValuesNull()) {
-            return appendNull();
-        }
-        return appendAllValuesToCurrentPosition((IntBlock) block);
-    }
-
-    /**
-     * Appends the all values of the given block into a the current position
-     * in this builder.
-     */
-    @Override
-    public IntBlockBuilder appendAllValuesToCurrentPosition(IntBlock block) {
-        final int positionCount = block.getPositionCount();
-        if (positionCount == 0) {
-            return appendNull();
-        }
-        final int totalValueCount = block.getTotalValueCount();
-        if (totalValueCount == 0) {
-            return appendNull();
-        }
-        if (totalValueCount > 1) {
-            beginPositionEntry();
-        }
-        final IntVector vector = block.asVector();
-        if (vector != null) {
-            for (int p = 0; p < positionCount; p++) {
-                appendInt(vector.getInt(p));
-            }
-        } else {
-            for (int p = 0; p < positionCount; p++) {
-                int count = block.getValueCount(p);
-                int i = block.getFirstValueIndex(p);
-                for (int v = 0; v < count; v++) {
-                    appendInt(block.getInt(i++));
-                }
-            }
-        }
-        if (totalValueCount > 1) {
-            endPositionEntry();
-        }
-        return this;
-    }
-
     @Override
     public IntBlockBuilder copyFrom(Block block, int beginInclusive, int endExclusive) {
         if (block.areAllValuesNull()) {
@@ -210,28 +161,19 @@ final class IntBlockBuilder extends AbstractBlockBuilder implements IntBlock.Bui
             IntBlock theBlock;
             if (hasNonNullValue && positionCount == 1 && valueCount == 1) {
                 theBlock = blockFactory.newConstantIntBlockWith(values[0], 1, estimatedBytes);
+            } else if (estimatedBytes > blockFactory.maxPrimitiveArrayBytes()) {
+                theBlock = buildBigArraysBlock();
+            } else if (isDense() && singleValued()) {
+                theBlock = blockFactory.newIntArrayVector(values, positionCount, estimatedBytes).asBlock();
             } else {
-                if (estimatedBytes > blockFactory.maxPrimitiveArrayBytes()) {
-                    theBlock = buildBigArraysBlock();
-                } else {
-                    if (values.length - valueCount > 1024 || valueCount < (values.length / 2)) {
-                        adjustBreaker(valueCount * elementSize());
-                        values = Arrays.copyOf(values, valueCount);
-                        adjustBreaker(-values.length * elementSize());
-                    }
-                    if (isDense() && singleValued()) {
-                        theBlock = blockFactory.newIntArrayVector(values, positionCount, estimatedBytes).asBlock();
-                    } else {
-                        theBlock = blockFactory.newIntArrayBlock(
-                            values,
-                            positionCount,
-                            firstValueIndexes,
-                            nullsMask,
-                            mvOrdering,
-                            estimatedBytes
-                        );
-                    }
-                }
+                theBlock = blockFactory.newIntArrayBlock(
+                    values, // stylecheck
+                    positionCount,
+                    firstValueIndexes,
+                    nullsMask,
+                    mvOrdering,
+                    estimatedBytes
+                );
             }
             built();
             return theBlock;

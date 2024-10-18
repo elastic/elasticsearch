@@ -38,12 +38,16 @@ import java.util.Map;
 public class StackTemplateRegistry extends IndexTemplateRegistry {
     private static final Logger logger = LogManager.getLogger(StackTemplateRegistry.class);
 
-    // Current version of the registry requires all nodes to be at least 8.9.0.
+    // Historical node feature kept here as LegacyStackTemplateRegistry is deprecated
     public static final NodeFeature STACK_TEMPLATES_FEATURE = new NodeFeature("stack.templates_supported");
+
+    // this node feature is a redefinition of {@link DataStreamFeatures#DATA_STREAM_LIFECYCLE} and it's meant to avoid adding a
+    // dependency to the data-streams module just for this
+    public static final NodeFeature DATA_STREAM_LIFECYCLE = new NodeFeature("data_stream.lifecycle");
 
     // The stack template registry version. This number must be incremented when we make changes
     // to built-in templates.
-    public static final int REGISTRY_VERSION = 8;
+    public static final int REGISTRY_VERSION = 14;
 
     public static final String TEMPLATE_VERSION_VARIABLE = "xpack.stack.template.version";
     public static final Setting<Boolean> STACK_TEMPLATES_ENABLED = Setting.boolSetting(
@@ -55,6 +59,7 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
 
     private final ClusterService clusterService;
     private final FeatureService featureService;
+    private final Map<String, ComponentTemplate> componentTemplateConfigs;
     private volatile boolean stackTemplateEnabled;
 
     public static final Map<String, String> ADDITIONAL_TEMPLATE_VARIABLES = Map.of("xpack.stack.template.deprecated", "false");
@@ -92,6 +97,12 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
     public static final String METRICS_INDEX_TEMPLATE_NAME = "metrics";
 
     //////////////////////////////////////////////////////////
+    // Base traces components
+    //////////////////////////////////////////////////////////
+    public static final String TRACES_MAPPINGS_COMPONENT_TEMPLATE_NAME = "traces@mappings";
+    public static final String TRACES_SETTINGS_COMPONENT_TEMPLATE_NAME = "traces@settings";
+
+    //////////////////////////////////////////////////////////
     // Synthetics components (for matching synthetics-*-* indices)
     //////////////////////////////////////////////////////////
     public static final String SYNTHETICS_MAPPINGS_COMPONENT_TEMPLATE_NAME = "synthetics@mappings";
@@ -103,6 +114,7 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
     // Kibana reporting template
     ///////////////////////////////////
     public static final String KIBANA_REPORTING_INDEX_TEMPLATE_NAME = ".kibana-reporting";
+    public static final String KIBANA_REPORTING_COMPONENT_TEMPLATE_NAME = "kibana-reporting@settings";
 
     public StackTemplateRegistry(
         Settings nodeSettings,
@@ -116,6 +128,107 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
         this.clusterService = clusterService;
         this.featureService = featureService;
         this.stackTemplateEnabled = STACK_TEMPLATES_ENABLED.get(nodeSettings);
+        this.componentTemplateConfigs = loadComponentTemplateConfigs();
+    }
+
+    private Map<String, ComponentTemplate> loadComponentTemplateConfigs() {
+        final Map<String, ComponentTemplate> componentTemplates = new HashMap<>();
+        for (IndexTemplateConfig config : List.of(
+            new IndexTemplateConfig(
+                DATA_STREAMS_MAPPINGS_COMPONENT_TEMPLATE_NAME,
+                "/data-streams@mappings.json",
+                REGISTRY_VERSION,
+                TEMPLATE_VERSION_VARIABLE,
+                ADDITIONAL_TEMPLATE_VARIABLES
+            ),
+            new IndexTemplateConfig(
+                LOGS_MAPPINGS_COMPONENT_TEMPLATE_NAME,
+                "/logs@mappings.json",
+                REGISTRY_VERSION,
+                TEMPLATE_VERSION_VARIABLE,
+                ADDITIONAL_TEMPLATE_VARIABLES
+            ),
+            new IndexTemplateConfig(
+                ECS_DYNAMIC_MAPPINGS_COMPONENT_TEMPLATE_NAME,
+                "/ecs@mappings.json",
+                REGISTRY_VERSION,
+                TEMPLATE_VERSION_VARIABLE,
+                ADDITIONAL_TEMPLATE_VARIABLES
+            ),
+            new IndexTemplateConfig(
+                LOGS_SETTINGS_COMPONENT_TEMPLATE_NAME,
+                "/logs@settings.json",
+                REGISTRY_VERSION,
+                TEMPLATE_VERSION_VARIABLE,
+                Map.of("xpack.stack.template.deprecated", "false")
+            ),
+            new IndexTemplateConfig(
+                METRICS_MAPPINGS_COMPONENT_TEMPLATE_NAME,
+                "/metrics@mappings.json",
+                REGISTRY_VERSION,
+                TEMPLATE_VERSION_VARIABLE,
+                ADDITIONAL_TEMPLATE_VARIABLES
+            ),
+            new IndexTemplateConfig(
+                METRICS_SETTINGS_COMPONENT_TEMPLATE_NAME,
+                "/metrics@settings.json",
+                REGISTRY_VERSION,
+                TEMPLATE_VERSION_VARIABLE,
+                ADDITIONAL_TEMPLATE_VARIABLES
+            ),
+            new IndexTemplateConfig(
+                METRICS_TSDB_SETTINGS_COMPONENT_TEMPLATE_NAME,
+                "/metrics@tsdb-settings.json",
+                REGISTRY_VERSION,
+                TEMPLATE_VERSION_VARIABLE,
+                ADDITIONAL_TEMPLATE_VARIABLES
+            ),
+            new IndexTemplateConfig(
+                TRACES_SETTINGS_COMPONENT_TEMPLATE_NAME,
+                "/traces@settings.json",
+                REGISTRY_VERSION,
+                TEMPLATE_VERSION_VARIABLE,
+                ADDITIONAL_TEMPLATE_VARIABLES
+            ),
+            new IndexTemplateConfig(
+                TRACES_MAPPINGS_COMPONENT_TEMPLATE_NAME,
+                "/traces@mappings.json",
+                REGISTRY_VERSION,
+                TEMPLATE_VERSION_VARIABLE,
+                ADDITIONAL_TEMPLATE_VARIABLES
+            ),
+            new IndexTemplateConfig(
+                SYNTHETICS_MAPPINGS_COMPONENT_TEMPLATE_NAME,
+                "/synthetics@mappings.json",
+                REGISTRY_VERSION,
+                TEMPLATE_VERSION_VARIABLE,
+                ADDITIONAL_TEMPLATE_VARIABLES
+            ),
+            new IndexTemplateConfig(
+                SYNTHETICS_SETTINGS_COMPONENT_TEMPLATE_NAME,
+                "/synthetics@settings.json",
+                REGISTRY_VERSION,
+                TEMPLATE_VERSION_VARIABLE,
+                ADDITIONAL_TEMPLATE_VARIABLES
+            ),
+            new IndexTemplateConfig(
+                KIBANA_REPORTING_COMPONENT_TEMPLATE_NAME,
+                "/kibana-reporting@settings.json",
+                REGISTRY_VERSION,
+                TEMPLATE_VERSION_VARIABLE,
+                ADDITIONAL_TEMPLATE_VARIABLES
+            )
+        )) {
+            try {
+                componentTemplates.put(
+                    config.getTemplateName(),
+                    ComponentTemplate.parse(JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, config.loadBytes()))
+                );
+            } catch (IOException e) {
+                throw new AssertionError(e);
+            }
+        }
+        return Map.copyOf(componentTemplates);
     }
 
     @Override
@@ -158,90 +271,9 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
         return lifecyclePolicies;
     }
 
-    private static final Map<String, ComponentTemplate> COMPONENT_TEMPLATE_CONFIGS;
-
-    static {
-        final Map<String, ComponentTemplate> componentTemplates = new HashMap<>();
-        for (IndexTemplateConfig config : List.of(
-            new IndexTemplateConfig(
-                DATA_STREAMS_MAPPINGS_COMPONENT_TEMPLATE_NAME,
-                "/data-streams@mappings.json",
-                REGISTRY_VERSION,
-                TEMPLATE_VERSION_VARIABLE,
-                ADDITIONAL_TEMPLATE_VARIABLES
-            ),
-            new IndexTemplateConfig(
-                LOGS_MAPPINGS_COMPONENT_TEMPLATE_NAME,
-                "/logs@mappings.json",
-                REGISTRY_VERSION,
-                TEMPLATE_VERSION_VARIABLE,
-                ADDITIONAL_TEMPLATE_VARIABLES
-            ),
-            new IndexTemplateConfig(
-                ECS_DYNAMIC_MAPPINGS_COMPONENT_TEMPLATE_NAME,
-                "/ecs@mappings.json",
-                REGISTRY_VERSION,
-                TEMPLATE_VERSION_VARIABLE,
-                ADDITIONAL_TEMPLATE_VARIABLES
-            ),
-            new IndexTemplateConfig(
-                LOGS_SETTINGS_COMPONENT_TEMPLATE_NAME,
-                "/logs@settings.json",
-                REGISTRY_VERSION,
-                TEMPLATE_VERSION_VARIABLE,
-                ADDITIONAL_TEMPLATE_VARIABLES
-            ),
-            new IndexTemplateConfig(
-                METRICS_MAPPINGS_COMPONENT_TEMPLATE_NAME,
-                "/metrics@mappings.json",
-                REGISTRY_VERSION,
-                TEMPLATE_VERSION_VARIABLE,
-                ADDITIONAL_TEMPLATE_VARIABLES
-            ),
-            new IndexTemplateConfig(
-                METRICS_SETTINGS_COMPONENT_TEMPLATE_NAME,
-                "/metrics@settings.json",
-                REGISTRY_VERSION,
-                TEMPLATE_VERSION_VARIABLE,
-                ADDITIONAL_TEMPLATE_VARIABLES
-            ),
-            new IndexTemplateConfig(
-                METRICS_TSDB_SETTINGS_COMPONENT_TEMPLATE_NAME,
-                "/metrics@tsdb-settings.json",
-                REGISTRY_VERSION,
-                TEMPLATE_VERSION_VARIABLE,
-                ADDITIONAL_TEMPLATE_VARIABLES
-            ),
-            new IndexTemplateConfig(
-                SYNTHETICS_MAPPINGS_COMPONENT_TEMPLATE_NAME,
-                "/synthetics@mappings.json",
-                REGISTRY_VERSION,
-                TEMPLATE_VERSION_VARIABLE,
-                ADDITIONAL_TEMPLATE_VARIABLES
-            ),
-            new IndexTemplateConfig(
-                SYNTHETICS_SETTINGS_COMPONENT_TEMPLATE_NAME,
-                "/synthetics@settings.json",
-                REGISTRY_VERSION,
-                TEMPLATE_VERSION_VARIABLE,
-                ADDITIONAL_TEMPLATE_VARIABLES
-            )
-        )) {
-            try {
-                componentTemplates.put(
-                    config.getTemplateName(),
-                    ComponentTemplate.parse(JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, config.loadBytes()))
-                );
-            } catch (IOException e) {
-                throw new AssertionError(e);
-            }
-        }
-        COMPONENT_TEMPLATE_CONFIGS = Map.copyOf(componentTemplates);
-    }
-
     @Override
     protected Map<String, ComponentTemplate> getComponentTemplateConfigs() {
-        return COMPONENT_TEMPLATE_CONFIGS;
+        return componentTemplateConfigs;
     }
 
     private static final Map<String, ComposableIndexTemplate> COMPOSABLE_INDEX_TEMPLATE_CONFIGS = parseComposableTemplates(
@@ -326,9 +358,8 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
 
     @Override
     protected boolean isClusterReady(ClusterChangedEvent event) {
-        // Ensure current version of the components are installed only once all nodes are updated to 8.9.0.
-        // This is necessary to prevent an error caused nby the usage of the ignore_missing_pipeline property
-        // in the pipeline processor, which has been introduced only in 8.9.0
-        return featureService.clusterHasFeature(event.state(), STACK_TEMPLATES_FEATURE);
+        // Ensure current version of the components are installed only after versions that support data stream lifecycle
+        // due to .kibana-reporting making use of the feature
+        return featureService.clusterHasFeature(event.state(), DATA_STREAM_LIFECYCLE);
     }
 }

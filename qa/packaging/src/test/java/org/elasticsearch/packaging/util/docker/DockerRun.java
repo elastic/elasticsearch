@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.packaging.util.docker;
@@ -40,7 +41,6 @@ public class DockerRun {
     private DockerRun() {}
 
     public static DockerRun builder() {
-        // Disable this setting by default in the Docker tests
         return new DockerRun().envVar("ingest.geoip.downloader.enabled", "false");
     }
 
@@ -163,10 +163,11 @@ public class DockerRun {
     public static String getImageName(Distribution distribution) {
         String suffix = switch (distribution.packaging) {
             case DOCKER -> "";
-            case DOCKER_UBI -> "-ubi8";
+            case DOCKER_UBI -> "-ubi";
             case DOCKER_IRON_BANK -> "-ironbank";
             case DOCKER_CLOUD -> "-cloud";
             case DOCKER_CLOUD_ESS -> "-cloud-ess";
+            case DOCKER_WOLFI -> "-wolfi";
             default -> throw new IllegalStateException("Unexpected distribution packaging type: " + distribution.packaging);
         };
 

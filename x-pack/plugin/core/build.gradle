@@ -1,5 +1,6 @@
 import org.apache.tools.ant.filters.ReplaceTokens
 import org.elasticsearch.gradle.internal.info.BuildParams
+import org.elasticsearch.gradle.Version
 
 import java.nio.file.Paths
 
@@ -46,15 +47,16 @@ dependencies {
   api "commons-codec:commons-codec:${versions.commonscodec}"
   testImplementation project(path: ':modules:aggregations')
   testImplementation project(path: ':modules:data-streams')
+  testImplementation project(':modules:mapper-extras')
 
   // security deps
   api 'com.unboundid:unboundid-ldapsdk:6.0.3'
-  api "com.nimbusds:nimbus-jose-jwt:9.23"
 
   implementation project(":x-pack:plugin:core:template-resources")
 
   testImplementation "org.elasticsearch:mocksocket:${versions.mocksocket}"
-  testImplementation "org.apache.logging.log4j:log4j-slf4j-impl:${versions.log4j}" // this might suffer from https://github.com/elastic/elasticsearch/issues/93714
+  testImplementation "org.apache.logging.log4j:log4j-slf4j-impl:${versions.log4j}"
+  // this might suffer from https://github.com/elastic/elasticsearch/issues/93714
   testImplementation "org.slf4j:slf4j-api:${versions.slf4j}"
   testImplementation project(path: ':modules:reindex')
   testImplementation project(path: ':modules:parent-join')
@@ -87,7 +89,7 @@ tasks.named("processResources").configure {
     duplicatesStrategy = DuplicatesStrategy.INCLUDE
     exclude '**/public.key'
     inputs.properties(expansions)
-    filter("tokens" : expansions, ReplaceTokens.class)
+    filter("tokens": expansions, ReplaceTokens.class)
   }
   String licenseKey = providers.systemProperty("license.key").getOrNull()
   if (licenseKey != null) {
@@ -125,34 +127,14 @@ sourceSets.test.resources {
 
 tasks.named("thirdPartyAudit").configure {
   ignoreMissingClasses(
-          //commons-logging optional dependencies
-          'org.apache.avalon.framework.logger.Logger',
-          'org.apache.log.Hierarchy',
-          'org.apache.log.Logger',
-          //commons-logging provided dependencies
-          'javax.servlet.ServletContextEvent',
-          'javax.servlet.ServletContextListener',
-          'javax.jms.Message',
-          // Optional dependency of nimbus-jose-jwt for handling Ed25519 signatures and ECDH with X25519 (RFC 8037)
-          'com.google.crypto.tink.subtle.Ed25519Sign',
-          'com.google.crypto.tink.subtle.Ed25519Sign$KeyPair',
-          'com.google.crypto.tink.subtle.Ed25519Verify',
-          'com.google.crypto.tink.subtle.X25519',
-          'com.google.crypto.tink.subtle.XChaCha20Poly1305',
-          // optional dependencies for nimbus-jose-jwt
-          'org.bouncycastle.asn1.pkcs.PrivateKeyInfo',
-          'org.bouncycastle.asn1.x509.AlgorithmIdentifier',
-          'org.bouncycastle.asn1.x509.SubjectPublicKeyInfo',
-          'org.bouncycastle.cert.X509CertificateHolder',
-          'org.bouncycastle.cert.jcajce.JcaX509CertificateHolder',
-          'org.bouncycastle.crypto.InvalidCipherTextException',
-          'org.bouncycastle.crypto.engines.AESEngine',
-          'org.bouncycastle.crypto.modes.GCMBlockCipher',
-          'org.bouncycastle.jcajce.provider.BouncyCastleFipsProvider',
-          'org.bouncycastle.jce.provider.BouncyCastleProvider',
-          'org.bouncycastle.openssl.PEMKeyPair',
-          'org.bouncycastle.openssl.PEMParser',
-          'org.bouncycastle.openssl.jcajce.JcaPEMKeyConverter'
+    //commons-logging optional dependencies
+    'org.apache.avalon.framework.logger.Logger',
+    'org.apache.log.Hierarchy',
+    'org.apache.log.Logger',
+    //commons-logging provided dependencies
+    'javax.servlet.ServletContextEvent',
+    'javax.servlet.ServletContextListener',
+    'javax.jms.Message'
   )
 }
 
@@ -170,9 +152,30 @@ testClusters.configureEach {
   setting 'indices.lifecycle.history_index_enabled', 'false'
   keystore 'bootstrap.password', 'x-pack-test-password'
   user username: "x_pack_rest_user", password: "x-pack-test-password"
+  requiresFeature 'es.failure_store_feature_flag_enabled', Version.fromString("8.15.0")
 }
 
-if (BuildParams.inFipsJvm){
-  // Test clusters run with security disabled
-  tasks.named("javaRestTest").configure{enabled = false }
+if (BuildParams.isSnapshotBuild() == false) {
+  tasks.withType(Test).configureEach {
+    systemProperty 'es.failure_store_feature_flag_enabled', 'true'
+  }
 }
+
+if (BuildParams.inFipsJvm) {
+  // Test clusters run with security disabled
+  tasks.named("javaRestTest").configure { enabled = false }
+}
+
+//this specific test requires a test only system property to be set, so we run it in a different JVM via a separate task
+tasks.register('testAutomatonPatterns', Test) {
+  include '**/AutomatonPatternsTests.class'
+  systemProperty 'tests.automaton.record.patterns', 'true'
+  testClassesDirs = sourceSets.test.output.classesDirs
+  classpath = sourceSets.test.runtimeClasspath
+}
+
+tasks.named('test').configure {
+  exclude '**/AutomatonPatternsTests.class'
+}
+
+tasks.named("check").configure { dependsOn "testAutomatonPatterns" }

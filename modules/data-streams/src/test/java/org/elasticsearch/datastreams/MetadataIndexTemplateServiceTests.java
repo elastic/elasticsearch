@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.datastreams;
@@ -12,6 +13,7 @@ import org.elasticsearch.action.downsample.DownsampleConfig;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
+import org.elasticsearch.cluster.metadata.DataStreamGlobalRetentionSettings;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
@@ -151,7 +153,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             DataStreamLifecycle result = composeDataLifecycles(lifecycles);
             // Defaults to true
             assertThat(result.isEnabled(), equalTo(true));
-            assertThat(result.getEffectiveDataRetention(), equalTo(lifecycle.getEffectiveDataRetention()));
+            assertThat(result.getDataStreamRetention(), equalTo(lifecycle.getDataStreamRetention()));
             assertThat(result.getDownsamplingRounds(), equalTo(lifecycle.getDownsamplingRounds()));
         }
         // If the last lifecycle is missing a property (apart from enabled) we keep the latest from the previous ones
@@ -165,7 +167,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             List<DataStreamLifecycle> lifecycles = List.of(lifecycle, new DataStreamLifecycle());
             DataStreamLifecycle result = composeDataLifecycles(lifecycles);
             assertThat(result.isEnabled(), equalTo(true));
-            assertThat(result.getEffectiveDataRetention(), equalTo(lifecycle.getEffectiveDataRetention()));
+            assertThat(result.getDataStreamRetention(), equalTo(lifecycle.getDataStreamRetention()));
             assertThat(result.getDownsamplingRounds(), equalTo(lifecycle.getDownsamplingRounds()));
         }
         // If both lifecycle have all properties, then the latest one overwrites all the others
@@ -183,7 +185,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             List<DataStreamLifecycle> lifecycles = List.of(lifecycle1, lifecycle2);
             DataStreamLifecycle result = composeDataLifecycles(lifecycles);
             assertThat(result.isEnabled(), equalTo(lifecycle2.isEnabled()));
-            assertThat(result.getEffectiveDataRetention(), equalTo(lifecycle2.getEffectiveDataRetention()));
+            assertThat(result.getDataStreamRetention(), equalTo(lifecycle2.getDataStreamRetention()));
             assertThat(result.getDownsamplingRounds(), equalTo(lifecycle2.getDownsamplingRounds()));
         }
     }
@@ -213,7 +215,8 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             new IndexScopedSettings(Settings.EMPTY, IndexScopedSettings.BUILT_IN_INDEX_SETTINGS),
             xContentRegistry(),
             EmptySystemIndices.INSTANCE,
-            indexSettingProviders
+            indexSettingProviders,
+            DataStreamGlobalRetentionSettings.create(ClusterSettings.createBuiltInClusterSettings())
         );
     }
 

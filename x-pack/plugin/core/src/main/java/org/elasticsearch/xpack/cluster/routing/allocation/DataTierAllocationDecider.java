@@ -95,21 +95,18 @@ public final class DataTierAllocationDecider extends AllocationDecider {
         );
         if (tier.isPresent()) {
             String tierName = tier.get();
-            if (allocationAllowed(tierName, node)) {
-                if (allocation.debugDecision()) {
-                    return debugYesAllowed(allocation, tierPreference, tierName);
-                }
-                return Decision.YES;
+            assert Strings.hasText(tierName) : "tierName must be not null and non-empty, but was [" + tierName + "]";
+            if (node.hasRole(DiscoveryNodeRole.DATA_ROLE.roleName())) {
+                return allocation.debugDecision()
+                    ? debugYesAllowed(allocation, tierPreference, DiscoveryNodeRole.DATA_ROLE.roleName())
+                    : Decision.YES;
             }
-            if (allocation.debugDecision()) {
-                return debugNoRequirementsNotMet(allocation, tierPreference, tierName);
+            if (node.hasRole(tierName)) {
+                return allocation.debugDecision() ? debugYesAllowed(allocation, tierPreference, tierName) : Decision.YES;
             }
-            return Decision.NO;
+            return allocation.debugDecision() ? debugNoRequirementsNotMet(allocation, tierPreference, tierName) : Decision.NO;
         }
-        if (allocation.debugDecision()) {
-            return debugNoNoNodesAvailable(allocation, tierPreference);
-        }
-        return Decision.NO;
+        return allocation.debugDecision() ? debugNoNoNodesAvailable(allocation, tierPreference) : Decision.NO;
     }
 
     private static Decision debugNoNoNodesAvailable(RoutingAllocation allocation, List<String> tierPreference) {
@@ -276,11 +273,6 @@ public final class DataTierAllocationDecider extends AllocationDecider {
         }
         // All the nodes with roles appropriate for this tier are being removed, so this tier is not available.
         return false;
-    }
-
-    public static boolean allocationAllowed(String tierName, DiscoveryNode node) {
-        assert Strings.hasText(tierName) : "tierName must be not null and non-empty, but was [" + tierName + "]";
-        return node.hasRole(DiscoveryNodeRole.DATA_ROLE.roleName()) || node.hasRole(tierName);
     }
 
     public static boolean allocationAllowed(String tierName, Set<DiscoveryNodeRole> roles) {

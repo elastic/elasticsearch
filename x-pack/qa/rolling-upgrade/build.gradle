@@ -10,6 +10,7 @@ apply plugin: 'elasticsearch.rest-resources'
 dependencies {
   testImplementation testArtifact(project(xpackModule('core')))
   testImplementation project(':x-pack:qa')
+  testImplementation project(':modules:reindex')
 }
 
 restResources {

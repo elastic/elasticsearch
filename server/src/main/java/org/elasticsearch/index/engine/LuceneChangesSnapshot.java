@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.engine;
@@ -22,7 +23,7 @@ import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TopDocs;
-import org.apache.lucene.search.TopFieldCollector;
+import org.apache.lucene.search.TopFieldCollectorManager;
 import org.apache.lucene.util.ArrayUtil;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.Lucene;
@@ -296,14 +297,14 @@ final class LuceneChangesSnapshot implements Translog.Snapshot {
         final Query rangeQuery = rangeQuery(Math.max(fromSeqNo, lastSeenSeqNo), toSeqNo, indexVersionCreated);
         assert accurateTotalHits == false || after == null : "accurate total hits is required by the first batch only";
         final SortField sortBySeqNo = new SortField(SeqNoFieldMapper.NAME, SortField.Type.LONG);
-        final TopFieldCollector collector = TopFieldCollector.create(
+        TopFieldCollectorManager topFieldCollectorManager = new TopFieldCollectorManager(
             new Sort(sortBySeqNo),
             searchBatchSize,
             after,
-            accurateTotalHits ? Integer.MAX_VALUE : 0
+            accurateTotalHits ? Integer.MAX_VALUE : 0,
+            false
         );
-        indexSearcher.search(rangeQuery, collector);
-        return collector.topDocs();
+        return indexSearcher.search(rangeQuery, topFieldCollectorManager);
     }
 
     private Translog.Operation readDocAsOp(int docIndex) throws IOException {

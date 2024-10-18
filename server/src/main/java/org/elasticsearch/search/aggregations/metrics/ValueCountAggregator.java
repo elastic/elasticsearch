@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.search.aggregations.metrics;
 
@@ -59,8 +60,8 @@ public final class ValueCountAggregator extends NumericMetricsAggregator.SingleV
 
                 @Override
                 public void collect(int doc, long bucket) throws IOException {
-                    counts = bigArrays().grow(counts, bucket + 1);
                     if (values.advanceExact(doc)) {
+                        counts = bigArrays().grow(counts, bucket + 1);
                         counts.increment(bucket, values.docValueCount());
                     }
                 }
@@ -72,8 +73,8 @@ public final class ValueCountAggregator extends NumericMetricsAggregator.SingleV
 
                 @Override
                 public void collect(int doc, long bucket) throws IOException {
-                    counts = bigArrays().grow(counts, bucket + 1);
                     if (values.advanceExact(doc)) {
+                        counts = bigArrays().grow(counts, bucket + 1);
                         counts.increment(bucket, values.docValueCount());
                     }
                 }
@@ -85,8 +86,8 @@ public final class ValueCountAggregator extends NumericMetricsAggregator.SingleV
 
             @Override
             public void collect(int doc, long bucket) throws IOException {
-                counts = bigArrays().grow(counts, bucket + 1);
                 if (values.advanceExact(doc)) {
+                    counts = bigArrays().grow(counts, bucket + 1);
                     counts.increment(bucket, values.docValueCount());
                 }
             }

@@ -10,12 +10,11 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
-import org.elasticsearch.xpack.esql.expression.function.scalar.AbstractScalarFunctionTestCase;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.util.List;
 import java.util.function.Supplier;
@@ -55,7 +54,7 @@ public class LogTests extends AbstractScalarFunctionTestCase {
         TestCaseSupplier.forUnaryDouble(
             suppliers,
             "LogConstantEvaluator[value=Attribute[channel=0]]",
-            DataTypes.DOUBLE,
+            DataType.DOUBLE,
             Math::log,
             Math.nextUp(0d),
             Math.nextDown(1d),
@@ -70,12 +69,12 @@ public class LogTests extends AbstractScalarFunctionTestCase {
                 "value",
                 (b, l) -> Math.log10(l) / Math.log10(b),
                 List.of(
-                    new TestCaseSupplier.TypedDataSupplier("<gt0 double>", () -> Math.nextUp(0d), DataTypes.DOUBLE),
-                    new TestCaseSupplier.TypedDataSupplier("<lt1 double>", () -> Math.nextDown(1d), DataTypes.DOUBLE)
+                    new TestCaseSupplier.TypedDataSupplier("<gt0 double>", () -> Math.nextUp(0d), DataType.DOUBLE),
+                    new TestCaseSupplier.TypedDataSupplier("<lt1 double>", () -> Math.nextDown(1d), DataType.DOUBLE)
                 ),
                 List.of(
-                    new TestCaseSupplier.TypedDataSupplier("<gt0 double>", () -> Math.nextUp(0d), DataTypes.DOUBLE),
-                    new TestCaseSupplier.TypedDataSupplier("<lt1 double>", () -> Math.nextDown(1d), DataTypes.DOUBLE)
+                    new TestCaseSupplier.TypedDataSupplier("<gt0 double>", () -> Math.nextUp(0d), DataType.DOUBLE),
+                    new TestCaseSupplier.TypedDataSupplier("<lt1 double>", () -> Math.nextDown(1d), DataType.DOUBLE)
                 ),
                 List.of()
             )
@@ -143,12 +142,12 @@ public class LogTests extends AbstractScalarFunctionTestCase {
                 "value",
                 (b, l) -> Math.log10(l) / Math.log10(b),
                 List.of(
-                    new TestCaseSupplier.TypedDataSupplier("<gt0 double>", () -> Math.nextUp(0d), DataTypes.DOUBLE),
-                    new TestCaseSupplier.TypedDataSupplier("<lt1 double>", () -> Math.nextDown(1d), DataTypes.DOUBLE)
+                    new TestCaseSupplier.TypedDataSupplier("<gt0 double>", () -> Math.nextUp(0d), DataType.DOUBLE),
+                    new TestCaseSupplier.TypedDataSupplier("<lt1 double>", () -> Math.nextDown(1d), DataType.DOUBLE)
                 ),
                 List.of(
-                    new TestCaseSupplier.TypedDataSupplier("<gt1 double>", () -> Math.nextUp(1d), DataTypes.DOUBLE),
-                    new TestCaseSupplier.TypedDataSupplier("<largest double>", () -> Double.MAX_VALUE, DataTypes.DOUBLE)
+                    new TestCaseSupplier.TypedDataSupplier("<gt1 double>", () -> Math.nextUp(1d), DataType.DOUBLE),
+                    new TestCaseSupplier.TypedDataSupplier("<largest double>", () -> Double.MAX_VALUE, DataType.DOUBLE)
                 ),
                 List.of()
             )
@@ -162,12 +161,12 @@ public class LogTests extends AbstractScalarFunctionTestCase {
                 "value",
                 (b, l) -> Math.log10(l) / Math.log10(b),
                 List.of(
-                    new TestCaseSupplier.TypedDataSupplier("<gt0 double>", () -> Math.nextUp(1d), DataTypes.DOUBLE),
-                    new TestCaseSupplier.TypedDataSupplier("<lt1 double>", () -> Double.MAX_VALUE, DataTypes.DOUBLE)
+                    new TestCaseSupplier.TypedDataSupplier("<gt0 double>", () -> Math.nextUp(1d), DataType.DOUBLE),
+                    new TestCaseSupplier.TypedDataSupplier("<lt1 double>", () -> Double.MAX_VALUE, DataType.DOUBLE)
                 ),
                 List.of(
-                    new TestCaseSupplier.TypedDataSupplier("<gt1 double>", () -> Math.nextUp(0d), DataTypes.DOUBLE),
-                    new TestCaseSupplier.TypedDataSupplier("<largest double>", () -> Math.nextDown(1d), DataTypes.DOUBLE)
+                    new TestCaseSupplier.TypedDataSupplier("<gt1 double>", () -> Math.nextUp(0d), DataType.DOUBLE),
+                    new TestCaseSupplier.TypedDataSupplier("<largest double>", () -> Math.nextDown(1d), DataType.DOUBLE)
                 ),
                 List.of()
             )
@@ -192,17 +191,7 @@ public class LogTests extends AbstractScalarFunctionTestCase {
         suppliers = anyNullIsNull(true, suppliers);
 
         // Negative cases
-        return parameterSuppliersFromTypedData(errorsForCasesWithoutExamples(suppliers));
-    }
-
-    @Override
-    protected DataType expectedType(List<DataType> argTypes) {
-        return DataTypes.DOUBLE;
-    }
-
-    @Override
-    protected List<ArgumentSpec> argSpec() {
-        return List.of(optional(numerics()), required(numerics()));
+        return parameterSuppliersFromTypedData(errorsForCasesWithoutExamples(suppliers, (v, p) -> "numeric"));
     }
 
     @Override

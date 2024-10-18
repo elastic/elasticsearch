@@ -73,12 +73,7 @@ import static org.elasticsearch.core.Strings.format;
  * match_all scroll searches in order to reindex the data.
  */
 public final class SourceOnlySnapshotRepository extends FilterRepository {
-    private static final Setting<String> DELEGATE_TYPE = new Setting<>(
-        "delegate_type",
-        "",
-        Function.identity(),
-        Setting.Property.NodeScope
-    );
+    private static final Setting<String> DELEGATE_TYPE = Setting.simpleString("delegate_type", Setting.Property.NodeScope);
     public static final Setting<Boolean> SOURCE_ONLY = Setting.boolSetting(
         "index.source_only",
         false,
@@ -173,7 +168,7 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
                 protected void closeInternal() {
                     // do nothing;
                 }
-            }, Store.OnClose.EMPTY);
+            }, Store.OnClose.EMPTY, mapperService.getIndexSettings().getIndexSortConfig().hasIndexSort());
             Supplier<Query> querySupplier = mapperService.hasNested()
                 ? () -> Queries.newNestedFilter(mapperService.getIndexSettings().getIndexVersionCreated())
                 : null;

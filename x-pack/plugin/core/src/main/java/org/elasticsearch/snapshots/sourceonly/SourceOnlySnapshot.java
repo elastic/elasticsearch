@@ -262,7 +262,8 @@ public class SourceOnlySnapshot {
                             0,
                             VectorEncoding.FLOAT32,
                             VectorSimilarityFunction.EUCLIDEAN,
-                            fieldInfo.isSoftDeletesField()
+                            fieldInfo.isSoftDeletesField(),
+                            fieldInfo.isParentField()
                         )
                     );
                 }

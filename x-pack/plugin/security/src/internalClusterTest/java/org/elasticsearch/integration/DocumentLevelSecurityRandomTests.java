@@ -13,13 +13,16 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSourceField;
+import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.core.XPackSettings;
+import org.junit.BeforeClass;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.BASIC_AUTH_HEADER;
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
@@ -29,9 +32,12 @@ public class DocumentLevelSecurityRandomTests extends SecurityIntegTestCase {
 
     protected static final SecureString USERS_PASSWD = SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING;
 
-    // can't add a second test method, because each test run creates a new instance of this class and that will will result
-    // in a new random value:
-    private final int numberOfRoles = scaledRandomIntBetween(3, 99);
+    private static volatile int numberOfRoles;
+
+    @BeforeClass
+    public static void setupRoleCount() throws Exception {
+        numberOfRoles = scaledRandomIntBetween(3, 99);
+    }
 
     @Override
     protected String configUsers() {
@@ -119,4 +125,74 @@ public class DocumentLevelSecurityRandomTests extends SecurityIntegTestCase {
         }
     }
 
+    public void testWithRuntimeFields() throws Exception {
+        assertAcked(
+            indicesAdmin().prepareCreate("test")
+                .setMapping(
+                    XContentFactory.jsonBuilder()
+                        .startObject()
+                        .startObject("runtime")
+                        .startObject("field1")
+                        .field("type", "keyword")
+                        .endObject()
+                        .endObject()
+                        .startObject("properties")
+                        .startObject("field2")
+                        .field("type", "keyword")
+                        .endObject()
+                        .endObject()
+                        .endObject()
+                )
+        );
+        doTestWithRuntimeFieldsInTestIndex();
+    }
+
+    public void testWithRuntimeFieldsAndSyntheticSource() throws Exception {
+        assertAcked(
+            indicesAdmin().prepareCreate("test")
+                .setMapping(
+                    XContentFactory.jsonBuilder()
+                        .startObject()
+                        .startObject("_source")
+                        .field("mode", "synthetic")
+                        .endObject()
+                        .startObject("runtime")
+                        .startObject("field1")
+                        .field("type", "keyword")
+                        .endObject()
+                        .startObject("field2")
+                        .field("type", "keyword")
+                        .endObject()
+                        .endObject()
+                        .startObject("properties")
+                        .startObject("field1")
+                        .field("type", "text")
+                        .field("store", true)
+                        .endObject()
+                        .startObject("field2")
+                        .field("type", "text")
+                        .field("store", true)
+                        .endObject()
+                        .endObject()
+                        .endObject()
+                )
+        );
+        doTestWithRuntimeFieldsInTestIndex();
+    }
+
+    private void doTestWithRuntimeFieldsInTestIndex() {
+        List<IndexRequestBuilder> requests = new ArrayList<>(47);
+        for (int i = 1; i <= 42; i++) {
+            requests.add(prepareIndex("test").setSource("field1", "value1", "field2", "foo" + i));
+        }
+        for (int i = 42; i <= 57; i++) {
+            requests.add(prepareIndex("test").setSource("field1", "value2", "field2", "foo" + i));
+        }
+        indexRandom(true, requests);
+        assertHitCount(
+            client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
+                .prepareSearch("test"),
+            42L
+        );
+    }
 }

@@ -44,17 +44,17 @@ and indices, omit this parameter or use `*` or `_all`.
 [[update-index-settings-api-query-params]]
 ==== {api-query-parms-title}
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=allow-no-indices]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=allow-no-indices]
 +
 Defaults to `false`.
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
 +
 Defaults to `open`.
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=flat-settings]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=flat-settings]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
 
 `preserve_existing`::
 (Optional, Boolean) If `true`, existing index settings remain unchanged.
@@ -70,7 +70,7 @@ NOTE: Changing index settings on an automatically closed index using the `reopen
 parameter will result in the index becoming unavailable momentarily while the index
 is in the process of reopening.
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 
 
 [[update-index-settings-api-request-body]]

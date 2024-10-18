@@ -8,9 +8,13 @@
 package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BitArray;
+import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
 
+import java.io.IOException;
 import java.util.BitSet;
 
 /**
@@ -36,29 +40,71 @@ public final class BooleanBigArrayBlock extends AbstractArrayBlock implements Bo
             positionCount,
             firstValueIndexes,
             nulls,
-            mvOrdering,
-            blockFactory
+            mvOrdering
         );
     }
 
     private BooleanBigArrayBlock(
-        BooleanBigArrayVector vector,
+        BooleanBigArrayVector vector, // stylecheck
         int positionCount,
         int[] firstValueIndexes,
         BitSet nulls,
-        MvOrdering mvOrdering,
-        BlockFactory blockFactory
+        MvOrdering mvOrdering
     ) {
-        super(positionCount, firstValueIndexes, nulls, mvOrdering, blockFactory);
+        super(positionCount, firstValueIndexes, nulls, mvOrdering);
         this.vector = vector;
         assert firstValueIndexes == null
             ? vector.getPositionCount() == getPositionCount()
             : firstValueIndexes[getPositionCount()] == vector.getPositionCount();
     }
 
+    static BooleanBigArrayBlock readArrayBlock(BlockFactory blockFactory, BlockStreamInput in) throws IOException {
+        final SubFields sub = new SubFields(blockFactory, in);
+        BooleanBigArrayVector vector = null;
+        boolean success = false;
+        try {
+            vector = BooleanBigArrayVector.readArrayVector(sub.vectorPositions(), in, blockFactory);
+            var block = new BooleanBigArrayBlock(vector, sub.positionCount, sub.firstValueIndexes, sub.nullsMask, sub.mvOrdering);
+            blockFactory.adjustBreaker(block.ramBytesUsed() - vector.ramBytesUsed() - sub.bytesReserved);
+            success = true;
+            return block;
+        } finally {
+            if (success == false) {
+                Releasables.close(vector);
+                blockFactory.adjustBreaker(-sub.bytesReserved);
+            }
+        }
+    }
+
+    void writeArrayBlock(StreamOutput out) throws IOException {
+        writeSubFields(out);
+        vector.writeArrayVector(vector.getPositionCount(), out);
+    }
+
     @Override
     public BooleanVector asVector() {
         return null;
+    }
+
+    @Override
+    public ToMask toMask() {
+        if (getPositionCount() == 0) {
+            return new ToMask(blockFactory().newConstantBooleanVector(false, 0), false);
+        }
+        try (BooleanVector.FixedBuilder builder = blockFactory().newBooleanVectorFixedBuilder(getPositionCount())) {
+            boolean hasMv = false;
+            for (int p = 0; p < getPositionCount(); p++) {
+                builder.appendBoolean(switch (getValueCount(p)) {
+                    case 0 -> false;
+                    case 1 -> getBoolean(getFirstValueIndex(p));
+                    default -> {
+                        hasMv = true;
+                        yield false;
+                    }
+                });
+            }
+            return new ToMask(builder.build(), hasMv);
+        }
     }
 
     @Override
@@ -91,6 +137,52 @@ public final class BooleanBigArrayBlock extends AbstractArrayBlock implements Bo
     }
 
     @Override
+    public BooleanBlock keepMask(BooleanVector mask) {
+        if (getPositionCount() == 0) {
+            incRef();
+            return this;
+        }
+        if (mask.isConstant()) {
+            if (mask.getBoolean(0)) {
+                incRef();
+                return this;
+            }
+            return (BooleanBlock) blockFactory().newConstantNullBlock(getPositionCount());
+        }
+        try (BooleanBlock.Builder builder = blockFactory().newBooleanBlockBuilder(getPositionCount())) {
+            // TODO if X-ArrayBlock used BooleanVector for it's null mask then we could shuffle references here.
+            for (int p = 0; p < getPositionCount(); p++) {
+                if (false == mask.getBoolean(p)) {
+                    builder.appendNull();
+                    continue;
+                }
+                int valueCount = getValueCount(p);
+                if (valueCount == 0) {
+                    builder.appendNull();
+                    continue;
+                }
+                int start = getFirstValueIndex(p);
+                if (valueCount == 1) {
+                    builder.appendBoolean(getBoolean(start));
+                    continue;
+                }
+                int end = start + valueCount;
+                builder.beginPositionEntry();
+                for (int i = start; i < end; i++) {
+                    builder.appendBoolean(getBoolean(i));
+                }
+                builder.endPositionEntry();
+            }
+            return builder.build();
+        }
+    }
+
+    @Override
+    public ReleasableIterator<BooleanBlock> lookup(IntBlock positions, ByteSizeValue targetBlockSize) {
+        return new BooleanLookup(this, positions, targetBlockSize);
+    }
+
+    @Override
     public ElementType elementType() {
         return ElementType.BOOLEAN;
     }
@@ -116,8 +208,7 @@ public final class BooleanBigArrayBlock extends AbstractArrayBlock implements Bo
             expandedPositionCount,
             null,
             shiftNullsToExpandedPositions(),
-            MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING,
-            blockFactory()
+            MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING
         );
         blockFactory().adjustBreaker(expanded.ramBytesUsedOnlyBlock() - bitSetRamUsedEstimate);
         // We need to incRef after adjusting any breakers, otherwise we might leak the vector if the breaker trips.
@@ -161,8 +252,12 @@ public final class BooleanBigArrayBlock extends AbstractArrayBlock implements Bo
 
     @Override
     public void allowPassingToDifferentDriver() {
-        super.allowPassingToDifferentDriver();
         vector.allowPassingToDifferentDriver();
+    }
+
+    @Override
+    public BlockFactory blockFactory() {
+        return vector.blockFactory();
     }
 
     @Override

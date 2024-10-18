@@ -48,11 +48,11 @@ the allowed namespaces.
 [[security-api-update-user-profile-data-query-params]]
 ==== {api-query-parms-title}
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=if_seq_no]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=if_seq_no]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=if_primary_term]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=if_primary_term]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=refresh]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=refresh]
 
 `uid`::
 (Required, string) A unique identifier for the user profile.

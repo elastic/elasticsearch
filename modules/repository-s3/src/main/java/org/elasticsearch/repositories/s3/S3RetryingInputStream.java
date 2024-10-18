@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.repositories.s3;
 
@@ -20,7 +21,9 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.repositories.blobstore.RequestedRangeNotSatisfiedException;
 import org.elasticsearch.repositories.s3.S3BlobStore.Operation;
+import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -94,16 +97,28 @@ class S3RetryingInputStream extends InputStream {
                         : "requesting beyond end, start = " + start + " offset=" + currentOffset + " end=" + end;
                     getObjectRequest.setRange(Math.addExact(start, currentOffset), end);
                 }
-                final S3Object s3Object = SocketAccess.doPrivileged(() -> clientReference.client().getObject(getObjectRequest));
                 this.currentStreamFirstOffset = Math.addExact(start, currentOffset);
+                final S3Object s3Object = SocketAccess.doPrivileged(() -> clientReference.client().getObject(getObjectRequest));
                 this.currentStreamLastOffset = Math.addExact(currentStreamFirstOffset, getStreamLength(s3Object));
                 this.currentStream = s3Object.getObjectContent();
                 return;
             } catch (AmazonClientException e) {
-                if (e instanceof AmazonS3Exception amazonS3Exception && 404 == amazonS3Exception.getStatusCode()) {
-                    throw addSuppressedExceptions(
-                        new NoSuchFileException("Blob object [" + blobKey + "] not found: " + amazonS3Exception.getMessage())
-                    );
+                if (e instanceof AmazonS3Exception amazonS3Exception) {
+                    if (amazonS3Exception.getStatusCode() == RestStatus.NOT_FOUND.getStatus()) {
+                        throw addSuppressedExceptions(
+                            new NoSuchFileException("Blob object [" + blobKey + "] not found: " + amazonS3Exception.getMessage())
+                        );
+                    }
+                    if (amazonS3Exception.getStatusCode() == RestStatus.REQUESTED_RANGE_NOT_SATISFIED.getStatus()) {
+                        throw addSuppressedExceptions(
+                            new RequestedRangeNotSatisfiedException(
+                                blobKey,
+                                currentStreamFirstOffset,
+                                (end < Long.MAX_VALUE - 1) ? end - currentStreamFirstOffset + 1 : end,
+                                amazonS3Exception
+                            )
+                        );
+                    }
                 }
 
                 if (attempt == 1) {
@@ -124,7 +139,7 @@ class S3RetryingInputStream extends InputStream {
                 assert range[1] >= range[0] : range[1] + " vs " + range[0];
                 assert range[0] == start + currentOffset
                     : "Content-Range start value [" + range[0] + "] exceeds start [" + start + "] + current offset [" + currentOffset + ']';
-                assert range[1] == end : "Content-Range end value [" + range[1] + "] exceeds end [" + end + ']';
+                assert range[1] <= end : "Content-Range end value [" + range[1] + "] exceeds end [" + end + ']';
                 return range[1] - range[0] + 1L;
             }
             return metadata.getContentLength();

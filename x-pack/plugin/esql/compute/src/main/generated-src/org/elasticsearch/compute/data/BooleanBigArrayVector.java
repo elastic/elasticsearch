@@ -8,8 +8,14 @@
 package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BitArray;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.ReleasableIterator;
+
+import java.io.IOException;
 
 /**
  * Vector implementation that defers to an enclosed {@link BitArray}.
@@ -27,6 +33,25 @@ public final class BooleanBigArrayVector extends AbstractVector implements Boole
         this.values = values;
     }
 
+    static BooleanBigArrayVector readArrayVector(int positions, StreamInput in, BlockFactory blockFactory) throws IOException {
+        BitArray values = new BitArray(blockFactory.bigArrays(), true, in);
+        boolean success = false;
+        try {
+            BooleanBigArrayVector vector = new BooleanBigArrayVector(values, positions, blockFactory);
+            blockFactory.adjustBreaker(vector.ramBytesUsed() - RamUsageEstimator.sizeOf(values));
+            success = true;
+            return vector;
+        } finally {
+            if (success == false) {
+                values.close();
+            }
+        }
+    }
+
+    void writeArrayVector(int positions, StreamOutput out) throws IOException {
+        values.writeTo(out);
+    }
+
     @Override
     public BooleanBlock asBlock() {
         return new BooleanVectorBlock(this);
@@ -35,6 +60,32 @@ public final class BooleanBigArrayVector extends AbstractVector implements Boole
     @Override
     public boolean getBoolean(int position) {
         return values.get(position);
+    }
+
+    /**
+     * Are all values {@code true}? This will scan all values to check and always answer accurately.
+     */
+    @Override
+    public boolean allTrue() {
+        for (int i = 0; i < getPositionCount(); i++) {
+            if (values.get(i) == false) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
+     * Are all values {@code false}? This will scan all values to check and always answer accurately.
+     */
+    @Override
+    public boolean allFalse() {
+        for (int i = 0; i < getPositionCount(); i++) {
+            if (values.get(i)) {
+                return false;
+            }
+        }
+        return true;
     }
 
     @Override
@@ -62,6 +113,37 @@ public final class BooleanBigArrayVector extends AbstractVector implements Boole
             }
         }
         return new BooleanBigArrayVector(filtered, positions.length, blockFactory);
+    }
+
+    @Override
+    public BooleanBlock keepMask(BooleanVector mask) {
+        if (getPositionCount() == 0) {
+            incRef();
+            return new BooleanVectorBlock(this);
+        }
+        if (mask.isConstant()) {
+            if (mask.getBoolean(0)) {
+                incRef();
+                return new BooleanVectorBlock(this);
+            }
+            return (BooleanBlock) blockFactory().newConstantNullBlock(getPositionCount());
+        }
+        try (BooleanBlock.Builder builder = blockFactory().newBooleanBlockBuilder(getPositionCount())) {
+            // TODO if X-ArrayBlock used BooleanVector for it's null mask then we could shuffle references here.
+            for (int p = 0; p < getPositionCount(); p++) {
+                if (mask.getBoolean(p)) {
+                    builder.appendBoolean(getBoolean(p));
+                } else {
+                    builder.appendNull();
+                }
+            }
+            return builder.build();
+        }
+    }
+
+    @Override
+    public ReleasableIterator<BooleanBlock> lookup(IntBlock positions, ByteSizeValue targetBlockSize) {
+        return new BooleanLookup(asBlock(), positions, targetBlockSize);
     }
 
     @Override

@@ -1,13 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.analysis;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.analysis.CharArraySet;
 import org.apache.lucene.analysis.ar.ArabicAnalyzer;
 import org.apache.lucene.analysis.bg.BulgarianAnalyzer;
@@ -63,8 +66,10 @@ import java.nio.charset.CharacterCodingException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.AccessControlException;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
@@ -76,6 +81,7 @@ import static java.util.Map.entry;
 public class Analysis {
 
     private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(Analysis.class);
+    private static final Logger logger = LogManager.getLogger(Analysis.class);
 
     public static void checkForDeprecatedVersion(String name, Settings settings) {
         String sVersion = settings.get("version");
@@ -246,16 +252,17 @@ public class Analysis {
         try {
             return loadWordList(path, removeComments);
         } catch (CharacterCodingException ex) {
-            String message = String.format(
-                Locale.ROOT,
+            String message = Strings.format(
                 "Unsupported character encoding detected while reading %s: %s - files must be UTF-8 encoded",
                 settingPath,
-                path.toString()
+                path
             );
             throw new IllegalArgumentException(message, ex);
         } catch (IOException ioe) {
-            String message = String.format(Locale.ROOT, "IOException while reading %s: %s", settingPath, path.toString());
+            String message = Strings.format("IOException while reading %s: %s", settingPath, path);
             throw new IllegalArgumentException(message, ioe);
+        } catch (AccessControlException ace) {
+            throw new IllegalArgumentException(Strings.format("Access denied trying to read file %s: %s", settingPath, path), ace);
         }
     }
 
@@ -264,12 +271,14 @@ public class Analysis {
         Settings settings,
         String settingPath,
         String settingList,
+        String settingLenient,
         boolean removeComments,
         boolean checkDuplicate
     ) {
+        boolean deduplicateDictionary = settings.getAsBoolean(settingLenient, false);
         final List<String> ruleList = getWordList(env, settings, settingPath, settingList, removeComments);
         if (ruleList != null && ruleList.isEmpty() == false && checkDuplicate) {
-            checkDuplicateRules(ruleList);
+            return deDuplicateRules(ruleList, deduplicateDictionary == false);
         }
         return ruleList;
     }
@@ -285,24 +294,36 @@ public class Analysis {
      * If the addition to the HashSet returns false, it means that item was already present in the set, indicating a duplicate.
      * In such a case, an IllegalArgumentException is thrown specifying the duplicate term and the line number in the original list.
      *
+     * Optionally the function will return the deduplicated list
+     *
      * @param ruleList The list of rules to check for duplicates.
      * @throws IllegalArgumentException If a duplicate rule is found.
      */
-    private static void checkDuplicateRules(List<String> ruleList) {
-        Set<String> dup = new HashSet<>();
-        int lineNum = 0;
-        for (String line : ruleList) {
-            // ignore comments
+    private static List<String> deDuplicateRules(List<String> ruleList, boolean failOnDuplicate) {
+        Set<String> duplicateKeys = new HashSet<>();
+        List<String> deduplicatedList = new ArrayList<>();
+        for (int lineNum = 0; lineNum < ruleList.size(); lineNum++) {
+            String line = ruleList.get(lineNum);
+            // ignore lines beginning with # as those are comments
             if (line.startsWith("#") == false) {
                 String[] values = CSVUtil.parse(line);
-                if (dup.add(values[0]) == false) {
-                    throw new IllegalArgumentException(
-                        "Found duplicate term [" + values[0] + "] in user dictionary " + "at line [" + lineNum + "]"
-                    );
+                if (duplicateKeys.add(values[0]) == false) {
+                    if (failOnDuplicate) {
+                        throw new IllegalArgumentException(
+                            "Found duplicate term [" + values[0] + "] in user dictionary " + "at line [" + (lineNum + 1) + "]"
+                        );
+                    } else {
+                        logger.warn("Ignoring duplicate term [" + values[0] + "] in user dictionary " + "at line [" + (lineNum + 1) + "]");
+                    }
+                } else {
+                    deduplicatedList.add(line);
                 }
+            } else {
+                deduplicatedList.add(line);
             }
-            ++lineNum;
         }
+
+        return Collections.unmodifiableList(deduplicatedList);
     }
 
     private static List<String> loadWordList(Path path, boolean removeComments) throws IOException {
@@ -349,7 +370,7 @@ public class Analysis {
 
     public static Reader getReaderFromIndex(String synonymsSet, SynonymsManagementAPIService synonymsManagementAPIService) {
         final PlainActionFuture<PagedResult<SynonymRule>> synonymsLoadingFuture = new PlainActionFuture<>();
-        synonymsManagementAPIService.getSynonymSetRules(synonymsSet, 0, 10_000, synonymsLoadingFuture);
+        synonymsManagementAPIService.getSynonymSetRules(synonymsSet, synonymsLoadingFuture);
         PagedResult<SynonymRule> results = synonymsLoadingFuture.actionGet();
 
         SynonymRule[] synonymRules = results.pageResults();

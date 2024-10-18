@@ -6,7 +6,7 @@
 <titleabbrev>Get {ccr-init} stats</titleabbrev>
 ++++
 
-Get {ccr} stats.
+Get <<xpack-ccr,{ccr}>> stats.
 
 [[ccr-get-stats-request]]
 ==== {api-request-title}
@@ -49,6 +49,14 @@ see <<security-privileges>>.
 This API gets {ccr} stats. This API will return all stats related to {ccr}. In
 particular, this API returns stats about auto-following, and returns the same
 shard-level stats as in the <<ccr-get-follow-stats,get follower stats API>>.
+
+[[ccr-get-stats-query-params]]
+==== {api-query-parms-title}
+
+`timeout`::
+(Optional, time) Controls the amount of time to wait for results. Defaults to unlimited.
+
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
 
 [role="child_attributes"]
 [[ccr-get-stats-response-body]]

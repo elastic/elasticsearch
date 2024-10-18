@@ -18,8 +18,10 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.SimilarityMeasure;
-import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
+import org.elasticsearch.xpack.inference.services.settings.FilteredXContentObject;
+import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
 import java.io.IOException;
 import java.net.URI;
@@ -36,14 +38,17 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOpt
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractSimilarity;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeAsType;
 
-public class CohereServiceSettings implements ServiceSettings {
+public class CohereServiceSettings extends FilteredXContentObject implements ServiceSettings, CohereRateLimitServiceSettings {
 
-    private static final Logger logger = LogManager.getLogger(CohereServiceSettings.class);
     public static final String NAME = "cohere_service_settings";
     public static final String OLD_MODEL_ID_FIELD = "model";
     public static final String MODEL_ID = "model_id";
+    private static final Logger logger = LogManager.getLogger(CohereServiceSettings.class);
+    // Production key rate limits for all endpoints: https://docs.cohere.com/docs/going-live#production-key-specifications
+    // 10K requests a minute
+    public static final RateLimitSettings DEFAULT_RATE_LIMIT_SETTINGS = new RateLimitSettings(10_000);
 
-    public static CohereServiceSettings fromMap(Map<String, Object> map, boolean logDeprecations) {
+    public static CohereServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
         ValidationException validationException = new ValidationException();
 
         String url = extractOptionalString(map, URL, ModelConfigurations.SERVICE_SETTINGS, validationException);
@@ -53,10 +58,17 @@ public class CohereServiceSettings implements ServiceSettings {
         Integer maxInputTokens = removeAsType(map, MAX_INPUT_TOKENS, Integer.class);
         URI uri = convertToUri(url, URL, ModelConfigurations.SERVICE_SETTINGS, validationException);
         String oldModelId = extractOptionalString(map, OLD_MODEL_ID_FIELD, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        RateLimitSettings rateLimitSettings = RateLimitSettings.of(
+            map,
+            DEFAULT_RATE_LIMIT_SETTINGS,
+            validationException,
+            CohereService.NAME,
+            context
+        );
 
         String modelId = extractOptionalString(map, MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
 
-        if (logDeprecations && oldModelId != null) {
+        if (context == ConfigurationParseContext.REQUEST && oldModelId != null) {
             logger.info("The cohere [service_settings.model] field is deprecated. Please use [service_settings.model_id] instead.");
         }
 
@@ -64,10 +76,10 @@ public class CohereServiceSettings implements ServiceSettings {
             throw validationException;
         }
 
-        return new CohereServiceSettings(uri, similarity, dims, maxInputTokens, getModelId(oldModelId, modelId));
+        return new CohereServiceSettings(uri, similarity, dims, maxInputTokens, modelId(oldModelId, modelId), rateLimitSettings);
     }
 
-    private static String getModelId(@Nullable String model, @Nullable String modelId) {
+    private static String modelId(@Nullable String model, @Nullable String modelId) {
         return modelId != null ? modelId : model;
     }
 
@@ -76,19 +88,22 @@ public class CohereServiceSettings implements ServiceSettings {
     private final Integer dimensions;
     private final Integer maxInputTokens;
     private final String modelId;
+    private final RateLimitSettings rateLimitSettings;
 
     public CohereServiceSettings(
         @Nullable URI uri,
         @Nullable SimilarityMeasure similarity,
         @Nullable Integer dimensions,
         @Nullable Integer maxInputTokens,
-        @Nullable String modelId
+        @Nullable String modelId,
+        @Nullable RateLimitSettings rateLimitSettings
     ) {
         this.uri = uri;
         this.similarity = similarity;
         this.dimensions = dimensions;
         this.maxInputTokens = maxInputTokens;
         this.modelId = modelId;
+        this.rateLimitSettings = Objects.requireNonNullElse(rateLimitSettings, DEFAULT_RATE_LIMIT_SETTINGS);
     }
 
     public CohereServiceSettings(
@@ -96,9 +111,10 @@ public class CohereServiceSettings implements ServiceSettings {
         @Nullable SimilarityMeasure similarity,
         @Nullable Integer dimensions,
         @Nullable Integer maxInputTokens,
-        @Nullable String modelId
+        @Nullable String modelId,
+        @Nullable RateLimitSettings rateLimitSettings
     ) {
-        this(createOptionalUri(url), similarity, dimensions, maxInputTokens, modelId);
+        this(createOptionalUri(url), similarity, dimensions, maxInputTokens, modelId, rateLimitSettings);
     }
 
     public CohereServiceSettings(StreamInput in) throws IOException {
@@ -107,25 +123,44 @@ public class CohereServiceSettings implements ServiceSettings {
         dimensions = in.readOptionalVInt();
         maxInputTokens = in.readOptionalVInt();
         modelId = in.readOptionalString();
+
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
+            rateLimitSettings = new RateLimitSettings(in);
+        } else {
+            rateLimitSettings = DEFAULT_RATE_LIMIT_SETTINGS;
+        }
     }
 
-    public URI getUri() {
+    // should only be used for testing, public because it's accessed outside of the package
+    public CohereServiceSettings() {
+        this((URI) null, null, null, null, null, null);
+    }
+
+    @Override
+    public RateLimitSettings rateLimitSettings() {
+        return rateLimitSettings;
+    }
+
+    public URI uri() {
         return uri;
     }
 
-    public SimilarityMeasure getSimilarity() {
+    @Override
+    public SimilarityMeasure similarity() {
         return similarity;
     }
 
-    public Integer getDimensions() {
+    @Override
+    public Integer dimensions() {
         return dimensions;
     }
 
-    public Integer getMaxInputTokens() {
+    public Integer maxInputTokens() {
         return maxInputTokens;
     }
 
-    public String getModelId() {
+    @Override
+    public String modelId() {
         return modelId;
     }
 
@@ -138,13 +173,18 @@ public class CohereServiceSettings implements ServiceSettings {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
 
-        toXContentFragment(builder);
+        toXContentFragment(builder, params);
 
         builder.endObject();
         return builder;
     }
 
-    public XContentBuilder toXContentFragment(XContentBuilder builder) throws IOException {
+    public XContentBuilder toXContentFragment(XContentBuilder builder, Params params) throws IOException {
+        return toXContentFragmentOfExposedFields(builder, params);
+    }
+
+    @Override
+    public XContentBuilder toXContentFragmentOfExposedFields(XContentBuilder builder, Params params) throws IOException {
         if (uri != null) {
             builder.field(URL, uri.toString());
         }
@@ -160,28 +200,28 @@ public class CohereServiceSettings implements ServiceSettings {
         if (modelId != null) {
             builder.field(MODEL_ID, modelId);
         }
+        rateLimitSettings.toXContent(builder, params);
 
         return builder;
     }
 
     @Override
-    public ToXContentObject getFilteredXContentObject() {
-        return this;
-    }
-
-    @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ML_INFERENCE_COHERE_EMBEDDINGS_ADDED;
+        return TransportVersions.V_8_13_0;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         var uriToWrite = uri != null ? uri.toString() : null;
         out.writeOptionalString(uriToWrite);
-        out.writeOptionalEnum(similarity);
+        out.writeOptionalEnum(SimilarityMeasure.translateSimilarity(similarity, out.getTransportVersion()));
         out.writeOptionalVInt(dimensions);
         out.writeOptionalVInt(maxInputTokens);
         out.writeOptionalString(modelId);
+
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
+            rateLimitSettings.writeTo(out);
+        }
     }
 
     @Override
@@ -193,11 +233,12 @@ public class CohereServiceSettings implements ServiceSettings {
             && Objects.equals(similarity, that.similarity)
             && Objects.equals(dimensions, that.dimensions)
             && Objects.equals(maxInputTokens, that.maxInputTokens)
-            && Objects.equals(modelId, that.modelId);
+            && Objects.equals(modelId, that.modelId)
+            && Objects.equals(rateLimitSettings, that.rateLimitSettings);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(uri, similarity, dimensions, maxInputTokens, modelId);
+        return Objects.hash(uri, similarity, dimensions, maxInputTokens, modelId, rateLimitSettings);
     }
 }

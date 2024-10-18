@@ -14,6 +14,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -43,7 +44,10 @@ public class CloseJobAction extends ActionType<CloseJobAction.Response> {
 
         public static final ParseField TIMEOUT = new ParseField("timeout");
         public static final ParseField FORCE = new ParseField("force");
+
+        @UpdateForV9(owner = UpdateForV9.Owner.MACHINE_LEARNING) // v7 REST API no longer exists: eliminate forRestApiVersion
         public static final ParseField ALLOW_NO_MATCH = new ParseField("allow_no_match").forRestApiVersion(onOrAfter(RestApiVersion.V_8));
+        @UpdateForV9(owner = UpdateForV9.Owner.MACHINE_LEARNING) // v7 REST API no longer exists: eliminate ref to RestApiVersion.V_7
         public static final ParseField ALLOW_NO_MATCH_V7 = new ParseField("allow_no_match", DEPRECATED_ALLOW_NO_JOBS_PARAM)
             .forRestApiVersion(equalTo(RestApiVersion.V_7));
         public static final ObjectParser<Request, Void> PARSER = new ObjectParser<>(NAME, Request::new);
@@ -179,11 +183,7 @@ public class CloseJobAction extends ActionType<CloseJobAction.Response> {
             builder.field(Job.ID.getPreferredName(), jobId);
             builder.field(TIMEOUT.getPreferredName(), timeout.getStringRep());
             builder.field(FORCE.getPreferredName(), force);
-            if (builder.getRestApiVersion() == RestApiVersion.V_7) {
-                builder.field(DEPRECATED_ALLOW_NO_JOBS_PARAM, allowNoMatch);
-            } else {
-                builder.field(ALLOW_NO_MATCH.getPreferredName(), allowNoMatch);
-            }
+            builder.field(ALLOW_NO_MATCH.getPreferredName(), allowNoMatch);
             builder.endObject();
             return builder;
         }

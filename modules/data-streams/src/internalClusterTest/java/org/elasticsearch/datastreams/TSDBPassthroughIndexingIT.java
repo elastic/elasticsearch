@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.datastreams;
 
@@ -17,6 +18,8 @@ import org.elasticsearch.action.admin.indices.shrink.ResizeType;
 import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.delete.DeleteRequest;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
@@ -53,12 +56,24 @@ public class TSDBPassthroughIndexingIT extends ESSingleNodeTestCase {
     public static final String MAPPING_TEMPLATE = """
         {
           "_doc":{
+            "dynamic_templates": [
+                {
+                  "strings_as_ip": {
+                    "match_mapping_type": "string",
+                    "match": "*ip",
+                    "mapping": {
+                      "type": "ip"
+                    }
+                  }
+                }
+            ],
             "properties": {
               "@timestamp" : {
                 "type": "date"
               },
               "attributes": {
                 "type": "passthrough",
+                "priority": 0,
                 "dynamic": true,
                 "time_series_dimension": true
               },
@@ -87,6 +102,8 @@ public class TSDBPassthroughIndexingIT extends ESSingleNodeTestCase {
             "@timestamp": "$time",
             "attributes": {
                 "metricset": "pod",
+                "number.long": $number1,
+                "number.double": $number2,
                 "pod": {
                     "name": "$name",
                     "uid": "$uid",
@@ -101,6 +118,15 @@ public class TSDBPassthroughIndexingIT extends ESSingleNodeTestCase {
             }
         }
         """;
+
+    private static String getRandomDoc(Instant time) {
+        return DOC.replace("$time", formatInstant(time))
+            .replace("$uid", randomUUID())
+            .replace("$name", randomAlphaOfLength(4))
+            .replace("$number1", Long.toString(randomLong()))
+            .replace("$number2", Double.toString(randomDouble()))
+            .replace("$ip", InetAddresses.toAddrString(randomIp(randomBoolean())));
+    }
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
@@ -117,10 +143,7 @@ public class TSDBPassthroughIndexingIT extends ESSingleNodeTestCase {
     }
 
     public void testIndexingGettingAndSearching() throws Exception {
-        var templateSettings = Settings.builder()
-            .put("index.mode", "time_series")
-            .put("index.number_of_shards", randomIntBetween(2, 10))
-            .put("index.number_of_replicas", 0);
+        var templateSettings = indexSettings(randomIntBetween(2, 10), 0).put("index.mode", "time_series");
 
         var request = new TransportPutComposableIndexTemplateAction.Request("id");
         request.indexTemplate(
@@ -137,13 +160,7 @@ public class TSDBPassthroughIndexingIT extends ESSingleNodeTestCase {
         Instant time = Instant.now();
         for (int i = 0; i < indexingIters; i++) {
             var indexRequest = new IndexRequest("k8s").opType(DocWriteRequest.OpType.CREATE);
-            indexRequest.source(
-                DOC.replace("$time", formatInstant(time))
-                    .replace("$uid", randomUUID())
-                    .replace("$name", randomAlphaOfLength(4))
-                    .replace("$ip", InetAddresses.toAddrString(randomIp(randomBoolean()))),
-                XContentType.JSON
-            );
+            indexRequest.source(getRandomDoc(time), XContentType.JSON);
             var indexResponse = client().index(indexRequest).actionGet();
             index = indexResponse.getIndex();
             String id = indexResponse.getId();
@@ -176,34 +193,30 @@ public class TSDBPassthroughIndexingIT extends ESSingleNodeTestCase {
         );
         @SuppressWarnings("unchecked")
         var attributes = (Map<String, Map<?, ?>>) ObjectPath.eval("properties.attributes.properties", mapping);
-        assertMap(attributes.get("pod.ip"), matchesMap().entry("type", "keyword").entry("time_series_dimension", true));
+        assertMap(attributes.get("number.long"), matchesMap().entry("type", "long").entry("time_series_dimension", true));
+        assertMap(attributes.get("number.double"), matchesMap().entry("type", "float").entry("time_series_dimension", true));
+        assertMap(attributes.get("pod.ip"), matchesMap().entry("type", "ip").entry("time_series_dimension", true));
         assertMap(attributes.get("pod.uid"), matchesMap().entry("type", "keyword").entry("time_series_dimension", true));
         assertMap(attributes.get("pod.name"), matchesMap().entry("type", "keyword").entry("time_series_dimension", true));
-        // alias field mappers:
-        assertMap(
-            ObjectPath.eval("properties.metricset", mapping),
-            matchesMap().entry("type", "alias").entry("path", "attributes.metricset")
-        );
-        assertMap(
-            ObjectPath.eval("properties.pod.properties", mapping),
-            matchesMap().extraOk().entry("name", matchesMap().entry("type", "alias").entry("path", "attributes.pod.name"))
-        );
-        assertMap(
-            ObjectPath.eval("properties.pod.properties", mapping),
-            matchesMap().extraOk().entry("uid", matchesMap().entry("type", "alias").entry("path", "attributes.pod.uid"))
-        );
-        assertMap(
-            ObjectPath.eval("properties.pod.properties", mapping),
-            matchesMap().extraOk().entry("ip", matchesMap().entry("type", "alias").entry("path", "attributes.pod.ip"))
-        );
+
+        FieldCapabilitiesResponse fieldCaps = client().fieldCaps(new FieldCapabilitiesRequest().fields("*").indices("k8s")).actionGet();
+        assertTrue(fieldCaps.getField("attributes.metricset").get("keyword").isDimension());
+        assertTrue(fieldCaps.getField("metricset").get("keyword").isDimension());
+        assertTrue(fieldCaps.getField("attributes.number.long").get("long").isDimension());
+        assertTrue(fieldCaps.getField("number.long").get("long").isDimension());
+        assertTrue(fieldCaps.getField("attributes.number.double").get("float").isDimension());
+        assertTrue(fieldCaps.getField("number.double").get("float").isDimension());
+        assertTrue(fieldCaps.getField("attributes.pod.ip").get("ip").isDimension());
+        assertTrue(fieldCaps.getField("pod.ip").get("ip").isDimension());
+        assertTrue(fieldCaps.getField("attributes.pod.uid").get("keyword").isDimension());
+        assertTrue(fieldCaps.getField("pod.uid").get("keyword").isDimension());
+        assertTrue(fieldCaps.getField("attributes.pod.name").get("keyword").isDimension());
+        assertTrue(fieldCaps.getField("pod.name").get("keyword").isDimension());
     }
 
     public void testIndexingGettingAndSearchingShrunkIndex() throws Exception {
         String dataStreamName = "k8s";
-        var templateSettings = Settings.builder()
-            .put("index.mode", "time_series")
-            .put("index.number_of_shards", 8)
-            .put("index.number_of_replicas", 0);
+        var templateSettings = indexSettings(8, 0).put("index.mode", "time_series");
 
         var request = new TransportPutComposableIndexTemplateAction.Request("id");
         request.indexTemplate(
@@ -220,13 +233,7 @@ public class TSDBPassthroughIndexingIT extends ESSingleNodeTestCase {
         var bulkRequest = new BulkRequest(dataStreamName);
         for (int i = 0; i < numBulkItems; i++) {
             var indexRequest = new IndexRequest(dataStreamName).opType(DocWriteRequest.OpType.CREATE);
-            indexRequest.source(
-                DOC.replace("$time", formatInstant(time))
-                    .replace("$uid", randomUUID())
-                    .replace("$name", randomAlphaOfLength(4))
-                    .replace("$ip", InetAddresses.toAddrString(randomIp(randomBoolean()))),
-                XContentType.JSON
-            );
+            indexRequest.source(getRandomDoc(time), XContentType.JSON);
             bulkRequest.add(indexRequest);
             time = time.plusMillis(1);
         }

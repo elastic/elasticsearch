@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.index.query;
 
@@ -27,7 +28,6 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
@@ -49,6 +49,7 @@ import org.elasticsearch.index.mapper.KeywordScriptFieldType;
 import org.elasticsearch.index.mapper.LongScriptFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
+import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperRegistry;
 import org.elasticsearch.index.mapper.MapperService;
@@ -89,6 +90,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.Function;
@@ -96,6 +98,7 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.singletonMap;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
@@ -294,7 +297,7 @@ public class SearchExecutionContextTests extends ESTestCase {
             new MetadataFieldMapper[0],
             Collections.emptyMap()
         );
-        return MappingLookup.fromMappers(mapping, mappers, Collections.emptyList(), Collections.emptyList());
+        return MappingLookup.fromMappers(mapping, mappers, Collections.emptyList());
     }
 
     public void testSearchRequestRuntimeFields() {
@@ -381,8 +384,8 @@ public class SearchExecutionContextTests extends ESTestCase {
 
     public void testSyntheticSourceSearchLookup() throws IOException {
         // Build a mapping using synthetic source
-        SourceFieldMapper sourceMapper = new SourceFieldMapper.Builder(null).setSynthetic().build();
-        RootObjectMapper root = new RootObjectMapper.Builder("_doc", Explicit.IMPLICIT_TRUE).add(
+        SourceFieldMapper sourceMapper = new SourceFieldMapper.Builder(null, Settings.EMPTY, false).setSynthetic().build();
+        RootObjectMapper root = new RootObjectMapper.Builder("_doc", Optional.empty()).add(
             new KeywordFieldMapper.Builder("cat", IndexVersion.current()).ignoreAbove(100)
         ).build(MapperBuilderContext.root(true, false));
         Mapping mapping = new Mapping(root, new MetadataFieldMapper[] { sourceMapper }, Map.of());
@@ -399,6 +402,84 @@ public class SearchExecutionContextTests extends ESTestCase {
         Source source = searchLookup.getSource(leafReaderContext, 0);
         assertEquals(1, source.source().size());
         assertEquals("meow", source.source().get("cat"));
+    }
+
+    public void testAllowedFields() {
+        Map<String, Object> runtimeMappings = Map.ofEntries(
+            Map.entry("runtimecat", Map.of("type", "keyword")),
+            Map.entry("runtimedog", Map.of("type", "long"))
+        );
+        SearchExecutionContext context = createSearchExecutionContext(
+            "uuid",
+            null,
+            SearchExecutionContextTests.createMappingLookup(
+                List.of(new MockFieldMapper.FakeFieldType("pig"), new MockFieldMapper.FakeFieldType("cat")),
+                List.of(new TestRuntimeField("runtime", "long"))
+            ),
+            runtimeMappings
+        );
+
+        assertNotNull(context.getFieldType("pig"));
+        assertNotNull(context.getFieldType("cat"));
+        assertNotNull(context.getFieldType("runtimecat"));
+        assertNotNull(context.getFieldType("runtimedog"));
+        assertNotNull(context.getFieldType("runtime"));
+        assertEquals(3, context.getMatchingFieldNames("runtime*").size());
+        assertEquals(2, context.getMatchingFieldNames("*cat").size());
+        assertThat(getFieldNames(context.getAllFields()), containsInAnyOrder("pig", "cat", "runtimecat", "runtimedog", "runtime"));
+
+        context.setAllowedFields(s -> true);
+        assertNotNull(context.getFieldType("pig"));
+        assertTrue(context.isFieldMapped("pig"));
+        assertNotNull(context.getFieldType("cat"));
+        assertTrue(context.isFieldMapped("cat"));
+        assertNotNull(context.getFieldType("runtimecat"));
+        assertTrue(context.isFieldMapped("runtimecat"));
+        assertNotNull(context.getFieldType("runtimedog"));
+        assertTrue(context.isFieldMapped("runtimedog"));
+        assertNotNull(context.getFieldType("runtime"));
+        assertTrue(context.isFieldMapped("runtime"));
+        assertEquals(3, context.getMatchingFieldNames("runtime*").size());
+        assertEquals(2, context.getMatchingFieldNames("*cat").size());
+        assertThat(getFieldNames(context.getAllFields()), containsInAnyOrder("pig", "cat", "runtimecat", "runtimedog", "runtime"));
+
+        context.setAllowedFields(s -> s.equals("cat"));
+        assertNull(context.getFieldType("pig"));
+        assertFalse(context.isFieldMapped("pig"));
+        assertNotNull(context.getFieldType("cat"));
+        assertTrue(context.isFieldMapped("cat"));
+        assertNull(context.getFieldType("runtimecat"));
+        assertFalse(context.isFieldMapped("runtimecat"));
+        assertNull(context.getFieldType("runtimedog"));
+        assertFalse(context.isFieldMapped("runtimedog"));
+        assertNull(context.getFieldType("runtime"));
+        assertFalse(context.isFieldMapped("runtime"));
+        assertEquals(0, context.getMatchingFieldNames("runtime*").size());
+        assertEquals(1, context.getMatchingFieldNames("*cat").size());
+        assertThat(getFieldNames(context.getAllFields()), containsInAnyOrder("cat"));
+
+        context.setAllowedFields(s -> s.contains("dog") == false);
+        assertNotNull(context.getFieldType("pig"));
+        assertTrue(context.isFieldMapped("pig"));
+        assertNotNull(context.getFieldType("cat"));
+        assertTrue(context.isFieldMapped("cat"));
+        assertNotNull(context.getFieldType("runtimecat"));
+        assertTrue(context.isFieldMapped("runtimecat"));
+        assertNull(context.getFieldType("runtimedog"));
+        assertFalse(context.isFieldMapped("runtimedog"));
+        assertNotNull(context.getFieldType("runtime"));
+        assertTrue(context.isFieldMapped("runtime"));
+        assertEquals(2, context.getMatchingFieldNames("runtime*").size());
+        assertEquals(2, context.getMatchingFieldNames("*cat").size());
+        assertThat(getFieldNames(context.getAllFields()), containsInAnyOrder("pig", "cat", "runtimecat", "runtime"));
+    }
+
+    private static List<String> getFieldNames(Iterable<Map.Entry<String, MappedFieldType>> fields) {
+        List<String> fieldNames = new ArrayList<>();
+        for (Map.Entry<String, MappedFieldType> field : fields) {
+            fieldNames.add(field.getKey());
+        }
+        return fieldNames;
     }
 
     public static SearchExecutionContext createSearchExecutionContext(String indexUuid, String clusterAlias) {
@@ -445,7 +526,8 @@ public class SearchExecutionContextTests extends ESTestCase {
             null,
             () -> true,
             null,
-            runtimeMappings
+            runtimeMappings,
+            MapperMetrics.NOOP
         );
     }
 
@@ -467,7 +549,10 @@ public class SearchExecutionContextTests extends ESTestCase {
                 ScriptCompiler.NONE,
                 indexAnalyzers,
                 indexSettings,
-                indexSettings.getMode().buildIdFieldMapper(() -> true)
+                indexSettings.getMode().buildIdFieldMapper(() -> true),
+                query -> {
+                    throw new UnsupportedOperationException();
+                }
             )
         );
         when(mapperService.isMultiField(anyString())).then(

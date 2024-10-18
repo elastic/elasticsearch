@@ -18,7 +18,8 @@ import java.util.function.BiPredicate;
 enum ReservedStateVersionCheck implements BiPredicate<Long, Long> {
     /**
      * `true` iff the current version is less than or equal to the next version.
-     * This means re-processing the same version. This is the   
+     * This means re-processing the same version.
+     * This is the behavior for processing file settings of service start.
      */
     SAME_OR_NEW_VERSION {
         @Override
@@ -27,7 +28,8 @@ enum ReservedStateVersionCheck implements BiPredicate<Long, Long> {
         }
     },
     /**
-     * `true` iff the current version is less than the next version. This is the default behavior
+     * `true` iff the current version is less than the next version.
+     * This is the default behavior for processing on file settings changes.
      */
     ONLY_NEW_VERSION {
         @Override

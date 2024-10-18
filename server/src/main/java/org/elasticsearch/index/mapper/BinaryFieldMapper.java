@@ -138,13 +138,13 @@ public class BinaryFieldMapper extends FieldMapper {
 
     private final boolean stored;
     private final boolean hasDocValues;
-    private final boolean isSyntheticSourceEnabledViaIndexMode;
+    private final boolean isSyntheticSourceEnabled;
 
     protected BinaryFieldMapper(String simpleName, MappedFieldType mappedFieldType, BuilderParams builderParams, Builder builder) {
         super(simpleName, mappedFieldType, builderParams);
         this.stored = builder.stored.getValue();
         this.hasDocValues = builder.hasDocValues.getValue();
-        this.isSyntheticSourceEnabledViaIndexMode = builder.isSyntheticSourceEnabled;
+        this.isSyntheticSourceEnabled = builder.isSyntheticSourceEnabled;
     }
 
     @Override
@@ -184,7 +184,7 @@ public class BinaryFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new BinaryFieldMapper.Builder(leafName(), isSyntheticSourceEnabledViaIndexMode).init(this);
+        return new BinaryFieldMapper.Builder(leafName(), isSyntheticSourceEnabled).init(this);
     }
 
     @Override

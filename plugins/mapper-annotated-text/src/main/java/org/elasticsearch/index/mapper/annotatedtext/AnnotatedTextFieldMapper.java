@@ -92,7 +92,7 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
 
         private final IndexVersion indexCreatedVersion;
         private final TextParams.Analyzers analyzers;
-        private final boolean isSyntheticSourceEnabledViaIndexMode;
+        private final boolean isSyntheticSourceEnabled;
         private final Parameter<Boolean> store;
 
         public Builder(String name, IndexVersion indexCreatedVersion, IndexAnalyzers indexAnalyzers, boolean isSyntheticSourceEnabled) {
@@ -104,7 +104,7 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
                 m -> builder(m).analyzers.positionIncrementGap.getValue(),
                 indexCreatedVersion
             );
-            this.isSyntheticSourceEnabledViaIndexMode = isSyntheticSourceEnabled;
+            this.isSyntheticSourceEnabled = isSyntheticSourceEnabled;
             this.store = Parameter.storeParam(
                 m -> builder(m).store.getValue(),
                 () -> isSyntheticSourceEnabled && multiFieldsBuilder.hasSyntheticSourceCompatibleKeywordField() == false
@@ -560,7 +560,7 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
             leafName(),
             builder.indexCreatedVersion,
             builder.analyzers.indexAnalyzers,
-            builder.isSyntheticSourceEnabledViaIndexMode
+            builder.isSyntheticSourceEnabled
         ).init(this);
     }
 

@@ -244,7 +244,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         private Mode resolveSourceMode() {
             // If the `index.mapper.source.mode` exists it takes precedence to determine the source mode for `_source`
             // otherwise the mode is determined according to `_source.mode`.
-            if(INDEX_MAPPER_SOURCE_MODE_SETTING.exists(settings)) {
+            if (INDEX_MAPPER_SOURCE_MODE_SETTING.exists(settings)) {
                 return INDEX_MAPPER_SOURCE_MODE_SETTING.get(settings);
             }
 
@@ -419,7 +419,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-         return new Builder(null, Settings.EMPTY, false).init(this);
+        return new Builder(null, Settings.EMPTY, false).init(this);
     }
 
     /**

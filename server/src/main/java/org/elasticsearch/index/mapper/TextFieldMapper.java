@@ -239,7 +239,7 @@ public final class TextFieldMapper extends FieldMapper {
         private final IndexVersion indexCreatedVersion;
         private final Parameter<Boolean> store;
 
-        private final boolean isSyntheticSourceEnabledViaIndexMode;
+        private final boolean isSyntheticSourceEnabled;
 
         private final Parameter<Boolean> index = Parameter.indexParam(m -> ((TextFieldMapper) m).index, true);
 
@@ -310,7 +310,7 @@ public final class TextFieldMapper extends FieldMapper {
                 m -> (((TextFieldMapper) m).positionIncrementGap),
                 indexCreatedVersion
             );
-            this.isSyntheticSourceEnabledViaIndexMode = isSyntheticSourceEnabled;
+            this.isSyntheticSourceEnabled = isSyntheticSourceEnabled;
         }
 
         public Builder index(boolean index) {
@@ -1237,7 +1237,7 @@ public final class TextFieldMapper extends FieldMapper {
     private final SubFieldInfo prefixFieldInfo;
     private final SubFieldInfo phraseFieldInfo;
 
-    private final boolean isSyntheticSourceEnabledViaIndexMode;
+    private final boolean isSyntheticSourceEnabled;
 
     private TextFieldMapper(
         String simpleName,
@@ -1270,7 +1270,7 @@ public final class TextFieldMapper extends FieldMapper {
         this.indexPrefixes = builder.indexPrefixes.getValue();
         this.freqFilter = builder.freqFilter.getValue();
         this.fieldData = builder.fieldData.get();
-        this.isSyntheticSourceEnabledViaIndexMode = builder.isSyntheticSourceEnabledViaIndexMode;
+        this.isSyntheticSourceEnabled = builder.isSyntheticSourceEnabled;
     }
 
     @Override
@@ -1294,7 +1294,7 @@ public final class TextFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(leafName(), indexCreatedVersion, indexAnalyzers, isSyntheticSourceEnabledViaIndexMode).init(this);
+        return new Builder(leafName(), indexCreatedVersion, indexAnalyzers, isSyntheticSourceEnabled).init(this);
     }
 
     @Override

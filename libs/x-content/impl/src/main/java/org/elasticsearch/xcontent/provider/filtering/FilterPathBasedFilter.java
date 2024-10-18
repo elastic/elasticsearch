@@ -97,6 +97,16 @@ public class FilterPathBasedFilter extends TokenFilter {
     }
 
     @Override
+    public boolean includeEmptyArray(boolean contentsFiltered) {
+        return true;
+    }
+
+    @Override
+    public boolean includeEmptyObject(boolean contentsFiltered) {
+        return true;
+    }
+
+    @Override
     protected boolean _includeScalar() {
         return inclusive == false;
     }

@@ -407,7 +407,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         }
     }
 
-    private static class TimeExceededException extends RuntimeException {
+    public static class TimeExceededException extends RuntimeException {
         // This exception should never be re-thrown, but we fill in the stacktrace to be able to trace where it does not get properly caught
     }
 

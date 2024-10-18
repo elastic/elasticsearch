@@ -361,6 +361,9 @@ tests:
 - class: org.elasticsearch.index.mapper.annotatedtext.AnnotatedTextFieldMapperTests
   method: testBlockLoaderFromColumnReaderWithSyntheticSource
   issue: https://github.com/elastic/elasticsearch/issues/115074
+- class: org.elasticsearch.index.mapper.annotatedtext.AnnotatedTextFieldMapperTests
+  method: testBlockLoaderFromRowStrideReaderWithSyntheticSource
+  issue: https://github.com/elastic/elasticsearch/issues/115076
 
 # Examples:
 #

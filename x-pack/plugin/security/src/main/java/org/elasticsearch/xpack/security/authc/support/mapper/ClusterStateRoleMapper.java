@@ -32,9 +32,9 @@ import static org.elasticsearch.xpack.core.security.SecurityExtension.SecurityCo
  */
 public class ClusterStateRoleMapper extends AbstractRoleMapperClearRealmCache implements ClusterStateListener {
     /**
-     * This setting is never registered by the xpack security plugin - in order to enable the
+     * This setting is never registered by the xpack security plugin - in order to disable the
      * cluster-state based role mapper another plugin must register it as a boolean setting
-     * and set it to `true`.
+     * and set it to `false`.
      * If this setting is set to <code>true</code> then:
      * <ul>
      *     <li>Realms that make use role mappings (all realms but file and native) will,

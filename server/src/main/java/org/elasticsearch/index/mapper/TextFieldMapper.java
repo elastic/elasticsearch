@@ -1025,7 +1025,12 @@ public final class TextFieldMapper extends FieldMapper {
             }
             SourceValueFetcher fetcher = SourceValueFetcher.toString(blContext.sourcePaths(name()));
             var sourceMode = blContext.indexSettings().getIndexMappingSourceMode();
-            return new BlockSourceReader.BytesRefsBlockLoader(fetcher, blockReaderDisiLookup(blContext), sourceMode);
+            if (sourceMode == SourceFieldMapper.Mode.SYNTHETIC && syntheticSourceDelegate().ignoreAbove() != Integer.MAX_VALUE) {
+                String originalName = syntheticSourceDelegate().name() + "._original";
+                return new BlockSourceReader.BytesRefsBlockLoader(fetcher, blockReaderDisiLookup(blContext), originalName);
+            } else {
+                return new BlockSourceReader.BytesRefsBlockLoader(fetcher, blockReaderDisiLookup(blContext), sourceMode);
+            }
         }
 
         /**

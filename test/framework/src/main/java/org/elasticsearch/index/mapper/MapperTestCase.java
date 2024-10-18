@@ -1321,15 +1321,12 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             return mapper.fieldType(loaderFieldName).blockLoader(new MappedFieldType.BlockLoaderContext() {
                 @Override
                 public String indexName() {
-                    return "test_index";
+                    return mapper.getIndexSettings().getIndex().getName();
                 }
 
                 @Override
                 public IndexSettings indexSettings() {
-                    var imd = IndexMetadata.builder(indexName())
-                        .settings(MapperTestCase.indexSettings(IndexVersion.current(), 1, 1).put(Settings.EMPTY))
-                        .build();
-                    return new IndexSettings(imd, Settings.EMPTY);
+                    return mapper.getIndexSettings();
                 }
 
                 @Override
@@ -1363,8 +1360,9 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
     private void testBlockLoader(boolean syntheticSource, boolean columnReader) throws IOException {
         // TODO if we're not using synthetic source use a different sort of example. Or something.
         SyntheticSourceExample example = syntheticSourceSupport(false, columnReader).example(5);
+        // TODO: only rely index.mapping.source.mode setting
         XContentBuilder mapping = syntheticSource ? syntheticSourceFieldMapping(example.mapping) : fieldMapping(example.mapping);
-        MapperService mapper = createMapperService(mapping);
+        MapperService mapper = syntheticSource ? createSytheticSourceMapperService(mapping) : createMapperService(mapping);
         BlockReaderSupport blockReaderSupport = getSupportedReaders(mapper, "field");
         if (syntheticSource) {
             // geo_point and point do not yet support synthetic source
@@ -1373,11 +1371,16 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
                 blockReaderSupport.syntheticSource
             );
         }
-        testBlockLoader(columnReader, example, blockReaderSupport);
+        var sourceLoader = mapper.mappingLookup().newSourceLoader(SourceFieldMetrics.NOOP);
+        testBlockLoader(columnReader, example, blockReaderSupport, sourceLoader);
     }
 
-    protected final void testBlockLoader(boolean columnReader, SyntheticSourceExample example, BlockReaderSupport blockReaderSupport)
-        throws IOException {
+    protected final void testBlockLoader(
+        boolean columnReader,
+        SyntheticSourceExample example,
+        BlockReaderSupport blockReaderSupport,
+        SourceLoader sourceLoader
+    ) throws IOException {
         BlockLoader loader = blockReaderSupport.getBlockLoader(columnReader);
         Function<Object, Object> valuesConvert = loadBlockExpected(blockReaderSupport, columnReader);
         if (valuesConvert == null) {
@@ -1406,7 +1409,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
                 } else {
                     BlockLoaderStoredFieldsFromLeafLoader storedFieldsLoader = new BlockLoaderStoredFieldsFromLeafLoader(
                         StoredFieldLoader.fromSpec(loader.rowStrideStoredFieldSpec()).getLoader(ctx, null),
-                        loader.rowStrideStoredFieldSpec().requiresSource() ? SourceLoader.FROM_STORED_SOURCE.leaf(ctx.reader(), null) : null
+                        loader.rowStrideStoredFieldSpec().requiresSource() ? sourceLoader.leaf(ctx.reader(), null) : null
                     );
                     storedFieldsLoader.advanceTo(0);
                     BlockLoader.Builder builder = loader.builder(TestBlock.factory(ctx.reader().numDocs()), 1);

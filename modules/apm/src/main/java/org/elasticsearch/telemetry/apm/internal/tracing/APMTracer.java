@@ -105,6 +105,11 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
         }
     }
 
+    @Override
+    public boolean isEnabled() {
+        return enabled;
+    }
+
     public void setIncludeNames(List<String> includeNames) {
         this.includeNames = includeNames;
         this.filterAutomaton = buildAutomaton(includeNames, excludeNames);

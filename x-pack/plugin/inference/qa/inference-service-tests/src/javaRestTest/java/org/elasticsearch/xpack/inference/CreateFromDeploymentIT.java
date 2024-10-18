@@ -109,6 +109,55 @@ public class CreateFromDeploymentIT extends InferenceBaseRestTest {
         );
     }
 
+    public void testNumAllocationsIsUpdated() throws IOException {
+        var modelId = "update_num_allocations";
+        var deploymentId = modelId;
+
+        CustomElandModelIT.createMlNodeTextExpansionModel(modelId, client());
+        var response = startMlNodeDeploymemnt(modelId, deploymentId);
+        assertOkOrCreated(response);
+
+        var inferenceId = "test_num_allocations_updated";
+        var putModel = putModel(inferenceId, endpointConfig(deploymentId), TaskType.SPARSE_EMBEDDING);
+        var serviceSettings = putModel.get("service_settings");
+        assertThat(
+            putModel.toString(),
+            serviceSettings,
+            is(
+                Map.of(
+                    "num_allocations",
+                    1,
+                    "num_threads",
+                    1,
+                    "model_id",
+                    "update_num_allocations",
+                    "deployment_id",
+                    "update_num_allocations"
+                )
+            )
+        );
+
+        assertOkOrCreated(updateMlNodeDeploymemnt(deploymentId, 2));
+
+        var updatedServiceSettings = getModel(inferenceId).get("service_settings");
+        assertThat(
+            updatedServiceSettings.toString(),
+            updatedServiceSettings,
+            is(
+                Map.of(
+                    "num_allocations",
+                    2,
+                    "num_threads",
+                    1,
+                    "model_id",
+                    "update_num_allocations",
+                    "deployment_id",
+                    "update_num_allocations"
+                )
+            )
+        );
+    }
+
     private String endpointConfig(String deploymentId) {
         return Strings.format("""
             {
@@ -144,6 +193,20 @@ public class CreateFromDeploymentIT extends InferenceBaseRestTest {
         }
 
         Request request = new Request("POST", endPoint);
+        return client().performRequest(request);
+    }
+
+    private Response updateMlNodeDeploymemnt(String deploymentId, int numAllocations) throws IOException {
+        String endPoint = "/_ml/trained_models/" + deploymentId + "/deployment/_update";
+
+        var body = Strings.format("""
+            {
+              "number_of_allocations": %d
+            }
+            """, numAllocations);
+
+        Request request = new Request("POST", endPoint);
+        request.setJsonEntity(body);
         return client().performRequest(request);
     }
 

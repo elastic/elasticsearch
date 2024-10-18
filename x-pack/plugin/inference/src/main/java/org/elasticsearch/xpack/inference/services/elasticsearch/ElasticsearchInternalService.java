@@ -793,7 +793,7 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
         var modelsByDeploymentIds = new HashMap<String, ElasticsearchInternalModel>();
         for (var model : models) {
             if (model instanceof ElasticsearchInternalModel esModel) {
-                modelsByDeploymentIds.put(esModel.internalServiceSettings.deloymentId(), esModel);
+                modelsByDeploymentIds.put(esModel.mlNodeDeploymentId(), esModel);
             } else {
                 listener.onFailure(
                     new ElasticsearchStatusException(

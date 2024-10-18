@@ -1026,6 +1026,8 @@ public final class TextFieldMapper extends FieldMapper {
             SourceValueFetcher fetcher = SourceValueFetcher.toString(blContext.sourcePaths(name()));
             var sourceMode = blContext.indexSettings().getIndexMappingSourceMode();
             if (sourceMode == SourceFieldMapper.Mode.SYNTHETIC && syntheticSourceDelegate().ignoreAbove() != Integer.MAX_VALUE) {
+                // Can't just read the original field, because only when ignore_above threshold is exceeded,
+                // then this stored fields gets added. In other cases this field does not exist. But we do need to include the field name:
                 String originalName = syntheticSourceDelegate().name() + "._original";
                 return new BlockSourceReader.BytesRefsBlockLoader(fetcher, blockReaderDisiLookup(blContext), originalName);
             } else {

@@ -722,17 +722,19 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             for (int i = 0; i < args.size() && i < types.size(); i++) {
                 typesFromSignature.get(i).add(types.get(i).esNameIfPossible());
             }
-            returnFromSignature.add(entry.getValue().esNameIfPossible());
+            if (DataType.UNDER_CONSTRUCTION.containsKey(entry.getValue()) == false) {
+                returnFromSignature.add(entry.getValue().esNameIfPossible());
+            }
         }
 
         for (int i = 0; i < args.size(); i++) {
             EsqlFunctionRegistry.ArgSignature arg = args.get(i);
             Set<String> annotationTypes = Arrays.stream(arg.type())
-                .filter(DataType.UNDER_CONSTRUCTION::containsKey)
+                .filter(t -> DataType.UNDER_CONSTRUCTION.containsKey(DataType.fromNameOrAlias(t)) == false)
                 .collect(Collectors.toCollection(TreeSet::new));
             Set<String> signatureTypes = typesFromSignature.get(i)
                 .stream()
-                .filter(DataType.UNDER_CONSTRUCTION::containsKey)
+                .filter(t -> DataType.UNDER_CONSTRUCTION.containsKey(DataType.fromNameOrAlias(t)) == false)
                 .collect(Collectors.toCollection(TreeSet::new));
             if (signatureTypes.isEmpty()) {
                 log.info("{}: skipping", arg.name());
@@ -746,7 +748,9 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             );
         }
 
-        Set<String> returnTypes = Arrays.stream(description.returnType()).collect(Collectors.toCollection(TreeSet::new));
+        Set<String> returnTypes = Arrays.stream(description.returnType())
+            .filter(t -> DataType.UNDER_CONSTRUCTION.containsKey(DataType.fromNameOrAlias(t)) == false)
+            .collect(Collectors.toCollection(TreeSet::new));
         assertEquals(returnFromSignature, returnTypes);
     }
 

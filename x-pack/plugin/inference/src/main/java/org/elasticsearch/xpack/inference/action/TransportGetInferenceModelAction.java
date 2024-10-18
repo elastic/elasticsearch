@@ -126,6 +126,11 @@ public class TransportGetInferenceModelAction extends HandledTransportAction<
     }
 
     private void parseModels(List<UnparsedModel> unparsedModels, ActionListener<GetInferenceModelAction.Response> listener) {
+        if (unparsedModels.isEmpty()) {
+            listener.onResponse(new GetInferenceModelAction.Response(List.of()));
+            return;
+        }
+
         var parsedModelsByService = new HashMap<String, List<Model>>();
         try {
             for (var unparsedModel : unparsedModels) {

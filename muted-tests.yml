@@ -355,6 +355,9 @@ tests:
 - class: org.elasticsearch.index.mapper.TextFieldMapperTests
   method: testBlockLoaderFromRowStrideReaderWithSyntheticSource
   issue: https://github.com/elastic/elasticsearch/issues/115066
+- class: org.elasticsearch.index.mapper.TextFieldMapperTests
+  method: testBlockLoaderFromColumnReaderWithSyntheticSource
+  issue: https://github.com/elastic/elasticsearch/issues/115073
 
 # Examples:
 #

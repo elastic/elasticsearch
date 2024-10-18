@@ -1432,7 +1432,17 @@ public class IndexNameExpressionResolver {
                     }
                 } else {
                     if (expression.isExclusion()) {
-                        result.remove(expression.getProcessedExpression());
+                        IndexComponentSelector selector = expression.resolvedExpression().selector();
+                        if (selector != null) {
+                            if (selector.shouldIncludeData()) {
+                                result.remove(new ResolvedExpression(expression.get(), IndexComponentSelector.DATA));
+                            }
+                            if (selector.shouldIncludeFailures()) {
+                                result.remove(new ResolvedExpression(expression.get(), IndexComponentSelector.FAILURES));
+                            }
+                        } else {
+                            result.remove(expression.getProcessedExpression());
+                        }
                     } else {
                         result.add(expression.resolvedExpression());
                     }

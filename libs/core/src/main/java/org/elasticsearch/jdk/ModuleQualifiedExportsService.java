@@ -9,9 +9,6 @@
 
 package org.elasticsearch.jdk;
 
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
-
 import java.lang.module.ModuleDescriptor.Exports;
 import java.lang.module.ModuleDescriptor.Opens;
 import java.util.ArrayList;
@@ -39,7 +36,7 @@ import java.util.stream.Stream;
  */
 public abstract class ModuleQualifiedExportsService {
 
-    private static final Logger logger = LogManager.getLogger(ModuleQualifiedExportsService.class);
+//    private static final Logger logger = LogManager.getLogger(ModuleQualifiedExportsService.class);
 
     // holds instances of ModuleQualfiedExportsService that exist in the boot layer
     private static class Holder {
@@ -70,7 +67,7 @@ public abstract class ModuleQualifiedExportsService {
         String moduleName
     ) {
         for (String targetName : exportsService.getTargets()) {
-            logger.debug("Registered qualified export from module " + moduleName + " to " + targetName);
+//            logger.debug("Registered qualified export from module " + moduleName + " to " + targetName);
             qualifiedExports.computeIfAbsent(targetName, k -> new ArrayList<>()).add(exportsService);
         }
     }

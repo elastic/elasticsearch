@@ -1,0 +1,5 @@
+pr: 114295
+summary: "Reprocess operator file settings when settings service starts, due to node restart or master node change"
+area: Infra/Settings
+type: enhancement
+issues: [ ]

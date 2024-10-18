@@ -120,8 +120,8 @@ public enum IndexMode {
         public void validateSourceFieldMapper(SourceFieldMapper sourceFieldMapper) {}
 
         @Override
-        public boolean isSyntheticSourceEnabled() {
-            return false;
+        public SourceFieldMapper.Mode defaultSourceMode() {
+            return SourceFieldMapper.Mode.STORED;
         }
     },
     TIME_SERIES("time_series") {
@@ -223,8 +223,8 @@ public enum IndexMode {
         }
 
         @Override
-        public boolean isSyntheticSourceEnabled() {
-            return true;
+        public SourceFieldMapper.Mode defaultSourceMode() {
+            return SourceFieldMapper.Mode.SYNTHETIC;
         }
     },
     LOGSDB("logsdb") {
@@ -300,8 +300,8 @@ public enum IndexMode {
         }
 
         @Override
-        public boolean isSyntheticSourceEnabled() {
-            return true;
+        public SourceFieldMapper.Mode defaultSourceMode() {
+            return SourceFieldMapper.Mode.SYNTHETIC;
         }
 
         @Override
@@ -460,9 +460,9 @@ public enum IndexMode {
     public abstract void validateSourceFieldMapper(SourceFieldMapper sourceFieldMapper);
 
     /**
-     * @return whether synthetic source is the only allowed source mode.
+     * @return default source mode for this mode
      */
-    public abstract boolean isSyntheticSourceEnabled();
+    public abstract SourceFieldMapper.Mode defaultSourceMode();
 
     public String getDefaultCodec() {
         return CodecService.DEFAULT_CODEC;

@@ -95,7 +95,16 @@ public final class JvmOptionsParser {
 
         try {
             return Collections.unmodifiableList(
-                parser.jvmOptions(args, args.configDir(), processInfo.workingDir(), tmpDir, envOptions, substitutions, processInfo.sysprops(), machineDependentHeap)
+                parser.jvmOptions(
+                    args,
+                    args.configDir(),
+                    processInfo.workingDir(),
+                    tmpDir,
+                    envOptions,
+                    substitutions,
+                    processInfo.sysprops(),
+                    machineDependentHeap
+                )
             );
         } catch (final JvmOptionsFileParserException e) {
             final String errorMessage = String.format(

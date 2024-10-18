@@ -37,7 +37,7 @@ import java.util.stream.Collectors;
 public final class TransportClusterStateRoleMappingTranslator {
     private static final Logger logger = LogManager.getLogger(TransportClusterStateRoleMappingTranslator.class);
 
-    static final String READ_ONLY_ROLE_MAPPING_SUFFIX = " (read only)";
+    static final String READ_ONLY_ROLE_MAPPING_SUFFIX = "-read-only-operator-config";
     static final String READ_ONLY_ROLE_MAPPING_METADATA_FLAG = "_read_only";
 
     private TransportClusterStateRoleMappingTranslator() {}

@@ -42,7 +42,7 @@ import static org.hamcrest.Matchers.equalTo;
 public abstract class SecurityOnTrialLicenseRestTestCase extends ESRestTestCase {
     private TestSecurityClient securityClient;
 
-    protected static LocalClusterConfigProvider commonClusterConfig = cluster -> cluster.nodes(2)
+    public static LocalClusterConfigProvider commonTrialSecurityClusterConfig = cluster -> cluster.nodes(2)
         .distribution(DistributionType.DEFAULT)
         .setting("xpack.ml.enabled", "false")
         .setting("xpack.license.self_generated.type", "trial")
@@ -63,12 +63,8 @@ public abstract class SecurityOnTrialLicenseRestTestCase extends ESRestTestCase 
         .user("x_pack_rest_user", "x-pack-test-password", ROOT_USER_ROLE, true)
         .user("cat_test_user", "cat-test-password", "cat_test_role", false);
 
-    protected static LocalClusterConfigProvider additionalConfig() {
-        return cluster -> {};
-    }
-
     @ClassRule
-    public static ElasticsearchCluster cluster = ElasticsearchCluster.local().apply(commonClusterConfig).apply(additionalConfig()).build();
+    public static ElasticsearchCluster cluster = ElasticsearchCluster.local().apply(commonTrialSecurityClusterConfig).build();
 
     @Override
     protected String getTestRestCluster() {

@@ -12,6 +12,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.watcher.trigger.TriggerEvent;
 import org.elasticsearch.xpack.core.watcher.watch.ClockMock;
 import org.elasticsearch.xpack.core.watcher.watch.Watch;
+import org.elasticsearch.xpack.core.watcher.watch.WatchStatus;
 import org.elasticsearch.xpack.watcher.condition.InternalAlwaysCondition;
 import org.elasticsearch.xpack.watcher.input.none.ExecutableNoneInput;
 import org.elasticsearch.xpack.watcher.trigger.schedule.Schedule;
@@ -31,6 +32,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 
@@ -281,6 +283,216 @@ public class TickerScheduleEngineTests extends ESTestCase {
         Watch oncePerMinuteWatch = createWatch("_id", interval("1m"));
         engine.add(oncePerMinuteWatch);
         assertThat(engine.getSchedules().get("_id"), not(is(activeSchedule)));
+    }
+
+    public void testWatchWithLastCheckedTimeExecutesBeforeInitialInterval() throws Exception {
+        final var firstLatch = new CountDownLatch(1);
+        final var secondLatch = new CountDownLatch(1);
+
+        var firstExecuted = new AtomicBoolean(false);
+
+        Watch watch = new Watch(
+            "watch",
+            new ScheduleTrigger(interval("1s")),
+            new ExecutableNoneInput(),
+            InternalAlwaysCondition.INSTANCE,
+            null,
+            null,
+            Collections.emptyList(),
+            null,
+            new WatchStatus(-1L, null, null, clock.instant().minusMillis(500).atZone(ZoneOffset.UTC), null, null, null),
+            SequenceNumbers.UNASSIGNED_SEQ_NO,
+            SequenceNumbers.UNASSIGNED_PRIMARY_TERM
+        );
+
+        var watches = Collections.singletonList(watch);
+
+        engine.register(events -> {
+            for (TriggerEvent ignored : events) {
+                if (firstExecuted.get() == false) {
+                    logger.info("job first fire");
+                    firstExecuted.set(true);
+                    firstLatch.countDown();
+                } else {
+                    logger.info("job second fire");
+                    secondLatch.countDown();
+                }
+            }
+        });
+
+        engine.start(watches);
+        advanceClockIfNeeded(clock.instant().plusMillis(510).atZone(ZoneOffset.UTC));
+        if (firstLatch.await(3, TimeUnit.SECONDS) == false) {
+            fail("waiting too long for all watches to be triggered");
+        }
+
+        advanceClockIfNeeded(clock.instant().plusMillis(1100).atZone(ZoneOffset.UTC));
+        if (secondLatch.await(3, TimeUnit.SECONDS) == false) {
+            fail("waiting too long for all watches to be triggered");
+        }
+        engine.stop();
+    }
+
+    public void testWatchWithNoLastCheckedTimeButHasActivationTimeExecutesBeforeInitialInterval() throws Exception {
+        final var firstLatch = new CountDownLatch(1);
+        final var secondLatch = new CountDownLatch(1);
+
+        var firstExecuted = new AtomicBoolean(false);
+
+        Watch watch = new Watch(
+            "watch",
+            new ScheduleTrigger(interval("1s")),
+            new ExecutableNoneInput(),
+            InternalAlwaysCondition.INSTANCE,
+            null,
+            null,
+            Collections.emptyList(),
+            null,
+            new WatchStatus(
+                -1L,
+                new WatchStatus.State(true, clock.instant().minusMillis(500).atZone(ZoneOffset.UTC)),
+                null,
+                null,
+                null,
+                null,
+                null
+            ),
+            SequenceNumbers.UNASSIGNED_SEQ_NO,
+            SequenceNumbers.UNASSIGNED_PRIMARY_TERM
+        );
+
+        var watches = Collections.singletonList(watch);
+
+        engine.register(events -> {
+            for (TriggerEvent ignored : events) {
+                if (firstExecuted.get() == false) {
+                    logger.info("job first fire");
+                    firstExecuted.set(true);
+                    firstLatch.countDown();
+                } else {
+                    logger.info("job second fire");
+                    secondLatch.countDown();
+                }
+            }
+        });
+
+        engine.start(watches);
+        advanceClockIfNeeded(clock.instant().plusMillis(510).atZone(ZoneOffset.UTC));
+        if (firstLatch.await(3, TimeUnit.SECONDS) == false) {
+            fail("waiting too long for all watches to be triggered");
+        }
+
+        advanceClockIfNeeded(clock.instant().plusMillis(1100).atZone(ZoneOffset.UTC));
+        if (secondLatch.await(3, TimeUnit.SECONDS) == false) {
+            fail("waiting too long for all watches to be triggered");
+        }
+        engine.stop();
+    }
+
+    public void testAddWithLastCheckedTimeExecutesBeforeInitialInterval() throws Exception {
+        final var firstLatch = new CountDownLatch(1);
+        final var secondLatch = new CountDownLatch(1);
+
+        var firstExecuted = new AtomicBoolean(false);
+
+        Watch watch = new Watch(
+            "watch",
+            new ScheduleTrigger(interval("1s")),
+            new ExecutableNoneInput(),
+            InternalAlwaysCondition.INSTANCE,
+            null,
+            null,
+            Collections.emptyList(),
+            null,
+            new WatchStatus(-1L, null, null, clock.instant().minusMillis(500).atZone(ZoneOffset.UTC), null, null, null),
+            SequenceNumbers.UNASSIGNED_SEQ_NO,
+            SequenceNumbers.UNASSIGNED_PRIMARY_TERM
+        );
+
+        engine.register(events -> {
+            for (TriggerEvent ignored : events) {
+                if (firstExecuted.get() == false) {
+                    logger.info("job first fire");
+                    firstExecuted.set(true);
+                    firstLatch.countDown();
+                } else {
+                    logger.info("job second fire");
+                    secondLatch.countDown();
+                }
+            }
+        });
+
+        engine.start(Collections.emptyList());
+        advanceClockIfNeeded(clock.instant().plusMillis(1100).atZone(ZoneOffset.UTC));
+        engine.add(watch);
+
+        advanceClockIfNeeded(clock.instant().plusMillis(510).atZone(ZoneOffset.UTC));
+        if (firstLatch.await(3, TimeUnit.SECONDS) == false) {
+            fail("waiting too long for all watches to be triggered");
+        }
+
+        advanceClockIfNeeded(clock.instant().plusMillis(1100).atZone(ZoneOffset.UTC));
+        if (secondLatch.await(3, TimeUnit.SECONDS) == false) {
+            fail("waiting too long for all watches to be triggered");
+        }
+        engine.stop();
+    }
+
+    public void testAddWithNoLastCheckedTimeButHasActivationTimeExecutesBeforeInitialInterval() throws Exception {
+        final var firstLatch = new CountDownLatch(1);
+        final var secondLatch = new CountDownLatch(1);
+
+        var firstExecuted = new AtomicBoolean(false);
+
+        Watch watch = new Watch(
+            "watch",
+            new ScheduleTrigger(interval("1s")),
+            new ExecutableNoneInput(),
+            InternalAlwaysCondition.INSTANCE,
+            null,
+            null,
+            Collections.emptyList(),
+            null,
+            new WatchStatus(
+                -1L,
+                new WatchStatus.State(true, clock.instant().minusMillis(500).atZone(ZoneOffset.UTC)),
+                null,
+                null,
+                null,
+                null,
+                null
+            ),
+            SequenceNumbers.UNASSIGNED_SEQ_NO,
+            SequenceNumbers.UNASSIGNED_PRIMARY_TERM
+        );
+
+        engine.register(events -> {
+            for (TriggerEvent ignored : events) {
+                if (firstExecuted.get() == false) {
+                    logger.info("job first fire");
+                    firstExecuted.set(true);
+                    firstLatch.countDown();
+                } else {
+                    logger.info("job second fire");
+                    secondLatch.countDown();
+                }
+            }
+        });
+
+        engine.start(Collections.emptyList());
+        advanceClockIfNeeded(clock.instant().plusMillis(1100).atZone(ZoneOffset.UTC));
+        engine.add(watch);
+
+        advanceClockIfNeeded(clock.instant().plusMillis(510).atZone(ZoneOffset.UTC));
+        if (firstLatch.await(3, TimeUnit.SECONDS) == false) {
+            fail("waiting too long for all watches to be triggered");
+        }
+
+        advanceClockIfNeeded(clock.instant().plusMillis(1100).atZone(ZoneOffset.UTC));
+        if (secondLatch.await(3, TimeUnit.SECONDS) == false) {
+            fail("waiting too long for all watches to be triggered");
+        }
+        engine.stop();
     }
 
     private Watch createWatch(String name, Schedule schedule) {

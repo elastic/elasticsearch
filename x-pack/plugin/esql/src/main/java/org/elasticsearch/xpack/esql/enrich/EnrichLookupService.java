@@ -46,6 +46,8 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.RangeFieldMapper;
+import org.elasticsearch.index.mapper.RangeType;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchService;
@@ -294,6 +296,7 @@ public class EnrichLookupService {
             releasables.add(mergePositionsOperator);
             SearchExecutionContext searchExecutionContext = searchContext.getSearchExecutionContext();
             MappedFieldType fieldType = searchExecutionContext.getFieldType(matchField);
+            validateTypes(inputDataType, fieldType);
             var queryList = switch (matchType) {
                 case "match", "range" -> QueryList.termQueryList(fieldType, searchExecutionContext, inputBlock, inputDataType);
                 case "geo_match" -> QueryList.geoShapeQuery(fieldType, searchExecutionContext, inputBlock, inputDataType);
@@ -352,6 +355,30 @@ public class EnrichLookupService {
                 Releasables.close(releasables);
             }
         }
+    }
+
+    private static void validateTypes(DataType inputDataType, MappedFieldType fieldType) {
+        if (inputDataType == DataType.UNSUPPORTED) {
+            throw new EsqlIllegalArgumentException("ENRICH cannot match on unsupported input data type");
+        }
+        if (fieldType == null) {
+            throw new EsqlIllegalArgumentException("ENRICH cannot match on non-existent field");
+        }
+        if (fieldType instanceof RangeFieldMapper.RangeFieldType rangeType) {
+            if (rangeTypesCompatible(rangeType.rangeType(), inputDataType) == false) {
+                throw new EsqlIllegalArgumentException(
+                    "ENRICH range and input types are incompatible: range[" + rangeType.rangeType() + "], input[" + inputDataType + "]"
+                );
+            }
+        }
+    }
+
+    private static boolean rangeTypesCompatible(RangeType rangeType, DataType inputDataType) {
+        return switch (rangeType) {
+            case INTEGER, LONG -> inputDataType.isWholeNumber();
+            case IP -> inputDataType == DataType.IP;
+            default -> rangeType.isNumeric() == inputDataType.isNumeric();
+        };
     }
 
     private static Operator extractFieldsOperator(

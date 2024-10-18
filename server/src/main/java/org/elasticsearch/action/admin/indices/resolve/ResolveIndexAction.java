@@ -598,12 +598,12 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
 
         private static void enrichIndexAbstraction(
             ClusterState clusterState,
-            ResolvedExpression indexAbstraction,
+            ResolvedExpression resolvedExpression,
             List<ResolvedIndex> indices,
             List<ResolvedAlias> aliases,
             List<ResolvedDataStream> dataStreams
         ) {
-            IndexAbstraction ia = clusterState.metadata().getIndicesLookup().get(indexAbstraction.resource());
+            IndexAbstraction ia = clusterState.metadata().getIndicesLookup().get(resolvedExpression.resource());
             if (ia != null) {
                 switch (ia.getType()) {
                     case CONCRETE_INDEX -> {

@@ -83,6 +83,7 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
                 .allowAliasToMultipleIndices(true)
                 .ignoreThrottled(false)
                 .allowFailureIndices(false)
+                .allowSelectors(false)
         )
         .build();
 

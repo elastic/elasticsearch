@@ -61,7 +61,7 @@ public class DataStreamsStatsAction extends ActionType<DataStreamsStatsAction.Re
                             .allowFailureIndices(true)
                             .build()
                     )
-                    .selectorOptions(IndicesOptions.SelectorOptions.DATA_AND_FAILURE)
+                    .selectorOptions(IndicesOptions.SelectorOptions.ALL_APPLICABLE)
                     .build()
             );
         }

@@ -54,7 +54,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
-import java.util.Objects;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -151,7 +150,7 @@ public class ArrowResponseTests extends ESTestCase {
             assertEquals(16, addr.length); // Make sure all is ipv6-mapped
             block.appendBytesRef(new BytesRef(addr));
         },
-        (b, i, s) -> ValueConversions.shortenIpV4Addresses(b.getBytesRef(i, newBytesRef()), new BytesRef()),
+        (b, i, s) -> ValueConversions.shortenIpV4Addresses(b.getBytesRef(i, s), new BytesRef()),
         (v, i) -> new BytesRef(v.get(i))
     );
 
@@ -159,7 +158,7 @@ public class ArrowResponseTests extends ESTestCase {
         "binary",
         factory -> factory.newBytesRefBlockBuilder(0),
         block -> block.appendBytesRef(new BytesRef(randomByteArrayOfLength(randomIntBetween(1, 100)))),
-        (b, i, s) -> b.getBytesRef(i, new BytesRef()),
+        BytesRefBlock::getBytesRef,
         (v, i) -> new BytesRef(v.get(i))
     );
 
@@ -739,6 +738,7 @@ public class ArrowResponseTests extends ESTestCase {
             var values = new ArrayList<>();
             for (int i = block.getFirstValueIndex(position); i < block.getFirstValueIndex(position + 1); i++) {
                 values.add(blockGetter.apply((BlockT) block, i, scratch));
+                scratch = new BytesRef(); // do not overwrite previous value
             }
             return values.size() == 1 ? values.getFirst() : values;
         }

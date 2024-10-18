@@ -222,7 +222,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
             SourceFieldMapper sourceFieldMapper;
             if (isDefault()) {
                 // Needed for bwc so that "mode" is not serialized in case of a standard index with stored source.
-                if (indexMode == IndexMode.STANDARD && sourceMode == null) {
+                if (sourceMode == null) {
                     sourceFieldMapper = DEFAULT;
                 } else {
                     sourceFieldMapper = resolveStaticInstance(sourceMode);
@@ -250,7 +250,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
 
             // If `_source.mode` is not set we need to apply a default according to index mode.
             if (mode.get() == null) {
-                if (indexMode == IndexMode.STANDARD) {
+                if (indexMode == null || indexMode == IndexMode.STANDARD) {
                     // Special case to avoid serializing mode.
                     return null;
                 }
@@ -273,11 +273,10 @@ public class SourceFieldMapper extends MetadataFieldMapper {
     public static final TypeParser PARSER = new ConfigurableTypeParser(c -> {
         final IndexMode indexMode = c.getIndexSettings().getMode();
 
-        if (indexMode.isSyntheticSourceEnabled()) {
-            if (indexMode == IndexMode.TIME_SERIES && c.getIndexSettings().getIndexVersionCreated().before(IndexVersions.V_8_7_0)) {
-                return DEFAULT;
-            }
+        if (indexMode == IndexMode.TIME_SERIES && c.getIndexSettings().getIndexVersionCreated().before(IndexVersions.V_8_7_0)) {
+            return DEFAULT;
         }
+
         final Mode settingSourceMode = INDEX_MAPPER_SOURCE_MODE_SETTING.get(c.getSettings());
         // Needed for bwc so that "mode" is not serialized in case of standard index with stored source.
         if (indexMode == IndexMode.STANDARD && settingSourceMode == Mode.STORED) {

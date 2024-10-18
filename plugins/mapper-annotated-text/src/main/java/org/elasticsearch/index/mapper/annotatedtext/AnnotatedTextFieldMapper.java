@@ -556,12 +556,8 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(
-            leafName(),
-            builder.indexCreatedVersion,
-            builder.analyzers.indexAnalyzers,
-            builder.isSyntheticSourceEnabled
-        ).init(this);
+        return new Builder(leafName(), builder.indexCreatedVersion, builder.analyzers.indexAnalyzers, builder.isSyntheticSourceEnabled)
+            .init(this);
     }
 
     @Override

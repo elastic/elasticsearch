@@ -59,8 +59,9 @@ public class ReindexNodeShutdownIT extends ESIntegTestCase {
         final String masterNodeName = internalCluster().startMasterOnlyNode();
         final String dataNodeName = internalCluster().startDataOnlyNode();
 
-        final Settings COORD_SETTINGS =
-            Settings.builder().put(MAXIMUM_REINDEXING_TIMEOUT_SETTING.getKey(), TimeValue.timeValueSeconds(10)).build();
+        final Settings COORD_SETTINGS = Settings.builder()
+            .put(MAXIMUM_REINDEXING_TIMEOUT_SETTING.getKey(), TimeValue.timeValueSeconds(10))
+            .build();
         final String coordNodeName = internalCluster().startCoordinatingOnlyNode(Settings.EMPTY);
 
         ensureStableCluster(3);

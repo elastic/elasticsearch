@@ -9,9 +9,9 @@
 
 package org.elasticsearch.entitlement.instrumentation.impl;
 
-import org.elasticsearch.entitlement.instrumentation.InstrumentationService;
-import org.elasticsearch.entitlement.instrumentation.Instrumenter;
-import org.elasticsearch.entitlement.instrumentation.MethodKey;
+import org.elasticsearch.entitlement.spi.InstrumentationService;
+import org.elasticsearch.entitlement.spi.Instrumenter;
+import org.elasticsearch.entitlement.spi.MethodKey;
 import org.objectweb.asm.Type;
 
 import java.lang.reflect.Method;

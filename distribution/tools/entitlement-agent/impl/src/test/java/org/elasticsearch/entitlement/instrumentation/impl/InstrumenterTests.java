@@ -11,8 +11,8 @@ package org.elasticsearch.entitlement.instrumentation.impl;
 
 import org.elasticsearch.entitlement.api.EntitlementChecks;
 import org.elasticsearch.entitlement.api.EntitlementProvider;
-import org.elasticsearch.entitlement.instrumentation.InstrumentationService;
-import org.elasticsearch.entitlement.instrumentation.MethodKey;
+import org.elasticsearch.entitlement.spi.InstrumentationService;
+import org.elasticsearch.entitlement.spi.MethodKey;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.test.ESTestCase;

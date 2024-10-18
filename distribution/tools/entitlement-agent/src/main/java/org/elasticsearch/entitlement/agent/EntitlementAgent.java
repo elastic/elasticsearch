@@ -11,8 +11,8 @@ package org.elasticsearch.entitlement.agent;
 
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.internal.provider.ProviderLocator;
-import org.elasticsearch.entitlement.instrumentation.InstrumentationService;
-import org.elasticsearch.entitlement.instrumentation.MethodKey;
+import org.elasticsearch.entitlement.spi.InstrumentationService;
+import org.elasticsearch.entitlement.spi.MethodKey;
 
 import java.io.IOException;
 import java.lang.instrument.Instrumentation;
@@ -32,12 +32,20 @@ public class EntitlementAgent {
         }
         addJarToBootstrapClassLoader(inst, bridgeJarName);
 
+        // We can do SPI now that the bridge jar is available
+        InstrumentationService instrumenterFactory = (new ProviderLocator<>(
+            "entitlement-agent",
+            InstrumentationService.class,
+            "org.elasticsearch.entitlement.agent.impl",
+            Set.<String>of("org.objectweb.nonexistent.asm", "org.elasticsearch.entitlement.agent")
+        )).get();
+
         Method targetMethod = System.class.getMethod("exit", int.class);
         Method instrumentationMethod = Class.forName("org.elasticsearch.entitlement.api.EntitlementChecks")
             .getMethod("checkSystemExit", Class.class, int.class);
-        Map<MethodKey, Method> methodMap = Map.of(INSTRUMENTER_FACTORY.methodKeyForTarget(targetMethod), instrumentationMethod);
+        Map<MethodKey, Method> methodMap = Map.of(instrumenterFactory.methodKeyForTarget(targetMethod), instrumentationMethod);
 
-        inst.addTransformer(new Transformer(INSTRUMENTER_FACTORY.newInstrumenter("", methodMap), Set.of(internalName(System.class))), true);
+        inst.addTransformer(new Transformer(instrumenterFactory.newInstrumenter("", methodMap), Set.of(internalName(System.class))), true);
         inst.retransformClasses(System.class);
     }
 
@@ -49,13 +57,6 @@ public class EntitlementAgent {
     private static String internalName(Class<?> c) {
         return c.getName().replace('.', '/');
     }
-
-    private static final InstrumentationService INSTRUMENTER_FACTORY = (new ProviderLocator<>(
-        "entitlement-agent",
-        InstrumentationService.class,
-        "org.elasticsearch.entitlement.agent.impl",
-        Set.<String>of("org.objectweb.nonexistent.asm", "org.elasticsearch.entitlement.agent")
-    )).get();
 
     // private static final Logger LOGGER = LogManager.getLogger(EntitlementAgent.class);
 }

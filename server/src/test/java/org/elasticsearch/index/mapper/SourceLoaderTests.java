@@ -21,7 +21,7 @@ public class SourceLoaderTests extends MapperServiceTestCase {
             b.startObject("o").field("type", "object").endObject();
             b.startObject("kwd").field("type", "keyword").endObject();
         }));
-        assertFalse(mapper.mappers().newSourceLoader(SourceFieldMetrics.NOOP).reordersFieldValues());
+        assertFalse(mapper.mappers().newSourceLoader(null, SourceFieldMetrics.NOOP).reordersFieldValues());
     }
 
     public void testEmptyObject() throws IOException {
@@ -29,7 +29,7 @@ public class SourceLoaderTests extends MapperServiceTestCase {
             b.startObject("o").field("type", "object").endObject();
             b.startObject("kwd").field("type", "keyword").endObject();
         }));
-        assertTrue(mapper.mappers().newSourceLoader(SourceFieldMetrics.NOOP).reordersFieldValues());
+        assertTrue(mapper.mappers().newSourceLoader(null, SourceFieldMetrics.NOOP).reordersFieldValues());
         assertThat(syntheticSource(mapper, b -> b.field("kwd", "foo")), equalTo("""
             {"kwd":"foo"}"""));
     }

@@ -16,11 +16,13 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkedInferenceServiceResults;
 import org.elasticsearch.inference.ChunkingOptions;
 import org.elasticsearch.inference.ChunkingSettings;
+import org.elasticsearch.inference.InferenceServiceConfiguration;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
+import org.elasticsearch.inference.ServiceConfiguration;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.rest.RestStatus;
@@ -39,7 +41,11 @@ import org.elasticsearch.xpack.inference.services.cohere.completion.CohereComple
 import org.elasticsearch.xpack.inference.services.cohere.embeddings.CohereEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.cohere.embeddings.CohereEmbeddingsServiceSettings;
 import org.elasticsearch.xpack.inference.services.cohere.rerank.CohereRerankModel;
+import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
+import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
+import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -212,6 +218,19 @@ public class CohereService extends SenderService {
     }
 
     @Override
+    public InferenceServiceConfiguration getConfiguration() {
+        return new InferenceServiceConfiguration.Builder().setProvider(NAME)
+            .setTaskTypes(supportedTaskTypes())
+            .setConfiguration(CohereService.Configuration.get())
+            .build();
+    }
+
+    @Override
+    public EnumSet<TaskType> supportedTaskTypes() {
+        return EnumSet.of(TaskType.TEXT_EMBEDDING, TaskType.COMPLETION, TaskType.RERANK);
+    }
+
+    @Override
     public void doInfer(
         Model model,
         InferenceInputs inputs,
@@ -331,5 +350,16 @@ public class CohereService extends SenderService {
     @Override
     public Set<TaskType> supportedStreamingTasks() {
         return COMPLETION_ONLY;
+    }
+
+    private static class Configuration {
+        public static Map<String, ServiceConfiguration> get() {
+            var configurationMap = new HashMap<String, ServiceConfiguration>();
+
+            configurationMap.putAll(DefaultSecretSettings.toServiceConfiguration());
+            configurationMap.putAll(RateLimitSettings.toServiceConfiguration());
+
+            return configurationMap;
+        }
     }
 }

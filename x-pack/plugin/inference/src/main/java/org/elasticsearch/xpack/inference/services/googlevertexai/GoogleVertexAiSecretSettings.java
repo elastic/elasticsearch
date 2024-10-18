@@ -16,6 +16,9 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.SecretSettings;
+import org.elasticsearch.inference.ServiceConfiguration;
+import org.elasticsearch.inference.configuration.ServiceConfigurationDisplayType;
+import org.elasticsearch.inference.configuration.ServiceConfigurationFieldType;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -51,6 +54,22 @@ public class GoogleVertexAiSecretSettings implements SecretSettings {
         }
 
         return new GoogleVertexAiSecretSettings(secureServiceAccountJson);
+    }
+
+    public static Map<String, ServiceConfiguration> toServiceConfiguration() {
+        var configurationMap = new HashMap<String, ServiceConfiguration>();
+        configurationMap.put(
+            SERVICE_ACCOUNT_JSON,
+            new ServiceConfiguration.Builder().setDisplay(ServiceConfigurationDisplayType.TEXTBOX)
+                .setLabel("Credentials JSON")
+                .setOrder(1)
+                .setRequired(true)
+                .setSensitive(true)
+                .setTooltip("API Key for the provider you're connecting to.")
+                .setType(ServiceConfigurationFieldType.STRING)
+                .build()
+        );
+        return configurationMap;
     }
 
     public GoogleVertexAiSecretSettings(SecureString serviceAccountJson) {

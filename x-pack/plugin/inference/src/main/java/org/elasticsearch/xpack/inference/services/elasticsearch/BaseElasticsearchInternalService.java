@@ -39,7 +39,6 @@ import org.elasticsearch.xpack.inference.DefaultElserFeatureFlag;
 import org.elasticsearch.xpack.inference.InferencePlugin;
 
 import java.io.IOException;
-import java.util.EnumSet;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.function.Consumer;
@@ -82,12 +81,6 @@ public abstract class BaseElasticsearchInternalService implements InferenceServi
         this.preferredModelVariantFn = preferredModelVariantFn;
         this.clusterService = context.clusterService();
     }
-
-    /**
-     * The task types supported by the service
-     * @return Set of supported.
-     */
-    protected abstract EnumSet<TaskType> supportedTaskTypes();
 
     @Override
     public void start(Model model, ActionListener<Boolean> finalListener) {

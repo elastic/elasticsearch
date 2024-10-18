@@ -17,13 +17,17 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkedInferenceServiceResults;
 import org.elasticsearch.inference.ChunkingOptions;
 import org.elasticsearch.inference.ChunkingSettings;
+import org.elasticsearch.inference.InferenceServiceConfiguration;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
+import org.elasticsearch.inference.ServiceConfiguration;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.inference.configuration.ServiceConfigurationDisplayType;
+import org.elasticsearch.inference.configuration.ServiceConfigurationFieldType;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.inference.ChunkingSettingsFeatureFlag;
 import org.elasticsearch.xpack.inference.chunking.ChunkingSettingsBuilder;
@@ -39,7 +43,10 @@ import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.azureopenai.completion.AzureOpenAiCompletionModel;
 import org.elasticsearch.xpack.inference.services.azureopenai.embeddings.AzureOpenAiEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.azureopenai.embeddings.AzureOpenAiEmbeddingsServiceSettings;
+import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
+import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -49,6 +56,9 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.parsePersi
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrDefaultEmpty;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrThrowIfNull;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwIfNotEmptyMap;
+import static org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiServiceFields.API_VERSION;
+import static org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiServiceFields.DEPLOYMENT_ID;
+import static org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiServiceFields.RESOURCE_NAME;
 import static org.elasticsearch.xpack.inference.services.openai.OpenAiServiceFields.EMBEDDING_MAX_BATCH_SIZE;
 
 public class AzureOpenAiService extends SenderService {
@@ -210,6 +220,19 @@ public class AzureOpenAiService extends SenderService {
     }
 
     @Override
+    public InferenceServiceConfiguration getConfiguration() {
+        return new InferenceServiceConfiguration.Builder().setProvider(NAME)
+            .setTaskTypes(supportedTaskTypes())
+            .setConfiguration(AzureOpenAiService.Configuration.get())
+            .build();
+    }
+
+    @Override
+    public EnumSet<TaskType> supportedTaskTypes() {
+        return EnumSet.of(TaskType.TEXT_EMBEDDING, TaskType.COMPLETION);
+    }
+
+    @Override
     protected void doInfer(
         Model model,
         InferenceInputs inputs,
@@ -273,7 +296,7 @@ public class AzureOpenAiService extends SenderService {
      * For text embedding models get the embedding size and
      * update the service settings.
      *
-     * @param model The new model
+     * @param model    The new model
      * @param listener The listener
      */
     @Override
@@ -330,5 +353,56 @@ public class AzureOpenAiService extends SenderService {
     @Override
     public Set<TaskType> supportedStreamingTasks() {
         return COMPLETION_ONLY;
+    }
+
+    private static class Configuration {
+        public static Map<String, ServiceConfiguration> get() {
+            var configurationMap = new HashMap<String, ServiceConfiguration>();
+
+            configurationMap.put(
+                RESOURCE_NAME,
+                new ServiceConfiguration.Builder().setDisplay(ServiceConfigurationDisplayType.TEXTBOX)
+                    .setLabel("Resource Name")
+                    .setOrder(3)
+                    .setRequired(true)
+                    .setSensitive(false)
+                    .setTooltip("The name of your Azure OpenAI resource.")
+                    .setType(ServiceConfigurationFieldType.STRING)
+                    .build()
+            );
+
+            configurationMap.put(
+                API_VERSION,
+                new ServiceConfiguration.Builder().setDisplay(ServiceConfigurationDisplayType.TEXTBOX)
+                    .setLabel("API Version")
+                    .setOrder(4)
+                    .setRequired(true)
+                    .setSensitive(false)
+                    .setTooltip("The Azure API version ID to use.")
+                    .setType(ServiceConfigurationFieldType.STRING)
+                    .build()
+            );
+
+            configurationMap.put(
+                DEPLOYMENT_ID,
+                new ServiceConfiguration.Builder().setDisplay(ServiceConfigurationDisplayType.TEXTBOX)
+                    .setLabel("Deployment ID")
+                    .setOrder(5)
+                    .setRequired(true)
+                    .setSensitive(false)
+                    .setTooltip("The deployment name of your deployed models.")
+                    .setType(ServiceConfigurationFieldType.STRING)
+                    .build()
+            );
+
+            configurationMap.putAll(AzureOpenAiSecretSettings.toServiceConfiguration());
+            configurationMap.putAll(
+                RateLimitSettings.toServiceConfigurationWithTooltip(
+                    "The azureopenai service sets a default number of requests allowed per minute depending on the task type."
+                )
+            );
+
+            return configurationMap;
+        }
     }
 }

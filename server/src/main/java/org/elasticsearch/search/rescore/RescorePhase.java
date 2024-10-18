@@ -121,7 +121,7 @@ public class RescorePhase {
         return true;
     }
 
-    private static Runnable getCancellationChecks(SearchContext context) {
+    static Runnable getCancellationChecks(SearchContext context) {
         List<Runnable> cancellationChecks = new ArrayList<>();
         if (context.lowLevelCancellation()) {
             cancellationChecks.add(() -> {

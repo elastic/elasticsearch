@@ -1,0 +1,6 @@
+pr: 115091
+summary: Added strict range type checks for ENRICH
+area: ES|QL
+type: bug
+issues:
+ - 107357

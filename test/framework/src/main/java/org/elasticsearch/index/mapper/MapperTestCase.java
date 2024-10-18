@@ -1321,12 +1321,15 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             return mapper.fieldType(loaderFieldName).blockLoader(new MappedFieldType.BlockLoaderContext() {
                 @Override
                 public String indexName() {
-                    throw new UnsupportedOperationException();
+                    return "test_index";
                 }
 
                 @Override
                 public IndexSettings indexSettings() {
-                    throw new UnsupportedOperationException();
+                    var imd = IndexMetadata.builder(indexName())
+                        .settings(MapperTestCase.indexSettings(IndexVersion.current(), 1, 1).put(Settings.EMPTY))
+                        .build();
+                    return new IndexSettings(imd, Settings.EMPTY);
                 }
 
                 @Override

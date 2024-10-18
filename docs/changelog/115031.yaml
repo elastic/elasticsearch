@@ -1,0 +1,5 @@
+pr: 115031
+summary: Bool query early termination should also consider `must_not` clauses
+area: Search
+type: enhancement
+issues: []

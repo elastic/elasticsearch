@@ -33,62 +33,49 @@ query
 
 simpleQuery
     : nestedQuery
-    | expression
     | parenthesizedQuery
-    ;
-
-expression
-    : fieldTermQuery
-    | fieldRangeQuery
+    | matchAllQuery
+    | existsQuery
+    | rangeQuery
+    | termQuery
+    | phraseQuery
     ;
 
 nestedQuery
     : fieldName COLON LEFT_CURLY_BRACKET query RIGHT_CURLY_BRACKET
     ;
 
-parenthesizedQuery:
-   LEFT_PARENTHESIS query RIGHT_PARENTHESIS;
-
-fieldRangeQuery
-    : fieldName operator=OP_COMPARE rangeQueryValue
+matchAllQuery
+    : (WILDCARD COLON)? WILDCARD
     ;
 
-fieldTermQuery
-    : (fieldName COLON)? termQueryValue
+parenthesizedQuery
+    : LEFT_PARENTHESIS query RIGHT_PARENTHESIS
+    ;
+
+rangeQuery
+    : fieldName operator=OP_COMPARE rangeValue=UNQUOTED_LITERAL+
+    | fieldName operator=OP_COMPARE rangeValue=QUOTED_STRING|WILDCARD
+    ;
+
+existsQuery
+    :fieldName COLON WILDCARD
+    ;
+
+termQuery
+    : (fieldName COLON)? terms=(UNQUOTED_LITERAL|WILDCARD)+
+    | (fieldName COLON)? LEFT_PARENTHESIS terms=(UNQUOTED_LITERAL|WILDCARD)+ RIGHT_PARENTHESIS
+    ;
+
+phraseQuery:
+    (fieldName COLON)? value=QUOTED_STRING
     ;
 
 fieldName
-    : wildcardExpression
-    | unquotedLiteralExpression
-    | quotedStringExpression
-    ;
-
-rangeQueryValue
-    : unquotedLiteralExpression
-    | quotedStringExpression
-    ;
-
-termQueryValue
-    : wildcardExpression
-    | quotedStringExpression
-    | termValue=unquotedLiteralExpression
-    | groupingTermExpression;
-
-groupingTermExpression
-    : LEFT_PARENTHESIS unquotedLiteralExpression RIGHT_PARENTHESIS
-    ;
-
-unquotedLiteralExpression
     : UNQUOTED_LITERAL+
+    | QUOTED_STRING
+    | WILDCARD
     ;
-
-quotedStringExpression
-    : QUOTED_STRING
-    ;
-
-wildcardExpression
-    : WILDCARD
-;
 
 DEFAULT_SKIP: WHITESPACE -> skip;
 
@@ -104,11 +91,11 @@ RIGHT_PARENTHESIS: ')';
 LEFT_CURLY_BRACKET: '{';
 RIGHT_CURLY_BRACKET: '}';
 
-UNQUOTED_LITERAL: WILDCARD* UNQUOTED_LITERAL_CHAR+ WILDCARD*;
+UNQUOTED_LITERAL: WILDCARD* UNQUOTED_LITERAL_CHAR+ WILDCARD* | WILDCARD_CHAR WILDCARD+;
 
 QUOTED_STRING: '"'QUOTED_CHAR*'"';
 
-WILDCARD: WILDCARD_CHAR+;
+WILDCARD: WILDCARD_CHAR;
 
 fragment WILDCARD_CHAR: '*';
 fragment OP_LESS: '<';

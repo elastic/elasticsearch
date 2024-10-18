@@ -61,14 +61,14 @@ class KqlBaseBaseVisitor<T> extends AbstractParseTreeVisitor<T> implements KqlBa
      * <p>The default implementation returns the result of calling
      * {@link #visitChildren} on {@code ctx}.</p>
      */
-    @Override public T visitExpression(KqlBaseParser.ExpressionContext ctx) { return visitChildren(ctx); }
+    @Override public T visitNestedQuery(KqlBaseParser.NestedQueryContext ctx) { return visitChildren(ctx); }
     /**
      * {@inheritDoc}
      *
      * <p>The default implementation returns the result of calling
      * {@link #visitChildren} on {@code ctx}.</p>
      */
-    @Override public T visitNestedQuery(KqlBaseParser.NestedQueryContext ctx) { return visitChildren(ctx); }
+    @Override public T visitMatchAllQuery(KqlBaseParser.MatchAllQueryContext ctx) { return visitChildren(ctx); }
     /**
      * {@inheritDoc}
      *
@@ -82,14 +82,28 @@ class KqlBaseBaseVisitor<T> extends AbstractParseTreeVisitor<T> implements KqlBa
      * <p>The default implementation returns the result of calling
      * {@link #visitChildren} on {@code ctx}.</p>
      */
-    @Override public T visitFieldRangeQuery(KqlBaseParser.FieldRangeQueryContext ctx) { return visitChildren(ctx); }
+    @Override public T visitRangeQuery(KqlBaseParser.RangeQueryContext ctx) { return visitChildren(ctx); }
     /**
      * {@inheritDoc}
      *
      * <p>The default implementation returns the result of calling
      * {@link #visitChildren} on {@code ctx}.</p>
      */
-    @Override public T visitFieldTermQuery(KqlBaseParser.FieldTermQueryContext ctx) { return visitChildren(ctx); }
+    @Override public T visitExistsQuery(KqlBaseParser.ExistsQueryContext ctx) { return visitChildren(ctx); }
+    /**
+     * {@inheritDoc}
+     *
+     * <p>The default implementation returns the result of calling
+     * {@link #visitChildren} on {@code ctx}.</p>
+     */
+    @Override public T visitTermQuery(KqlBaseParser.TermQueryContext ctx) { return visitChildren(ctx); }
+    /**
+     * {@inheritDoc}
+     *
+     * <p>The default implementation returns the result of calling
+     * {@link #visitChildren} on {@code ctx}.</p>
+     */
+    @Override public T visitPhraseQuery(KqlBaseParser.PhraseQueryContext ctx) { return visitChildren(ctx); }
     /**
      * {@inheritDoc}
      *
@@ -97,46 +111,4 @@ class KqlBaseBaseVisitor<T> extends AbstractParseTreeVisitor<T> implements KqlBa
      * {@link #visitChildren} on {@code ctx}.</p>
      */
     @Override public T visitFieldName(KqlBaseParser.FieldNameContext ctx) { return visitChildren(ctx); }
-    /**
-     * {@inheritDoc}
-     *
-     * <p>The default implementation returns the result of calling
-     * {@link #visitChildren} on {@code ctx}.</p>
-     */
-    @Override public T visitRangeQueryValue(KqlBaseParser.RangeQueryValueContext ctx) { return visitChildren(ctx); }
-    /**
-     * {@inheritDoc}
-     *
-     * <p>The default implementation returns the result of calling
-     * {@link #visitChildren} on {@code ctx}.</p>
-     */
-    @Override public T visitTermQueryValue(KqlBaseParser.TermQueryValueContext ctx) { return visitChildren(ctx); }
-    /**
-     * {@inheritDoc}
-     *
-     * <p>The default implementation returns the result of calling
-     * {@link #visitChildren} on {@code ctx}.</p>
-     */
-    @Override public T visitGroupingTermExpression(KqlBaseParser.GroupingTermExpressionContext ctx) { return visitChildren(ctx); }
-    /**
-     * {@inheritDoc}
-     *
-     * <p>The default implementation returns the result of calling
-     * {@link #visitChildren} on {@code ctx}.</p>
-     */
-    @Override public T visitUnquotedLiteralExpression(KqlBaseParser.UnquotedLiteralExpressionContext ctx) { return visitChildren(ctx); }
-    /**
-     * {@inheritDoc}
-     *
-     * <p>The default implementation returns the result of calling
-     * {@link #visitChildren} on {@code ctx}.</p>
-     */
-    @Override public T visitQuotedStringExpression(KqlBaseParser.QuotedStringExpressionContext ctx) { return visitChildren(ctx); }
-    /**
-     * {@inheritDoc}
-     *
-     * <p>The default implementation returns the result of calling
-     * {@link #visitChildren} on {@code ctx}.</p>
-     */
-    @Override public T visitWildcardExpression(KqlBaseParser.WildcardExpressionContext ctx) { return visitChildren(ctx); }
 }

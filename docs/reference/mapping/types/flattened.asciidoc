@@ -121,6 +121,12 @@ lexicographically.
 Flattened object fields currently cannot be stored. It is not possible to
 specify the <<mapping-store, `store`>> parameter in the mapping.
 
+[NOTE] 
+====
+* The combined length of the key, value, and separator must not exceed the maximum Lucene term length.
+* Keys in `flattened` fields cannot contain the reserved character `\0`.
+====
+
 [[search-fields-flattened]]
 ==== Retrieving flattened fields
 

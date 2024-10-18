@@ -632,18 +632,12 @@ public final class KeywordFieldMapper extends FieldMapper {
             if (hasDocValues()) {
                 return new BlockDocValuesReader.BytesRefsFromOrdsBlockLoader(name());
             }
-            if (isSyntheticSource) {
-                if (false == isStored()) {
-                    throw new IllegalStateException(
-                        "keyword field ["
-                            + name()
-                            + "] is only supported in synthetic _source index if it creates doc values or stored fields"
-                    );
-                }
+            if (isStored()) {
                 return new BlockStoredFieldsReader.BytesFromBytesRefsBlockLoader(name());
             }
             SourceValueFetcher fetcher = sourceValueFetcher(blContext.sourcePaths(name()));
-            return new BlockSourceReader.BytesRefsBlockLoader(fetcher, sourceBlockLoaderLookup(blContext));
+            var sourceMode = blContext.indexSettings().getIndexMappingSourceMode();
+            return new BlockSourceReader.BytesRefsBlockLoader(fetcher, sourceBlockLoaderLookup(blContext), sourceMode);
         }
 
         private BlockSourceReader.LeafIteratorLookup sourceBlockLoaderLookup(BlockLoaderContext blContext) {

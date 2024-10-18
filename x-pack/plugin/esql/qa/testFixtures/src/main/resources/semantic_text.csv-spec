@@ -131,3 +131,45 @@ COUNT(*):long | my_field:semantic_text
 1             | This is a random value
 1             | bye bye!
 ;
+
+simpleWithLongValue
+required_capability: semantic_text_type
+
+FROM semantic_text
+| KEEP value, semantic_text_field
+| SORT value
+;
+
+value:long | semantic_text_field:semantic_text
+1001            | live long and prosper
+1002            | all we have to decide is what to do with the time that is given to us
+1003            | be excellent to each other
+;
+
+simpleWithText
+required_capability: semantic_text_type
+
+FROM semantic_text METADATA _id
+| KEEP description, semantic_text_field
+| SORT description
+;
+
+description:text     | semantic_text_field:semantic_text
+"some description1"  | live long and prosper
+"some description2"  | all we have to decide is what to do with the time that is given to us
+"some description3"  | be excellent to each other
+;
+
+simpleWithKeyword
+required_capability: semantic_text_type
+
+FROM semantic_text METADATA _id
+| KEEP host, semantic_text_field
+| SORT host
+;
+
+host:keyword | semantic_text_field:semantic_text
+"host1"      | live long and prosper
+"host2"      | all we have to decide is what to do with the time that is given to us
+"host3"      | be excellent to each other
+;

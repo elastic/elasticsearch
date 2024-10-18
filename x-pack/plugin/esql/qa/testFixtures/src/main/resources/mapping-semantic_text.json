@@ -59,6 +59,15 @@
     "st_unicode": {
       "type": "semantic_text",
       "inference_id": "test_sparse_inference"
+    },
+    "host" : {
+      "type" : "keyword"
+    },
+    "description" : {
+      "type" : "text"
+    },
+    "value": {
+      "type": "long"
     }
   }
 }

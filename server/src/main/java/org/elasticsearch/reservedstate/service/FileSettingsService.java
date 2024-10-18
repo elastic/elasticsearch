@@ -27,7 +27,8 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.util.concurrent.ExecutionException;
 
-import static org.elasticsearch.reservedstate.service.ReservedStateVersionCheck.*;
+import static org.elasticsearch.reservedstate.service.ReservedStateVersionCheck.HIGHER_OR_SAME_VERSION;
+import static org.elasticsearch.reservedstate.service.ReservedStateVersionCheck.HIGHER_VERSION_ONLY;
 import static org.elasticsearch.xcontent.XContentType.JSON;
 
 /**

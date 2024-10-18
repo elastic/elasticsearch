@@ -22,7 +22,7 @@ def supportedVersion = bwcVersion -> {
   return bwcVersion.onOrAfter(Version.fromString("8.16.0"));
 }
 
-BuildParams.bwcVersions.withWireCompatible(supportedVersion) { bwcVersion, baseName ->
+buildParams.bwcVersions.withWireCompatible(supportedVersion) { bwcVersion, baseName ->
   tasks.register(bwcTaskName(bwcVersion), StandaloneRestIntegTestTask) {
     usesBwcDistribution(bwcVersion)
     systemProperty("tests.old_cluster_version", bwcVersion)

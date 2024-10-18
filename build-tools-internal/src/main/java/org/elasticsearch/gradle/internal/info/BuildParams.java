@@ -25,6 +25,7 @@ import java.util.function.Consumer;
 
 import static java.util.Objects.requireNonNull;
 
+@Deprecated
 public class BuildParams {
     private static Provider<File> runtimeJavaHome;
     private static Boolean isRuntimeJavaHomeSet;

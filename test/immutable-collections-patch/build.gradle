@@ -26,14 +26,14 @@ def outputDir = layout.buildDirectory.dir("jdk-patches")
 def generatePatch = tasks.register("generatePatch", JavaExec)
 generatePatch.configure {
   dependsOn tasks.named("compileJava")
-  inputs.property("java-home-set", BuildParams.getIsRuntimeJavaHomeSet())
-  inputs.property("java-version", BuildParams.runtimeJavaVersion)
+  inputs.property("java-home-set", buildParams.getIsRuntimeJavaHomeSet())
+  inputs.property("java-version", buildParams.runtimeJavaVersion)
   outputs.dir(outputDir)
 
   classpath = sourceSets.main.runtimeClasspath
   mainClass = 'org.elasticsearch.jdk.patch.ImmutableCollectionsPatcher'
-  if (BuildParams.getIsRuntimeJavaHomeSet()) {
-    executable = "${BuildParams.runtimeJavaHome}/bin/java" + (OS.current() == OS.WINDOWS ? '.exe' : '')
+  if (buildParams.getIsRuntimeJavaHomeSet()) {
+    executable = "${buildParams.runtimeJavaHome}/bin/java" + (OS.current() == OS.WINDOWS ? '.exe' : '')
   } else {
     javaLauncher = javaToolchains.launcherFor {
       languageVersion = JavaLanguageVersion.of(VersionProperties.bundledJdkMajorVersion)

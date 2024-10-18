@@ -23,7 +23,6 @@ import java.util.stream.Collectors;
  * along with native role mappings. Unlike native role mappings, cluster-state role mappings are
  * read-only and cannot be modified via APIs. It is possible for cluster-state and native role mappings
  * to have overlapping names.
- * </p>
  *
  * <p>
  * This class handles the following responsibilities to ensure correct processing of cluster-state role mappings:

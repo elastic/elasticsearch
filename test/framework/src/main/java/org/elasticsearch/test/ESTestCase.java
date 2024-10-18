@@ -1699,7 +1699,23 @@ public abstract class ESTestCase extends LuceneTestCase {
         boolean humanReadable,
         String... exceptFieldNames
     ) throws IOException {
-        BytesReference bytes = XContentHelper.toXContent(toXContent, xContentType, params, humanReadable);
+        return toShuffledXContent(toXContent, xContentType, RestApiVersion.current(), params, humanReadable, exceptFieldNames);
+    }
+
+    /**
+     * Returns the bytes that represent the XContent output of the provided {@link ToXContent} object, using the provided
+     * {@link XContentType}. Wraps the output into a new anonymous object according to the value returned
+     * by the {@link ToXContent#isFragment()} method returns. Shuffles the keys to make sure that parsing never relies on keys ordering.
+     */
+    protected final BytesReference toShuffledXContent(
+        ToXContent toXContent,
+        XContentType xContentType,
+        RestApiVersion restApiVersion,
+        ToXContent.Params params,
+        boolean humanReadable,
+        String... exceptFieldNames
+    ) throws IOException {
+        BytesReference bytes = XContentHelper.toXContent(toXContent, xContentType, restApiVersion, params, humanReadable);
         try (XContentParser parser = createParser(xContentType.xContent(), bytes)) {
             try (XContentBuilder builder = shuffleXContent(parser, rarely(), exceptFieldNames)) {
                 return BytesReference.bytes(builder);

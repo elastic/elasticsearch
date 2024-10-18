@@ -25,7 +25,9 @@ import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.health.node.action.HealthNodeNotDiscoveredException;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.DocumentParsingException;
@@ -611,6 +613,16 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
      */
     public static XContentBuilder generateFailureXContent(XContentBuilder builder, Params params, @Nullable Exception e, boolean detailed)
         throws IOException {
+        if (builder.getRestApiVersion() == RestApiVersion.V_8) {
+            if (e == null) {
+                return builder.field(ERROR, "unknown");
+            }
+            if (detailed == false) {
+                return generateNonDetailedFailureXContentV8(builder, e);
+            }
+            // else fallthrough
+        }
+
         if (e == null) {
             // No exception to render as an error
             builder.startObject(ERROR);
@@ -642,6 +654,20 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
         }
         generateThrowableXContent(builder, params, e);
         return builder.endObject();
+    }
+
+    @UpdateForV10(owner = UpdateForV10.Owner.CORE_INFRA)    // remove V8 API
+    private static XContentBuilder generateNonDetailedFailureXContentV8(XContentBuilder builder, @Nullable Exception e) throws IOException {
+        String message = "No ElasticsearchException found";
+        Throwable t = e;
+        for (int counter = 0; counter < 10 && t != null; counter++) {
+            if (t instanceof ElasticsearchException) {
+                message = t.getClass().getSimpleName() + "[" + t.getMessage() + "]";
+                break;
+            }
+            t = t.getCause();
+        }
+        return builder.field(ERROR, message);
     }
 
     /**

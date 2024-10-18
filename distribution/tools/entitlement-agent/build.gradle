@@ -52,6 +52,7 @@ tasks.named('jar').configure {
     attributes(
       'Premain-Class': 'org.elasticsearch.entitlement.agent.EntitlementAgent'
       , 'Can-Retransform-Classes': 'true'
+      , 'Automatic-Module-Name': 'org.elasticsearch.entitlement.agent'
     )
   }
 }

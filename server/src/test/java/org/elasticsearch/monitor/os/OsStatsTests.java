@@ -14,6 +14,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.math.BigInteger;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -32,11 +33,15 @@ public class OsStatsTests extends ESTestCase {
         OsStats.Swap swap = new OsStats.Swap(swapTotal, randomLongBetween(0, swapTotal));
         OsStats.Cgroup cgroup = new OsStats.Cgroup(
             randomAlphaOfLength(8),
-            randomNonNegativeLong(),
+            BigInteger.valueOf(randomNonNegativeLong()),
             randomAlphaOfLength(8),
             randomNonNegativeLong(),
             randomNonNegativeLong(),
-            new OsStats.Cgroup.CpuStat(randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong()),
+            new OsStats.Cgroup.CpuStat(
+                Long.toString(randomNonNegativeLong()),
+                Long.toString(randomNonNegativeLong()),
+                Long.toString(randomNonNegativeLong())
+            ),
             randomAlphaOfLength(8),
             Long.toString(randomNonNegativeLong()),
             Long.toString(randomNonNegativeLong())

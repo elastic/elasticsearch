@@ -1234,4 +1234,11 @@ public abstract class StreamOutput extends OutputStream {
     public void writeMissingString() throws IOException {
         writeBoolean(false);
     }
+
+    /**
+     * Write a {@link BigInteger} to the stream
+     */
+    public void writeBigInteger(BigInteger bigInteger) throws IOException {
+        writeString(bigInteger.toString());
+    }
 }

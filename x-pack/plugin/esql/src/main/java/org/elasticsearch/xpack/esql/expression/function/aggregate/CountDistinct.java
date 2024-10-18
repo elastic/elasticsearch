@@ -202,7 +202,7 @@ public class CountDistinct extends AggregateFunction implements OptionalArgument
 
     public void validate(Failures failures) {
         if (precision != null) {
-            failures.add(Validations.isFoldable(precision, sourceText(), SECOND));
+            failures.add(Validations.isFoldable(precision, this, SECOND));
         }
     }
 

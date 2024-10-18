@@ -27,6 +27,10 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 
+/**
+ * Tests queries that should throw VerificationExceptions after the logical optimization took place.
+ * These exceptions will come from running the Validatable.validate specific method.
+ */
 public class ValidatableVerifierTests extends ESTestCase {
 
     private static EsqlParser parser;
@@ -50,15 +54,35 @@ public class ValidatableVerifierTests extends ESTestCase {
 
     public void testCheckPercentileFoldableSecondArgument() {
         assertEquals(
-            "1:45: second argument of [percentile(languages, languages)] must be a constant, received [languages]",
+            "1:23: second argument of [percentile(languages, languages)] must be a constant, received [languages]",
             error("from test | stats x = percentile(languages, languages) by emp_no")
+        );
+
+        assertEquals(
+            "1:44: second argument of [percentile(l, l)] must be a constant, received [languages]",
+            error("from test | eval l = languages | stats x = percentile(l, l) by emp_no")
+        );
+
+        assertEquals(
+            "1:47: second argument of [percentile(l, l)] must be a constant, received [languages]",
+            error("from test | rename languages AS l | stats x = percentile(l, l) by emp_no")
         );
     }
 
     public void testCheckCountDistinctFoldableSecondArgument() {
         assertEquals(
-            "1:49: second argument of [count_distinct(languages, languages)] must be a constant, received [languages]",
+            "1:23: second argument of [count_distinct(languages, languages)] must be a constant, received [languages]",
             error("from test | stats x = count_distinct(languages, languages) by emp_no")
+        );
+
+        assertEquals(
+            "1:44: second argument of [count_distinct(l, l)] must be a constant, received [languages]",
+            error("from test | eval l = languages | stats x = count_distinct(l, l) by emp_no")
+        );
+
+        assertEquals(
+            "1:47: second argument of [count_distinct(l, l)] must be a constant, received [languages]",
+            error("from test | rename languages AS l | stats x = count_distinct(l, l) by emp_no")
         );
     }
 

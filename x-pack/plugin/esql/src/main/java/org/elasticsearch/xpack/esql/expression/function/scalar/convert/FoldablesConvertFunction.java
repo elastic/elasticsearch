@@ -70,6 +70,6 @@ public abstract class FoldablesConvertFunction extends AbstractConvertFunction i
 
     @Override
     public final void validate(Failures failures) {
-        failures.add(isFoldable(field(), sourceText(), null));
+        failures.add(isFoldable(field(), this, null));
     }
 }

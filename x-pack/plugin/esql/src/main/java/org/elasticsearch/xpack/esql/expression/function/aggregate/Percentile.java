@@ -160,7 +160,7 @@ public class Percentile extends NumericAggregate implements SurrogateExpression,
 
     @Override
     public void validate(Failures failures) {
-        failures.add(Validations.isFoldable(percentile, sourceText(), SECOND));
+        failures.add(Validations.isFoldable(percentile, this, SECOND));
     }
 
     @Override

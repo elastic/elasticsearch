@@ -81,6 +81,7 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
     private long seqNo;
     private long primaryTerm;
 
+    @Nullable
     private BytesReference source;
 
     private final Map<String, DocumentField> documentFields;
@@ -302,22 +303,29 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        assert hasReferences();
-        out.writeFloat(score);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
-            out.writeVInt(rank);
-        } else if (rank != NO_RANK) {
-            throw new IllegalArgumentException("cannot serialize [rank] to version [" + out.getTransportVersion().toReleaseVersion() + "]");
-        }
-        out.writeOptionalText(id);
-        if (out.getTransportVersion().before(TransportVersions.V_8_0_0)) {
-            out.writeOptionalText(SINGLE_MAPPING_TYPE);
-        }
-        out.writeOptionalWriteable(nestedIdentity);
-        out.writeLong(version);
-        out.writeZLong(seqNo);
-        out.writeVLong(primaryTerm);
+        writeStart(out);
         out.writeBytesReference(source);
+        writeEnd(out);
+    }
+
+    @Override
+    public boolean supportsZeroCopy() {
+        return true;
+    }
+
+    @Override
+    public void serialize(SerializationContext result) throws IOException {
+        var out = result.out;
+        writeStart(out);
+        if (source == null) {
+            out.writeBytesReference(null);
+        } else {
+            result.insertBytesReference(source);
+        }
+        writeEnd(out);
+    }
+
+    private void writeEnd(StreamOutput out) throws IOException {
         if (explanation == null) {
             out.writeBoolean(false);
         } else {
@@ -344,6 +352,24 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
         } else {
             out.writeMap(innerHits, StreamOutput::writeWriteable);
         }
+    }
+
+    private void writeStart(StreamOutput out) throws IOException {
+        assert hasReferences();
+        out.writeFloat(score);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
+            out.writeVInt(rank);
+        } else if (rank != NO_RANK) {
+            throw new IllegalArgumentException("cannot serialize [rank] to version [" + out.getTransportVersion().toReleaseVersion() + "]");
+        }
+        out.writeOptionalText(id);
+        if (out.getTransportVersion().before(TransportVersions.V_8_0_0)) {
+            out.writeOptionalText(SINGLE_MAPPING_TYPE);
+        }
+        out.writeOptionalWriteable(nestedIdentity);
+        out.writeLong(version);
+        out.writeZLong(seqNo);
+        out.writeVLong(primaryTerm);
     }
 
     public int docId() {

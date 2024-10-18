@@ -15,9 +15,10 @@ import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
 import org.elasticsearch.gradle.testclusters.TestClustersAware
 import org.elasticsearch.gradle.testclusters.TestDistribution
 
-// Common config when running with a FIPS-140 runtime JVM
-if (BuildParams.inFipsJvm) {
+//apply plugin: org.elasticsearch.gradle.internal.info.GlobalBuildInfoPlugin
 
+// Common config when running with a FIPS-140 runtime JVM
+if (buildParams.inFipsJvm) {
   allprojects {
     String javaSecurityFilename = BuildParams.runtimeJavaDetails.toLowerCase().contains('oracle') ? 'fips_java_oracle.security' : 'fips_java.security'
     File fipsResourcesDir = new File(project.buildDir, 'fips-resources')

@@ -26,9 +26,9 @@ topLevelQuery
     ;
 
 query
-    : <assoc=right> query (AND | OR) query     #booleanQuery
-    | NOT subQuery=simpleQuery                 #notQuery
-    | simpleQuery                              #defaultQuery
+    : <assoc=right> query operator=(AND | OR) query     #booleanQuery
+    | NOT subQuery=simpleQuery                          #notQuery
+    | simpleQuery                                       #defaultQuery
     ;
 
 simpleQuery

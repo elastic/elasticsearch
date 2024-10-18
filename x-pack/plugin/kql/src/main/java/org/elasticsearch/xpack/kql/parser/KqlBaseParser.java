@@ -202,6 +202,7 @@ class KqlBaseParser extends Parser {
     }
     @SuppressWarnings("CheckReturnValue")
     public static class BooleanQueryContext extends QueryContext {
+        public Token operator;
         public List<QueryContext> query() {
             return getRuleContexts(QueryContext.class);
         }
@@ -307,9 +308,10 @@ class KqlBaseParser extends Parser {
                     setState(41);
                     if (!(precpred(_ctx, 3))) throw new FailedPredicateException(this, "precpred(_ctx, 3)");
                     setState(42);
+                    ((BooleanQueryContext)_localctx).operator = _input.LT(1);
                     _la = _input.LA(1);
                     if ( !(_la==AND || _la==OR) ) {
-                    _errHandler.recoverInline(this);
+                        ((BooleanQueryContext)_localctx).operator = (Token)_errHandler.recoverInline(this);
                     }
                     else {
                         if ( _input.LA(1)==Token.EOF ) matchedEOF = true;

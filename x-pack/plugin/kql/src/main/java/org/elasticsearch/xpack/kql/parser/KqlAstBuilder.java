@@ -15,8 +15,6 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.SearchExecutionContext;
 
-import java.util.function.Consumer;
-
 class KqlAstBuilder extends KqlBaseBaseVisitor<QueryBuilder> {
     private final SearchExecutionContext searchExecutionContext;
 
@@ -38,18 +36,33 @@ class KqlAstBuilder extends KqlBaseBaseVisitor<QueryBuilder> {
 
     @Override
     public QueryBuilder visitBooleanQuery(KqlBaseParser.BooleanQueryContext ctx) {
+        assert ctx.operator != null;
+        return isAndQuery(ctx) ? visitAndBooleanQuery(ctx) : visitOrBooleanQuery(ctx);
+    }
+
+    public QueryBuilder visitAndBooleanQuery(KqlBaseParser.BooleanQueryContext ctx) {
         BoolQueryBuilder builder = QueryBuilders.boolQuery();
-        Consumer<QueryBuilder> clauseAdder = ctx.AND() != null ? builder::must : builder::should;
 
         // TODO: KQLContext has an option to wrap the clauses into a filter instead of a must clause. Do we need it?
+        for (ParserRuleContext subQueryCtx : ctx.query()) {
+            if (subQueryCtx instanceof KqlBaseParser.BooleanQueryContext booleanSubQueryCtx && isAndQuery(booleanSubQueryCtx)) {
+                ParserUtils.typedParsing(this, subQueryCtx, BoolQueryBuilder.class).must().forEach(builder::must);
+            } else {
+                builder.must(ParserUtils.typedParsing(this, subQueryCtx, QueryBuilder.class));
+            }
+        }
+
+        return builder;
+    }
+
+    public QueryBuilder visitOrBooleanQuery(KqlBaseParser.BooleanQueryContext ctx) {
+        BoolQueryBuilder builder = QueryBuilders.boolQuery().minimumShouldMatch(1);
 
         for (ParserRuleContext subQueryCtx : ctx.query()) {
-            if (subQueryCtx instanceof KqlBaseParser.BooleanQueryContext booleanSubQueryCtx
-                && (booleanSubQueryCtx.AND() == null) == (ctx.AND() == null)) {
-                BoolQueryBuilder parsedSubQuery = ParserUtils.typedParsing(this, subQueryCtx, BoolQueryBuilder.class);
-                (ctx.AND() != null ? parsedSubQuery.must() : parsedSubQuery.should()).forEach(clauseAdder);
+            if (subQueryCtx instanceof KqlBaseParser.BooleanQueryContext booleanSubQueryCtx && isOrQuery(booleanSubQueryCtx)) {
+                ParserUtils.typedParsing(this, subQueryCtx, BoolQueryBuilder.class).should().forEach(builder::should);
             } else {
-                clauseAdder.accept(ParserUtils.typedParsing(this, subQueryCtx, QueryBuilder.class));
+                builder.should(ParserUtils.typedParsing(this, subQueryCtx, QueryBuilder.class));
             }
         }
 
@@ -76,5 +89,13 @@ class KqlAstBuilder extends KqlBaseBaseVisitor<QueryBuilder> {
     public QueryBuilder visitNestedQuery(KqlBaseParser.NestedQueryContext ctx) {
         // TODO: implementation
         return new MatchNoneQueryBuilder();
+    }
+
+    private static boolean isAndQuery(KqlBaseParser.BooleanQueryContext ctx) {
+        return ctx.operator.getType() == KqlBaseParser.AND;
+    }
+
+    private static boolean isOrQuery(KqlBaseParser.BooleanQueryContext ctx) {
+        return ctx.operator.getType() == KqlBaseParser.OR;
     }
 }

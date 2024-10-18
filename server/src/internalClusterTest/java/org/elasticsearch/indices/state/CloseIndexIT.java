@@ -439,7 +439,7 @@ public class CloseIndexIT extends ESIntegTestCase {
         internalCluster().restartNode(nodeWithPrimary, new InternalTestCluster.RestartCallback());
         ensureGreen(indexName);
         long primaryTerm = clusterService().state().metadata().index(indexName).primaryTerm(0);
-        for (String nodeName : internalCluster().nodesInclude(indexName)) {
+        for (String nodeName : internalCluster().nodesByNameThatIncludeIndex(indexName)) {
             IndexShard shard = internalCluster().getInstance(IndicesService.class, nodeName)
                 .indexService(resolveIndex(indexName))
                 .getShard(0);
@@ -467,7 +467,7 @@ public class CloseIndexIT extends ESIntegTestCase {
             ensureGreen(indexName);
         }
         String[] searcherIds = new String[numberOfShards];
-        Set<String> allocatedNodes = internalCluster().nodesInclude(indexName);
+        Set<String> allocatedNodes = internalCluster().nodesByNameThatIncludeIndex(indexName);
         for (String node : allocatedNodes) {
             IndexService indexService = internalCluster().getInstance(IndicesService.class, node).indexServiceSafe(resolveIndex(indexName));
             for (IndexShard shard : indexService) {
@@ -487,7 +487,7 @@ public class CloseIndexIT extends ESIntegTestCase {
             }
         }
         ensureGreen(indexName);
-        allocatedNodes = internalCluster().nodesInclude(indexName);
+        allocatedNodes = internalCluster().nodesByNameThatIncludeIndex(indexName);
         for (String node : allocatedNodes) {
             IndexService indexService = internalCluster().getInstance(IndicesService.class, node).indexServiceSafe(resolveIndex(indexName));
             for (IndexShard shard : indexService) {

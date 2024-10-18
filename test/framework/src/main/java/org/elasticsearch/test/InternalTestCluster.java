@@ -2049,21 +2049,62 @@ public final class InternalTestCluster extends TestCluster {
     }
 
     /**
-     * Returns a set of nodes that have at least one shard of the given index.
+     * Temporarily retained for compatibility with Serverless code: must update serverless code to use {@link #nodesByNameThatIncludeIndex}
+     * before removal.
      */
     public synchronized Set<String> nodesInclude(String index) {
+        return nodesByNameThatIncludeIndex(index);
+    }
+
+    /**
+     * Returns a set of names of nodes that have at least one shard of the given index.
+     */
+    public synchronized Set<String> nodesByNameThatIncludeIndex(String index) {
+        var nodes = getDiscoveryNodesForIndex(index);
+        if (nodes.isEmpty()) {
+            return Collections.emptySet();
+        }
+
+        Set<String> nodeNames = new HashSet<>(nodes.size());
+        for (DiscoveryNode node : nodes) {
+            nodeNames.add(node.getName());
+        }
+        return nodeNames;
+    }
+
+    /**
+     * Returns a set of IDs of nodes that have at least one shard of the given index.
+     */
+    public synchronized Set<String> nodesByIdThatIncludeIndex(String index) {
+        var nodes = getDiscoveryNodesForIndex(index);
+        if (nodes.isEmpty()) {
+            return Collections.emptySet();
+        }
+
+        Set<String> nodeIds = new HashSet<>(nodes.size());
+        for (DiscoveryNode node : nodes) {
+            nodeIds.add(node.getId());
+        }
+        return nodeIds;
+    }
+
+    /**
+     * Returns a set of nodes that have at least one shard of the given index.
+     */
+    public synchronized Set<DiscoveryNode> getDiscoveryNodesForIndex(String index) {
         if (clusterService().state().routingTable().hasIndex(index)) {
             List<ShardRouting> allShards = clusterService().state().routingTable().allShards(index);
             DiscoveryNodes discoveryNodes = clusterService().state().getNodes();
-            Set<String> nodeNames = new HashSet<>();
+
+            Set<DiscoveryNode> nodes = new HashSet<>();
             for (ShardRouting shardRouting : allShards) {
                 if (shardRouting.assignedToNode()) {
-                    DiscoveryNode discoveryNode = discoveryNodes.get(shardRouting.currentNodeId());
-                    nodeNames.add(discoveryNode.getName());
+                    nodes.add(discoveryNodes.get(shardRouting.currentNodeId()));
                 }
             }
-            return nodeNames;
+            return nodes;
         }
+
         return Collections.emptySet();
     }
 

@@ -337,7 +337,7 @@ public class ArrowResponseTests extends ESTestCase {
         // End of block
         assertEquals(6, block.getFirstValueIndex(4));
 
-        var column = TestColumn.create("some-field", "integer");
+        var column = TestColumn.create("some-field", "integer", true);
         TestCase testCase = new TestCase(List.of(column), List.of(new TestPage(List.of(TestBlock.create(column, block)))));
 
         compareEsqlAndArrow(testCase);
@@ -605,7 +605,11 @@ public class ArrowResponseTests extends ESTestCase {
 
     record TestColumn(String name, String type, ValueType valueType, boolean multivalue) {
         static TestColumn create(String name, String type) {
-            return new TestColumn(name, type, VALUE_TYPES.get(type), randomBoolean());
+            return create(name, type, randomBoolean());
+        }
+
+        static TestColumn create(String name, String type, boolean multivalue) {
+            return new TestColumn(name, type, VALUE_TYPES.get(type), multivalue);
         }
     }
 

@@ -2,6 +2,13 @@ setup:
   - requires:
       cluster_features: ["gte_v8.10.0"]
       reason: Introduced in 8.10.0
+
+  - do:
+      cluster.put_settings:
+        body:
+          persistent:
+            logger.org.elasticsearch: DEBUG
+
   - do:
       synonyms.put_synonym:
         id: test-synonyms
@@ -13,12 +20,6 @@ setup:
               id: "test-id-2"
             - synonyms: "test => check"
               id: "test-id-3"
-
-  - do:
-      cluster.put_settings:
-        body:
-          persistent:
-            logger.org.elasticsearch: DEBUG
 
   # This is to ensure that all index shards (write and read) are available. In serverless this can take some time.
   - do:
@@ -32,6 +33,7 @@ setup:
   - do:
       cluster.allocation_explain:
         body: { "index": ".synonyms-2", "shard": 0, "primary": false }
+        ignore: 400
 
   - do:
       cluster.health:

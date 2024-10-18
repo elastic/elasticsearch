@@ -3,7 +3,11 @@
   - requires:
       cluster_features: ["gte_v8.10.0"]
       reason: Reloading analyzers for specific synonym set is introduced in 8.10.0
-
+  - do:
+      cluster.put_settings:
+        body:
+          persistent:
+            logger.org.elasticsearch: DEBUG
   # Create synonyms_set1
   - do:
       synonyms.put_synonym:
@@ -26,13 +30,26 @@
             - synonyms: "bye => goodbye"
               id: "synonym-rule-2"
 
-  # This is to ensure that at least two index shards (write and read) are available. In serverless this can take some time.
+  # This is to ensure that all index shards (write and read) are available. In serverless this can take some time.
   - do:
       cluster.health:
         index: .synonyms-2
         level: shards
+        timeout: 60s
         wait_for_status: green
-        timeout: 2m
+        ignore: 408
+
+  - do:
+      cluster.allocation_explain:
+        body: { "index": ".synonyms-2", "shard": 0, "primary": false }
+        ignore: 400
+
+  - do:
+      cluster.health:
+        index: .synonyms-2
+        level: shards
+        timeout: 20s
+        wait_for_status: green
 
   # Create my_index1 with synonym_filter that uses synonyms_set1
   - do:
@@ -140,3 +157,10 @@
               my_field:
                 query: salute
   - match: { hits.total.value: 0 }
+---
+teardown:
+  - do:
+      cluster.put_settings:
+        body:
+          persistent:
+            logger.org.elasticsearch: INFO

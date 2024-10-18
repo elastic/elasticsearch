@@ -2,6 +2,13 @@ setup:
   - requires:
       cluster_features: ["gte_v8.10.0"]
       reason: Introduced in 8.10.0
+
+  - do:
+      cluster.put_settings:
+        body:
+          persistent:
+            logger.org.elasticsearch: DEBUG
+
   - do:
       synonyms.put_synonym:
         id: test-get-synonyms
@@ -12,14 +19,33 @@ setup:
             - synonyms: "bye => goodbye"
               id: "test-id-2"
 
-  # This is to ensure that at least two index shards (write and read) are available. In serverless this can take some time.
+  # This is to ensure that all index shards (write and read) are available. In serverless this can take some time.
   - do:
       cluster.health:
         index: .synonyms-2
         level: shards
+        timeout: 60s
         wait_for_status: green
-        timeout: 2m
+        ignore: 408
 
+  - do:
+      cluster.allocation_explain:
+        body: { "index": ".synonyms-2", "shard": 0, "primary": false }
+        ignore: 400
+
+  - do:
+      cluster.health:
+        index: .synonyms-2
+        level: shards
+        timeout: 20s
+        wait_for_status: green
+---
+teardown:
+  - do:
+      cluster.put_settings:
+        body:
+          persistent:
+            logger.org.elasticsearch: INFO
 ---
 "Delete synonyms set":
   - do:

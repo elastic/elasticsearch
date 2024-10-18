@@ -2,6 +2,19 @@ setup:
   - requires:
       cluster_features: ["gte_v8.16.0"]
       reason: Lenient handling of updateable synonyms by default is introduced in 8.16.0
+
+  - do:
+      cluster.put_settings:
+        body:
+          persistent:
+            logger.org.elasticsearch: DEBUG
+---
+teardown:
+  - do:
+      cluster.put_settings:
+        body:
+          persistent:
+            logger.org.elasticsearch: INFO
 ---
 "Load index with an invalid synonym rule":
   - do:
@@ -11,13 +24,26 @@ setup:
           synonyms_set:
             synonyms: "foo => bar, baz"
 
-  # This is to ensure that at least two index shards (write and read) are available. In serverless this can take some time.
+  # This is to ensure that all index shards (write and read) are available. In serverless this can take some time.
   - do:
       cluster.health:
         index: .synonyms-2
         level: shards
+        timeout: 60s
         wait_for_status: green
-        timeout: 2m
+        ignore: 408
+
+  - do:
+      cluster.allocation_explain:
+        body: { "index": ".synonyms-2", "shard": 0, "primary": false }
+        ignore: 400
+
+  - do:
+      cluster.health:
+        index: .synonyms-2
+        level: shards
+        timeout: 20s
+        wait_for_status: green
 
   - do:
       indices.create:

@@ -54,6 +54,7 @@ import org.elasticsearch.xpack.esql.plan.physical.ShowExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 
 import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * <p>This class is part of the planner</p>
@@ -104,6 +105,27 @@ public class Mapper {
         //
         // Unary Plan
         //
+        if (localMode == false && p instanceof Enrich enrich && enrich.mode() == Enrich.Mode.REMOTE) {
+            var child = map(enrich.child());
+            AtomicBoolean hasFragment = new AtomicBoolean(false);
+            var childWithEnrich = child.transformDown(FragmentExec.class, (f) -> {
+                // var enrich2 = new Enrich(
+                // enrich.source(),
+                // f.fragment(),
+                // enrich.mode(),
+                // enrich.policyName(),
+                // enrich.matchField(),
+                // enrich.policy(),
+                // enrich.concreteIndices(),
+                // enrich.enrichFields()
+                // );
+                hasFragment.set(true);
+                return new FragmentExec(p);
+            });
+            if (hasFragment.get()) {
+                return childWithEnrich;
+            }
+        }
 
         if (p instanceof UnaryPlan ua) {
             var child = map(ua.child());

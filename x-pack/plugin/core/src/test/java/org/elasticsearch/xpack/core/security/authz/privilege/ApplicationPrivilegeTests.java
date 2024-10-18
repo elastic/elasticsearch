@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.core.security.authz.privilege;
 
 import junit.framework.AssertionFailedError;
 
-import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
@@ -115,7 +114,6 @@ public class ApplicationPrivilegeTests extends ESTestCase {
 
     public void testNonePrivilege() {
         final ApplicationPrivilege none = ApplicationPrivilege.NONE.apply("super-mega-app");
-        CharacterRunAutomaton run = new CharacterRunAutomaton(none.getAutomaton());
         for (int i = randomIntBetween(5, 10); i > 0; i--) {
             final String action;
             if (randomBoolean()) {
@@ -123,7 +121,7 @@ public class ApplicationPrivilegeTests extends ESTestCase {
             } else {
                 action = randomAlphaOfLengthBetween(3, 6) + randomFrom(":", "/") + randomAlphaOfLengthBetween(3, 8);
             }
-            assertFalse("NONE should not grant " + action, run.run(action));
+            assertFalse("NONE should not grant " + action, none.supersetOfPatterns(action));
         }
     }
 
@@ -149,12 +147,11 @@ public class ApplicationPrivilegeTests extends ESTestCase {
         assertThat(readWrite.name(), containsInAnyOrder("read", "write"));
         assertThat(readWrite.getPatterns(), arrayContainingInAnyOrder("data:read/*", "data:write/*", "action:login"));
 
-        CharacterRunAutomaton run = new CharacterRunAutomaton(readWrite.getAutomaton());
         for (String action : Arrays.asList("data:read/settings", "data:write/user/kimchy", "action:login")) {
-            assertTrue(run.run(action));
+            assertTrue(readWrite.supersetOfPatterns(action));
         }
         for (String action : Arrays.asList("data:delete/user/kimchy", "action:shutdown")) {
-            assertFalse(run.run(action));
+            assertFalse(readWrite.supersetOfPatterns(action));
         }
     }
 

@@ -86,9 +86,4 @@ public class MixedClusterEsqlSpecIT extends EsqlSpecTestCase {
     protected boolean enableRoundingDoubleValuesOnAsserting() {
         return true;
     }
-
-    @Override
-    protected boolean supportsInferenceTestService() {
-        return false;
-    }
 }

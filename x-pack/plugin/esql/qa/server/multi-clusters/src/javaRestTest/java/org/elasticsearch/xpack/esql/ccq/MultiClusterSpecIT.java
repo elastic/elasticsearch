@@ -261,9 +261,4 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
     protected boolean enableRoundingDoubleValuesOnAsserting() {
         return true;
     }
-
-    @Override
-    protected boolean supportsInferenceTestService() {
-        return false;
-    }
 }

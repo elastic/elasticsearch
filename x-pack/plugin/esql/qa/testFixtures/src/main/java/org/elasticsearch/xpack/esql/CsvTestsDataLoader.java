@@ -253,12 +253,7 @@ public class CsvTestsDataLoader {
         }
     }
 
-    /**
-     * The semantic_text mapping type require an inference endpoint that needs
-     * to be setup before creating the index.
-     * @param client
-     * @throws IOException
-     */
+    /** The semantic_text mapping type require an inference endpoint that needs to be setup before creating the index. */
     public static void createInferenceEndpoint(RestClient client) throws IOException {
         Request request = new Request("PUT", "_inference/sparse_embedding/test_sparse_inference");
         request.setJsonEntity("""

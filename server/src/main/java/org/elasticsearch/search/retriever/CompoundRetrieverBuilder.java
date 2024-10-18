@@ -50,6 +50,15 @@ public abstract class CompoundRetrieverBuilder<T extends CompoundRetrieverBuilde
     protected final List<RetrieverSource> innerRetrievers;
 
     protected CompoundRetrieverBuilder(List<RetrieverSource> innerRetrievers, int rankWindowSize) {
+
+        for (RetrieverSource innerRetriever : innerRetrievers) {
+            if (innerRetriever.retriever.isAllowedAsChildRetriever() == false) {
+                throw new IllegalArgumentException(
+                    "[" + innerRetriever.retriever.getName() + "] must be a standalone or top level retriever only"
+                );
+            }
+        }
+
         this.rankWindowSize = rankWindowSize;
         this.innerRetrievers = innerRetrievers;
     }

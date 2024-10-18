@@ -127,3 +127,86 @@ setup:
   - match: { hits.hits.0._id: foo }
   - match: { hits.hits.1._id: foo2 }
 
+
+---
+"query rules retriever combined with rrf and pagination":
+
+  - do:
+      search:
+        index: test-index1
+        body:
+          size: 1
+          from: 1
+          retriever:
+            rule:
+              match_criteria:
+                foo: foo
+                bar: bar
+              ruleset_ids:
+                test-ruleset
+              retriever:
+                rrf:
+                  retrievers: [
+                    {
+                      standard: {
+                        query: {
+                          query_string: {
+                            query: bar
+                          }
+                        }
+                      }
+                    },
+                    {
+                      standard: {
+                        query: {
+                          query_string: {
+                            query: baz
+                          }
+                        }
+                      }
+                    }
+                  ]
+
+  - match: { hits.total.value: 4 }
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._id: foo2 }
+
+---
+"query rules will error if defined as a sub-retriever":
+
+  - do:
+      catch: /\[rule\] must be a standalone or top level retriever only/
+      search:
+        index: test-index1
+        body:
+          retriever:
+            rrf:
+              retrievers: [
+                {
+                  standard: {
+                    query: {
+                      query_string: {
+                        query: bar
+                      }
+                    }
+                  }
+                },
+                {
+                  rule: {
+                    match_criteria: {
+                      foo: foo,
+                      bar: bar
+                    },
+                    ruleset_ids: test-ruleset,
+                    retriever: {
+                      standard: {
+                        query: {
+                          query_string: {
+                            query: baz
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              ]

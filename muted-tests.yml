@@ -356,6 +356,9 @@ tests:
 - class: org.elasticsearch.index.mapper.annotatedtext.AnnotatedTextFieldMapperTests
   method: testBlockLoaderFromRowStrideReaderWithSyntheticSource
   issue: https://github.com/elastic/elasticsearch/issues/115076
+- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
+  method: test {string.ValuesGrouped}
+  issue: https://github.com/elastic/elasticsearch/issues/115126
 
 # Examples:
 #

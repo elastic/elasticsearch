@@ -276,7 +276,10 @@ public class ArrowResponseTests extends ESTestCase {
         compareEsqlAndArrow(testCase);
     }
 
-    public void testMultivaluedPrimitive() throws IOException {
+    /**
+     * Test a multivalued field with fixed size values.
+     */
+    public void testMultivaluedInteger() throws IOException {
         IntBlock.Builder builder = BLOCK_FACTORY.newIntBlockBuilder(0);
         builder.beginPositionEntry();
         builder.appendInt(42);
@@ -338,6 +341,9 @@ public class ArrowResponseTests extends ESTestCase {
         compareEsqlAndArrow(testCase);
     }
 
+    /**
+     * Test a multivalued field with variable size values.
+     */
     public void testMultivalueString() throws IOException {
         BytesRefBlock.Builder builder = BLOCK_FACTORY.newBytesRefBlockBuilder(0);
 

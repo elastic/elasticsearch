@@ -108,9 +108,9 @@ FROM semantic_text METADATA _id
 ;
 
 COUNT(*):long | st_version:semantic_text
-1          | 1.2.3
-1          | 9.0.0
-1          | null
+1             | 1.2.3
+1             | 9.0.0
+1             | null
 ;
 
 withDropKeepStatsMvExpandRenameSortLimit
@@ -127,7 +127,7 @@ FROM semantic_text METADATA _id
 ;
 
 COUNT(*):long | my_field:semantic_text
-1          | Hello there!
-1          | This is a random value
-1          | bye bye!
+1             | Hello there!
+1             | This is a random value
+1             | bye bye!
 ;

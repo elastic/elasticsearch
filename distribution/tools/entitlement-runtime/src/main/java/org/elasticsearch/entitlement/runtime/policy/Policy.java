@@ -13,6 +13,9 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
+/**
+ * A holder for scoped entitlements.
+ */
 public class Policy {
 
     public final String name;

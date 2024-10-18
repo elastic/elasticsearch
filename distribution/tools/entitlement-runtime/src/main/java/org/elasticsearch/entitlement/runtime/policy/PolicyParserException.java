@@ -11,6 +11,9 @@ package org.elasticsearch.entitlement.runtime.policy;
 
 import org.elasticsearch.xcontent.XContentLocation;
 
+/**
+ * An exception specifically for policy parsing errors.
+ */
 public class PolicyParserException extends RuntimeException {
 
     public static PolicyParserException newPolicyParserException(XContentLocation location, String policyName, String message) {

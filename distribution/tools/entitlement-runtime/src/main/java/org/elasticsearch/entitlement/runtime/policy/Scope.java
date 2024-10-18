@@ -13,6 +13,9 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
+/**
+ * A holder for entitlements within a single scope.
+ */
 public class Scope {
 
     public final String name;

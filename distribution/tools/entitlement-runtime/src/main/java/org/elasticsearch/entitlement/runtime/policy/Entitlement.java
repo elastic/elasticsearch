@@ -9,6 +9,11 @@
 
 package org.elasticsearch.entitlement.runtime.policy;
 
+/**
+ * Marker interface to ensure that only {@link Entitlement} are
+ * part of a {@link Policy}. All entitlement classes should implement
+ * this.
+ */
 public interface Entitlement {
 
 }

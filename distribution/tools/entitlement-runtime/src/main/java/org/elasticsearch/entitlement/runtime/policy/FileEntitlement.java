@@ -12,6 +12,9 @@ package org.elasticsearch.entitlement.runtime.policy;
 import java.util.List;
 import java.util.Objects;
 
+/**
+ * Describes a file entitlement with a path and actions.
+ */
 public class FileEntitlement implements Entitlement {
 
     public static final int READ_ACTION = 0x1;

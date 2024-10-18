@@ -21,7 +21,7 @@ public class PolicyParserTests extends ESTestCase {
             .parsePolicy();
         Policy builtPolicy = new Policy(
             "test-policy.yaml",
-            List.of(new Scope("entitlement-module-1", List.of(new FileEntitlement("test/path/to/file", List.of("read", "write")))))
+            List.of(new Scope("entitlement-module-name", List.of(new FileEntitlement("test/path/to/file", List.of("read", "write")))))
         );
         assertEquals(parsedPolicy, builtPolicy);
     }

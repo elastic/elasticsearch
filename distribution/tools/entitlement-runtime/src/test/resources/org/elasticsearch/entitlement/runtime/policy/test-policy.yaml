@@ -1,4 +1,4 @@
-entitlement-module-1:
+entitlement-module-name:
   entitlements:
     - file:
         path: "test/path/to/file"

@@ -9,11 +9,28 @@
 
 package org.elasticsearch.entitlement.runtime.policy;
 
+import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
+import java.lang.annotation.Target;
 
+/**
+ * This annotation indicates an {@link Entitlement} is available
+ * to "external" classes such as those used in plugins. Any {@link Entitlement}
+ * using this annotation is considered parseable as part of a policy file
+ * for entitlements.
+ */
+@Target(ElementType.CONSTRUCTOR)
 @Retention(RetentionPolicy.RUNTIME)
 public @interface ExternalEntitlement {
 
+    /**
+     * This is the list of parameter names that are
+     * parseable in {@link PolicyParser#parseEntitlement(String, String)}.
+     * The number and order of parameter names much match the number and order
+     * of constructor parameters as this is how the parser will pass in the
+     * parsed values from a policy file. However, the names themselves do NOT
+     * have to match the parameter names of the constructor.
+     */
     String[] parameterNames() default {};
 }

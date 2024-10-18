@@ -1,0 +1,111 @@
+// Match all queries
+*
+*:*
+(*:*)
+
+// Queries with no field
+200
+foo
+foo bar
+(foo bar)
+foo*
+*foo
+f*oo
+"foo bar"
+
+// Queries with all fields
+ *:200
+ *:foo
+ *:foo bar
+ *:foo*
+ *:f*oo
+ *: *foo
+ *:"foo bar"
+
+// Querying a field
+foo_field:200
+foo_field:foo
+foo_field:foo bar
+foo_field:(foo bar)
+foo_field:foo*
+foo_field: f*oo
+foo_field: *foo
+foo_field:"foo bar"
+foo_field.subfield:foo
+foo_*_field:foo
+foo_field:*
+foo_*:*
+
+// Range queries
+foo_field<200
+foo_field<foo
+foo_field<"foo bar"
+foo_field>=200
+foo_field>=foo
+foo_field>"foo bar"
+foo_field<=foo
+foo_field>=foo
+
+// Boolean queries
+NOT foo
+NOT foo bar
+NOT foo_field:foo
+NOT foo_field<foo
+foo_field:foo AND foo_field:foo bar
+foo_field<foo AND foo_field>bar
+(foo_field:foo) AND (foo_field:foo bar)
+foo_field:foo OR foo_field:foo bar
+NOT(foo_field:foo OR foo_field:foo bar)
+NOT(foo_field:foo AND foo_field:foo bar)
+NOT foo_field:foo AND NOT foo_field:foo bar
+(NOT foo_field:foo) AND (NOT foo_field:foo bar)
+NOT(foo_field:foo) AND NOT(foo_field:foo bar)
+foo_field:foo AND foo_field:foo bar AND foo bar
+foo_field:foo AND foo_field:foo bar OR foo bar
+foo_field:foo OR foo_field:foo bar OR foo bar
+foo_field:foo OR foo_field:foo bar AND foo bar
+foo_field:foo AND (foo_field:foo bar OR foo bar)
+foo_field:foo AND (foo_field:foo bar OR foo bar)
+foo_field:foo OR (foo_field:foo bar OR foo bar)
+
+// Nested queries
+nested_field: { NOT foo }
+nested_field: { NOT foo bar }
+nested_field: { NOT foo_field:foo }
+nested_field: { foo_field:foo AND foo_field:foo bar }
+nested_field: { foo_field<foo AND foo_field>bar }
+nested_field: { (foo_field:foo) AND (foo_field:foo bar) }
+nested_field: { foo_field:foo OR foo_field:foo bar }
+nested_field: { NOT(foo_field:foo OR foo_field:foo bar) }
+nested_field: { NOT(foo_field:foo AND foo_field:foo bar) }
+nested_field: { NOT foo_field:foo AND NOT foo_field:foo bar }
+nested_field: { (NOT foo_field:foo) AND (NOT foo_field:foo bar) }
+nested_field: { NOT(foo_field:foo) AND NOT(foo_field:foo bar) }
+nested_field: { foo_field:foo AND foo_field:foo bar AND foo bar }
+nested_field: { foo_field:foo AND foo_field:foo bar OR foo bar }
+nested_field: { foo_field:foo OR foo_field:foo bar OR foo bar }
+nested_field: { foo_field:foo OR foo_field:foo bar AND foo bar }
+nested_field: { foo_field:foo AND (foo_field:foo bar OR foo bar) }
+nested_field: { foo_field:foo AND (foo_field:foo bar OR foo bar) }
+nested_field: { foo_field:foo OR (foo_field:foo bar OR foo bar) }
+nested_field: { sub_nested_field : { foo_field:foo } AND foo_field:foo bar }
+
+// Queries with escape sequences
+foo_field : (foo\(bar\))
+foo_field : foo\:bar
+foo_field : (foo \and bar)
+foo_field : (foo \or bar)
+foo_field : foo \not bar
+foo_field : foo \{bar\}
+foo_field : foo \(bar\)
+foo_field : foo \\ bar
+foo_field : foo \"bar\"
+
+foo_field : "foo and bar"
+foo_field : "foo not bar"
+foo_field : "foo or bar"
+foo_field : "foo : bar"
+foo_field : "foo { bar }"
+foo_field : "foo (bar)"
+foo_field : "foo \\ bar"
+foo_field : "foo \"bar\""

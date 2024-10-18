@@ -172,7 +172,7 @@ public class ExpressionRoleMapping implements ToXContentObject, Writeable {
      * that match the {@link #getExpression() expression} in this mapping.
      */
     public List<String> getRoles() {
-        return Collections.unmodifiableList(roles);
+        return roles != null ? Collections.unmodifiableList(roles) : Collections.emptyList();
     }
 
     /**
@@ -180,7 +180,7 @@ public class ExpressionRoleMapping implements ToXContentObject, Writeable {
      * that should be assigned to users that match the {@link #getExpression() expression} in this mapping.
      */
     public List<TemplateRoleName> getRoleTemplates() {
-        return Collections.unmodifiableList(roleTemplates);
+        return roleTemplates != null ? Collections.unmodifiableList(roleTemplates) : Collections.emptyList();
     }
 
     /**
@@ -189,7 +189,7 @@ public class ExpressionRoleMapping implements ToXContentObject, Writeable {
      * This is not used within the mapping process, and does not affect whether the expression matches, nor which roles are assigned.
      */
     public Map<String, Object> getMetadata() {
-        return Collections.unmodifiableMap(metadata);
+        return metadata != null ? Collections.unmodifiableMap(metadata) : Collections.emptyMap();
     }
 
     /**

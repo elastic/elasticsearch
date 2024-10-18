@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.kql.parser;
 
 import org.antlr.v4.runtime.ParserRuleContext;
-import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -42,8 +41,7 @@ class KqlAstBuilder extends KqlBaseBaseVisitor<QueryBuilder> {
 
     @Override
     public QueryBuilder visitNotQuery(KqlBaseParser.NotQueryContext ctx) {
-        BoolQueryBuilder builder = QueryBuilders.boolQuery();
-        return builder.mustNot(ParserUtils.typedParsing(this, ctx.simpleQuery(), QueryBuilder.class));
+        return QueryBuilders.boolQuery().mustNot(ParserUtils.typedParsing(this, ctx.simpleQuery(), QueryBuilder.class));
     }
 
     @Override

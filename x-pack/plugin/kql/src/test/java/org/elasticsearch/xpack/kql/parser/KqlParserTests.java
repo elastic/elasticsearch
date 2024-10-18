@@ -105,7 +105,6 @@ public class KqlParserTests extends AbstractBuilderTestCase {
 
         for (String query : readQueries("/supported-queries")) {
             try {
-                System.out.println(query);
                 parser.parseKqlQuery(query, searchExecutionContext);
             } catch (Throwable e) {
                 throw new AssertionError("Unexpected error during query parsing [ " + query + "]", e);

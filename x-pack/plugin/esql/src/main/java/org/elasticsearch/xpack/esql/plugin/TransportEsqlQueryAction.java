@@ -164,7 +164,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             request.query(),
             request.profile(),
             request.tables(),
-            System.nanoTime()  // MP TODO: remove this
+            System.nanoTime()
         );
         String sessionId = sessionID(task);
         EsqlExecutionInfo executionInfo = new EsqlExecutionInfo(

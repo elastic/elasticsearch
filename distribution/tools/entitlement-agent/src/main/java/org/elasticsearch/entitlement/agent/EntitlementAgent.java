@@ -40,12 +40,16 @@ public class EntitlementAgent {
             Set.<String>of("org.objectweb.nonexistent.asm", "org.elasticsearch.entitlement.agent")
         )).get();
 
+        // Temporary hardcoded config
         Method targetMethod = System.class.getMethod("exit", int.class);
         Method instrumentationMethod = Class.forName("org.elasticsearch.entitlement.api.EntitlementChecks")
             .getMethod("checkSystemExit", Class.class, int.class);
         Map<MethodKey, Method> methodMap = Map.of(instrumenterFactory.methodKeyForTarget(targetMethod), instrumentationMethod);
 
+        // Instrument any classes loaded from this point onward
         inst.addTransformer(new Transformer(instrumenterFactory.newInstrumenter("", methodMap), Set.of(internalName(System.class))), true);
+
+        // Instrument any classes already loaded
         inst.retransformClasses(System.class);
     }
 

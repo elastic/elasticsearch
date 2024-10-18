@@ -18,6 +18,14 @@ dependencies {
   testImplementation 'org.ow2.asm:asm-util:9.7'
 }
 
+tasks.named('jar').configure {
+  manifest {
+    attributes(
+      'Automatic-Module-Name': 'org.elasticsearch.entitlement.agent.impl'
+    )
+  }
+}
+
 tasks.named('test').configure {
   systemProperty "tests.security.manager", "false"
 }

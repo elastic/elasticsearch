@@ -142,19 +142,26 @@ final class SystemJvmOptions {
 
     private static Stream<String> maybeEntitlementAgent(boolean useEntitlementAgent, Path workingDir) throws IOException {
         if (useEntitlementAgent) {
-            Path relativeLocation = Path.of("lib", "tools", "entitlement-agent");
-            List<Path> candidates = new ArrayList<>();
-            try (var stream = Files.newDirectoryStream(workingDir.resolve(relativeLocation), "*.jar")) {
-                stream.forEach(candidates::add);
-            }
-            if (candidates.isEmpty()) {
-                throw new IllegalStateException("Could not find entitlement agent jar");
-            } else if (candidates.size() > 2) {
-                throw new IllegalStateException("More than one entitlement agent jar found: " + candidates);
-            }
-            return Stream.of("-javaagent:" + candidates.get(0).toString()); // TODO: Pass bridge library
+            return Stream.of(
+                "-javaagent:" + findEntitlementComponent(workingDir, "entitlement-agent"),
+                "-Des.entitlements.bridgeJar=" + findEntitlementComponent(workingDir, "entitlement-bridge")
+            );
         }
         return Stream.of();
+    }
+
+    private static Path findEntitlementComponent(Path workingDir, String componentName) throws IOException {
+        Path relativeLocation = Path.of("lib", "tools", componentName);
+        List<Path> candidates = new ArrayList<>();
+        try (var stream = Files.newDirectoryStream(workingDir.resolve(relativeLocation), "*.jar")) {
+            stream.forEach(candidates::add);
+        }
+        if (candidates.isEmpty()) {
+            throw new IllegalStateException("Could not find entitlement agent jar");
+        } else if (candidates.size() > 2) {
+            throw new IllegalStateException("More than one entitlement agent jar found: " + candidates);
+        }
+        return candidates.get(0);
     }
 
 }

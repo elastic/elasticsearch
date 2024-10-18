@@ -30,29 +30,27 @@ public class TimeBasedKOrderedUUIDGenerator extends TimeBasedUUIDGenerator {
         );
 
         final byte[] uuidBytes = new byte[15];
-        int i = 0;
 
-        uuidBytes[i++] = (byte) (timestamp >>> 40); // changes every 35 years
-        uuidBytes[i++] = (byte) (timestamp >>> 32); // changes every ~50 days
-        uuidBytes[i++] = (byte) (timestamp >>> 24); // changes every ~4.5h
-        uuidBytes[i++] = (byte) (timestamp >>> 16); // changes every ~65 secs
+        // Precompute timestamp-related bytes
+        uuidBytes[0] = (byte) (timestamp >>> 40); // changes every 35 years
+        uuidBytes[1] = (byte) (timestamp >>> 32); // changes every ~50 days
+        uuidBytes[2] = (byte) (timestamp >>> 24); // changes every ~4.5h
+        uuidBytes[3] = (byte) (timestamp >>> 16); // changes every ~65 secs
 
         // MAC address of the coordinator might change if there are many coordinators in the cluster
         // and the indexing api does not necessarily target the same coordinator.
         byte[] macAddress = macAddress();
         assert macAddress.length == 6;
-        System.arraycopy(macAddress, 0, uuidBytes, i, macAddress.length);
-        i += macAddress.length;
-        uuidBytes[i++] = (byte) (sequenceId >>> 16);
+        System.arraycopy(macAddress, 0, uuidBytes, 4, macAddress.length); // Copy MAC address
 
         // From hereinafter everything is almost like random and does not compress well
         // due to unlikely prefix-sharing
-        uuidBytes[i++] = (byte) (timestamp >>> 8);
-        uuidBytes[i++] = (byte) (sequenceId >>> 8);
-        uuidBytes[i++] = (byte) timestamp;
-        uuidBytes[i++] = (byte) sequenceId;
-        assert i == uuidBytes.length;
+        uuidBytes[10] = (byte) (timestamp >>> 8);
+        uuidBytes[11] = (byte) (sequenceId >>> 8);
+        uuidBytes[12] = (byte) timestamp;
+        uuidBytes[13] = (byte) sequenceId;
 
         return BASE_64_NO_PADDING.encodeToString(uuidBytes);
     }
+
 }

@@ -415,6 +415,9 @@ tests:
 - class: org.elasticsearch.xpack.enrich.EnrichIT
   method: testDeleteExistingPipeline
   issue: https://github.com/elastic/elasticsearch/issues/114775
+- class: org.elasticsearch.compute.aggregation.blockhash.BlockHashRandomizedTests
+  method: test {forcePackedHash=false groups=1 maxValuesPerPosition=1 dups=2 allowedTypes=[Ordinals[dictionarySize=10]]}
+  issue: https://github.com/elastic/elasticsearch/issues/115105
 
 # Examples:
 #

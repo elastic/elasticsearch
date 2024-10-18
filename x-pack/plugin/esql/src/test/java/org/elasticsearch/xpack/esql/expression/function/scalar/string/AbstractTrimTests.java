@@ -74,7 +74,7 @@ public abstract class AbstractTrimTests extends AbstractScalarFunctionTestCase {
         return new TestCaseSupplier.TestCase(
             List.of(new TestCaseSupplier.TypedData(new BytesRef(data), type, "str")),
             name + "[val=Attribute[channel=0]]",
-            type,
+            type == DataType.TEXT ? DataType.KEYWORD : type,
             equalTo(new BytesRef(expected))
         );
     }

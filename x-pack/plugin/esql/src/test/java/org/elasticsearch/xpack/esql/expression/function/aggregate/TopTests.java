@@ -311,7 +311,7 @@ public class TopTests extends AbstractAggregationTestCase {
                     new TestCaseSupplier.TypedData(new BytesRef(order), DataType.KEYWORD, order + " order").forceLiteral()
                 ),
                 "Top[field=Attribute[channel=0], limit=Attribute[channel=1], order=Attribute[channel=2]]",
-                fieldSupplier.type(),
+                fieldSupplier.type() == DataType.TEXT ? DataType.KEYWORD : fieldSupplier.type(),
                 equalTo(expected.size() == 1 ? expected.get(0) : expected)
             );
         });

@@ -22,6 +22,8 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.isA;
@@ -31,7 +33,19 @@ public class KqlParserTests extends AbstractBuilderTestCase {
     public void testEmptyQueryParsing() {
         KqlParser parser = new KqlParser();
         SearchExecutionContext searchExecutionContext = createSearchExecutionContext();
-        assertThat(parser.parseKqlQuery("", searchExecutionContext), isA(MatchAllQueryBuilder.class));
+
+        {
+            // In Kql, an empty query is a match_all query.
+            assertThat(parser.parseKqlQuery("", searchExecutionContext), isA(MatchAllQueryBuilder.class));
+        }
+
+        for (int runs = 0; runs < 100; runs++) {
+            // Also testing that a query that is composed only of whitespace chars returns a match_all query.
+            String kqlQuery = Stream.generate(() -> randomFrom(" ", "\t", "\n", "\r", "\u3000"))
+                .limit(randomInt(20))
+                .collect(Collectors.joining());
+            assertThat(parser.parseKqlQuery("", searchExecutionContext), isA(MatchAllQueryBuilder.class));
+        }
     }
 
     public void testSupportedQueries() throws Exception {

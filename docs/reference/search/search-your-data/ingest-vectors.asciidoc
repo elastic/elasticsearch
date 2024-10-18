@@ -129,6 +129,3 @@ You'll need to generate vectors for queries, on the fly, using an embedding mode
 For this you'll need to deploy a text embedding model in {es} and use the <<knn-query-top-level-parameters,`query_vector_builder` parameter>>.
 
 Learn how to <<semantic-search-deployed-nlp-model,use a deployed text embedding model>> for semantic search.
-
-
-

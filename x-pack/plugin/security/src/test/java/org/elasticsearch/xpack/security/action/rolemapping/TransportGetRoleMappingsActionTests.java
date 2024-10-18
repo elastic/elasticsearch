@@ -197,8 +197,46 @@ public class TransportGetRoleMappingsActionTests extends ESTestCase {
         );
     }
 
+    public void testClusterStateRoleMappingWithFallbackNameOmitted() throws ExecutionException, InterruptedException {
+        testGetMappings(
+            List.of(),
+            Set.of(mapping("name_not_available_after_deserialization")),
+            Set.of(),
+            Set.of("name_not_available_after_deserialization"),
+            Set.of("name_not_available_after_deserialization"),
+            "name_not_available_after_deserialization"
+        );
+
+        testGetMappings(
+            List.of(mapping("name_not_available_after_deserialization")),
+            Set.of(mapping("name_not_available_after_deserialization")),
+            Set.of(),
+            Set.of("name_not_available_after_deserialization"),
+            Set.of("name_not_available_after_deserialization"),
+            "name_not_available_after_deserialization"
+        );
+    }
+
     private void testGetMappings(
-        List<ExpressionRoleMapping> expectedNativeMappings,
+        List<ExpressionRoleMapping> returnedNativeMappings,
+        Set<ExpressionRoleMapping> returnedClusterStateMappings,
+        Set<String> expectedNativeNames,
+        Set<String> expectedClusterStateNames,
+        String... names
+    ) throws InterruptedException, ExecutionException {
+        testGetMappings(
+            returnedNativeMappings,
+            returnedClusterStateMappings,
+            returnedClusterStateMappings.stream().map(this::expectedClusterStateMapping).collect(Collectors.toSet()),
+            expectedNativeNames,
+            expectedClusterStateNames,
+            names
+        );
+    }
+
+    private void testGetMappings(
+        List<ExpressionRoleMapping> returnedNativeMappings,
+        Set<ExpressionRoleMapping> returnedClusterStateMappings,
         Set<ExpressionRoleMapping> expectedClusterStateMappings,
         Set<String> expectedNativeNames,
         Set<String> expectedClusterStateNames,
@@ -208,12 +246,12 @@ public class TransportGetRoleMappingsActionTests extends ESTestCase {
         final GetRoleMappingsRequest request = new GetRoleMappingsRequest();
         request.setNames(names);
 
-        nativeMappings = expectedNativeMappings;
-        clusterStateMappings = expectedClusterStateMappings;
+        nativeMappings = returnedNativeMappings;
+        clusterStateMappings = returnedClusterStateMappings;
         action.doExecute(mock(Task.class), request, future);
         assertThat(future.get(), notNullValue());
-        List<ExpressionRoleMapping> combined = new ArrayList<>(expectedNativeMappings);
-        combined.addAll(expectedClusterStateMappings.stream().map(this::expectedClusterStateMapping).collect(Collectors.toSet()));
+        List<ExpressionRoleMapping> combined = new ArrayList<>(returnedNativeMappings);
+        combined.addAll(expectedClusterStateMappings);
         ExpressionRoleMapping[] actualMappings = future.get().mappings();
         assertThat(actualMappings, arrayContainingInAnyOrder(combined.toArray(new ExpressionRoleMapping[0])));
         assertThat(nativeNamesRef.get(), containsInAnyOrder(expectedNativeNames.toArray(new String[0])));

@@ -47,9 +47,9 @@ public final class ReservedRoleMappingXContentNameFieldHelper {
         return expressionRoleMapping.getName().equals(FALLBACK_NAME);
     }
 
-    public static boolean removeNameFromMetadata(Map<String, Object> metadata) {
+    public static void removeNameFromMetadata(Map<String, Object> metadata) {
         assert metadata instanceof HashMap<String, Object>;
-        return metadata.remove(METADATA_NAME_FIELD) != null;
+        metadata.remove(METADATA_NAME_FIELD);
     }
 
     public static ExpressionRoleMapping parseWithNameFromMetadata(XContentParser parser) throws IOException {

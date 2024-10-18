@@ -14,7 +14,7 @@ import org.junit.ClassRule;
 
 public class EsqlSpecIT extends EsqlSpecTestCase {
     @ClassRule
-    public static ElasticsearchCluster cluster = Clusters.testCluster(spec -> {});
+    public static ElasticsearchCluster cluster = Clusters.testCluster(spec -> spec.plugin("inference-service-test"));
 
     @Override
     protected String getTestRestCluster() {

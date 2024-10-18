@@ -65,7 +65,10 @@ import static org.elasticsearch.xpack.esql.CsvSpecReader.specParser;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.ExpectedResults;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.isEnabled;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.loadCsvSpecValues;
-import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.CSV_DATASET_MAP;
+import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.availableDatasetsForEs;
+import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.clusterHasInferenceEndpoint;
+import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.createInferenceEndpoint;
+import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.deleteInferenceEndpoint;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.loadDataSetIntoEs;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.classpathResources;
 
@@ -129,7 +132,11 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
 
     @Before
     public void setup() throws IOException {
-        if (indexExists(CSV_DATASET_MAP.keySet().iterator().next()) == false) {
+        if (clusterHasInferenceEndpoint(client()) == false) {
+            createInferenceEndpoint(client());
+        }
+
+        if (indexExists(availableDatasetsForEs(client()).iterator().next().indexName()) == false) {
             loadDataSetIntoEs(client());
         }
     }
@@ -148,6 +155,8 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
                 throw e;
             }
         }
+
+        deleteInferenceEndpoint(client());
     }
 
     public boolean logResults() {

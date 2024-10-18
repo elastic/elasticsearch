@@ -1,0 +1,175 @@
+simple
+required_capability: semantic_text_type
+
+FROM semantic_text
+| KEEP semantic_text_field
+| sort semantic_text_field asc;
+
+semantic_text_field:semantic_text
+all we have to decide is what to do with the time that is given to us
+be excellent to each other
+live long and prosper
+;
+
+simpleWithUnicode
+required_capability: semantic_text_type
+
+FROM semantic_text
+| KEEP st_unicode
+| SORT st_unicode
+;
+
+st_unicode:semantic_text
+你吃饭了吗
+["谢谢", "对不起我的中文不好"]
+null
+;
+
+mvExpand
+required_capability: semantic_text_type
+
+FROM semantic_text METADATA _id
+| KEEP _id, st_multi_value
+| MV_EXPAND st_multi_value
+| SORT st_multi_value
+;
+
+_id:keyword | st_multi_value:semantic_text
+1           | Hello there!
+1           | This is a random value
+2           | bye bye!
+1           | for testing purposes
+2           | nice to meet you
+3           | null
+;
+
+withDropAndKeep
+required_capability: semantic_text_type
+
+FROM semantic_text METADATA _id
+| KEEP _id, semantic_text_field, st_double
+| DROP st_double
+| SORT _id
+;
+
+_id:keyword | semantic_text_field:semantic_text
+1           | live long and prosper
+2           | all we have to decide is what to do with the time that is given to us
+3           | be excellent to each other
+;
+
+rename
+required_capability: semantic_text_type
+
+FROM semantic_text METADATA _id
+| RENAME semantic_text_field AS my_field
+| KEEP _id, my_field
+| SORT _id
+;
+
+_id:keyword | my_field:semantic_text
+1           | live long and prosper
+2           | all we have to decide is what to do with the time that is given to us
+3           | be excellent to each other
+;
+
+eval
+required_capability: semantic_text_type
+
+FROM semantic_text METADATA _id
+| EVAL my_field = semantic_text_field
+| KEEP _id, my_field
+| SORT _id
+;
+
+_id:keyword | my_field:semantic_text
+1           | live long and prosper
+2           | all we have to decide is what to do with the time that is given to us
+3           | be excellent to each other
+;
+
+simpleStats
+required_capability: semantic_text_type
+
+FROM semantic_text METADATA _id
+| STATS COUNT(*)
+;
+
+COUNT(*):long
+3
+;
+
+statsWithGrouping
+required_capability: semantic_text_type
+
+FROM semantic_text METADATA _id
+| STATS COUNT(*) BY st_version
+| SORT st_version
+;
+
+COUNT(*):long | st_version:semantic_text
+1             | 1.2.3
+1             | 9.0.0
+1             | null
+;
+
+withDropKeepStatsMvExpandRenameSortLimit
+required_capability: semantic_text_type
+
+FROM semantic_text METADATA _id
+| KEEP _id, semantic_text_field, st_multi_value
+| DROP semantic_text_field
+| RENAME st_multi_value AS my_field
+| MV_EXPAND my_field
+| STATS COUNT(*) BY my_field
+| SORT my_field
+| LIMIT 3
+;
+
+COUNT(*):long | my_field:semantic_text
+1             | Hello there!
+1             | This is a random value
+1             | bye bye!
+;
+
+simpleWithLongValue
+required_capability: semantic_text_type
+
+FROM semantic_text
+| KEEP value, semantic_text_field
+| SORT value
+;
+
+value:long | semantic_text_field:semantic_text
+1001            | live long and prosper
+1002            | all we have to decide is what to do with the time that is given to us
+1003            | be excellent to each other
+;
+
+simpleWithText
+required_capability: semantic_text_type
+
+FROM semantic_text METADATA _id
+| KEEP description, semantic_text_field
+| SORT description
+;
+
+description:text     | semantic_text_field:semantic_text
+"some description1"  | live long and prosper
+"some description2"  | all we have to decide is what to do with the time that is given to us
+"some description3"  | be excellent to each other
+;
+
+simpleWithKeyword
+required_capability: semantic_text_type
+
+FROM semantic_text METADATA _id
+| KEEP host, semantic_text_field
+| SORT host
+;
+
+host:keyword | semantic_text_field:semantic_text
+"host1"      | live long and prosper
+"host2"      | all we have to decide is what to do with the time that is given to us
+"host3"      | be excellent to each other
+;

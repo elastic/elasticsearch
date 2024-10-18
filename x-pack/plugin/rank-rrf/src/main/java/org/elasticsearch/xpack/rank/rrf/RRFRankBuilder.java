@@ -195,9 +195,7 @@ public class RRFRankBuilder extends RankBuilder {
     @Override
     public RetrieverBuilder toRetriever(SearchSourceBuilder source, Predicate<NodeFeature> clusterSupportsFeature) {
         if (false == clusterSupportsFeature.test(RRFRetrieverBuilder.RRF_RETRIEVER_COMPOSITION_SUPPORTED)) {
-            throw new UnsupportedOperationException(
-                "all nodes need to support the [rrf_retriever_composition_supported] feature to use [rrf]"
-            );
+            return null; // should we throw instead?
         }
         int totalQueries = source.subSearches().size() + source.knnSearch().size();
         if (totalQueries < 2) {

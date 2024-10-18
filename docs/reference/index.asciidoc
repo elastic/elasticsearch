@@ -72,6 +72,8 @@ include::how-to.asciidoc[]
 
 include::troubleshooting.asciidoc[]
 
+include::reference-architectures.asciidoc[]
+
 include::rest-api/index.asciidoc[]
 
 include::migration/index.asciidoc[]

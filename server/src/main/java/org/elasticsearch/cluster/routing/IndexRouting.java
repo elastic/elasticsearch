@@ -168,7 +168,7 @@ public abstract class IndexRouting {
             // generate id if not already provided
             final String id = indexRequest.id();
             if (id == null) {
-                if (creationVersion.onOrAfter(IndexVersions.TIME_SERIES_ID_HASHING)) {
+                if (creationVersion.onOrAfter(IndexVersions.TIME_BASED_K_ORDERED_DOC_ID)) {
                     indexRequest.autoGenerateTimeBasedId();
                 } else {
                     indexRequest.autoGenerateId();

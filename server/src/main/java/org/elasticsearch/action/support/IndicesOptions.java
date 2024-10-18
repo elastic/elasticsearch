@@ -1308,6 +1308,7 @@ public record IndicesOptions(
             .concreteTargetOptions(ConcreteTargetOptions.fromParameter(ignoreUnavailableString, defaultSettings.concreteTargetOptions))
             .wildcardOptions(wildcards)
             .gatekeeperOptions(gatekeeperOptions)
+            .selectorOptions(defaultSettings.selectorOptions)
             .build();
     }
 

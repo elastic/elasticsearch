@@ -266,26 +266,15 @@ tests:
 - class: org.elasticsearch.smoketest.MlWithSecurityIT
   method: test {yaml=ml/3rd_party_deployment/Test start and stop multiple deployments}
   issue: https://github.com/elastic/elasticsearch/issues/101458
-- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
-  method: test {categorize.Categorize ASYNC}
-  issue: https://github.com/elastic/elasticsearch/issues/113721
-- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
-  method: test {categorize.Categorize SYNC}
-  issue: https://github.com/elastic/elasticsearch/issues/113722
-- class: org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDateNanosTests
-  issue: https://github.com/elastic/elasticsearch/issues/113661
-- class: org.elasticsearch.xpack.restart.MLModelDeploymentFullClusterRestartIT
-  method: testDeploymentSurvivesRestart {cluster=UPGRADED}
-  issue: https://github.com/elastic/elasticsearch/issues/112980
-- class: org.elasticsearch.ingest.geoip.DatabaseNodeServiceIT
-  method: testNonGzippedDatabase
-  issue: https://github.com/elastic/elasticsearch/issues/113821
-- class: org.elasticsearch.ingest.geoip.DatabaseNodeServiceIT
-  method: testGzippedDatabase
-  issue: https://github.com/elastic/elasticsearch/issues/113752
-- class: org.elasticsearch.threadpool.SimpleThreadPoolIT
-  method: testThreadPoolMetrics
-  issue: https://github.com/elastic/elasticsearch/issues/108320
+- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
+  method: test {p0=search/540_ignore_above_synthetic_source/ignore_above mapping level setting on arrays}
+  issue: https://github.com/elastic/elasticsearch/issues/113648
+- class: org.elasticsearch.xpack.ml.integration.MlJobIT
+  method: testGetJobs_GivenMultipleJobs
+  issue: https://github.com/elastic/elasticsearch/issues/113654
+- class: org.elasticsearch.xpack.ml.integration.MlJobIT
+  method: testGetJobs_GivenSingleJob
+  issue: https://github.com/elastic/elasticsearch/issues/113655
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=range/20_synthetic_source/Date range}
   issue: https://github.com/elastic/elasticsearch/issues/113874

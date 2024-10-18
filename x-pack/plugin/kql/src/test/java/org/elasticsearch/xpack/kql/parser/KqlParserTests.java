@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.kql.parser;
 
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.test.AbstractBuilderTestCase;
@@ -22,13 +23,19 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.isA;
 
 public class KqlParserTests extends AbstractBuilderTestCase {
+
+    private static final Predicate<String> BOOLEAN_QUERY_FILTER = (q) -> q.matches("(?i)[^{]*[^\\\\](AND|OR)[^}]*");
 
     public void testEmptyQueryParsing() {
         KqlParser parser = new KqlParser();
@@ -61,12 +68,44 @@ public class KqlParserTests extends AbstractBuilderTestCase {
         }
     }
 
+    public void testNotQuery() throws IOException {
+        KqlParser parser = new KqlParser();
+        SearchExecutionContext searchExecutionContext = createSearchExecutionContext();
+
+        for (String baseQuery : readQueries("/supported-queries")) {
+            if (baseQuery.startsWith("NOT") || BOOLEAN_QUERY_FILTER.test(baseQuery)) {
+                baseQuery = wrapWithRandomWhitespaces("(") + baseQuery + wrapWithRandomWhitespaces(")");
+            }
+
+            String notQuery = wrapWithRandomWhitespaces("NOT ") + baseQuery;
+
+            BoolQueryBuilder parsedQuery = asInstanceOf(BoolQueryBuilder.class, parser.parseKqlQuery(notQuery, searchExecutionContext));
+
+            assertThat(parsedQuery.filter(), empty());
+            assertThat(parsedQuery.should(), empty());
+            assertThat(parsedQuery.must(), empty());
+            assertThat(parsedQuery.mustNot(), hasSize(1));
+            assertThat(parsedQuery.mustNot(), hasItem(equalTo((parser.parseKqlQuery(baseQuery, searchExecutionContext)))));
+
+            assertThat(
+                parser.parseKqlQuery(
+                    "NOT" + wrapWithRandomWhitespaces("(") + baseQuery + wrapWithRandomWhitespaces(")"),
+                    searchExecutionContext
+                ),
+                equalTo(parsedQuery)
+            );
+        }
+
+        // TODO: when booleanQuery is implemented, add some precedence tests.
+    }
+
     public void testSupportedQueries() throws IOException {
         KqlParser parser = new KqlParser();
         SearchExecutionContext searchExecutionContext = createSearchExecutionContext();
 
         for (String query : readQueries("/supported-queries")) {
             try {
+                System.out.println(query);
                 parser.parseKqlQuery(query, searchExecutionContext);
             } catch (Throwable e) {
                 throw new AssertionError("Unexpected error during query parsing [ " + query + "]", e);

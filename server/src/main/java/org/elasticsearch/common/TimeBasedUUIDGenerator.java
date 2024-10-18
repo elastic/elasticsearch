@@ -34,6 +34,7 @@ class TimeBasedUUIDGenerator implements UUIDGenerator {
     static {
         assert SECURE_MUNGED_ADDRESS.length == 6;
     }
+
     // protected for testing
     protected long currentTimeMillis() {
         return System.currentTimeMillis();

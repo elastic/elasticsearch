@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.deprecation;
 import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
-import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider;
 import org.elasticsearch.common.settings.SecureSetting;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -214,28 +213,6 @@ public class NodeDeprecationChecks {
                 null
             );
         }
-    }
-
-    static DeprecationIssue checkSingleDataNodeWatermarkSetting(
-        final Settings settings,
-        final PluginsAndModules pluginsAndModules,
-        final ClusterState clusterState,
-        final XPackLicenseState licenseState
-    ) {
-        if (DiskThresholdDecider.ENABLE_FOR_SINGLE_DATA_NODE.exists(settings)) {
-            String key = DiskThresholdDecider.ENABLE_FOR_SINGLE_DATA_NODE.getKey();
-            return new DeprecationIssue(
-                DeprecationIssue.Level.CRITICAL,
-                String.format(Locale.ROOT, "setting [%s] is deprecated and will not be available in a future version", key),
-                "https://www.elastic.co/guide/en/elasticsearch/reference/7.14/"
-                    + "breaking-changes-7.14.html#deprecate-single-data-node-watermark",
-                String.format(Locale.ROOT, "found [%s] configured. Discontinue use of this setting.", key),
-                false,
-                null
-            );
-        }
-
-        return null;
     }
 
     private static DeprecationIssue deprecatedAffixSetting(

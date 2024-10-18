@@ -8,6 +8,8 @@
 
 package org.elasticsearch.common;
 
+import java.util.Base64;
+
 /**
  * A class that extends {@link TimeBasedUUIDGenerator} re-arranging document _id bytes in such
  * a way to take advantage of shared prefixes and favor compression of the term dictionary.
@@ -16,6 +18,8 @@ package org.elasticsearch.common;
  * in a more compact term dictionary.
  */
 public class TimeBasedKOrderedUUIDGenerator extends TimeBasedUUIDGenerator {
+    private static final Base64.Encoder BASE_64_NO_PADDING = Base64.getEncoder().withoutPadding();
+
     @Override
     public String getBase64UUID() {
         final int sequenceId = sequenceNumber.incrementAndGet() & 0x00FF_FFFF;

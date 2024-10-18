@@ -73,16 +73,14 @@ public class LogsdbRestIT extends ESRestTestCase {
         }
     }
 
-    @SuppressWarnings("unchecked")
     public void testLogsdbIndexGetsStoredSource() throws IOException {
         final String index = "test-index";
         createIndex(index, Settings.builder().put("index.mode", "logsdb").build());
-        Map<String, Object> settings = (Map<String, Object>) ((Map<String, Object>) getIndexSettings(index).get(index)).get("settings");
+        var settings = (Map<?, ?>) ((Map<?, ?>) getIndexSettings(index).get(index)).get("settings");
         assertEquals("logsdb", settings.get("index.mode"));
         assertEquals(SourceFieldMapper.Mode.STORED.toString(), settings.get("index.mapping.source.mode"));
     }
 
-    @SuppressWarnings("unchecked")
     public void testLogsdbOverrideSyntheticSourceModeInMapping() throws IOException {
         final String index = "test-index";
         String mapping = """
@@ -93,19 +91,18 @@ public class LogsdbRestIT extends ESRestTestCase {
             }
             """;
         createIndex(index, Settings.builder().put("index.mode", "logsdb").build(), mapping);
-        Map<String, Object> settings = (Map<String, Object>) ((Map<String, Object>) getIndexSettings(index).get(index)).get("settings");
+        var settings = (Map<?, ?>) ((Map<?, ?>) getIndexSettings(index).get(index)).get("settings");
         assertEquals("logsdb", settings.get("index.mode"));
         assertEquals(SourceFieldMapper.Mode.STORED.toString(), settings.get("index.mapping.source.mode"));
     }
 
-    @SuppressWarnings("unchecked")
     public void testLogsdbNoOverrideSyntheticSourceSetting() throws IOException {
         final String index = "test-index";
         createIndex(
             index,
             Settings.builder().put("index.mode", "logsdb").put("index.mapping.source.mode", SourceFieldMapper.Mode.SYNTHETIC).build()
         );
-        Map<String, Object> settings = (Map<String, Object>) ((Map<String, Object>) getIndexSettings(index).get(index)).get("settings");
+        var settings = (Map<?, ?>) ((Map<?, ?>) getIndexSettings(index).get(index)).get("settings");
         assertEquals("logsdb", settings.get("index.mode"));
         assertEquals(SourceFieldMapper.Mode.SYNTHETIC.toString(), settings.get("index.mapping.source.mode"));
     }

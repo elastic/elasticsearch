@@ -13,6 +13,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.IndexFormatTooNewException;
 import org.apache.lucene.index.IndexFormatTooOldException;
+import org.apache.lucene.index.IndexWriter;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
@@ -621,6 +622,28 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
         } catch (Exception e) {
             logger.debug(() -> format("Unable to recover snapshot file %s from repository %s", fileInfo, repository), e);
             listener.onFailure(e);
+        }
+    }
+
+    /**
+     * Clean any temporary files present in the index
+     * In normal operation, recovery will not leave temporary files around after either successful or failed recovery.
+     * But if the process crashes, then it may. In this case, we want to delete temporary files from a previous attempt
+     * before starting again, in order to recover disk space we may need to complete the recovery (#104473).
+     * <p>
+     * Unlike {@link #cleanFiles} this has no dependency on a snapshot, and works in cases where a snapshot isn't available,
+     * e.g., when the index has temporary files but no complete snapshot.
+     */
+    void cleanTempFiles() throws IOException {
+        var directory = store().directory();
+        try (var _lock = directory.obtainLock(IndexWriter.WRITE_LOCK_NAME)) {
+            for (var fileName : directory.listAll()) {
+                if (fileName.startsWith(RECOVERY_PREFIX)) {
+                    // remove it
+                    logger.debug("removing stray recovery file from directory {}: {}", indexShard.shardPath().resolveIndex(), fileName);
+                    directory.deleteFile(fileName);
+                }
+            }
         }
     }
 

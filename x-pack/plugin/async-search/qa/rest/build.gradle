@@ -28,5 +28,5 @@ testClusters.configureEach {
 
 // Test clusters run with security disabled
 tasks.named("yamlRestTest") {
-  BuildParams.withFipsEnabledOnly(it)
+  buildParams.withFipsEnabledOnly(it)
 }

@@ -358,6 +358,9 @@ tests:
 - class: org.elasticsearch.index.mapper.TextFieldMapperTests
   method: testBlockLoaderFromColumnReaderWithSyntheticSource
   issue: https://github.com/elastic/elasticsearch/issues/115073
+- class: org.elasticsearch.index.mapper.annotatedtext.AnnotatedTextFieldMapperTests
+  method: testBlockLoaderFromColumnReaderWithSyntheticSource
+  issue: https://github.com/elastic/elasticsearch/issues/115074
 
 # Examples:
 #

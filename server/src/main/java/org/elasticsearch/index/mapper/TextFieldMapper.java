@@ -239,7 +239,7 @@ public final class TextFieldMapper extends FieldMapper {
         private final IndexVersion indexCreatedVersion;
         private final Parameter<Boolean> store;
 
-        private final boolean isSyntheticSourceEnabledViaIndexMode;
+        private final boolean isSyntheticSourceEnabled;
 
         private final Parameter<Boolean> index = Parameter.indexParam(m -> ((TextFieldMapper) m).index, true);
 
@@ -286,16 +286,11 @@ public final class TextFieldMapper extends FieldMapper {
 
         final TextParams.Analyzers analyzers;
 
-        public Builder(String name, IndexAnalyzers indexAnalyzers, boolean isSyntheticSourceEnabledViaIndexMode) {
-            this(name, IndexVersion.current(), indexAnalyzers, isSyntheticSourceEnabledViaIndexMode);
+        public Builder(String name, IndexAnalyzers indexAnalyzers, boolean isSyntheticSourceEnabled) {
+            this(name, IndexVersion.current(), indexAnalyzers, isSyntheticSourceEnabled);
         }
 
-        public Builder(
-            String name,
-            IndexVersion indexCreatedVersion,
-            IndexAnalyzers indexAnalyzers,
-            boolean isSyntheticSourceEnabledViaIndexMode
-        ) {
+        public Builder(String name, IndexVersion indexCreatedVersion, IndexAnalyzers indexAnalyzers, boolean isSyntheticSourceEnabled) {
             super(name);
 
             // If synthetic source is used we need to either store this field
@@ -306,7 +301,7 @@ public final class TextFieldMapper extends FieldMapper {
             // If 'store' parameter was explicitly provided we'll reject the request.
             this.store = Parameter.storeParam(
                 m -> ((TextFieldMapper) m).store,
-                () -> isSyntheticSourceEnabledViaIndexMode && multiFieldsBuilder.hasSyntheticSourceCompatibleKeywordField() == false
+                () -> isSyntheticSourceEnabled && multiFieldsBuilder.hasSyntheticSourceCompatibleKeywordField() == false
             );
             this.indexCreatedVersion = indexCreatedVersion;
             this.analyzers = new TextParams.Analyzers(
@@ -315,7 +310,7 @@ public final class TextFieldMapper extends FieldMapper {
                 m -> (((TextFieldMapper) m).positionIncrementGap),
                 indexCreatedVersion
             );
-            this.isSyntheticSourceEnabledViaIndexMode = isSyntheticSourceEnabledViaIndexMode;
+            this.isSyntheticSourceEnabled = isSyntheticSourceEnabled;
         }
 
         public Builder index(boolean index) {
@@ -488,7 +483,7 @@ public final class TextFieldMapper extends FieldMapper {
     private static final IndexVersion MINIMUM_COMPATIBILITY_VERSION = IndexVersion.fromId(5000099);
 
     public static final TypeParser PARSER = new TypeParser(
-        (n, c) -> new Builder(n, c.indexVersionCreated(), c.getIndexAnalyzers(), c.getIndexSettings().getMode().isSyntheticSourceEnabled()),
+        (n, c) -> new Builder(n, c.indexVersionCreated(), c.getIndexAnalyzers(), SourceFieldMapper.isSynthetic(c.getIndexSettings())),
         MINIMUM_COMPATIBILITY_VERSION
     );
 
@@ -1242,7 +1237,7 @@ public final class TextFieldMapper extends FieldMapper {
     private final SubFieldInfo prefixFieldInfo;
     private final SubFieldInfo phraseFieldInfo;
 
-    private final boolean isSyntheticSourceEnabledViaIndexMode;
+    private final boolean isSyntheticSourceEnabled;
 
     private TextFieldMapper(
         String simpleName,
@@ -1275,7 +1270,7 @@ public final class TextFieldMapper extends FieldMapper {
         this.indexPrefixes = builder.indexPrefixes.getValue();
         this.freqFilter = builder.freqFilter.getValue();
         this.fieldData = builder.fieldData.get();
-        this.isSyntheticSourceEnabledViaIndexMode = builder.isSyntheticSourceEnabledViaIndexMode;
+        this.isSyntheticSourceEnabled = builder.isSyntheticSourceEnabled;
     }
 
     @Override
@@ -1299,7 +1294,7 @@ public final class TextFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(leafName(), indexCreatedVersion, indexAnalyzers, isSyntheticSourceEnabledViaIndexMode).init(this);
+        return new Builder(leafName(), indexCreatedVersion, indexAnalyzers, isSyntheticSourceEnabled).init(this);
     }
 
     @Override

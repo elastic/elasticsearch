@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.esql.session;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesFailure;
+import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Iterators;
@@ -22,7 +24,9 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.indices.IndicesExpressionGrouper;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.RemoteClusterAware;
+import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
@@ -68,6 +72,7 @@ import org.elasticsearch.xpack.esql.stats.PlanningMetrics;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -143,11 +148,98 @@ public class EsqlSession {
         analyzedPlan(
             parse(request.query(), request.params()),
             executionInfo,
-            listener.delegateFailureAndWrap(
-                (next, analyzedPlan) -> executeOptimizedPlan(request, executionInfo, runPhase, optimizedPlan(analyzedPlan), next)
-            )
+            new FooActionListener(request, executionInfo, runPhase, listener)
+//            listener.delegateFailureAndWrap(
+//                (next, analyzedPlan) -> executeOptimizedPlan(request, executionInfo, runPhase, optimizedPlan(analyzedPlan), next)
+//            )
         );
     }
+
+    class FooActionListener implements ActionListener<LogicalPlan> {
+        private final EsqlQueryRequest request;
+        private final EsqlExecutionInfo executionInfo;
+        private final BiConsumer<PhysicalPlan, ActionListener<Result>> runPhase;
+        private final ActionListener<Result> listener;
+
+        FooActionListener(EsqlQueryRequest request,
+                          EsqlExecutionInfo executionInfo,
+                          BiConsumer<PhysicalPlan, ActionListener<Result>> runPhase,
+                          ActionListener<Result> listener
+        ) {
+            this.request = request;
+            this.executionInfo = executionInfo;
+            this.runPhase = runPhase;
+            this.listener = listener;
+        }
+
+        @Override
+        public void onResponse(LogicalPlan analyzedPlan) {
+            executeOptimizedPlan(request, executionInfo, runPhase, optimizedPlan(analyzedPlan), listener);
+        }
+
+        @Override
+        public void onFailure(Exception e) {
+            /**
+             * LEFTOFF
+             * Return an empty result (HTTP status 200) for a CCS where all clusters are skip_unavailable=true.
+             * We exclude checking the local cluster, since in a follow on PR we will throw a VerificationException
+             * if the local cluster was included in the query and specified a concrete index. If a wildcarded
+             * index expression was included for the local cluster, then we still return a 200 OK response
+             * as long as all other clusters are skip_unavailable=true.
+             */
+            Predicate<EsqlExecutionInfo> returnEmptyResult = execInfo -> {
+                if (execInfo.isCrossClusterSearch()) {
+                    for (String clusterAlias : execInfo.clusterAliases()) {
+                        if (execInfo.isSkipUnavailable(clusterAlias) == false &&
+                            clusterAlias.equals(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY) == false) {
+                            return false;
+                        }
+                    }
+                    return true;
+                }
+                return false;
+            };
+
+            if (returnEmptyResult.test(executionInfo)) {
+                executionInfo.markEndQuery();
+                Exception exceptionForResponse;
+                if (e instanceof ConnectTransportException) {
+                    // when field-caps has no field info (since no clusters could be connected to or had matching indices)
+                    // it just throws the first exception, so this odd special handling is here is to avoid having
+                    // one specific remote alias name in all failure lists in the metadata response
+                    exceptionForResponse = new RemoteTransportException(
+                        "connect_transport_exception - unable to connect to remote cluster",
+                        null
+                    );
+                } else {
+                    exceptionForResponse = e;
+                }
+                for (String clusterAlias : executionInfo.clusterAliases()) {
+                    if (clusterAlias.equals(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY) == false) {
+                        executionInfo.swapCluster(
+                            clusterAlias,
+                            (k, v) -> new EsqlExecutionInfo.Cluster.Builder(v)
+                                // for now ESQL doesn't return partial results, so set status to SUCCESSFUL
+                                .setStatus(EsqlExecutionInfo.Cluster.Status.SKIPPED)
+                                .setTook(executionInfo.overallTook())
+                                .setTotalShards(0)
+                                .setSuccessfulShards(0)
+                                .setSkippedShards(0)
+                                .setFailedShards(0)
+                                .setFailures(List.of(new ShardSearchFailure(exceptionForResponse)))
+                                .build()
+                        );
+                    }
+                }
+                listener.onResponse(
+                    new Result(Collections.emptyList(), Collections.emptyList(), Collections.emptyList(), executionInfo)
+                );
+            } else {
+                System.err.println("\n==================\nBBB BBB >>> BBB PATH B: ");
+                listener.onFailure(e);
+            }
+        }
+    };
 
     /**
      * Execute an analyzed plan. Most code should prefer calling {@link #execute} but
@@ -447,13 +539,34 @@ public class EsqlSession {
     }
 
     // visible for testing
-    static void updateExecutionInfoWithUnavailableClusters(EsqlExecutionInfo executionInfo, Set<String> unavailableClusters) {
-        for (String clusterAlias : unavailableClusters) {
-            executionInfo.swapCluster(
-                clusterAlias,
-                (k, v) -> new EsqlExecutionInfo.Cluster.Builder(v).setStatus(EsqlExecutionInfo.Cluster.Status.SKIPPED).build()
+    // static void updateExecutionInfoWithUnavailableClusters(EsqlExecutionInfo executionInfo, Set<String> unavailableClusters) {
+    // for (String clusterAlias : unavailableClusters) {
+    // executionInfo.swapCluster(
+    // clusterAlias,
+    // (k, v) -> new EsqlExecutionInfo.Cluster.Builder(v).setStatus(EsqlExecutionInfo.Cluster.Status.SKIPPED).build()
+    // );
+    // // TODO: follow-on PR will set SKIPPED status when skip_unavailable=true and throw an exception when skip_un=false
+    // }
+    // }
+
+    static void updateExecutionInfoWithUnavailableClusters(EsqlExecutionInfo execInfo, Map<String, FieldCapabilitiesFailure> unavailable) {
+        for (Map.Entry<String, FieldCapabilitiesFailure> entry : unavailable.entrySet()) {
+            String clusterAlias = entry.getKey();
+            boolean skipUnavailable = execInfo.getCluster(clusterAlias).isSkipUnavailable();
+            RemoteTransportException e = new RemoteTransportException(
+                Strings.format("Remote cluster [%s] (with setting skip_unavailable=%s) is not available", clusterAlias, skipUnavailable),
+                entry.getValue().getException()
             );
-            // TODO: follow-on PR will set SKIPPED status when skip_unavailable=true and throw an exception when skip_un=false
+            if (skipUnavailable) {
+                execInfo.swapCluster(
+                    clusterAlias,
+                    (k, v) -> new EsqlExecutionInfo.Cluster.Builder(v).setStatus(EsqlExecutionInfo.Cluster.Status.SKIPPED)
+                        .setFailures(List.of(new ShardSearchFailure(e)))
+                        .build()
+                );
+            } else {
+                throw e;
+            }
         }
     }
 
@@ -466,23 +579,37 @@ public class EsqlSession {
         }
         Set<String> clustersRequested = executionInfo.clusterAliases();
         Set<String> clustersWithNoMatchingIndices = Sets.difference(clustersRequested, clustersWithResolvedIndices);
-        clustersWithNoMatchingIndices.removeAll(indexResolution.getUnavailableClusters());
+        clustersWithNoMatchingIndices.removeAll(indexResolution.getUnavailableClusters().keySet());
         /*
          * These are clusters in the original request that are not present in the field-caps response. They were
          * specified with an index or indices that do not exist, so the search on that cluster is done.
          * Mark it as SKIPPED with 0 shards searched and took=0.
          */
         for (String c : clustersWithNoMatchingIndices) {
-            executionInfo.swapCluster(
-                c,
-                (k, v) -> new EsqlExecutionInfo.Cluster.Builder(v).setStatus(EsqlExecutionInfo.Cluster.Status.SKIPPED)
-                    .setTook(new TimeValue(0))
-                    .setTotalShards(0)
-                    .setSuccessfulShards(0)
-                    .setSkippedShards(0)
-                    .setFailedShards(0)
-                    .build()
-            );
+            // executionInfo.swapCluster(
+            // c,
+            // (k, v) -> new EsqlExecutionInfo.Cluster.Builder(v).setStatus(EsqlExecutionInfo.Cluster.Status.SKIPPED)
+            // .setTook(new TimeValue(0))
+            // .setTotalShards(0)
+            // .setSuccessfulShards(0)
+            // .setSkippedShards(0)
+            // .setFailedShards(0)
+            // .build()
+            // );
+            // TODO: in a follow-on PR, throw an IndexNotFoundException(400 status code) for local and remotes with skip_unavailable=false
+            // for now we never mark the local cluster as SKIPPED
+            if (RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY.equals(c) == false) {
+                executionInfo.swapCluster(
+                    c,
+                    (k, v) -> new EsqlExecutionInfo.Cluster.Builder(v).setStatus(EsqlExecutionInfo.Cluster.Status.SKIPPED)
+                        .setTook(new TimeValue(0))
+                        .setTotalShards(0)
+                        .setSuccessfulShards(0)
+                        .setSkippedShards(0)
+                        .setFailedShards(0)
+                        .build()
+                );
+            }
         }
     }
 

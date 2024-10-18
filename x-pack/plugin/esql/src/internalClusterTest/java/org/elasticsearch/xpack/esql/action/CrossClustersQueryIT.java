@@ -25,6 +25,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.AbstractMultiClustersTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.XContentTestUtils;
+import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
@@ -803,6 +804,14 @@ public class CrossClustersQueryIT extends AbstractMultiClustersTestCase {
         clusterInfo.put("local.index", localIndex);
         clusterInfo.put("remote.num_shards", numShardsRemote);
         clusterInfo.put("remote.index", remoteIndex);
+
+        String skipUnavailableKey = Strings.format("cluster.remote.%s.skip_unavailable", REMOTE_CLUSTER);
+        Setting<?> skipUnavailableSetting = cluster(REMOTE_CLUSTER).clusterService().getClusterSettings().get(skipUnavailableKey);
+        boolean skipUnavailable = (boolean) cluster(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY).clusterService()
+            .getClusterSettings()
+            .get(skipUnavailableSetting);
+        clusterInfo.put("remote.skip_unavailable", skipUnavailable);
+
         return clusterInfo;
     }
 

@@ -54,6 +54,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
+import java.util.Objects;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -62,9 +63,6 @@ import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 public class ArrowResponseTests extends ESTestCase {
-
-    // set to true to have debug messages on stdout
-    private static final boolean VERBOSE = false;
 
     private static final BlockFactory BLOCK_FACTORY = BlockFactory.getInstance(
         new NoopCircuitBreaker("test-noop"),
@@ -465,21 +463,6 @@ public class ArrowResponseTests extends ESTestCase {
             // Check values
             var esqlValuesIterator = new EsqlValuesIterator(testCase, i);
             var arrowValuesIterator = new ArrowValuesIterator(testCase, root, i);
-
-            if (VERBOSE) {
-                System.out.println("Comparing column " + testCase.columns.get(i));
-                for (var page : testCase.pages) {
-                    System.out.println("Test block " + page.blocks.get(i));
-                }
-                while (esqlValuesIterator.hasNext()) {
-                    System.out.println("  esql: " + esqlValuesIterator.next());
-                }
-                while (arrowValuesIterator.hasNext()) {
-                    System.out.println("  arrw: " + arrowValuesIterator.next());
-                }
-                esqlValuesIterator = new EsqlValuesIterator(testCase, i);
-                arrowValuesIterator = new ArrowValuesIterator(testCase, root, i);
-            }
 
             int line = 0;
 

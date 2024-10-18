@@ -26,9 +26,9 @@ topLevelQuery
     ;
 
 query
-    : query (AND | OR) query          #booleanQuery
-    | NOT subQuery=simpleQuery        #notQuery
-    | simpleQuery                     #defaultQuery
+    : <assoc=right> query operator=(AND | OR) query     #booleanQuery
+    | NOT subQuery=simpleQuery                          #notQuery
+    | simpleQuery                                       #defaultQuery
     ;
 
 simpleQuery
@@ -90,7 +90,6 @@ wildcardExpression
     : WILDCARD
 ;
 
-
 DEFAULT_SKIP: WHITESPACE -> skip;
 
 AND: 'and';
@@ -135,7 +134,7 @@ fragment QUOTED_CHAR
 
 fragment WHITESPACE: [ \t\n\r\u3000];
 fragment ESCAPED_WHITESPACE: '\\r' | '\\t' | '\\n';
-fragment NON_SPECIAL_CHAR: ~[ \\():<>"*{}];
+fragment NON_SPECIAL_CHAR: ~[ \n\r\t\u3000\\():<>"*{}];
 fragment ESCAPED_SPECIAL_CHAR: '\\'[ \\():<>"*{}];
 
 fragment ESCAPED_QUOTE: '\\"';

@@ -202,6 +202,7 @@ class KqlBaseParser extends Parser {
     }
     @SuppressWarnings("CheckReturnValue")
     public static class BooleanQueryContext extends QueryContext {
+        public Token operator;
         public List<QueryContext> query() {
             return getRuleContexts(QueryContext.class);
         }
@@ -307,9 +308,10 @@ class KqlBaseParser extends Parser {
                     setState(41);
                     if (!(precpred(_ctx, 3))) throw new FailedPredicateException(this, "precpred(_ctx, 3)");
                     setState(42);
+                    ((BooleanQueryContext)_localctx).operator = _input.LT(1);
                     _la = _input.LA(1);
                     if ( !(_la==AND || _la==OR) ) {
-                    _errHandler.recoverInline(this);
+                        ((BooleanQueryContext)_localctx).operator = (Token)_errHandler.recoverInline(this);
                     }
                     else {
                         if ( _input.LA(1)==Token.EOF ) matchedEOF = true;
@@ -317,7 +319,7 @@ class KqlBaseParser extends Parser {
                         consume();
                     }
                     setState(43);
-                    query(4);
+                    query(3);
                     }
                     } 
                 }
@@ -1163,7 +1165,7 @@ class KqlBaseParser extends Parser {
         "\u0000#$\u0006\u0001\uffff\uffff\u0000$%\u0005\u0004\u0000\u0000%(\u0003"+
         "\u0004\u0002\u0000&(\u0003\u0004\u0002\u0000\'#\u0001\u0000\u0000\u0000"+
         "\'&\u0001\u0000\u0000\u0000(.\u0001\u0000\u0000\u0000)*\n\u0003\u0000"+
-        "\u0000*+\u0007\u0000\u0000\u0000+-\u0003\u0002\u0001\u0004,)\u0001\u0000"+
+        "\u0000*+\u0007\u0000\u0000\u0000+-\u0003\u0002\u0001\u0003,)\u0001\u0000"+
         "\u0000\u0000-0\u0001\u0000\u0000\u0000.,\u0001\u0000\u0000\u0000./\u0001"+
         "\u0000\u0000\u0000/\u0003\u0001\u0000\u0000\u00000.\u0001\u0000\u0000"+
         "\u000015\u0003\b\u0004\u000025\u0003\u0006\u0003\u000035\u0003\n\u0005"+

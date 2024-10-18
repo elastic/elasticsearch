@@ -17,5 +17,5 @@ dependencies {
 tasks.named("javaRestTest").configure {
   usesDefaultDistribution()
   // Test clusters run with security disabled
-  BuildParams.withFipsEnabledOnly(it)
+  buildParams.withFipsEnabledOnly(it)
 }

@@ -77,7 +77,7 @@ tasks.register("workloadIdentityJavaRestTest", RestIntegTestTask) {
   nonInputProperties.systemProperty 'test.azure.base_path', azureBasePath + "_repository_test_kit_tests_" + BuildParams.testSeed
 }
 
-if (BuildParams.inFipsJvm) {
+if (buildParams.inFipsJvm) {
   // Cannot override the trust store in FIPS mode, and these tasks require a HTTPS fixture
   tasks.named("managedIdentityJavaRestTest").configure { enabled = false }
   tasks.named("workloadIdentityJavaRestTest").configure { enabled = false }

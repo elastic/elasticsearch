@@ -39,7 +39,7 @@ develocity {
       tag Architecture.current().name()
 
       // Tag if this build is run in FIPS mode
-      if (BuildParams.inFipsJvm) {
+      if (buildParams.inFipsJvm) {
         tag 'FIPS'
       }
 

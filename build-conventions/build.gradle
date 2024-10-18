@@ -23,6 +23,7 @@ plugins {
     id 'java-gradle-plugin'
     id 'java-test-fixtures'
     id 'eclipse'
+    id 'org.gradlex.build-parameters' version '1.4.4'
 }
 
 group = "org.elasticsearch"
@@ -110,4 +111,11 @@ project.getPlugins().withType(JavaBasePlugin.class) {
 
 tasks.withType(JavaCompile).configureEach {
   options.incremental = System.getenv("JENKINS_URL") == null && System.getenv("BUILDKITE_BUILD_URL") == null && System.getProperty("isCI") == null
+}
+
+buildParameters {
+  bool('inFipsJvm') {
+    description = 'running tests in FIPS mode'
+    defaultValue = false
+  }
 }

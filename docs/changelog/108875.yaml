@@ -1,0 +1,6 @@
+pr: 108875
+summary: Break on `FieldData` when building global ordinals
+area: Aggregations
+type: bug
+issues:
+ - 97075

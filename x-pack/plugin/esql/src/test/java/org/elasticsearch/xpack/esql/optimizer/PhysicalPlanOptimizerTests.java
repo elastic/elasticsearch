@@ -4769,12 +4769,24 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var exchange = asRemoteExchange(topN.child());
 
         project = as(exchange.child(), ProjectExec.class);
-        assertThat(names(project.projections()), contains("abbrev", "name", "location", "country", "city", "$$order_by$0$0"));
+        // Depending on what is run before this test, the synthetic name could have variable suffixes, so we must only assert on the prefix
+        assertThat(
+            names(project.projections()),
+            contains(
+                equalTo("abbrev"),
+                equalTo("name"),
+                equalTo("location"),
+                equalTo("country"),
+                equalTo("city"),
+                startsWith("$$order_by$0$")
+            )
+        );
         var extract = as(project.child(), FieldExtractExec.class);
         assertThat(names(extract.attributesToExtract()), contains("abbrev", "name", "country", "city"));
         var evalExec = as(extract.child(), EvalExec.class);
         var alias = as(evalExec.fields().get(0), Alias.class);
-        assertThat(alias.name(), is("$$order_by$0$0"));
+        assertThat(alias.name(), startsWith("$$order_by$0$"));
+        var aliasName = alias.name();  // We need this name to know what to assert on later when comparing the Order to the Sort
         var stDistance = as(alias.child(), StDistance.class);
         assertThat(stDistance.left().toString(), startsWith("location"));
         extract = as(evalExec.child(), FieldExtractExec.class);
@@ -4784,7 +4796,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         // Assert that the TopN(distance) is pushed down as geo-sort(location)
         assertThat(source.limit(), is(topN.limit()));
         Set<String> orderSet = orderAsSet(topN.order());
-        Set<String> sortsSet = sortsAsSet(source.sorts(), Map.of("location", "$$order_by$0$0"));
+        Set<String> sortsSet = sortsAsSet(source.sorts(), Map.of("location", aliasName));
         assertThat(orderSet, is(sortsSet));
 
         // Fine-grained checks on the pushed down sort

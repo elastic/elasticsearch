@@ -302,7 +302,9 @@ public class ArrowResponseTests extends ESTestCase {
         IntBlock block = builder.build();
         builder.close();
 
-        // Consistency check
+        // Consistency check.
+        // AbstractArrayBlock.assertInvariants does some of these consistency checks, but those below
+        // specifically verify the assumptions on which the conversion to Arrow is built.
         assertTrue(block.mayHaveMultivaluedFields());
         assertEquals(4, block.getPositionCount()); // counts null entries
         assertEquals(5, block.getTotalValueCount()); // nulls aren't counted

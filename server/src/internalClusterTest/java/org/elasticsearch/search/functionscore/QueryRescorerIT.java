@@ -10,32 +10,26 @@
 package org.elasticsearch.search.functionscore;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Explanation;
-import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.Query;
-import org.apache.lucene.search.QueryVisitor;
-import org.apache.lucene.search.ScoreMode;
-import org.apache.lucene.search.Scorer;
-import org.apache.lucene.search.Weight;
 import org.apache.lucene.tests.util.English;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
-import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.search.function.CombineFunction;
+import org.elasticsearch.common.lucene.search.function.LeafScoreFunction;
+import org.elasticsearch.common.lucene.search.function.ScoreFunction;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.Settings.Builder;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.Operator;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilder;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
@@ -49,7 +43,6 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
-import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -57,7 +50,6 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.List;
-import java.util.Objects;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.common.lucene.search.function.CombineFunction.REPLACE;
@@ -1011,7 +1003,7 @@ public class QueryRescorerIT extends ESIntegTestCase {
             prepareSearch().setSearchType(SearchType.QUERY_THEN_FETCH)
                 .setQuery(QueryBuilders.matchQuery("field1", query).operator(Operator.OR))
                 .setSize(10)
-                .addRescorer(new QueryRescorerBuilder(new TimedQueryBuilder(500)).windowSize(100))
+                .addRescorer(new QueryRescorerBuilder(functionScoreQuery(new TestTimedScoreFunctionBuilder())).windowSize(100))
                 .setTimeout(TimeValue.timeValueMillis(10)),
             r -> assertTrue(r.isTimedOut())
         );
@@ -1029,102 +1021,56 @@ public class QueryRescorerIT extends ESIntegTestCase {
     }
 
     public static class TestTimedQueryPlugin extends Plugin implements SearchPlugin {
-
         @Override
-        public List<QuerySpec<?>> getQueries() {
-            return List.of(new QuerySpec<>(new ParseField("timed"), TimedQueryBuilder::new, TimedQueryBuilder::fromXContent));
+        public List<ScoreFunctionSpec<?>> getScoreFunctions() {
+            return List.of(
+                new ScoreFunctionSpec<>(
+                    new ParseField("timed"),
+                    TestTimedScoreFunctionBuilder::new,
+                    p -> new TestTimedScoreFunctionBuilder()
+                )
+            );
         }
     }
 
-    static class TimedQueryBuilder extends AbstractQueryBuilder<TimedQueryBuilder> {
-        private final long time;
+    static class TestTimedScoreFunctionBuilder extends ScoreFunctionBuilder<TestTimedScoreFunctionBuilder> {
+        private final long time = 500;
 
-        static TimedQueryBuilder fromXContent(XContentParser parser) throws IOException {
-            XContentParser.Token token = parser.currentToken();
-            if (token != XContentParser.Token.VALUE_NUMBER) {
-                throw new ParsingException(parser.getTokenLocation(), "Expected a number but got " + token);
-            }
-            return new TimedQueryBuilder(parser.longValue());
-        }
+        TestTimedScoreFunctionBuilder() {}
 
-        TimedQueryBuilder(StreamInput in) throws IOException {
+        TestTimedScoreFunctionBuilder(StreamInput in) throws IOException {
             super(in);
-            time = in.readLong();
-        }
-
-        TimedQueryBuilder(long time) {
-            this.time = time;
         }
 
         @Override
-        protected void doWriteTo(StreamOutput out) throws IOException {
-            out.writeLong(time);
-        }
+        protected void doWriteTo(StreamOutput out) {}
 
         @Override
-        protected void doXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject("timed");
-            builder.field("time", time);
-            builder.endObject();
-        }
-
-        @Override
-        protected Query doToQuery(SearchExecutionContext context) {
-            return new TimedQuery(time);
-        }
-
-        @Override
-        protected boolean doEquals(TimedQueryBuilder other) {
-            return time == other.time;
-        }
-
-        @Override
-        protected int doHashCode() {
-            return Long.hashCode(time);
-        }
-
-        @Override
-        public String getWriteableName() {
+        public String getName() {
             return "timed";
         }
 
         @Override
-        public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersion.current();
-        }
-    }
+        protected void doXContent(XContentBuilder builder, Params params) {}
 
-    static class TimedQuery extends Query {
-        private final long time;
-
-        TimedQuery(long time) {
-            this.time = time;
+        @Override
+        protected boolean doEquals(TestTimedScoreFunctionBuilder functionBuilder) {
+            return false;
         }
 
         @Override
-        public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) {
-            return new Weight(this) {
+        protected int doHashCode() {
+            return 0;
+        }
+
+        @Override
+        protected ScoreFunction doToFunction(SearchExecutionContext context) throws IOException {
+            return new ScoreFunction(REPLACE) {
                 @Override
-                public Explanation explain(LeafReaderContext leafReaderContext, int i) {
-                    return null;
-                }
-
-                @Override
-                public Scorer scorer(LeafReaderContext leafReaderContext) {
-                    DocIdSetIterator iterator = DocIdSetIterator.all(leafReaderContext.reader().maxDoc());
-                    return new Scorer(this) {
+                public LeafScoreFunction getLeafScoreFunction(LeafReaderContext ctx) throws IOException {
+                    return new LeafScoreFunction() {
                         @Override
-                        public DocIdSetIterator iterator() {
-                            return iterator;
-                        }
-
-                        @Override
-                        public float getMaxScore(int i) {
-                            return Float.POSITIVE_INFINITY;
-                        }
-
-                        @Override
-                        public float score() {
+                        public double score(int docId, float subQueryScore) {
                             try {
                                 Thread.sleep(time);
                             } catch (InterruptedException e) {
@@ -1134,40 +1080,32 @@ public class QueryRescorerIT extends ESIntegTestCase {
                         }
 
                         @Override
-                        public int docID() {
-                            return iterator.docID();
+                        public Explanation explainScore(int docId, Explanation subQueryScore) {
+                            return null;
                         }
                     };
                 }
 
                 @Override
-                public boolean isCacheable(LeafReaderContext leafReaderContext) {
+                public boolean needsScores() {
+                    return true;
+                }
+
+                @Override
+                protected boolean doEquals(ScoreFunction other) {
                     return false;
+                }
+
+                @Override
+                protected int doHashCode() {
+                    return 0;
                 }
             };
         }
 
         @Override
-        public String toString(String s) {
-            return "timed";
-        }
-
-        @Override
-        public void visit(QueryVisitor queryVisitor) {
-            queryVisitor.visitLeaf(this);
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            TimedQuery that = (TimedQuery) o;
-            return time == that.time;
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hashCode(time);
+        public TransportVersion getMinimalSupportedVersion() {
+            return TransportVersion.current();
         }
     }
 }

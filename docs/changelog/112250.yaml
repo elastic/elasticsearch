@@ -1,0 +1,5 @@
+pr: 112250
+summary: Do not exclude empty arrays or empty objects in source filtering
+area: Search
+type: bug
+issues: [109668]

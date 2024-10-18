@@ -1,0 +1,212 @@
+setup:
+  - requires:
+      cluster_features: 'query_rule_retriever_supported'
+      reason: 'test requires query rule retriever implementation'
+
+  - do:
+      indices.create:
+        index: test-index1
+        body:
+          settings:
+            index:
+              number_of_shards: 1
+              number_of_replicas: 0
+
+  - do:
+      bulk:
+        refresh: true
+        index: test-index1
+        body:
+          - index:
+              _id: foo
+          - { "text": "foo - pinned doc for foo" }
+          - index:
+              _id: bar
+          - { "text": "bar - exclude doc for bar" }
+          - index:
+              _id: baz
+          - { "text": "baz - no rule attached" }
+          - index:
+              _id: foo_no_rule
+          - { "text": "text search result for foo with no rule attached" }
+          - index:
+              _id: bar_no_rule
+          - { "text": "text search result for bar with no rule attached" }
+          - index:
+              _id: foo2
+          - { "text": "foo2 - second pinned doc for foo" }
+
+  - do:
+      query_rules.put_ruleset:
+        ruleset_id: test-ruleset
+        body:
+          rules:
+            - rule_id: foo
+              type: pinned
+              criteria:
+                - type: exact
+                  metadata: foo
+                  values: [ foo ]
+              actions:
+                ids:
+                  - foo
+                  - foo2
+            - rule_id: bar
+              type: exclude
+              criteria:
+                - type: exact
+                  metadata: bar
+                  values: [ bar ]
+              actions:
+                ids:
+                  - bar
+
+---
+"standalone query rules retriever":
+
+  - do:
+      search:
+        index: test-index1
+        body:
+          retriever:
+            rule:
+              match_criteria:
+                foo: foo
+                bar: bar
+              ruleset_ids:
+                test-ruleset
+              retriever:
+                standard:
+                  query:
+                    query_string:
+                      query: bar
+
+  - match: { hits.total.value: 3 }
+  - match: { hits.hits.0._id: foo }
+  - match: { hits.hits.1._id: foo2 }
+  - match: { hits.hits.2._id: bar_no_rule }
+
+---
+"query rules retriever combined with rrf":
+
+  - do:
+      search:
+        index: test-index1
+        body:
+          retriever:
+            rule:
+              match_criteria:
+                foo: foo
+                bar: bar
+              ruleset_ids:
+                test-ruleset
+              retriever:
+                rrf:
+                  retrievers: [
+                    {
+                      standard: {
+                        query: {
+                          query_string: {
+                            query: bar
+                          }
+                        }
+                      }
+                    },
+                    {
+                      standard: {
+                        query: {
+                          query_string: {
+                            query: baz
+                          }
+                        }
+                      }
+                    }
+                  ]
+
+  - match: { hits.total.value: 4 }
+  - match: { hits.hits.0._id: foo }
+  - match: { hits.hits.1._id: foo2 }
+
+
+---
+"query rules retriever combined with rrf and pagination":
+
+  - do:
+      search:
+        index: test-index1
+        body:
+          size: 1
+          from: 1
+          retriever:
+            rule:
+              match_criteria:
+                foo: foo
+                bar: bar
+              ruleset_ids:
+                test-ruleset
+              retriever:
+                rrf:
+                  retrievers: [
+                    {
+                      standard: {
+                        query: {
+                          query_string: {
+                            query: bar
+                          }
+                        }
+                      }
+                    },
+                    {
+                      standard: {
+                        query: {
+                          query_string: {
+                            query: baz
+                          }
+                        }
+                      }
+                    }
+                  ]
+
+  - match: { hits.total.value: 4 }
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._id: foo2 }
+
+---
+"query rules will error if defined as a sub-retriever":
+
+  - do:
+      catch: /\[rule\] must be a standalone or top level retriever only/
+      search:
+        index: test-index1
+        body:
+          retriever:
+            rrf:
+              retrievers: [
+                {
+                  standard: {
+                    query: {
+                      query_string: {
+                        query: bar
+                      }
+                    }
+                  }
+                },
+                {
+                  rule: {
+                    match_criteria: {
+                      foo: foo,
+                      bar: bar
+                    },
+                    ruleset_ids: test-ruleset,
+                    retriever: {
+                      standard: {
+                        query: {
+                          query_string: {
+                            query: baz
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              ]

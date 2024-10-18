@@ -50,6 +50,15 @@ public abstract class CompoundRetrieverBuilder<T extends CompoundRetrieverBuilde
     protected final List<RetrieverSource> innerRetrievers;
 
     protected CompoundRetrieverBuilder(List<RetrieverSource> innerRetrievers, int rankWindowSize) {
+
+        for (RetrieverSource innerRetriever : innerRetrievers) {
+            if (innerRetriever.retriever.isAllowedAsChildRetriever() == false) {
+                throw new IllegalArgumentException(
+                    "[" + innerRetriever.retriever.getName() + "] must be a standalone or top level retriever only"
+                );
+            }
+        }
+
         this.rankWindowSize = rankWindowSize;
         this.innerRetrievers = innerRetrievers;
     }
@@ -164,6 +173,11 @@ public abstract class CompoundRetrieverBuilder<T extends CompoundRetrieverBuilde
     }
 
     @Override
+    public final QueryBuilder explainQuery() {
+        throw new IllegalStateException("Should not be called, missing a rewrite?");
+    }
+
+    @Override
     public final void extractToSearchSourceBuilder(SearchSourceBuilder searchSourceBuilder, boolean compoundUsed) {
         throw new IllegalStateException("Should not be called, missing a rewrite?");
     }
@@ -232,6 +246,12 @@ public abstract class CompoundRetrieverBuilder<T extends CompoundRetrieverBuilde
             sourceBuilder.query(newQuery);
         }
 
+        addSort(sourceBuilder);
+
+        return sourceBuilder;
+    }
+
+    protected void addSort(SearchSourceBuilder sourceBuilder) {
         // Record the shard id in the sort result
         List<SortBuilder<?>> sortBuilders = sourceBuilder.sorts() != null ? new ArrayList<>(sourceBuilder.sorts()) : new ArrayList<>();
         if (sortBuilders.isEmpty()) {
@@ -239,7 +259,6 @@ public abstract class CompoundRetrieverBuilder<T extends CompoundRetrieverBuilde
         }
         sortBuilders.add(new FieldSortBuilder(FieldSortBuilder.SHARD_DOC_FIELD_NAME));
         sourceBuilder.sort(sortBuilders);
-        return sourceBuilder;
     }
 
     private RankDoc[] getRankDocs(SearchResponse searchResponse) {

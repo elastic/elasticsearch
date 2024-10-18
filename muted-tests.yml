@@ -362,6 +362,8 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.CrossClustersQueryIT
   method: testCCSExecutionOnSearchesWithLimit0
   issue: https://github.com/elastic/elasticsearch/issues/115129
+- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
+  issue: https://github.com/elastic/elasticsearch/issues/115135
 
 # Examples:
 #

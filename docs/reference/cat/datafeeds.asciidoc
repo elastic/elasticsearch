@@ -12,7 +12,7 @@ console. They are _not_ intended for use by applications. For application
 consumption, use the <<ml-get-datafeed-stats,get datafeed statistics API>>.
 ====
 
-Returns configuration and usage information about {dfeeds}.
+Returns configuration and usage information about {ml-docs}/ml-ad-run-jobs.html#ml-ad-datafeeds[{dfeeds}].
 
 [[cat-datafeeds-request]]
 ==== {api-request-title}

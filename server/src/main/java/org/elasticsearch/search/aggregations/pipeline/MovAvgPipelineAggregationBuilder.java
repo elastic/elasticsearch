@@ -33,7 +33,7 @@ import java.util.Map;
  *
  * @deprecated Only for 7.x rest compat
  */
-@UpdateForV9 // remove this since it's only for 7.x compat and 7.x compat will be removed in 9.0
+@UpdateForV9(owner = UpdateForV9.Owner.SEARCH_ANALYTICS) // remove this since it's only for 7.x compat and 7.x compat will be removed in 9.0
 @Deprecated
 public class MovAvgPipelineAggregationBuilder extends AbstractPipelineAggregationBuilder<MovAvgPipelineAggregationBuilder> {
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(CommonTermsQueryBuilder.class);

@@ -35,6 +35,7 @@ public class SortTests extends TDigestTestCase {
         Sort.reverse(x, 0, x.size());
 
         // reverse stuff!
+        x.close();
         x = arrays().newIntArray(new int[] { 1, 2, 3, 4, 5 });
         Sort.reverse(x, 0, x.size());
         for (int i = 0; i < 5; i++) {
@@ -57,11 +58,13 @@ public class SortTests extends TDigestTestCase {
         assertEquals(4, x.get(3));
         assertEquals(1, x.get(4));
 
+        x.close();
         x = arrays().newIntArray(new int[] { 1, 2, 3, 4, 5, 6 });
         Sort.reverse(x, 0, x.size());
         for (int i = 0; i < 6; i++) {
             assertEquals(6 - i, x.get(i));
         }
+        x.close();
     }
 
     public void testEmpty() {
@@ -227,9 +230,8 @@ public class SortTests extends TDigestTestCase {
     }
 
     private void sort(int[] order, double[] values, int n) {
-        var wrappedOrder = arrays().newIntArray(order);
-        var wrappedValues = arrays().newDoubleArray(values);
-
-        Sort.stableSort(wrappedOrder, wrappedValues, n);
+        try (var wrappedOrder = arrays().newIntArray(order); var wrappedValues = arrays().newDoubleArray(values);) {
+            Sort.stableSort(wrappedOrder, wrappedValues, n);
+        }
     }
 }

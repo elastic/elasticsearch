@@ -1212,7 +1212,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     l -> new IndexSnapshotsDeletion(indexId).run(l)
                 ),
                 threadPool.info(ThreadPool.Names.SNAPSHOT).getMax(),
-                () -> {},
                 listeners::close
             );
         }

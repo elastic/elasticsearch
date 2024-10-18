@@ -12,13 +12,13 @@ package org.elasticsearch.search.aggregations.metrics;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.tdigest.arrays.TDigestArrays;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
 
@@ -34,7 +34,7 @@ public class TDigestStateTests extends ESTestCase {
     public void testMoreThan4BValues() {
         // Regression test for #19528
         // See https://github.com/tdunning/t-digest/pull/70/files#diff-4487072cee29b939694825647928f742R439
-        try (TDigestState digest = TDigestState.create(arrays(), 100)) {
+        try (TDigestState digest = TDigestState.create(breaker(), 100)) {
             for (int i = 0; i < 1000; ++i) {
                 digest.add(randomDouble());
             }
@@ -62,9 +62,9 @@ public class TDigestStateTests extends ESTestCase {
         try (
             TDigestState empty1 = new EmptyTDigestState();
             TDigestState empty2 = new EmptyTDigestState();
-            TDigestState a = TDigestState.create(arrays(), 200);
-            TDigestState b = TDigestState.create(arrays(), 100);
-            TDigestState c = TDigestState.create(arrays(), 100);
+            TDigestState a = TDigestState.create(breaker(), 200);
+            TDigestState b = TDigestState.create(breaker(), 100);
+            TDigestState c = TDigestState.create(breaker(), 100);
         ) {
 
             assertEquals(empty1, empty2);
@@ -109,9 +109,9 @@ public class TDigestStateTests extends ESTestCase {
         try (
             TDigestState empty1 = new EmptyTDigestState();
             TDigestState empty2 = new EmptyTDigestState();
-            TDigestState a = TDigestState.create(arrays(), 200);
-            TDigestState b = TDigestState.create(arrays(), 100);
-            TDigestState c = TDigestState.create(arrays(), 100);
+            TDigestState a = TDigestState.create(breaker(), 200);
+            TDigestState b = TDigestState.create(breaker(), 100);
+            TDigestState c = TDigestState.create(breaker(), 100);
         ) {
 
             a.add(randomDouble());
@@ -150,9 +150,9 @@ public class TDigestStateTests extends ESTestCase {
 
     public void testFactoryMethods() {
         try (
-            TDigestState fast = TDigestState.create(arrays(), 100);
-            TDigestState anotherFast = TDigestState.create(arrays(), 100);
-            TDigestState accurate = TDigestState.createOptimizedForAccuracy(arrays(), 100);
+            TDigestState fast = TDigestState.create(breaker(), 100);
+            TDigestState anotherFast = TDigestState.create(breaker(), 100);
+            TDigestState accurate = TDigestState.createOptimizedForAccuracy(breaker(), 100);
             TDigestState anotherAccurate = TDigestState.createUsingParamsFrom(accurate);
         ) {
 
@@ -186,7 +186,7 @@ public class TDigestStateTests extends ESTestCase {
             )
         ) {
             in.setTransportVersion(version);
-            return TDigestState.read(arrays(), in);
+            return TDigestState.read(breaker(), in);
 
         }
     }
@@ -201,8 +201,8 @@ public class TDigestStateTests extends ESTestCase {
 
     public void testSerialization() throws IOException {
         // Past default was the accuracy-optimized version.
-        TDigestState state = TDigestState.create(arrays(), 100);
-        TDigestState backwardsCompatible = TDigestState.createOptimizedForAccuracy(arrays(), 100);
+        TDigestState state = TDigestState.create(breaker(), 100);
+        TDigestState backwardsCompatible = TDigestState.createOptimizedForAccuracy(breaker(), 100);
         for (int i = 0; i < 1000; i++) {
             state.add(i);
             backwardsCompatible.add(i);
@@ -218,7 +218,7 @@ public class TDigestStateTests extends ESTestCase {
         Releasables.close(state, backwardsCompatible, serialized, serializedBackwardsCompatible);
     }
 
-    private TDigestArrays arrays() {
-        return new MemoryTrackingTDigestArrays(newLimitedBreaker(ByteSizeValue.ofMb(100)));
+    private CircuitBreaker breaker() {
+        return newLimitedBreaker(ByteSizeValue.ofMb(100));
     }
 }

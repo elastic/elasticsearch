@@ -21,6 +21,7 @@
 
 package org.elasticsearch.tdigest;
 
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.tdigest.arrays.TDigestArrays;
 import org.elasticsearch.tdigest.arrays.TDigestDoubleArray;
@@ -67,6 +68,11 @@ import java.util.Iterator;
  * what the AVLTreeDigest uses and no dynamic allocation is required at all.
  */
 public class MergingDigest extends AbstractTDigest {
+    private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(MergingDigest.class);
+
+    private final TDigestArrays arrays;
+    private boolean closed = false;
+
     private int mergeCount = 0;
 
     private final double publicCompression;
@@ -107,6 +113,26 @@ public class MergingDigest extends AbstractTDigest {
     // weight limits.
     public static boolean useWeightLimit = true;
 
+    static MergingDigest create(TDigestArrays arrays, double compression) {
+        arrays.adjustBreaker(SHALLOW_SIZE);
+        try {
+            return new MergingDigest(arrays, compression);
+        } catch (Exception e) {
+            arrays.adjustBreaker(-SHALLOW_SIZE);
+            throw e;
+        }
+    }
+
+    static MergingDigest create(TDigestArrays arrays, double compression, int bufferSize, int size) {
+        arrays.adjustBreaker(SHALLOW_SIZE);
+        try {
+            return new MergingDigest(arrays, compression, bufferSize, size);
+        } catch (Exception e) {
+            arrays.adjustBreaker(-SHALLOW_SIZE);
+            throw e;
+        }
+    }
+
     /**
      * Allocates a buffer merging t-digest.  This is the normally used constructor that
      * allocates default sized internal arrays.  Other versions are available, but should
@@ -114,7 +140,7 @@ public class MergingDigest extends AbstractTDigest {
      *
      * @param compression The compression factor
      */
-    public MergingDigest(TDigestArrays arrays, double compression) {
+    private MergingDigest(TDigestArrays arrays, double compression) {
         this(arrays, compression, -1);
     }
 
@@ -124,7 +150,7 @@ public class MergingDigest extends AbstractTDigest {
      * @param compression Compression factor for t-digest.  Same as 1/\delta in the paper.
      * @param bufferSize  How many samples to retain before merging.
      */
-    public MergingDigest(TDigestArrays arrays, double compression, int bufferSize) {
+    private MergingDigest(TDigestArrays arrays, double compression, int bufferSize) {
         // we can guarantee that we only need ceiling(compression).
         this(arrays, compression, bufferSize, -1);
     }
@@ -136,7 +162,9 @@ public class MergingDigest extends AbstractTDigest {
      * @param bufferSize  Number of temporary centroids
      * @param size        Size of main buffer
      */
-    public MergingDigest(TDigestArrays arrays, double compression, int bufferSize, int size) {
+    private MergingDigest(TDigestArrays arrays, double compression, int bufferSize, int size) {
+        this.arrays = arrays;
+
         // ensure compression >= 10
         // default size = 2 * ceil(compression)
         // default bufferSize = 5 * size
@@ -210,14 +238,31 @@ public class MergingDigest extends AbstractTDigest {
             bufferSize = 2 * size;
         }
 
-        weight = arrays.newDoubleArray(size);
-        mean = arrays.newDoubleArray(size);
+        TDigestDoubleArray weight = null;
+        TDigestDoubleArray mean = null;
+        TDigestDoubleArray tempWeight = null;
+        TDigestDoubleArray tempMean = null;
+        TDigestIntArray order = null;
 
-        tempWeight = arrays.newDoubleArray(bufferSize);
-        tempMean = arrays.newDoubleArray(bufferSize);
-        order = arrays.newIntArray(bufferSize);
+        try {
+            this.weight = weight = arrays.newDoubleArray(size);
+            this.mean = mean = arrays.newDoubleArray(size);
+
+            this.tempWeight = tempWeight = arrays.newDoubleArray(bufferSize);
+            this.tempMean = tempMean = arrays.newDoubleArray(bufferSize);
+            this.order = order = arrays.newIntArray(bufferSize);
+        } catch (Exception e) {
+            Releasables.close(weight, mean, tempWeight, tempMean, order);
+            throw e;
+        }
 
         lastUsedCell = 0;
+    }
+
+    @Override
+    public long ramBytesUsed() {
+        return SHALLOW_SIZE + weight.ramBytesUsed() + mean.ramBytesUsed() + tempWeight.ramBytesUsed() + tempMean.ramBytesUsed() + order
+            .ramBytesUsed();
     }
 
     @Override
@@ -578,6 +623,10 @@ public class MergingDigest extends AbstractTDigest {
 
     @Override
     public void close() {
-        Releasables.close(weight, mean, tempWeight, tempMean, order);
+        if (closed == false) {
+            closed = true;
+            arrays.adjustBreaker(-SHALLOW_SIZE);
+            Releasables.close(weight, mean, tempWeight, tempMean, order);
+        }
     }
 }

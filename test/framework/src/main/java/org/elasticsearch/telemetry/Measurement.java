@@ -52,10 +52,14 @@ public record Measurement(Number value, Map<String, Object> attributes, boolean 
             if (m.isDouble != isDouble) {
                 throw new IllegalArgumentException("cannot combine measurements of different types");
             }
-            byAttr.compute(
-                m.attributes,
-                (k, v) -> (v == null) ? m.value : isDouble ? v.doubleValue() + m.getDouble() : v.longValue() + m.getLong()
-            );
+            byAttr.compute(m.attributes, (k, v) -> {
+                if (v == null) return m.value;
+                if (isDouble) {
+                    return v.doubleValue() + m.getDouble();
+                } else {
+                    return v.longValue() + m.getLong();
+                }
+            });
         });
         return byAttr.entrySet()
             .stream()

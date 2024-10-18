@@ -47,6 +47,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
@@ -236,17 +237,25 @@ final class Security {
             for (Map.Entry<Pattern, Set<URL>> ps : settingPatterns) {
                 if (ps.getKey().matcher(setting).matches()) {
                     // add the setting value to the secured files for these codebase URLs
-                    Path file = environment.configFile().resolve(environment.settings().get(setting));
-                    if (file.startsWith(environment.configFile()) == false) {
-                        throw new IllegalStateException(ps.getValue() + " tried to grant access to file outside config directory " + file);
-                    }
-                    if (logger.isDebugEnabled()) {
-                        ps.getValue()
-                            .forEach(
-                                url -> logger.debug("Jar {} securing access to config file {} through setting {}", url, file, setting)
+                    String settingValue = environment.settings().get(setting);
+                    // Some settings can also be an HTTPS URL in addition to a file path; if that's the case just skip this one.
+                    // If the setting shouldn't be an HTTPS URL, that'll be caught by that setting's validation later in the process.
+                    // HTTP (no S) URLs are not supported.
+                    if (settingValue.toLowerCase(Locale.ROOT).startsWith("https://") == false) {
+                        Path file = environment.configFile().resolve(settingValue);
+                        if (file.startsWith(environment.configFile()) == false) {
+                            throw new IllegalStateException(
+                                ps.getValue() + " tried to grant access to file outside config directory " + file
                             );
+                        }
+                        if (logger.isDebugEnabled()) {
+                            ps.getValue()
+                                .forEach(
+                                    url -> logger.debug("Jar {} securing access to config file {} through setting {}", url, file, setting)
+                                );
+                        }
+                        securedConfigFiles.computeIfAbsent(file.toString(), k -> new HashSet<>()).addAll(ps.getValue());
                     }
-                    securedConfigFiles.computeIfAbsent(file.toString(), k -> new HashSet<>()).addAll(ps.getValue());
                 }
             }
         }

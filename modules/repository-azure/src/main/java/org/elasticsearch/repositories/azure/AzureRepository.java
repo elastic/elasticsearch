@@ -22,6 +22,7 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.indices.recovery.RecoverySettings;
+import org.elasticsearch.repositories.RepositoriesMetrics;
 import org.elasticsearch.repositories.blobstore.MeteredBlobStoreRepository;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
@@ -91,6 +92,7 @@ public class AzureRepository extends MeteredBlobStoreRepository {
     private final ByteSizeValue chunkSize;
     private final AzureStorageService storageService;
     private final boolean readonly;
+    private final RepositoriesMetrics repositoriesMetrics;
 
     public AzureRepository(
         final RepositoryMetadata metadata,
@@ -98,7 +100,8 @@ public class AzureRepository extends MeteredBlobStoreRepository {
         final AzureStorageService storageService,
         final ClusterService clusterService,
         final BigArrays bigArrays,
-        final RecoverySettings recoverySettings
+        final RecoverySettings recoverySettings,
+        final RepositoriesMetrics repositoriesMetrics
     ) {
         super(
             metadata,
@@ -111,6 +114,7 @@ public class AzureRepository extends MeteredBlobStoreRepository {
         );
         this.chunkSize = Repository.CHUNK_SIZE_SETTING.get(metadata.settings());
         this.storageService = storageService;
+        this.repositoriesMetrics = repositoriesMetrics;
 
         // If the user explicitly did not define a readonly value, we set it by ourselves depending on the location mode setting.
         // For secondary_only setting, the repository should be read only
@@ -152,7 +156,7 @@ public class AzureRepository extends MeteredBlobStoreRepository {
 
     @Override
     protected AzureBlobStore createBlobStore() {
-        final AzureBlobStore blobStore = new AzureBlobStore(metadata, storageService, bigArrays);
+        final AzureBlobStore blobStore = new AzureBlobStore(metadata, storageService, bigArrays, repositoriesMetrics);
 
         logger.debug(
             () -> format(

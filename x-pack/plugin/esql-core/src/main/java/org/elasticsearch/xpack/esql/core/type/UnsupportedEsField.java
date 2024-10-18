@@ -14,6 +14,9 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.TreeMap;
 
+import static org.elasticsearch.xpack.esql.core.util.PlanStreamInput.readCachedStringWithVersionCheck;
+import static org.elasticsearch.xpack.esql.core.util.PlanStreamOutput.writeCachedStringWithVersionCheck;
+
 /**
  * Information about a field in an ES index that cannot be supported by ESQL.
  * All the subfields (properties) of an unsupported type are also be unsupported.
@@ -34,13 +37,18 @@ public class UnsupportedEsField extends EsField {
     }
 
     public UnsupportedEsField(StreamInput in) throws IOException {
-        this(in.readString(), in.readString(), in.readOptionalString(), in.readImmutableMap(EsField::readFrom));
+        this(
+            readCachedStringWithVersionCheck(in),
+            readCachedStringWithVersionCheck(in),
+            in.readOptionalString(),
+            in.readImmutableMap(EsField::readFrom)
+        );
     }
 
     @Override
     public void writeContent(StreamOutput out) throws IOException {
-        out.writeString(getName());
-        out.writeString(getOriginalType());
+        writeCachedStringWithVersionCheck(out, getName());
+        writeCachedStringWithVersionCheck(out, getOriginalType());
         out.writeOptionalString(getInherited());
         out.writeMap(getProperties(), (o, x) -> x.writeTo(out));
     }

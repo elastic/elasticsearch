@@ -436,6 +436,11 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(kibanaRole.cluster().check(ClusterUpdateSettingsAction.NAME, request, authentication), is(false));
         assertThat(kibanaRole.cluster().check(MonitoringBulkAction.NAME, request, authentication), is(true));
 
+        // Inference
+        assertTrue(kibanaRole.cluster().check("cluster:admin/xpack/inference/get", request, authentication));
+        assertTrue(kibanaRole.cluster().check("cluster:admin/xpack/inference/put", request, authentication));
+        assertTrue(kibanaRole.cluster().check("cluster:admin/xpack/inference/delete", request, authentication));
+
         // Enrich
         assertThat(kibanaRole.cluster().check("cluster:admin/xpack/enrich/put", request, authentication), is(true));
         assertThat(kibanaRole.cluster().check("cluster:admin/xpack/enrich/execute", request, authentication), is(true));
@@ -1781,6 +1786,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
             final IndexAbstraction indexAbstraction = mockIndexAbstraction(indexName);
             assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportCreateIndexAction.TYPE.name()).test(indexAbstraction), is(true));
             assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportSearchAction.TYPE.name()).test(indexAbstraction), is(true));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportUpdateAction.TYPE.name()).test(indexAbstraction), is(true));
             assertViewIndexMetadata(kibanaRole, indexName);
         });
 

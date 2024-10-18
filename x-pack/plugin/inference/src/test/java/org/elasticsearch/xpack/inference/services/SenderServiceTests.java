@@ -29,7 +29,6 @@ import org.junit.Before;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityPool;
@@ -138,7 +137,6 @@ public class SenderServiceTests extends ESTestCase {
             String inferenceEntityId,
             TaskType taskType,
             Map<String, Object> config,
-            Set<String> platformArchitectures,
             ActionListener<Model> parsedModelListener
         ) {
             parsedModelListener.onResponse(null);

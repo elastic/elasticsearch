@@ -460,6 +460,6 @@ public class AzureAiStudioChatCompletionRequestTests extends ESTestCase {
             maxNewTokens,
             null
         );
-        return new AzureAiStudioChatCompletionRequest(model, List.of(input));
+        return new AzureAiStudioChatCompletionRequest(model, List.of(input), false);
     }
 }

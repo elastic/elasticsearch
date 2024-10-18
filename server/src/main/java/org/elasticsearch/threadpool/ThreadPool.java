@@ -120,11 +120,11 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
 
     public enum ThreadPoolType {
         @Deprecated(forRemoval = true)
-        @UpdateForV9 // no longer used, remove in v9
+        @UpdateForV9(owner = UpdateForV9.Owner.CORE_INFRA) // no longer used, remove in v9
         DIRECT("direct"),
         FIXED("fixed"),
         @Deprecated(forRemoval = true)
-        @UpdateForV9 // no longer used, remove in v9
+        @UpdateForV9(owner = UpdateForV9.Owner.CORE_INFRA) // no longer used, remove in v9
         FIXED_AUTO_QUEUE_SIZE("fixed_auto_queue_size"),
         SCALING("scaling");
 

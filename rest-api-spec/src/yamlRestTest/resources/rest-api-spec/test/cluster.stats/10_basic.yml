@@ -31,6 +31,15 @@
   - is_true: nodes.network_types
 
 ---
+"cluster stats accepts timeout param":
+  - do:
+      cluster.stats:
+        timeout: 24h
+
+  - is_true: timestamp
+  - is_true: cluster_name
+
+---
 "cluster stats with human flag returns docs as human readable size":
   - requires:
       test_runner_features: [ capabilities ]

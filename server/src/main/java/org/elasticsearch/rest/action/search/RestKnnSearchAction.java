@@ -34,7 +34,8 @@ public class RestKnnSearchAction extends BaseRestHandler {
 
     public RestKnnSearchAction() {}
 
-    @UpdateForV9 // these routes were ".deprecated" in RestApiVersion.V_8 which will require use of REST API compatibility headers to access
+    @UpdateForV9(owner = UpdateForV9.Owner.SEARCH_RELEVANCE)
+    // these routes were ".deprecated" in RestApiVersion.V_8 which will require use of REST API compatibility headers to access
     // this API in v9. It is unclear if this was intentional for v9, and the code has been updated to ".deprecateAndKeep" which will
     // continue to emit deprecations warnings but will not require any special headers to access the API in v9.
     // Please review and update the code and tests as needed. The original code remains commented out below for reference.

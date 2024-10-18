@@ -250,7 +250,7 @@ public class QueryBuilderBWCIT extends ParameterizedFullClusterRestartTestCase {
                     StreamInput input = new NamedWriteableAwareStreamInput(new InputStreamStreamInput(in), registry)
                 ) {
 
-                    @UpdateForV9 // condition will always be true
+                    @UpdateForV9(owner = UpdateForV9.Owner.SEARCH_FOUNDATIONS) // condition will always be true
                     var originalClusterHasTransportVersion = oldClusterHasFeature(RestTestLegacyFeatures.TRANSPORT_VERSION_SUPPORTED);
                     final TransportVersion transportVersion;
                     if (originalClusterHasTransportVersion == false) {

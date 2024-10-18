@@ -432,6 +432,15 @@ To get information on segment files, use the <<cluster-nodes-stats,node stats AP
 `indexed_vector_dim_max`::
 (integer) For dense_vector field types, the maximum dimension of all indexed vector types in selected nodes.
 
+`vector_index_type_count`::
+(object) For dense_vector field types, the number of indexed vector types by index type in selected nodes.
+
+`vector_similarity_type_count`::
+(object) For dense_vector field types, the number of vector types by similarity type in selected nodes.
+
+`vector_element_type_count`::
+(object) For dense_vector field types, the number of vector types by element type in selected nodes.
+
 `script_count`::
 (integer) Number of fields that declare a script.
 
@@ -752,6 +761,10 @@ Queries are counted once per search request, meaning that if the same query type
 `sections`::
 (object) Search sections used in selected nodes.
 For each section, name and number of times it's been used is reported.
+
+`retrievers`::
+(object) Retriever types that were used in selected nodes.
+For each retriever, name and number of times it's been used is reported.
 
 =====
 

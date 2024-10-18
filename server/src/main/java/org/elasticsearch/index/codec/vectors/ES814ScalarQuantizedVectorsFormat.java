@@ -41,6 +41,7 @@ import org.elasticsearch.simdvec.VectorSimilarityType;
 import java.io.IOException;
 
 import static org.apache.lucene.codecs.lucene99.Lucene99ScalarQuantizedVectorsFormat.DYNAMIC_CONFIDENCE_INTERVAL;
+import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.MAX_DIMS_COUNT;
 
 public class ES814ScalarQuantizedVectorsFormat extends FlatVectorsFormat {
 
@@ -48,6 +49,10 @@ public class ES814ScalarQuantizedVectorsFormat extends FlatVectorsFormat {
     private static final int ALLOWED_BITS = (1 << 8) | (1 << 7) | (1 << 4);
 
     private static final FlatVectorsFormat rawVectorFormat = new Lucene99FlatVectorsFormat(DefaultFlatVectorScorer.INSTANCE);
+
+    static final FlatVectorsScorer flatVectorScorer = new ESFlatVectorsScorer(
+        new ScalarQuantizedVectorScorer(DefaultFlatVectorScorer.INSTANCE)
+    );
 
     /** The minimum confidence interval */
     private static final float MINIMUM_CONFIDENCE_INTERVAL = 0.9f;
@@ -60,7 +65,6 @@ public class ES814ScalarQuantizedVectorsFormat extends FlatVectorsFormat {
      * calculated as `1-1/(vector_dimensions + 1)`
      */
     public final Float confidenceInterval;
-    final FlatVectorsScorer flatVectorScorer;
 
     private final byte bits;
     private final boolean compress;
@@ -83,7 +87,6 @@ public class ES814ScalarQuantizedVectorsFormat extends FlatVectorsFormat {
             throw new IllegalArgumentException("bits must be one of: 4, 7, 8; bits=" + bits);
         }
         this.confidenceInterval = confidenceInterval;
-        this.flatVectorScorer = new ESFlatVectorsScorer(new ScalarQuantizedVectorScorer(DefaultFlatVectorScorer.INSTANCE));
         this.bits = (byte) bits;
         this.compress = compress;
     }
@@ -288,5 +291,10 @@ public class ES814ScalarQuantizedVectorsFormat extends FlatVectorsFormat {
             throws IOException {
             return delegate.getRandomVectorScorer(sim, values, query);
         }
+    }
+
+    @Override
+    public int getMaxDimensions(String fieldName) {
+        return MAX_DIMS_COUNT;
     }
 }

@@ -15,9 +15,9 @@ import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.lucene.queries.SpanMatchNoDocsQuery;
 import org.elasticsearch.xcontent.json.JsonStringEncoder;
 
 import java.io.IOException;
@@ -49,18 +49,16 @@ public class SpanTermQueryBuilderTests extends AbstractTermQueryTestCase<SpanTer
 
     @Override
     protected void doAssertLuceneQuery(SpanTermQueryBuilder queryBuilder, Query query, SearchExecutionContext context) throws IOException {
-        assertThat(query, instanceOf(SpanTermQuery.class));
-        SpanTermQuery spanTermQuery = (SpanTermQuery) query;
-
-        String expectedFieldName = expectedFieldName(queryBuilder.fieldName);
-        assertThat(spanTermQuery.getTerm().field(), equalTo(expectedFieldName));
-
         MappedFieldType mapper = context.getFieldType(queryBuilder.fieldName());
         if (mapper != null) {
+            String expectedFieldName = expectedFieldName(queryBuilder.fieldName);
+            assertThat(query, instanceOf(SpanTermQuery.class));
+            SpanTermQuery spanTermQuery = (SpanTermQuery) query;
+            assertThat(spanTermQuery.getTerm().field(), equalTo(expectedFieldName));
             Term term = ((TermQuery) mapper.termQuery(queryBuilder.value(), null)).getTerm();
             assertThat(spanTermQuery.getTerm(), equalTo(term));
         } else {
-            assertThat(spanTermQuery.getTerm().bytes(), equalTo(BytesRefs.toBytesRef(queryBuilder.value())));
+            assertThat(query, instanceOf(SpanMatchNoDocsQuery.class));
         }
     }
 
@@ -117,23 +115,13 @@ public class SpanTermQueryBuilderTests extends AbstractTermQueryTestCase<SpanTer
         assertEquals("[span_term] query doesn't support multiple fields, found [message1] and [message2]", e.getMessage());
     }
 
-    public void testWithMetadataField() throws IOException {
-        SearchExecutionContext context = createSearchExecutionContext();
-        for (String field : new String[] { "field1", "field2" }) {
-            SpanTermQueryBuilder spanTermQueryBuilder = new SpanTermQueryBuilder(field, "toto");
-            Query query = spanTermQueryBuilder.toQuery(context);
-            Query expected = new SpanTermQuery(new Term(field, "toto"));
-            assertEquals(expected, query);
-        }
-    }
-
     public void testWithBoost() throws IOException {
         SearchExecutionContext context = createSearchExecutionContext();
-        for (String field : new String[] { "field1", "field2" }) {
+        for (String field : new String[] { TEXT_FIELD_NAME, TEXT_ALIAS_FIELD_NAME }) {
             SpanTermQueryBuilder spanTermQueryBuilder = new SpanTermQueryBuilder(field, "toto");
             spanTermQueryBuilder.boost(10);
             Query query = spanTermQueryBuilder.toQuery(context);
-            Query expected = new BoostQuery(new SpanTermQuery(new Term(field, "toto")), 10);
+            Query expected = new BoostQuery(new SpanTermQuery(new Term(TEXT_FIELD_NAME, "toto")), 10);
             assertEquals(expected, query);
         }
     }

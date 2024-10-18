@@ -35,8 +35,8 @@ import java.util.stream.Stream;
 public class TransportGetRoleMappingsAction extends HandledTransportAction<GetRoleMappingsRequest, GetRoleMappingsResponse> {
     private static final Logger logger = LogManager.getLogger(TransportGetRoleMappingsAction.class);
 
-    private static final String READ_ONLY_ROLE_MAPPING_SUFFIX = " (read only)";
-    private static final String READ_ONLY_METADATA_FLAG = "_read_only";
+    static final String READ_ONLY_ROLE_MAPPING_SUFFIX = " (read only)";
+    static final String READ_ONLY_METADATA_FLAG = "_read_only";
 
     private final NativeRoleMappingStore roleMappingStore;
     private final ClusterStateRoleMapper clusterStateRoleMapper;
@@ -73,21 +73,21 @@ public class TransportGetRoleMappingsAction extends HandledTransportAction<GetRo
                 // stored without it in cluster-state
                 removeReservedSuffix(names)
             );
-            listener.onResponse(toResponse(clusterStateRoleMappings, nativeRoleMappings));
+            listener.onResponse(buildResponse(clusterStateRoleMappings, nativeRoleMappings));
         }, listener::onFailure));
     }
 
-    private GetRoleMappingsResponse toResponse(
+    private GetRoleMappingsResponse buildResponse(
         Collection<ExpressionRoleMapping> clusterStateRoleMappings,
         Collection<ExpressionRoleMapping> nativeRoleMappings
     ) {
         return new GetRoleMappingsResponse(
-            Stream.concat(nativeRoleMappings.stream(), clusterStateRoleMappings.stream().map(this::toResponse))
+            Stream.concat(nativeRoleMappings.stream(), clusterStateRoleMappings.stream().map(this::toResponseModel))
                 .toArray(ExpressionRoleMapping[]::new)
         );
     }
 
-    private ExpressionRoleMapping toResponse(ExpressionRoleMapping mapping) {
+    private ExpressionRoleMapping toResponseModel(ExpressionRoleMapping mapping) {
         Map<String, Object> metadata = new HashMap<>(mapping.getMetadata());
         metadata.remove(ReservedRoleMappingXContentNameFieldHelper.METADATA_NAME_FIELD);
         if (metadata.put(READ_ONLY_METADATA_FLAG, true) != null) {

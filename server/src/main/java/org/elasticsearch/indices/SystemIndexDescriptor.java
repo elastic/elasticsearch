@@ -36,7 +36,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -338,7 +337,8 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
                 if (prior.primaryIndex.equals(primaryIndex) == false) {
                     throw new IllegalArgumentException("primary index must be the same");
                 }
-                if (prior.aliasName.equals(aliasName) == false) {
+                if ((prior.aliasName == null && aliasName != null)
+                    || (prior.aliasName != null && prior.aliasName.equals(aliasName) == false)) {
                     throw new IllegalArgumentException("alias name must be the same");
                 }
             }
@@ -558,38 +558,19 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
      * @param cause the action being attempted that triggered the check. Used in the error message.
      * @return the standardized error message
      */
-    public String getMinimumMappingsVersionMessage(String cause) {
+    public String getMinimumMappingsVersionMessage(String cause, MappingsVersion requiredMinimumMappingVersion) {
         Objects.requireNonNull(cause);
         final MappingsVersion actualMinimumMappingsVersion = priorSystemIndexDescriptors.isEmpty()
             ? getMappingsVersion()
             : priorSystemIndexDescriptors.get(priorSystemIndexDescriptors.size() - 1).mappingsVersion;
         return Strings.format(
-            "[%s] failed - system index [%s] requires all data and master nodes to have mappings versions at least of version [%s]",
+            "[%s] failed - requested creation of system index [%s] with version [%s], which is greater than the cluster minimum index "
+                + "mapping version. Ensure that the system index descriptor for [%s] includes a prior definition for version [%s]",
             cause,
             this.getPrimaryIndex(),
-            actualMinimumMappingsVersion
-        );
-    }
-
-    /**
-     * Gets a standardized message when the node contains a data or master node whose version is less
-     * than that of the minimum supported version of this descriptor and its prior descriptors.
-     *
-     * @param cause the action being attempted that triggered the check. Used in the error message.
-     * @return the standardized error message
-     */
-    @Deprecated
-    public String getMinimumNodeVersionMessage(String cause) {
-        Objects.requireNonNull(cause);
-        final Version actualMinimumVersion = priorSystemIndexDescriptors.isEmpty()
-            ? minimumNodeVersion
-            : priorSystemIndexDescriptors.get(priorSystemIndexDescriptors.size() - 1).minimumNodeVersion;
-        return String.format(
-            Locale.ROOT,
-            "[%s] failed - system index [%s] requires all data and master nodes to be at least version [%s]",
-            cause,
+            actualMinimumMappingsVersion,
             this.getPrimaryIndex(),
-            actualMinimumVersion
+            requiredMinimumMappingVersion
         );
     }
 

@@ -309,51 +309,53 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     public <C extends Collector, T> T search(Query query, CollectorManager<C, T> collectorManager) throws IOException {
         final C firstCollector = collectorManager.newCollector();
         // Take advantage of the few extra rewrite rules of ConstantScoreQuery when score are not needed.
-        query = firstCollector.scoreMode().needsScores() ? rewrite(query) : rewrite(new ConstantScoreQuery(query));
-        final Weight weight;
-        try {
-            weight = createWeight(query, firstCollector.scoreMode(), 1);
-        } catch (@SuppressWarnings("unused") TimeExceededException e) {
-            timeExceeded = true;
-            doAggregationPostCollection(firstCollector);
-            return collectorManager.reduce(Collections.singletonList(firstCollector));
-        }
-        return search(weight, collectorManager, firstCollector);
-    }
-
-    /**
-     * Same implementation as the default one in Lucene, with an additional call to postCollection in cased there are no segments.
-     * The rest is a plain copy from Lucene.
-     */
-    private <C extends Collector, T> T search(Weight weight, CollectorManager<C, T> collectorManager, C firstCollector) throws IOException {
+        final ScoreMode scoreMode = firstCollector.scoreMode();
         LeafSlice[] leafSlices = getSlices();
         if (leafSlices.length == 0) {
             assert leafContexts.isEmpty();
             doAggregationPostCollection(firstCollector);
             return collectorManager.reduce(Collections.singletonList(firstCollector));
-        } else {
-            final List<C> collectors = new ArrayList<>(leafSlices.length);
-            collectors.add(firstCollector);
-            final ScoreMode scoreMode = firstCollector.scoreMode();
-            for (int i = 1; i < leafSlices.length; ++i) {
-                final C collector = collectorManager.newCollector();
-                collectors.add(collector);
+        }
+        final Weight weight;
+        try {
+            weight = createWeight(scoreMode.needsScores() ? rewrite(query) : rewrite(new ConstantScoreQuery(query)), scoreMode, 1);
+        } catch (@SuppressWarnings("unused") TimeExceededException e) {
+            timeExceeded = true;
+            doAggregationPostCollection(firstCollector);
+            return collectorManager.reduce(Collections.singletonList(firstCollector));
+        }
+        if (leafSlices.length == 1) {
+            search(Arrays.asList(leafSlices[0].leaves), weight, firstCollector);
+            return collectorManager.reduce(Collections.singletonList(firstCollector));
+        }
+        return searchMultipleSlices(collectorManager, leafSlices, firstCollector, weight);
+    }
+
+    private <C extends Collector, T> T searchMultipleSlices(
+        CollectorManager<C, T> collectorManager,
+        LeafSlice[] leafSlices,
+        C firstCollector,
+        Weight weight
+    ) throws IOException {
+        final List<Callable<C>> listTasks = new ArrayList<>(leafSlices.length);
+        final ScoreMode scoreMode = firstCollector.scoreMode();
+        for (int i = 0; i < leafSlices.length; ++i) {
+            final C collector;
+            if (i == 0) {
+                collector = firstCollector;
+            } else {
+                collector = collectorManager.newCollector();
                 if (scoreMode != collector.scoreMode()) {
                     throw new IllegalStateException("CollectorManager does not always produce collectors with the same score mode");
                 }
             }
-            final List<Callable<C>> listTasks = new ArrayList<>(leafSlices.length);
-            for (int i = 0; i < leafSlices.length; ++i) {
-                final LeafReaderContext[] leaves = leafSlices[i].leaves;
-                final C collector = collectors.get(i);
-                listTasks.add(() -> {
-                    search(Arrays.asList(leaves), weight, collector);
-                    return collector;
-                });
-            }
-            List<C> collectedCollectors = getTaskExecutor().invokeAll(listTasks);
-            return collectorManager.reduce(collectedCollectors);
+            final LeafReaderContext[] leaves = leafSlices[i].leaves;
+            listTasks.add(() -> {
+                search(Arrays.asList(leaves), weight, collector);
+                return collector;
+            });
         }
+        return collectorManager.reduce(getTaskExecutor().invokeAll(listTasks));
     }
 
     /**

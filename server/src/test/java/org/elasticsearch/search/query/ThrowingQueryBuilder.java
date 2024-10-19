@@ -97,9 +97,7 @@ public class ThrowingQueryBuilder extends AbstractQueryBuilder<ThrowingQueryBuil
         return new Query() {
             @Override
             public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) throws IOException {
-                if (context.getShardId() == shardId || shardId < 0 || context.index().getName().equals(index)) {
-                    throw failure;
-                }
+                maybeThrow(context);
                 return delegate.createWeight(searcher, scoreMode, boost);
             }
 
@@ -122,7 +120,19 @@ public class ThrowingQueryBuilder extends AbstractQueryBuilder<ThrowingQueryBuil
             public void visit(QueryVisitor visitor) {
                 visitor.visitLeaf(this);
             }
+
+            @Override
+            public Query rewrite(IndexSearcher indexSearcher) throws IOException {
+                maybeThrow(context);
+                return delegate.rewrite(indexSearcher);
+            }
         };
+    }
+
+    private void maybeThrow(SearchExecutionContext context) {
+        if (context.getShardId() == shardId || shardId < 0 || context.index().getName().equals(index)) {
+            throw failure;
+        }
     }
 
     @Override

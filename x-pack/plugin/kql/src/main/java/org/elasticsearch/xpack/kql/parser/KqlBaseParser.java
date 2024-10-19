@@ -979,6 +979,7 @@ class KqlBaseParser extends Parser {
 
     @SuppressWarnings("CheckReturnValue")
     public static class FieldNameContext extends ParserRuleContext {
+        public Token value;
         public List<TerminalNode> UNQUOTED_LITERAL() { return getTokens(KqlBaseParser.UNQUOTED_LITERAL); }
         public TerminalNode UNQUOTED_LITERAL(int i) {
             return getToken(KqlBaseParser.UNQUOTED_LITERAL, i);
@@ -1022,7 +1023,7 @@ class KqlBaseParser extends Parser {
                     {
                     {
                     setState(115);
-                    match(UNQUOTED_LITERAL);
+                    ((FieldNameContext)_localctx).value = match(UNQUOTED_LITERAL);
                     }
                     }
                     setState(118); 
@@ -1035,14 +1036,14 @@ class KqlBaseParser extends Parser {
                 enterOuterAlt(_localctx, 2);
                 {
                 setState(120);
-                match(QUOTED_STRING);
+                ((FieldNameContext)_localctx).value = match(QUOTED_STRING);
                 }
                 break;
             case WILDCARD:
                 enterOuterAlt(_localctx, 3);
                 {
                 setState(121);
-                match(WILDCARD);
+                ((FieldNameContext)_localctx).value = match(WILDCARD);
                 }
                 break;
             default:

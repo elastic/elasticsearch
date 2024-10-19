@@ -72,9 +72,9 @@ phraseQuery:
     ;
 
 fieldName
-    : UNQUOTED_LITERAL+
-    | QUOTED_STRING
-    | WILDCARD
+    : value=UNQUOTED_LITERAL+
+    | value=QUOTED_STRING
+    | value=WILDCARD
     ;
 
 DEFAULT_SKIP: WHITESPACE -> skip;

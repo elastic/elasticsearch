@@ -109,7 +109,6 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
             runtimeJavaHome -> metadataDetector.getMetadata(getJavaInstallation(runtimeJavaHome))
         );
         AtomicReference<BwcVersions> cache = new AtomicReference<>();
-
         Provider<BwcVersions> bwcVersionsProvider = providers.provider(
             () -> cache.updateAndGet(val -> val == null ? resolveBwcVersions(Util.locateElasticsearchWorkspace(project.getGradle())) : val)
         );
@@ -117,8 +116,8 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
             .create(
                 "buildParams",
                 BuildParameterExtension.class,
-                actualRuntimeJavaHome,
-                resolveToolchainSpecFromEnv(),
+                actualRuntimeJavaHome.get(),
+                resolveToolchainSpecFromEnv().getOrNull(),
                 actualRuntimeJavaHome.map(
                     javaHome -> determineJavaVersion(
                         "runtime java.home",
@@ -127,9 +126,9 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
                             ? minimumRuntimeVersion
                             : JavaVersion.toVersion(VersionProperties.getBundledJdkMajorVersion())
                     )
-                ),
+                ).get(),
                 isRuntimeJavaHomeExplicitlySet,
-                runtimeJdkMetaData.map(m -> formatJavaVendorDetails(m)),
+                runtimeJdkMetaData.map(m -> formatJavaVendorDetails(m)).get(),
 
                 getAvailableJavaVersions(),
                 minimumCompilerVersion,
@@ -142,8 +141,13 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
                 System.getenv("JENKINS_URL") != null || System.getenv("BUILDKITE_BUILD_URL") != null || System.getProperty("isCI") != null,
                 ParallelDetector.findDefaultParallel(project),
                 Util.getBooleanProperty("build.snapshot", true),
-                bwcVersionsProvider
+                bwcVersionsProvider.get()
             );
+
+        project.getGradle().getSharedServices().registerIfAbsent("buildParams", BuildParameterService.class, spec -> {
+            // Provide some parameters
+            spec.getParameters().getBuildParams().set(buildParams);
+        });
 
         BuildParams.init(params -> {
             params.reset();

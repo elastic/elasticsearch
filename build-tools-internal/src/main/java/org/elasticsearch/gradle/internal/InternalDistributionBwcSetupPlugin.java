@@ -10,6 +10,7 @@
 package org.elasticsearch.gradle.internal;
 
 import org.elasticsearch.gradle.Version;
+import org.elasticsearch.gradle.internal.info.BuildParameterExtension;
 import org.elasticsearch.gradle.internal.info.BuildParams;
 import org.elasticsearch.gradle.internal.info.GlobalBuildInfoPlugin;
 import org.gradle.api.Action;
@@ -62,6 +63,7 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
     @Override
     public void apply(Project project) {
         project.getRootProject().getPluginManager().apply(GlobalBuildInfoPlugin.class);
+        Boolean isCi = project.getRootProject().getExtensions().getByType(BuildParameterExtension.class).isCi();
         project.getPlugins().apply(JvmToolchainsPlugin.class);
         toolChainService = project.getExtensions().getByType(JavaToolchainService.class);
         BuildParams.getBwcVersions().forPreviousUnreleased((BwcVersions.UnreleasedVersionInfo unreleasedVersion) -> {
@@ -70,7 +72,8 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
                 unreleasedVersion,
                 providerFactory,
                 objectFactory,
-                toolChainService
+                toolChainService,
+                isCi
             );
         });
     }
@@ -80,7 +83,8 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
         BwcVersions.UnreleasedVersionInfo versionInfo,
         ProviderFactory providerFactory,
         ObjectFactory objectFactory,
-        JavaToolchainService toolChainService
+        JavaToolchainService toolChainService,
+        Boolean isCi
     ) {
         ProjectLayout layout = project.getLayout();
         Provider<BwcVersions.UnreleasedVersionInfo> versionInfoProvider = providerFactory.provider(() -> versionInfo);
@@ -96,7 +100,8 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
                 providerFactory,
                 toolChainService,
                 versionInfoProvider,
-                checkoutDir
+                checkoutDir,
+                isCi
             );
         BwcGitExtension gitExtension = project.getPlugins().apply(InternalBwcGitPlugin.class).getGitExtension();
         Provider<Version> bwcVersion = versionInfoProvider.map(info -> info.version());

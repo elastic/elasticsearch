@@ -57,6 +57,14 @@ public final class PersistentTasksClusterService implements ClusterStateListener
         Setting.Property.NodeScope
     );
 
+    public static final Setting<Boolean> CLUSTER_TASKS_ALLOCATION_ALLOW_LIGHTWEIGHT_ASSIGNMENTS_TO_NODES_SHUTTING_DOWN_SETTING = Setting
+        .boolSetting(
+            "cluster.persistent_tasks.allocation.allow_lightweight_assignments_to_nodes_shutting_down",
+            false,
+            Setting.Property.Dynamic,
+            Setting.Property.NodeScope
+        );
+
     private static final Logger logger = LogManager.getLogger(PersistentTasksClusterService.class);
 
     private final ClusterService clusterService;
@@ -65,6 +73,7 @@ public final class PersistentTasksClusterService implements ClusterStateListener
     private final ThreadPool threadPool;
     private final PeriodicRechecker periodicRechecker;
     private final AtomicBoolean reassigningTasks = new AtomicBoolean(false);
+    private Boolean allowLightweightAssignmentsToNodesShuttingDown;
 
     public PersistentTasksClusterService(
         Settings settings,
@@ -77,16 +86,28 @@ public final class PersistentTasksClusterService implements ClusterStateListener
         this.enableDecider = new EnableAssignmentDecider(settings, clusterService.getClusterSettings());
         this.threadPool = threadPool;
         this.periodicRechecker = new PeriodicRechecker(CLUSTER_TASKS_ALLOCATION_RECHECK_INTERVAL_SETTING.get(settings));
+        this.allowLightweightAssignmentsToNodesShuttingDown =
+            CLUSTER_TASKS_ALLOCATION_ALLOW_LIGHTWEIGHT_ASSIGNMENTS_TO_NODES_SHUTTING_DOWN_SETTING.get(settings);
         if (DiscoveryNode.isMasterNode(settings)) {
             clusterService.addListener(this);
         }
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(CLUSTER_TASKS_ALLOCATION_RECHECK_INTERVAL_SETTING, this::setRecheckInterval);
+        clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(
+                CLUSTER_TASKS_ALLOCATION_ALLOW_LIGHTWEIGHT_ASSIGNMENTS_TO_NODES_SHUTTING_DOWN_SETTING,
+                this::setAllowLightweightAssignmentsToNodesShuttingDownFlag
+            );
     }
 
     // visible for testing only
     public void setRecheckInterval(TimeValue recheckInterval) {
         periodicRechecker.setInterval(recheckInterval);
+    }
+
+    // visible for testing only
+    public void setAllowLightweightAssignmentsToNodesShuttingDownFlag(Boolean allowLightweightAssignmentsToNodesShuttingDown) {
+        this.allowLightweightAssignmentsToNodesShuttingDown = allowLightweightAssignmentsToNodesShuttingDown;
     }
 
     // visible for testing only
@@ -340,19 +361,30 @@ public final class PersistentTasksClusterService implements ClusterStateListener
             return unassignedAssignment("persistent task [" + taskName + "] cannot be assigned [" + decision.getReason() + "]");
         }
 
-        // Filter all nodes that are marked as shutting down, because we do not
+        // Filter out all nodes that are marked as shutting down, because we do not
         // want to assign a persistent task to a node that will shortly be
-        // leaving the cluster
-        final List<DiscoveryNode> candidateNodes = currentState.nodes()
-            .stream()
+        // leaving the cluster. The exception to this are lightweight tasks if no other
+        // nodes are available. An example of a lightweight task is the HealthNodeTask.
+        // This behavior needs to be enabled with the CLUSTER_TASKS_ALLOCATION_ALLOW_LIGHTWEIGHT_ASSIGNMENTS_TO_NODES_SHUTTING_DOWN_SETTING
+        // setting.
+        final List<DiscoveryNode> allNodes = currentState.nodes().stream().toList();
+        final List<DiscoveryNode> candidateNodes = allNodes.stream()
             .filter(dn -> currentState.metadata().nodeShutdowns().contains(dn.getId()) == false)
             .collect(Collectors.toCollection(ArrayList::new));
+
+        if (candidateNodes.isEmpty() && allNodes.isEmpty() == false) { // all nodes are shutting down
+            if (this.allowLightweightAssignmentsToNodesShuttingDown && taskParams.isLightweight()) {
+                candidateNodes.addAll(allNodes);
+            }
+        }
+
         // Task assignment should not rely on node order
         Randomness.shuffle(candidateNodes);
 
         final Assignment assignment = persistentTasksExecutor.getAssignment(taskParams, candidateNodes, currentState);
         assert assignment != null : "getAssignment() should always return an Assignment object, containing a node or a reason why not";
-        assert (assignment.getExecutorNode() == null
+        assert ((this.allowLightweightAssignmentsToNodesShuttingDown && taskParams.isLightweight())
+            || assignment.getExecutorNode() == null
             || currentState.metadata().nodeShutdowns().contains(assignment.getExecutorNode()) == false)
             : "expected task ["
                 + taskName

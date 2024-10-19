@@ -164,6 +164,26 @@ public class HealthNodeTaskExecutorTests extends ESTestCase {
         }
     }
 
+    public void testNoAbortOnShutdownIfAssignOnShutdownSettingEnabled() {
+        for (SingleNodeShutdownMetadata.Type type : REMOVE_SHUTDOWN_TYPES) {
+            HealthNodeTaskExecutor executor = HealthNodeTaskExecutor.create(
+                clusterService,
+                persistentTasksService,
+                featureService,
+                settings,
+                clusterSettings
+            );
+            executor.setAllowLightweightAssignmentsToNodesShuttingDownFlag(true);
+            HealthNode task = mock(HealthNode.class);
+            PersistentTaskState state = mock(PersistentTaskState.class);
+            executor.nodeOperation(task, new HealthNodeTaskParams(), state);
+            ClusterState initialState = initialState();
+            ClusterState withShutdown = stateWithNodeShuttingDown(initialState, type);
+            executor.shuttingDown(new ClusterChangedEvent("shutdown node", withShutdown, initialState));
+            verify(task, never()).markAsLocallyAborted(anyString());
+        }
+    }
+
     public void testAbortOnDisable() {
         HealthNodeTaskExecutor executor = HealthNodeTaskExecutor.create(
             clusterService,

@@ -221,3 +221,22 @@ left the cluster, for example), are impacted by this setting.
      This setting controls how often assignment checks are performed to react to
      these factors. The default is 30 seconds. The minimum permitted value is 10
      seconds.
+
+
+`cluster.persistent_tasks.allocation.allow_lightweight_assignments_to_nodes_shutting_down`::
++
+--
+(<<dynamic-cluster-setting,Dynamic>>)
+Allow lightweight persistent Tasks to be assigned even if all nodes are shutting down.
+
+* `false` - (default) Lightweight tasks will not be assigned if all nodes are shutting down
+* `true`  - Lightweight task will be assigned, even if all nodes are shutting down
+
+By default, persistent tasks will not be assigned to nodes that are marked for shutdown.
+For certain lightweight, persistent tasks (like the health node), it makes sense to not
+have this limitation.
+
+NOTE: For the health node for example, this provides the benefit of having accurate
+data from the health API until cluster shutdown. Without a health node, the health API
+will return `No disk usage data`.
+--

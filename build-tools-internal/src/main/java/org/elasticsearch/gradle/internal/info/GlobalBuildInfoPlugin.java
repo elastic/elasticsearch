@@ -129,7 +129,6 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
                 ),
                 isRuntimeJavaHomeExplicitlySet,
                 runtimeJdkMetaData.map(m -> formatJavaVendorDetails(m)),
-
                 getAvailableJavaVersions(),
                 minimumCompilerVersion,
                 minimumRuntimeVersion,
@@ -235,14 +234,14 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
         LOGGER.quiet("Elasticsearch Build Hamster says Hello!");
         LOGGER.quiet("  Gradle Version        : " + GradleVersion.current().getVersion());
         LOGGER.quiet("  OS Info               : " + osName + " " + osVersion + " (" + osArch + ")");
-        if (BuildParams.getIsRuntimeJavaHomeSet()) {
-            JvmInstallationMetadata runtimeJvm = metadataDetector.getMetadata(getJavaInstallation(BuildParams.getRuntimeJavaHome()));
+        if (buildParams.getIsRuntimeJavaHomeSet()) {
+            JvmInstallationMetadata runtimeJvm = metadataDetector.getMetadata(getJavaInstallation(buildParams.getRuntimeJavaHome()));
             final String runtimeJvmVendorDetails = runtimeJvm.getVendor().getDisplayName();
             final String runtimeJvmImplementationVersion = runtimeJvm.getJvmVersion();
             final String runtimeVersion = runtimeJvm.getRuntimeVersion();
             final String runtimeExtraDetails = runtimeJvmVendorDetails + ", " + runtimeVersion;
             LOGGER.quiet("  Runtime JDK Version   : " + runtimeJvmImplementationVersion + " (" + runtimeExtraDetails + ")");
-            LOGGER.quiet("  Runtime java.home     : " + BuildParams.getRuntimeJavaHome());
+            LOGGER.quiet("  Runtime java.home     : " + buildParams.getRuntimeJavaHome());
             LOGGER.quiet("  Gradle JDK Version    : " + gradleJvmImplementationVersion + " (" + gradleJvmVendorDetails + ")");
             LOGGER.quiet("  Gradle java.home      : " + gradleJvm.getJavaHome());
         } else {
@@ -253,7 +252,7 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
         if (javaToolchainHome != null) {
             LOGGER.quiet("  JAVA_TOOLCHAIN_HOME   : " + javaToolchainHome);
         }
-        LOGGER.quiet("  Random Testing Seed   : " + BuildParams.getTestSeed());
+        LOGGER.quiet("  Random Testing Seed   : " + buildParams.getTestSeed());
         LOGGER.quiet("  In FIPS 140 mode      : " + buildParams.getInFipsJvm());
         LOGGER.quiet("=======================================");
     }

@@ -27,7 +27,6 @@ public class Clusters {
             .setting("xpack.license.self_generated.type", "trial")
             .shared(true)
             .setting("cluster.routing.rebalance.enable", "none")
-            .plugin("inference-service-test")
             .build();
     }
 
@@ -44,7 +43,6 @@ public class Clusters {
             .setting("cluster.remote.connections_per_cluster", "1")
             .shared(true)
             .setting("cluster.routing.rebalance.enable", "none")
-            .plugin("inference-service-test")
             .build();
     }
 

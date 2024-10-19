@@ -23,7 +23,6 @@ public class Clusters {
             .setting("xpack.security.enabled", "false")
             .setting("xpack.license.self_generated.type", "trial")
             .setting("cluster.routing.rebalance.enable", "none") // disable relocation until we have retry in ESQL
-            .plugin("inference-service-test")
             .build();
     }
 }

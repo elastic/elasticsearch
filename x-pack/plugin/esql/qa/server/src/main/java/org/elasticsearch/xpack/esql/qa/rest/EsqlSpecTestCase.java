@@ -132,7 +132,7 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
 
     @Before
     public void setup() throws IOException {
-        if (clusterHasInferenceEndpoint(client()) == false) {
+        if (supportsInferenceTestService() && clusterHasInferenceEndpoint(client()) == false) {
             createInferenceEndpoint(client());
         }
 
@@ -173,6 +173,9 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
     }
 
     protected void shouldSkipTest(String testName) throws IOException {
+        if (testCase.requiredCapabilities.contains("semantic_text_type")) {
+            assumeTrue("Inference test service needs to be supported for semantic_text", supportsInferenceTestService());
+        }
         checkCapabilities(adminClient(), testFeatureService, testName, testCase);
         assumeTrue("Test " + testName + " is not enabled", isEnabled(testName, instructions, Version.CURRENT));
     }
@@ -214,6 +217,10 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
             assumeTrue("Requested capability " + feature + " is an ESQL cluster feature", features.contains(esqlFeature));
             assumeTrue("Test " + testName + " requires " + feature, testFeatureService.clusterHasFeature(esqlFeature));
         }
+    }
+
+    protected boolean supportsInferenceTestService() {
+        return true;
     }
 
     protected final void doTest() throws Throwable {

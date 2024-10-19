@@ -225,7 +225,9 @@ public class NativePrivilegeStore {
             listener.onResponse(Collections.emptyList());
         } else if (frozenSecurityIndex.isAvailable(SEARCH_SHARDS) == false) {
             final ElasticsearchException unavailableReason = frozenSecurityIndex.getUnavailableReason(SEARCH_SHARDS);
-            if (false == waitForAvailableSecurityIndex || false == unavailableReason instanceof UnavailableShardsException) {
+            if (false == (waitForAvailableSecurityIndex
+                && unavailableReason instanceof UnavailableShardsException
+                && frozenSecurityIndex.indexInitializing())) {
                 listener.onFailure(unavailableReason);
                 return;
             }

@@ -20,7 +20,6 @@ import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTe
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 
 import java.math.BigInteger;
-import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Function;
@@ -43,7 +42,7 @@ public class ToLongTests extends AbstractScalarFunctionTestCase {
         TestCaseSupplier.forUnaryBoolean(suppliers, evaluatorName.apply("Boolean"), DataType.LONG, b -> b ? 1L : 0L, List.of());
 
         // datetimes
-        TestCaseSupplier.forUnaryDatetime(suppliers, read, DataType.LONG, Instant::toEpochMilli, List.of());
+        TestCaseSupplier.forUnaryDatetime(suppliers, read, DataType.LONG, DateUtils::toLongMillis, List.of());
         TestCaseSupplier.forUnaryDateNanos(suppliers, read, DataType.LONG, DateUtils::toLong, List.of());
         // random strings that don't look like a long
         TestCaseSupplier.forUnaryStrings(

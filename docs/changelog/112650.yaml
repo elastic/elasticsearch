@@ -1,0 +1,6 @@
+pr: 112650
+summary: Handle ArithmeticException(long overflow) in dateFieldMapper
+area: Search
+type: bug
+issues:
+  - 112483

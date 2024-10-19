@@ -11,6 +11,7 @@ package org.elasticsearch.gradle.internal;
 import org.elasticsearch.gradle.Version;
 import org.elasticsearch.gradle.VersionProperties;
 
+import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -60,7 +61,8 @@ import static java.util.Collections.unmodifiableList;
  * We are then able to map the unreleased version to branches in git and Gradle projects that are capable of checking
  * out and building them, so we can include these in the testing plan as well.
  */
-public class BwcVersions {
+
+public class BwcVersions implements Serializable {
 
     private static final Pattern LINE_PATTERN = Pattern.compile(
         "\\W+public static final Version V_(\\d+)_(\\d+)_(\\d+)(_alpha\\d+|_beta\\d+|_rc\\d+)?.*\\);"
@@ -68,7 +70,7 @@ public class BwcVersions {
     private static final String GLIBC_VERSION_ENV_VAR = "GLIBC_VERSION";
 
     private final Version currentVersion;
-    private final List<Version> versions;
+    private final transient List<Version> versions;
     private final Map<Version, UnreleasedVersionInfo> unreleased;
 
     public BwcVersions(List<String> versionLines) {

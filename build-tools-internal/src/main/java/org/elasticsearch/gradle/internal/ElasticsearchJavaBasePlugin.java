@@ -58,6 +58,7 @@ public class ElasticsearchJavaBasePlugin implements Plugin<Project> {
 
     @Override
     public void apply(Project project) {
+        project.getRootProject().getPlugins().apply(GlobalBuildInfoPlugin.class);
         // make sure the global build info plugin is applied to the root project
         project.getRootProject().getPluginManager().apply(GlobalBuildInfoPlugin.class);
         buildParams = project.getRootProject().getExtensions().getByType(BuildParameterExtension.class);
@@ -131,8 +132,8 @@ public class ElasticsearchJavaBasePlugin implements Plugin<Project> {
     public void configureCompile(Project project) {
         project.getExtensions().getExtraProperties().set("compactProfile", "full");
         JavaPluginExtension java = project.getExtensions().getByType(JavaPluginExtension.class);
-        if (buildParams.getJavaToolChainSpec() != null) {
-            java.toolchain(buildParams.getJavaToolChainSpec());
+        if (buildParams.getJavaToolChainSpec().isPresent()) {
+            java.toolchain(buildParams.getJavaToolChainSpec().get());
         }
         java.setSourceCompatibility(buildParams.getMinimumRuntimeVersion());
         java.setTargetCompatibility(buildParams.getMinimumRuntimeVersion());

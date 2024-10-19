@@ -16,6 +16,7 @@ import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar;
 import org.elasticsearch.gradle.VersionProperties;
 import org.elasticsearch.gradle.internal.conventions.util.Util;
 import org.elasticsearch.gradle.internal.info.BuildParameterExtension;
+import org.elasticsearch.gradle.internal.info.GlobalBuildInfoPlugin;
 import org.gradle.api.Action;
 import org.gradle.api.JavaVersion;
 import org.gradle.api.Plugin;
@@ -45,6 +46,7 @@ import static org.elasticsearch.gradle.internal.util.ParamsUtils.loadBuildParams
 public class ElasticsearchJavaPlugin implements Plugin<Project> {
     @Override
     public void apply(Project project) {
+        project.getRootProject().getPlugins().apply(GlobalBuildInfoPlugin.class);
         Property<BuildParameterExtension> buildParams = loadBuildParams(project);
         project.getPluginManager().apply(ElasticsearchJavaBasePlugin.class);
         project.getPluginManager().apply(JavaLibraryPlugin.class);

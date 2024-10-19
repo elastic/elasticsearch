@@ -13,28 +13,28 @@ import org.elasticsearch.gradle.internal.BwcVersions;
 import org.gradle.api.Action;
 import org.gradle.api.JavaVersion;
 import org.gradle.api.Task;
+import org.gradle.api.provider.Provider;
 import org.gradle.api.provider.ProviderFactory;
 import org.gradle.jvm.toolchain.JavaToolchainSpec;
 
 import java.io.File;
-import java.io.Serializable;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.List;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicReference;
 
-public class BuildParameterExtension implements Serializable {
-    private final boolean inFipsJvm;
-    private final File runtimeJavaHome;
+public class BuildParameterExtension {
+    private final Provider<Boolean> inFipsJvm;
+    private final Provider<File> runtimeJavaHome;
     private final Boolean isRuntimeJavaHomeSet;
     private final List<JavaHome> javaVersions;
     private final JavaVersion minimumCompilerVersion;
     private final JavaVersion minimumRuntimeVersion;
     private final JavaVersion gradleJavaVersion;
-    private final JavaVersion runtimeJavaVersion;
-    private final Action<JavaToolchainSpec> javaToolChainSpec;
-    private final String runtimeJavaDetails;
+    private final Provider<JavaVersion> runtimeJavaVersion;
+    private final Provider<? extends Action<JavaToolchainSpec>> javaToolChainSpec;
+    private final Provider<String> runtimeJavaDetails;
     private final String gitRevision;
     private final String gitOrigin;
     private transient AtomicReference<ZonedDateTime> buildDate = new AtomicReference<>();
@@ -42,15 +42,15 @@ public class BuildParameterExtension implements Serializable {
     private final Boolean isCi;
     private final Integer defaultParallel;
     private final Boolean isSnapshotBuild;
-    private final BwcVersions bwcVersions;
+    private final Provider<BwcVersions> bwcVersions;
 
     public BuildParameterExtension(
         ProviderFactory providers,
-        File runtimeJavaHome,
-        Action<JavaToolchainSpec> javaToolChainSpec,
-        JavaVersion runtimeJavaVersion,
+        Provider<File> runtimeJavaHome,
+        Provider<? extends Action<JavaToolchainSpec>> javaToolChainSpec,
+        Provider<JavaVersion> runtimeJavaVersion,
         boolean isRuntimeJavaHomeSet,
-        String runtimeJavaDetails,
+        Provider<String> runtimeJavaDetails,
         List<JavaHome> javaVersions,
         JavaVersion minimumCompilerVersion,
         JavaVersion minimumRuntimeVersion,
@@ -62,9 +62,9 @@ public class BuildParameterExtension implements Serializable {
         boolean isCi,
         int defaultParallel,
         final boolean isSnapshotBuild,
-        BwcVersions bwcVersions
+        Provider<BwcVersions> bwcVersions
     ) {
-        this.inFipsJvm = providers.systemProperty("tests.fips.enabled").map(BuildParameterExtension::parseBoolean).getOrElse(false);
+        this.inFipsJvm = providers.systemProperty("tests.fips.enabled").map(BuildParameterExtension::parseBoolean);
         this.runtimeJavaHome = runtimeJavaHome;
         this.javaToolChainSpec = javaToolChainSpec;
         this.runtimeJavaVersion = runtimeJavaVersion;
@@ -91,11 +91,11 @@ public class BuildParameterExtension implements Serializable {
     }
 
     public boolean getInFipsJvm() {
-        return inFipsJvm;
+        return inFipsJvm.getOrElse(false);
     }
 
     public File getRuntimeJavaHome() {
-        return runtimeJavaHome;
+        return runtimeJavaHome.get();
     }
 
     public void withFipsEnabledOnly(Task task) {
@@ -122,15 +122,15 @@ public class BuildParameterExtension implements Serializable {
         return gradleJavaVersion;
     }
 
-    public JavaVersion getRuntimeJavaVersion() {
+    public Provider<JavaVersion> getRuntimeJavaVersion() {
         return runtimeJavaVersion;
     }
 
-    public Action<JavaToolchainSpec> getJavaToolChainSpec() {
+    public Provider<? extends Action<JavaToolchainSpec>> getJavaToolChainSpec() {
         return javaToolChainSpec;
     }
 
-    public String getRuntimeJavaDetails() {
+    public Provider<String> getRuntimeJavaDetails() {
         return runtimeJavaDetails;
     }
 
@@ -171,7 +171,7 @@ public class BuildParameterExtension implements Serializable {
     }
 
     public BwcVersions getBwcVersions() {
-        return bwcVersions;
+        return bwcVersions.get();
     }
 
     public Random getRandom() {
@@ -179,6 +179,6 @@ public class BuildParameterExtension implements Serializable {
     }
 
     public Boolean isGraalVmRuntime() {
-        return runtimeJavaDetails.toLowerCase().contains("graalvm");
+        return runtimeJavaDetails.get().toLowerCase().contains("graalvm");
     }
 }

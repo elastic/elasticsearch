@@ -116,8 +116,8 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
             .create(
                 "buildParams",
                 BuildParameterExtension.class,
-                actualRuntimeJavaHome.get(),
-                resolveToolchainSpecFromEnv().getOrNull(),
+                actualRuntimeJavaHome,
+                resolveToolchainSpecFromEnv(),
                 actualRuntimeJavaHome.map(
                     javaHome -> determineJavaVersion(
                         "runtime java.home",
@@ -126,9 +126,9 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
                             ? minimumRuntimeVersion
                             : JavaVersion.toVersion(VersionProperties.getBundledJdkMajorVersion())
                     )
-                ).get(),
+                ),
                 isRuntimeJavaHomeExplicitlySet,
-                runtimeJdkMetaData.map(m -> formatJavaVendorDetails(m)).get(),
+                runtimeJdkMetaData.map(m -> formatJavaVendorDetails(m)),
 
                 getAvailableJavaVersions(),
                 minimumCompilerVersion,
@@ -141,7 +141,7 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
                 System.getenv("JENKINS_URL") != null || System.getenv("BUILDKITE_BUILD_URL") != null || System.getProperty("isCI") != null,
                 ParallelDetector.findDefaultParallel(project),
                 Util.getBooleanProperty("build.snapshot", true),
-                bwcVersionsProvider.get()
+                bwcVersionsProvider
             );
 
         project.getGradle().getSharedServices().registerIfAbsent("buildParams", BuildParameterService.class, spec -> {

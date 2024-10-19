@@ -39,6 +39,7 @@ public class MvDedupeTests extends AbstractMultivalueFunctionTestCase {
         booleans(cases, "mv_dedupe", "MvDedupe", (size, values) -> getMatcher(values));
         bytesRefs(cases, "mv_dedupe", "MvDedupe", (size, values) -> getMatcher(values));
         dateTimes(cases, "mv_dedupe", "MvDedupe", (size, values) -> getMatcher(values.mapToObj(Long::valueOf)));
+        dateNanos(cases, "mv_dedupe", "MvDedupe", DataType.DATE_NANOS, (size, values) -> getMatcher(values.mapToObj(Long::valueOf)));
         doubles(cases, "mv_dedupe", "MvDedupe", (size, values) -> getMatcher(values.mapToObj(Double::valueOf)));
         ints(cases, "mv_dedupe", "MvDedupe", (size, values) -> getMatcher(values.mapToObj(Integer::valueOf)));
         longs(cases, "mv_dedupe", "MvDedupe", (size, values) -> getMatcher(values.mapToObj(Long::valueOf)));

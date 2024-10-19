@@ -29,7 +29,7 @@ public final class ReservedRoleMappingXContentNameFieldHelper {
         if (metadata.put(METADATA_NAME_FIELD, roleMapping.getName()) != null) {
             logger.error(
                 "Metadata field [{}] is reserved and will be overwritten with an internal system value. "
-                    + "Please rename this field in your role mapping configuration.",
+                    + "Rename this field in your role mapping configuration.",
                 METADATA_NAME_FIELD
             );
         }

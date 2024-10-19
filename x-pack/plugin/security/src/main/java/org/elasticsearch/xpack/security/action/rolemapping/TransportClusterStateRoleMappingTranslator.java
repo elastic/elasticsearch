@@ -37,7 +37,7 @@ import java.util.stream.Collectors;
 public final class TransportClusterStateRoleMappingTranslator {
     private static final Logger logger = LogManager.getLogger(TransportClusterStateRoleMappingTranslator.class);
 
-    static final String READ_ONLY_ROLE_MAPPING_SUFFIX = "-read-only-operator-config";
+    static final String READ_ONLY_ROLE_MAPPING_SUFFIX = "-read-only-operator-mapping";
     static final String READ_ONLY_ROLE_MAPPING_METADATA_FLAG = "_read_only";
 
     private TransportClusterStateRoleMappingTranslator() {}
@@ -47,7 +47,7 @@ public final class TransportClusterStateRoleMappingTranslator {
         if (metadata.put(READ_ONLY_ROLE_MAPPING_METADATA_FLAG, true) != null) {
             logger.error(
                 "Metadata field [{}] is reserved and will be overwritten with an internal system value. "
-                    + "Please rename this field in your role mapping configuration.",
+                    + "Rename this field in your role mapping configuration.",
                 READ_ONLY_ROLE_MAPPING_METADATA_FLAG
             );
         }

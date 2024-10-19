@@ -313,9 +313,8 @@ public enum IndexMode {
     LOOKUP("lookup") {
         @Override
         void validateWithOtherSettings(Map<Setting<?>, Object> settings) {
-            Integer defaultNumberOfShards = IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.get(Settings.EMPTY);
-            Object providedNumberOfShards = settings.getOrDefault(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING, defaultNumberOfShards);
-            if (Objects.equals(providedNumberOfShards, defaultNumberOfShards) == false) {
+            final Integer providedNumberOfShards = (Integer) settings.get(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING);
+            if (providedNumberOfShards != null && providedNumberOfShards != 1) {
                 throw new IllegalArgumentException(
                     "index with [lookup] mode must have [index.number_of_shards] set to 1 or unset; provided " + providedNumberOfShards
                 );

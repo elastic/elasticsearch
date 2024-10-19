@@ -15,8 +15,9 @@ import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar;
 
 import org.elasticsearch.gradle.VersionProperties;
 import org.elasticsearch.gradle.internal.conventions.util.Util;
-import org.elasticsearch.gradle.internal.info.BuildParams;
+import org.elasticsearch.gradle.internal.info.BuildParameterExtension;
 import org.gradle.api.Action;
+import org.gradle.api.JavaVersion;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.Task;
@@ -24,6 +25,7 @@ import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.plugins.BasePlugin;
 import org.gradle.api.plugins.JavaLibraryPlugin;
 import org.gradle.api.plugins.JavaPlugin;
+import org.gradle.api.provider.Property;
 import org.gradle.api.tasks.TaskProvider;
 import org.gradle.api.tasks.bundling.Jar;
 import org.gradle.api.tasks.javadoc.Javadoc;
@@ -34,6 +36,7 @@ import java.io.File;
 import java.util.Map;
 
 import static org.elasticsearch.gradle.internal.conventions.util.Util.toStringable;
+import static org.elasticsearch.gradle.internal.util.ParamsUtils.loadBuildParams;
 
 /**
  * A wrapper around Gradle's Java plugin that applies our
@@ -42,13 +45,14 @@ import static org.elasticsearch.gradle.internal.conventions.util.Util.toStringab
 public class ElasticsearchJavaPlugin implements Plugin<Project> {
     @Override
     public void apply(Project project) {
+        Property<BuildParameterExtension> buildParams = loadBuildParams(project);
         project.getPluginManager().apply(ElasticsearchJavaBasePlugin.class);
         project.getPluginManager().apply(JavaLibraryPlugin.class);
         project.getPluginManager().apply(ElasticsearchJavaModulePathPlugin.class);
 
         // configureConfigurations(project);
-        configureJars(project);
-        configureJarManifest(project);
+        configureJars(project, buildParams.get());
+        configureJarManifest(project, buildParams.get());
         configureJavadoc(project);
         testCompileOnlyDeps(project);
     }
@@ -63,7 +67,9 @@ public class ElasticsearchJavaPlugin implements Plugin<Project> {
     /**
      * Adds additional manifest info to jars
      */
-    static void configureJars(Project project) {
+    static void configureJars(Project project, BuildParameterExtension buildParams) {
+        String buildDate = buildParams.getBuildDate().toString();
+        JavaVersion gradleJavaVersion = buildParams.getGradleJavaVersion();
         project.getTasks().withType(Jar.class).configureEach(jarTask -> {
             // we put all our distributable files under distributions
             jarTask.getDestinationDirectory().set(new File(project.getBuildDir(), "distributions"));
@@ -75,10 +81,7 @@ public class ElasticsearchJavaPlugin implements Plugin<Project> {
                 public void execute(Task task) {
                     // this doFirst is added before the info plugin, therefore it will run
                     // after the doFirst added by the info plugin, and we can override attributes
-                    jarTask.getManifest()
-                        .attributes(
-                            Map.of("Build-Date", BuildParams.getBuildDate(), "Build-Java-Version", BuildParams.getGradleJavaVersion())
-                        );
+                    jarTask.getManifest().attributes(Map.of("Build-Date", buildDate, "Build-Java-Version", gradleJavaVersion));
                 }
             });
         });
@@ -102,10 +105,13 @@ public class ElasticsearchJavaPlugin implements Plugin<Project> {
         });
     }
 
-    private static void configureJarManifest(Project project) {
+    private static void configureJarManifest(Project project, BuildParameterExtension buildParams) {
+        String gitOrigin = buildParams.getGitOrigin();
+        String gitRevision = buildParams.getGitRevision();
+
         project.getPlugins().withType(InfoBrokerPlugin.class).whenPluginAdded(manifestPlugin -> {
-            manifestPlugin.add("Module-Origin", toStringable(BuildParams::getGitOrigin));
-            manifestPlugin.add("Change", toStringable(BuildParams::getGitRevision));
+            manifestPlugin.add("Module-Origin", toStringable(() -> gitOrigin));
+            manifestPlugin.add("Change", toStringable(() -> gitRevision));
             manifestPlugin.add("X-Compile-Elasticsearch-Version", toStringable(VersionProperties::getElasticsearch));
             manifestPlugin.add("X-Compile-Lucene-Version", toStringable(VersionProperties::getLucene));
             manifestPlugin.add(

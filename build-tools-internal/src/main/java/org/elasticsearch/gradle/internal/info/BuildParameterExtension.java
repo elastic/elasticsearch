@@ -13,42 +13,44 @@ import org.elasticsearch.gradle.internal.BwcVersions;
 import org.gradle.api.Action;
 import org.gradle.api.JavaVersion;
 import org.gradle.api.Task;
-import org.gradle.api.provider.Provider;
 import org.gradle.api.provider.ProviderFactory;
 import org.gradle.jvm.toolchain.JavaToolchainSpec;
 
 import java.io.File;
+import java.io.Serializable;
+import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.List;
 import java.util.Random;
+import java.util.concurrent.atomic.AtomicReference;
 
-public class BuildParameterExtension {
-    private final Provider<Boolean> inFipsJvm;
-    private final Provider<File> runtimeJavaHome;
+public class BuildParameterExtension implements Serializable {
+    private final boolean inFipsJvm;
+    private final File runtimeJavaHome;
     private final Boolean isRuntimeJavaHomeSet;
     private final List<JavaHome> javaVersions;
     private final JavaVersion minimumCompilerVersion;
     private final JavaVersion minimumRuntimeVersion;
     private final JavaVersion gradleJavaVersion;
-    private final Provider<JavaVersion> runtimeJavaVersion;
-    private final Provider<? extends Action<JavaToolchainSpec>> javaToolChainSpec;
-    private final Provider<String> runtimeJavaDetails;
+    private final JavaVersion runtimeJavaVersion;
+    private final Action<JavaToolchainSpec> javaToolChainSpec;
+    private final String runtimeJavaDetails;
     private final String gitRevision;
     private final String gitOrigin;
-    private final ZonedDateTime buildDate;
+    private transient AtomicReference<ZonedDateTime> buildDate = new AtomicReference<>();
     private final String testSeed;
     private final Boolean isCi;
     private final Integer defaultParallel;
     private final Boolean isSnapshotBuild;
-    private final Provider<BwcVersions> bwcVersions;
+    private final BwcVersions bwcVersions;
 
     public BuildParameterExtension(
         ProviderFactory providers,
-        Provider<File> runtimeJavaHome,
-        Provider<? extends Action<JavaToolchainSpec>> javaToolChainSpec,
-        Provider<JavaVersion> runtimeJavaVersion,
+        File runtimeJavaHome,
+        Action<JavaToolchainSpec> javaToolChainSpec,
+        JavaVersion runtimeJavaVersion,
         boolean isRuntimeJavaHomeSet,
-        Provider<String> runtimeJavaDetails,
+        String runtimeJavaDetails,
         List<JavaHome> javaVersions,
         JavaVersion minimumCompilerVersion,
         JavaVersion minimumRuntimeVersion,
@@ -60,9 +62,9 @@ public class BuildParameterExtension {
         boolean isCi,
         int defaultParallel,
         final boolean isSnapshotBuild,
-        Provider<BwcVersions> bwcVersions
+        BwcVersions bwcVersions
     ) {
-        this.inFipsJvm = providers.systemProperty("tests.fips.enabled").map(BuildParameterExtension::parseBoolean);
+        this.inFipsJvm = providers.systemProperty("tests.fips.enabled").map(BuildParameterExtension::parseBoolean).getOrElse(false);
         this.runtimeJavaHome = runtimeJavaHome;
         this.javaToolChainSpec = javaToolChainSpec;
         this.runtimeJavaVersion = runtimeJavaVersion;
@@ -74,7 +76,6 @@ public class BuildParameterExtension {
         this.gradleJavaVersion = gradleJavaVersion;
         this.gitRevision = gitRevision;
         this.gitOrigin = gitOrigin;
-        this.buildDate = buildDate;
         this.testSeed = testSeed;
         this.isCi = isCi;
         this.defaultParallel = defaultParallel;
@@ -90,11 +91,11 @@ public class BuildParameterExtension {
     }
 
     public boolean getInFipsJvm() {
-        return inFipsJvm.getOrElse(false);
+        return inFipsJvm;
     }
 
     public File getRuntimeJavaHome() {
-        return runtimeJavaHome.get();
+        return runtimeJavaHome;
     }
 
     public void withFipsEnabledOnly(Task task) {
@@ -121,15 +122,15 @@ public class BuildParameterExtension {
         return gradleJavaVersion;
     }
 
-    public Provider<JavaVersion> getRuntimeJavaVersion() {
+    public JavaVersion getRuntimeJavaVersion() {
         return runtimeJavaVersion;
     }
 
-    public Provider<? extends Action<JavaToolchainSpec>> getJavaToolChainSpec() {
+    public Action<JavaToolchainSpec> getJavaToolChainSpec() {
         return javaToolChainSpec;
     }
 
-    public Provider<String> getRuntimeJavaDetails() {
+    public String getRuntimeJavaDetails() {
         return runtimeJavaDetails;
     }
 
@@ -142,14 +143,22 @@ public class BuildParameterExtension {
     }
 
     public ZonedDateTime getBuildDate() {
-        return buildDate;
+        ZonedDateTime value = buildDate.get();
+        if (value == null) {
+            value = ZonedDateTime.now(ZoneOffset.UTC);
+            if (buildDate.compareAndSet(null, value) == false) {
+                // If another thread initialized it first, return the initialized value
+                value = buildDate.get();
+            }
+        }
+        return value;
     }
 
     public String getTestSeed() {
         return testSeed;
     }
 
-    public Boolean getCi() {
+    public Boolean isCi() {
         return isCi;
     }
 
@@ -162,7 +171,7 @@ public class BuildParameterExtension {
     }
 
     public BwcVersions getBwcVersions() {
-        return bwcVersions.get();
+        return bwcVersions;
     }
 
     public Random getRandom() {
@@ -170,6 +179,6 @@ public class BuildParameterExtension {
     }
 
     public Boolean isGraalVmRuntime() {
-        return runtimeJavaDetails.get().toLowerCase().contains("graalvm");
+        return runtimeJavaDetails.toLowerCase().contains("graalvm");
     }
 }

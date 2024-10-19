@@ -209,7 +209,6 @@ public enum DataType {
      * They aren't included in generated documentation. And the tests don't
      * check that sending them to a function produces a sane error message.
      */
-
     public static final Map<DataType, FeatureFlag> UNDER_CONSTRUCTION = Map.ofEntries(
         Map.entry(DATE_NANOS, EsqlCorePlugin.DATE_NANOS_FEATURE_FLAG),
         Map.entry(SEMANTIC_TEXT, EsqlCorePlugin.SEMANTIC_TEXT_FEATURE_FLAG)

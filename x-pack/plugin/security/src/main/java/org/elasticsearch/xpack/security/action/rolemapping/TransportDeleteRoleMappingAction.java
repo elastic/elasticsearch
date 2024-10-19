@@ -21,7 +21,6 @@ import org.elasticsearch.xpack.security.authc.support.mapper.ClusterStateRoleMap
 import org.elasticsearch.xpack.security.authc.support.mapper.NativeRoleMappingStore;
 
 public class TransportDeleteRoleMappingAction extends HandledTransportAction<DeleteRoleMappingRequest, DeleteRoleMappingResponse> {
-
     private final NativeRoleMappingStore roleMappingStore;
     private final ClusterStateRoleMapper clusterStateRoleMapper;
 
@@ -46,7 +45,7 @@ public class TransportDeleteRoleMappingAction extends HandledTransportAction<Del
     @Override
     protected void doExecute(Task task, DeleteRoleMappingRequest request, ActionListener<DeleteRoleMappingResponse> listener) {
         roleMappingStore.deleteRoleMapping(request, listener.safeMap(found -> {
-            if (found && hasClusterStateMappingWithSameName(request.getName())) {
+            if (found && clusterStateMappingWithSameNameExists(request.getName())) {
                 // Allow to delete a mapping with the same name in the native role mapping store as the file_settings namespace, but
                 // add a warning header to signal to the caller that this could be a problem.
                 HeaderWarning.addWarning(
@@ -60,7 +59,7 @@ public class TransportDeleteRoleMappingAction extends HandledTransportAction<Del
         }));
     }
 
-    private boolean hasClusterStateMappingWithSameName(String name) {
+    private boolean clusterStateMappingWithSameNameExists(String name) {
         return clusterStateRoleMapper.hasMapping(TransportClusterStateRoleMappingTranslator.removeReadOnlySuffixIfPresent(name));
     }
 }

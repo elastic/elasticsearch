@@ -20,7 +20,6 @@ import java.lang.reflect.Modifier;
 import java.time.ZonedDateTime;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Random;
 import java.util.function.Consumer;
 
 import static java.util.Objects.requireNonNull;
@@ -36,7 +35,6 @@ public class BuildParams {
     private static Provider<JavaVersion> runtimeJavaVersion;
     private static Provider<? extends Action<JavaToolchainSpec>> javaToolChainSpec;
     private static Provider<String> runtimeJavaDetails;
-    private static Boolean inFipsJvm;
     private static String gitRevision;
     private static String gitOrigin;
     private static ZonedDateTime buildDate;
@@ -58,88 +56,20 @@ public class BuildParams {
         initializer.accept(MutableBuildParams.INSTANCE);
     }
 
-    public static File getRuntimeJavaHome() {
-        return value(runtimeJavaHome).get();
-    }
-
     public static Boolean getIsRuntimeJavaHomeSet() {
         return value(isRuntimeJavaHomeSet);
-    }
-
-    public static List<JavaHome> getJavaVersions() {
-        return value(javaVersions);
-    }
-
-    public static JavaVersion getMinimumCompilerVersion() {
-        return value(minimumCompilerVersion);
-    }
-
-    public static JavaVersion getMinimumRuntimeVersion() {
-        return value(minimumRuntimeVersion);
-    }
-
-    public static JavaVersion getGradleJavaVersion() {
-        return value(gradleJavaVersion);
     }
 
     public static JavaVersion getRuntimeJavaVersion() {
         return value(runtimeJavaVersion.get());
     }
 
-    public static String getRuntimeJavaDetails() {
-        return value(runtimeJavaDetails.get());
-    }
-
-    // public static Boolean isInFipsJvm() {
-    // return value(inFipsJvm);
-    // }
-
-    // public static void withFipsEnabledOnly(Task task) {
-    // task.onlyIf("FIPS mode disabled", task1 -> isInFipsJvm() == false);
-    // }
-
-    public static String getGitRevision() {
-        return value(gitRevision);
-    }
-
-    public static String getGitOrigin() {
-        return value(gitOrigin);
-    }
-
-    public static ZonedDateTime getBuildDate() {
-        return value(buildDate);
-    }
-
     public static BwcVersions getBwcVersions() {
         return value(bwcVersions).get();
     }
 
-    public static String getTestSeed() {
-        return value(testSeed);
-    }
-
-    public static Random getRandom() {
-        return new Random(Long.parseUnsignedLong(testSeed.split(":")[0], 16));
-    }
-
     public static Boolean isCi() {
         return value(isCi);
-    }
-
-    public static Boolean isGraalVmRuntime() {
-        return value(runtimeJavaDetails.get().toLowerCase().contains("graalvm"));
-    }
-
-    public static Integer getDefaultParallel() {
-        return value(defaultParallel);
-    }
-
-    public static boolean isSnapshotBuild() {
-        return value(BuildParams.isSnapshotBuild);
-    }
-
-    public static Provider<? extends Action<JavaToolchainSpec>> getJavaToolChainSpec() {
-        return javaToolChainSpec;
     }
 
     private static <T> T value(T object) {
@@ -219,10 +149,6 @@ public class BuildParams {
 
         public void setRuntimeJavaDetails(Provider<String> runtimeJavaDetails) {
             BuildParams.runtimeJavaDetails = runtimeJavaDetails;
-        }
-
-        public void setInFipsJvm(boolean inFipsJvm) {
-            BuildParams.inFipsJvm = inFipsJvm;
         }
 
         public void setGitRevision(String gitRevision) {

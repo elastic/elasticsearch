@@ -13,7 +13,6 @@ import de.thetaphi.forbiddenapis.cli.CliMain;
 import org.apache.commons.io.output.NullOutputStream;
 import org.elasticsearch.gradle.OS;
 import org.elasticsearch.gradle.VersionProperties;
-import org.elasticsearch.gradle.internal.info.BuildParams;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.JavaVersion;
 import org.gradle.api.file.ArchiveOperations;
@@ -194,6 +193,10 @@ public abstract class ThirdPartyAuditTask extends DefaultTask {
     @SkipWhenEmpty
     public abstract ConfigurableFileCollection getJarsToScan();
 
+    @Input
+    @Optional
+    public abstract Property<JavaVersion> getRuntimeJavaVersion();
+
     @Classpath
     public FileCollection getClasspath() {
         return classpath;
@@ -371,14 +374,10 @@ public abstract class ThirdPartyAuditTask extends DefaultTask {
 
     /** Returns true iff the build Java version is the same as the given version. */
     private boolean isJavaVersion(JavaVersion version) {
-        if (BuildParams.getIsRuntimeJavaHomeSet()) {
-            if (version.equals(BuildParams.getRuntimeJavaVersion())) {
-                return true;
-            }
-        } else if (version.getMajorVersion().equals(VersionProperties.getBundledJdkMajorVersion())) {
-            return true;
+        if (getRuntimeJavaVersion().isPresent()) {
+            return getRuntimeJavaVersion().get().equals(version);
         }
-        return false;
+        return version.getMajorVersion().equals(VersionProperties.getBundledJdkMajorVersion());
     }
 
     private Set<String> runJdkJarHellCheck() throws IOException {

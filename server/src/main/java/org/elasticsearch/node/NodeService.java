@@ -11,7 +11,6 @@ package org.elasticsearch.node;
 
 import org.elasticsearch.Build;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.info.ComponentVersionNumber;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
@@ -122,8 +121,7 @@ public class NodeService implements Closeable {
         boolean indices
     ) {
         return new NodeInfo(
-            // TODO: revert to Build.current().version() when Kibana is updated
-            Version.CURRENT.toString(),
+            Build.current().version(),
             TransportVersion.current(),
             IndexVersion.current(),
             componentVersions,

@@ -416,6 +416,9 @@ tests:
 - class: org.elasticsearch.index.mapper.annotatedtext.AnnotatedTextFieldMapperTests
   method: testBlockLoaderFromRowStrideReaderWithSyntheticSource
   issue: https://github.com/elastic/elasticsearch/issues/115076
+- class: org.elasticsearch.xpack.enrich.EnrichIT
+  method: testEnrichSpecialTypes
+  issue: https://github.com/elastic/elasticsearch/issues/114773
 
 # Examples:
 #

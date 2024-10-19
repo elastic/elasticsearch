@@ -36,8 +36,8 @@ import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.SecureRandomHolder;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.cache.Cache;
@@ -160,7 +160,7 @@ public class ApiKeyService implements Closeable {
 
     public static final Setting<String> PASSWORD_HASHING_ALGORITHM = XPackSettings.defaultStoredHashAlgorithmSetting(
         "xpack.security.authc.api_key.hashing.algorithm",
-        (s) -> Hasher.PBKDF2.name()
+        (s) -> Hasher.SSHA256.name()
     );
     public static final Setting<TimeValue> DELETE_TIMEOUT = Setting.timeSetting(
         "xpack.security.authc.api_key.delete.timeout",
@@ -541,7 +541,9 @@ public class ApiKeyService implements Closeable {
     ) {
         final Instant created = clock.instant();
         final Instant expiration = getApiKeyExpiration(created, request.getExpiration());
-        final SecureString apiKey = UUIDs.randomBase64UUIDSecureString();
+        // the difference between 16 and 18 effectively results in the same "encoded" API Key that's sent in HTTP request headers,
+        // dues to base64 padding
+        final SecureString apiKey = getBase64SecureRandomString(request.getType() == ApiKey.Type.CROSS_CLUSTER ? 16 : 18);
         assert ApiKey.Type.CROSS_CLUSTER != request.getType() || API_KEY_SECRET_LENGTH == apiKey.length()
             : "Invalid API key (name=[" + request.getName() + "], type=[" + request.getType() + "], length=[" + apiKey.length() + "])";
 
@@ -2723,6 +2725,24 @@ public class ApiKeyService implements Closeable {
             logger.debug("Invalidating all API key doc cache and descriptor cache");
             docCache.invalidateAll();
             roleDescriptorsBytesCache.invalidateAll();
+        }
+    }
+
+    private static SecureString getBase64SecureRandomString(int randomBytesCount) {
+        byte[] randomBytes = null;
+        byte[] encodedBytes = null;
+        try {
+            randomBytes = new byte[randomBytesCount];
+            SecureRandomHolder.INSTANCE.nextBytes(randomBytes);
+            encodedBytes = Base64.getUrlEncoder().withoutPadding().encode(randomBytes);
+            return new SecureString(CharArrays.utf8BytesToChars(encodedBytes));
+        } finally {
+            if (randomBytes != null) {
+                Arrays.fill(randomBytes, (byte) 0);
+            }
+            if (encodedBytes != null) {
+                Arrays.fill(encodedBytes, (byte) 0);
+            }
         }
     }
 }

@@ -739,7 +739,7 @@ public enum Hasher {
         return Arrays.stream(Hasher.values())
             .map(Hasher::name)
             .map(name -> name.toLowerCase(Locale.ROOT))
-            .filter(name -> (name.startsWith("pbkdf2") || name.startsWith("bcrypt")))
+            .filter(name -> (name.startsWith("pbkdf2") || name.startsWith("bcrypt") || "ssha256".equals(name)))
             .collect(Collectors.toList());
     }
 

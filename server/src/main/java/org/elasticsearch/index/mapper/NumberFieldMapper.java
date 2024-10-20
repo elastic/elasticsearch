@@ -462,8 +462,12 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            BlockLoader blockLoaderFromSource(SourceValueFetcher sourceValueFetcher, BlockSourceReader.LeafIteratorLookup lookup) {
-                return new BlockSourceReader.DoublesBlockLoader(sourceValueFetcher, lookup);
+            BlockLoader blockLoaderFromSource(
+                SourceValueFetcher sourceValueFetcher,
+                BlockSourceReader.LeafIteratorLookup lookup,
+                SourceFieldMapper.Mode sourceMode
+            ) {
+                return new BlockSourceReader.DoublesBlockLoader(sourceValueFetcher, lookup, sourceMode);
             }
         },
         FLOAT("float", NumericType.FLOAT) {
@@ -646,8 +650,12 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            BlockLoader blockLoaderFromSource(SourceValueFetcher sourceValueFetcher, BlockSourceReader.LeafIteratorLookup lookup) {
-                return new BlockSourceReader.DoublesBlockLoader(sourceValueFetcher, lookup);
+            BlockLoader blockLoaderFromSource(
+                SourceValueFetcher sourceValueFetcher,
+                BlockSourceReader.LeafIteratorLookup lookup,
+                SourceFieldMapper.Mode sourceMode
+            ) {
+                return new BlockSourceReader.DoublesBlockLoader(sourceValueFetcher, lookup, sourceMode);
             }
         },
         DOUBLE("double", NumericType.DOUBLE) {
@@ -796,8 +804,12 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            BlockLoader blockLoaderFromSource(SourceValueFetcher sourceValueFetcher, BlockSourceReader.LeafIteratorLookup lookup) {
-                return new BlockSourceReader.DoublesBlockLoader(sourceValueFetcher, lookup);
+            BlockLoader blockLoaderFromSource(
+                SourceValueFetcher sourceValueFetcher,
+                BlockSourceReader.LeafIteratorLookup lookup,
+                SourceFieldMapper.Mode sourceMode
+            ) {
+                return new BlockSourceReader.DoublesBlockLoader(sourceValueFetcher, lookup, sourceMode);
             }
         },
         BYTE("byte", NumericType.BYTE) {
@@ -909,8 +921,12 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            BlockLoader blockLoaderFromSource(SourceValueFetcher sourceValueFetcher, BlockSourceReader.LeafIteratorLookup lookup) {
-                return new BlockSourceReader.IntsBlockLoader(sourceValueFetcher, lookup);
+            BlockLoader blockLoaderFromSource(
+                SourceValueFetcher sourceValueFetcher,
+                BlockSourceReader.LeafIteratorLookup lookup,
+                SourceFieldMapper.Mode sourceMode
+            ) {
+                return new BlockSourceReader.IntsBlockLoader(sourceValueFetcher, lookup, sourceMode);
             }
 
             private boolean isOutOfRange(Object value) {
@@ -1022,8 +1038,12 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            BlockLoader blockLoaderFromSource(SourceValueFetcher sourceValueFetcher, BlockSourceReader.LeafIteratorLookup lookup) {
-                return new BlockSourceReader.IntsBlockLoader(sourceValueFetcher, lookup);
+            BlockLoader blockLoaderFromSource(
+                SourceValueFetcher sourceValueFetcher,
+                BlockSourceReader.LeafIteratorLookup lookup,
+                SourceFieldMapper.Mode sourceMode
+            ) {
+                return new BlockSourceReader.IntsBlockLoader(sourceValueFetcher, lookup, sourceMode);
             }
 
             private boolean isOutOfRange(Object value) {
@@ -1209,8 +1229,12 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            BlockLoader blockLoaderFromSource(SourceValueFetcher sourceValueFetcher, BlockSourceReader.LeafIteratorLookup lookup) {
-                return new BlockSourceReader.IntsBlockLoader(sourceValueFetcher, lookup);
+            BlockLoader blockLoaderFromSource(
+                SourceValueFetcher sourceValueFetcher,
+                BlockSourceReader.LeafIteratorLookup lookup,
+                SourceFieldMapper.Mode sourceMode
+            ) {
+                return new BlockSourceReader.IntsBlockLoader(sourceValueFetcher, lookup, sourceMode);
             }
         },
         LONG("long", NumericType.LONG) {
@@ -1356,8 +1380,12 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            BlockLoader blockLoaderFromSource(SourceValueFetcher sourceValueFetcher, BlockSourceReader.LeafIteratorLookup lookup) {
-                return new BlockSourceReader.LongsBlockLoader(sourceValueFetcher, lookup);
+            BlockLoader blockLoaderFromSource(
+                SourceValueFetcher sourceValueFetcher,
+                BlockSourceReader.LeafIteratorLookup lookup,
+                SourceFieldMapper.Mode sourceMode
+            ) {
+                return new BlockSourceReader.LongsBlockLoader(sourceValueFetcher, lookup, sourceMode);
             }
 
             private boolean isOutOfRange(Object value) {
@@ -1635,7 +1663,11 @@ public class NumberFieldMapper extends FieldMapper {
 
         abstract BlockLoader blockLoaderFromDocValues(String fieldName);
 
-        abstract BlockLoader blockLoaderFromSource(SourceValueFetcher sourceValueFetcher, BlockSourceReader.LeafIteratorLookup lookup);
+        abstract BlockLoader blockLoaderFromSource(
+            SourceValueFetcher sourceValueFetcher,
+            BlockSourceReader.LeafIteratorLookup lookup,
+            SourceFieldMapper.Mode sourceMode
+        );
     }
 
     public static class NumberFieldType extends SimpleMappedFieldType {
@@ -1774,7 +1806,8 @@ public class NumberFieldMapper extends FieldMapper {
             BlockSourceReader.LeafIteratorLookup lookup = isStored() || isIndexed()
                 ? BlockSourceReader.lookupFromFieldNames(blContext.fieldNames(), name())
                 : BlockSourceReader.lookupMatchingAll();
-            return type.blockLoaderFromSource(sourceValueFetcher(blContext.sourcePaths(name())), lookup);
+            var sourceMode = blContext.indexSettings().getIndexMappingSourceMode();
+            return type.blockLoaderFromSource(sourceValueFetcher(blContext.sourcePaths(name())), lookup, sourceMode);
         }
 
         @Override

@@ -364,7 +364,8 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             SourceValueFetcher fetcher = SourceValueFetcher.toString(blContext.sourcePaths(name()));
             // MatchOnlyText never has norms, so we have to use the field names field
             BlockSourceReader.LeafIteratorLookup lookup = BlockSourceReader.lookupFromFieldNames(blContext.fieldNames(), name());
-            return new BlockSourceReader.BytesRefsBlockLoader(fetcher, lookup);
+            var sourceMode = blContext.indexSettings().getIndexMappingSourceMode();
+            return new BlockSourceReader.BytesRefsBlockLoader(fetcher, lookup, sourceMode);
         }
 
         @Override

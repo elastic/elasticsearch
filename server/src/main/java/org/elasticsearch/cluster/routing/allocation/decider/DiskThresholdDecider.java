@@ -25,9 +25,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 
 import java.util.Map;
@@ -72,25 +70,6 @@ public class DiskThresholdDecider extends AllocationDecider {
 
     public static final String NAME = "disk_threshold";
 
-    @UpdateForV9(owner = UpdateForV9.Owner.DISTRIBUTED_COORDINATION)
-    public static final Setting<Boolean> ENABLE_FOR_SINGLE_DATA_NODE = Setting.boolSetting(
-        "cluster.routing.allocation.disk.watermark.enable_for_single_data_node",
-        true,
-        new Setting.Validator<>() {
-            @Override
-            public void validate(Boolean value) {
-                if (value == Boolean.FALSE) {
-                    throw new SettingsException(
-                        "setting [{}=false] is not allowed, only true is valid",
-                        ENABLE_FOR_SINGLE_DATA_NODE.getKey()
-                    );
-                }
-            }
-        },
-        Setting.Property.NodeScope,
-        Setting.Property.DeprecatedWarning
-    );
-
     public static final Setting<Boolean> SETTING_IGNORE_DISK_WATERMARKS = Setting.boolSetting(
         "index.routing.allocation.disk.watermark.ignore",
         false,
@@ -102,9 +81,6 @@ public class DiskThresholdDecider extends AllocationDecider {
 
     public DiskThresholdDecider(Settings settings, ClusterSettings clusterSettings) {
         this.diskThresholdSettings = new DiskThresholdSettings(settings, clusterSettings);
-        // get deprecation warnings.
-        boolean enabledForSingleDataNode = ENABLE_FOR_SINGLE_DATA_NODE.get(settings);
-        assert enabledForSingleDataNode;
     }
 
     /**

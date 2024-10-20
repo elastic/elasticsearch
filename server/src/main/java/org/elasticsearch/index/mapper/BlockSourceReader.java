@@ -117,8 +117,8 @@ public abstract class BlockSourceReader implements BlockLoader.RowStrideReader {
         }
 
         // Assumes synthetic source only
-        private SourceBlockLoader(ValueFetcher fetcher, LeafIteratorLookup lookup, String additionalField) {
-            this(fetcher, lookup, NEEDS_SOURCE_AND_IGNORED_SOURCE.merge(new StoredFieldsSpec(true, false, Set.of(additionalField))));
+        private SourceBlockLoader(ValueFetcher fetcher, LeafIteratorLookup lookup, Set<String> requiredStoredFields) {
+            this(fetcher, lookup, NEEDS_SOURCE_AND_IGNORED_SOURCE.merge(new StoredFieldsSpec(true, false, requiredStoredFields)));
         }
 
         @Override
@@ -208,8 +208,8 @@ public abstract class BlockSourceReader implements BlockLoader.RowStrideReader {
             super(fetcher, lookup, sourceMode);
         }
 
-        public BytesRefsBlockLoader(SourceValueFetcher fetcher, LeafIteratorLookup lookup, String originalFieldName) {
-            super(fetcher, lookup, originalFieldName);
+        public BytesRefsBlockLoader(SourceValueFetcher fetcher, LeafIteratorLookup lookup, Set<String> requiredStoredFields) {
+            super(fetcher, lookup, requiredStoredFields);
         }
 
         @Override

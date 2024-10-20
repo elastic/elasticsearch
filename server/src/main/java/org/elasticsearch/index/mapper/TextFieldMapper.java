@@ -83,6 +83,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.IntPredicate;
 
 import static org.elasticsearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
@@ -1024,12 +1025,20 @@ public final class TextFieldMapper extends FieldMapper {
                 return null;
             }
             SourceValueFetcher fetcher = SourceValueFetcher.toString(blContext.sourcePaths(name()));
+            // TODO push this logic to keyword field mapper (which is the delegate) (this should fix the
             var sourceMode = blContext.indexSettings().getIndexMappingSourceMode();
             if (sourceMode == SourceFieldMapper.Mode.SYNTHETIC && syntheticSourceDelegate().ignoreAbove() != Integer.MAX_VALUE) {
                 // Can't just read the original field, because only when ignore_above threshold is exceeded,
                 // then this stored fields gets added. In other cases this field does not exist. But we do need to include the field name:
                 String originalName = syntheticSourceDelegate().name() + "._original";
-                return new BlockSourceReader.BytesRefsBlockLoader(fetcher, blockReaderDisiLookup(blContext), originalName);
+                Set<String> requiredStoredFields;
+                if (syntheticSourceDelegate.isStored()) {
+                    // in case field is stored and ignore_above is configured:
+                    requiredStoredFields = Set.of(syntheticSourceDelegate().name(), originalName);
+                } else {
+                    requiredStoredFields = Set.of(originalName);
+                }
+                return new BlockSourceReader.BytesRefsBlockLoader(fetcher, blockReaderDisiLookup(blContext), requiredStoredFields);
             } else {
                 return new BlockSourceReader.BytesRefsBlockLoader(fetcher, blockReaderDisiLookup(blContext), sourceMode);
             }

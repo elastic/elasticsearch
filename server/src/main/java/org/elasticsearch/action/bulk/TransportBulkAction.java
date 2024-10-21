@@ -40,6 +40,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
@@ -97,6 +98,7 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
         IndexNameExpressionResolver indexNameExpressionResolver,
         IndexingPressure indexingPressure,
         SystemIndices systemIndices,
+        ProjectResolver projectResolver,
         FailureStoreMetrics failureStoreMetrics
     ) {
         this(
@@ -110,6 +112,7 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
             indexNameExpressionResolver,
             indexingPressure,
             systemIndices,
+            projectResolver,
             threadPool::relativeTimeInNanos,
             failureStoreMetrics
         );
@@ -126,6 +129,7 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
         IndexNameExpressionResolver indexNameExpressionResolver,
         IndexingPressure indexingPressure,
         SystemIndices systemIndices,
+        ProjectResolver projectResolver,
         LongSupplier relativeTimeProvider,
         FailureStoreMetrics failureStoreMetrics
     ) {
@@ -142,6 +146,7 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
             indexNameExpressionResolver,
             indexingPressure,
             systemIndices,
+            projectResolver,
             relativeTimeProvider,
             failureStoreMetrics
         );
@@ -160,6 +165,7 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
         IndexNameExpressionResolver indexNameExpressionResolver,
         IndexingPressure indexingPressure,
         SystemIndices systemIndices,
+        ProjectResolver projectResolver,
         LongSupplier relativeTimeProvider,
         FailureStoreMetrics failureStoreMetrics
     ) {
@@ -173,6 +179,7 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
             ingestService,
             indexingPressure,
             systemIndices,
+            projectResolver,
             relativeTimeProvider
         );
         Objects.requireNonNull(relativeTimeProvider);

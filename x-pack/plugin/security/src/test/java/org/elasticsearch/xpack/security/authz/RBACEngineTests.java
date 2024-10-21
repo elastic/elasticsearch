@@ -1312,10 +1312,7 @@ public class RBACEngineTests extends ESTestCase {
             )
             .addRemoteClusterPermissions(
                 new RemoteClusterPermissions().addGroup(
-                    new RemoteClusterPermissionGroup(
-                        new String[] {"monitor_enrich"},
-                        new String[] { "remote-1" }
-                    )
+                    new RemoteClusterPermissionGroup(new String[] { "monitor_enrich" }, new String[] { "remote-1" })
                 )
                     .addGroup(
                         new RemoteClusterPermissionGroup(
@@ -1385,12 +1382,12 @@ public class RBACEngineTests extends ESTestCase {
         String[] allRemoteClusterPermissions = RemoteClusterPermissions.getSupportedRemoteClusterPermissions().toArray(new String[0]);
 
         assertThat(response.getRemoteClusterPermissions().groups(), iterableWithSize(2));
-        //remote-1 has monitor_enrich permission
-        //remote-2 and remote-3 have all permissions
+        // remote-1 has monitor_enrich permission
+        // remote-2 and remote-3 have all permissions
         assertThat(
             response.getRemoteClusterPermissions().groups(),
             containsInAnyOrder(
-                new RemoteClusterPermissionGroup(new String[] {"monitor_enrich"}, new String[] { "remote-1" }),
+                new RemoteClusterPermissionGroup(new String[] { "monitor_enrich" }, new String[] { "remote-1" }),
                 new RemoteClusterPermissionGroup(allRemoteClusterPermissions, new String[] { "remote-2", "remote-3" })
             )
         );

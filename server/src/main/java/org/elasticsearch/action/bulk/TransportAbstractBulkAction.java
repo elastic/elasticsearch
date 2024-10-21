@@ -27,10 +27,13 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Assertions;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexingPressure;
@@ -60,6 +63,7 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
     protected final ClusterService clusterService;
     protected final IndexingPressure indexingPressure;
     protected final SystemIndices systemIndices;
+    protected final ProjectResolver projectResolver;
     private final IngestService ingestService;
     private final IngestActionForwarder ingestForwarder;
     protected final LongSupplier relativeTimeNanosProvider;
@@ -77,6 +81,7 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
         IngestService ingestService,
         IndexingPressure indexingPressure,
         SystemIndices systemIndices,
+        ProjectResolver projectResolver,
         LongSupplier relativeTimeNanosProvider
     ) {
         super(action.name(), transportService, actionFilters, requestReader, EsExecutors.DIRECT_EXECUTOR_SERVICE);
@@ -85,6 +90,7 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
         this.ingestService = ingestService;
         this.indexingPressure = indexingPressure;
         this.systemIndices = systemIndices;
+        this.projectResolver = projectResolver;
         this.writeExecutor = threadPool.executor(ThreadPool.Names.WRITE);
         this.systemWriteExecutor = threadPool.executor(ThreadPool.Names.SYSTEM_WRITE);
         this.ingestForwarder = new IngestActionForwarder(transportService);
@@ -114,7 +120,7 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
         final long indexingBytes = bulkRequest.ramBytesUsed();
         final boolean isOnlySystem = TransportBulkAction.isOnlySystem(
             bulkRequest,
-            clusterService.state().metadata().getProject().getIndicesLookup(),
+            projectResolver.getProjectMetadata(clusterService.state()).getIndicesLookup(),
             systemIndices
         );
         final Releasable releasable;
@@ -182,6 +188,8 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
     private boolean applyPipelines(Task task, BulkRequest bulkRequest, Executor executor, ActionListener<BulkResponse> listener)
         throws IOException {
         boolean hasIndexRequestsWithPipelines = false;
+        ClusterState state = clusterService.state();
+        ProjectId projectId = projectResolver.getProjectId(state);
         final Metadata metadata;
         Map<String, ComponentTemplate> componentTemplateSubstitutions = bulkRequest.getComponentTemplateSubstitutions();
         Map<String, ComposableIndexTemplate> indexTemplateSubstitutions = bulkRequest.getIndexTemplateSubstitutions();
@@ -193,16 +201,18 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
              * and remove the indices and data streams that are referred to from the bulkRequest so that we get settings from the templates
              * rather than from the indices/data streams.
              */
-            Metadata.Builder simulatedMetadataBuilder = Metadata.builder(clusterService.state().getMetadata());
+            Metadata originalMetadata = state.metadata();
+            @FixForMultiProject // properly ensure simulated actions work with MP
+            Metadata.Builder simulatedMetadataBuilder = Metadata.builder(originalMetadata);
             if (componentTemplateSubstitutions.isEmpty() == false) {
                 Map<String, ComponentTemplate> updatedComponentTemplates = new HashMap<>();
-                updatedComponentTemplates.putAll(clusterService.state().metadata().getProject().componentTemplates());
+                updatedComponentTemplates.putAll(originalMetadata.getProject(projectId).componentTemplates());
                 updatedComponentTemplates.putAll(componentTemplateSubstitutions);
                 simulatedMetadataBuilder.componentTemplates(updatedComponentTemplates);
             }
             if (indexTemplateSubstitutions.isEmpty() == false) {
                 Map<String, ComposableIndexTemplate> updatedIndexTemplates = new HashMap<>();
-                updatedIndexTemplates.putAll(clusterService.state().metadata().getProject().templatesV2());
+                updatedIndexTemplates.putAll(originalMetadata.getProject(projectId).templatesV2());
                 updatedIndexTemplates.putAll(indexTemplateSubstitutions);
                 simulatedMetadataBuilder.indexTemplates(updatedIndexTemplates);
             }
@@ -225,13 +235,13 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
             }
             metadata = simulatedMetadataBuilder.build();
         } else {
-            metadata = clusterService.state().getMetadata();
+            metadata = state.getMetadata();
         }
 
         for (DocWriteRequest<?> actionRequest : bulkRequest.requests) {
             IndexRequest indexRequest = getIndexWriteRequest(actionRequest);
             if (indexRequest != null) {
-                IngestService.resolvePipelinesAndUpdateIndexRequest(actionRequest, indexRequest, metadata.getProject());
+                IngestService.resolvePipelinesAndUpdateIndexRequest(actionRequest, indexRequest, metadata.getProject(projectId));
                 hasIndexRequestsWithPipelines |= IngestService.hasPipeline(indexRequest);
             }
 

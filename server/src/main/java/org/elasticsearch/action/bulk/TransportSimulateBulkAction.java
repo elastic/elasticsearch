@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.metadata.Template;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -88,6 +89,7 @@ public class TransportSimulateBulkAction extends TransportAbstractBulkAction {
         ActionFilters actionFilters,
         IndexingPressure indexingPressure,
         SystemIndices systemIndices,
+        ProjectResolver projectResolver,
         IndicesService indicesService,
         NamedXContentRegistry xContentRegistry,
         IndexSettingProviders indexSettingProviders
@@ -102,6 +104,7 @@ public class TransportSimulateBulkAction extends TransportAbstractBulkAction {
             ingestService,
             indexingPressure,
             systemIndices,
+            projectResolver,
             threadPool::relativeTimeInNanos
         );
         this.indicesService = indicesService;

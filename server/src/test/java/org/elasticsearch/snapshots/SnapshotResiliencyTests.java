@@ -2416,6 +2416,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                         indexNameExpressionResolver,
                         new IndexingPressure(settings),
                         EmptySystemIndices.INSTANCE,
+                        TestProjectResolvers.singleProjectOnly(),
                         FailureStoreMetrics.NOOP
                     )
                 );

@@ -34,6 +34,7 @@ import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.TriConsumer;
 import org.elasticsearch.common.settings.Settings;
@@ -157,6 +158,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
                 TestIndexNameExpressionResolver.newInstance(),
                 new IndexingPressure(SETTINGS),
                 EmptySystemIndices.INSTANCE,
+                TestProjectResolvers.singleProjectOnly(),
                 FailureStoreMetrics.NOOP
             );
         }
@@ -778,7 +780,9 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         when(state.metadata()).thenReturn(metadata);
         when(state.getMetadata()).thenReturn(metadata);
         ProjectMetadata projectMetadata = mock(ProjectMetadata.class);
-        when(metadata.getProject()).thenReturn(projectMetadata);
+        when(metadata.projects()).thenReturn(Map.of(Metadata.DEFAULT_PROJECT_ID, projectMetadata));
+        when(metadata.getProject(eq(Metadata.DEFAULT_PROJECT_ID))).thenReturn(projectMetadata);
+        when(projectMetadata.id()).thenReturn(Metadata.DEFAULT_PROJECT_ID);
         when(projectMetadata.templates()).thenReturn(templateMetadata);
         when(projectMetadata.indices()).thenReturn(Map.of());
 

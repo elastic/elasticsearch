@@ -1,0 +1,73 @@
+{
+  "properties": {
+    "semantic_text_field": {
+      "type": "semantic_text",
+      "inference_id": "test_sparse_inference"
+    },
+    "st_bool": {
+      "type": "semantic_text",
+      "inference_id": "test_sparse_inference"
+    },
+    "st_cartesian_point": {
+      "type": "semantic_text",
+      "inference_id": "test_sparse_inference"
+    },
+    "st_cartesian_shape": {
+      "type": "semantic_text",
+      "inference_id": "test_sparse_inference"
+    },
+    "st_datetime": {
+      "type": "semantic_text",
+      "inference_id": "test_sparse_inference"
+    },
+    "st_double": {
+      "type": "semantic_text",
+      "inference_id": "test_sparse_inference"
+    },
+    "st_geopoint": {
+      "type": "semantic_text",
+      "inference_id": "test_sparse_inference"
+    },
+    "st_geoshape": {
+      "type": "semantic_text",
+      "inference_id": "test_sparse_inference"
+    },
+    "st_integer": {
+      "type": "semantic_text",
+      "inference_id": "test_sparse_inference"
+    },
+    "st_ip": {
+      "type": "semantic_text",
+      "inference_id": "test_sparse_inference"
+    },
+    "st_long": {
+      "type": "semantic_text",
+      "inference_id": "test_sparse_inference"
+    },
+    "st_unsigned_long": {
+      "type": "semantic_text",
+      "inference_id": "test_sparse_inference"
+    },
+    "st_version": {
+      "type": "semantic_text",
+      "inference_id": "test_sparse_inference"
+    },
+    "st_multi_value": {
+      "type": "semantic_text",
+      "inference_id": "test_sparse_inference"
+    },
+    "st_unicode": {
+      "type": "semantic_text",
+      "inference_id": "test_sparse_inference"
+    },
+    "host" : {
+      "type" : "keyword"
+    },
+    "description" : {
+      "type" : "text"
+    },
+    "value": {
+      "type": "long"
+    }
+  }
+}

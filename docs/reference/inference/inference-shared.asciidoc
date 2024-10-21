@@ -35,6 +35,7 @@ end::task-type[]
 
 tag::chunking-settings[]
 Chunking configuration object.
+Refer to <<infer-chunking-config>> to learn more about chunking.
 end::chunking-settings[]
 
 tag::chunking-settings-strategy[]
@@ -43,13 +44,21 @@ It could be either `sentence` or `word`.
 end::chunking-settings-strategy[]
 
 tag::chunking-settings-max-chunking-size[]
-
+Specifies the maximum size of a chunk in words.
+Defaults to `250`.
+This value cannot be higher than `300` or lower than `20` (for `sentence` strategy) or `15` (for `word` strategy). 
 end::chunking-settings-max-chunking-size[]
 
 tag::chunking-settings-sentence-overlap[]
-
+Only for `sentence` chunking strategy.
+Specifies the numnber of overlapping sentences for chunks.
+It can be either `1` or `0`.
+Defaults to `1`.
 end::chunking-settings-sentence-overlap[]
 
 tag::chunking-settings-overlap[]
-
+Only for `word` chunking strategy.
+Specifies the number of overlapping words for chunks.
+Defaults to `100`.
+This value cannot be higher than the half of `max_chunking_size`.
 end::chunking-settings-overlap[]

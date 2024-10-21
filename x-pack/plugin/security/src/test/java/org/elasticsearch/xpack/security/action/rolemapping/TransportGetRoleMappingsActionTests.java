@@ -175,13 +175,21 @@ public class TransportGetRoleMappingsActionTests extends ESTestCase {
 
         testGetMappings(
             List.of(),
-            Set.of(mapping("everyoneread-only-operator-config")),
-            Set.of("everyoneread-only-operator-config", "everyone-read-only-operator-config-", "everyone-read-only-operator-config-more"),
+            Set.of(mapping("everyoneread-only-operator-mapping")),
+            Set.of(
+                "everyoneread-only-operator-mapping",
+                "everyone-read-only-operator-mapping-",
+                "everyone-read-only-operator-mapping-more"
+            ),
             // suffix that is similar but not the same is not stripped
-            Set.of("everyoneread-only-operator-config", "everyone-read-only-operator-config-", "everyone-read-only-operator-config-more"),
-            "everyoneread-only-operator-config",
-            "everyone-read-only-operator-config-",
-            "everyone-read-only-operator-config-more"
+            Set.of(
+                "everyoneread-only-operator-mapping",
+                "everyone-read-only-operator-mapping-",
+                "everyone-read-only-operator-mapping-more"
+            ),
+            "everyoneread-only-operator-mapping",
+            "everyone-read-only-operator-mapping-",
+            "everyone-read-only-operator-mapping-more"
         );
 
         testGetMappings(

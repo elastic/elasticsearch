@@ -23,6 +23,7 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MappingLookup;
+import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
@@ -235,7 +236,7 @@ public class QueryRewriteContext {
             TextFieldMapper.Builder builder = new TextFieldMapper.Builder(
                 name,
                 getIndexAnalyzers(),
-                getIndexSettings() != null && getIndexSettings().getMode().isSyntheticSourceEnabled()
+                getIndexSettings() != null && SourceFieldMapper.isSynthetic(getIndexSettings())
             );
             return builder.build(MapperBuilderContext.root(false, false)).fieldType();
         } else {

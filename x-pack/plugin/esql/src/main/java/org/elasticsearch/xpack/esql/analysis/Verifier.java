@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.FilteredExpression;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Rate;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.FullTextFunction;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
@@ -57,6 +58,7 @@ import org.elasticsearch.xpack.esql.stats.Metrics;
 import java.util.ArrayList;
 import java.util.BitSet;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
@@ -190,7 +192,7 @@ public class Verifier {
 
             checkOperationsOnUnsignedLong(p, failures);
             checkBinaryComparison(p, failures);
-            checkForSortOnSpatialTypes(p, failures);
+            checkForSortableDataTypes(p, failures);
 
             checkFilterMatchConditions(p, failures);
             checkFullTextQueryFunctions(p, failures);
@@ -308,6 +310,29 @@ public class Verifier {
         Set<Failure> failures,
         int level
     ) {
+        // unwrap filtered expression
+        if (e instanceof FilteredExpression fe) {
+            e = fe.delegate();
+            // make sure they work on aggregate functions
+            if (e.anyMatch(AggregateFunction.class::isInstance) == false) {
+                Expression filter = fe.filter();
+                failures.add(fail(filter, "WHERE clause allowed only for aggregate functions, none found in [{}]", fe.sourceText()));
+            }
+            // but that the filter doesn't use grouping or aggregate functions
+            fe.filter().forEachDown(c -> {
+                if (c instanceof AggregateFunction af) {
+                    failures.add(
+                        fail(af, "cannot use aggregate function [{}] in aggregate WHERE clause [{}]", af.sourceText(), fe.sourceText())
+                    );
+                }
+                // check the bucketing function against the group
+                else if (c instanceof GroupingFunction gf) {
+                    if (Expressions.anyMatch(groups, ex -> ex instanceof Alias a && a.child().semanticEquals(gf)) == false) {
+                        failures.add(fail(gf, "can only use grouping function [{}] part of the BY clause", gf.sourceText()));
+                    }
+                }
+            });
+        }
         // found an aggregate, constant or a group, bail out
         if (e instanceof AggregateFunction af) {
             af.field().forEachDown(AggregateFunction.class, f -> {
@@ -319,7 +344,7 @@ public class Verifier {
         } else if (e instanceof GroupingFunction gf) {
             // optimizer will later unroll expressions with aggs and non-aggs with a grouping function into an EVAL, but that will no longer
             // be verified (by check above in checkAggregate()), so do it explicitly here
-            if (groups.stream().anyMatch(ex -> ex instanceof Alias a && a.child().semanticEquals(gf)) == false) {
+            if (Expressions.anyMatch(groups, ex -> ex instanceof Alias a && a.child().semanticEquals(gf)) == false) {
                 failures.add(fail(gf, "can only use grouping function [{}] part of the BY clause", gf.sourceText()));
             } else if (level == 0) {
                 addFailureOnGroupingUsedNakedInAggs(failures, gf, "function");
@@ -456,6 +481,9 @@ public class Verifier {
         for (int i = b.nextSetBit(0); i >= 0; i = b.nextSetBit(i + 1)) {
             metrics.inc(FeatureMetric.values()[i]);
         }
+        Set<Class<?>> functions = new HashSet<>();
+        plan.forEachExpressionDown(Function.class, p -> functions.add(p.getClass()));
+        functions.forEach(f -> metrics.incFunctionMetric(f));
     }
 
     /**
@@ -555,12 +583,12 @@ public class Verifier {
     }
 
     /**
-     * Makes sure that spatial types do not appear in sorting contexts.
+     * Some datatypes are not sortable
      */
-    private static void checkForSortOnSpatialTypes(LogicalPlan p, Set<Failure> localFailures) {
+    private static void checkForSortableDataTypes(LogicalPlan p, Set<Failure> localFailures) {
         if (p instanceof OrderBy ob) {
             ob.order().forEach(order -> {
-                if (DataType.isSpatial(order.dataType())) {
+                if (DataType.isSortable(order.dataType()) == false) {
                     localFailures.add(fail(order, "cannot sort on " + order.dataType().typeName()));
                 }
             });

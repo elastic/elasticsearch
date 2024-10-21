@@ -110,7 +110,7 @@ public abstract class AbstractMultivalueFunctionTestCase extends AbstractScalarF
         String evaluatorName,
         BiFunction<Integer, Stream<BytesRef>, Matcher<Object>> matcher
     ) {
-        bytesRefs(cases, name, evaluatorName, t -> t, matcher);
+        bytesRefs(cases, name, evaluatorName, t -> t == DataType.TEXT ? DataType.KEYWORD : t, matcher);
     }
 
     /**

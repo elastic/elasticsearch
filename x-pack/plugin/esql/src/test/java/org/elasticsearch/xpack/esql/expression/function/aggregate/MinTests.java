@@ -128,7 +128,7 @@ public class MinTests extends AbstractAggregationTestCase {
                     return new TestCaseSupplier.TestCase(
                         List.of(TestCaseSupplier.TypedData.multiRow(List.of(value), DataType.TEXT, "field")),
                         "Min[field=Attribute[channel=0]]",
-                        DataType.TEXT,
+                        DataType.KEYWORD,
                         equalTo(value)
                     );
                 }),
@@ -172,7 +172,7 @@ public class MinTests extends AbstractAggregationTestCase {
             return new TestCaseSupplier.TestCase(
                 List.of(fieldTypedData),
                 "Min[field=Attribute[channel=0]]",
-                fieldSupplier.type(),
+                fieldSupplier.type() == DataType.TEXT ? DataType.KEYWORD : fieldSupplier.type(),
                 equalTo(expected)
             );
         });

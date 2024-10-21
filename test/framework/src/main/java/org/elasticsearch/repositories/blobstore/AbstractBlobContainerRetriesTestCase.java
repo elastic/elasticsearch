@@ -403,9 +403,7 @@ public abstract class AbstractBlobContainerRetriesTestCase extends ESTestCase {
         if (bytesToSend > 0) {
             exchange.getResponseBody().write(bytes, rangeStart, bytesToSend);
         }
-        if (randomBoolean()) {
-            exchange.getResponseBody().flush();
-        }
+        exchange.getResponseBody().flush();
     }
 
     /**

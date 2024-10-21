@@ -25,7 +25,7 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-public class AbstractKqlParserTestCase extends AbstractBuilderTestCase {
+public abstract class AbstractKqlParserTestCase extends AbstractBuilderTestCase {
 
     protected static final String SUPPORTED_QUERY_FILE_PATH = "/supported-queries";
     protected static final String UNSUPPORTED_QUERY_FILE_PATH = "/unsupported-queries";

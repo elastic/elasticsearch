@@ -122,7 +122,7 @@ public class ReplicaShardAllocatorIT extends ESIntegTestCase {
         // AllocationService only calls GatewayAllocator if there are unassigned shards
         assertAcked(indicesAdmin().prepareCreate("dummy-index").setWaitForActiveShards(0));
         ensureGreen(indexName);
-        assertThat(internalCluster().nodesInclude(indexName), containsInAnyOrder(nodeWithPrimary, nodeWithReplica));
+        assertThat(internalCluster().nodesByNameThatIncludeIndex(indexName), containsInAnyOrder(nodeWithPrimary, nodeWithReplica));
         assertNoOpRecoveries(indexName);
         blockRecovery.countDown();
         transportServiceOnPrimary.clearAllRules();
@@ -206,7 +206,7 @@ public class ReplicaShardAllocatorIT extends ESIntegTestCase {
         clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT, indexName).setWaitForYellowStatus().setWaitForEvents(Priority.LANGUID).get();
         blockRecovery.countDown();
         ensureGreen(indexName);
-        assertThat(internalCluster().nodesInclude(indexName), hasItem(newNode));
+        assertThat(internalCluster().nodesByNameThatIncludeIndex(indexName), hasItem(newNode));
         for (RecoveryState recovery : indicesAdmin().prepareRecoveries(indexName).get().shardRecoveryStates().get(indexName)) {
             if (recovery.getPrimary() == false) {
                 assertThat(recovery.getIndex().fileDetails(), not(empty()));
@@ -285,7 +285,7 @@ public class ReplicaShardAllocatorIT extends ESIntegTestCase {
             IntStream.range(0, between(200, 500)).mapToObj(n -> prepareIndex(indexName).setSource("f", "v")).toList()
         );
         indicesAdmin().prepareFlush(indexName).get();
-        String nodeWithLowerMatching = randomFrom(internalCluster().nodesInclude(indexName));
+        String nodeWithLowerMatching = randomFrom(internalCluster().nodesByNameThatIncludeIndex(indexName));
         Settings nodeWithLowerMatchingSettings = internalCluster().dataPathSettings(nodeWithLowerMatching);
         internalCluster().stopNode(nodeWithLowerMatching);
         ensureGreen(indexName);
@@ -297,7 +297,7 @@ public class ReplicaShardAllocatorIT extends ESIntegTestCase {
             IntStream.range(0, between(1, 100)).mapToObj(n -> prepareIndex(indexName).setSource("f", "v")).toList()
         );
         ensureActivePeerRecoveryRetentionLeasesAdvanced(indexName);
-        String nodeWithHigherMatching = randomFrom(internalCluster().nodesInclude(indexName));
+        String nodeWithHigherMatching = randomFrom(internalCluster().nodesByNameThatIncludeIndex(indexName));
         Settings nodeWithHigherMatchingSettings = internalCluster().dataPathSettings(nodeWithHigherMatching);
         internalCluster().stopNode(nodeWithHigherMatching);
         if (usually()) {
@@ -318,7 +318,10 @@ public class ReplicaShardAllocatorIT extends ESIntegTestCase {
                 .putNull(CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey())
         );
         ensureGreen(indexName);
-        assertThat(internalCluster().nodesInclude(indexName), allOf(hasItem(nodeWithHigherMatching), not(hasItem(nodeWithLowerMatching))));
+        assertThat(
+            internalCluster().nodesByNameThatIncludeIndex(indexName),
+            allOf(hasItem(nodeWithHigherMatching), not(hasItem(nodeWithLowerMatching)))
+        );
     }
 
     /**
@@ -417,7 +420,7 @@ public class ReplicaShardAllocatorIT extends ESIntegTestCase {
             Set<String> activeRetentionLeaseIds = RoutingNodesHelper.asStream(clusterService.state().routingTable().index(index).shard(0))
                 .map(shardRouting -> ReplicationTracker.getPeerRecoveryRetentionLeaseId(shardRouting.currentNodeId()))
                 .collect(Collectors.toSet());
-            for (String node : internalCluster().nodesInclude(indexName)) {
+            for (String node : internalCluster().nodesByNameThatIncludeIndex(indexName)) {
                 IndexService indexService = internalCluster().getInstance(IndicesService.class, node).indexService(index);
                 if (indexService != null) {
                     for (IndexShard shard : indexService) {

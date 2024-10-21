@@ -358,7 +358,7 @@ public class PointInTimeIT extends ESIntegTestCase {
         ensureGreen("test");
         BytesReference pitId = openPointInTime(new String[] { "test*" }, TimeValue.timeValueMinutes(2)).getPointInTimeId();
         try {
-            for (String node : internalCluster().nodesInclude("test")) {
+            for (String node : internalCluster().nodesByNameThatIncludeIndex("test")) {
                 for (IndexService indexService : internalCluster().getInstance(IndicesService.class, node)) {
                     for (IndexShard indexShard : indexService) {
                         assertBusy(() -> assertTrue(indexShard.isSearchIdle()));
@@ -374,7 +374,7 @@ public class PointInTimeIT extends ESIntegTestCase {
                     .setPointInTime(new PointInTimeBuilder(pitId)),
                 resp -> assertThat(resp.getHits().getHits(), arrayWithSize(0))
             );
-            for (String node : internalCluster().nodesInclude("test")) {
+            for (String node : internalCluster().nodesByNameThatIncludeIndex("test")) {
                 for (IndexService indexService : internalCluster().getInstance(IndicesService.class, node)) {
                     for (IndexShard indexShard : indexService) {
                         // all shards are still search-idle as we did not acquire new searchers

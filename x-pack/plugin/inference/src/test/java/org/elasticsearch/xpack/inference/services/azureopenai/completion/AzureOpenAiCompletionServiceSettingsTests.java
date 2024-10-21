@@ -22,15 +22,15 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.is;
 
-public class AzureOpenAiChatCompletionServiceSettingsTests extends AbstractWireSerializingTestCase<
-    AzureOpenAiChatCompletionServiceSettings> {
+public class AzureOpenAiCompletionServiceSettingsTests extends AbstractWireSerializingTestCase<
+    AzureOpenAiCompletionServiceSettings> {
 
-    private static AzureOpenAiChatCompletionServiceSettings createRandom() {
+    private static AzureOpenAiCompletionServiceSettings createRandom() {
         var resourceName = randomAlphaOfLength(8);
         var deploymentId = randomAlphaOfLength(8);
         var apiVersion = randomAlphaOfLength(8);
 
-        return new AzureOpenAiChatCompletionServiceSettings(resourceName, deploymentId, apiVersion, null);
+        return new AzureOpenAiCompletionServiceSettings(resourceName, deploymentId, apiVersion, null);
     }
 
     public void testFromMap_Request_CreatesSettingsCorrectly() {
@@ -38,7 +38,7 @@ public class AzureOpenAiChatCompletionServiceSettingsTests extends AbstractWireS
         var deploymentId = "this-deployment";
         var apiVersion = "2024-01-01";
 
-        var serviceSettings = AzureOpenAiChatCompletionServiceSettings.fromMap(
+        var serviceSettings = AzureOpenAiCompletionServiceSettings.fromMap(
             new HashMap<>(
                 Map.of(
                     AzureOpenAiServiceFields.RESOURCE_NAME,
@@ -52,11 +52,11 @@ public class AzureOpenAiChatCompletionServiceSettingsTests extends AbstractWireS
             ConfigurationParseContext.PERSISTENT
         );
 
-        assertThat(serviceSettings, is(new AzureOpenAiChatCompletionServiceSettings(resourceName, deploymentId, apiVersion, null)));
+        assertThat(serviceSettings, is(new AzureOpenAiCompletionServiceSettings(resourceName, deploymentId, apiVersion, null)));
     }
 
     public void testToXContent_WritesAllValues() throws IOException {
-        var entity = new AzureOpenAiChatCompletionServiceSettings("resource", "deployment", "2024", null);
+        var entity = new AzureOpenAiCompletionServiceSettings("resource", "deployment", "2024", null);
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         entity.toXContent(builder, null);
@@ -67,18 +67,18 @@ public class AzureOpenAiChatCompletionServiceSettingsTests extends AbstractWireS
     }
 
     @Override
-    protected Writeable.Reader<AzureOpenAiChatCompletionServiceSettings> instanceReader() {
-        return AzureOpenAiChatCompletionServiceSettings::new;
+    protected Writeable.Reader<AzureOpenAiCompletionServiceSettings> instanceReader() {
+        return AzureOpenAiCompletionServiceSettings::new;
     }
 
     @Override
-    protected AzureOpenAiChatCompletionServiceSettings createTestInstance() {
+    protected AzureOpenAiCompletionServiceSettings createTestInstance() {
         return createRandom();
     }
 
     @Override
-    protected AzureOpenAiChatCompletionServiceSettings mutateInstance(AzureOpenAiChatCompletionServiceSettings instance)
+    protected AzureOpenAiCompletionServiceSettings mutateInstance(AzureOpenAiCompletionServiceSettings instance)
         throws IOException {
-        return randomValueOtherThan(instance, AzureOpenAiChatCompletionServiceSettingsTests::createRandom);
+        return randomValueOtherThan(instance, AzureOpenAiCompletionServiceSettingsTests::createRandom);
     }
 }

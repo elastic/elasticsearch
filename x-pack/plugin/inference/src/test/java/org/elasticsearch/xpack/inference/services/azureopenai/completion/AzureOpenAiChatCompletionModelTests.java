@@ -71,7 +71,7 @@ public class AzureOpenAiChatCompletionModelTests extends ESTestCase {
         var apiVersion = "api version";
         var updatedApiVersion = "updated api version";
 
-        var updatedServiceSettings = new AzureOpenAiChatCompletionServiceSettings(resource, deploymentId, updatedApiVersion, null);
+        var updatedServiceSettings = new AzureOpenAiCompletionServiceSettings(resource, deploymentId, updatedApiVersion, null);
 
         var model = createCompletionModel(resource, deploymentId, apiVersion, user, apiKey, entraId, inferenceEntityId);
         var overriddenModel = new AzureOpenAiChatCompletionModel(model, updatedServiceSettings);
@@ -127,7 +127,7 @@ public class AzureOpenAiChatCompletionModelTests extends ESTestCase {
             inferenceEntityId,
             TaskType.COMPLETION,
             "service",
-            new AzureOpenAiChatCompletionServiceSettings(resourceName, deploymentId, apiVersion, null),
+            new AzureOpenAiCompletionServiceSettings(resourceName, deploymentId, apiVersion, null),
             new AzureOpenAiChatCompletionTaskSettings(user),
             new AzureOpenAiSecretSettings(secureApiKey, secureEntraId)
         );

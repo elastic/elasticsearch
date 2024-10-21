@@ -49,7 +49,7 @@ import org.elasticsearch.xpack.inference.services.azureaistudio.completion.Azure
 import org.elasticsearch.xpack.inference.services.azureaistudio.embeddings.AzureAiStudioEmbeddingsServiceSettings;
 import org.elasticsearch.xpack.inference.services.azureaistudio.embeddings.AzureAiStudioEmbeddingsTaskSettings;
 import org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiSecretSettings;
-import org.elasticsearch.xpack.inference.services.azureopenai.completion.AzureOpenAiChatCompletionServiceSettings;
+import org.elasticsearch.xpack.inference.services.azureopenai.completion.AzureOpenAiCompletionServiceSettings;
 import org.elasticsearch.xpack.inference.services.azureopenai.completion.AzureOpenAiChatCompletionTaskSettings;
 import org.elasticsearch.xpack.inference.services.azureopenai.embeddings.AzureOpenAiEmbeddingsServiceSettings;
 import org.elasticsearch.xpack.inference.services.azureopenai.embeddings.AzureOpenAiEmbeddingsTaskSettings;
@@ -247,8 +247,8 @@ public class InferenceNamedWriteablesProvider {
         namedWriteables.add(
             new NamedWriteableRegistry.Entry(
                 ServiceSettings.class,
-                AzureOpenAiChatCompletionServiceSettings.NAME,
-                AzureOpenAiChatCompletionServiceSettings::new
+                AzureOpenAiCompletionServiceSettings.NAME,
+                AzureOpenAiCompletionServiceSettings::new
             )
         );
         namedWriteables.add(

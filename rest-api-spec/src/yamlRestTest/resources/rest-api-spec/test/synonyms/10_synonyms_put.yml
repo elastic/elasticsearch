@@ -15,6 +15,18 @@ setup:
 
   - match: { result: "created" }
 
+  - do:
+      cluster.health:
+        index: .synonyms-2
+        level: shards
+        timeout: 60s
+        wait_for_status: yellow
+        wait_for_no_initializing_shards: true
+
+  - do:
+      synonyms.get_synonym:
+        id: test-update-synonyms
+
   - is_true: synonyms_set.0.id
   - is_true: synonyms_set.1.id
 

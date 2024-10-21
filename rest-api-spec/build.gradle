@@ -57,4 +57,6 @@ tasks.named("precommit").configure {
 tasks.named("yamlRestCompatTestTransform").configure({task ->
     task.skipTest("indices.sort/10_basic/Index Sort", "warning does not exist for compatibility")
     task.skipTest("search/330_fetch_fields/Test search rewrite", "warning does not exist for compatibility")
+    task.skipTest("cluster.desired_nodes/10_basic/Test delete desired nodes with node_version generates a warning", "node_version warning is removed in 9.0")
+    task.skipTest("cluster.desired_nodes/10_basic/Test update desired nodes with node_version generates a warning", "node_version warning is removed in 9.0")
 })

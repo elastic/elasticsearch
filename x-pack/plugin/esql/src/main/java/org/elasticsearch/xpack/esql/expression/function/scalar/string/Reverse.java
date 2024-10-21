@@ -49,7 +49,7 @@ public class Reverse extends UnaryScalarFunction {
             ) },
         note = """
             If Elasticsearch is running with a JDK version less than 20 then this will not properly reverse Grapheme Clusters.
-            Elastic Cloud the JDK bundled with Elasticsearch all use newer JDKs. But if you've explicitly shifted to an older jdk
+            Elastic Cloud and the JDK bundled with Elasticsearch all use newer JDKs. But if you've explicitly shifted to an older jdk
             then you'll see things like "👍🏽😊" be reversed to  "🏽👍😊" instead of the correct "😊👍🏽"."""
     )
     public Reverse(

@@ -355,6 +355,6 @@ public class FileSettingsServiceTests extends ESTestCase {
     private void writeTestFile(Path path, String contents) throws IOException {
         Path tempFilePath = createTempFile();
         Files.writeString(tempFilePath, contents);
-        Files.move(tempFilePath, path, StandardCopyOption.ATOMIC_MOVE);
+        Files.move(tempFilePath, path, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
     }
 }

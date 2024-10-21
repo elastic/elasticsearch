@@ -16,6 +16,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 
 import java.io.Closeable;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -70,6 +71,14 @@ public interface InferenceService extends Closeable {
      * @return The parsed {@link Model}
      */
     Model parsePersistedConfig(String modelId, TaskType taskType, Map<String, Object> config);
+
+    InferenceServiceConfiguration getConfiguration();
+
+    /**
+     * The task types supported by the service
+     * @return Set of supported.
+     */
+    EnumSet<TaskType> supportedTaskTypes();
 
     /**
      * Perform inference on the model.

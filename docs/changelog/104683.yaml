@@ -1,5 +1,5 @@
 pr: 104683
 summary: "Feature: re-arrange document id bytes to take advantage of shared prefixes"
-area: TSDB
+area: Logs
 type: enhancement
 issues: []

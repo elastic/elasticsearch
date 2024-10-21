@@ -319,8 +319,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
             BlockSourceReader.LeafIteratorLookup lookup = isStored() || isIndexed()
                 ? BlockSourceReader.lookupFromFieldNames(blContext.fieldNames(), name())
                 : BlockSourceReader.lookupMatchingAll();
-            var sourceMode = blContext.indexSettings().getIndexMappingSourceMode();
-            return new BlockSourceReader.DoublesBlockLoader(valueFetcher, lookup, sourceMode);
+            return new BlockSourceReader.DoublesBlockLoader(valueFetcher, lookup);
         }
 
         @Override

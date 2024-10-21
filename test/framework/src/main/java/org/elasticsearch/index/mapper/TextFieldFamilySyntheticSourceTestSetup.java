@@ -60,7 +60,7 @@ public final class TextFieldFamilySyntheticSourceTestSetup {
     private static boolean nullLoaderExpected(MapperService mapper, String fieldName) {
         MappedFieldType type = mapper.fieldType(fieldName);
         if (type instanceof TextFieldMapper.TextFieldType t) {
-            if (t.isSyntheticSource() == false || t.canUseSyntheticSourceDelegateForQuerying() || t.isStored()) {
+            if (t.isSyntheticSource() == false || t.syntheticSourceDelegate() != null || t.isStored()) {
                 return false;
             }
             String parentField = mapper.mappingLookup().parentField(fieldName);

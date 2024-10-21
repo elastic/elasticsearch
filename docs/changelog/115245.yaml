@@ -1,0 +1,7 @@
+pr: 115245
+summary: "ESQL: Fix `REVERSE` with backspace character"
+area: ES|QL
+type: bug
+issues:
+ - 115227
+ - 115228

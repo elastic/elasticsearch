@@ -13,10 +13,11 @@ import org.apache.lucene.index.BaseTermsEnum;
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.ByteVectorValues;
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.DocValuesSkipIndexType;
+import org.apache.lucene.index.DocValuesSkipper;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FieldInfos;
-import org.apache.lucene.index.Fields;
 import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.ImpactsEnum;
 import org.apache.lucene.index.IndexCommit;
@@ -152,6 +153,7 @@ final class TranslogDirectoryReader extends DirectoryReader {
             false,
             IndexOptions.NONE,
             DocValuesType.NONE,
+            DocValuesSkipIndexType.NONE,
             -1,
             Collections.emptyMap(),
             0,
@@ -171,6 +173,7 @@ final class TranslogDirectoryReader extends DirectoryReader {
             false,
             IndexOptions.NONE,
             DocValuesType.NONE,
+            DocValuesSkipIndexType.NONE,
             -1,
             Collections.emptyMap(),
             0,
@@ -190,6 +193,7 @@ final class TranslogDirectoryReader extends DirectoryReader {
             false,
             IndexOptions.DOCS,
             DocValuesType.NONE,
+            DocValuesSkipIndexType.NONE,
             -1,
             Collections.emptyMap(),
             0,
@@ -347,6 +351,11 @@ final class TranslogDirectoryReader extends DirectoryReader {
         }
 
         @Override
+        public DocValuesSkipper getDocValuesSkipper(String field) throws IOException {
+            return getDelegate().getDocValuesSkipper(field);
+        }
+
+        @Override
         public FloatVectorValues getFloatVectorValues(String field) throws IOException {
             return getDelegate().getFloatVectorValues(field);
         }
@@ -390,11 +399,6 @@ final class TranslogDirectoryReader extends DirectoryReader {
         }
 
         @Override
-        public Fields getTermVectors(int docID) throws IOException {
-            return getDelegate().getTermVectors(docID);
-        }
-
-        @Override
         public TermVectors termVectors() throws IOException {
             return getDelegate().termVectors();
         }
@@ -427,11 +431,6 @@ final class TranslogDirectoryReader extends DirectoryReader {
         @Override
         public int maxDoc() {
             return 1;
-        }
-
-        @Override
-        public void document(int docID, StoredFieldVisitor visitor) throws IOException {
-            storedFields().document(docID, visitor);
         }
 
         private void readStoredFieldsDirectly(StoredFieldVisitor visitor) throws IOException {

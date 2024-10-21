@@ -19,13 +19,13 @@ import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RestApiVersion;
-import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContent;
 import org.elasticsearch.xcontent.XContentEOFException;
+import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
@@ -446,10 +446,11 @@ public final class BulkRequestParser {
         return isIncremental ? consumed : from;
     }
 
-    @UpdateForV9(owner = UpdateForV9.Owner.DISTRIBUTED_INDEXING)
-    // Warnings will need to be replaced with XContentEOFException from 9.x
-    private static void warnBulkActionNotProperlyClosed(String message) {
-        deprecationLogger.compatibleCritical(STRICT_ACTION_PARSING_WARNING_KEY, message);
+    private static void bulkActionNotProperlyClosed(String message, RestApiVersion restApiVersion) {
+        switch (restApiVersion) {
+            case V_8 -> deprecationLogger.compatibleCritical(STRICT_ACTION_PARSING_WARNING_KEY, message);
+            case V_9 -> throw new XContentParseException(message);
+        }
     }
 
     private static void checkBulkActionIsProperlyClosed(XContentParser parser) throws IOException {
@@ -457,24 +458,15 @@ public final class BulkRequestParser {
         try {
             token = parser.nextToken();
         } catch (XContentEOFException ignore) {
-            warnBulkActionNotProperlyClosed(
-                "A bulk action wasn't closed properly with the closing brace. Malformed objects are currently accepted but will be "
-                    + "rejected in a future version."
-            );
+            bulkActionNotProperlyClosed("A bulk action wasn't closed properly with the closing brace", parser.getRestApiVersion());
             return;
         }
         if (token != XContentParser.Token.END_OBJECT) {
-            warnBulkActionNotProperlyClosed(
-                "A bulk action object contained multiple keys. Additional keys are currently ignored but will be rejected in a "
-                    + "future version."
-            );
+            bulkActionNotProperlyClosed("A bulk action object contained multiple keys", parser.getRestApiVersion());
             return;
         }
         if (parser.nextToken() != null) {
-            warnBulkActionNotProperlyClosed(
-                "A bulk action contained trailing data after the closing brace. This is currently ignored but will be rejected in a "
-                    + "future version."
-            );
+            bulkActionNotProperlyClosed("A bulk action contained trailing data after the closing brace", parser.getRestApiVersion());
         }
     }
 

@@ -76,7 +76,7 @@ The following settings are applied by default when using the `logsdb` mode for i
 
 * `index.sort.field`: `["host.name", "@timestamp"]`
   In `logsdb` mode, indices are sorted by `host.name` and `@timestamp` fields by default. For data streams, the
-  `@timestamp` field is automatically injected if it is not present in the indexed documents.
+  `@timestamp` field is automatically injected if it is not present.
 
 * `index.sort.order`: `["desc", "desc"]`
   The default sort order for both fields is descending (`desc`), prioritizing the latest data.
@@ -98,10 +98,16 @@ retrieved based on the `host.name` and `@timestamp` fields.
 ====
 If `subobjects` is `true` (the default), the `host.name` field will be mapped as the `host` object with a `name`
 child `keyword` field. If `subobjects` is `false`, a single `host.name` field will be mapped as a `keyword` field.
+====
 
+[NOTE]
+====
 Sort settings are final and cannot be changed after an index is created. Changing settings requires creating a new
 index with new settings applied to it.
+====
 
+[NOTE]
+====
 If these setting are not appropriate for your mappings we recommend changing them. Keep in mind that sort settings will
 affect indexing throughput and query latency.
 ====
@@ -127,7 +133,7 @@ Users can rely on these specialized codecs being applied by default when using `
 
 === `ignore_malformed` and `ignore_above` settings
 
-By default, LogsDB mode sets `ignore_malformed` to `true`. This setting allows documents with malformed fields to be
+By default, `logsdb` mode sets `ignore_malformed` to `true`. This setting allows documents with malformed fields to be
 indexed without causing indexing failures, ensuring that log data ingestion continues smoothly even when some fields
 contain invalid or improperly formatted data.
 
@@ -142,15 +148,11 @@ storage and indexing of large text fields.
 The mapping-level `ignore_above` setting still takes precedence. If a specific field has an `ignore_above` value
 defined in its mapping, that value will override the index-level `index.mapping.ignore_above` default. The index-level
 default for `ignore_above` is set to 8191 **characters**. If using UTF-8 encoding, this results
-in a limit of  32764 bytes.
+in a limit of 32764 bytes, depending on character encoding.
 
 This default behavior helps to optimize indexing performance by preventing excessively large string values from being
-indexed, while still allowing users to customize the limit at the mapping level as needed.
-
-[NOTE]
-====
-Synthetic source provides support for retrieving ignored fields and their values even for malformed fields.
-====
+indexed, while still allowing users to customize the limit overriding it at the mapping level or changing the index
+level default setting.
 
 `logsdb` mode uses a special field named `_ignored_source` that allows retrieving values for fields that have been
 ignored for various reasons (e.g., due to malformed data or indexing rules). This field ensures that even ignored

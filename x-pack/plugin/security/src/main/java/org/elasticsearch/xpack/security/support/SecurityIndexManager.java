@@ -31,6 +31,7 @@ import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ReservedStateMetadata;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.core.TimeValue;
@@ -46,6 +47,7 @@ import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.core.security.authz.RoleMappingMetadata;
 import org.elasticsearch.xpack.security.SecurityFeatures;
 
 import java.time.Instant;
@@ -74,7 +76,8 @@ import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SEC
 public class SecurityIndexManager implements ClusterStateListener {
 
     public static final String SECURITY_VERSION_STRING = "security-version";
-
+    private static final String FILE_SETTINGS_METADATA_NAMESPACE = "file_settings";
+    private static final String HANDLER_ROLE_MAPPINGS_NAME = "role_mappings";
     private static final Logger logger = LogManager.getLogger(SecurityIndexManager.class);
 
     /**
@@ -267,6 +270,23 @@ public class SecurityIndexManager implements ClusterStateListener {
         return indexVersionCreated != null && indexVersionCreated.onOrAfter(IndexVersion.current());
     }
 
+    /**
+     * Check to see if there are any file based role mappings and if they have been loaded into cluster state. If the
+     * {@link ReservedStateMetadata} file_settings namespace contains role mapping names, it means that there should be the same number of
+     * cluster state role mappings available. If they're not available yet using {@code RoleMappingMetadata.getFromClusterState()}, they
+     * have not yet been synchronized.
+     */
+    private static boolean isReservedRoleMappingsSynced(ClusterState clusterState) {
+        ReservedStateMetadata fileSettingsMetadata = clusterState.metadata().reservedStateMetadata().get(FILE_SETTINGS_METADATA_NAMESPACE);
+        if (fileSettingsMetadata != null && fileSettingsMetadata.handlers().containsKey(HANDLER_ROLE_MAPPINGS_NAME)) {
+            int fileSettingsMetadataSize = fileSettingsMetadata.handlers().get(HANDLER_ROLE_MAPPINGS_NAME).keys().size();
+            if (fileSettingsMetadataSize > 0) {
+                return fileSettingsMetadataSize == RoleMappingMetadata.getFromClusterState(clusterState).getRoleMappings().size();
+            }
+        }
+        return true;
+    }
+
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
         if (event.state().blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)) {
@@ -284,6 +304,7 @@ public class SecurityIndexManager implements ClusterStateListener {
         Tuple<Boolean, Boolean> available = checkIndexAvailable(event.state());
         final boolean indexAvailableForWrite = available.v1();
         final boolean indexAvailableForSearch = available.v2();
+        final boolean reservedRoleMappingsSynced = isReservedRoleMappingsSynced(event.state());
         final boolean mappingIsUpToDate = indexMetadata == null || checkIndexMappingUpToDate(event.state());
         final int migrationsVersion = getMigrationVersionFromIndexMetadata(indexMetadata);
         final SystemIndexDescriptor.MappingsVersion minClusterMappingVersion = getMinSecurityIndexMappingVersion(event.state());
@@ -314,6 +335,7 @@ public class SecurityIndexManager implements ClusterStateListener {
             indexAvailableForWrite,
             mappingIsUpToDate,
             createdOnLatestVersion,
+            reservedRoleMappingsSynced,
             migrationsVersion,
             minClusterMappingVersion,
             indexMappingVersion,
@@ -438,7 +460,8 @@ public class SecurityIndexManager implements ClusterStateListener {
 
     public boolean isEligibleSecurityMigration(SecurityMigrations.SecurityMigration securityMigration) {
         return state.securityFeatures.containsAll(securityMigration.nodeFeaturesRequired())
-            && state.indexMappingVersion >= securityMigration.minMappingVersion();
+            && state.indexMappingVersion >= securityMigration.minMappingVersion()
+            && securityMigration.checkPreConditions(state);
     }
 
     public boolean isReadyForSecurityMigration(SecurityMigrations.SecurityMigration securityMigration) {
@@ -671,6 +694,7 @@ public class SecurityIndexManager implements ClusterStateListener {
             false,
             false,
             false,
+            false,
             null,
             null,
             null,
@@ -686,6 +710,7 @@ public class SecurityIndexManager implements ClusterStateListener {
         public final boolean indexAvailableForWrite;
         public final boolean mappingUpToDate;
         public final boolean createdOnLatestVersion;
+        public final boolean reservedRoleMappingsSynced;
         public final Integer migrationsVersion;
         // Min mapping version supported by the descriptors in the cluster
         public final SystemIndexDescriptor.MappingsVersion minClusterMappingVersion;
@@ -704,6 +729,7 @@ public class SecurityIndexManager implements ClusterStateListener {
             boolean indexAvailableForWrite,
             boolean mappingUpToDate,
             boolean createdOnLatestVersion,
+            boolean reservedRoleMappingsSynced,
             Integer migrationsVersion,
             SystemIndexDescriptor.MappingsVersion minClusterMappingVersion,
             Integer indexMappingVersion,
@@ -720,6 +746,7 @@ public class SecurityIndexManager implements ClusterStateListener {
             this.mappingUpToDate = mappingUpToDate;
             this.migrationsVersion = migrationsVersion;
             this.createdOnLatestVersion = createdOnLatestVersion;
+            this.reservedRoleMappingsSynced = reservedRoleMappingsSynced;
             this.minClusterMappingVersion = minClusterMappingVersion;
             this.indexMappingVersion = indexMappingVersion;
             this.concreteIndexName = concreteIndexName;
@@ -740,6 +767,7 @@ public class SecurityIndexManager implements ClusterStateListener {
                 && indexAvailableForWrite == state.indexAvailableForWrite
                 && mappingUpToDate == state.mappingUpToDate
                 && createdOnLatestVersion == state.createdOnLatestVersion
+                && reservedRoleMappingsSynced == state.reservedRoleMappingsSynced
                 && Objects.equals(indexMappingVersion, state.indexMappingVersion)
                 && Objects.equals(migrationsVersion, state.migrationsVersion)
                 && Objects.equals(minClusterMappingVersion, state.minClusterMappingVersion)
@@ -762,6 +790,7 @@ public class SecurityIndexManager implements ClusterStateListener {
                 indexAvailableForWrite,
                 mappingUpToDate,
                 createdOnLatestVersion,
+                reservedRoleMappingsSynced,
                 migrationsVersion,
                 minClusterMappingVersion,
                 indexMappingVersion,
@@ -786,6 +815,8 @@ public class SecurityIndexManager implements ClusterStateListener {
                 + mappingUpToDate
                 + ", createdOnLatestVersion="
                 + createdOnLatestVersion
+                + ", reservedRoleMappingsSynced="
+                + reservedRoleMappingsSynced
                 + ", migrationsVersion="
                 + migrationsVersion
                 + ", minClusterMappingVersion="

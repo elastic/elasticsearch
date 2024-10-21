@@ -5,7 +5,7 @@ setup:
         - method: POST
           path: /_query
           parameters: [ method, path, parameters, capabilities ]
-          capabilities: [ function_stats ]
+          capabilities: [ snapshot_release_separation_for_telemetry ]
       reason: "META command removed which changes the count of the data returned"
       test_runner_features: [capabilities]
 

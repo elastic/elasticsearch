@@ -396,10 +396,16 @@ public class EsqlCapabilities {
          * Adding stats for functions (stack telemetry)
          */
         FUNCTION_STATS,
+
         /**
          * Support for semantic_text field mapping
          */
-        SEMANTIC_TEXT_TYPE(EsqlCorePlugin.SEMANTIC_TEXT_FEATURE_FLAG);
+        SEMANTIC_TEXT_TYPE(EsqlCorePlugin.SEMANTIC_TEXT_FEATURE_FLAG),
+
+        /**
+         * This adds a separation between one yaml file that tests ES|QL usage (legacy telemetry).
+         */
+        SNAPSHOT_RELEASE_SEPARATION_FOR_TELEMETRY;
 
         private final boolean snapshotOnly;
         private final FeatureFlag featureFlag;

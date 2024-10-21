@@ -100,5 +100,4 @@ public abstract class BinarizedByteVectorValues extends ByteVectorValues {
         float[] centroid = getCentroid();
         return VectorUtil.dotProduct(centroid, centroid);
     }
-
 }

@@ -14,6 +14,7 @@ import org.apache.lucene.expressions.SimpleBindings;
 import org.apache.lucene.expressions.js.JavascriptCompiler;
 import org.apache.lucene.expressions.js.VariableContext;
 import org.apache.lucene.search.DoubleValuesSource;
+import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
@@ -153,6 +154,7 @@ public class ExpressionScriptEngine implements ScriptEngine {
 
     @Override
     public <T> T compile(String scriptName, String scriptSource, ScriptContext<T> context, Map<String, String> params) {
+        SpecialPermission.check();
         Expression expr;
         try {
             // NOTE: validation is delayed to allow runtime vars, and we don't have access to per index stuff here

@@ -51,10 +51,10 @@ if (BuildParams.isSnapshotBuild() == false) {
 
   // this test has a specific number of esql.functions exposed, which is different than the same test (see below) because some functions
   // are not exposed in release versions (non-snapshot)
-  restTestBlacklist.add('esql/60_usage_release/Basic ESQL usage output (telemetry)')
+  restTestBlacklist.add('esql/60_usage/Basic ESQL usage output (telemetry)')
 } else {
   // this test and its sister above are running one in snapshot-only tests, the one in release tests
-  restTestBlacklist.add('esql/60_usage/Basic ESQL usage output (telemetry)')
+  restTestBlacklist.add('esql/60_usage_release/Basic ESQL usage output (telemetry)')
 }
 
 tasks.withType(StandaloneRestIntegTestTask).configureEach {

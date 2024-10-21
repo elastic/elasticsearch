@@ -53,6 +53,8 @@ DELETE _index_template/my-index-template
 
 [[logsdb-default-settings]]
 
+[discrete]
+[[logsdb-synthtic-source]]
 === Synthetic source
 
 By default, `logsdb` mode uses  <<synthetic-source,synthetic `_source`>>, which omits storing the original `_source`
@@ -62,6 +64,8 @@ The `index.mapping.synthetic_source_keep` setting controls how field values are 
 <<synthetic-source,synthetic `_source`>> reconstruction. The default value in `logsdb` is `arrays`, meaning that array
 values are kept to preserve the structure of arrays.
 
+[discrete]
+[[logsdb-data-streams]]
 === LogsDB for logs data streams
 
 In Elasticsearch, `logsdb` mode is applied by default for data streams whose name matches the pattern `logs-*-*`.
@@ -75,6 +79,8 @@ the appropriate indexing mode for different data streams if LogsDB is not desire
 For data streams not matching the pattern `logs-*-*` and for standalone indices, users can still use the `index.mode`
 setting to enable LogsDB.
 
+[discrete]
+[[logsdb-sort-settings]]
 === Index sort settings
 
 The following settings are applied by default when using the `logsdb` mode for index sorting:
@@ -110,6 +116,8 @@ If the default sort settings do not suit your use case, consider adjusting them.
 will affect indexing throughput and query latency, as well as potentially impacting compression effectiveness
 due to how data is distributed for sorting.
 
+[discrete]
+[[logsdb-specialized-codecs]]
 === Specialized codecs
 
 `logsdb` mode uses the `best_compression` codec by default, which applies {wikipedia}/Zstd[ZSTD] compression to stored
@@ -129,6 +137,8 @@ codec for faster compression at the expense of slightly larger storage footprint
 `logsdb` mode adopts specialized codecs for `doc_values` fields that are crafted to optimize storage usage.
 Users can rely on these specialized codecs being applied by default when using `logsdb` mode.
 
+[discrete]
+[[logsdb-ignored-settings]]
 === `ignore_malformed` and `ignore_above` settings
 
 By default, `logsdb` mode sets `ignore_malformed` to `true`. This setting allows documents with malformed fields to be
@@ -163,6 +173,8 @@ remaining the same.
 To retrieve this field, it must be explicitly requested either via the field or stored fields API using
 `_ignored_source` as the field name.
 
+[discrete]
+[[logsdb-nodocvalue-fields]]
 === Fields without doc values
 
 When `logsdb` mode uses synthetic `_source`, and `doc_values` are disabled for a field in the mapping, Elasticsearch
@@ -171,6 +183,8 @@ for reconstructing the document’s source when retrieving it via <<synthetic-so
 This automatic adjustment allows synthetic source to work correctly, even when doc values are not enabled for certain
 fields.
 
+[discrete]
+[[logsdb-settings-summary]]
 === LogsDB settings summary
 
 The following is a summary of key settings that apply when using `logsdb` mode in Elasticsearch:

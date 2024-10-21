@@ -19,6 +19,7 @@ import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.index.query.SearchExecutionContext;
 
 import java.util.Collection;
+import java.util.List;
 import java.util.Map;
 
 /** Base {@link MappedFieldType} implementation for a field that is indexed
@@ -69,7 +70,7 @@ public abstract class TermBasedFieldType extends SimpleMappedFieldType {
     @Override
     public Query termsQuery(Collection<?> values, SearchExecutionContext context) {
         failIfNotIndexed();
-        BytesRef[] bytesRefs = values.stream().map(this::indexedValueForSearch).toArray(BytesRef[]::new);
+        List<BytesRef> bytesRefs = values.stream().map(this::indexedValueForSearch).toList();
         return new TermInSetQuery(name(), bytesRefs);
     }
 

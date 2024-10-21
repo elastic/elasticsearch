@@ -162,8 +162,8 @@ public class EsqlSession {
     ) {
         LogicalPlan firstPhase = Phased.extractFirstPhase(optimizedPlan);
         if (firstPhase == null) {
-            runPhase.accept(logicalPlanToPhysicalPlan(optimizedPlan, request), listener);
             updateExecutionInfoAtEndOfPlanning(executionInfo);
+            runPhase.accept(logicalPlanToPhysicalPlan(optimizedPlan, request), listener);
         } else {
             executePhased(new ArrayList<>(), optimizedPlan, request, executionInfo, firstPhase, runPhase, listener);
         }

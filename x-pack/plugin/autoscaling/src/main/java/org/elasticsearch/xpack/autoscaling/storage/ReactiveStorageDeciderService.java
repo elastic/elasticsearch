@@ -728,10 +728,8 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
                 return this;
             }
             List<SingleForecast> singleForecasts = dataStreamMetadata.dataStreams()
-                .keySet()
+                .values()
                 .stream()
-                .map(state.metadata().getIndicesLookup()::get)
-                .map(DataStream.class::cast)
                 .map(ds -> forecast(state.metadata(), ds, forecastWindow, now))
                 .filter(Objects::nonNull)
                 .toList();
@@ -811,8 +809,11 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
                 scaledTotalSize = totalSize;
             }
 
-            IndexMetadata writeIndex = metadata.index(stream.getWriteIndex());
+            if (numberNewIndices == 0) {
+                return null;
+            }
 
+            IndexMetadata writeIndex = metadata.index(stream.getWriteIndex());
             Map<IndexMetadata, Long> newIndices = new HashMap<>();
             for (int i = 0; i < numberNewIndices; ++i) {
                 final String uuid = UUIDs.randomBase64UUID();

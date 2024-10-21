@@ -1,5 +1,5 @@
 pr: 114855
-summary: Query rules retriever
+summary: Add query rules retriever
 area: Relevance
 type: enhancement
-issues: []
+issues: [ ]

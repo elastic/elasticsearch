@@ -47,6 +47,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -470,26 +471,72 @@ public class CrossClustersEnrichIT extends AbstractMultiClustersTestCase {
     }
 
     public void testTopNThenEnrichRemote() {
+        Tuple<Boolean, Boolean> includeCCSMetadata = randomIncludeCCSMetadata();
+        Boolean requestIncludeMeta = includeCCSMetadata.v1();
+        boolean responseExpectMeta = includeCCSMetadata.v2();
+
         String query = String.format(Locale.ROOT, """
             FROM *:events,events
             | eval ip= TO_STR(host)
-            | SORT ip
+            | SORT timestamp, user, ip
             | LIMIT 5
-            | %s
+            | %s | KEEP host, timestamp, user, os
             """, enrichHosts(Enrich.Mode.REMOTE));
-        var error = expectThrows(VerificationException.class, () -> runQuery(query, randomBoolean()).close());
-        assertThat(error.getMessage(), containsString("ENRICH with remote policy can't be executed after LIMIT"));
+        try (EsqlQueryResponse resp = runQuery(query, requestIncludeMeta)) {
+            assertThat(
+                getValuesList(resp),
+                equalTo(
+                    List.of(
+                        List.of("192.168.1.2", 1L, "andres", "Windows"),
+                        List.of("192.168.1.3", 1L, "matthew", "MacOS"),
+                        Arrays.asList("192.168.1.25", 1L, "park", (String) null),
+                        List.of("192.168.1.5", 2L, "akio", "Android"),
+                        List.of("192.168.1.6", 2L, "sergio", "iOS")
+                    )
+                )
+            );
+            EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
+            assertThat(executionInfo.includeCCSMetadata(), equalTo(responseExpectMeta));
+            assertThat(executionInfo.clusterAliases(), equalTo(Set.of("", "c1", "c2")));
+            assertCCSExecutionInfoDetails(executionInfo);
+        }
     }
 
     public void testLimitThenEnrichRemote() {
+        Tuple<Boolean, Boolean> includeCCSMetadata = randomIncludeCCSMetadata();
+        Boolean requestIncludeMeta = includeCCSMetadata.v1();
+        boolean responseExpectMeta = includeCCSMetadata.v2();
+
         String query = String.format(Locale.ROOT, """
             FROM *:events,events
-            | LIMIT 10
+            | LIMIT 25
             | eval ip= TO_STR(host)
-            | %s
+            | %s | KEEP host, timestamp, user, ip, os
             """, enrichHosts(Enrich.Mode.REMOTE));
-        var error = expectThrows(VerificationException.class, () -> runQuery(query, randomBoolean()).close());
-        assertThat(error.getMessage(), containsString("ENRICH with remote policy can't be executed after LIMIT"));
+        try (EsqlQueryResponse resp = runQuery(query, requestIncludeMeta)) {
+            var values = getValuesList(resp);
+            values.sort(
+                Comparator.comparingLong((List<Object> o) -> (Long) o.get(1))
+                    .thenComparing(o -> (String) o.get(0))
+                    .thenComparing(o -> (String) o.get(2))
+            );
+            assertThat(
+                values.subList(0, 5),
+                equalTo(
+                    List.of(
+                        List.of("192.168.1.2", 1L, "andres", "192.168.1.2", "Windows"),
+                        Arrays.asList("192.168.1.25", 1L, "park", (String) null, (String) null),
+                        List.of("192.168.1.3", 1L, "matthew", "192.168.1.3", "MacOS"),
+                        List.of("192.168.1.5", 2L, "akio", "192.168.1.5", "Android"),
+                        List.of("192.168.1.5", 2L, "simon", "192.168.1.5", "Android")
+                    )
+                )
+            );
+            EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
+            assertThat(executionInfo.includeCCSMetadata(), equalTo(responseExpectMeta));
+            assertThat(executionInfo.clusterAliases(), equalTo(Set.of("", "c1", "c2")));
+            assertCCSExecutionInfoDetails(executionInfo);
+        }
     }
 
     public void testAggThenEnrichRemote() {

@@ -29,6 +29,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.stream.Collectors;
 
 /**
@@ -76,7 +77,7 @@ public class RemoteClusterPermissions implements NamedWriteable, ToXContentObjec
     public static final RemoteClusterPermissions NONE = new RemoteClusterPermissions();
 
     public static Set<String> getSupportedRemoteClusterPermissions() {
-        return allowedRemoteClusterPermissions.values().stream().flatMap(Set::stream).collect(Collectors.toSet());
+        return allowedRemoteClusterPermissions.values().stream().flatMap(Set::stream).collect(Collectors.toCollection(TreeSet::new));
     }
 
     public RemoteClusterPermissions(StreamInput in) throws IOException {

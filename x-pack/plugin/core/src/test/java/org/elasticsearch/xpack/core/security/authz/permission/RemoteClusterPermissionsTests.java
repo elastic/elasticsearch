@@ -181,7 +181,7 @@ public class RemoteClusterPermissionsTests extends AbstractXContentSerializingTe
         // random values not allowed
         IllegalArgumentException error = expectThrows(IllegalArgumentException.class, () -> remoteClusterPermission.validate());
         assertTrue(error.getMessage().contains("Invalid remote_cluster permissions found. Please remove the following:"));
-        assertTrue(error.getMessage().contains("Only [monitor_enrich] are allowed"));
+        assertTrue(error.getMessage().contains("Only [monitor_enrich, monitor_stats] are allowed"));
 
         new RemoteClusterPermissions().addGroup(new RemoteClusterPermissionGroup(new String[] { "monitor_enrich" }, new String[] { "*" }))
             .validate(); // no error

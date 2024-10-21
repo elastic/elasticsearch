@@ -827,6 +827,7 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
                 if (token == XContentParser.Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();
                 } else if (Fields.PRIVILEGES.match(currentFieldName, parser.getDeprecationHandler())) {
+                    //TODO: fix this!
                     privileges = readStringArray(roleName, parser, false);
                     if (privileges.length > 2
                         || RemoteClusterPermissions.getSupportedRemoteClusterPermissions()

@@ -57,4 +57,12 @@ public interface IndexSettingProvider {
     record Parameters(CheckedFunction<IndexMetadata, MapperService, IOException> mapperServiceFactory) {
 
     }
+
+    /**
+     * @return Whether the additional settings that this provider returns can overrule the settings defined
+     *         in matching template or in create index request.
+     */
+    default boolean overrulesTemplateAndRequestSettings() {
+        return false;
+    }
 }

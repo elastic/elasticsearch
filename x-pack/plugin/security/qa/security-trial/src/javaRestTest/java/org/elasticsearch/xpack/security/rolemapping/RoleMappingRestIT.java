@@ -120,6 +120,25 @@ public class RoleMappingRestIT extends ESRestTestCase {
 
         expect404(() -> getMappings("role-mapping-4"));
         expect404(() -> getMappings("role-mapping-4-read-only-operator-mapping"));
+
+        ExpressionRoleMapping nativeMapping1 = expressionRoleMapping("role-mapping-1");
+        putMapping(
+            nativeMapping1,
+            "A read only role mapping with the same name ["
+                + "role-mapping-1"
+                + "] has been previously defined in a configuration file. "
+                + "Both role mappings will be used to determine role assignments."
+        );
+
+        ExpressionRoleMapping nativeMapping4 = expressionRoleMapping("role-mapping-4");
+        putMapping(nativeMapping4);
+
+        expectMappings(List.of(clusterStateMapping1, clusterStateMapping2, clusterStateMapping3, nativeMapping1, nativeMapping4));
+        expectMappings(List.of(clusterStateMapping1, nativeMapping1), "role-mapping-1");
+        expectMappings(List.of(clusterStateMapping1, nativeMapping1), "role-mapping-1", clusterStateMapping1.getName());
+        expectMappings(List.of(clusterStateMapping1), clusterStateMapping1.getName());
+        expectMappings(List.of(nativeMapping4), "role-mapping-4");
+        expectMappings(List.of(nativeMapping4), "role-mapping-4", "role-mapping-4-read-only-operator-mapping");
     }
 
     public void testPutAndDeleteRoleMappings() throws IOException {

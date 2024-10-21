@@ -2,7 +2,11 @@ setup:
   - requires:
       cluster_features: ["gte_v8.10.0"]
       reason: Loading synonyms from index is introduced in 8.10.0
-
+  - do:
+      cluster.put_settings:
+        body:
+          persistent:
+            logger.org.elasticsearch: DEBUG
   # Create a new synonyms set
   - do:
       synonyms.put_synonym:
@@ -13,6 +17,15 @@ setup:
               id: "synonym-rule-1"
             - synonyms: "bye => goodbye"
               id: "synonym-rule-2"
+
+  # This is to ensure that all index shards (write and read) are available. In serverless this can take some time.
+  - do:
+      cluster.health:
+        index: .synonyms-2
+        level: shards
+        timeout: 60s
+        wait_for_status: yellow
+        wait_for_no_initializing_shards: true
 
   # Create an index with synonym_filter that uses that synonyms set
   - do:
@@ -47,6 +60,13 @@ setup:
           - '{"my_field": "hello"}'
           - '{"index": {"_index": "my_index", "_id": "2"}}'
           - '{"my_field": "goodbye"}'
+---
+teardown:
+  - do:
+      cluster.put_settings:
+        body:
+          persistent:
+            logger.org.elasticsearch: INFO
 ---
 "Load synonyms from index for an analyzer":
 

@@ -16,6 +16,14 @@ setup:
   - match: { result: "created" }
 
   - do:
+      cluster.health:
+        index: .synonyms-2
+        level: shards
+        timeout: 60s
+        wait_for_status: yellow
+        wait_for_no_initializing_shards: true
+
+  - do:
       synonyms.get_synonym:
         id: test-update-synonyms
 
@@ -57,6 +65,14 @@ setup:
           synonyms_set: []
 
   - match: { result: "created" }
+
+  - do:
+      cluster.health:
+        index: .synonyms-2
+        level: shards
+        timeout: 60s
+        wait_for_status: yellow
+        wait_for_no_initializing_shards: true
 
   - do:
       synonyms.get_synonym:

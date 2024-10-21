@@ -1313,7 +1313,7 @@ public class RBACEngineTests extends ESTestCase {
             .addRemoteClusterPermissions(
                 new RemoteClusterPermissions().addGroup(
                     new RemoteClusterPermissionGroup(
-                        RemoteClusterPermissions.getSupportedRemoteClusterPermissions().toArray(new String[0]),
+                        new String[] {"monitor_enrich"},
                         new String[] { "remote-1" }
                     )
                 )
@@ -1383,24 +1383,25 @@ public class RBACEngineTests extends ESTestCase {
 
         RemoteClusterPermissions remoteClusterPermissions = response.getRemoteClusterPermissions();
         String[] allRemoteClusterPermissions = RemoteClusterPermissions.getSupportedRemoteClusterPermissions().toArray(new String[0]);
-        assert allRemoteClusterPermissions.length == 1
-            : "if more remote cluster permissions are added this test needs to be updated to ensure the correct remotes receive the "
-                + "correct permissions. ";
-        // 2 groups with 3 aliases
+
         assertThat(response.getRemoteClusterPermissions().groups(), iterableWithSize(2));
-        assertEquals(
-            3,
-            response.getRemoteClusterPermissions()
-                .groups()
-                .stream()
-                .map(RemoteClusterPermissionGroup::remoteClusterAliases)
-                .flatMap(Arrays::stream)
-                .distinct()
-                .count()
+        //remote-1 has monitor_enrich permission
+        //remote-2 and remote-3 have all permissions
+        assertThat(
+            response.getRemoteClusterPermissions().groups(),
+            containsInAnyOrder(
+                new RemoteClusterPermissionGroup(new String[] {"monitor_enrich"}, new String[] { "remote-1" }),
+                new RemoteClusterPermissionGroup(allRemoteClusterPermissions, new String[] { "remote-2", "remote-3" })
+            )
+        );
+
+        // ensure that all permissions are valid for the current transport version
+        assertThat(
+            Arrays.asList(remoteClusterPermissions.privilegeNames("remote-1", TransportVersion.current())),
+            hasItem("monitor_enrich")
         );
 
         for (String permission : RemoteClusterPermissions.getSupportedRemoteClusterPermissions()) {
-            assertThat(Arrays.asList(remoteClusterPermissions.privilegeNames("remote-1", TransportVersion.current())), hasItem(permission));
             assertThat(Arrays.asList(remoteClusterPermissions.privilegeNames("remote-2", TransportVersion.current())), hasItem(permission));
             assertThat(Arrays.asList(remoteClusterPermissions.privilegeNames("remote-3", TransportVersion.current())), hasItem(permission));
         }

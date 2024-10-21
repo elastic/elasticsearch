@@ -58,10 +58,15 @@ DELETE _index_template/my-index-template
 By default, `logsdb` mode uses  <<synthetic-source,synthetic `_source`>>, which omits storing the original `_source`
 field and synthesizes it from doc values or stored fields upon document retrieval.
 
+The `index.mapping.synthetic_source_keep` setting controls how field values are preserved for
+<<synthetic-source,synthetic `_source`>> reconstruction. The default value in `logsdb` is `arrays`, meaning that array
+values are kept to preserve the structure of arrays.
+
 === LogsDB for logs data streams
 
 In Elasticsearch, `logsdb` mode is applied by default for data streams whose name matches the pattern `logs-*-*`.
 This pattern identifies a logs data stream, and Elasticsearch automatically configures the data stream to use LogsDB.
+We recommend using `logsdb` index mode for data streams by means of standard or custom (component) templates.
 
 Users are allowed to opt out of `logsdb` mode by overriding the `index.mode` setting in the index settings or by
 using composable or index templates to customize the indexing configuration. This allows for flexibility in choosing
@@ -94,23 +99,16 @@ If no custom sort settings are used, the `host.name` field is automatically inje
 index as a `keyword` field to ensure that sorting can be applied. This guarantees that logs are efficiently sorted and
 retrieved based on the `host.name` and `@timestamp` fields.
 
-[NOTE]
-====
-If `subobjects` is `true` (the default), the `host.name` field will be mapped as the `host` object with a `name`
-child `keyword` field. If `subobjects` is `false`, a single `host.name` field will be mapped as a `keyword` field.
-====
+If `subobjects` is set to `true` (which is the default), the `host.name` field will be mapped as an object field
+named `host`, containing a `name` child field of type `keyword`. On the other hand, if `subobjects` is set to `false`,
+a single `host.name` field will be mapped as a `keyword` field.
 
-[NOTE]
-====
-Sort settings are final and cannot be changed after an index is created. Changing settings requires creating a new
-index with new settings applied to it.
-====
+Once an index is created, the sort settings are final and cannot be changed. If you need different sort settings,
+a new index must be created with the desired settings.
 
-[NOTE]
-====
-If these setting are not appropriate for your mappings we recommend changing them. Keep in mind that sort settings will
-affect indexing throughput and query latency.
-====
+If the default sort settings do not suit your use case, consider adjusting them. Keep in mind that sort settings
+will affect indexing throughput and query latency, as well as potentially impacting compression effectiveness
+due to how data is distributed for sorting.
 
 === Specialized codecs
 
@@ -172,3 +170,51 @@ automatically sets the `store` setting to `true` for that field. This ensures th
 for reconstructing the document’s source when retrieving it via <<synthetic-source,synthetic `_source`>>.
 This automatic adjustment allows synthetic source to work correctly, even when doc values are not enabled for certain
 fields.
+
+=== LogsDB settings summary
+
+The following is a summary of key settings that apply when using `logsdb` mode in Elasticsearch:
+
+* **`index.mode`**: `"logsdb"`
+  Controls the use of `logsdb` mode for indices or data streams, optimizing them for efficient storage and query
+  performance.
+
+* **`index.mapping.synthetic_source_keep`**: `"arrays"`
+  Controls how array values are preserved for <<synthetic-source,synthetic `_source`>> reconstruction.
+
+* **`index.sort.field`**: `["host.name", "@timestamp"]`
+  Controls the default fields for sorting in `logsdb` mode (`host.name` and `@timestamp`).
+
+* **`index.sort.order`**: `["desc", "desc"]`
+  Controls the default sort order for `host.name` and `@timestamp`, prioritizing descending values for the latest logs.
+
+* **`index.sort.mode`**: `["min", "min"]`
+  Controls the default sort mode for multi-valued fields, sorting by the minimum value.
+
+* **`index.sort.missing`**: `["_first", "_first"]`
+  Controls how missing values are sorted, ensuring they appear first by default.
+
+* **`index.codec`**: `"best_compression"`
+  Controls the default compression codec for `logsdb` mode, applying {wikipedia}/Zstd[ZSTD] compression to
+  stored fields.
+
+* **`index.mapping.ignore_malformed`**: `true`
+  Controls indexing of malformed fields to prevent ingestion failures.
+
+* **`index.mapping.ignore_above`**: `8191`
+  Controls the maximum number of characters allowed for text fields, including <<text-field-type,`text`>> and
+  <<wildcard-field-type,`wildcard`>>.
+
+* **`_ignored_source`**
+  `logsdb` index mode provides access to values for fields ignored due to applying `ignore_malformed`, `ignore_above`,
+  and `ignore_dynamic_beyond_limit`.
+
+* **`index.mapping.total_fields.limit`**: 1000 (same as `"standard"` index mode)
+  Controls the maximum number of field mappings allowed in an index.
+
+* **`index.mapping.total_fields.ignore_dynamic_beyond_limit`**: `true`
+  Controls ignoring values for dynamically mapped fields beyond the field limit without failing document indexing.
+
+* **Fields without `doc_values`**
+  `logsdb` index mode changes the value of `store` to `true` if `doc_values` are disabled for any field, ensuring that
+  <<synthetic-source,synthetic `_source`>> can still reconstruct the field contents.

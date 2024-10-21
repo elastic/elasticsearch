@@ -49,6 +49,7 @@ import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptFactory;
 import org.elasticsearch.script.field.DocValuesScriptFieldFactory;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.fetch.StoredFieldsSpec;
 import org.elasticsearch.search.lookup.LeafStoredFieldsLookup;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.lookup.Source;
@@ -1407,8 +1408,12 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
                         return;
                     }
                 } else {
+                    StoredFieldsSpec storedFieldsSpec = loader.rowStrideStoredFieldSpec();
+                    if (loader.rowStrideStoredFieldSpec().requiresSource()) {
+                        storedFieldsSpec = storedFieldsSpec.merge(new StoredFieldsSpec(true, true, sourceLoader.requiredStoredFields()));
+                    }
                     BlockLoaderStoredFieldsFromLeafLoader storedFieldsLoader = new BlockLoaderStoredFieldsFromLeafLoader(
-                        StoredFieldLoader.fromSpec(loader.rowStrideStoredFieldSpec()).getLoader(ctx, null),
+                        StoredFieldLoader.fromSpec(storedFieldsSpec).getLoader(ctx, null),
                         loader.rowStrideStoredFieldSpec().requiresSource() ? sourceLoader.leaf(ctx.reader(), null) : null
                     );
                     storedFieldsLoader.advanceTo(0);

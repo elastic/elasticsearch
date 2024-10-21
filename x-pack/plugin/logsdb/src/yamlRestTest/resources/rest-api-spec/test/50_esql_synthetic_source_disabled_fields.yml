@@ -283,7 +283,7 @@ teardown:
   - match: {values.0.3: "PUT"}
   - match: {values.0.4: false}
   - match: {values.0.5: "POINT (-74.006 40.7128)"}
-  - match: {values.0.6: null}          # null is expected, because text fields aren't stored in ignored source
+  - match: {values.0.6: "Do. Or do not. There is no try."}
   - match: {values.0.7: 102}
 
   - do:
@@ -296,13 +296,12 @@ teardown:
   - match: {columns.0.name: "message"}
   - match: {columns.0.type: "text"}
 
-  # null is expected, because text fields aren't stored in ignored source
-  - match: {values.0.0: null}
-  - match: {values.1.0: null}
-  - match: {values.2.0: null}
-  - match: {values.3.0: null}
-  - match: {values.4.0: null}
-  - match: {values.5.0: null}
+  - match: {values.0.0: "Do. Or do not. There is no try."}
+  - match: {values.1.0: "I find your lack of faith disturbing."}
+  - match: {values.2.0: "Wars not make one great."}
+  - match: {values.3.0: "No, I am your father."}
+  - match: {values.4.0: "May the force be with you."}
+  - match: {values.5.0: "That's no moon. It's a space station."}
 
 ---
 "message field with keyword multi-field with ignore_above":

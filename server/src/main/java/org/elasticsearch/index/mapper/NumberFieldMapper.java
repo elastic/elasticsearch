@@ -463,10 +463,9 @@ public class NumberFieldMapper extends FieldMapper {
             @Override
             BlockLoader blockLoaderFromSource(
                 SourceValueFetcher sourceValueFetcher,
-                BlockSourceReader.LeafIteratorLookup lookup,
-                SourceFieldMapper.Mode sourceMode
+                BlockSourceReader.LeafIteratorLookup lookup
             ) {
-                return new BlockSourceReader.DoublesBlockLoader(sourceValueFetcher, lookup, sourceMode);
+                return new BlockSourceReader.DoublesBlockLoader(sourceValueFetcher, lookup);
             }
         },
         FLOAT("float", NumericType.FLOAT) {
@@ -651,10 +650,9 @@ public class NumberFieldMapper extends FieldMapper {
             @Override
             BlockLoader blockLoaderFromSource(
                 SourceValueFetcher sourceValueFetcher,
-                BlockSourceReader.LeafIteratorLookup lookup,
-                SourceFieldMapper.Mode sourceMode
+                BlockSourceReader.LeafIteratorLookup lookup
             ) {
-                return new BlockSourceReader.DoublesBlockLoader(sourceValueFetcher, lookup, sourceMode);
+                return new BlockSourceReader.DoublesBlockLoader(sourceValueFetcher, lookup);
             }
         },
         DOUBLE("double", NumericType.DOUBLE) {
@@ -805,10 +803,9 @@ public class NumberFieldMapper extends FieldMapper {
             @Override
             BlockLoader blockLoaderFromSource(
                 SourceValueFetcher sourceValueFetcher,
-                BlockSourceReader.LeafIteratorLookup lookup,
-                SourceFieldMapper.Mode sourceMode
+                BlockSourceReader.LeafIteratorLookup lookup
             ) {
-                return new BlockSourceReader.DoublesBlockLoader(sourceValueFetcher, lookup, sourceMode);
+                return new BlockSourceReader.DoublesBlockLoader(sourceValueFetcher, lookup);
             }
         },
         BYTE("byte", NumericType.BYTE) {
@@ -922,10 +919,9 @@ public class NumberFieldMapper extends FieldMapper {
             @Override
             BlockLoader blockLoaderFromSource(
                 SourceValueFetcher sourceValueFetcher,
-                BlockSourceReader.LeafIteratorLookup lookup,
-                SourceFieldMapper.Mode sourceMode
+                BlockSourceReader.LeafIteratorLookup lookup
             ) {
-                return new BlockSourceReader.IntsBlockLoader(sourceValueFetcher, lookup, sourceMode);
+                return new BlockSourceReader.IntsBlockLoader(sourceValueFetcher, lookup);
             }
 
             private boolean isOutOfRange(Object value) {
@@ -1039,10 +1035,9 @@ public class NumberFieldMapper extends FieldMapper {
             @Override
             BlockLoader blockLoaderFromSource(
                 SourceValueFetcher sourceValueFetcher,
-                BlockSourceReader.LeafIteratorLookup lookup,
-                SourceFieldMapper.Mode sourceMode
+                BlockSourceReader.LeafIteratorLookup lookup
             ) {
-                return new BlockSourceReader.IntsBlockLoader(sourceValueFetcher, lookup, sourceMode);
+                return new BlockSourceReader.IntsBlockLoader(sourceValueFetcher, lookup);
             }
 
             private boolean isOutOfRange(Object value) {
@@ -1230,10 +1225,9 @@ public class NumberFieldMapper extends FieldMapper {
             @Override
             BlockLoader blockLoaderFromSource(
                 SourceValueFetcher sourceValueFetcher,
-                BlockSourceReader.LeafIteratorLookup lookup,
-                SourceFieldMapper.Mode sourceMode
+                BlockSourceReader.LeafIteratorLookup lookup
             ) {
-                return new BlockSourceReader.IntsBlockLoader(sourceValueFetcher, lookup, sourceMode);
+                return new BlockSourceReader.IntsBlockLoader(sourceValueFetcher, lookup);
             }
         },
         LONG("long", NumericType.LONG) {
@@ -1381,10 +1375,9 @@ public class NumberFieldMapper extends FieldMapper {
             @Override
             BlockLoader blockLoaderFromSource(
                 SourceValueFetcher sourceValueFetcher,
-                BlockSourceReader.LeafIteratorLookup lookup,
-                SourceFieldMapper.Mode sourceMode
+                BlockSourceReader.LeafIteratorLookup lookup
             ) {
-                return new BlockSourceReader.LongsBlockLoader(sourceValueFetcher, lookup, sourceMode);
+                return new BlockSourceReader.LongsBlockLoader(sourceValueFetcher, lookup);
             }
 
             private boolean isOutOfRange(Object value) {
@@ -1664,8 +1657,7 @@ public class NumberFieldMapper extends FieldMapper {
 
         abstract BlockLoader blockLoaderFromSource(
             SourceValueFetcher sourceValueFetcher,
-            BlockSourceReader.LeafIteratorLookup lookup,
-            SourceFieldMapper.Mode sourceMode
+            BlockSourceReader.LeafIteratorLookup lookup
         );
     }
 
@@ -1805,8 +1797,7 @@ public class NumberFieldMapper extends FieldMapper {
             BlockSourceReader.LeafIteratorLookup lookup = isStored() || isIndexed()
                 ? BlockSourceReader.lookupFromFieldNames(blContext.fieldNames(), name())
                 : BlockSourceReader.lookupMatchingAll();
-            var sourceMode = blContext.indexSettings().getIndexMappingSourceMode();
-            return type.blockLoaderFromSource(sourceValueFetcher(blContext.sourcePaths(name())), lookup, sourceMode);
+            return type.blockLoaderFromSource(sourceValueFetcher(blContext.sourcePaths(name())), lookup);
         }
 
         @Override

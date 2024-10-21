@@ -34,7 +34,6 @@ import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.features.NodeFeature;
-import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettingProvider;
 import org.elasticsearch.index.IndexSettingProviders;
 import org.elasticsearch.index.IndexVersion;
@@ -271,36 +270,7 @@ public class TransportSimulateBulkAction extends TransportAbstractBulkAction {
                     );
                     CompressedXContent mappings = template.mappings();
                     CompressedXContent mergedMappings = mergeMappings(mappings, mappingAddition);
-                    if (mergedMappings != null) {
-                        MappingMetadata mappingMetadata = new MappingMetadata(mergedMappings);
-                        Settings dummySettings = Settings.builder()
-                            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
-                            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                            .put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
-                            .build();
-                        final IndexMetadata imd = IndexMetadata.builder(request.index())
-                            .settings(dummySettings)
-                            .putMapping(mappingMetadata)
-                            .build();
-                        indicesService.withTempIndexService(imd, indexService -> {
-                            indexService.mapperService().updateMapping(null, reSortMappingXContent(indexService, imd));
-                            return IndexShard.prepareIndex(
-                                indexService.mapperService(),
-                                sourceToParse,
-                                SequenceNumbers.UNASSIGNED_SEQ_NO,
-                                -1,
-                                -1,
-                                VersionType.INTERNAL,
-                                Engine.Operation.Origin.PRIMARY,
-                                Long.MIN_VALUE,
-                                false,
-                                request.ifSeqNo(),
-                                request.ifPrimaryTerm(),
-                                0
-                            );
-                        });
-                    }
+                    validateUpdatedMappings(mappings, mergedMappings, request, sourceToParse);
                 } else {
                     List<IndexTemplateMetadata> matchingTemplates = findV1Templates(simulatedState.metadata(), request.index(), false);
                     final Map<String, Object> mappingsMap = MetadataCreateIndexService.parseV1Mappings(
@@ -309,42 +279,59 @@ public class TransportSimulateBulkAction extends TransportAbstractBulkAction {
                         xContentRegistry
                     );
                     final CompressedXContent combinedMappings = mergeMappings(new CompressedXContent(mappingsMap), mappingAddition);
-                    if (combinedMappings != null) {
-                        Settings dummySettings = Settings.builder()
-                            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
-                            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                            .put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
-                            .build();
-                        MappingMetadata mappingMetadata = new MappingMetadata(combinedMappings);
-                        final IndexMetadata imd = IndexMetadata.builder(request.index())
-                            .putMapping(mappingMetadata)
-                            .settings(dummySettings)
-                            .build();
-                        indicesService.withTempIndexService(imd, indexService -> {
-                            indexService.mapperService().updateMapping(null, reSortMappingXContent(indexService, imd));
-                            return IndexShard.prepareIndex(
-                                indexService.mapperService(),
-                                sourceToParse,
-                                SequenceNumbers.UNASSIGNED_SEQ_NO,
-                                -1,
-                                -1,
-                                VersionType.INTERNAL,
-                                Engine.Operation.Origin.PRIMARY,
-                                Long.MIN_VALUE,
-                                false,
-                                request.ifSeqNo(),
-                                request.ifPrimaryTerm(),
-                                0
-                            );
-                        });
-                    }
+                    validateUpdatedMappings(null, combinedMappings, request, sourceToParse);
                 }
             }
         } catch (Exception e) {
             mappingValidationException = e;
         }
         return mappingValidationException;
+    }
+
+    /*
+     * Validates that when updatedMappings are applied
+     */
+    private void validateUpdatedMappings(
+        @Nullable CompressedXContent originalMappings,
+        @Nullable CompressedXContent updatedMappings,
+        IndexRequest request,
+        SourceToParse sourceToParse
+    ) throws IOException {
+        if (updatedMappings == null) {
+            return; // no validation to do
+        }
+        Settings dummySettings = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
+            .build();
+        IndexMetadata.Builder originalIndexMetadataBuilder = IndexMetadata.builder(request.index()).settings(dummySettings);
+        if (originalMappings != null) {
+            originalIndexMetadataBuilder.putMapping(new MappingMetadata(originalMappings));
+        }
+        final IndexMetadata originalIndexMetadata = originalIndexMetadataBuilder.build();
+        final IndexMetadata updatedIndexMetadata = IndexMetadata.builder(request.index())
+            .settings(dummySettings)
+            .putMapping(new MappingMetadata(updatedMappings))
+            .build();
+        indicesService.withTempIndexService(originalIndexMetadata, indexService -> {
+            indexService.mapperService().merge(updatedIndexMetadata, MapperService.MergeReason.MAPPING_UPDATE);
+            return IndexShard.prepareIndex(
+                indexService.mapperService(),
+                sourceToParse,
+                SequenceNumbers.UNASSIGNED_SEQ_NO,
+                -1,
+                -1,
+                VersionType.INTERNAL,
+                Engine.Operation.Origin.PRIMARY,
+                Long.MIN_VALUE,
+                false,
+                request.ifSeqNo(),
+                request.ifPrimaryTerm(),
+                0
+            );
+        });
     }
 
     private static CompressedXContent mergeMappings(@Nullable CompressedXContent originalMapping, Map<String, Object> mappingAddition)
@@ -359,30 +346,6 @@ public class TransportSimulateBulkAction extends TransportAbstractBulkAction {
         } else {
             return convertMappingMapToXContent(combinedMappingMap);
         }
-    }
-
-    private static IndexMetadata reSortMappingXContent(IndexService indexService, IndexMetadata originalIndexMetadata) {
-        /*
-         * This is needed because DocumentMapper asserts that if you create a Mapping from CompressedXContent, then you can get that same
-         * CompressedXContent back out of the Mapping. But the Mapping orders the map keys in its toXContent the natural order of their
-         * full paths (see ObjectMapper::serializeMappers). XContentParser (used to create the initial CompressedXContent) only supports
-         * ordering by insertion order though! So this method rewrites the map ordered by Mapping.parseMapping. This way when the
-         * XContentParser reads them, they are inserted in the correct order, and the roundtrip to Mapping works.
-         */
-        if (originalIndexMetadata.mapping() == null) {
-            return originalIndexMetadata;
-        }
-        CompressedXContent compressedXContent = indexService.mapperService()
-            .parseMapping(
-                originalIndexMetadata.mapping().type(),
-                MapperService.MergeReason.MAPPING_UPDATE,
-                originalIndexMetadata.mapping().source()
-            )
-            .toCompressedXContent();
-        return IndexMetadata.builder(originalIndexMetadata.getIndex().getName())
-            .settings(originalIndexMetadata.getSettings())
-            .putMapping(new MappingMetadata(compressedXContent))
-            .build();
     }
 
     /*

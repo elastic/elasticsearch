@@ -50,8 +50,8 @@ public class Concat extends EsqlScalarFunction {
     )
     public Concat(
         Source source,
-        @Param(name = "string1", type = { "keyword", "semantic_text", "text" }, description = "Strings to concatenate.") Expression first,
-        @Param(name = "string2", type = { "keyword", "semantic_text", "text" }, description = "Strings to concatenate.") List<
+        @Param(name = "string1", type = { "keyword", "text" }, description = "Strings to concatenate.") Expression first,
+        @Param(name = "string2", type = { "keyword", "text" }, description = "Strings to concatenate.") List<
             ? extends Expression> rest
     ) {
         super(source, Stream.concat(Stream.of(first), rest.stream()).toList());

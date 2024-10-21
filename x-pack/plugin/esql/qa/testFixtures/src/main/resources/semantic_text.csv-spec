@@ -369,7 +369,6 @@ result:keyword
 <em>live long and prosper</em>
 ;
 
-
 endsWith
 required_capability: semantic_text_type
 
@@ -547,7 +546,6 @@ _id:keyword | result:keyword
 3           | e
 ;
 
-
 toLower
 required_capability: semantic_text_type
 
@@ -597,45 +595,43 @@ mvAppend
 required_capability: semantic_text_type
 
 FROM semantic_text METADATA _id
-| EVAL result = mv_append(st_integer, st_long)
+| EVAL result = mv_append(st_multi_value, st_long)
 | KEEP _id, result
 | SORT _id
 ;
 
 _id: keyword | result:semantic_text
-1           | ["23", "2147483648"] 
-2           | ["122", "123"]
-3           | null
+1            | ["Hello there!", "This is a random value", "for testing purposes", "2147483648"] 
+2            | ["nice to meet you", "bye bye!", "123"]
+3            | null
 ;
 
 mvConcat
 required_capability: semantic_text_type
 
 FROM semantic_text METADATA _id
-| EVAL x = mv_append(st_integer, st_long)
-| EVAL result = mv_concat(x, "; ")
+| EVAL result = mv_concat(st_multi_value, "; ")
 | KEEP _id, result
 | SORT _id
 ;
 
 _id: keyword | result:keyword
-1           | 23; 2147483648
-2           | 122; 123
-3           | null
+1            | Hello there!; This is a random value; for testing purposes
+2            | nice to meet you; bye bye!
+3            | null
 ;
 
 mvCount
 required_capability: semantic_text_type
 
 FROM semantic_text METADATA _id
-| EVAL x = mv_append(st_integer, st_long)
-| EVAL result = mv_count(x)
+| EVAL result = mv_count(st_multi_value)
 | KEEP _id, result
 | SORT _id
 ;
 
 _id: keyword | result:integer
-1            | 2
+1            | 3
 2            | 2
 3            | null
 ;
@@ -644,132 +640,120 @@ mvDedupe
 required_capability: semantic_text_type
 
 FROM semantic_text METADATA _id
-| EVAL x = mv_append(st_integer, st_long)
-| EVAL x = mv_append(x, st_integer)
-| EVAL result = mv_dedupe(x)
+| EVAL result = mv_dedupe(st_multi_value)
 | KEEP _id, result
 | SORT _id
 ;
 
 _id: keyword | result:semantic_text
-1           | ["23", "2147483648"] 
-2           | ["122", "123"]
-3           | null
+1            | ["Hello there!", "This is a random value", "for testing purposes"]
+2            | ["nice to meet you", "bye bye!"]
+3            | null
 ;
 
 mvFirst
 required_capability: semantic_text_type
 
 FROM semantic_text METADATA _id
-| EVAL x = mv_append(st_integer, st_long)
-| EVAL result = mv_first(x)
+| EVAL result = mv_first(st_multi_value)
 | KEEP _id, result
 | SORT _id
 ;
 
 _id: keyword | result:semantic_text
-1           | 23
-2           | 122
-3           | null
+1            | Hello there!
+2            | nice to meet you
+3            | null
 ;
 
 mvLast
 required_capability: semantic_text_type
 
 FROM semantic_text METADATA _id
-| EVAL x = mv_append(st_integer, st_long)
-| EVAL result = mv_last(x)
+| EVAL result = mv_last(st_multi_value)
 | KEEP _id, result
 | SORT _id
 ;
 
 _id: keyword | result:semantic_text
-1           | 2147483648
-2           | 123
-3           | null
+1            | for testing purposes
+2            | bye bye!
+3            | null
 ;
 
 mvMax
 required_capability: semantic_text_type
 
 FROM semantic_text METADATA _id
-| EVAL x = mv_append(st_integer, st_long)
-| EVAL result = mv_max(x)
+| EVAL result = mv_max(st_multi_value)
 | KEEP _id, result
 | SORT _id
 ;
 
 _id: keyword | result:semantic_text
-1           | 23
-2           | 123
-3           | null
+1            | for testing purposes
+2            | nice to meet you
+3            | null
 ;
 
 mvMin
 required_capability: semantic_text_type
 
 FROM semantic_text METADATA _id
-| EVAL x = mv_append(st_integer, st_long)
-| EVAL result = mv_min(x)
+| EVAL result = mv_min(st_multi_value)
 | KEEP _id, result
 | SORT _id
 ;
 
 _id: keyword | result:semantic_text
-1           | 2147483648
-2           | 122
-3           | null
+1            | Hello there!
+2            | bye bye!
+3            | null
 ;
 
 mvSlice
 required_capability: semantic_text_type
 
 FROM semantic_text METADATA _id
-| EVAL x = mv_append(st_integer, st_long)
-| EVAL x = mv_append(x, st_integer)
-| EVAL result = mv_slice(x, 1, 2)
+| EVAL result = mv_slice(st_multi_value, 1, 2)
 | KEEP _id, result
 | SORT _id
 ;
 
 _id: keyword | result:semantic_text
-1           | ["2147483648", "23"]
-2           | ["123", "122"]
-3           | null
+1            | ["This is a random value", "for testing purposes"]
+2            | bye bye!
+3            | null
 ;
 
 mvSort
 required_capability: semantic_text_type
 
 FROM semantic_text METADATA _id
-| EVAL x = mv_append(st_integer, st_long)
-| EVAL result = mv_sort(x, "DESC")
+| EVAL result = mv_sort(st_multi_value, "ASC")
 | KEEP _id, result
 | SORT _id
 ;
 
 _id: keyword | result:semantic_text
-1           | ["23", "2147483648"]
-2           | ["123", "122"]
-3           | null
+1            | ["Hello there!", "This is a random value", "for testing purposes"]
+2            | ["bye bye!", "nice to meet you"]
+3            | null
 ;
-
 
 mvZip
 required_capability: semantic_text_type
 
 FROM semantic_text METADATA _id
-| EVAL x = mv_append(st_integer, st_long)
-| EVAL y = mv_append(st_double, st_integer)
-| EVAL result = mv_zip(x, y, " + ")
+| EVAL result = mv_zip(st_multi_value, st_multi_value, " + ")
 | KEEP _id, result
 | SORT _id
 ;
 
 _id: keyword | result:keyword
-1           | ["23 + 5.20128E11", "2147483648 + 23"]
-2           | ["122 + 4541.11", "123 + 122"]
-3           | null
+1            | ["Hello there! + Hello there!", "This is a random value + This is a random value", "for testing purposes + for testing purposes"]
+2            | ["nice to meet you + nice to meet you", "bye bye! + bye bye!"]
+3            | null
 ;
 
 equalityWithConstant
@@ -782,9 +766,9 @@ FROM semantic_text METADATA _id
 ;
 
 _id: keyword | result:bool
-1           | true
-2           | false
-3           | null
+1            | true
+2            | false
+3            | null
 ;
 
 equalityBetweenFields
@@ -797,11 +781,10 @@ FROM semantic_text METADATA _id
 ;
 
 _id: keyword | result:bool
-1           | true
-2           | false
-3           | null
+1            | true
+2            | false
+3            | null
 ;
-
 
 inequalityWithConstant
 required_capability: semantic_text_type
@@ -813,9 +796,9 @@ FROM semantic_text METADATA _id
 ;
 
 _id: keyword | result:bool
-1           | false
-2           | true
-3           | null
+1            | false
+2            | true
+3            | null
 ;
 
 inequalityBetweenFields
@@ -828,9 +811,9 @@ FROM semantic_text METADATA _id
 ;
 
 _id: keyword | result:bool
-1           | false
-2           | true
-3           | null
+1            | false
+2            | true
+3            | null
 ;
 
 lessThanWithConstant
@@ -843,9 +826,9 @@ FROM semantic_text METADATA _id
 ;
 
 _id: keyword | result:bool
-1           | false
-2           | true
-3           | true
+1            | false
+2            | true
+3            | true
 ;
 
 lessThanBetweenFields
@@ -858,9 +841,9 @@ FROM semantic_text METADATA _id
 ;
 
 _id: keyword | result:bool
-1           | false
-2           | false
-3           | null
+1            | false
+2            | false
+3            | null
 ;
 
 
@@ -875,9 +858,9 @@ FROM semantic_text METADATA _id
 ;
 
 _id: keyword | result:bool
-1           | false
-2           | true
-3           | true
+1            | false
+2            | true
+3            | true
 ;
 
 
@@ -891,9 +874,9 @@ FROM semantic_text METADATA _id
 ;
 
 _id: keyword | result:bool
-1           | false
-2           | true
-3           | null
+1            | false
+2            | true
+3            | null
 ;
 
 
@@ -907,9 +890,9 @@ FROM semantic_text METADATA _id
 ;
 
 _id: keyword | result:bool
-1           | true
-2           | false
-3           | false
+1            | true
+2            | false
+3            | false
 ;
 
 
@@ -923,9 +906,9 @@ FROM semantic_text METADATA _id
 ;
 
 _id: keyword | result:bool
-1           | true
-2           | true
-3           | null
+1            | true
+2            | true
+3            | null
 ;
 
 greaterThanOrEqualToWithConstant
@@ -938,9 +921,9 @@ FROM semantic_text METADATA _id
 ;
 
 _id: keyword | result:bool
-1           | true
-2           | false
-3           | true
+1            | true
+2            | false
+3            | true
 ;
 
 greaterThanOrEqualToBetweenFields
@@ -953,9 +936,9 @@ FROM semantic_text METADATA _id
 ;
 
 _id: keyword | result:bool
-1           | true
-2           | false
-3           | null
+1            | true
+2            | false
+3            | null
 ;
 
 isNull
@@ -968,9 +951,9 @@ FROM semantic_text METADATA _id
 ;
 
 _id: keyword | result:bool
-1           | false
-2           | false
-3           | true
+1            | false
+2            | false
+3            | true
 ;
 
 isNotNull
@@ -983,9 +966,9 @@ FROM semantic_text METADATA _id
 ;
 
 _id: keyword | result:bool
-1           | true
-2           | true
-3           | false
+1            | true
+2            | true
+3            | false
 ;
 
 cast
@@ -1013,9 +996,9 @@ FROM semantic_text METADATA _id
 ;
 
 _id: keyword | result:bool
-1           | true
-2           | false
-3           | null
+1            | true
+2            | false
+3            | null
 ;
 
 like
@@ -1028,9 +1011,9 @@ FROM semantic_text METADATA _id
 ;
 
 _id: keyword | result:bool
-1           | false
-2           | true
-3           | false
+1            | false
+2            | true
+3            | false
 ;
 
 rlike
@@ -1043,7 +1026,7 @@ FROM semantic_text METADATA _id
 ;
 
 _id: keyword | result:bool
-1           | true
-2           | true
-3           | null
+1            | true
+2            | true
+3            | null
 ;

@@ -12,7 +12,6 @@ import java.time.LocalDateTime;
 
 import org.elasticsearch.gradle.Architecture
 import org.elasticsearch.gradle.OS
-import org.elasticsearch.gradle.internal.info.BuildParams
 
 import java.lang.management.ManagementFactory
 import java.time.LocalDateTime
@@ -34,12 +33,15 @@ develocity {
       publishing.onlyIf { false }
     }
 
+    def fips = buildParams.inFipsJvm
+    def gitRevision = buildParams.gitRevision
+
     background {
       tag OS.current().name()
       tag Architecture.current().name()
 
       // Tag if this build is run in FIPS mode
-      if (BuildParams.inFipsJvm) {
+      if (fips) {
         tag 'FIPS'
       }
 
@@ -92,8 +94,8 @@ develocity {
           link 'Source', "${prBaseUrl}/tree/${System.getenv('BUILDKITE_COMMIT')}"
           link 'Pull Request', "https://github.com/${repository}/pull/${prId}"
         } else {
-          value 'Git Commit ID', BuildParams.gitRevision
-          link 'Source', "https://github.com/${repository}/tree/${BuildParams.gitRevision}"
+          value 'Git Commit ID', gitRevision
+          link 'Source', "https://github.com/${repository}/tree/${gitRevision}"
         }
 
         buildFinished { result ->

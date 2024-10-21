@@ -12,7 +12,7 @@ testClusters.configureEach {
   setting 'xpack.license.self_generated.type', 'trial'
 }
 
-if (BuildParams.inFipsJvm){
+if (buildParams.inFipsJvm){
   // Test clusters run with security disabled
   tasks.named("javaRestTest").configure{enabled = false }
 }

@@ -320,7 +320,7 @@ public class AllocateUnassignedDecision extends AbstractAllocationDecision {
                 );
             }
             return builder;
-        }).execute(nodeDecisionsToXContentChunked(nodeDecisions));
+        }).append(nodeDecisionsToXContentChunked(nodeDecisions));
     }
 
     @Override

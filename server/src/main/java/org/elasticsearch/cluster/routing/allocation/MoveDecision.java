@@ -289,7 +289,7 @@ public final class MoveDecision extends AbstractAllocationDecision {
                 builder.field("move_explanation", getExplanation());
             }
             return builder;
-        }).execute(nodeDecisionsToXContentChunked(nodeDecisions));
+        }).append(nodeDecisionsToXContentChunked(nodeDecisions));
     }
 
     @Override

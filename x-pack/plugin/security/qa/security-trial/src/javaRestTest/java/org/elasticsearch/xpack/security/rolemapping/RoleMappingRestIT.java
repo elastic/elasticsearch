@@ -8,13 +8,21 @@
 package org.elasticsearch.xpack.security.rolemapping;
 
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.RequestOptions;
+import org.elasticsearch.client.Response;
+import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.ExpressionRoleMapping;
@@ -28,6 +36,8 @@ import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 
 public class RoleMappingRestIT extends ESRestTestCase {
     private static final String settingsJson = """
@@ -107,6 +117,89 @@ public class RoleMappingRestIT extends ESRestTestCase {
         expectMappings(List.of(clusterStateMapping1, clusterStateMapping3), "role-mapping-1", "role-mapping-3");
         expectMappings(List.of(clusterStateMapping1), clusterStateMapping1.getName());
         expectMappings(List.of(clusterStateMapping1), clusterStateMapping1.getName(), "role-mapping-1");
+    }
+
+    public void testPutAndDeleteRoleMappings() throws IOException {
+        {
+            var ex = expectThrows(
+                ResponseException.class,
+                () -> putMapping(expressionRoleMapping("role-mapping-4-read-only-operator-mapping"))
+            );
+            assertThat(
+                ex.getMessage(),
+                containsString(
+                    "Invalid mapping name [role-mapping-4-read-only-operator-mapping]. "
+                        + "[-read-only-operator-mapping] is not an allowed suffix"
+                )
+            );
+        }
+
+        assertOK(
+            putMapping(
+                expressionRoleMapping("role-mapping-1"),
+                "A read only role mapping with the same name ["
+                    + "role-mapping-1"
+                    + "] has been previously defined in a configuration file. "
+                    + "Both role mappings will be used to determine role assignments."
+            )
+        );
+
+        assertOK(
+            deleteMapping(
+                "role-mapping-1",
+                "A read only role mapping with the same name ["
+                    + "role-mapping-1"
+                    + "] has previously been defined in a configuration file. "
+                    + "The read only role mapping will not be deleted and will remain active."
+            )
+        );
+
+        {
+            // 404 without warnings if no native mapping exists
+            var ex = expectThrows(ResponseException.class, () -> deleteMapping("role-mapping-1"));
+            assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(404));
+        }
+    }
+
+    private static Response putMapping(ExpressionRoleMapping roleMapping) throws IOException {
+        return putMapping(roleMapping, null);
+    }
+
+    private static Response putMapping(ExpressionRoleMapping roleMapping, @Nullable String warning) throws IOException {
+        Request request = new Request("PUT", "/_security/role_mapping/" + roleMapping.getName());
+        XContentBuilder xContent = roleMapping.toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS);
+        request.setJsonEntity(BytesReference.bytes(xContent).utf8ToString());
+        if (warning != null) {
+            request.setOptions(
+                RequestOptions.DEFAULT.toBuilder().setWarningsHandler(warnings -> warnings.equals(List.of(warning)) == false).build()
+            );
+        }
+        return client().performRequest(request);
+    }
+
+    private static Response deleteMapping(String name) throws IOException {
+        return deleteMapping(name, null);
+    }
+
+    private static Response deleteMapping(String name, @Nullable String warning) throws IOException {
+        Request request = new Request("DELETE", "/_security/role_mapping/" + name);
+        if (warning != null) {
+            request.setOptions(
+                RequestOptions.DEFAULT.toBuilder().setWarningsHandler(warnings -> warnings.equals(List.of(warning)) == false).build()
+            );
+        }
+        return client().performRequest(request);
+    }
+
+    private static ExpressionRoleMapping expressionRoleMapping(String name) {
+        return new ExpressionRoleMapping(
+            name,
+            new FieldExpression("username", List.of(new FieldExpression.FieldValue(randomAlphaOfLength(10)))),
+            List.of(randomAlphaOfLength(5)),
+            null,
+            Map.of(),
+            true
+        );
     }
 
     @SuppressWarnings("unchecked")

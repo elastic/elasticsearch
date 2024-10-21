@@ -8,13 +8,20 @@
 package org.elasticsearch.xpack.kql.parser;
 
 import org.antlr.v4.runtime.ParserRuleContext;
+import org.antlr.v4.runtime.tree.ParseTree;
 import org.antlr.v4.runtime.tree.ParseTreeVisitor;
 import org.antlr.v4.runtime.tree.TerminalNode;
 
+import java.util.ArrayList;
 import java.util.List;
-import java.util.stream.Collectors;
 
 public final class ParserUtils {
+
+    private static final List<Integer> TEXT_TOKEMS_TYPE = List.of(
+        KqlBaseParser.UNQUOTED_LITERAL,
+        KqlBaseParser.QUOTED_STRING,
+        KqlBaseParser.WILDCARD
+    );
 
     private static final String UNQUOTED_LITERAL_TERM_DELIMITER = " ";
     private static final char ESCAPE_CHAR = '\\';
@@ -43,20 +50,34 @@ public final class ParserUtils {
         );
     }
 
-    public static String extractFieldName(KqlBaseParser.FieldNameContext ctx) {
-        if (ctx.value.getType() == KqlBaseParser.QUOTED_STRING) {
-            return unescapeQuotedString(ctx, ctx.QUOTED_STRING().getText());
-        } else if (ctx.value.getType() == KqlBaseParser.UNQUOTED_LITERAL) {
-            return extractUnquotedLiteral(ctx, ctx.UNQUOTED_LITERAL());
-        }
-
-        return ctx.getText();
+    public static String extractText(ParserRuleContext ctx) {
+        return String.join(UNQUOTED_LITERAL_TERM_DELIMITER, extractTextTokems(ctx));
     }
 
-    private static String extractUnquotedLiteral(KqlBaseParser.FieldNameContext ctx, List<TerminalNode> unquotedLiterals) {
-        return unquotedLiterals.stream()
-            .map(token -> unescapeUnquotedLiteral(ctx, token))
-            .collect(Collectors.joining(UNQUOTED_LITERAL_TERM_DELIMITER));
+    public static List<String> extractTextTokems(ParserRuleContext ctx) {
+        assert ctx.children != null;
+        List<String> textTokens = new ArrayList<>(ctx.children.size());
+
+        for (ParseTree currentNode : ctx.children) {
+            if (currentNode instanceof TerminalNode terminalNode && TEXT_TOKEMS_TYPE.contains(terminalNode.getSymbol().getType())) {
+                assert TEXT_TOKEMS_TYPE.contains(terminalNode.getSymbol().getType());
+                textTokens.add(extractText(ctx, terminalNode));
+            } else {
+                throw new KqlParsingException("Unable to extract text from ctx", ctx.start.getLine(), ctx.start.getCharPositionInLine());
+            }
+        }
+
+        return textTokens;
+    }
+
+    public static String extractText(ParserRuleContext ctx, TerminalNode node) {
+        if (node.getSymbol().getType() == KqlBaseParser.QUOTED_STRING) {
+            return unescapeQuotedString(ctx, node.getText());
+        } else if (node.getSymbol().getType() == KqlBaseParser.UNQUOTED_LITERAL) {
+            return unescapeUnquotedLiteral(ctx, node.getText());
+        }
+
+        return node.getText();
     }
 
     private static String unescapeQuotedString(ParserRuleContext ctx, String inputText) {
@@ -88,9 +109,7 @@ public final class ParserUtils {
         return sb.toString();
     }
 
-    private static String unescapeUnquotedLiteral(ParserRuleContext ctx, TerminalNode unquotedLiteralToken) {
-        String inputText = unquotedLiteralToken.getText();
-
+    private static String unescapeUnquotedLiteral(ParserRuleContext ctx, String inputText) {
         if (inputText == null || inputText.isEmpty()) {
             return inputText;
         }

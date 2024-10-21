@@ -30,12 +30,17 @@ public class KqlParser {
             log.debug("Parsing KQL query: {}", kqlQuery);
         }
 
-        return invokeParser(kqlQuery, searchExecutionContext, KqlBaseParser::topLevelQuery, KqlAstBuilder::toQueryBuilder);
+        return invokeParser(
+            kqlQuery,
+            new KqlParserExecutionContext(searchExecutionContext),
+            KqlBaseParser::topLevelQuery,
+            KqlAstBuilder::toQueryBuilder
+        );
     }
 
     private <T> T invokeParser(
         String kqlQuery,
-        SearchExecutionContext searchExecutionContext,
+        KqlParserExecutionContext kqlParserExecutionContext,
         Function<KqlBaseParser, ParserRuleContext> parseFunction,
         BiFunction<KqlAstBuilder, ParserRuleContext, T> visitor
     ) {
@@ -58,7 +63,7 @@ public class KqlParser {
             log.trace("Parse tree: {}", tree.toStringTree());
         }
 
-        return visitor.apply(new KqlAstBuilder(searchExecutionContext), tree);
+        return visitor.apply(new KqlAstBuilder(kqlParserExecutionContext), tree);
     }
 
     private static final BaseErrorListener ERROR_LISTENER = new BaseErrorListener() {

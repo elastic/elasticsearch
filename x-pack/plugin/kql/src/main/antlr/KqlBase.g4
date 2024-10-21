@@ -26,70 +26,56 @@ topLevelQuery
     ;
 
 query
-    : query (AND | OR) query          #booleanQuery
-    | NOT subQuery=simpleQuery        #notQuery
-    | simpleQuery                     #defaultQuery
+    : <assoc=right> query operator=(AND | OR) query     #booleanQuery
+    | NOT subQuery=simpleQuery                          #notQuery
+    | simpleQuery                                       #defaultQuery
     ;
 
 simpleQuery
     : nestedQuery
-    | expression
     | parenthesizedQuery
-    ;
-
-expression
-    : fieldTermQuery
-    | fieldRangeQuery
+    | matchAllQuery
+    | existsQuery
+    | rangeQuery
+    | termQuery
+    | phraseQuery
     ;
 
 nestedQuery
     : fieldName COLON LEFT_CURLY_BRACKET query RIGHT_CURLY_BRACKET
     ;
 
-parenthesizedQuery:
-   LEFT_PARENTHESIS query RIGHT_PARENTHESIS;
-
-fieldRangeQuery
-    : fieldName operator=OP_COMPARE rangeQueryValue
+matchAllQuery
+    : (WILDCARD COLON)? WILDCARD
     ;
 
-fieldTermQuery
-    : (fieldName COLON)? termQueryValue
+parenthesizedQuery
+    : LEFT_PARENTHESIS query RIGHT_PARENTHESIS
+    ;
+
+rangeQuery
+    : fieldName operator=OP_COMPARE rangeValue=UNQUOTED_LITERAL+
+    | fieldName operator=OP_COMPARE rangeValue=QUOTED_STRING|WILDCARD
+    ;
+
+existsQuery
+    :fieldName COLON WILDCARD
+    ;
+
+termQuery
+    : (fieldName COLON)? terms=(UNQUOTED_LITERAL|WILDCARD)+
+    | (fieldName COLON)? LEFT_PARENTHESIS terms=(UNQUOTED_LITERAL|WILDCARD)+ RIGHT_PARENTHESIS
+    ;
+
+phraseQuery:
+    (fieldName COLON)? value=QUOTED_STRING
     ;
 
 fieldName
-    : wildcardExpression
-    | unquotedLiteralExpression
-    | quotedStringExpression
+    : value=UNQUOTED_LITERAL+
+    | value=QUOTED_STRING
+    | value=WILDCARD
     ;
-
-rangeQueryValue
-    : unquotedLiteralExpression
-    | quotedStringExpression
-    ;
-
-termQueryValue
-    : wildcardExpression
-    | quotedStringExpression
-    | termValue=unquotedLiteralExpression
-    | groupingTermExpression;
-
-groupingTermExpression
-    : LEFT_PARENTHESIS unquotedLiteralExpression RIGHT_PARENTHESIS
-    ;
-
-unquotedLiteralExpression
-    : UNQUOTED_LITERAL+
-    ;
-
-quotedStringExpression
-    : QUOTED_STRING
-    ;
-
-wildcardExpression
-    : WILDCARD
-;
-
 
 DEFAULT_SKIP: WHITESPACE -> skip;
 
@@ -105,11 +91,11 @@ RIGHT_PARENTHESIS: ')';
 LEFT_CURLY_BRACKET: '{';
 RIGHT_CURLY_BRACKET: '}';
 
-UNQUOTED_LITERAL: WILDCARD* UNQUOTED_LITERAL_CHAR+ WILDCARD*;
+UNQUOTED_LITERAL: WILDCARD* UNQUOTED_LITERAL_CHAR+ WILDCARD* | WILDCARD_CHAR WILDCARD+;
 
 QUOTED_STRING: '"'QUOTED_CHAR*'"';
 
-WILDCARD: WILDCARD_CHAR+;
+WILDCARD: WILDCARD_CHAR;
 
 fragment WILDCARD_CHAR: '*';
 fragment OP_LESS: '<';
@@ -135,7 +121,7 @@ fragment QUOTED_CHAR
 
 fragment WHITESPACE: [ \t\n\r\u3000];
 fragment ESCAPED_WHITESPACE: '\\r' | '\\t' | '\\n';
-fragment NON_SPECIAL_CHAR: ~[ \\():<>"*{}];
+fragment NON_SPECIAL_CHAR: ~[ \n\r\t\u3000\\():<>"*{}];
 fragment ESCAPED_SPECIAL_CHAR: '\\'[ \\():<>"*{}];
 
 fragment ESCAPED_QUOTE: '\\"';

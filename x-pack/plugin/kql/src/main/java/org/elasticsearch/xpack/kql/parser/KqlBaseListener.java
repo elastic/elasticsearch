@@ -72,16 +72,6 @@ interface KqlBaseListener extends ParseTreeListener {
      */
     void exitSimpleQuery(KqlBaseParser.SimpleQueryContext ctx);
     /**
-     * Enter a parse tree produced by {@link KqlBaseParser#expression}.
-     * @param ctx the parse tree
-     */
-    void enterExpression(KqlBaseParser.ExpressionContext ctx);
-    /**
-     * Exit a parse tree produced by {@link KqlBaseParser#expression}.
-     * @param ctx the parse tree
-     */
-    void exitExpression(KqlBaseParser.ExpressionContext ctx);
-    /**
      * Enter a parse tree produced by {@link KqlBaseParser#nestedQuery}.
      * @param ctx the parse tree
      */
@@ -91,6 +81,16 @@ interface KqlBaseListener extends ParseTreeListener {
      * @param ctx the parse tree
      */
     void exitNestedQuery(KqlBaseParser.NestedQueryContext ctx);
+    /**
+     * Enter a parse tree produced by {@link KqlBaseParser#matchAllQuery}.
+     * @param ctx the parse tree
+     */
+    void enterMatchAllQuery(KqlBaseParser.MatchAllQueryContext ctx);
+    /**
+     * Exit a parse tree produced by {@link KqlBaseParser#matchAllQuery}.
+     * @param ctx the parse tree
+     */
+    void exitMatchAllQuery(KqlBaseParser.MatchAllQueryContext ctx);
     /**
      * Enter a parse tree produced by {@link KqlBaseParser#parenthesizedQuery}.
      * @param ctx the parse tree
@@ -102,25 +102,45 @@ interface KqlBaseListener extends ParseTreeListener {
      */
     void exitParenthesizedQuery(KqlBaseParser.ParenthesizedQueryContext ctx);
     /**
-     * Enter a parse tree produced by {@link KqlBaseParser#fieldRangeQuery}.
+     * Enter a parse tree produced by {@link KqlBaseParser#rangeQuery}.
      * @param ctx the parse tree
      */
-    void enterFieldRangeQuery(KqlBaseParser.FieldRangeQueryContext ctx);
+    void enterRangeQuery(KqlBaseParser.RangeQueryContext ctx);
     /**
-     * Exit a parse tree produced by {@link KqlBaseParser#fieldRangeQuery}.
+     * Exit a parse tree produced by {@link KqlBaseParser#rangeQuery}.
      * @param ctx the parse tree
      */
-    void exitFieldRangeQuery(KqlBaseParser.FieldRangeQueryContext ctx);
+    void exitRangeQuery(KqlBaseParser.RangeQueryContext ctx);
     /**
-     * Enter a parse tree produced by {@link KqlBaseParser#fieldTermQuery}.
+     * Enter a parse tree produced by {@link KqlBaseParser#existsQuery}.
      * @param ctx the parse tree
      */
-    void enterFieldTermQuery(KqlBaseParser.FieldTermQueryContext ctx);
+    void enterExistsQuery(KqlBaseParser.ExistsQueryContext ctx);
     /**
-     * Exit a parse tree produced by {@link KqlBaseParser#fieldTermQuery}.
+     * Exit a parse tree produced by {@link KqlBaseParser#existsQuery}.
      * @param ctx the parse tree
      */
-    void exitFieldTermQuery(KqlBaseParser.FieldTermQueryContext ctx);
+    void exitExistsQuery(KqlBaseParser.ExistsQueryContext ctx);
+    /**
+     * Enter a parse tree produced by {@link KqlBaseParser#termQuery}.
+     * @param ctx the parse tree
+     */
+    void enterTermQuery(KqlBaseParser.TermQueryContext ctx);
+    /**
+     * Exit a parse tree produced by {@link KqlBaseParser#termQuery}.
+     * @param ctx the parse tree
+     */
+    void exitTermQuery(KqlBaseParser.TermQueryContext ctx);
+    /**
+     * Enter a parse tree produced by {@link KqlBaseParser#phraseQuery}.
+     * @param ctx the parse tree
+     */
+    void enterPhraseQuery(KqlBaseParser.PhraseQueryContext ctx);
+    /**
+     * Exit a parse tree produced by {@link KqlBaseParser#phraseQuery}.
+     * @param ctx the parse tree
+     */
+    void exitPhraseQuery(KqlBaseParser.PhraseQueryContext ctx);
     /**
      * Enter a parse tree produced by {@link KqlBaseParser#fieldName}.
      * @param ctx the parse tree
@@ -131,64 +151,4 @@ interface KqlBaseListener extends ParseTreeListener {
      * @param ctx the parse tree
      */
     void exitFieldName(KqlBaseParser.FieldNameContext ctx);
-    /**
-     * Enter a parse tree produced by {@link KqlBaseParser#rangeQueryValue}.
-     * @param ctx the parse tree
-     */
-    void enterRangeQueryValue(KqlBaseParser.RangeQueryValueContext ctx);
-    /**
-     * Exit a parse tree produced by {@link KqlBaseParser#rangeQueryValue}.
-     * @param ctx the parse tree
-     */
-    void exitRangeQueryValue(KqlBaseParser.RangeQueryValueContext ctx);
-    /**
-     * Enter a parse tree produced by {@link KqlBaseParser#termQueryValue}.
-     * @param ctx the parse tree
-     */
-    void enterTermQueryValue(KqlBaseParser.TermQueryValueContext ctx);
-    /**
-     * Exit a parse tree produced by {@link KqlBaseParser#termQueryValue}.
-     * @param ctx the parse tree
-     */
-    void exitTermQueryValue(KqlBaseParser.TermQueryValueContext ctx);
-    /**
-     * Enter a parse tree produced by {@link KqlBaseParser#groupingTermExpression}.
-     * @param ctx the parse tree
-     */
-    void enterGroupingTermExpression(KqlBaseParser.GroupingTermExpressionContext ctx);
-    /**
-     * Exit a parse tree produced by {@link KqlBaseParser#groupingTermExpression}.
-     * @param ctx the parse tree
-     */
-    void exitGroupingTermExpression(KqlBaseParser.GroupingTermExpressionContext ctx);
-    /**
-     * Enter a parse tree produced by {@link KqlBaseParser#unquotedLiteralExpression}.
-     * @param ctx the parse tree
-     */
-    void enterUnquotedLiteralExpression(KqlBaseParser.UnquotedLiteralExpressionContext ctx);
-    /**
-     * Exit a parse tree produced by {@link KqlBaseParser#unquotedLiteralExpression}.
-     * @param ctx the parse tree
-     */
-    void exitUnquotedLiteralExpression(KqlBaseParser.UnquotedLiteralExpressionContext ctx);
-    /**
-     * Enter a parse tree produced by {@link KqlBaseParser#quotedStringExpression}.
-     * @param ctx the parse tree
-     */
-    void enterQuotedStringExpression(KqlBaseParser.QuotedStringExpressionContext ctx);
-    /**
-     * Exit a parse tree produced by {@link KqlBaseParser#quotedStringExpression}.
-     * @param ctx the parse tree
-     */
-    void exitQuotedStringExpression(KqlBaseParser.QuotedStringExpressionContext ctx);
-    /**
-     * Enter a parse tree produced by {@link KqlBaseParser#wildcardExpression}.
-     * @param ctx the parse tree
-     */
-    void enterWildcardExpression(KqlBaseParser.WildcardExpressionContext ctx);
-    /**
-     * Exit a parse tree produced by {@link KqlBaseParser#wildcardExpression}.
-     * @param ctx the parse tree
-     */
-    void exitWildcardExpression(KqlBaseParser.WildcardExpressionContext ctx);
 }

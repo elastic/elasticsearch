@@ -52,17 +52,17 @@ interface KqlBaseVisitor<T> extends ParseTreeVisitor<T> {
      */
     T visitSimpleQuery(KqlBaseParser.SimpleQueryContext ctx);
     /**
-     * Visit a parse tree produced by {@link KqlBaseParser#expression}.
-     * @param ctx the parse tree
-     * @return the visitor result
-     */
-    T visitExpression(KqlBaseParser.ExpressionContext ctx);
-    /**
      * Visit a parse tree produced by {@link KqlBaseParser#nestedQuery}.
      * @param ctx the parse tree
      * @return the visitor result
      */
     T visitNestedQuery(KqlBaseParser.NestedQueryContext ctx);
+    /**
+     * Visit a parse tree produced by {@link KqlBaseParser#matchAllQuery}.
+     * @param ctx the parse tree
+     * @return the visitor result
+     */
+    T visitMatchAllQuery(KqlBaseParser.MatchAllQueryContext ctx);
     /**
      * Visit a parse tree produced by {@link KqlBaseParser#parenthesizedQuery}.
      * @param ctx the parse tree
@@ -70,57 +70,33 @@ interface KqlBaseVisitor<T> extends ParseTreeVisitor<T> {
      */
     T visitParenthesizedQuery(KqlBaseParser.ParenthesizedQueryContext ctx);
     /**
-     * Visit a parse tree produced by {@link KqlBaseParser#fieldRangeQuery}.
+     * Visit a parse tree produced by {@link KqlBaseParser#rangeQuery}.
      * @param ctx the parse tree
      * @return the visitor result
      */
-    T visitFieldRangeQuery(KqlBaseParser.FieldRangeQueryContext ctx);
+    T visitRangeQuery(KqlBaseParser.RangeQueryContext ctx);
     /**
-     * Visit a parse tree produced by {@link KqlBaseParser#fieldTermQuery}.
+     * Visit a parse tree produced by {@link KqlBaseParser#existsQuery}.
      * @param ctx the parse tree
      * @return the visitor result
      */
-    T visitFieldTermQuery(KqlBaseParser.FieldTermQueryContext ctx);
+    T visitExistsQuery(KqlBaseParser.ExistsQueryContext ctx);
+    /**
+     * Visit a parse tree produced by {@link KqlBaseParser#termQuery}.
+     * @param ctx the parse tree
+     * @return the visitor result
+     */
+    T visitTermQuery(KqlBaseParser.TermQueryContext ctx);
+    /**
+     * Visit a parse tree produced by {@link KqlBaseParser#phraseQuery}.
+     * @param ctx the parse tree
+     * @return the visitor result
+     */
+    T visitPhraseQuery(KqlBaseParser.PhraseQueryContext ctx);
     /**
      * Visit a parse tree produced by {@link KqlBaseParser#fieldName}.
      * @param ctx the parse tree
      * @return the visitor result
      */
     T visitFieldName(KqlBaseParser.FieldNameContext ctx);
-    /**
-     * Visit a parse tree produced by {@link KqlBaseParser#rangeQueryValue}.
-     * @param ctx the parse tree
-     * @return the visitor result
-     */
-    T visitRangeQueryValue(KqlBaseParser.RangeQueryValueContext ctx);
-    /**
-     * Visit a parse tree produced by {@link KqlBaseParser#termQueryValue}.
-     * @param ctx the parse tree
-     * @return the visitor result
-     */
-    T visitTermQueryValue(KqlBaseParser.TermQueryValueContext ctx);
-    /**
-     * Visit a parse tree produced by {@link KqlBaseParser#groupingTermExpression}.
-     * @param ctx the parse tree
-     * @return the visitor result
-     */
-    T visitGroupingTermExpression(KqlBaseParser.GroupingTermExpressionContext ctx);
-    /**
-     * Visit a parse tree produced by {@link KqlBaseParser#unquotedLiteralExpression}.
-     * @param ctx the parse tree
-     * @return the visitor result
-     */
-    T visitUnquotedLiteralExpression(KqlBaseParser.UnquotedLiteralExpressionContext ctx);
-    /**
-     * Visit a parse tree produced by {@link KqlBaseParser#quotedStringExpression}.
-     * @param ctx the parse tree
-     * @return the visitor result
-     */
-    T visitQuotedStringExpression(KqlBaseParser.QuotedStringExpressionContext ctx);
-    /**
-     * Visit a parse tree produced by {@link KqlBaseParser#wildcardExpression}.
-     * @param ctx the parse tree
-     * @return the visitor result
-     */
-    T visitWildcardExpression(KqlBaseParser.WildcardExpressionContext ctx);
 }

@@ -85,18 +85,6 @@ class KqlBaseBaseListener implements KqlBaseListener {
      *
      * <p>The default implementation does nothing.</p>
      */
-    @Override public void enterExpression(KqlBaseParser.ExpressionContext ctx) { }
-    /**
-     * {@inheritDoc}
-     *
-     * <p>The default implementation does nothing.</p>
-     */
-    @Override public void exitExpression(KqlBaseParser.ExpressionContext ctx) { }
-    /**
-     * {@inheritDoc}
-     *
-     * <p>The default implementation does nothing.</p>
-     */
     @Override public void enterNestedQuery(KqlBaseParser.NestedQueryContext ctx) { }
     /**
      * {@inheritDoc}
@@ -104,6 +92,18 @@ class KqlBaseBaseListener implements KqlBaseListener {
      * <p>The default implementation does nothing.</p>
      */
     @Override public void exitNestedQuery(KqlBaseParser.NestedQueryContext ctx) { }
+    /**
+     * {@inheritDoc}
+     *
+     * <p>The default implementation does nothing.</p>
+     */
+    @Override public void enterMatchAllQuery(KqlBaseParser.MatchAllQueryContext ctx) { }
+    /**
+     * {@inheritDoc}
+     *
+     * <p>The default implementation does nothing.</p>
+     */
+    @Override public void exitMatchAllQuery(KqlBaseParser.MatchAllQueryContext ctx) { }
     /**
      * {@inheritDoc}
      *
@@ -121,25 +121,49 @@ class KqlBaseBaseListener implements KqlBaseListener {
      *
      * <p>The default implementation does nothing.</p>
      */
-    @Override public void enterFieldRangeQuery(KqlBaseParser.FieldRangeQueryContext ctx) { }
+    @Override public void enterRangeQuery(KqlBaseParser.RangeQueryContext ctx) { }
     /**
      * {@inheritDoc}
      *
      * <p>The default implementation does nothing.</p>
      */
-    @Override public void exitFieldRangeQuery(KqlBaseParser.FieldRangeQueryContext ctx) { }
+    @Override public void exitRangeQuery(KqlBaseParser.RangeQueryContext ctx) { }
     /**
      * {@inheritDoc}
      *
      * <p>The default implementation does nothing.</p>
      */
-    @Override public void enterFieldTermQuery(KqlBaseParser.FieldTermQueryContext ctx) { }
+    @Override public void enterExistsQuery(KqlBaseParser.ExistsQueryContext ctx) { }
     /**
      * {@inheritDoc}
      *
      * <p>The default implementation does nothing.</p>
      */
-    @Override public void exitFieldTermQuery(KqlBaseParser.FieldTermQueryContext ctx) { }
+    @Override public void exitExistsQuery(KqlBaseParser.ExistsQueryContext ctx) { }
+    /**
+     * {@inheritDoc}
+     *
+     * <p>The default implementation does nothing.</p>
+     */
+    @Override public void enterTermQuery(KqlBaseParser.TermQueryContext ctx) { }
+    /**
+     * {@inheritDoc}
+     *
+     * <p>The default implementation does nothing.</p>
+     */
+    @Override public void exitTermQuery(KqlBaseParser.TermQueryContext ctx) { }
+    /**
+     * {@inheritDoc}
+     *
+     * <p>The default implementation does nothing.</p>
+     */
+    @Override public void enterPhraseQuery(KqlBaseParser.PhraseQueryContext ctx) { }
+    /**
+     * {@inheritDoc}
+     *
+     * <p>The default implementation does nothing.</p>
+     */
+    @Override public void exitPhraseQuery(KqlBaseParser.PhraseQueryContext ctx) { }
     /**
      * {@inheritDoc}
      *
@@ -152,78 +176,6 @@ class KqlBaseBaseListener implements KqlBaseListener {
      * <p>The default implementation does nothing.</p>
      */
     @Override public void exitFieldName(KqlBaseParser.FieldNameContext ctx) { }
-    /**
-     * {@inheritDoc}
-     *
-     * <p>The default implementation does nothing.</p>
-     */
-    @Override public void enterRangeQueryValue(KqlBaseParser.RangeQueryValueContext ctx) { }
-    /**
-     * {@inheritDoc}
-     *
-     * <p>The default implementation does nothing.</p>
-     */
-    @Override public void exitRangeQueryValue(KqlBaseParser.RangeQueryValueContext ctx) { }
-    /**
-     * {@inheritDoc}
-     *
-     * <p>The default implementation does nothing.</p>
-     */
-    @Override public void enterTermQueryValue(KqlBaseParser.TermQueryValueContext ctx) { }
-    /**
-     * {@inheritDoc}
-     *
-     * <p>The default implementation does nothing.</p>
-     */
-    @Override public void exitTermQueryValue(KqlBaseParser.TermQueryValueContext ctx) { }
-    /**
-     * {@inheritDoc}
-     *
-     * <p>The default implementation does nothing.</p>
-     */
-    @Override public void enterGroupingTermExpression(KqlBaseParser.GroupingTermExpressionContext ctx) { }
-    /**
-     * {@inheritDoc}
-     *
-     * <p>The default implementation does nothing.</p>
-     */
-    @Override public void exitGroupingTermExpression(KqlBaseParser.GroupingTermExpressionContext ctx) { }
-    /**
-     * {@inheritDoc}
-     *
-     * <p>The default implementation does nothing.</p>
-     */
-    @Override public void enterUnquotedLiteralExpression(KqlBaseParser.UnquotedLiteralExpressionContext ctx) { }
-    /**
-     * {@inheritDoc}
-     *
-     * <p>The default implementation does nothing.</p>
-     */
-    @Override public void exitUnquotedLiteralExpression(KqlBaseParser.UnquotedLiteralExpressionContext ctx) { }
-    /**
-     * {@inheritDoc}
-     *
-     * <p>The default implementation does nothing.</p>
-     */
-    @Override public void enterQuotedStringExpression(KqlBaseParser.QuotedStringExpressionContext ctx) { }
-    /**
-     * {@inheritDoc}
-     *
-     * <p>The default implementation does nothing.</p>
-     */
-    @Override public void exitQuotedStringExpression(KqlBaseParser.QuotedStringExpressionContext ctx) { }
-    /**
-     * {@inheritDoc}
-     *
-     * <p>The default implementation does nothing.</p>
-     */
-    @Override public void enterWildcardExpression(KqlBaseParser.WildcardExpressionContext ctx) { }
-    /**
-     * {@inheritDoc}
-     *
-     * <p>The default implementation does nothing.</p>
-     */
-    @Override public void exitWildcardExpression(KqlBaseParser.WildcardExpressionContext ctx) { }
 
     /**
      * {@inheritDoc}

@@ -7,38 +7,75 @@
 
 package org.elasticsearch.xpack.kql.parser;
 
-import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.test.AbstractBuilderTestCase;
 
-import java.io.BufferedReader;
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.net.URL;
-import java.net.URLConnection;
-import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Objects;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.isA;
 
-public class KqlParserTests extends AbstractBuilderTestCase {
+public class KqlParserTests extends AbstractKqlParserTestCase {
 
     public void testEmptyQueryParsing() {
         KqlParser parser = new KqlParser();
         SearchExecutionContext searchExecutionContext = createSearchExecutionContext();
-        assertThat(parser.parseKqlQuery("", searchExecutionContext), isA(MatchAllQueryBuilder.class));
+
+        {
+            // In Kql, an empty query is a match_all query.
+            assertThat(parser.parseKqlQuery("", searchExecutionContext), isA(MatchAllQueryBuilder.class));
+        }
+
+        for (int runs = 0; runs < 100; runs++) {
+            // Also testing that a query that is composed only of whitespace chars returns a match_all query.
+            String kqlQuery = randomWhitespaces();
+            assertThat(parser.parseKqlQuery(kqlQuery, searchExecutionContext), isA(MatchAllQueryBuilder.class));
+        }
     }
 
-    public void testSupportedQueries() throws Exception {
+    public void testMatchAllQuery() {
         KqlParser parser = new KqlParser();
         SearchExecutionContext searchExecutionContext = createSearchExecutionContext();
 
-        for (String query : readQueries("/supported-queries")) {
+        assertThat(parser.parseKqlQuery("*", searchExecutionContext), isA(MatchAllQueryBuilder.class));
+        assertThat(parser.parseKqlQuery(wrapWithRandomWhitespaces("*"), searchExecutionContext), isA(MatchAllQueryBuilder.class));
+        assertThat(parser.parseKqlQuery("*:*", searchExecutionContext), isA(MatchAllQueryBuilder.class));
+        assertThat(
+            parser.parseKqlQuery(String.join(wrapWithRandomWhitespaces(":"), "*", "*"), searchExecutionContext),
+            isA(MatchAllQueryBuilder.class)
+        );
+    }
+
+    public void testParenthesizedQuery() throws IOException {
+        KqlParser parser = new KqlParser();
+        SearchExecutionContext searchExecutionContext = createSearchExecutionContext();
+
+        for (String baseQuuery : readQueries(SUPPORTED_QUERY_FILE_PATH)) {
+            // For each supported query, wrap it into parentheses and check query remains the same.
+            // Adding random whitespaces as well and test they are ignored.
+            String parenthesizedQuery = wrapWithRandomWhitespaces("(") + baseQuuery + wrapWithRandomWhitespaces(")");
+            assertThat(
+                parser.parseKqlQuery(parenthesizedQuery, searchExecutionContext),
+                equalTo(parser.parseKqlQuery(baseQuuery, searchExecutionContext))
+            );
+        }
+    }
+
+    public void testExistsQuery() {
+        KqlParser parser = new KqlParser();
+        SearchExecutionContext searchExecutionContext = createSearchExecutionContext();
+
+        // System.out.println(parser.parseKqlQuery("foo:*", searchExecutionContext));
+        // System.out.println(parser.parseKqlQuery("mapped_string:*", searchExecutionContext));
+        // System.out.println(parser.parseKqlQuery("mapped_*:*", searchExecutionContext));
+        // System.out.println(parser.parseKqlQuery("\"mapped_string\":*", searchExecutionContext));
+    }
+
+    public void testSupportedQueries() throws IOException {
+        KqlParser parser = new KqlParser();
+        SearchExecutionContext searchExecutionContext = createSearchExecutionContext();
+
+        for (String query : readQueries(SUPPORTED_QUERY_FILE_PATH)) {
             try {
                 parser.parseKqlQuery(query, searchExecutionContext);
             } catch (Throwable e) {
@@ -47,11 +84,11 @@ public class KqlParserTests extends AbstractBuilderTestCase {
         }
     }
 
-    public void testUnsupportedQueries() throws Exception {
+    public void testUnsupportedQueries() throws IOException {
         KqlParser parser = new KqlParser();
         SearchExecutionContext searchExecutionContext = createSearchExecutionContext();
 
-        for (String query : readQueries("/unsupported-queries")) {
+        for (String query : readQueries(UNSUPPORTED_QUERY_FILE_PATH)) {
             assertThrows(
                 "Was expecting a KqlParsingException exception to be thrown while parsing query [" + query + "]",
                 KqlParsingException.class,
@@ -81,35 +118,7 @@ public class KqlParserTests extends AbstractBuilderTestCase {
             );
             assertThat(e.getLineNumber(), equalTo(1));
             assertThat(e.getColumnNumber(), equalTo(15));
-            assertThat(e.getMessage(), equalTo("line 1:15: missing ')' at 'AND'"));
+            assertThat(e.getMessage(), equalTo("line 1:15: extraneous input 'AND' expecting {')', UNQUOTED_LITERAL, WILDCARD}"));
         }
-    }
-
-    private static List<String> readQueries(String source) throws Exception {
-        URL url = KqlParserTests.class.getResource(source);
-        Objects.requireNonNull(source, "Cannot find resource " + url);
-
-        List<String> queries = new ArrayList<>();
-
-        try (BufferedReader reader = new BufferedReader(new InputStreamReader(readFromJarUrl(url), StandardCharsets.UTF_8))) {
-            String line;
-
-            while ((line = reader.readLine()) != null) {
-                String query = line.trim();
-                // ignore comments
-                if (query.isEmpty() == false && query.startsWith("//") == false) {
-                    queries.add(line.trim());
-                }
-            }
-        }
-        return queries;
-    }
-
-    @SuppressForbidden(reason = "test reads from jar")
-    private static InputStream readFromJarUrl(URL source) throws IOException {
-        URLConnection con = source.openConnection();
-        // do not to cache files (to avoid keeping file handles around)
-        con.setUseCaches(false);
-        return con.getInputStream();
     }
 }

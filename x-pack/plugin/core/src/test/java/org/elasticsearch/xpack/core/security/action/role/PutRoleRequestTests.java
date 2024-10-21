@@ -76,6 +76,8 @@ public class PutRoleRequestTests extends ESTestCase {
             null,
             null,
             null,
+            randomBoolean(),
+            randomBoolean(),
             randomBoolean()
         );
 
@@ -180,6 +182,8 @@ public class PutRoleRequestTests extends ESTestCase {
             null,
             null,
             null,
+            randomBoolean(),
+            randomBoolean(),
             randomBoolean()
         );
         assertSuccessfulValidation(request);

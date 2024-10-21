@@ -110,10 +110,7 @@ public class LogsdbWithBasicRestIT extends ESRestTestCase {
 
     public void testLogsdbOverrideNullSyntheticSourceSetting() throws IOException {
         final String index = "test-index";
-        createIndex(
-            index,
-            Settings.builder().put("index.mode", "logsdb").putNull("index.mapping.source.mode").build()
-        );
+        createIndex(index, Settings.builder().put("index.mode", "logsdb").putNull("index.mapping.source.mode").build());
         var settings = (Map<?, ?>) ((Map<?, ?>) getIndexSettings(index).get(index)).get("settings");
         assertEquals("logsdb", settings.get("index.mode"));
         assertEquals(SourceFieldMapper.Mode.STORED.toString(), settings.get("index.mapping.source.mode"));

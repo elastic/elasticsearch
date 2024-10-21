@@ -31,6 +31,7 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettingProvider;
 import org.elasticsearch.index.IndexSettingProviders;
@@ -328,7 +329,14 @@ public class TransportSimulateIndexTemplateAction extends TransportMasterNodeRea
             }
         );
 
-        Settings settings = Settings.builder().put(additionalSettings.build()).put(templateSettings).build();
+        Settings.Builder settingsBuilder = Settings.builder().put(additionalSettings.build()).put(templateSettings);
+        final Settings indexModeSettings = IndexMode.getIndexMode(settingsBuilder).defaultIndexSettings();
+        for (String k : indexModeSettings.keySet()) {
+            if (settingsBuilder.get(k) == null) {
+                settingsBuilder.put(k, indexModeSettings.get(k));
+            }
+        }
+        Settings settings = settingsBuilder.build();
         DataStreamLifecycle lifecycle = resolveLifecycle(simulatedState.metadata(), matchingTemplate);
         if (template.getDataStreamTemplate() != null && lifecycle == null && isDslOnlyMode) {
             lifecycle = DataStreamLifecycle.DEFAULT;

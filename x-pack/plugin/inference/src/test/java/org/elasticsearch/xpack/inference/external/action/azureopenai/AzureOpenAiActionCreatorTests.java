@@ -47,7 +47,7 @@ import static org.elasticsearch.xpack.inference.external.http.retry.RetrySetting
 import static org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests.createSender;
 import static org.elasticsearch.xpack.inference.results.TextEmbeddingResultsTests.buildExpectationFloat;
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
-import static org.elasticsearch.xpack.inference.services.azureopenai.completion.AzureOpenAiCompletionModelTests.createCompletionModel;
+import static org.elasticsearch.xpack.inference.services.azureopenai.completion.AzureOpenAiChatCompletionModelTests.createCompletionModel;
 import static org.elasticsearch.xpack.inference.services.azureopenai.embeddings.AzureOpenAiEmbeddingsModelTests.createModel;
 import static org.elasticsearch.xpack.inference.services.azureopenai.embeddings.AzureOpenAiEmbeddingsRequestTaskSettingsTests.createRequestTaskSettingsMap;
 import static org.hamcrest.Matchers.equalTo;
@@ -438,7 +438,7 @@ public class AzureOpenAiActionCreatorTests extends ESTestCase {
         }
     }
 
-    public void testInfer_AzureOpenAiCompletion_WithOverriddenUser() throws IOException {
+    public void testInfer_AzureOpenAiChatCompletion_WithOverriddenUser() throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
         try (var sender = createSender(senderFactory)) {
@@ -496,7 +496,7 @@ public class AzureOpenAiActionCreatorTests extends ESTestCase {
         }
     }
 
-    public void testInfer_AzureOpenAiCompletionModel_WithoutUser() throws IOException {
+    public void testInfer_AzureOpenAiChatCompletionModel_WithoutUser() throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
         try (var sender = createSender(senderFactory)) {
@@ -551,7 +551,7 @@ public class AzureOpenAiActionCreatorTests extends ESTestCase {
         }
     }
 
-    public void testInfer_AzureOpenAiCompletionModel_FailsFromInvalidResponseFormat() throws IOException {
+    public void testInfer_AzureOpenAiChatCompletionModel_FailsFromInvalidResponseFormat() throws IOException {
         // timeout as zero for no retries
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager, ZERO_TIMEOUT_SETTINGS);
 

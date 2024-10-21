@@ -11,8 +11,8 @@ import org.apache.http.HttpHeaders;
 import org.apache.http.client.methods.HttpPost;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.inference.external.request.azureopenai.AzureOpenAiCompletionRequest;
-import org.elasticsearch.xpack.inference.services.azureopenai.completion.AzureOpenAiCompletionModelTests;
+import org.elasticsearch.xpack.inference.external.request.azureopenai.AzureOpenAiChatCompletionRequest;
+import org.elasticsearch.xpack.inference.services.azureopenai.completion.AzureOpenAiChatCompletionModelTests;
 
 import java.io.IOException;
 import java.util.List;
@@ -23,7 +23,7 @@ import static org.elasticsearch.xpack.inference.external.request.azureopenai.Azu
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
-public class AzureOpenAiCompletionRequestTests extends ESTestCase {
+public class AzureOpenAiChatCompletionRequestTests extends ESTestCase {
 
     public void testCreateRequest_WithApiKeyDefined() throws IOException {
         var input = "input";
@@ -75,7 +75,7 @@ public class AzureOpenAiCompletionRequestTests extends ESTestCase {
         assertThat(requestMap.get("n"), is(1));
     }
 
-    protected AzureOpenAiCompletionRequest createRequest(
+    protected AzureOpenAiChatCompletionRequest createRequest(
         String resource,
         String deployment,
         String apiVersion,
@@ -84,7 +84,7 @@ public class AzureOpenAiCompletionRequestTests extends ESTestCase {
         String input,
         String user
     ) {
-        var completionModel = AzureOpenAiCompletionModelTests.createCompletionModel(
+        var completionModel = AzureOpenAiChatCompletionModelTests.createCompletionModel(
             resource,
             deployment,
             apiVersion,
@@ -94,7 +94,7 @@ public class AzureOpenAiCompletionRequestTests extends ESTestCase {
             "id"
         );
 
-        return new AzureOpenAiCompletionRequest(List.of(input), completionModel, false);
+        return new AzureOpenAiChatCompletionRequest(List.of(input), completionModel, false);
     }
 
 }

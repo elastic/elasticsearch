@@ -12,17 +12,17 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.inference.external.request.azureopenai.AzureOpenAiCompletionRequestEntity;
+import org.elasticsearch.xpack.inference.external.request.azureopenai.AzureOpenAiChatCompletionRequestEntity;
 
 import java.io.IOException;
 import java.util.List;
 
 import static org.hamcrest.CoreMatchers.is;
 
-public class AzureOpenAiCompletionRequestEntityTests extends ESTestCase {
+public class AzureOpenAiChatCompletionRequestEntityTests extends ESTestCase {
 
     public void testXContent_WritesSingleMessage_DoesNotWriteUserWhenItIsNull() throws IOException {
-        var entity = new AzureOpenAiCompletionRequestEntity(List.of("input"), null, false);
+        var entity = new AzureOpenAiChatCompletionRequestEntity(List.of("input"), null, false);
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         entity.toXContent(builder, null);
@@ -33,7 +33,7 @@ public class AzureOpenAiCompletionRequestEntityTests extends ESTestCase {
     }
 
     public void testXContent_WritesSingleMessage_WriteUserWhenItIsNull() throws IOException {
-        var entity = new AzureOpenAiCompletionRequestEntity(List.of("input"), "user", false);
+        var entity = new AzureOpenAiChatCompletionRequestEntity(List.of("input"), "user", false);
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         entity.toXContent(builder, null);

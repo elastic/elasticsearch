@@ -10,11 +10,11 @@ package org.elasticsearch.xpack.inference.external.action.azureopenai;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.external.action.SenderExecutableAction;
 import org.elasticsearch.xpack.inference.external.action.SingleInputSenderExecutableAction;
-import org.elasticsearch.xpack.inference.external.http.sender.AzureOpenAiCompletionRequestManager;
+import org.elasticsearch.xpack.inference.external.http.sender.AzureOpenAiChatCompletionRequestManager;
 import org.elasticsearch.xpack.inference.external.http.sender.AzureOpenAiEmbeddingsRequestManager;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
-import org.elasticsearch.xpack.inference.services.azureopenai.completion.AzureOpenAiCompletionModel;
+import org.elasticsearch.xpack.inference.services.azureopenai.completion.AzureOpenAiChatCompletionModel;
 import org.elasticsearch.xpack.inference.services.azureopenai.embeddings.AzureOpenAiEmbeddingsModel;
 
 import java.util.Map;
@@ -48,9 +48,9 @@ public class AzureOpenAiActionCreator implements AzureOpenAiActionVisitor {
     }
 
     @Override
-    public ExecutableAction create(AzureOpenAiCompletionModel model, Map<String, Object> taskSettings) {
-        var overriddenModel = AzureOpenAiCompletionModel.of(model, taskSettings);
-        var requestCreator = new AzureOpenAiCompletionRequestManager(overriddenModel, serviceComponents.threadPool());
+    public ExecutableAction create(AzureOpenAiChatCompletionModel model, Map<String, Object> taskSettings) {
+        var overriddenModel = AzureOpenAiChatCompletionModel.of(model, taskSettings);
+        var requestCreator = new AzureOpenAiChatCompletionRequestManager(overriddenModel, serviceComponents.threadPool());
         var errorMessage = constructFailedToSendRequestMessage(overriddenModel.getUri(), COMPLETION_ERROR_PREFIX);
         return new SingleInputSenderExecutableAction(sender, requestCreator, errorMessage, COMPLETION_ERROR_PREFIX);
     }

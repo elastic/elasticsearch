@@ -36,7 +36,7 @@ import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.SenderService;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
-import org.elasticsearch.xpack.inference.services.azureopenai.completion.AzureOpenAiCompletionModel;
+import org.elasticsearch.xpack.inference.services.azureopenai.completion.AzureOpenAiChatCompletionModel;
 import org.elasticsearch.xpack.inference.services.azureopenai.embeddings.AzureOpenAiEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.azureopenai.embeddings.AzureOpenAiEmbeddingsServiceSettings;
 
@@ -147,7 +147,7 @@ public class AzureOpenAiService extends SenderService {
                 );
             }
             case COMPLETION -> {
-                return new AzureOpenAiCompletionModel(
+                return new AzureOpenAiChatCompletionModel(
                     inferenceEntityId,
                     taskType,
                     NAME,

@@ -21,15 +21,15 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.is;
 
-public class AzureOpenAiCompletionTaskSettingsTests extends AbstractWireSerializingTestCase<AzureOpenAiCompletionTaskSettings> {
+public class AzureOpenAiChatCompletionTaskSettingsTests extends AbstractWireSerializingTestCase<AzureOpenAiChatCompletionTaskSettings> {
 
-    public static AzureOpenAiCompletionTaskSettings createRandomWithUser() {
-        return new AzureOpenAiCompletionTaskSettings(randomAlphaOfLength(15));
+    public static AzureOpenAiChatCompletionTaskSettings createRandomWithUser() {
+        return new AzureOpenAiChatCompletionTaskSettings(randomAlphaOfLength(15));
     }
 
-    public static AzureOpenAiCompletionTaskSettings createRandom() {
+    public static AzureOpenAiChatCompletionTaskSettings createRandom() {
         var user = randomBoolean() ? randomAlphaOfLength(15) : null;
-        return new AzureOpenAiCompletionTaskSettings(user);
+        return new AzureOpenAiChatCompletionTaskSettings(user);
     }
 
     public void testIsEmpty() {
@@ -41,7 +41,7 @@ public class AzureOpenAiCompletionTaskSettingsTests extends AbstractWireSerializ
     public void testUpdatedTaskSettings() {
         var initialSettings = createRandom();
         var newSettings = createRandom();
-        AzureOpenAiCompletionTaskSettings updatedSettings = (AzureOpenAiCompletionTaskSettings) initialSettings.updatedTaskSettings(
+        AzureOpenAiChatCompletionTaskSettings updatedSettings = (AzureOpenAiChatCompletionTaskSettings) initialSettings.updatedTaskSettings(
             newSettings.user() == null ? Map.of() : Map.of(AzureOpenAiServiceFields.USER, newSettings.user())
         );
 
@@ -52,8 +52,8 @@ public class AzureOpenAiCompletionTaskSettingsTests extends AbstractWireSerializ
         var user = "user";
 
         assertThat(
-            new AzureOpenAiCompletionTaskSettings(user),
-            is(AzureOpenAiCompletionTaskSettings.fromMap(new HashMap<>(Map.of(AzureOpenAiServiceFields.USER, user))))
+            new AzureOpenAiChatCompletionTaskSettings(user),
+            is(AzureOpenAiChatCompletionTaskSettings.fromMap(new HashMap<>(Map.of(AzureOpenAiServiceFields.USER, user))))
         );
     }
 
@@ -70,16 +70,16 @@ public class AzureOpenAiCompletionTaskSettingsTests extends AbstractWireSerializ
     }
 
     public void testFromMap_MissingUser_DoesNotThrowException() {
-        var taskSettings = AzureOpenAiCompletionTaskSettings.fromMap(new HashMap<>(Map.of()));
+        var taskSettings = AzureOpenAiChatCompletionTaskSettings.fromMap(new HashMap<>(Map.of()));
         assertNull(taskSettings.user());
     }
 
     public void testOverrideWith_KeepsOriginalValuesWithOverridesAreNull() {
-        var taskSettings = AzureOpenAiCompletionTaskSettings.fromMap(new HashMap<>(Map.of(AzureOpenAiServiceFields.USER, "user")));
+        var taskSettings = AzureOpenAiChatCompletionTaskSettings.fromMap(new HashMap<>(Map.of(AzureOpenAiServiceFields.USER, "user")));
 
-        var overriddenTaskSettings = AzureOpenAiCompletionTaskSettings.of(
+        var overriddenTaskSettings = AzureOpenAiChatCompletionTaskSettings.of(
             taskSettings,
-            AzureOpenAiCompletionRequestTaskSettings.EMPTY_SETTINGS
+            AzureOpenAiChatCompletionRequestTaskSettings.EMPTY_SETTINGS
         );
         assertThat(overriddenTaskSettings, is(taskSettings));
     }
@@ -88,28 +88,28 @@ public class AzureOpenAiCompletionTaskSettingsTests extends AbstractWireSerializ
         var user = "user";
         var userOverride = "user override";
 
-        var taskSettings = AzureOpenAiCompletionTaskSettings.fromMap(new HashMap<>(Map.of(AzureOpenAiServiceFields.USER, user)));
+        var taskSettings = AzureOpenAiChatCompletionTaskSettings.fromMap(new HashMap<>(Map.of(AzureOpenAiServiceFields.USER, user)));
 
-        var requestTaskSettings = AzureOpenAiCompletionRequestTaskSettings.fromMap(
+        var requestTaskSettings = AzureOpenAiChatCompletionRequestTaskSettings.fromMap(
             new HashMap<>(Map.of(AzureOpenAiServiceFields.USER, userOverride))
         );
 
-        var overriddenTaskSettings = AzureOpenAiCompletionTaskSettings.of(taskSettings, requestTaskSettings);
-        assertThat(overriddenTaskSettings, is(new AzureOpenAiCompletionTaskSettings(userOverride)));
+        var overriddenTaskSettings = AzureOpenAiChatCompletionTaskSettings.of(taskSettings, requestTaskSettings);
+        assertThat(overriddenTaskSettings, is(new AzureOpenAiChatCompletionTaskSettings(userOverride)));
     }
 
     @Override
-    protected Writeable.Reader<AzureOpenAiCompletionTaskSettings> instanceReader() {
-        return AzureOpenAiCompletionTaskSettings::new;
+    protected Writeable.Reader<AzureOpenAiChatCompletionTaskSettings> instanceReader() {
+        return AzureOpenAiChatCompletionTaskSettings::new;
     }
 
     @Override
-    protected AzureOpenAiCompletionTaskSettings createTestInstance() {
+    protected AzureOpenAiChatCompletionTaskSettings createTestInstance() {
         return createRandomWithUser();
     }
 
     @Override
-    protected AzureOpenAiCompletionTaskSettings mutateInstance(AzureOpenAiCompletionTaskSettings instance) throws IOException {
-        return randomValueOtherThan(instance, AzureOpenAiCompletionTaskSettingsTests::createRandomWithUser);
+    protected AzureOpenAiChatCompletionTaskSettings mutateInstance(AzureOpenAiChatCompletionTaskSettings instance) throws IOException {
+        return randomValueOtherThan(instance, AzureOpenAiChatCompletionTaskSettingsTests::createRandomWithUser);
     }
 }

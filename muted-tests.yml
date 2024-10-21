@@ -361,8 +361,6 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/115129
 - class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
   issue: https://github.com/elastic/elasticsearch/issues/115135
-- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
-  issue: https://github.com/elastic/elasticsearch/issues/115213
 
 # Examples:
 #

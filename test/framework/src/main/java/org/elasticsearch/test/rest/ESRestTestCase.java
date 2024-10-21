@@ -1149,6 +1149,8 @@ public abstract class ESRestTestCase extends ESTestCase {
             if (preserveSecurityIndices) {
                 indexPatterns.add("-.security-*");
             }
+            // always preserve inference index see https://github.com/elastic/elasticsearch/issues/114748
+            indexPatterns.add("-.inference");
             final Request deleteRequest = new Request("DELETE", Strings.collectionToCommaDelimitedString(indexPatterns));
             deleteRequest.addParameter("expand_wildcards", "open,closed" + (includeHidden ? ",hidden" : ""));
             final Response response = adminClient().performRequest(deleteRequest);

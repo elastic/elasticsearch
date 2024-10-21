@@ -1122,7 +1122,7 @@ public abstract class ESRestTestCase extends ESTestCase {
                 indexPatterns.add("-.security-*");
             }
             // always preserve inference index
-            indexPatterns.add("-.inference");
+            indexPatterns.add("-.inference*");
             final Request deleteRequest = new Request("DELETE", Strings.collectionToCommaDelimitedString(indexPatterns));
             deleteRequest.addParameter("expand_wildcards", "open,closed,hidden");
             final Response response = adminClient().performRequest(deleteRequest);

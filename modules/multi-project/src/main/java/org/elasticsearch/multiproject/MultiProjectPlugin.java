@@ -20,7 +20,9 @@ import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.features.NodeFeature;
+import org.elasticsearch.multiproject.action.DeleteProjectAction;
 import org.elasticsearch.multiproject.action.PutProjectAction;
+import org.elasticsearch.multiproject.action.RestDeleteProjectAction;
 import org.elasticsearch.multiproject.action.RestPutProjectAction;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -52,12 +54,15 @@ public class MultiProjectPlugin extends Plugin implements ActionPlugin {
         Supplier<DiscoveryNodes> nodesInCluster,
         Predicate<NodeFeature> clusterSupportsFeature
     ) {
-        return List.of(new RestPutProjectAction());
+        return List.of(new RestPutProjectAction(), new RestDeleteProjectAction());
     }
 
     @Override
     public Collection<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
-        return List.of(new ActionHandler<>(PutProjectAction.INSTANCE, PutProjectAction.TransportPutProjectAction.class));
+        return List.of(
+            new ActionHandler<>(PutProjectAction.INSTANCE, PutProjectAction.TransportPutProjectAction.class),
+            new ActionHandler<>(DeleteProjectAction.INSTANCE, DeleteProjectAction.TransportDeleteProjectAction.class)
+        );
     }
 
     @Override

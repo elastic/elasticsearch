@@ -9,7 +9,7 @@
 
 import org.apache.tools.ant.filters.ReplaceTokens
 
-apply plugin: 'elasticsearch.legacy-java-rest-test'
+apply plugin: 'elasticsearch.internal-java-rest-test'
 
 // The integ-test-distribution is published to maven
 apply plugin: 'elasticsearch.publish'
@@ -36,18 +36,19 @@ publishing {
   }
 }
 
-tasks.named("javaRestTest").configure {
-  dependsOn "assemble"
-  /*
-   * There are two unique things going on here:
-   * 1. These tests can be run against an external cluster with
-   *    -Dtests.rest.cluster=whatever and -Dtest.cluster=whatever
-   * 2. *One* of these tests is incompatible with that and should be skipped
-   *    when running against an external cluster.
-   */
-  if (project.providers.systemProperty("tests.rest.cluster").isPresent()) {
-    nonInputProperties.systemProperty 'tests.logfile', testClusters.named('javaRestTest').map(c -> c.singleNode().serverLog)
-  } else {
-    systemProperty 'tests.logfile', '--external--'
-  }
-}
+// TODO @jozala - not sure what to do about this --external--. Do we ever run against external clusters?
+//tasks.named("javaRestTest").configure {
+//  dependsOn "assemble" // TODO @jozala - is this needed so that it uses the right distribution? Am I testing here with the expected distribution?
+//  /*
+//   * There are two unique things going on here:
+//   * 1. These tests can be run against an external cluster with
+//   *    -Dtests.rest.cluster=whatever and -Dtest.cluster=whatever
+//   * 2. *One* of these tests is incompatible with that and should be skipped
+//   *    when running against an external cluster.
+//   */
+//  if (project.providers.systemProperty("tests.rest.cluster").isPresent()) {
+//    nonInputProperties.systemProperty 'tests.logfile', testClusters.named('javaRestTest').map(c -> c.singleNode().serverLog)
+//  } else {
+//    systemProperty 'tests.logfile', '--external--'
+//  }
+//}

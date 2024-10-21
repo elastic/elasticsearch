@@ -18,6 +18,8 @@ import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.cluster.util.Version;
 import org.elasticsearch.test.cluster.util.resource.Resource;
 
+import java.util.Map;
+import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
@@ -26,6 +28,8 @@ interface LocalSpecBuilder<T extends LocalSpecBuilder<?>> {
      * Register a {@link SettingsProvider}.
      */
     T settings(SettingsProvider settingsProvider);
+
+    T settingsModifier(Function<Map<String, String>, Map<String, String>> settingsModifier);
 
     /**
      * Add a new node setting.

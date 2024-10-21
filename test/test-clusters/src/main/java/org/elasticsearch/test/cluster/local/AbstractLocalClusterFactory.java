@@ -391,6 +391,8 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
                 finalSettings.put("path.data", dataDir.toString());
                 finalSettings.put("path.logs", logsDir.toString());
                 finalSettings.putAll(spec.resolveSettings());
+                // TODO @jozala - settings modifier? is this a right solution? Is there a better approach?
+                finalSettings = spec.getSettingsModifier().apply(finalSettings);
 
                 Files.writeString(
                     configFile,

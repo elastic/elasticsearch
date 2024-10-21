@@ -44,7 +44,7 @@ public abstract class AbstractLocalSpecBuilder<T extends LocalSpecBuilder<?>> im
     private final Map<String, String> systemProperties = new HashMap<>();
     private final List<SystemPropertyProvider> systemPropertyProviders = new ArrayList<>();
     private final List<String> jvmArgs = new ArrayList<>();
-    private Function<Map<String, String>, Map<String, String>> settingsModifier = null;
+    private Function<Map<String, String>, Map<String, String>> settingsModifier = Function.identity();
     private DistributionType distributionType;
     private Version version;
     private String keystorePassword;

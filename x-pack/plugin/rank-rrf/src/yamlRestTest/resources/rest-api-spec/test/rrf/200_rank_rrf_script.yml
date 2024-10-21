@@ -1,7 +1,7 @@
 setup:
   - requires:
-      cluster_features: "gte_v8.8.0"
-      reason: 'rank added in 8.8'
+      cluster_features: 'rrf_retriever_composition_supported'
+      reason: 'test requires rrf retriever composition support'
       test_runner_features: "close_to"
 
   - do:
@@ -198,12 +198,12 @@ setup:
               rank_constant: 1
           size: 1
 
-  - match: { hits.total.value: 6 }
+  - match: { hits.total.value: 5 }
 
   - match: { hits.hits.0._id: "5" }
 
-  - close_to: { aggregations.sums.value.asc_total: { value: 33.0, error: 0.001 }}
-  - close_to: { aggregations.sums.value.desc_total: { value: 39.0, error: 0.001 }}
+  - close_to: { aggregations.sums.value.asc_total: { value: 25.0, error: 0.001 }}
+  - close_to: { aggregations.sums.value.desc_total: { value: 35.0, error: 0.001 }}
 
 
 ---
